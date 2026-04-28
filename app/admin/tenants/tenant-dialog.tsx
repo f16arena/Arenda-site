@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Plus, X } from "lucide-react"
 import { toast } from "sonner"
+import { createTenant } from "@/app/actions/tenant-create"
 
 type Space = { id: string; number: string; floorName: string; area: number }
 
@@ -34,7 +35,6 @@ export function TenantDialog({ vacantSpaces }: { vacantSpaces: Space[] }) {
               action={(formData) => {
                 startTransition(async () => {
                   try {
-                    const { createTenant } = await import("@/app/actions/tenant-create")
                     await createTenant(formData)
                     toast.success("Арендатор создан")
                     setOpen(false)

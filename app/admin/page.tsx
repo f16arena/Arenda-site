@@ -31,11 +31,9 @@ export default async function AdminDashboard() {
   })).map((f) => f.id)
 
   // Все запросы фильтруем по floorIds (помещения этого здания)
+  // Используем простой filter без fullFloors чтобы работало даже без миграции 004
   const tenantWhereInBuilding = {
-    OR: [
-      { space: { floorId: { in: floorIds } } },
-      { fullFloors: { some: { id: { in: floorIds } } } },
-    ],
+    space: { floorId: { in: floorIds } },
   }
 
   const [
@@ -116,39 +114,50 @@ export default async function AdminDashboard() {
   // ── Cashflow: 6 прошлых + 6 будущих месяцев ──
   const months: MonthData[] = []
   const now = new Date()
-  for (let i = -5; i <= 6; i++) {
+
+  const pastMonths: { period: string; start: Date; end: Date }[] = []
+  for (let i = -5; i <= 0; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    const isFuture = i > 0
-    if (isFuture) {
-      // Прогноз на основе текущей выручки и среднего расхода
-      months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
-    } else {
-      // Реальные данные за прошлые месяцы
-      const start = new Date(d.getFullYear(), d.getMonth(), 1)
-      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    pastMonths.push({
+      period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      start: new Date(d.getFullYear(), d.getMonth(), 1),
+      end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
+    })
+  }
+
+  // Все запросы параллельно для скорости + общий try/catch
+  let pastData: { income: number; expense: number }[] = pastMonths.map(() => ({ income: 0, expense: 0 }))
+  try {
+    pastData = await Promise.all(pastMonths.map(async (m) => {
       const [paymentsAgg, expensesAgg] = await Promise.all([
         db.payment.aggregate({
           where: {
-            paymentDate: { gte: start, lt: end },
-            tenant: { OR: [
-              { space: { floorId: { in: floorIds } } },
-              { fullFloors: { some: { id: { in: floorIds } } } },
-            ] },
+            paymentDate: { gte: m.start, lt: m.end },
+            tenant: { space: { floorId: { in: floorIds } } },
           },
           _sum: { amount: true },
-        }),
+        }).catch(() => ({ _sum: { amount: 0 } })),
         db.expense.aggregate({
-          where: { date: { gte: start, lt: end }, buildingId },
+          where: { date: { gte: m.start, lt: m.end }, buildingId },
           _sum: { amount: true },
-        }),
+        }).catch(() => ({ _sum: { amount: 0 } })),
       ])
-      months.push({
-        period,
+      return {
         income: paymentsAgg._sum.amount ?? 0,
         expense: expensesAgg._sum.amount ?? 0,
-      })
-    }
+      }
+    }))
+  } catch { /* ignore */ }
+
+  pastMonths.forEach((m, i) => {
+    months.push({ period: m.period, income: pastData[i].income, expense: pastData[i].expense })
+  })
+
+  // Будущие месяцы — прогноз
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
   }
 
   return (

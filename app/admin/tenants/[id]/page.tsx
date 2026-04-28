@@ -25,14 +25,57 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   const tenant = await db.tenant.findUnique({
     where: { id },
-    include: {
-      user: true,
-      space: { include: { floor: true } },
-      charges: { orderBy: { createdAt: "desc" }, take: 20 },
-      payments: { orderBy: { paymentDate: "desc" }, take: 10 },
-      contracts: { orderBy: { createdAt: "desc" }, take: 5 },
-      requests: { orderBy: { createdAt: "desc" }, take: 5 },
-      documents: { orderBy: { createdAt: "desc" } },
+    select: {
+      id: true,
+      userId: true,
+      companyName: true,
+      legalType: true,
+      bin: true,
+      iin: true,
+      bankName: true,
+      iik: true,
+      bik: true,
+      category: true,
+      legalAddress: true,
+      actualAddress: true,
+      directorName: true,
+      directorPosition: true,
+      cleaningFee: true,
+      needsCleaning: true,
+      customRate: true,
+      contractStart: true,
+      contractEnd: true,
+      user: { select: { id: true, name: true, email: true, phone: true } },
+      space: {
+        select: {
+          id: true, number: true, area: true, status: true, description: true,
+          floor: { select: { id: true, name: true, ratePerSqm: true } },
+        },
+      },
+      charges: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, period: true, type: true, amount: true, description: true, isPaid: true, dueDate: true, createdAt: true },
+      },
+      payments: {
+        orderBy: { paymentDate: "desc" },
+        take: 10,
+        select: { id: true, amount: true, method: true, paymentDate: true, note: true },
+      },
+      contracts: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, number: true, status: true, startDate: true, endDate: true, signedAt: true },
+      },
+      requests: {
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, title: true, status: true, priority: true, createdAt: true },
+      },
+      documents: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, type: true, name: true, fileUrl: true, createdAt: true },
+      },
     },
   })
 
@@ -44,7 +87,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   const vacantSpaces = await db.space.findMany({
     where: { status: "VACANT" },
-    include: { floor: true },
+    select: {
+      id: true, number: true, area: true,
+      floor: { select: { id: true, name: true, number: true } },
+    },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
 
@@ -65,7 +111,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const allFloors = await db.floor.findMany({
     select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },
     orderBy: { number: "asc" },
-  })
+  }).catch(() => [] as Array<{ id: string; name: string; totalArea: number | null; ratePerSqm: number; fullFloorTenantId: string | null; fixedMonthlyRent: number | null }>)
 
   const myFullFloors = allFloors
     .filter((f) => f.fullFloorTenantId === tenant.id)

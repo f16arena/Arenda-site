@@ -16,7 +16,10 @@ export default async function TenantsPage() {
 
   const tenants = await db.tenant.findMany({
     where: floorIds.length > 0 ? {
-      space: { floorId: { in: floorIds } },
+      OR: [
+        { space: { floorId: { in: floorIds } } },
+        { spaceId: null }, // тенанты без помещения (свежесозданные) — показываем всем
+      ],
     } : undefined,
     select: {
       id: true,

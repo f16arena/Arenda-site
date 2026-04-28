@@ -18,19 +18,19 @@ export default async function AdminLayout({
   if (!session) redirect("/login")
   if (!ALLOWED_ROLES.includes(session.user.role)) redirect("/cabinet")
 
-  const currentBuildingId = await getCurrentBuildingId()
+  const currentBuildingId = await getCurrentBuildingId().catch(() => null)
   const [building, allBuildings, notifications, allowedSections] = await Promise.all([
     currentBuildingId
       ? db.building.findUnique({
           where: { id: currentBuildingId },
           select: { id: true, name: true, address: true, isActive: true },
-        })
+        }).catch(() => null)
       : Promise.resolve(null),
     db.building.findMany({
       where: { isActive: true },
       select: { id: true, name: true, address: true },
       orderBy: { createdAt: "asc" },
-    }),
+    }).catch(() => [] as Array<{ id: string; name: string; address: string }>),
     // Может упасть если миграция 005 не применена
     db.notification.findMany({
       where: { userId: session.user.id },
