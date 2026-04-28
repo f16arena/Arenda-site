@@ -11,6 +11,7 @@ import {
 import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/utils"
 import { ArrowLeft, Building2, User, CreditCard, FileText, Receipt } from "lucide-react"
 import Link from "next/link"
+import { DeleteTenantButton } from "../delete-tenant-button"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -68,6 +69,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           )}
           <p className="text-xs text-slate-400 mt-0.5">Текущий долг</p>
         </div>
+        <DeleteTenantButton
+          tenantId={tenant.id}
+          companyName={tenant.companyName}
+          redirectAfter
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-6">

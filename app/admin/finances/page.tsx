@@ -4,6 +4,8 @@ import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
 import { Download, Plus } from "lucide-react"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
+import { DeleteAction } from "@/components/ui/delete-action"
+import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
 
 export default async function FinancesPage() {
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
@@ -80,11 +82,18 @@ export default async function FinancesPage() {
                   <p className="text-sm font-medium text-slate-900">{c.tenant.companyName}</p>
                   <p className="text-xs text-slate-400">{CHARGE_TYPES[c.type] ?? c.type}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-slate-900">{formatMoney(c.amount)}</p>
-                  <span className={`text-xs ${c.isPaid ? "text-emerald-600" : "text-red-500"}`}>
-                    {c.isPaid ? "Оплачено" : "Не оплачено"}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-slate-900">{formatMoney(c.amount)}</p>
+                    <span className={`text-xs ${c.isPaid ? "text-emerald-600" : "text-red-500"}`}>
+                      {c.isPaid ? "Оплачено" : "Не оплачено"}
+                    </span>
+                  </div>
+                  <DeleteAction
+                    action={deleteCharge.bind(null, c.id)}
+                    entity="начисление"
+                    successMessage="Начисление удалено"
+                  />
                 </div>
               </div>
             ))}
@@ -108,7 +117,14 @@ export default async function FinancesPage() {
                     {p.paymentDate.toLocaleDateString("ru-RU")} · {p.method}
                   </p>
                 </div>
-                <p className="text-sm font-semibold text-emerald-600">{formatMoney(p.amount)}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-sm font-semibold text-emerald-600">{formatMoney(p.amount)}</p>
+                  <DeleteAction
+                    action={deletePayment.bind(null, p.id)}
+                    entity="платёж"
+                    successMessage="Платёж удалён"
+                  />
+                </div>
               </div>
             ))}
             {payments.length === 0 && (
@@ -134,6 +150,7 @@ export default async function FinancesPage() {
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Описание</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Дата</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Сумма</th>
+              <th className="px-5 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -143,11 +160,18 @@ export default async function FinancesPage() {
                 <td className="px-5 py-3 text-slate-500">{e.description ?? "—"}</td>
                 <td className="px-5 py-3 text-slate-500">{e.date.toLocaleDateString("ru-RU")}</td>
                 <td className="px-5 py-3 text-right font-medium text-orange-600">{formatMoney(e.amount)}</td>
+                <td className="px-5 py-3 text-right">
+                  <DeleteAction
+                    action={deleteExpense.bind(null, e.id)}
+                    entity="расход"
+                    successMessage="Расход удалён"
+                  />
+                </td>
               </tr>
             ))}
             {expenses.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">
+                <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">
                   Расходы не добавлены
                 </td>
               </tr>

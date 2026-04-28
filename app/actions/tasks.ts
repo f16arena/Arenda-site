@@ -44,6 +44,11 @@ export async function updateTaskStatus(taskId: string, status: string) {
   return { success: true }
 }
 
+export async function deleteTask(taskId: string) {
+  await db.task.delete({ where: { id: taskId } })
+  revalidatePath("/admin/tasks")
+}
+
 export async function updateTask(taskId: string, formData: FormData) {
   const title = formData.get("title") as string
   const description = formData.get("description") as string

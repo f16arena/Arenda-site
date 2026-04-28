@@ -5,6 +5,7 @@ import { formatMoney, LEGAL_TYPE_LABELS, STATUS_COLORS, STATUS_LABELS } from "@/
 import { Search } from "lucide-react"
 import Link from "next/link"
 import { TenantDialog } from "./tenant-dialog"
+import { DeleteTenantButton } from "./delete-tenant-button"
 
 export default async function TenantsPage() {
   const tenants = await db.tenant.findMany({
@@ -116,12 +117,15 @@ export default async function TenantsPage() {
                     )}
                   </td>
                   <td className="px-5 py-3.5">
-                    <Link
-                      href={`/admin/tenants/${t.id}`}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Открыть
-                    </Link>
+                    <div className="flex items-center justify-end gap-3">
+                      <Link
+                        href={`/admin/tenants/${t.id}`}
+                        className="text-xs text-blue-600 hover:underline"
+                      >
+                        Открыть
+                      </Link>
+                      <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />
+                    </div>
                   </td>
                 </tr>
               )

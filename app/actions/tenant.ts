@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 
 export async function updateTenant(tenantId: string, formData: FormData) {
   const companyName = formData.get("companyName") as string
@@ -95,6 +96,35 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
   revalidatePath(`/admin/tenants/${tenantId}`)
   revalidatePath("/admin/tenants")
   return { success: true }
+}
+
+export async function deleteTenant(tenantId: string, options?: { redirectAfter?: boolean }) {
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { id: true, userId: true, spaceId: true, companyName: true },
+  })
+  if (!tenant) throw new Error("Арендатор не найден")
+
+  if (tenant.spaceId) {
+    await db.space.update({
+      where: { id: tenant.spaceId },
+      data: { status: "VACANT" },
+    })
+  }
+
+  // Каскад в БД удалит charges, payments, contracts, documents, requests
+  await db.tenant.delete({ where: { id: tenantId } })
+
+  // Деактивируем пользователя (не удаляем — сохраняем историю в комментариях/задачах)
+  await db.user.update({
+    where: { id: tenant.userId },
+    data: { isActive: false },
+  })
+
+  revalidatePath("/admin/tenants")
+  revalidatePath("/admin/spaces")
+
+  if (options?.redirectAfter) redirect("/admin/tenants")
 }
 
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {

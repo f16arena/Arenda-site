@@ -124,6 +124,25 @@ export async function addCharge(formData: FormData) {
   return { success: true }
 }
 
+export async function deleteCharge(chargeId: string) {
+  const charge = await db.charge.findUnique({ where: { id: chargeId }, select: { tenantId: true } })
+  await db.charge.delete({ where: { id: chargeId } })
+  revalidatePath("/admin/finances")
+  if (charge?.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
+}
+
+export async function deletePayment(paymentId: string) {
+  const payment = await db.payment.findUnique({ where: { id: paymentId }, select: { tenantId: true } })
+  await db.payment.delete({ where: { id: paymentId } })
+  revalidatePath("/admin/finances")
+  if (payment?.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
+}
+
+export async function deleteExpense(expenseId: string) {
+  await db.expense.delete({ where: { id: expenseId } })
+  revalidatePath("/admin/finances")
+}
+
 export async function addExpense(formData: FormData) {
   const building = await db.building.findFirst({ where: { isActive: true } })
   if (!building) return { error: "Здание не найдено" }

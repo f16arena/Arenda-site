@@ -71,3 +71,14 @@ export async function createMeter(formData: FormData) {
   revalidatePath("/admin/meters")
   return { success: true }
 }
+
+export async function deleteMeter(meterId: string) {
+  await db.meter.delete({ where: { id: meterId } })
+  revalidatePath("/admin/meters")
+}
+
+export async function deleteMeterReading(readingId: string) {
+  await db.meterReading.delete({ where: { id: readingId } })
+  revalidatePath("/admin/meters")
+  revalidatePath("/cabinet/meters")
+}

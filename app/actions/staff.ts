@@ -88,3 +88,12 @@ export async function reactivateStaff(userId: string) {
   revalidatePath("/admin/staff")
   return { success: true }
 }
+
+export async function deleteStaff(staffId: string, userId: string) {
+  // Удаляем профиль сотрудника, пользователя — деактивируем (не удаляем,
+  // чтобы не сломать ссылки в задачах/комментариях/заявках)
+  await db.staff.delete({ where: { id: staffId } })
+  await db.user.update({ where: { id: userId }, data: { isActive: false } })
+
+  revalidatePath("/admin/staff")
+}

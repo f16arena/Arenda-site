@@ -5,6 +5,8 @@ import { STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST
 import { cn } from "@/lib/utils"
 import { ClipboardList } from "lucide-react"
 import Link from "next/link"
+import { DeleteAction } from "@/components/ui/delete-action"
+import { deleteRequest } from "@/app/actions/requests"
 
 export default async function RequestsPage() {
   const requests = await db.request.findMany({
@@ -47,6 +49,7 @@ export default async function RequestsPage() {
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Приоритет</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Статус</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Дата</th>
+              <th className="px-5 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -75,11 +78,18 @@ export default async function RequestsPage() {
                 <td className="px-5 py-3.5 text-slate-400 text-xs">
                   {new Date(r.createdAt).toLocaleDateString("ru-RU")}
                 </td>
+                <td className="px-5 py-3.5">
+                  <DeleteAction
+                    action={deleteRequest.bind(null, r.id)}
+                    entity="заявку"
+                    successMessage="Заявка удалена"
+                  />
+                </td>
               </tr>
             ))}
             {requests.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-16 text-center">
+                <td colSpan={7} className="px-5 py-16 text-center">
                   <ClipboardList className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                   <p className="text-sm text-slate-400">Нет заявок</p>
                 </td>

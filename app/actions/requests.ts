@@ -67,6 +67,11 @@ export async function addRequestComment(requestId: string, formData: FormData) {
   return { success: true }
 }
 
+export async function deleteRequest(requestId: string) {
+  await db.request.delete({ where: { id: requestId } })
+  revalidatePath("/admin/requests")
+}
+
 export async function createRequestTenant(formData: FormData) {
   const session = await auth()
   if (!session) return { error: "Не авторизован" }

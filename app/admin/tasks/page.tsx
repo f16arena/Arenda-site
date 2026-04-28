@@ -5,7 +5,8 @@ import { formatMoney, STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LA
 import { Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskDialog } from "./task-dialog"
-import { updateTaskStatus } from "@/app/actions/tasks"
+import { updateTaskStatus, deleteTask } from "@/app/actions/tasks"
+import { DeleteAction } from "@/components/ui/delete-action"
 
 export default async function TasksPage() {
   const tasks = await db.task.findMany({
@@ -114,7 +115,7 @@ export default async function TasksPage() {
                   <p className="text-xs text-slate-400">Факт: {formatMoney(task.actualCost)}</p>
                 )}
                 {/* Quick status change */}
-                <div className="flex gap-1">
+                <div className="flex items-center gap-2">
                   {task.status === "NEW" && (
                     <form action={async () => { "use server"; await updateTaskStatus(task.id, "IN_PROGRESS") }}>
                       <button type="submit" className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700 hover:bg-amber-200">
@@ -129,6 +130,11 @@ export default async function TasksPage() {
                       </button>
                     </form>
                   )}
+                  <DeleteAction
+                    action={deleteTask.bind(null, task.id)}
+                    entity="задачу"
+                    successMessage="Задача удалена"
+                  />
                 </div>
               </div>
             </div>

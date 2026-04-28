@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { Gauge } from "lucide-react"
 import { MeterReadingDialog, AddMeterDialog, InlineReadingButton } from "./meter-actions"
+import { DeleteAction } from "@/components/ui/delete-action"
+import { deleteMeter } from "@/app/actions/meters"
 
 const typeLabel: Record<string, string> = {
   ELECTRICITY: "Электричество",
@@ -115,7 +117,15 @@ export default async function MetersPage() {
                     ) : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    {!current && <InlineReadingButton meterId={meter.id} period={currentPeriod} />}
+                    <div className="flex items-center justify-end gap-3">
+                      {!current && <InlineReadingButton meterId={meter.id} period={currentPeriod} />}
+                      <DeleteAction
+                        action={deleteMeter.bind(null, meter.id)}
+                        entity="счётчик"
+                        description="Все показания этого счётчика будут удалены."
+                        successMessage="Счётчик удалён"
+                      />
+                    </div>
                   </td>
                 </tr>
               )
