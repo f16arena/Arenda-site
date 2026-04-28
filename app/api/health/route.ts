@@ -64,19 +64,53 @@ export async function GET() {
       }, { status: 500 })
     }
 
-    // 3. Проверяем наличие пользователей
+    // 3. Проверяем наличие пользователей и новых колонок
     const { rows: users } = await client.query(
       "SELECT COUNT(*)::int as cnt FROM users"
     ).catch(() => ({ rows: [{ cnt: -1 }] }))
+
+    // 4. Проверяем что миграция 004 прошла
+    const { rows: tenantCols } = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'tenants'
+      ORDER BY column_name
+    `)
+    const tenantColumns = tenantCols.map((r: { column_name: string }) => r.column_name)
+    const requiredTenantCols = ["iin", "legal_address", "actual_address", "director_name", "director_position"]
+    const missingTenantCols = requiredTenantCols.filter((c) => !tenantColumns.includes(c))
+
+    const { rows: floorCols } = await client.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'floors'
+    `)
+    const floorColumns = floorCols.map((r: { column_name: string }) => r.column_name)
+    const requiredFloorCols = ["fixed_monthly_rent", "full_floor_tenant_id"]
+    const missingFloorCols = requiredFloorCols.filter((c) => !floorColumns.includes(c))
+
+    const hasTariffs = tables.includes("tariffs")
+    const migration004 = missingTenantCols.length === 0 && missingFloorCols.length === 0 && hasTariffs
+
+    if (!migration004) {
+      return NextResponse.json({
+        ok: false,
+        step: "migration_004",
+        url: maskedUrl,
+        error: "Миграция 004 не применена полностью. Запустите migrations/004_tariffs_and_tenant_fields.sql в Supabase.",
+        has_tariffs_table: hasTariffs,
+        missing_tenant_columns: missingTenantCols,
+        missing_floor_columns: missingFloorCols,
+      }, { status: 500 })
+    }
 
     return NextResponse.json({
       ok: true,
       url: maskedUrl,
       tables_found: tables,
       users_count: users[0]?.cnt ?? 0,
+      migration_004_ok: true,
       message: users[0]?.cnt === 0
-        ? "БД подключена, но пользователи не добавлены. Запустите POST /api/setup?secret=f16setup2024"
-        : "БД подключена и готова к работе",
+        ? "БД подключена, но пользователи не добавлены."
+        : "БД подключена, миграция 004 применена.",
     })
   } catch (e) {
     client.release()
