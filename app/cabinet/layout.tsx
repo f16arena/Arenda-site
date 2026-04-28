@@ -11,6 +11,9 @@ export default async function CabinetLayout({
 }) {
   const session = await auth()
   if (!session) redirect("/login")
+  // Платформенный админ никогда не должен попадать в кабинет арендатора,
+  // даже если у него role=TENANT в БД.
+  if (session.user.isPlatformOwner) redirect("/superadmin")
   if (session.user.role !== "TENANT") redirect("/admin")
 
   const [tenant, notifications] = await Promise.all([

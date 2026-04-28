@@ -5,7 +5,9 @@ import { NotificationBell } from "@/components/layout/notification-bell"
 import { BuildingSwitcher } from "@/components/layout/building-switcher"
 import { CommandPalette } from "@/components/layout/command-palette"
 import { ImpersonateBanner } from "@/components/layout/impersonate-banner"
+import { PlatformViewBanner } from "@/components/layout/platform-view-banner"
 import { SubscriptionBanner } from "@/components/layout/subscription-banner"
+import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getAllowedSections } from "@/lib/acl"
@@ -20,17 +22,48 @@ export default async function AdminLayout({
 }) {
   const session = await auth()
   if (!session) redirect("/login")
-  if (!ALLOWED_ROLES.includes(session.user.role)) redirect("/cabinet")
-
-  const currentBuildingId = await getCurrentBuildingId().catch(() => null)
+  const isPlatformOwner = session.user.isPlatformOwner ?? false
+  // Платформенному админу разрешаем доступ к /admin независимо от role.
+  if (!isPlatformOwner && !ALLOWED_ROLES.includes(session.user.role)) {
+    redirect("/cabinet")
+  }
   const impersonate = await getImpersonateData().catch(() => null)
   const currentOrgId = await getCurrentOrgId().catch(() => null)
+
+  // Платформенный админ без выбранной организации — показываем экран выбора
+  if (isPlatformOwner && !currentOrgId && !impersonate) {
+    const orgs = await db.organization.findMany({
+      orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
+      include: {
+        plan: { select: { name: true } },
+        _count: { select: { buildings: true, users: true } },
+      },
+    }).catch(() => [])
+
+    const mapped = orgs.map((o) => ({
+      id: o.id,
+      name: o.name,
+      slug: o.slug,
+      isActive: o.isActive,
+      isSuspended: o.isSuspended,
+      planExpiresAt: o.planExpiresAt,
+      planName: o.plan?.name ?? null,
+      buildingsCount: o._count.buildings,
+      usersCount: o._count.users,
+      hasOwner: !!o.ownerUserId,
+    }))
+
+    return <AdminSelectOrg orgs={mapped} userName={session.user.name ?? "Платформа"} />
+  }
+
+  const currentBuildingId = await getCurrentBuildingId().catch(() => null)
   const currentOrg = currentOrgId
     ? await db.organization.findUnique({
         where: { id: currentOrgId },
         select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
       }).catch(() => null)
     : null
+  const isPlatformView = isPlatformOwner && !impersonate && !!currentOrg
 
   const now = new Date()
   const isExpired = !!(currentOrg?.planExpiresAt && currentOrg.planExpiresAt < now)
@@ -73,7 +106,8 @@ export default async function AdminLayout({
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         {impersonate && currentOrg && <ImpersonateBanner orgName={currentOrg.name} />}
-        {!impersonate && currentOrg && (
+        {isPlatformView && currentOrg && <PlatformViewBanner orgName={currentOrg.name} />}
+        {!impersonate && !isPlatformView && currentOrg && (
           <SubscriptionBanner
             daysLeft={daysLeft}
             isSuspended={currentOrg.isSuspended ?? false}

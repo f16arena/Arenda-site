@@ -16,7 +16,12 @@ export default auth((req) => {
   if (isLoginPage) {
     if (!isLoggedIn) return NextResponse.next()
     if (isPlatformOwner) {
-      return NextResponse.redirect(new URL("/superadmin", req.url))
+      // Чистим возможные «остатки» прошлой сессии в чужой орг,
+      // чтобы платформенный всегда стартовал с чистого /superadmin.
+      const res = NextResponse.redirect(new URL("/superadmin", req.url))
+      res.cookies.delete("impersonating")
+      res.cookies.delete("superadmin_currentOrgId")
+      return res
     }
     return NextResponse.redirect(
       new URL(role === "TENANT" ? "/cabinet" : "/admin", req.url)
@@ -31,7 +36,13 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/admin", req.url))
   }
 
-  if (isLoggedIn && isAdminRoute && role === "TENANT") {
+  // Платформенный админ всегда роутится в /superadmin и /admin,
+  // независимо от своей "локальной" role в БД.
+  if (isLoggedIn && isCabinetRoute && isPlatformOwner) {
+    return NextResponse.redirect(new URL("/superadmin", req.url))
+  }
+
+  if (isLoggedIn && isAdminRoute && role === "TENANT" && !isPlatformOwner) {
     return NextResponse.redirect(new URL("/cabinet", req.url))
   }
 

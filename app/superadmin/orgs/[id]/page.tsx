@@ -5,7 +5,7 @@ import { requirePlatformOwner } from "@/lib/org"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Building2, Users, Calendar, AlertTriangle } from "lucide-react"
-import { OrgActions, OrgEditForm, ExtendForm, ChangeOwnerForm } from "./client-actions"
+import { OrgActions, OrgEditForm, ExtendForm, ChangeOwnerForm, DangerZone } from "./client-actions"
 import { cn } from "@/lib/utils"
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,8 +28,9 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
       select: { id: true, name: true, email: true, phone: true },
     }) : null,
     db.user.findMany({
-      where: { organizationId: id, role: "OWNER", isActive: true },
-      select: { id: true, name: true, email: true, phone: true },
+      where: { organizationId: id, isActive: true, role: { in: ["OWNER", "ADMIN"] } },
+      select: { id: true, name: true, email: true, phone: true, role: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
     }),
     db.subscription.findMany({
       where: { organizationId: id },
@@ -116,7 +117,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
           <ChangeOwnerForm
             orgId={org.id}
             currentOwnerId={org.ownerUserId}
-            owners={allUsers}
+            owners={allUsers.map((u) => ({ id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role }))}
           />
         </Card>
 
@@ -144,6 +145,16 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
           )}
         </Card>
       </div>
+
+      {/* Опасная зона — деактивация и удаление */}
+      <DangerZone
+        orgId={org.id}
+        orgSlug={org.slug}
+        orgName={org.name}
+        isActive={org.isActive}
+        buildingsCount={org._count.buildings}
+        usersCount={org._count.users}
+      />
     </div>
   )
 }

@@ -2,7 +2,13 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requirePlatformOwner, setImpersonateData, clearImpersonate } from "@/lib/org"
+import { redirect } from "next/navigation"
+import {
+  requirePlatformOwner,
+  setImpersonateData,
+  clearImpersonate,
+  setSuperadminOrgCookie,
+} from "@/lib/org"
 import { audit } from "@/lib/audit"
 import bcrypt from "bcryptjs"
 
@@ -147,9 +153,17 @@ export async function extendSubscription(orgId: string, months: number, paidAmou
 export async function changeOrgOwner(orgId: string, newOwnerId: string) {
   await requirePlatformOwner()
 
-  const user = await db.user.findUnique({ where: { id: newOwnerId }, select: { organizationId: true, role: true } })
+  const user = await db.user.findUnique({
+    where: { id: newOwnerId },
+    select: { organizationId: true, role: true },
+  })
   if (!user || user.organizationId !== orgId) {
     throw new Error("Пользователь не принадлежит этой организации")
+  }
+
+  // Если выбранный юзер не OWNER — повышаем
+  if (user.role !== "OWNER") {
+    await db.user.update({ where: { id: newOwnerId }, data: { role: "OWNER" } })
   }
 
   await db.organization.update({
@@ -157,7 +171,12 @@ export async function changeOrgOwner(orgId: string, newOwnerId: string) {
     data: { ownerUserId: newOwnerId },
   })
 
-  await audit({ action: "UPDATE", entity: "user", entityId: newOwnerId, details: { changed_owner_for_org: orgId } })
+  await audit({
+    action: "UPDATE",
+    entity: "user",
+    entityId: newOwnerId,
+    details: { changed_owner_for_org: orgId, promoted: user.role !== "OWNER" },
+  })
   revalidatePath(`/superadmin/orgs/${orgId}`)
 }
 
@@ -189,6 +208,93 @@ export async function impersonateOrg(orgId: string) {
 export async function stopImpersonating() {
   await clearImpersonate()
   revalidatePath("/admin", "layout")
+}
+
+// Платформенный админ выбирает орг для «просмотра» — без impersonate.
+// Он остаётся самим собой (role=ADMIN, isPlatformOwner=true),
+// но getCurrentOrgId() начинает возвращать выбранную орг.
+// Возвращает void; клиент делает router.push("/admin").
+export async function viewOrgAsPlatformOwner(orgId: string) {
+  await requirePlatformOwner()
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { id: true, isActive: true },
+  })
+  if (!org || !org.isActive) throw new Error("Организация недоступна")
+  await setSuperadminOrgCookie(orgId)
+  revalidatePath("/admin", "layout")
+}
+
+export async function exitOrgAsPlatformOwner() {
+  await requirePlatformOwner()
+  await setSuperadminOrgCookie(null)
+  revalidatePath("/admin", "layout")
+}
+
+export async function deactivateOrganization(orgId: string) {
+  await requirePlatformOwner()
+  await db.organization.update({
+    where: { id: orgId },
+    data: { isActive: false, isSuspended: true },
+  })
+  await audit({
+    action: "UPDATE",
+    entity: "tenant",
+    entityId: orgId,
+    details: { type: "organization", deactivated: true },
+  })
+  revalidatePath("/superadmin/orgs")
+  revalidatePath(`/superadmin/orgs/${orgId}`)
+}
+
+export async function reactivateOrganization(orgId: string) {
+  await requirePlatformOwner()
+  await db.organization.update({
+    where: { id: orgId },
+    data: { isActive: true, isSuspended: false },
+  })
+  await audit({
+    action: "UPDATE",
+    entity: "tenant",
+    entityId: orgId,
+    details: { type: "organization", reactivated: true },
+  })
+  revalidatePath("/superadmin/orgs")
+  revalidatePath(`/superadmin/orgs/${orgId}`)
+}
+
+// Полное удаление организации — необратимо.
+// Для безопасности требует точного совпадения slug.
+export async function deleteOrganization(orgId: string, confirmSlug: string) {
+  await requirePlatformOwner()
+
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { id: true, slug: true, name: true },
+  })
+  if (!org) throw new Error("Организация не найдена")
+  if (org.slug !== confirmSlug.trim()) {
+    throw new Error(`Введите slug «${org.slug}» точно для подтверждения`)
+  }
+
+  // Каскадное удаление: связанные сущности удаляются по onDelete: Cascade
+  // (buildings, subscriptions). Пользователи остаются — отвязываем organizationId.
+  await db.user.updateMany({
+    where: { organizationId: orgId },
+    data: { organizationId: null, isActive: false },
+  })
+  await db.organization.delete({ where: { id: orgId } })
+
+  await audit({
+    action: "DELETE",
+    entity: "tenant",
+    entityId: orgId,
+    details: { type: "organization", name: org.name, slug: org.slug },
+  })
+
+  revalidatePath("/superadmin/orgs")
+  revalidatePath("/superadmin")
+  redirect("/superadmin/orgs")
 }
 
 function generatePassword(): string {
