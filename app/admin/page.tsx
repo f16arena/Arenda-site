@@ -8,6 +8,7 @@ import {
   ClipboardList, CheckSquare, ArrowUpRight,
 } from "lucide-react"
 import Link from "next/link"
+import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
 
 export default async function AdminDashboard() {
   const buildingId = await getCurrentBuildingId()
@@ -112,12 +113,53 @@ export default async function AdminDashboard() {
   }, 0)
   const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
 
+  // ── Cashflow: 6 прошлых + 6 будущих месяцев ──
+  const months: MonthData[] = []
+  const now = new Date()
+  for (let i = -5; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const isFuture = i > 0
+    if (isFuture) {
+      // Прогноз на основе текущей выручки и среднего расхода
+      months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
+    } else {
+      // Реальные данные за прошлые месяцы
+      const start = new Date(d.getFullYear(), d.getMonth(), 1)
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+      const [paymentsAgg, expensesAgg] = await Promise.all([
+        db.payment.aggregate({
+          where: {
+            paymentDate: { gte: start, lt: end },
+            tenant: { OR: [
+              { space: { floorId: { in: floorIds } } },
+              { fullFloors: { some: { id: { in: floorIds } } } },
+            ] },
+          },
+          _sum: { amount: true },
+        }),
+        db.expense.aggregate({
+          where: { date: { gte: start, lt: end }, buildingId },
+          _sum: { amount: true },
+        }),
+      ])
+      months.push({
+        period,
+        income: paymentsAgg._sum.amount ?? 0,
+        expense: expensesAgg._sum.amount ?? 0,
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Дашборд</h1>
         <p className="text-sm text-slate-500 mt-0.5">Обзор состояния здания</p>
       </div>
+
+      {/* Cashflow chart */}
+      <CashflowChart months={months} />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

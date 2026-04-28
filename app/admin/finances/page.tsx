@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { Download, Plus } from "lucide-react"
+import { Download, Plus, FileSpreadsheet } from "lucide-react"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
@@ -43,6 +43,14 @@ export default async function FinancesPage() {
           <p className="text-sm text-slate-500 mt-0.5">{formatPeriod(currentPeriod)}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <a
+            href="/api/export/finances"
+            download
+            className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-700"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel
+          </a>
           <PenaltyButton />
           <GenerateChargesButton />
           <ExpenseDialog />

@@ -20,6 +20,7 @@ function authorize(req: Request): boolean {
 
 const CONTRACT_WARN_DAYS = 20  // за 20 дней до окончания договора
 const PAYMENT_WARN_DAYS = 10   // за 10 дней до даты оплаты (если не оплачено)
+const PENALTY_GRACE_DAYS = 1   // льготный период перед начислением пени
 
 export async function GET(req: Request) {
   if (!authorize(req)) {
@@ -31,6 +32,8 @@ export async function GET(req: Request) {
     contractsChecked: 0,
     contractsWarned: 0,
     paymentsWarned: 0,
+    penaltiesAccrued: 0,
+    penaltiesAmount: 0,
     notificationsCreated: 0,
     telegramSent: 0,
     errors: [] as string[],
@@ -173,6 +176,72 @@ export async function GET(req: Request) {
           }
         }
       }
+    }
+
+    // ── 3. Авто-начисление пеней за просрочку ─────────────────
+    // Для каждого неоплаченного начисления с dueDate < now - GRACE
+    // считаем пеню и создаём начисление PENALTY (если ещё не создано на сегодня)
+    const todayStr = now.toISOString().slice(0, 10)
+    const overdueCharges = await db.charge.findMany({
+      where: {
+        isPaid: false,
+        type: { not: "PENALTY" },
+        dueDate: { lt: new Date(now.getTime() - PENALTY_GRACE_DAYS * 24 * 3600 * 1000) },
+      },
+      select: {
+        id: true,
+        amount: true,
+        dueDate: true,
+        type: true,
+        period: true,
+        tenant: { select: { id: true, companyName: true, penaltyPercent: true, userId: true } },
+      },
+    })
+
+    for (const c of overdueCharges) {
+      if (!c.dueDate) continue
+      const daysOverdue = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000) - PENALTY_GRACE_DAYS
+      if (daysOverdue <= 0) continue
+
+      const penaltyPercent = c.tenant.penaltyPercent ?? 1
+      const penaltyAmount = Math.round((c.amount * penaltyPercent / 100) * daysOverdue)
+      // Ограничение 10% от суммы
+      const cap = Math.round(c.amount * 0.1)
+      const actualPenalty = Math.min(penaltyAmount, cap)
+
+      // Проверим что пеня за сегодня по этому начислению ещё не начислена
+      const existingPenaltyToday = await db.charge.findFirst({
+        where: {
+          tenantId: c.tenant.id,
+          type: "PENALTY",
+          period: todayStr,
+          description: { contains: c.id },
+        },
+      })
+      if (existingPenaltyToday) continue
+
+      // Удалим вчерашнюю пеню (если есть) и создадим актуальную с накопленным итогом
+      await db.charge.deleteMany({
+        where: {
+          tenantId: c.tenant.id,
+          type: "PENALTY",
+          isPaid: false,
+          description: { contains: c.id },
+        },
+      })
+
+      await db.charge.create({
+        data: {
+          tenantId: c.tenant.id,
+          period: todayStr,
+          type: "PENALTY",
+          amount: actualPenalty,
+          description: `Пеня по начислению ${c.id} (${daysOverdue} дн. × ${penaltyPercent}%, не более 10%)`,
+          dueDate: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
+        },
+      })
+      results.penaltiesAccrued++
+      results.penaltiesAmount += actualPenalty
     }
   } catch (e) {
     results.errors.push(e instanceof Error ? e.message : String(e))

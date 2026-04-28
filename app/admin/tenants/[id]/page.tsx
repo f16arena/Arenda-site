@@ -15,6 +15,7 @@ import { DeleteTenantButton } from "../delete-tenant-button"
 import { DocumentsChecklist } from "./documents-checklist"
 import { FullFloorAssign } from "./full-floor-assign"
 import { DocumentsActions } from "./documents-actions"
+import { EmailLog } from "./email-log"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -46,6 +47,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     include: { floor: true },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
+
+  // Email лог (может упасть если миграция 008 не применена)
+  const emailLogs = await db.emailLog.findMany({
+    where: { tenantId: tenant.id },
+    orderBy: { sentAt: "desc" },
+    take: 30,
+    select: {
+      id: true, recipient: true, subject: true, type: true, status: true,
+      externalId: true, error: true, openedAt: true, openCount: true, sentAt: true,
+    },
+  }).catch(() => [] as Array<{
+    id: string; recipient: string; subject: string; type: string; status: string;
+    externalId: string | null; error: string | null; openedAt: Date | null; openCount: number; sentAt: Date
+  }>)
 
   const allFloors = await db.floor.findMany({
     select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },
@@ -395,6 +410,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             tenantId={tenant.id}
             tenantHasEmail={!!tenant.user.email}
           />
+
+          {/* Email log */}
+          <EmailLog items={emailLogs} />
 
           {/* Documents checklist */}
           <DocumentsChecklist
