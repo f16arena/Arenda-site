@@ -67,7 +67,7 @@ function formatNumber(prefix: string, year: number, seq: number): string {
 }
 
 function generatePrefixFromName(name: string): string {
-  // "F16 Arena" → "F16A", "Plaza Center" → "PC", "Test" → "TEST"
+  // "БЦ F16" → "БЦF1", "Plaza Center" → "PC", "Test" → "TEST"
   const parts = name.trim().split(/\s+/)
   if (parts.length === 1) return parts[0].slice(0, 4).toUpperCase()
   return parts.map((p) => p[0]).join("").toUpperCase().slice(0, 4) || "BC"

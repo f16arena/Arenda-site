@@ -22,8 +22,8 @@ export async function POST(request: Request) {
   // ── Здание ──────────────────────────────────────────────────
   const building = await db.building.create({
     data: {
-      name: "F16 Arena",
-      address: "г. Алматы",
+      name: "БЦ F16",
+      address: "г. Усть-Каменогорск, ул. 30-й Гвардейской дивизии 24/1",
       responsible: "Арыстан",
       phone: "+7 (700) 000-00-00",
       email: "f16arena@gmail.com",

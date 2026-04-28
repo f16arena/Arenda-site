@@ -88,7 +88,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Договор аренды</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Шаблон F16 Arena с автозаполнением</p>
+            <p className="text-sm text-slate-500 mt-0.5">Шаблон БЦ F16 с автозаполнением</p>
           </div>
         </div>
         <div className="flex items-center gap-3">

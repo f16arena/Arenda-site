@@ -477,14 +477,14 @@ export function FloorEditor({
               <button
                 onClick={() => {
                   if (layout.elements.length > 0) {
-                    if (!window.confirm("Текущий план будет заменён шаблоном F16 Arena. Продолжить?")) return
+                    if (!window.confirm("Текущий план будет заменён шаблоном БЦ F16. Продолжить?")) return
                   }
                   setLayout(f16Template)
                   setSelectedId(null)
                   toast.success(`Шаблон этажа ${floorNumber} загружен — теперь сохраните`)
                 }}
                 className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
-                title="Импорт готового плана этажа из отсканированных документов F16 Arena"
+                title="Импорт готового плана этажа из отсканированных документов БЦ F16"
               >
                 <Sparkles className="h-4 w-4" />
                 Шаблон F16

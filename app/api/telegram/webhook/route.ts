@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   if (text.startsWith("/start")) {
     await sendTelegram(chatId,
       `👋 Привет, <b>${userName}</b>!\n\n` +
-      `Это бот <b>ArendaPro</b> — система управления арендой F16 Arena.\n\n` +
+      `Это бот <b>ArendaPro</b> — система управления арендой БЦ F16.\n\n` +
       `🆔 Ваш Chat ID: <code>${chatId}</code>\n\n` +
       `<b>Что делать дальше:</b>\n` +
       `1. Скопируйте Chat ID выше\n` +
