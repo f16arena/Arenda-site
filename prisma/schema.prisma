@@ -370,6 +370,47 @@ model EmergencyContact {
   @@map("emergency_contacts")
 }
 
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  userName   String?  @map("user_name")
+  userRole   String?  @map("user_role")
+  action     String   // CREATE | UPDATE | DELETE | LOGIN | LOGOUT
+  entity     String   // tenant | building | charge | payment | space | user | ...
+  entityId   String?  @map("entity_id")
+  details    String?  // JSON с deltaмiBefore/After
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Lead {
+  id            String    @id @default(cuid())
+  buildingId    String    @map("building_id")
+  name          String
+  contact       String    // phone or email
+  contactType   String    @default("PHONE") @map("contact_type")
+  companyName   String?   @map("company_name")
+  legalType     String?   @map("legal_type")
+  desiredArea   Float?    @map("desired_area")
+  budget        Float?
+  spaceId       String?   @map("space_id")
+  source        String    @default("OTHER") // SITE | KRISHA | OLX | WORD_OF_MOUTH | OTHER
+  status        String    @default("NEW")   // NEW | SHOWN | NEGOTIATION | SIGNED | LOST
+  notes         String?
+  bookedUntil   DateTime? @map("booked_until")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([buildingId])
+  @@index([status])
+  @@map("leads")
+}
+
 model EmailLog {
   id         String    @id @default(cuid())
   recipient  String

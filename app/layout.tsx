@@ -8,6 +8,13 @@ const geist = Geist({ variable: "--font-geist", subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "ArendaPro — Управление арендой",
   description: "Платформа для управления коммерческой недвижимостью",
+  manifest: "/manifest.json",
+  themeColor: "#0f172a",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "ArendaPro",
+  },
 }
 
 export default function RootLayout({

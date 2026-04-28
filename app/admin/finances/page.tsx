@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { Download, Plus, FileSpreadsheet } from "lucide-react"
+import { Download, Plus, FileSpreadsheet, Upload } from "lucide-react"
+import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
@@ -55,6 +56,22 @@ export default async function FinancesPage() {
           <p className="text-sm text-slate-500 mt-0.5">{formatPeriod(currentPeriod)}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Link
+            href="/admin/finances/import"
+            className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-sm font-medium text-blue-700"
+          >
+            <Upload className="h-4 w-4" />
+            Импорт банка
+          </Link>
+          <a
+            href="/api/export/1c"
+            download
+            className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 px-4 py-2 text-sm font-medium text-amber-700"
+            title="Экспорт в формате 1C-Enterprise"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            1С
+          </a>
           <a
             href="/api/export/finances"
             download

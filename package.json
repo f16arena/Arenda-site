@@ -14,6 +14,7 @@
     "@types/pg": "^8.20.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "docx": "^9.6.1",
     "docxtemplater": "^3.68.6",

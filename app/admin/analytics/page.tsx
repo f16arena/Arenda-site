@@ -1,260 +1,195 @@
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
+import { getCurrentBuildingId } from "@/lib/current-building"
 import { formatMoney } from "@/lib/utils"
-import { TrendingUp, TrendingDown, Users, Building2, AlertCircle, CheckCircle } from "lucide-react"
-
-function BarChart({ data, maxVal, color }: { data: { label: string; value: number }[]; maxVal: number; color: string }) {
-  return (
-    <div className="flex items-end gap-2 h-32">
-      {data.map((d) => (
-        <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-[9px] text-slate-400 font-medium">{d.value > 0 ? Math.round(d.value / 1000) + "к" : ""}</span>
-          <div className="w-full flex flex-col justify-end" style={{ height: "96px" }}>
-            <div
-              className={`w-full rounded-t ${color} transition-all`}
-              style={{ height: `${maxVal > 0 ? Math.max(2, (d.value / maxVal) * 96) : 2}px` }}
-            />
-          </div>
-          <span className="text-[9px] text-slate-400">{d.label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { TrendingUp, Users, Building2, Award, Activity } from "lucide-react"
+import { OccupancyHeatmap } from "./occupancy-heatmap"
 
 export default async function AnalyticsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
 
+  const buildingId = await getCurrentBuildingId()
+  if (!buildingId) {
+    return <div className="p-12 bg-white rounded-xl border border-slate-200 text-center text-slate-500">Выберите здание</div>
+  }
+
+  const floorIds = (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
+  const tenantWhere = { space: { floorId: { in: floorIds } } }
+
   const now = new Date()
-  const currentPeriod = now.toISOString().slice(0, 7)
+  const thisYear = now.getFullYear()
+  const yearStart = new Date(thisYear, 0, 1)
 
-  const periods = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
-    return d.toISOString().slice(0, 7)
-  })
-
-  const [allCharges, allExpenses, allTenants, allSpaces, allTasks] = await Promise.all([
-    db.charge.findMany({ where: { period: { in: periods } } }),
-    db.expense.findMany({ where: { period: { in: periods } } }),
-    db.tenant.findMany({ include: { space: true, charges: { where: { isPaid: false } } } }),
-    db.space.findMany(),
-    db.task.findMany({ where: { createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 5, 1) } } }),
+  const [
+    spaceStats,
+    activeTenantsCount,
+    contractDurations,
+    paymentsThisYear,
+    expensesThisYear,
+    topPayersAgg,
+    monthlyOccupancy,
+  ] = await Promise.all([
+    db.space.groupBy({
+      by: ["status"],
+      where: { floorId: { in: floorIds } },
+      _count: { _all: true },
+    }).catch(() => []),
+    db.tenant.count({
+      where: { ...tenantWhere, spaceId: { not: null } },
+    }).catch(() => 0),
+    db.tenant.findMany({
+      where: tenantWhere,
+      select: { contractStart: true, contractEnd: true },
+    }).catch(() => []),
+    db.payment.aggregate({
+      where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
+      _sum: { amount: true },
+    }).catch(() => ({ _sum: { amount: 0 } })),
+    db.expense.aggregate({
+      where: { date: { gte: yearStart }, buildingId },
+      _sum: { amount: true },
+    }).catch(() => ({ _sum: { amount: 0 } })),
+    db.payment.groupBy({
+      by: ["tenantId"],
+      where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
+      _sum: { amount: true },
+      orderBy: { _sum: { amount: "desc" } },
+      take: 5,
+    }).catch(() => []),
+    db.tenant.findMany({
+      where: tenantWhere,
+      select: {
+        space: { select: { id: true, number: true, area: true } },
+        contractStart: true,
+        contractEnd: true,
+      },
+    }).catch(() => []),
   ])
 
-  const monthlyRevenue = periods.map((p) => ({
-    label: p.slice(5),
-    value: allCharges.filter((c) => c.period === p && c.isPaid).reduce((s, c) => s + c.amount, 0),
-  }))
+  const totalSpaces = spaceStats.reduce((s, x) => s + x._count._all, 0) || 1
+  const occupied = spaceStats.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
+  const occupancyRate = Math.round((occupied / totalSpaces) * 100)
 
-  const monthlyExpenses = periods.map((p) => ({
-    label: p.slice(5),
-    value: allExpenses.filter((e) => e.period === p).reduce((s, e) => s + e.amount, 0),
-  }))
+  const completedContracts = contractDurations.filter((c) => c.contractStart && c.contractEnd)
+  const avgDurationDays = completedContracts.length > 0
+    ? completedContracts.reduce((s, c) => {
+        const d = (c.contractEnd!.getTime() - c.contractStart!.getTime()) / 86_400_000
+        return s + d
+      }, 0) / completedContracts.length
+    : 0
+  const avgMonths = Math.round(avgDurationDays / 30)
 
-  const curCharges = allCharges.filter((c) => c.period === currentPeriod)
-  const curRevenue = curCharges.filter((c) => c.isPaid).reduce((s, c) => s + c.amount, 0)
-  const curExpenses = allExpenses.filter((e) => e.period === currentPeriod).reduce((s, e) => s + e.amount, 0)
-  const curProfit = curRevenue - curExpenses
+  const totalRevenue = paymentsThisYear._sum.amount ?? 0
+  const totalExpense = expensesThisYear._sum.amount ?? 0
+  const profit = totalRevenue - totalExpense
+  const margin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0
 
-  const prevPeriod = periods[4]
-  const prevRevenue = allCharges.filter((c) => c.period === prevPeriod && c.isPaid).reduce((s, c) => s + c.amount, 0)
-  const revChange = prevRevenue > 0 ? Math.round(((curRevenue - prevRevenue) / prevRevenue) * 100) : 0
+  const topPayerIds = topPayersAgg.map((t) => t.tenantId)
+  const topPayerInfo = await db.tenant.findMany({
+    where: { id: { in: topPayerIds } },
+    select: { id: true, companyName: true },
+  }).catch(() => [])
+  const topPayers = topPayersAgg.map((t) => {
+    const info = topPayerInfo.find((p) => p.id === t.tenantId)
+    return { ...t, companyName: info?.companyName ?? "—" }
+  })
 
-  const totalSpaces = allSpaces.length
-  const occupiedSpaces = allSpaces.filter((s) => s.status === "OCCUPIED").length
-  const occupancy = totalSpaces > 0 ? Math.round((occupiedSpaces / totalSpaces) * 100) : 0
-
-  const totalDebt = allTenants.reduce((s, t) => s + t.charges.reduce((cs, c) => cs + c.amount, 0), 0)
-  const totalCharged = curCharges.reduce((s, c) => s + c.amount, 0)
-  const collectionRate = totalCharged > 0 ? Math.round((curRevenue / totalCharged) * 100) : 0
-
-  const debtors = allTenants
-    .map((t) => ({ name: t.companyName, debt: t.charges.reduce((s, c) => s + c.amount, 0) }))
-    .filter((t) => t.debt > 0)
-    .sort((a, b) => b.debt - a.debt)
-
-  const taskStats = {
-    new: allTasks.filter((t) => t.status === "NEW").length,
-    inProgress: allTasks.filter((t) => t.status === "IN_PROGRESS").length,
-    done: allTasks.filter((t) => t.status === "DONE").length,
-    totalCost: allTasks.filter((t) => t.actualCost).reduce((s, t) => s + (t.actualCost ?? 0), 0),
-  }
-
-  const revenueByType = Object.entries(
-    curCharges.filter((c) => c.isPaid)
-      .reduce((acc, c) => ({ ...acc, [c.type]: (acc[c.type] ?? 0) + c.amount }), {} as Record<string, number>)
-  ).sort((a, b) => b[1] - a[1])
-
-  const CHARGE_TYPE_LABELS: Record<string, string> = {
-    RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода",
-    HEATING: "Отопление", CLEANING: "Уборка", PENALTY: "Пени", OTHER: "Прочее",
-  }
-
-  const maxRevenue = Math.max(...monthlyRevenue.map((d) => d.value), 1)
-  const maxBoth = Math.max(maxRevenue, ...monthlyExpenses.map((d) => d.value), 1)
+  const occupancyData = monthlyOccupancy.map((t) => {
+    if (!t.space || !t.contractStart) return null
+    const start = new Date(Math.max(t.contractStart.getTime(), yearStart.getTime()))
+    const end = t.contractEnd ? new Date(Math.min(t.contractEnd.getTime(), now.getTime())) : now
+    const days = Math.max(0, (end.getTime() - start.getTime()) / 86_400_000)
+    const yearDays = (now.getTime() - yearStart.getTime()) / 86_400_000
+    const percent = Math.min(100, Math.round((days / yearDays) * 100))
+    return {
+      spaceId: t.space.id,
+      spaceNumber: t.space.number,
+      area: t.space.area,
+      percent,
+    }
+  }).filter(Boolean) as { spaceId: string; spaceNumber: string; area: number; percent: number }[]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Аналитика</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
-          {new Date(now.getFullYear(), now.getMonth(), 1).toLocaleString("ru-RU", { month: "long", year: "numeric" })}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: "Выручка (месяц)", value: formatMoney(curRevenue), sub: revChange !== 0 ? `${revChange > 0 ? "+" : ""}${revChange}% к прошлому` : "нет данных", Icon: TrendingUp, color: "text-emerald-600", iconBg: "bg-emerald-50" },
-          { label: "Расходы (месяц)", value: formatMoney(curExpenses), sub: "операционные", Icon: TrendingDown, color: "text-orange-600", iconBg: "bg-orange-50" },
-          { label: "Прибыль (месяц)", value: formatMoney(curProfit), sub: curProfit >= 0 ? "положительная" : "убыток", Icon: curProfit >= 0 ? TrendingUp : TrendingDown, color: curProfit >= 0 ? "text-blue-600" : "text-red-600", iconBg: "bg-blue-50" },
-          { label: "Общий долг", value: formatMoney(totalDebt), sub: `${collectionRate}% сбора за месяц`, Icon: AlertCircle, color: "text-red-600", iconBg: "bg-red-50" },
-        ].map((kpi) => (
-          <div key={kpi.label} className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-slate-500">{kpi.label}</p>
-              <div className={`h-8 w-8 rounded-lg ${kpi.iconBg} flex items-center justify-center`}>
-                <kpi.Icon className={`h-4 w-4 ${kpi.color}`} />
-              </div>
-            </div>
-            <p className={`text-xl font-bold ${kpi.color}`}>{kpi.value}</p>
-            <p className="text-xs text-slate-400 mt-1">{kpi.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 gap-5">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-slate-900">Выручка по месяцам</p>
-            <span className="text-xs text-slate-400">последние 6 мес.</span>
-          </div>
-          <BarChart data={monthlyRevenue} maxVal={maxBoth} color="bg-blue-500" />
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
+          <Activity className="h-5 w-5 text-blue-600" />
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-slate-900">Расходы по месяцам</p>
-            <span className="text-xs text-slate-400">последние 6 мес.</span>
-          </div>
-          <BarChart data={monthlyExpenses} maxVal={maxBoth} color="bg-orange-400" />
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Аналитика</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Ключевые показатели за {thisYear} год</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-slate-900">Заполняемость</p>
-              <Building2 className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="text-3xl font-bold text-slate-900">{occupancy}%</p>
-            <p className="text-xs text-slate-400 mt-1">{occupiedSpaces} из {totalSpaces} помещений</p>
-            <div className="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${occupancy}%` }} />
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-slate-900">Арендаторы</p>
-              <Users className="h-4 w-4 text-slate-400" />
-            </div>
-            <p className="text-3xl font-bold text-slate-900">{allTenants.length}</p>
-            <p className="text-xs text-slate-400 mt-1">{allTenants.filter((t) => t.space).length} с помещением</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-sm font-semibold text-slate-900 mb-3">Задачи</p>
-            <div className="space-y-2">
-              {[
-                { label: "Новые", value: taskStats.new, color: "bg-blue-500" },
-                { label: "В работе", value: taskStats.inProgress, color: "bg-amber-500" },
-                { label: "Выполнены", value: taskStats.done, color: "bg-emerald-500" },
-              ].map((s) => (
-                <div key={s.label} className="flex items-center gap-2 text-xs">
-                  <div className={`h-2 w-2 rounded-full ${s.color}`} />
-                  <span className="text-slate-600 flex-1">{s.label}</span>
-                  <span className="font-semibold text-slate-900">{s.value}</span>
-                </div>
-              ))}
-              {taskStats.totalCost > 0 && (
-                <p className="text-xs text-slate-400 pt-1 border-t border-slate-50">
-                  Расходы на задачи: {formatMoney(taskStats.totalCost)}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-sm font-semibold text-slate-900 mb-4">Структура доходов</p>
-          {revenueByType.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">Нет оплаченных начислений</p>
-          ) : (
-            <div className="space-y-3">
-              {revenueByType.map(([type, amount]) => {
-                const pct = curRevenue > 0 ? Math.round((amount / curRevenue) * 100) : 0
-                return (
-                  <div key={type}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-slate-600">{CHARGE_TYPE_LABELS[type] ?? type}</span>
-                      <span className="font-semibold text-slate-900">{formatMoney(amount)} · {pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-              <div className="pt-3 border-t border-slate-100 space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">Выручка</span>
-                  <span className="font-semibold text-emerald-600">{formatMoney(curRevenue)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600">Расходы</span>
-                  <span className="font-semibold text-orange-600">{formatMoney(curExpenses)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm font-bold pt-1 border-t border-slate-100">
-                  <span>Прибыль</span>
-                  <span className={curProfit >= 0 ? "text-emerald-700" : "text-red-600"}>{formatMoney(curProfit)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-slate-900">Должники</p>
-            <span className="text-xs text-red-500 font-medium">{formatMoney(totalDebt)}</span>
-          </div>
-          {debtors.length === 0 ? (
-            <div className="py-8 text-center">
-              <CheckCircle className="h-8 w-8 text-emerald-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">Долгов нет</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {debtors.map((d, i) => {
-                const pct = totalDebt > 0 ? (d.debt / totalDebt) * 100 : 0
-                return (
-                  <div key={d.name}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-slate-700 truncate flex-1 mr-2">
-                        <span className="text-slate-400 mr-1">{i + 1}.</span>{d.name}
-                      </span>
-                      <span className="font-semibold text-red-600 shrink-0">{formatMoney(d.debt)}</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Kpi label="Заполняемость" value={`${occupancyRate}%`} icon={Building2} sub={`${occupied} из ${totalSpaces} помещений`} color="blue" />
+        <Kpi label="Доход за год" value={formatMoney(totalRevenue)} icon={TrendingUp} sub={`${activeTenantsCount} арендаторов`} color="emerald" />
+        <Kpi label="Прибыль" value={formatMoney(profit)} icon={Award} sub={`Маржа ${margin}%`} color={profit >= 0 ? "emerald" : "red"} />
+        <Kpi label="Средний срок" value={`${avgMonths} мес.`} icon={Users} sub="по подписанным договорам" color="purple" />
       </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100">
+          <h2 className="text-sm font-semibold text-slate-900">Топ-5 арендаторов по выручке за {thisYear}</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50">
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">№</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Арендатор</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Сумма</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">% от общей</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topPayers.length === 0 ? (
+              <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">Нет платежей за этот год</td></tr>
+            ) : topPayers.map((t, i) => {
+              const amount = t._sum.amount ?? 0
+              const percent = totalRevenue > 0 ? Math.round((amount / totalRevenue) * 100) : 0
+              return (
+                <tr key={t.tenantId} className="border-b border-slate-50">
+                  <td className="px-5 py-2.5 text-slate-400">#{i + 1}</td>
+                  <td className="px-5 py-2.5 font-medium text-slate-900">{t.companyName}</td>
+                  <td className="px-5 py-2.5 text-right font-semibold text-emerald-600">{formatMoney(amount)}</td>
+                  <td className="px-5 py-2.5 text-right text-slate-500">{percent}%</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <OccupancyHeatmap data={occupancyData} />
+    </div>
+  )
+}
+
+function Kpi({ label, value, icon: Icon, sub, color }: {
+  label: string
+  value: string
+  icon: React.ElementType
+  sub: string
+  color: "blue" | "emerald" | "red" | "purple"
+}) {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    red: "bg-red-50 text-red-600",
+    purple: "bg-purple-50 text-purple-600",
+  }
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors[color]} mb-3`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+      <p className="text-xs text-slate-400 mt-1">{sub}</p>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import {
   FileText, ClipboardList, CheckSquare, UserCog,
   MessageSquare, AlertCircle, Phone, BarChart3,
   LogOut, Building, Settings, Shield, ShieldCheck,
+  TrendingUp, History,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { logout } from "@/app/actions/auth"
@@ -31,6 +32,7 @@ const nav: NavSection[] = [
     title: "АРЕНДА",
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
+      { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "tenants" },
     ],
   },
   {
@@ -79,6 +81,7 @@ const nav: NavSection[] = [
     ownerOnly: true,
     items: [
       { href: "/admin/users", label: "Все пользователи", icon: ShieldCheck, ownerOnly: true, section: "users" },
+      { href: "/admin/audit", label: "Журнал операций", icon: History, ownerOnly: true, section: "users" },
     ],
   },
 ]

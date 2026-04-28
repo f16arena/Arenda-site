@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { BuildingSwitcher } from "@/components/layout/building-switcher"
+import { CommandPalette } from "@/components/layout/command-palette"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getAllowedSections } from "@/lib/acl"
@@ -43,6 +44,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
+      <CommandPalette />
       <AdminSidebar
         buildingName={building?.name}
         userRole={session.user.role}
@@ -57,6 +59,9 @@ export default async function AdminLayout({
             canCreate={session.user.role === "OWNER"}
           />
           <div className="flex items-center gap-4">
+            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 bg-slate-100 rounded border border-slate-200">
+              Ctrl+K — поиск
+            </kbd>
             <NotificationBell items={notifications} />
             <div className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
