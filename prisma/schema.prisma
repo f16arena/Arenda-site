@@ -368,6 +368,18 @@ model EmergencyContact {
   @@map("emergency_contacts")
 }
 
+model RolePermission {
+  id        String   @id @default(cuid())
+  role      String   // OWNER | ADMIN | ACCOUNTANT | FACILITY_MANAGER | TENANT
+  section   String   // dashboard | buildings | spaces | tenants | finances | meters | contracts | requests | tasks | staff | complaints | messages | analytics | settings | roles | users | documents
+  canView   Boolean  @default(false) @map("can_view")
+  canEdit   Boolean  @default(false) @map("can_edit")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([role, section])
+  @@map("role_permissions")
+}
+
 model Complaint {
   id        String   @id @default(cuid())
   userId    String?  @map("user_id")

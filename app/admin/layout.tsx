@@ -5,6 +5,7 @@ import { NotificationBell } from "@/components/layout/notification-bell"
 import { BuildingSwitcher } from "@/components/layout/building-switcher"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { getAllowedSections } from "@/lib/acl"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -18,7 +19,7 @@ export default async function AdminLayout({
   if (!ALLOWED_ROLES.includes(session.user.role)) redirect("/cabinet")
 
   const currentBuildingId = await getCurrentBuildingId()
-  const [building, allBuildings, notifications] = await Promise.all([
+  const [building, allBuildings, notifications, allowedSections] = await Promise.all([
     currentBuildingId
       ? db.building.findUnique({ where: { id: currentBuildingId } })
       : Promise.resolve(null),
@@ -32,11 +33,16 @@ export default async function AdminLayout({
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
+    getAllowedSections(session.user.role),
   ])
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <AdminSidebar buildingName={building?.name} userRole={session.user.role} />
+      <AdminSidebar
+        buildingName={building?.name}
+        userRole={session.user.role}
+        allowedSections={Array.from(allowedSections)}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">

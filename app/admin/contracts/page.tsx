@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { formatMoney } from "@/lib/utils"
+import { getCurrentBuildingId } from "@/lib/current-building"
 import { FileText, AlertTriangle, Calendar, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -16,7 +17,18 @@ export default async function ContractsPage() {
   const in20Days = new Date(now)
   in20Days.setDate(in20Days.getDate() + 20)
 
+  const buildingId = await getCurrentBuildingId()
+  const floorIds = buildingId
+    ? (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
+    : []
+
   const tenants = await db.tenant.findMany({
+    where: floorIds.length > 0 ? {
+      OR: [
+        { space: { floorId: { in: floorIds } } },
+        { fullFloors: { some: { id: { in: floorIds } } } },
+      ],
+    } : undefined,
     select: {
       id: true,
       companyName: true,

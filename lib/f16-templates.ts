@@ -225,8 +225,164 @@ export function buildFloor2Template(): FloorLayoutV2 {
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// ПОДВАЛ (этаж 0) — 17м × 36.55м
+// Подвальный уровень: технические помещения, склады, котельная
+// ════════════════════════════════════════════════════════════════
+export function buildFloor0Template(): FloorLayoutV2 {
+  reset()
+  const W = 17
+  const H = 36.55
+  const elements: FloorElement[] = []
+
+  // Лестница вход с 1 этажа (СЗ-угол)
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 0.5, width: 4.0, height: 4.5, label: "Лестница" } as FloorElement)
+
+  // Котельная — северный отсек
+  elements.push({ type: "rect", id: id(), x: 5.0, y: 0.5, width: 5.5, height: 5.0, label: "Котельная · ~27 м²" } as FloorElement)
+
+  // Электрощитовая
+  elements.push({ type: "rect", id: id(), x: 11.0, y: 0.5, width: 5.5, height: 3.5, label: "Электрощитовая · ~19 м²" } as FloorElement)
+
+  // Венткамера
+  elements.push({ type: "rect", id: id(), x: 11.0, y: 4.5, width: 5.5, height: 3.0, label: "Венткамера · ~16 м²" } as FloorElement)
+
+  // Левая колонка — складские помещения
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 5.5, width: 6.0, height: 5.0, label: "Склад 1 · 30 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 10.7, width: 6.0, height: 5.3, label: "Склад 2 · 31.5 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 16.2, width: 6.0, height: 5.5, label: "Склад 3 · 33 м²" } as FloorElement)
+
+  // Центральный коридор подвала
+  elements.push({
+    type: "polygon",
+    id: id(),
+    points: [
+      { x: 6.5, y: 5.5 },
+      { x: 10.5, y: 5.5 },
+      { x: 10.5, y: 30.0 },
+      { x: 6.5, y: 30.0 },
+    ],
+    label: "Коридор · ~98 м²",
+  } as FloorElement)
+
+  // Правая колонка — большие технические помещения
+  elements.push({ type: "rect", id: id(), x: 10.7, y: 8.0, width: 5.8, height: 6.0, label: "Тех. помещ. · 35 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 10.7, y: 14.2, width: 5.8, height: 6.5, label: "Тех. помещ. · 38 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 10.7, y: 20.9, width: 5.8, height: 9.0, label: "Большой склад · 52 м²" } as FloorElement)
+
+  // Большая левая зона (бывшая room 2 на 1 этаже) — также склад
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 22.0, width: 6.0, height: 8.0, label: "Архив · 48 м²" } as FloorElement)
+
+  // Санузлы / технические
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 30.5, width: 4.0, height: 3.0, label: "Санузел" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 4.7, y: 30.5, width: 6.0, height: 3.0, label: "Серверная" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 10.9, y: 30.0, width: 5.8, height: 5.5, label: "Техзал · 32 м²" } as FloorElement)
+
+  // Лестница на южный выход
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 33.7, width: 4.0, height: 2.3, label: "Лестница" } as FloorElement)
+
+  // Двери
+  elements.push({ type: "door", id: id(), x: 4.5, y: 5.0, width: 0.9, rotation: 0, swing: "right" } as FloorElement)
+  elements.push({ type: "door", id: id(), x: 8.5, y: 7.5, width: 0.9, rotation: 0, swing: "left" } as FloorElement)
+
+  // Подписи
+  elements.push({ type: "label", id: id(), x: 5.0, y: 5.2, text: "← с 1 этажа", fontSize: 0.35 } as FloorElement)
+  elements.push({ type: "label", id: id(), x: 3.0, y: 35.5, text: "h = 2.60 м", fontSize: 0.4 } as FloorElement)
+
+  return { version: 2, width: W, height: H, elements }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ЭТАЖ 3 — 20.20м × 36.55м (как этаж 2, но с другой планировкой)
+// ════════════════════════════════════════════════════════════════
+export function buildFloor3Template(): FloorLayoutV2 {
+  reset()
+  const W = 20.20
+  const H = 36.55
+  const elements: FloorElement[] = []
+
+  // Лестница (СЗ)
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 0.5, width: 4.0, height: 4.5, label: "Лестница (1) · 14.5 м²" } as FloorElement)
+
+  // Северный ряд
+  elements.push({ type: "rect", id: id(), x: 5.0, y: 0.5, width: 4.5, height: 4.5, label: "21 · 18.0 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 10.0, y: 0.5, width: 8.0, height: 6.5, label: "22 · 48 м²" } as FloorElement)
+
+  // Левая колонка
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 5.5, width: 6.0, height: 4.5, label: "30 · 25 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 10.2, width: 6.0, height: 4.5, label: "31 · 26 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 14.9, width: 6.0, height: 5.8, label: "32 · 38 м²" } as FloorElement)
+
+  // Комната с диагональным углом
+  elements.push({
+    type: "polygon",
+    id: id(),
+    points: [
+      { x: 0.5, y: 20.9 },
+      { x: 7.5, y: 20.9 },
+      { x: 7.5, y: 25.5 },
+      { x: 6.5, y: 26.5 },
+      { x: 0.5, y: 26.5 },
+    ],
+    label: "33 · 49 м²",
+  } as FloorElement)
+
+  // Центральный коридор/большой зал (170 м² как на 2 этаже)
+  elements.push({
+    type: "polygon",
+    id: id(),
+    points: [
+      { x: 6.6, y: 7.5 },
+      { x: 9.8, y: 7.5 },
+      { x: 9.8, y: 14.0 },
+      { x: 11.0, y: 14.0 },
+      { x: 11.0, y: 25.0 },
+      { x: 7.7, y: 25.0 },
+      { x: 7.7, y: 21.0 },
+      { x: 6.6, y: 21.0 },
+    ],
+    label: "Коридор/зал · 170 м²",
+  } as FloorElement)
+
+  // Правая колонка
+  elements.push({ type: "rect", id: id(), x: 11.0, y: 7.5, width: 8.2, height: 4.9, label: "23 · 41 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 11.0, y: 12.5, width: 8.6, height: 5.2, label: "24 · 44 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 11.0, y: 17.8, width: 7.8, height: 13.0, label: "25 · 78 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 12.5, y: 30.9, width: 5.9, height: 5.1, label: "26 · 30 м²" } as FloorElement)
+
+  // Санузлы (юго-западный угол)
+  const wcX = 0.5
+  const wcY = 28.5
+  for (let i = 0; i < 6; i++) {
+    elements.push({
+      type: "rect",
+      id: id(),
+      x: wcX + (i % 3) * 1.0,
+      y: wcY + Math.floor(i / 3) * 1.0,
+      width: 1.0,
+      height: 1.0,
+      label: `${27 + i}`,
+    } as FloorElement)
+  }
+
+  // Лестница южная
+  elements.push({ type: "rect", id: id(), x: 0.5, y: 30.5, width: 4.0, height: 5.5, label: "Лестница · 25 м²" } as FloorElement)
+  elements.push({ type: "rect", id: id(), x: 4.5, y: 31.0, width: 7.0, height: 5.0, label: "Холл" } as FloorElement)
+
+  // Двери
+  elements.push({ type: "door", id: id(), x: 5.5, y: 0.0, width: 1.2, rotation: 0, swing: "right" } as FloorElement)
+  elements.push({ type: "door", id: id(), x: 6.6, y: 8.5, width: 0.9, rotation: 90, swing: "right" } as FloorElement)
+  elements.push({ type: "door", id: id(), x: 11.0, y: 10.0, width: 0.9, rotation: 90, swing: "left" } as FloorElement)
+  elements.push({ type: "door", id: id(), x: 11.0, y: 15.0, width: 0.9, rotation: 90, swing: "left" } as FloorElement)
+  elements.push({ type: "door", id: id(), x: 11.0, y: 24.0, width: 0.9, rotation: 90, swing: "left" } as FloorElement)
+
+  return { version: 2, width: W, height: H, elements }
+}
+
 export function getF16TemplateByFloorNumber(num: number): FloorLayoutV2 | null {
+  if (num === 0) return buildFloor0Template()
   if (num === 1) return buildFloor1Template()
   if (num === 2) return buildFloor2Template()
+  if (num === 3) return buildFloor3Template()
   return null
 }

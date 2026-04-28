@@ -6,9 +6,21 @@ import { Search } from "lucide-react"
 import Link from "next/link"
 import { TenantDialog } from "./tenant-dialog"
 import { DeleteTenantButton } from "./delete-tenant-button"
+import { getCurrentBuildingId } from "@/lib/current-building"
 
 export default async function TenantsPage() {
+  const buildingId = await getCurrentBuildingId()
+  const floorIds = buildingId
+    ? (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
+    : []
+
   const tenants = await db.tenant.findMany({
+    where: floorIds.length > 0 ? {
+      OR: [
+        { space: { floorId: { in: floorIds } } },
+        { fullFloors: { some: { id: { in: floorIds } } } },
+      ],
+    } : undefined,
     include: {
       user: true,
       space: { include: { floor: true } },
@@ -18,7 +30,7 @@ export default async function TenantsPage() {
   })
 
   const vacantSpaces = await db.space.findMany({
-    where: { status: "VACANT" },
+    where: { status: "VACANT", ...(floorIds.length > 0 ? { floorId: { in: floorIds } } : {}) },
     include: { floor: true },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })

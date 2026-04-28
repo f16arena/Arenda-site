@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import {
   Save, Trash2, Square, Pentagon, DoorOpen, Type, Minus,
   MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move, Sparkles,
+  Image as ImageIcon, X as XIcon,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -66,6 +67,7 @@ export function FloorEditor({
   const [showGrid, setShowGrid] = useState(true)
   const [polygonInProgress, setPolygonInProgress] = useState<Point[] | null>(null)
   const [saving, setSaving] = useState(false)
+  const [underlayOpacity, setUnderlayOpacity] = useState(0.5)
 
   const svgRef = useRef<SVGSVGElement>(null)
   const dragStateRef = useRef<{
@@ -522,6 +524,18 @@ export function FloorEditor({
                 stroke="#cbd5e1"
                 strokeWidth={2 / zoom}
               />
+              {/* Underlay image */}
+              {layout.underlayUrl && (
+                <image
+                  href={layout.underlayUrl}
+                  x={0}
+                  y={0}
+                  width={layout.width * PX_PER_METER}
+                  height={layout.height * PX_PER_METER}
+                  opacity={underlayOpacity}
+                  preserveAspectRatio="xMidYMid meet"
+                />
+              )}
               {/* Grid */}
               {showGrid && (
                 <g opacity={0.4}>
@@ -592,6 +606,76 @@ export function FloorEditor({
 
       {/* Properties */}
       <div className="w-72 shrink-0 flex flex-col gap-3">
+        {/* Underlay image */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+            <ImageIcon className="h-3.5 w-3.5" />
+            Подложка (фото плана)
+          </p>
+          {layout.underlayUrl ? (
+            <>
+              <div className="relative aspect-video rounded border border-slate-200 overflow-hidden bg-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={layout.underlayUrl} alt="План" className="w-full h-full object-contain" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Прозрачность: {Math.round(underlayOpacity * 100)}%</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={underlayOpacity * 100}
+                  onChange={(e) => setUnderlayOpacity(parseInt(e.target.value) / 100)}
+                  className="w-full"
+                />
+              </div>
+              <button
+                onClick={() => setLayout((p) => ({ ...p, underlayUrl: null }))}
+                className="flex items-center gap-1 text-xs text-red-500 hover:underline"
+              >
+                <XIcon className="h-3 w-3" /> Удалить подложку
+              </button>
+            </>
+          ) : (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5">URL картинки</label>
+              <input
+                type="url"
+                placeholder="https://... или загрузите файл"
+                onChange={(e) => {
+                  const url = e.target.value.trim()
+                  if (url) setLayout((p) => ({ ...p, underlayUrl: url }))
+                }}
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Загрузите PNG/JPG плана здания в Google Drive / Dropbox и вставьте прямую ссылку на изображение</p>
+              <label className="block mt-2 text-xs cursor-pointer">
+                <span className="block text-center rounded-lg bg-slate-100 hover:bg-slate-200 py-1.5">📎 Или выберите файл (base64)</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (file.size > 1024 * 1024) {
+                      toast.error("Файл слишком большой, макс 1 МБ")
+                      return
+                    }
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                      const dataUrl = reader.result as string
+                      setLayout((p) => ({ ...p, underlayUrl: dataUrl }))
+                      toast.success("Подложка загружена")
+                    }
+                    reader.readAsDataURL(file)
+                  }}
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
         {/* Canvas size */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Размеры этажа</p>

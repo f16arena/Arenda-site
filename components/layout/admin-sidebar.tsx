@@ -11,88 +11,107 @@ import {
 import { cn } from "@/lib/utils"
 import { logout } from "@/app/actions/auth"
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; ownerOnly?: boolean }
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; ownerOnly?: boolean; section?: string }
 type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
 
 const nav: NavSection[] = [
   {
     items: [
-      { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true },
+      { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, section: "dashboard" },
     ],
   },
   {
     title: "ОБЪЕКТЫ",
     items: [
-      { href: "/admin/buildings", label: "Здания", icon: Building },
-      { href: "/admin/spaces", label: "Помещения", icon: Building2 },
+      { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
+      { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
     ],
   },
   {
     title: "АРЕНДА",
     items: [
-      { href: "/admin/tenants", label: "Арендаторы", icon: Users },
+      { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
     ],
   },
   {
     title: "ФИНАНСЫ",
     items: [
-      { href: "/admin/finances", label: "Финансы", icon: Wallet },
-      { href: "/admin/meters", label: "Счётчики", icon: Gauge },
+      { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
+      { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
     ],
   },
   {
     title: "ДОКУМЕНТЫ",
     items: [
-      { href: "/admin/contracts", label: "Договоры", icon: FileText },
-      { href: "/admin/documents", label: "Все документы", icon: FileText },
-      { href: "/admin/documents/templates/rental", label: "Шаблон договора", icon: FileText },
-      { href: "/admin/documents/templates/reconciliation", label: "Акт сверки", icon: BarChart3 },
+      { href: "/admin/contracts", label: "Договоры", icon: FileText, section: "contracts" },
+      { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
+      { href: "/admin/documents/templates/rental", label: "Шаблон договора", icon: FileText, section: "documents" },
+      { href: "/admin/documents/templates/reconciliation", label: "Акт сверки", icon: BarChart3, section: "documents" },
     ],
   },
   {
     title: "ОБСЛУЖИВАНИЕ",
     items: [
-      { href: "/admin/requests", label: "Заявки", icon: ClipboardList },
-      { href: "/admin/tasks", label: "Задачи", icon: CheckSquare },
+      { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests" },
+      { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks" },
     ],
   },
   {
     title: "ПЕРСОНАЛ",
     items: [
-      { href: "/admin/staff", label: "Сотрудники", icon: UserCog },
+      { href: "/admin/staff", label: "Сотрудники", icon: UserCog, section: "staff" },
     ],
   },
   {
     title: "ПРОЧЕЕ",
     items: [
-      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare },
-      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle },
-      { href: "/admin/emergency", label: "Экстренные", icon: Phone },
-      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
-      { href: "/admin/settings", label: "Настройки", icon: Settings },
-      { href: "/admin/roles", label: "Роли и доступ", icon: Shield },
-      { href: "/admin/profile", label: "Мой профиль", icon: UserCog },
+      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages" },
+      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints" },
+      { href: "/admin/emergency", label: "Экстренные", icon: Phone, section: "settings" },
+      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
+      { href: "/admin/settings", label: "Настройки", icon: Settings, section: "settings" },
+      { href: "/admin/roles", label: "Роли и доступ", icon: Shield, section: "roles" },
+      { href: "/admin/profile", label: "Мой профиль", icon: UserCog, section: "profile" },
     ],
   },
   {
     title: "СУПЕР-АДМИН",
     ownerOnly: true,
     items: [
-      { href: "/admin/users", label: "Все пользователи", icon: ShieldCheck, ownerOnly: true },
+      { href: "/admin/users", label: "Все пользователи", icon: ShieldCheck, ownerOnly: true, section: "users" },
     ],
   },
 ]
 
-export function AdminSidebar({ buildingName, userRole }: { buildingName?: string; userRole?: string }) {
+export function AdminSidebar({
+  buildingName, userRole, allowedSections,
+}: {
+  buildingName?: string
+  userRole?: string
+  allowedSections?: string[]
+}) {
   const pathname = usePathname()
   const isOwner = userRole === "OWNER"
+  const allowed = new Set(allowedSections ?? [])
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href
     return pathname.startsWith(href)
   }
 
-  const visibleNav = nav.filter((s) => !s.ownerOnly || isOwner)
+  // Фильтруем секции по правам
+  const visibleNav = nav
+    .filter((s) => !s.ownerOnly || isOwner)
+    .map((s) => ({
+      ...s,
+      items: s.items.filter((item) => {
+        if (item.ownerOnly && !isOwner) return false
+        if (isOwner) return true
+        if (item.section && !allowed.has(item.section)) return false
+        return true
+      }),
+    }))
+    .filter((s) => s.items.length > 0)
 
   return (
     <div className="flex h-full w-60 flex-col bg-slate-900">
