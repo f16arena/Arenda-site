@@ -13,29 +13,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.login || !credentials?.password) return null
 
-        const user = await db.user.findFirst({
-          where: {
-            OR: [
-              { phone: String(credentials.login) },
-              { email: String(credentials.login) },
-            ],
-            isActive: true,
-          },
-        })
+        try {
+          const user = await db.user.findFirst({
+            where: {
+              OR: [
+                { phone: String(credentials.login) },
+                { email: String(credentials.login) },
+              ],
+              isActive: true,
+            },
+          })
 
-        if (!user) return null
+          if (!user) return null
 
-        const isValid = await bcrypt.compare(
-          String(credentials.password),
-          user.password
-        )
-        if (!isValid) return null
+          const isValid = await bcrypt.compare(
+            String(credentials.password),
+            user.password
+          )
+          if (!isValid) return null
 
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email ?? undefined,
-          role: user.role,
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email ?? undefined,
+            role: user.role,
+          }
+        } catch {
+          return null
         }
       },
     }),

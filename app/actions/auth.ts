@@ -13,13 +13,18 @@ export async function login(prevState: { error?: string } | undefined, formData:
     return { error: "Введите телефон/email и пароль" }
   }
 
-  const user = await db.user.findFirst({
-    where: {
-      OR: [{ phone: loginValue }, { email: loginValue }],
-      isActive: true,
-    },
-    select: { role: true },
-  })
+  let user: { role: string } | null = null
+  try {
+    user = await db.user.findFirst({
+      where: {
+        OR: [{ phone: loginValue }, { email: loginValue }],
+        isActive: true,
+      },
+      select: { role: true },
+    })
+  } catch {
+    return { error: "Ошибка подключения к базе данных. Попробуйте позже." }
+  }
 
   if (!user) {
     return { error: "Пользователь не найден или доступ запрещён" }

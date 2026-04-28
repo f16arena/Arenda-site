@@ -67,14 +67,11 @@ export default function LoginPage() {
 
         {/* Test accounts hint */}
         <div className="mt-4 rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1">
-          <p className="font-semibold">Тестовые аккаунты:</p>
-          <p>Владелец: <span className="font-mono">+77000000001</span> / <span className="font-mono">owner123</span></p>
-          <p>Администратор: <span className="font-mono">+77000000002</span> / <span className="font-mono">admin123</span></p>
-          <p>Бухгалтер: <span className="font-mono">+77000000003</span> / <span className="font-mono">book123</span></p>
-          <p>Завхоз: <span className="font-mono">+77000000004</span> / <span className="font-mono">manager123</span></p>
-          <p>Арендатор 1: <span className="font-mono">+77111111111</span> / <span className="font-mono">tenant123</span></p>
-          <p>Арендатор 2: <span className="font-mono">+77222222222</span> / <span className="font-mono">tenant123</span></p>
-          <p>Арендатор 3: <span className="font-mono">+77333333333</span> / <span className="font-mono">tenant123</span></p>
+          <p className="font-semibold">Аккаунты для входа:</p>
+          <p>Владелец: <span className="font-mono">f16arena@gmail.com</span> / <span className="font-mono">F16arena2024!</span></p>
+          <p>Администратор: <span className="font-mono">admin@f16arena.kz</span> / <span className="font-mono">admin2024!</span></p>
+          <p>Бухгалтер: <span className="font-mono">buh@f16arena.kz</span> / <span className="font-mono">buh2024!</span></p>
+          <p>Завхоз: <span className="font-mono">+77000000004</span> / <span className="font-mono">manager2024!</span></p>
         </div>
       </div>
     </div>
