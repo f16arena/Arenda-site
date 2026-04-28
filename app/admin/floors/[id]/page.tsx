@@ -44,6 +44,7 @@ export default async function FloorEditorPage({ params }: { params: Promise<{ id
       <FloorEditor
         floorId={floor.id}
         floorName={floor.name}
+        floorNumber={floor.number}
         initialLayout={initialLayout}
         spaces={floor.spaces}
       />

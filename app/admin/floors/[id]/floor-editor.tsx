@@ -5,18 +5,18 @@ import { saveFloorLayout } from "@/app/actions/floor-layout"
 import { toast } from "sonner"
 import {
   Save, Trash2, Square, Pentagon, DoorOpen, Type, Minus,
-  MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move,
+  MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move, Sparkles,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
   type FloorElement,
   type Point,
-  type PolygonRoom,
   DEFAULT_LAYOUT,
   uid,
   polygonArea,
   elementCenter,
 } from "@/lib/floor-layout"
+import { getF16TemplateByFloorNumber } from "@/lib/f16-templates"
 
 type Tool = "select" | "rect" | "polygon" | "door" | "label" | "wall"
 
@@ -47,14 +47,17 @@ const STATUS_STROKE: Record<string, string> = {
 export function FloorEditor({
   floorId,
   floorName,
+  floorNumber,
   initialLayout,
   spaces,
 }: {
   floorId: string
   floorName: string
+  floorNumber: number
   initialLayout: FloorLayoutV2 | null
   spaces: SpaceLite[]
 }) {
+  const f16Template = getF16TemplateByFloorNumber(floorNumber)
   const [layout, setLayout] = useState<FloorLayoutV2>(() => initialLayout ?? DEFAULT_LAYOUT)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 })
@@ -468,6 +471,23 @@ export function FloorEditor({
           </p>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400">{Math.round(zoom * 100)}%</span>
+            {f16Template && (
+              <button
+                onClick={() => {
+                  if (layout.elements.length > 0) {
+                    if (!window.confirm("Текущий план будет заменён шаблоном F16 Arena. Продолжить?")) return
+                  }
+                  setLayout(f16Template)
+                  setSelectedId(null)
+                  toast.success(`Шаблон этажа ${floorNumber} загружен — теперь сохраните`)
+                }}
+                className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                title="Импорт готового плана этажа из отсканированных документов F16 Arena"
+              >
+                <Sparkles className="h-4 w-4" />
+                Шаблон F16
+              </button>
+            )}
             <button
               onClick={handleSave}
               disabled={saving}
