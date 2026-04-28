@@ -39,9 +39,11 @@ export async function login(prevState: { error?: string } | undefined, formData:
     })
   } catch (error) {
     if (error instanceof AuthError) {
-      return { error: "Неверный телефон/email или пароль" }
+      const msg = (error as any).cause?.err?.message ?? error.message ?? ""
+      return { error: `Неверный пароль или внутренняя ошибка: ${msg}` }
     }
-    return { error: "Ошибка входа. Попробуйте снова" }
+    const msg = error instanceof Error ? error.message : String(error)
+    return { error: `Ошибка входа: ${msg}` }
   }
 
   redirect(user.role === "TENANT" ? "/cabinet" : "/admin")
