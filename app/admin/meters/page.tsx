@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { Gauge } from "lucide-react"
 import { MeterReadingDialog, AddMeterDialog, InlineReadingButton } from "./meter-actions"

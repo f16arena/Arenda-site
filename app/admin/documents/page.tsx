@@ -1,10 +1,14 @@
 import { db } from "@/lib/db"
+import { auth } from "@/auth"
+import { redirect } from "next/navigation"
 import { STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { Plus, FileText } from "lucide-react"
 import Link from "next/link"
 
 export default async function DocumentsPage() {
+  const session = await auth()
+  if (!session || session.user.role === "TENANT") redirect("/login")
   const contracts = await db.contract.findMany({
     include: { tenant: true },
     orderBy: { createdAt: "desc" },

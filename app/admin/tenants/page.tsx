@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { formatMoney, LEGAL_TYPE_LABELS, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { Search } from "lucide-react"

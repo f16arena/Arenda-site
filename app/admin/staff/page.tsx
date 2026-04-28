@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { formatMoney, ROLES, ROLE_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"

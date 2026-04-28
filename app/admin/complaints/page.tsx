@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { CheckCircle } from "lucide-react"
 import { RespondButton } from "./complaint-actions"

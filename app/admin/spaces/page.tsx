@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { Building2, Plus, Square } from "lucide-react"
