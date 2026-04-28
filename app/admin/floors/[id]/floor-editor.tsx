@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import {
   Save, Trash2, Square, Pentagon, DoorOpen, Type, Minus,
   MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move, Sparkles,
-  Image as ImageIcon, X as XIcon,
+  Image as ImageIcon, X as XIcon, Undo2, Redo2, Copy, MoreHorizontal,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -19,7 +19,7 @@ import {
 } from "@/lib/floor-layout"
 import { getF16TemplateByFloorNumber } from "@/lib/f16-templates"
 
-type Tool = "select" | "rect" | "polygon" | "door" | "label" | "wall"
+type Tool = "select" | "rect" | "polygon" | "door" | "window" | "label" | "wall" | "stairs" | "elevator" | "toilet"
 
 type SpaceLite = { id: string; number: string; status: string }
 
@@ -59,15 +59,58 @@ export function FloorEditor({
   spaces: SpaceLite[]
 }) {
   const f16Template = getF16TemplateByFloorNumber(floorNumber)
-  const [layout, setLayout] = useState<FloorLayoutV2>(() => initialLayout ?? DEFAULT_LAYOUT)
+  const [layout, setLayoutRaw] = useState<FloorLayoutV2>(() => initialLayout ?? DEFAULT_LAYOUT)
+  const [history, setHistory] = useState<FloorLayoutV2[]>([])
+  const [future, setFuture] = useState<FloorLayoutV2[]>([])
+  const isRestoringRef = useRef(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 })
   const [tool, setTool] = useState<Tool>("select")
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [clipboard, setClipboardRaw] = useState<FloorElement | null>(null)
   const [showGrid, setShowGrid] = useState(true)
   const [polygonInProgress, setPolygonInProgress] = useState<Point[] | null>(null)
   const [saving, setSaving] = useState(false)
   const [underlayOpacity, setUnderlayOpacity] = useState(0.5)
+
+  // setLayout с записью в историю
+  const setLayout = useCallback((next: FloorLayoutV2 | ((prev: FloorLayoutV2) => FloorLayoutV2)) => {
+    if (isRestoringRef.current) {
+      setLayoutRaw(next)
+      return
+    }
+    setLayoutRaw((prev) => {
+      const newLayout = typeof next === "function" ? next(prev) : next
+      // Push prev to history
+      setHistory((h) => [...h.slice(-49), prev])
+      setFuture([])
+      return newLayout
+    })
+  }, [])
+
+  const undo = useCallback(() => {
+    setHistory((h) => {
+      if (h.length === 0) return h
+      const prev = h[h.length - 1]
+      isRestoringRef.current = true
+      setFuture((f) => [layout, ...f.slice(0, 49)])
+      setLayoutRaw(prev)
+      setTimeout(() => { isRestoringRef.current = false }, 0)
+      return h.slice(0, -1)
+    })
+  }, [layout])
+
+  const redo = useCallback(() => {
+    setFuture((f) => {
+      if (f.length === 0) return f
+      const next = f[0]
+      isRestoringRef.current = true
+      setHistory((h) => [...h.slice(-49), layout])
+      setLayoutRaw(next)
+      setTimeout(() => { isRestoringRef.current = false }, 0)
+      return f.slice(1)
+    })
+  }, [layout])
 
   const svgRef = useRef<SVGSVGElement>(null)
   const dragStateRef = useRef<{
@@ -147,6 +190,63 @@ export function FloorEditor({
     return id
   }
 
+  const addWindow = (x: number, y: number) => {
+    const id = uid()
+    setLayout((prev) => ({
+      ...prev,
+      elements: [...prev.elements, { type: "window", id, x: snap(x), y: snap(y), width: 1.2, rotation: 0 }],
+    }))
+    setSelectedId(id)
+  }
+
+  const addIcon = (x: number, y: number, kind: "stairs" | "elevator" | "toilet") => {
+    const id = uid()
+    const labels = { stairs: "Лестница", elevator: "Лифт", toilet: "Туалет" }
+    setLayout((prev) => ({
+      ...prev,
+      elements: [...prev.elements, { type: "icon", id, kind, x: snap(x), y: snap(y), size: 1.5, label: labels[kind] }],
+    }))
+    setSelectedId(id)
+  }
+
+  const copySelected = () => {
+    const sel = layout.elements.find((e) => e.id === selectedId)
+    if (!sel) return
+    setClipboardRaw(sel)
+    toast.success("Скопировано")
+  }
+
+  const pasteClipboard = () => {
+    if (!clipboard) return
+    const newId = uid()
+    let cloned: FloorElement
+    // Сместим вставленный элемент на 1м вправо/вниз чтобы было видно
+    const offset = 1
+    if (clipboard.type === "rect") {
+      cloned = { ...clipboard, id: newId, x: snap(clipboard.x + offset), y: snap(clipboard.y + offset) }
+    } else if (clipboard.type === "polygon") {
+      cloned = {
+        ...clipboard,
+        id: newId,
+        points: clipboard.points.map((p) => ({ x: snap(p.x + offset), y: snap(p.y + offset) })),
+      }
+    } else if (clipboard.type === "wall") {
+      cloned = {
+        ...clipboard,
+        id: newId,
+        x1: snap(clipboard.x1 + offset),
+        y1: snap(clipboard.y1 + offset),
+        x2: snap(clipboard.x2 + offset),
+        y2: snap(clipboard.y2 + offset),
+      }
+    } else {
+      cloned = { ...clipboard, id: newId, x: snap(clipboard.x + offset), y: snap(clipboard.y + offset) }
+    }
+    setLayout((prev) => ({ ...prev, elements: [...prev.elements, cloned] }))
+    setSelectedId(newId)
+    toast.success("Вставлено")
+  }
+
   const updateElement = (id: string, patch: Partial<FloorElement>) => {
     setLayout((prev) => ({
       ...prev,
@@ -186,6 +286,18 @@ export function FloorEditor({
 
     if (tool === "door") {
       addDoor(pt.x, pt.y)
+      setTool("select")
+      return
+    }
+
+    if (tool === "window") {
+      addWindow(pt.x, pt.y)
+      setTool("select")
+      return
+    }
+
+    if (tool === "stairs" || tool === "elevator" || tool === "toilet") {
+      addIcon(pt.x, pt.y, tool)
       setTool("select")
       return
     }
@@ -251,7 +363,7 @@ export function FloorEditor({
       const dx = pt.x - ds.startSvg.x
       const dy = pt.y - ds.startSvg.y
       const startEl = ds.startEl
-      if (startEl.type === "rect" || startEl.type === "door" || startEl.type === "label") {
+      if (startEl.type === "rect" || startEl.type === "door" || startEl.type === "window" || startEl.type === "label" || startEl.type === "icon") {
         updateElement(ds.elId, { x: snap(startEl.x + dx), y: snap(startEl.y + dy) } as Partial<FloorElement>)
       } else if (startEl.type === "polygon") {
         updateElement(ds.elId, {
@@ -380,21 +492,59 @@ export function FloorEditor({
     }
   }
 
-  // Удаление по Delete
+  // Горячие клавиши
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId && (e.target as HTMLElement).tagName !== "INPUT") {
+      const tagName = (e.target as HTMLElement).tagName
+      if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") return
+
+      // Undo/Redo
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault()
+        undo()
+        return
+      }
+      if (((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "z") ||
+          ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y")) {
+        e.preventDefault()
+        redo()
+        return
+      }
+
+      // Copy/Paste
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c" && selectedId) {
+        e.preventDefault()
+        copySelected()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault()
+        pasteClipboard()
+        return
+      }
+
+      // Удаление
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
         deleteElement(selectedId)
       }
+      // Escape
       if (e.key === "Escape") {
         setSelectedId(null)
         setPolygonInProgress(null)
         setTool("select")
       }
+      // Quick tools
+      if (e.key === "v") setTool("select")
+      else if (e.key === "r") setTool("rect")
+      else if (e.key === "p") setTool("polygon")
+      else if (e.key === "d") setTool("door")
+      else if (e.key === "w" && !e.ctrlKey) setTool("wall")
+      else if (e.key === "t") setTool("label")
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [selectedId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, layout, clipboard])
 
   const selected = layout.elements.find((e) => e.id === selectedId) ?? null
   const px = PX_PER_METER * zoom
@@ -405,8 +555,12 @@ export function FloorEditor({
     { id: "rect", icon: Square, label: "Прямоугольник (R)" },
     { id: "polygon", icon: Pentagon, label: "Многоугольник (P)" },
     { id: "door", icon: DoorOpen, label: "Дверь (D)" },
+    { id: "window", icon: MoreHorizontal, label: "Окно" },
     { id: "wall", icon: Minus, label: "Стена/линия (W)" },
     { id: "label", icon: Type, label: "Подпись (T)" },
+    { id: "stairs", icon: Sparkles, label: "Лестница" },
+    { id: "elevator", icon: Square, label: "Лифт" },
+    { id: "toilet", icon: Type, label: "Туалет (WC)" },
   ]
 
   return (
@@ -472,7 +626,31 @@ export function FloorEditor({
             {tool === "select" && "Shift+drag — панорама. Ctrl+wheel — зум. Del — удалить"}
           </p>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={undo}
+              disabled={history.length === 0}
+              title="Отменить (Ctrl+Z)"
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={future.length === 0}
+              title="Повторить (Ctrl+Y)"
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={copySelected}
+              disabled={!selectedId}
+              title="Копировать (Ctrl+C)"
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+            <span className="text-xs text-slate-400 ml-2">{Math.round(zoom * 100)}%</span>
             {f16Template && (
               <button
                 onClick={() => {
@@ -941,6 +1119,90 @@ function RenderElement({
     )
   }
 
+  if (el.type === "window") {
+    const cx = el.x * PX_PER_METER
+    const cy = el.y * PX_PER_METER
+    const w = el.width * PX_PER_METER
+    return (
+      <g onMouseDown={onMouseDown} transform={`rotate(${el.rotation} ${cx} ${cy})`} style={{ cursor: "move" }}>
+        <rect
+          x={cx - w / 2}
+          y={cy - 3 / zoom}
+          width={w}
+          height={6 / zoom}
+          fill="#dbeafe"
+          stroke={selected ? "#3b82f6" : "#60a5fa"}
+          strokeWidth={1.5 / zoom}
+        />
+        <line
+          x1={cx - w / 2}
+          y1={cy}
+          x2={cx + w / 2}
+          y2={cy}
+          stroke={selected ? "#3b82f6" : "#3b82f6"}
+          strokeWidth={1 / zoom}
+        />
+      </g>
+    )
+  }
+
+  if (el.type === "icon") {
+    const s = el.size * PX_PER_METER
+    const x = el.x * PX_PER_METER
+    const y = el.y * PX_PER_METER
+    const colors: Record<string, { bg: string; border: string; fg: string }> = {
+      stairs: { bg: "#fef3c7", border: "#f59e0b", fg: "#92400e" },
+      elevator: { bg: "#ede9fe", border: "#8b5cf6", fg: "#5b21b6" },
+      toilet: { bg: "#dbeafe", border: "#3b82f6", fg: "#1e40af" },
+      kitchen: { bg: "#dcfce7", border: "#10b981", fg: "#065f46" },
+      parking: { bg: "#f1f5f9", border: "#64748b", fg: "#334155" },
+    }
+    const c = colors[el.kind] ?? colors.parking
+    const symbol: Record<string, string> = {
+      stairs: "≡", elevator: "▲▼", toilet: "WC", kitchen: "🍳", parking: "P",
+    }
+    return (
+      <g onMouseDown={onMouseDown} style={{ cursor: "move" }}>
+        <rect
+          x={x - s / 2}
+          y={y - s / 2}
+          width={s}
+          height={s}
+          fill={c.bg}
+          stroke={selected ? "#3b82f6" : c.border}
+          strokeWidth={(selected ? 2 : 1.5) / zoom}
+          rx={4 / zoom}
+        />
+        <text
+          x={x}
+          y={y - 4 / zoom}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={Math.min(s * 0.4, 24 / zoom)}
+          fontWeight="bold"
+          fill={c.fg}
+          pointerEvents="none"
+          style={{ userSelect: "none" }}
+        >
+          {symbol[el.kind] ?? el.kind}
+        </text>
+        {el.label && (
+          <text
+            x={x}
+            y={y + s / 2 - 4 / zoom}
+            textAnchor="middle"
+            fontSize={10 / zoom}
+            fill={c.fg}
+            pointerEvents="none"
+            style={{ userSelect: "none" }}
+          >
+            {el.label}
+          </text>
+        )}
+      </g>
+    )
+  }
+
   return null
 }
 
@@ -960,7 +1222,9 @@ function PropertiesPanel({
           {element.type === "rect" ? "Прямоугольник"
             : element.type === "polygon" ? "Многоугольник"
             : element.type === "door" ? "Дверь"
+            : element.type === "window" ? "Окно"
             : element.type === "label" ? "Подпись"
+            : element.type === "icon" ? `Иконка: ${element.kind}`
             : "Стена"}
         </p>
         <button onClick={onDelete} className="text-red-400 hover:text-red-600">
@@ -1088,6 +1352,61 @@ function PropertiesPanel({
             <Field label="Y2 (м)" value={element.y2} onChange={(v) => onUpdate({ y2: v } as Partial<FloorElement>)} />
           </div>
           <Field label="Толщина (м)" value={element.thickness ?? 0.15} step={0.05} onChange={(v) => onUpdate({ thickness: Math.max(0.05, v) } as Partial<FloorElement>)} />
+        </>
+      )}
+
+      {element.type === "window" && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="X (м)" value={element.x} onChange={(v) => onUpdate({ x: v } as Partial<FloorElement>)} />
+            <Field label="Y (м)" value={element.y} onChange={(v) => onUpdate({ y: v } as Partial<FloorElement>)} />
+            <Field label="Ширина (м)" value={element.width} step={0.1} onChange={(v) => onUpdate({ width: Math.max(0.3, v) } as Partial<FloorElement>)} />
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Поворот</label>
+              <select
+                value={element.rotation}
+                onChange={(e) => onUpdate({ rotation: parseInt(e.target.value) } as Partial<FloorElement>)}
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm bg-white"
+              >
+                <option value={0}>0°</option>
+                <option value={90}>90°</option>
+                <option value={180}>180°</option>
+                <option value={270}>270°</option>
+              </select>
+            </div>
+          </div>
+        </>
+      )}
+
+      {element.type === "icon" && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="X (м)" value={element.x} onChange={(v) => onUpdate({ x: v } as Partial<FloorElement>)} />
+            <Field label="Y (м)" value={element.y} onChange={(v) => onUpdate({ y: v } as Partial<FloorElement>)} />
+            <Field label="Размер (м)" value={element.size} step={0.1} onChange={(v) => onUpdate({ size: Math.max(0.5, v) } as Partial<FloorElement>)} />
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Тип</label>
+              <select
+                value={element.kind}
+                onChange={(e) => onUpdate({ kind: e.target.value } as Partial<FloorElement>)}
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm bg-white"
+              >
+                <option value="stairs">Лестница</option>
+                <option value="elevator">Лифт</option>
+                <option value="toilet">Туалет</option>
+                <option value="kitchen">Кухня</option>
+                <option value="parking">Парковка</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Подпись</label>
+            <input
+              value={element.label ?? ""}
+              onChange={(e) => onUpdate({ label: e.target.value } as Partial<FloorElement>)}
+              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+            />
+          </div>
         </>
       )}
     </div>

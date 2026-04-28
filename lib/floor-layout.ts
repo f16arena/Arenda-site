@@ -13,7 +13,7 @@ export type FloorLayoutV2 = {
 
 export type Point = { x: number; y: number }
 
-export type FloorElement = RectRoom | PolygonRoom | Door | Label | Wall
+export type FloorElement = RectRoom | PolygonRoom | Door | Window | Label | Wall | Icon
 
 export type RectRoom = {
   type: "rect"
@@ -42,6 +42,27 @@ export type Door = {
   width: number   // м (по умолчанию 0.9)
   rotation: number // градусы 0/90/180/270
   swing: "left" | "right"
+}
+
+export type Window = {
+  type: "window"
+  id: string
+  x: number       // м (центр)
+  y: number       // м
+  width: number   // м (по умолчанию 1.2)
+  rotation: number // градусы 0/90/180/270
+}
+
+export type IconKind = "stairs" | "elevator" | "toilet" | "kitchen" | "parking"
+
+export type Icon = {
+  type: "icon"
+  id: string
+  kind: IconKind
+  x: number
+  y: number
+  size: number // м (по умолчанию 1.5)
+  label?: string
 }
 
 export type Label = {
@@ -99,7 +120,7 @@ export function elementCenter(el: FloorElement): Point {
       y: el.points.reduce((s, p) => s + p.y, 0) / n,
     }
   }
-  if (el.type === "door" || el.type === "label") return { x: el.x, y: el.y }
+  if (el.type === "door" || el.type === "window" || el.type === "label" || el.type === "icon") return { x: el.x, y: el.y }
   if (el.type === "wall") return { x: (el.x1 + el.x2) / 2, y: (el.y1 + el.y2) / 2 }
   return { x: 0, y: 0 }
 }

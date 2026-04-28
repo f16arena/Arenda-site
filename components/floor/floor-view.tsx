@@ -361,5 +361,45 @@ function ViewElement({
     )
   }
 
+  if (el.type === "window") {
+    const cx = el.x * PX_PER_METER
+    const cy = el.y * PX_PER_METER
+    const w = el.width * PX_PER_METER
+    return (
+      <g transform={`rotate(${el.rotation} ${cx} ${cy})`} pointerEvents="none">
+        <rect x={cx - w / 2} y={cy - 3 / zoom} width={w} height={6 / zoom} fill="#dbeafe" stroke="#60a5fa" strokeWidth={1.5 / zoom} />
+        <line x1={cx - w / 2} y1={cy} x2={cx + w / 2} y2={cy} stroke="#3b82f6" strokeWidth={1 / zoom} />
+      </g>
+    )
+  }
+
+  if (el.type === "icon") {
+    const s = el.size * PX_PER_METER
+    const x = el.x * PX_PER_METER
+    const y = el.y * PX_PER_METER
+    const colors: Record<string, { bg: string; border: string; fg: string }> = {
+      stairs: { bg: "#fef3c7", border: "#f59e0b", fg: "#92400e" },
+      elevator: { bg: "#ede9fe", border: "#8b5cf6", fg: "#5b21b6" },
+      toilet: { bg: "#dbeafe", border: "#3b82f6", fg: "#1e40af" },
+      kitchen: { bg: "#dcfce7", border: "#10b981", fg: "#065f46" },
+      parking: { bg: "#f1f5f9", border: "#64748b", fg: "#334155" },
+    }
+    const c = colors[el.kind] ?? colors.parking
+    const symbol: Record<string, string> = {
+      stairs: "≡", elevator: "▲▼", toilet: "WC", kitchen: "🍳", parking: "P",
+    }
+    return (
+      <g pointerEvents="none">
+        <rect x={x - s / 2} y={y - s / 2} width={s} height={s} fill={c.bg} stroke={c.border} strokeWidth={1.5 / zoom} rx={4 / zoom} />
+        <text x={x} y={y - 4 / zoom} textAnchor="middle" dominantBaseline="middle" fontSize={Math.min(s * 0.4, 24 / zoom)} fontWeight="bold" fill={c.fg} style={{ userSelect: "none" }}>
+          {symbol[el.kind] ?? el.kind}
+        </text>
+        {el.label && (
+          <text x={x} y={y + s / 2 - 4 / zoom} textAnchor="middle" fontSize={10 / zoom} fill={c.fg} style={{ userSelect: "none" }}>{el.label}</text>
+        )}
+      </g>
+    )
+  }
+
   return null
 }
