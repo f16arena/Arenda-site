@@ -1,6 +1,9 @@
 "use client"
 
-import { AlertCircle, RotateCcw } from "lucide-react"
+import { AlertCircle, RotateCcw, Home } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { useEffect } from "react"
+import Link from "next/link"
 
 export default function Error({
   error,
@@ -9,9 +12,20 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const pathname = usePathname()
+
+  useEffect(() => {
+    console.error("[admin/error]", {
+      pathname,
+      message: error.message,
+      digest: error.digest,
+      stack: error.stack,
+    })
+  }, [error, pathname])
+
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
-      <div className="text-center max-w-md">
+      <div className="text-center max-w-lg">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
           <AlertCircle className="h-6 w-6 text-red-600" />
         </div>
@@ -19,16 +33,28 @@ export default function Error({
         <p className="mt-2 text-sm text-slate-500">
           {error.message || "Не удалось загрузить страницу"}
         </p>
-        {error.digest && (
-          <p className="mt-1 text-xs text-slate-400">Код: {error.digest}</p>
-        )}
-        <button
-          onClick={reset}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Попробовать снова
-        </button>
+        <div className="mt-3 space-y-1">
+          <p className="text-xs text-slate-400">Страница: <span className="font-mono">{pathname}</span></p>
+          {error.digest && (
+            <p className="text-xs text-slate-400">Код: <span className="font-mono">{error.digest}</span></p>
+          )}
+        </div>
+        <div className="mt-5 flex gap-2 justify-center">
+          <button
+            onClick={reset}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Попробовать снова
+          </button>
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            <Home className="h-4 w-4" />
+            На главную
+          </Link>
+        </div>
       </div>
     </div>
   )
