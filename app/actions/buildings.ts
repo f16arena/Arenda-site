@@ -20,8 +20,15 @@ export async function createBuilding(formData: FormData) {
   if (!name) throw new Error("Название обязательно")
   if (!address) throw new Error("Адрес обязателен")
 
+  // Получим текущую организацию из контекста
+  const { getCurrentOrgId, checkLimit } = await import("@/lib/org")
+  const orgId = await getCurrentOrgId()
+  if (!orgId) throw new Error("Не выбрана организация")
+  await checkLimit(orgId, "buildings")
+
   const building = await db.building.create({
     data: {
+      organizationId: orgId,
       name,
       address,
       description: description || null,

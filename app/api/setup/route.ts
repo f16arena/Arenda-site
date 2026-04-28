@@ -20,8 +20,23 @@ export async function POST(request: Request) {
   const hash = (pw: string) => bcrypt.hash(pw, 10)
 
   // ── Здание ──────────────────────────────────────────────────
+  // Сначала создадим организацию (или возьмём существующую)
+  let org = await db.organization.findUnique({ where: { slug: "f16" } })
+  if (!org) {
+    const proPlan = await db.plan.findUnique({ where: { code: "PRO" } })
+    org = await db.organization.create({
+      data: {
+        name: "БЦ F16",
+        slug: "f16",
+        planId: proPlan?.id,
+        planExpiresAt: new Date(Date.now() + 10 * 365 * 24 * 3600 * 1000),
+      },
+    })
+  }
+
   const building = await db.building.create({
     data: {
+      organizationId: org.id,
       name: "БЦ F16",
       address: "г. Усть-Каменогорск, ул. 30-й Гвардейской дивизии 24/1",
       responsible: "Арыстан",

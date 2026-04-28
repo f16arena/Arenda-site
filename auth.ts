@@ -37,7 +37,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             name: user.name,
             email: user.email ?? undefined,
             role: user.role,
-          }
+            organizationId: user.organizationId ?? null,
+            isPlatformOwner: user.isPlatformOwner ?? false,
+          } as { id: string; name: string; email: string | undefined; role: string; organizationId: string | null; isPlatformOwner: boolean }
         } catch (e) {
           console.error("[authorize error]", e)
           throw e
@@ -49,13 +51,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.id = user.id!
-        token.role = (user as any).role
+        token.role = (user as { role: string }).role
+        token.organizationId = (user as { organizationId?: string | null }).organizationId ?? null
+        token.isPlatformOwner = (user as { isPlatformOwner?: boolean }).isPlatformOwner ?? false
       }
       return token
     },
     session({ session, token }) {
       session.user.id = token.id as string
       session.user.role = token.role as string
+      session.user.organizationId = (token.organizationId as string | null) ?? null
+      session.user.isPlatformOwner = (token.isPlatformOwner as boolean) ?? false
       return session
     },
   },

@@ -109,11 +109,18 @@ async function main() {
     }),
   ])
 
-  // ─── Building ──────────────────────────────────────────────────
+  // ─── Organization + Building ────────────────────────────────────
+  let org = await db.organization.findUnique({ where: { slug: "default" } })
+  if (!org) {
+    org = await db.organization.create({
+      data: { name: "Default", slug: "default" },
+    })
+  }
   let building = await db.building.findFirst()
   if (!building) {
     building = await db.building.create({
       data: {
+        organizationId: org.id,
         name: "БЦ Центральный",
         address: "г. Алматы, ул. Абая 150",
         description: "Бизнес-центр с развитой инфраструктурой в центре города",

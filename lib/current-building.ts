@@ -3,21 +3,23 @@ import { db } from "./db"
 
 const COOKIE_NAME = "currentBuildingId"
 
-// Возвращает id текущего здания. Если cookie не задан — первое активное.
+// Возвращает id текущего здания. Если cookie не задан — первое активное в текущей организации.
 export async function getCurrentBuildingId(): Promise<string | null> {
+  const { getCurrentOrgId } = await import("./org")
+  const orgId = await getCurrentOrgId()
+
   const store = await cookies()
   const fromCookie = store.get(COOKIE_NAME)?.value
   if (fromCookie) {
-    // Проверим что здание ещё существует и активно
     const exists = await db.building.findUnique({
       where: { id: fromCookie },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, organizationId: true },
     })
-    if (exists?.isActive) return fromCookie
+    if (exists?.isActive && (!orgId || exists.organizationId === orgId)) return fromCookie
   }
 
   const first = await db.building.findFirst({
-    where: { isActive: true },
+    where: orgId ? { isActive: true, organizationId: orgId } : { isActive: true },
     select: { id: true },
     orderBy: { createdAt: "asc" },
   })
