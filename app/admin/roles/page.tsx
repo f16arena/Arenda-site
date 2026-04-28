@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { Shield } from "lucide-react"
+import { Shield, AlertTriangle } from "lucide-react"
 import { SECTIONS, SECTION_LABELS } from "@/lib/acl"
 import { PermissionsMatrix } from "./permissions-matrix"
 
@@ -19,7 +19,16 @@ export default async function RolesPage() {
   if (!session || !["OWNER", "ADMIN"].includes(session.user.role)) redirect("/admin")
   const isOwner = session.user.role === "OWNER"
 
-  const rows = await db.rolePermission.findMany()
+  let rows: { role: string; section: string; canView: boolean; canEdit: boolean }[] = []
+  let migrationMissing = false
+  try {
+    rows = await db.rolePermission.findMany({
+      select: { role: true, section: true, canView: true, canEdit: true },
+    })
+  } catch {
+    migrationMissing = true
+  }
+
   const map: Record<string, Record<string, { canView: boolean; canEdit: boolean }>> = {}
   for (const r of rows) {
     if (!map[r.role]) map[r.role] = {}
@@ -40,11 +49,29 @@ export default async function RolesPage() {
         </div>
       </div>
 
+      {migrationMissing && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-semibold text-amber-900 mb-1">Таблица прав не создана в базе</p>
+              <p className="text-sm text-amber-800 mb-3">
+                Запустите миграцию <code className="bg-amber-100 px-1.5 py-0.5 rounded">migrations/006_role_permissions.sql</code> в Supabase SQL Editor. После этого обновите страницу.
+              </p>
+              <details className="text-xs text-amber-700">
+                <summary className="cursor-pointer hover:underline">Показать SQL для запуска</summary>
+                <pre className="mt-2 bg-white border border-amber-200 rounded p-3 overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PermissionsMatrix
         roles={ROLES.map((r) => ({ ...r }))}
         sections={SECTIONS.map((s) => ({ key: s, label: SECTION_LABELS[s] }))}
         permissions={map}
-        editable={isOwner}
+        editable={isOwner && !migrationMissing}
       />
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
@@ -59,3 +86,19 @@ export default async function RolesPage() {
     </div>
   )
 }
+
+const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS role_permissions (
+  id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+  role       TEXT NOT NULL,
+  section    TEXT NOT NULL,
+  can_view   BOOLEAN NOT NULL DEFAULT FALSE,
+  can_edit   BOOLEAN NOT NULL DEFAULT FALSE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (role, section)
+);
+
+DROP TRIGGER IF EXISTS role_permissions_updated_at ON role_permissions;
+CREATE TRIGGER role_permissions_updated_at
+  BEFORE UPDATE ON role_permissions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+`
