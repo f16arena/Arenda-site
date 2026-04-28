@@ -6,26 +6,70 @@ import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
 } from "lucide-react"
+import Link from "next/link"
 
 export default async function AdminDashboard() {
-  const [tenants, spaces, charges, requests, tasks] = await Promise.all([
-    db.tenant.findMany({ include: { space: true, user: true } }),
-    db.space.findMany(),
-    db.charge.findMany({ where: { isPaid: false } }),
-    db.request.findMany({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }),
-    db.task.findMany({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }),
+  const [
+    tenantsCount,
+    activeTenants,
+    spacesGroup,
+    chargesAgg,
+    recentRequests,
+    recentTasks,
+    debtsByTenant,
+    topTenants,
+  ] = await Promise.all([
+    db.tenant.count(),
+    db.tenant.findMany({
+      where: { spaceId: { not: null } },
+      select: { id: true, customRate: true, space: { select: { area: true } } },
+    }),
+    db.space.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    db.charge.aggregate({
+      where: { isPaid: false },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    db.request.findMany({
+      where: { status: { in: ["NEW", "IN_PROGRESS"] } },
+      select: { id: true, title: true, status: true },
+      take: 5,
+      orderBy: { createdAt: "desc" },
+    }),
+    db.task.findMany({
+      where: { status: { in: ["NEW", "IN_PROGRESS"] } },
+      select: { id: true, title: true, status: true },
+      take: 5,
+      orderBy: { createdAt: "desc" },
+    }),
+    db.charge.groupBy({
+      by: ["tenantId"],
+      where: { isPaid: false },
+      _sum: { amount: true },
+    }),
+    db.tenant.findMany({
+      where: { spaceId: { not: null } },
+      select: {
+        id: true,
+        companyName: true,
+        space: { select: { number: true } },
+      },
+      take: 6,
+      orderBy: { createdAt: "desc" },
+    }),
   ])
 
-  const activeTenants = tenants.filter((t) => t.spaceId)
-  const totalDebt = charges.reduce((sum, c) => sum + c.amount, 0)
-  const occupiedSpaces = spaces.filter((s) => s.status === "OCCUPIED").length
-  const vacantSpaces = spaces.filter((s) => s.status === "VACANT").length
-
-  const monthlyRevenue = tenants.reduce((sum, t) => {
-    const area = t.space?.area ?? 0
-    const rate = t.customRate ?? 0
-    return sum + area * rate
+  const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
+  const vacantSpaces = spacesGroup.find((s) => s.status === "VACANT")?._count._all ?? 0
+  const totalDebt = chargesAgg._sum.amount ?? 0
+  const debtCount = chargesAgg._count._all
+  const monthlyRevenue = activeTenants.reduce((sum, t) => {
+    return sum + (t.space?.area ?? 0) * (t.customRate ?? 0)
   }, 0)
+  const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
 
   return (
     <div className="space-y-6">
@@ -34,12 +78,11 @@ export default async function AdminDashboard() {
         <p className="text-sm text-slate-500 mt-0.5">Обзор состояния здания</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Арендаторы"
           value={String(activeTenants.length)}
-          sub={`из ${tenants.length} зарегистрированных`}
+          sub={`из ${tenantsCount} зарегистрированных`}
           icon={Users}
           color="blue"
         />
@@ -60,29 +103,28 @@ export default async function AdminDashboard() {
         <StatCard
           label="Общий долг"
           value={formatMoney(totalDebt)}
-          sub={`${charges.length} неоплаченных`}
+          sub={`${debtCount} неоплаченных`}
           icon={AlertTriangle}
           color="red"
         />
       </div>
 
-      {/* Quick panels */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-slate-400" />
               Активные заявки
             </h2>
-            <a href="/admin/requests" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+            <Link href="/admin/requests" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
               Все <ArrowUpRight className="h-3 w-3" />
-            </a>
+            </Link>
           </div>
-          {requests.length === 0 ? (
+          {recentRequests.length === 0 ? (
             <p className="text-sm text-slate-400">Нет активных заявок</p>
           ) : (
             <ul className="space-y-2">
-              {requests.slice(0, 5).map((r) => (
+              {recentRequests.map((r) => (
                 <li key={r.id} className="flex items-center justify-between text-sm">
                   <span className="text-slate-700 truncate">{r.title}</span>
                   <StatusBadge status={r.status} />
@@ -98,15 +140,15 @@ export default async function AdminDashboard() {
               <CheckSquare className="h-4 w-4 text-slate-400" />
               Задачи
             </h2>
-            <a href="/admin/tasks" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+            <Link href="/admin/tasks" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
               Все <ArrowUpRight className="h-3 w-3" />
-            </a>
+            </Link>
           </div>
-          {tasks.length === 0 ? (
+          {recentTasks.length === 0 ? (
             <p className="text-sm text-slate-400">Нет активных задач</p>
           ) : (
             <ul className="space-y-2">
-              {tasks.slice(0, 5).map((t) => (
+              {recentTasks.map((t) => (
                 <li key={t.id} className="flex items-center justify-between text-sm">
                   <span className="text-slate-700 truncate">{t.title}</span>
                   <StatusBadge status={t.status} />
@@ -117,13 +159,12 @@ export default async function AdminDashboard() {
         </div>
       </div>
 
-      {/* Tenants table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-900">Арендаторы</h2>
-          <a href="/admin/tenants" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+          <Link href="/admin/tenants" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
             Все <ArrowUpRight className="h-3 w-3" />
-          </a>
+          </Link>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -134,10 +175,8 @@ export default async function AdminDashboard() {
             </tr>
           </thead>
           <tbody>
-            {activeTenants.slice(0, 6).map((t) => {
-              const debt = charges
-                .filter((c) => c.tenantId === t.id)
-                .reduce((s, c) => s + c.amount, 0)
+            {topTenants.map((t) => {
+              const debt = debtMap.get(t.id) ?? 0
               return (
                 <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3 font-medium text-slate-900">{t.companyName}</td>

@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react"
 import { Plus, X, Edit2, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Floor = { id: string; name: string; number: number }
 type Space = { id: string; number: string; area: number; status: string; description: string | null }
@@ -35,7 +37,17 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
               <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
             </div>
             <form
-              action={(fd) => startTransition(async () => { await createSpace(fd); setOpen(false) })}
+              action={(fd) =>
+                startTransition(async () => {
+                  try {
+                    await createSpace(fd)
+                    toast.success("Помещение создано")
+                    setOpen(false)
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Не удалось создать")
+                  }
+                })
+              }
               className="p-6 space-y-4"
             >
               <div>
@@ -93,7 +105,17 @@ export function EditSpaceDialog({ space, floors }: { space: Space; floors: Floor
               <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
             </div>
             <form
-              action={(fd) => startTransition(async () => { await updateSpace(space.id, fd); setOpen(false) })}
+              action={(fd) =>
+                startTransition(async () => {
+                  try {
+                    await updateSpace(space.id, fd)
+                    toast.success("Изменения сохранены")
+                    setOpen(false)
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "Не удалось сохранить")
+                  }
+                })
+              }
               className="p-6 space-y-4"
             >
               <div className="grid grid-cols-2 gap-3">
@@ -131,20 +153,35 @@ export function EditSpaceDialog({ space, floors }: { space: Space; floors: Floor
 }
 
 export function DeleteSpaceButton({ spaceId, hasТenant }: { spaceId: string; hasТenant: boolean }) {
-  const [pending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
   if (hasТenant) return null
 
   return (
-    <button
-      onClick={() => {
-        if (!confirm("Удалить помещение?")) return
-        startTransition(async () => { await deleteSpace(spaceId) })
-      }}
-      disabled={pending}
-      className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50"
-    >
-      <Trash2 className="h-3 w-3" />
-    </button>
+    <ConfirmDialog
+      title="Удалить помещение?"
+      description="Это действие нельзя отменить."
+      variant="danger"
+      confirmLabel="Удалить"
+      onConfirm={() =>
+        new Promise<void>((resolve) => {
+          startTransition(async () => {
+            try {
+              await deleteSpace(spaceId)
+              toast.success("Помещение удалено")
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Не удалось удалить")
+            } finally {
+              resolve()
+            }
+          })
+        })
+      }
+      trigger={
+        <button className="text-xs text-red-400 hover:text-red-600">
+          <Trash2 className="h-3 w-3" />
+        </button>
+      }
+    />
   )
 }

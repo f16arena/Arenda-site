@@ -65,14 +65,15 @@ export default function LoginPage() {
           </form>
         </div>
 
-        {/* Test accounts hint */}
-        <div className="mt-4 rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1">
-          <p className="font-semibold">Аккаунты для входа:</p>
-          <p>Владелец: <span className="font-mono">f16arena@gmail.com</span> / <span className="font-mono">F16arena2024!</span></p>
-          <p>Администратор: <span className="font-mono">admin@f16arena.kz</span> / <span className="font-mono">admin2024!</span></p>
-          <p>Бухгалтер: <span className="font-mono">buh@f16arena.kz</span> / <span className="font-mono">buh2024!</span></p>
-          <p>Завхоз: <span className="font-mono">+77000000004</span> / <span className="font-mono">manager2024!</span></p>
-        </div>
+        {process.env.NODE_ENV !== "production" && (
+          <div className="mt-4 rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1">
+            <p className="font-semibold">Тестовые аккаунты (только в dev):</p>
+            <p>Владелец: <span className="font-mono">f16arena@gmail.com</span> / <span className="font-mono">F16arena2024!</span></p>
+            <p>Администратор: <span className="font-mono">admin@f16arena.kz</span> / <span className="font-mono">admin2024!</span></p>
+            <p>Бухгалтер: <span className="font-mono">buh@f16arena.kz</span> / <span className="font-mono">buh2024!</span></p>
+            <p>Завхоз: <span className="font-mono">+77000000004</span> / <span className="font-mono">manager2024!</span></p>
+          </div>
+        )}
       </div>
     </div>
   )
