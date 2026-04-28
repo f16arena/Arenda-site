@@ -3,6 +3,19 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
+// Маппинг типа счётчика на тип тарифа
+const TARIFF_TYPE_BY_METER: Record<string, string> = {
+  ELECTRICITY: "ELECTRICITY",
+  WATER: "WATER",
+  HEAT: "HEATING",
+}
+
+const CHARGE_TYPE_BY_METER: Record<string, string> = {
+  ELECTRICITY: "ELECTRICITY",
+  WATER: "WATER",
+  HEAT: "HEATING",
+}
+
 export async function saveMeterReading(formData: FormData) {
   const meterId = formData.get("meterId") as string
   const valueStr = formData.get("value") as string
@@ -12,7 +25,7 @@ export async function saveMeterReading(formData: FormData) {
     where: { id: meterId },
     include: {
       readings: { orderBy: { createdAt: "desc" }, take: 1 },
-      space: { include: { tenant: true, floor: true } },
+      space: { include: { tenant: true, floor: { include: { building: true } } } },
     },
   })
   if (!meter) return { error: "Счётчик не найден" }
@@ -25,24 +38,37 @@ export async function saveMeterReading(formData: FormData) {
     data: { meterId, period, value, previous },
   })
 
-  // Auto-generate electricity charge if tenant exists
+  // Авто-начисление тенанту по тарифу из БД
   if (meter.space.tenant && consumption > 0) {
-    const RATE_PER_KWH = 22 // тенге за кВт·ч
-    const amount = Math.round(consumption * RATE_PER_KWH)
-    const existing = await db.charge.findFirst({
-      where: { tenantId: meter.space.tenant.id, period, type: "ELECTRICITY" },
-    })
-    if (!existing) {
-      await db.charge.create({
-        data: {
-          tenantId: meter.space.tenant.id,
-          period,
-          type: "ELECTRICITY",
-          amount,
-          description: `Электроэнергия: ${consumption} кВт·ч × ${RATE_PER_KWH} ₸`,
-          dueDate: new Date(parseInt(period.split("-")[0]), parseInt(period.split("-")[1]) - 1, 10),
-        },
+    const tariffType = TARIFF_TYPE_BY_METER[meter.type]
+    const tariff = tariffType
+      ? await db.tariff.findFirst({
+          where: {
+            buildingId: meter.space.floor.building.id,
+            type: tariffType,
+            isActive: true,
+          },
+        })
+      : null
+
+    if (tariff) {
+      const amount = Math.round(consumption * tariff.rate)
+      const chargeType = CHARGE_TYPE_BY_METER[meter.type] ?? "OTHER"
+      const existing = await db.charge.findFirst({
+        where: { tenantId: meter.space.tenant.id, period, type: chargeType },
       })
+      if (!existing) {
+        await db.charge.create({
+          data: {
+            tenantId: meter.space.tenant.id,
+            period,
+            type: chargeType,
+            amount,
+            description: `${tariff.name}: ${consumption} ${tariff.unit} × ${tariff.rate} ₸`,
+            dueDate: new Date(parseInt(period.split("-")[0]), parseInt(period.split("-")[1]) - 1, 10),
+          },
+        })
+      }
     }
   }
 
@@ -65,8 +91,20 @@ export async function createMeter(formData: FormData) {
   const spaceId = formData.get("spaceId") as string
   const type = formData.get("type") as string
   const number = formData.get("number") as string
+  const initialValueStr = formData.get("initialValue") as string
 
-  await db.meter.create({ data: { spaceId, type, number } })
+  const meter = await db.meter.create({ data: { spaceId, type, number } })
+
+  // Если задано начальное показание — создаём первое чтение в текущем периоде
+  if (initialValueStr) {
+    const initialValue = parseFloat(initialValueStr)
+    if (!Number.isNaN(initialValue)) {
+      const period = new Date().toISOString().slice(0, 7)
+      await db.meterReading.create({
+        data: { meterId: meter.id, period, value: initialValue, previous: 0 },
+      })
+    }
+  }
 
   revalidatePath("/admin/meters")
   return { success: true }

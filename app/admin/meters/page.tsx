@@ -18,13 +18,19 @@ const typeColor: Record<string, string> = {
   HEAT: "bg-orange-100 text-orange-700",
 }
 
+const TARIFF_TYPE_BY_METER: Record<string, string> = {
+  ELECTRICITY: "ELECTRICITY",
+  WATER: "WATER",
+  HEAT: "HEATING",
+}
+
 export default async function MetersPage() {
   const currentPeriod = new Date().toISOString().slice(0, 7)
   const prevDate = new Date()
   prevDate.setMonth(prevDate.getMonth() - 1)
   const prevPeriod = prevDate.toISOString().slice(0, 7)
 
-  const [meters, spaces] = await Promise.all([
+  const [meters, spaces, tariffs] = await Promise.all([
     db.meter.findMany({
       include: {
         space: {
@@ -43,7 +49,10 @@ export default async function MetersPage() {
       include: { floor: true },
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
     }),
+    db.tariff.findMany({ where: { isActive: true } }),
   ])
+
+  const tariffByType = new Map(tariffs.map((t) => [t.type, t]))
 
   const meterProps = meters.map((m) => ({
     id: m.id,
@@ -75,6 +84,8 @@ export default async function MetersPage() {
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Пред. период</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Тек. период</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Расход</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Тариф</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">К оплате</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -83,6 +94,8 @@ export default async function MetersPage() {
               const current = meter.readings.find((r) => r.period === currentPeriod)
               const prev = meter.readings.find((r) => r.period === prevPeriod)
               const consumption = current ? (current.value - current.previous) : null
+              const tariff = tariffByType.get(TARIFF_TYPE_BY_METER[meter.type] ?? "")
+              const cost = consumption !== null && tariff ? Math.round(consumption * tariff.rate) : null
 
               return (
                 <tr key={meter.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -116,6 +129,14 @@ export default async function MetersPage() {
                       <span className="font-medium text-slate-900">{consumption.toLocaleString("ru-RU")}</span>
                     ) : "—"}
                   </td>
+                  <td className="px-5 py-3.5 text-right text-slate-500 text-xs">
+                    {tariff ? `${tariff.rate} ₸/${tariff.unit}` : <span className="text-amber-500">не задан</span>}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    {cost !== null ? (
+                      <span className="font-medium text-emerald-600">{cost.toLocaleString("ru-RU")} ₸</span>
+                    ) : "—"}
+                  </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-3">
                       {!current && <InlineReadingButton meterId={meter.id} period={currentPeriod} />}
@@ -132,7 +153,7 @@ export default async function MetersPage() {
             })}
             {meters.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-16 text-center">
+                <td colSpan={9} className="px-5 py-16 text-center">
                   <Gauge className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                   <p className="text-sm text-slate-400">Счётчики не добавлены</p>
                 </td>

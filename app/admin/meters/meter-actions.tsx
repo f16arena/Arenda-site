@@ -166,6 +166,17 @@ export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
                   <input name="number" required className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Начальное показание</label>
+                <input
+                  name="initialValue"
+                  type="number"
+                  step="0.01"
+                  placeholder="Текущее показание счётчика на момент установки"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">От этого значения будет считаться расход</p>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">

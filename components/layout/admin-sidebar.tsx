@@ -38,6 +38,7 @@ const nav: NavSection[] = [
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Документы", icon: FileText },
+      { href: "/admin/documents/templates/rental", label: "Договор аренды", icon: FileText },
       { href: "/admin/documents/templates/reconciliation", label: "Акт сверки", icon: BarChart3 },
     ],
   },

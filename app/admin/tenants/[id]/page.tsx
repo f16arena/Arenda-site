@@ -12,6 +12,8 @@ import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/
 import { ArrowLeft, Building2, User, CreditCard, FileText, Receipt } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
+import { DocumentsChecklist } from "./documents-checklist"
+import { FullFloorAssign } from "./full-floor-assign"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -28,6 +30,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       payments: { orderBy: { paymentDate: "desc" }, take: 10 },
       contracts: { orderBy: { createdAt: "desc" }, take: 5 },
       requests: { orderBy: { createdAt: "desc" }, take: 5 },
+      documents: { orderBy: { createdAt: "desc" } },
     },
   })
 
@@ -42,6 +45,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     include: { floor: true },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
+
+  const allFloors = await db.floor.findMany({
+    select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },
+    orderBy: { number: "asc" },
+  })
+
+  const myFullFloors = allFloors
+    .filter((f) => f.fullFloorTenantId === tenant.id)
+    .map((f) => ({ id: f.id, name: f.name, fixedMonthlyRent: f.fixedMonthlyRent }))
 
   return (
     <div className="space-y-6">
@@ -376,10 +388,24 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
             </form>
           </div>
+
+          {/* Documents checklist */}
+          <DocumentsChecklist
+            tenantId={tenant.id}
+            legalType={tenant.legalType}
+            documents={tenant.documents}
+          />
         </div>
 
         {/* Right column: info cards */}
         <div className="space-y-5">
+          {/* Full floor assign */}
+          <FullFloorAssign
+            tenantId={tenant.id}
+            floors={allFloors}
+            currentFloors={myFullFloors}
+          />
+
           {/* Space */}
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-medium text-slate-400 mb-2">ПОМЕЩЕНИЕ</p>
@@ -401,7 +427,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   )}/мес
                 </p>
                 <Link
-                  href={`/admin/documents/templates?tenantId=${tenant.id}`}
+                  href={`/admin/documents/templates/rental?tenantId=${tenant.id}`}
                   className="mt-3 block text-center rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Сформировать договор
