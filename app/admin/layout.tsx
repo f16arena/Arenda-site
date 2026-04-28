@@ -21,18 +21,23 @@ export default async function AdminLayout({
   const currentBuildingId = await getCurrentBuildingId()
   const [building, allBuildings, notifications, allowedSections] = await Promise.all([
     currentBuildingId
-      ? db.building.findUnique({ where: { id: currentBuildingId } })
+      ? db.building.findUnique({
+          where: { id: currentBuildingId },
+          select: { id: true, name: true, address: true, isActive: true },
+        })
       : Promise.resolve(null),
     db.building.findMany({
       where: { isActive: true },
       select: { id: true, name: true, address: true },
       orderBy: { createdAt: "asc" },
     }),
+    // Может упасть если миграция 005 не применена
     db.notification.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
       take: 30,
-    }),
+      select: { id: true, type: true, title: true, message: true, link: true, isRead: true, createdAt: true },
+    }).catch(() => [] as Array<{ id: string; type: string; title: string; message: string; link: string | null; isRead: boolean; createdAt: Date }>),
     getAllowedSections(session.user.role),
   ])
 

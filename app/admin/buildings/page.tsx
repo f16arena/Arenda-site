@@ -16,15 +16,38 @@ export default async function BuildingsPage() {
   const currentBuildingId = await getCurrentBuildingId()
 
   const buildings = await db.building.findMany({
-    include: {
+    select: {
+      id: true,
+      name: true,
+      address: true,
+      description: true,
+      phone: true,
+      email: true,
+      responsible: true,
+      totalArea: true,
+      isActive: true,
       floors: {
-        include: { _count: { select: { spaces: true } } },
+        select: {
+          id: true,
+          number: true,
+          name: true,
+          ratePerSqm: true,
+          totalArea: true,
+          _count: { select: { spaces: true } },
+        },
         orderBy: { number: "asc" },
       },
       _count: { select: { floors: true } },
     },
     orderBy: { createdAt: "asc" },
   })
+
+  // contractPrefix отдельным запросом — может не быть в БД до миграции 007
+  let prefixMap = new Map<string, string | null>()
+  try {
+    const withPrefix = await db.building.findMany({ select: { id: true, contractPrefix: true } })
+    prefixMap = new Map(withPrefix.map((b) => [b.id, b.contractPrefix]))
+  } catch { /* migration 007 not applied yet */ }
 
   // Считаем арендаторов и помещения по каждому зданию
   const stats = await Promise.all(
@@ -121,7 +144,7 @@ export default async function BuildingsPage() {
                     email: b.email,
                     responsible: b.responsible,
                     totalArea: b.totalArea,
-                    contractPrefix: b.contractPrefix,
+                    contractPrefix: prefixMap.get(b.id) ?? null,
                   }}
                 />
               </div>

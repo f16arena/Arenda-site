@@ -16,22 +16,36 @@ export default async function TenantsPage() {
 
   const tenants = await db.tenant.findMany({
     where: floorIds.length > 0 ? {
-      OR: [
-        { space: { floorId: { in: floorIds } } },
-        { fullFloors: { some: { id: { in: floorIds } } } },
-      ],
+      space: { floorId: { in: floorIds } },
     } : undefined,
-    include: {
-      user: true,
-      space: { include: { floor: true } },
-      charges: { where: { isPaid: false } },
+    select: {
+      id: true,
+      companyName: true,
+      legalType: true,
+      bin: true,
+      category: true,
+      createdAt: true,
+      user: { select: { id: true, name: true, phone: true, email: true } },
+      space: {
+        select: {
+          number: true,
+          area: true,
+          floor: { select: { name: true, ratePerSqm: true } },
+        },
+      },
+      charges: { where: { isPaid: false }, select: { amount: true } },
     },
     orderBy: { createdAt: "desc" },
   })
 
   const vacantSpaces = await db.space.findMany({
     where: { status: "VACANT", ...(floorIds.length > 0 ? { floorId: { in: floorIds } } : {}) },
-    include: { floor: true },
+    select: {
+      id: true,
+      number: true,
+      area: true,
+      floor: { select: { name: true } },
+    },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
 
