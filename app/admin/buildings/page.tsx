@@ -121,6 +121,7 @@ export default async function BuildingsPage() {
                     email: b.email,
                     responsible: b.responsible,
                     totalArea: b.totalArea,
+                    contractPrefix: b.contractPrefix,
                   }}
                 />
               </div>

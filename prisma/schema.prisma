@@ -50,16 +50,18 @@ model Notification {
 }
 
 model Building {
-  id          String   @id @default(cuid())
-  name        String
-  address     String
-  description String?
-  phone       String?
-  email       String?
-  responsible String?
-  totalArea   Float?   @map("total_area")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id              String   @id @default(cuid())
+  name            String
+  address         String
+  description     String?
+  phone           String?
+  email           String?
+  responsible     String?
+  totalArea       Float?   @map("total_area")
+  contractPrefix  String?  @map("contract_prefix")
+  contractCounter Int      @default(0) @map("contract_counter")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   floors            Floor[]
   emergencyContacts EmergencyContact[]

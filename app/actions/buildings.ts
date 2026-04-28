@@ -15,6 +15,7 @@ export async function createBuilding(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim()
   const responsible = String(formData.get("responsible") ?? "").trim()
   const totalAreaStr = String(formData.get("totalArea") ?? "")
+  const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
   if (!name) throw new Error("Название обязательно")
   if (!address) throw new Error("Адрес обязателен")
@@ -28,6 +29,7 @@ export async function createBuilding(formData: FormData) {
       email: email || null,
       responsible: responsible || null,
       totalArea: totalAreaStr ? parseFloat(totalAreaStr) : null,
+      contractPrefix: contractPrefix || null,
     },
   })
 
@@ -49,6 +51,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const email = String(formData.get("email") ?? "").trim()
   const responsible = String(formData.get("responsible") ?? "").trim()
   const totalAreaStr = String(formData.get("totalArea") ?? "")
+  const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
   await db.building.update({
     where: { id: buildingId },
@@ -60,6 +63,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
       email: email || null,
       responsible: responsible || null,
       totalArea: totalAreaStr ? parseFloat(totalAreaStr) : null,
+      contractPrefix: contractPrefix || null,
     },
   })
 

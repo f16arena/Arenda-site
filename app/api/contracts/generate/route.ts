@@ -80,8 +80,10 @@ export async function GET(req: Request) {
     ? `документа удостоверяющего личность (ИИН ${tenant.iin})`
     : "учредительных документов"
 
+  const contractNumber = searchParams.get("number") || "01-XXX"
+
   const children = [
-    center(`Договор № ${searchParams.get("number") ?? "01-XXX"} аренды нежилого помещения`),
+    center(`Договор № ${contractNumber} аренды нежилого помещения`),
     new Paragraph({ children: [new TextRun({ text: "" })], spacing: { after: 200 } }),
 
     new Paragraph({
@@ -183,7 +185,9 @@ export async function GET(req: Request) {
   })
 
   const buffer = await Packer.toBuffer(doc)
-  const fileName = `Договор_${tenantName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")}_${start.getFullYear()}.docx`
+  const safeTenant = tenantName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
+  const safeNumber = contractNumber.replace(/[^a-zA-Z0-9_-]/g, "_")
+  const fileName = `Договор_${safeNumber}_${safeTenant}.docx`
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {

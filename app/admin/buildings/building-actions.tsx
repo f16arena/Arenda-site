@@ -65,6 +65,16 @@ export function CreateBuildingButton() {
                 <Field label="Ответственный" name="responsible" />
                 <Field label="Общая площадь, м²" name="totalArea" type="number" step="0.1" />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Префикс договоров</label>
+                <input
+                  name="contractPrefix"
+                  placeholder="F16"
+                  maxLength={10}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Используется в номере: {`{префикс}-{год}-{№}`}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.</p>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
@@ -94,6 +104,7 @@ export function BuildingActions({
     email: string | null
     responsible: string | null
     totalArea: number | null
+    contractPrefix: string | null
   }
 }) {
   const [editOpen, setEditOpen] = useState(false)
@@ -195,6 +206,17 @@ export function BuildingActions({
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Ответственный" name="responsible" defaultValue={building.responsible ?? ""} />
                 <Field label="Общая площадь, м²" name="totalArea" type="number" step="0.1" defaultValue={building.totalArea ?? ""} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Префикс договоров</label>
+                <input
+                  name="contractPrefix"
+                  defaultValue={building.contractPrefix ?? ""}
+                  placeholder="F16"
+                  maxLength={10}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Формат: {`{префикс}-{год}-{№}`} → {building.contractPrefix || "F16"}-{new Date().getFullYear()}-001</p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>

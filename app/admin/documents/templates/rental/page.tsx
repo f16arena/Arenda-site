@@ -6,6 +6,8 @@ import { redirect } from "next/navigation"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
 import { TenantSelector } from "../tenant-selector"
 import { PrintButton } from "./print-button"
+import { ContractNumberInput } from "./contract-number-input"
+import { suggestContractNumber } from "@/lib/contract-numbering"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 
@@ -47,7 +49,16 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
       })
     : null
 
-  const building = await db.building.findFirst({ where: { isActive: true } })
+  // Определяем здание арендатора и предлагаем номер
+  const tenantBuildingId = tenant?.space?.floor.buildingId ?? tenant?.fullFloors?.[0]?.buildingId
+  const suggestedNumber = tenant && tenantBuildingId
+    ? await suggestContractNumber(tenantBuildingId).catch(() => "01-001")
+    : null
+  const initialContractNumber = tenant?.contracts?.[0]?.number ?? suggestedNumber ?? "01-001"
+
+  const building = tenantBuildingId
+    ? await db.building.findUnique({ where: { id: tenantBuildingId } })
+    : await db.building.findFirst({ where: { isActive: true } })
 
   const today = new Date()
   const contractEnd = new Date(today)
@@ -82,18 +93,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
         </div>
         <div className="flex items-center gap-3">
           <TenantSelector tenants={allTenants} />
-          {tenant && (
-            <>
-              <a
-                href={`/api/contracts/generate?tenantId=${tenant.id}`}
-                download
-                className="flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white whitespace-nowrap"
-              >
-                Скачать DOCX
-              </a>
-              <PrintButton />
-            </>
-          )}
+          {tenant && <PrintButton />}
         </div>
       </div>
 
@@ -102,8 +102,14 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           <p className="text-slate-500">Выберите арендатора чтобы сформировать договор</p>
         </div>
       ) : (
+        <>
+        <ContractNumberInput
+          initial={initialContractNumber}
+          tenantId={tenant.id}
+          suggestedNumber={suggestedNumber}
+        />
         <div className="bg-white rounded-xl border border-slate-200 p-10 max-w-[900px] mx-auto print:p-12 print:border-0 print:rounded-none print:shadow-none print:max-w-full text-[13px] leading-relaxed text-slate-900 contract-body">
-          <p className="text-center font-bold text-base">Договор № {tenant.contracts?.[0]?.number ?? "01-XXX"} аренды нежилого помещения</p>
+          <p className="text-center font-bold text-base">Договор № {initialContractNumber} аренды нежилого помещения</p>
           <div className="flex justify-between mt-4">
             <span>г. Усть-Каменогорск</span>
             <span>«___» __________ {today.getFullYear()} года</span>
@@ -236,6 +242,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
             </div>
           </div>
         </div>
+        </>
       )}
 
       <style>{`
