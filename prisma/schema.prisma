@@ -46,21 +46,42 @@ model Building {
   floors            Floor[]
   emergencyContacts EmergencyContact[]
   expenses          Expense[]
+  tariffs           Tariff[]
 
   @@map("buildings")
 }
 
-model Floor {
-  id         String  @id @default(cuid())
-  buildingId String  @map("building_id")
-  number     Int
-  name       String
-  ratePerSqm Float   @default(0) @map("rate_per_sqm")
-  totalArea  Float?  @map("total_area")
-  layoutJson String? @map("layout_json")
+model Tariff {
+  id          String   @id @default(cuid())
+  buildingId  String   @map("building_id")
+  type        String   // ELECTRICITY | WATER | HEATING | GARBAGE | INTERNET | OTHER
+  name        String
+  rate        Float
+  unit        String   @default("ед.")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
 
-  building Building @relation(fields: [buildingId], references: [id])
-  spaces   Space[]
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@map("tariffs")
+}
+
+model Floor {
+  id               String  @id @default(cuid())
+  buildingId       String  @map("building_id")
+  number           Int
+  name             String
+  ratePerSqm       Float   @default(0) @map("rate_per_sqm")
+  totalArea        Float?  @map("total_area")
+  layoutJson       String? @map("layout_json")
+  fixedMonthlyRent Float?  @map("fixed_monthly_rent")
+  fullFloorTenantId String? @map("full_floor_tenant_id")
+
+  building       Building @relation(fields: [buildingId], references: [id])
+  spaces         Space[]
+  fullFloorTenant Tenant? @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
 
   @@map("floors")
 }
@@ -81,30 +102,36 @@ model Space {
 }
 
 model Tenant {
-  id            String    @id @default(cuid())
-  userId        String    @unique @map("user_id")
-  spaceId       String?   @unique @map("space_id")
-  companyName   String    @map("company_name")
-  bin           String?
-  bankName      String?   @map("bank_name")
-  iik           String?
-  bik           String?
-  legalType     String    @default("IP") @map("legal_type")
-  category      String?
-  needsCleaning Boolean   @default(false) @map("needs_cleaning")
-  cleaningFee   Float     @default(0)     @map("cleaning_fee")
-  customRate    Float?    @map("custom_rate")
-  contractStart DateTime? @map("contract_start")
-  contractEnd   DateTime? @map("contract_end")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(cuid())
+  userId           String    @unique @map("user_id")
+  spaceId          String?   @unique @map("space_id")
+  companyName      String    @map("company_name")
+  bin              String?
+  iin              String?
+  bankName         String?   @map("bank_name")
+  iik              String?
+  bik              String?
+  legalType        String    @default("IP") @map("legal_type")
+  category         String?
+  legalAddress     String?   @map("legal_address")
+  actualAddress    String?   @map("actual_address")
+  directorName     String?   @map("director_name")
+  directorPosition String?   @map("director_position")
+  needsCleaning    Boolean   @default(false) @map("needs_cleaning")
+  cleaningFee      Float     @default(0)     @map("cleaning_fee")
+  customRate       Float?    @map("custom_rate")
+  contractStart    DateTime? @map("contract_start")
+  contractEnd      DateTime? @map("contract_end")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
-  user      User             @relation(fields: [userId], references: [id])
-  space     Space?           @relation(fields: [spaceId], references: [id])
-  charges   Charge[]
-  payments  Payment[]
-  contracts Contract[]
-  documents TenantDocument[]
-  requests  Request[]
+  user        User             @relation(fields: [userId], references: [id])
+  space       Space?           @relation(fields: [spaceId], references: [id])
+  charges     Charge[]
+  payments    Payment[]
+  contracts   Contract[]
+  documents   TenantDocument[]
+  requests    Request[]
+  fullFloors  Floor[]          @relation("FullFloorTenant")
 
   @@map("tenants")
 }

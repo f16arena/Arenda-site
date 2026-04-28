@@ -147,8 +147,6 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <input type="hidden" name="bik" value={tenant.bik ?? ""} />
               <input type="hidden" name="cleaningFee" value={tenant.cleaningFee} />
               <input type="hidden" name="needsCleaning" value={tenant.needsCleaning ? "on" : ""} />
-              <input type="hidden" name="contractStart" value={tenant.contractStart?.toISOString().slice(0, 10) ?? ""} />
-              <input type="hidden" name="contractEnd" value={tenant.contractEnd?.toISOString().slice(0, 10) ?? ""} />
               <input type="hidden" name="customRate" value={tenant.customRate ?? ""} />
 
               <div>
@@ -174,10 +172,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">БИН / ИИН</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">БИН (для ТОО/АО)</label>
                 <input
                   name="bin"
                   defaultValue={tenant.bin ?? ""}
+                  placeholder="12 цифр"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">ИИН (для ИП/физлица)</label>
+                <input
+                  name="iin"
+                  defaultValue={tenant.iin ?? ""}
+                  placeholder="12 цифр"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
@@ -186,6 +194,42 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <input
                   name="category"
                   defaultValue={tenant.category ?? ""}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Юридический адрес</label>
+                <input
+                  name="legalAddress"
+                  defaultValue={tenant.legalAddress ?? ""}
+                  placeholder="г. Усть-Каменогорск, ул..."
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Фактический адрес</label>
+                <input
+                  name="actualAddress"
+                  defaultValue={tenant.actualAddress ?? ""}
+                  placeholder="Если совпадает с юридическим — оставьте пустым"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">ФИО руководителя</label>
+                <input
+                  name="directorName"
+                  defaultValue={tenant.directorName ?? ""}
+                  placeholder="Иванов Иван Иванович"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">Должность руководителя</label>
+                <input
+                  name="directorPosition"
+                  defaultValue={tenant.directorPosition ?? ""}
+                  placeholder="Директор / Учредитель"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>

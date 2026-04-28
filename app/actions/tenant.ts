@@ -7,11 +7,16 @@ import { redirect } from "next/navigation"
 export async function updateTenant(tenantId: string, formData: FormData) {
   const companyName = formData.get("companyName") as string
   const bin = formData.get("bin") as string
+  const iin = formData.get("iin") as string
   const bankName = formData.get("bankName") as string
   const iik = formData.get("iik") as string
   const bik = formData.get("bik") as string
   const legalType = formData.get("legalType") as string
   const category = formData.get("category") as string
+  const legalAddress = formData.get("legalAddress") as string
+  const actualAddress = formData.get("actualAddress") as string
+  const directorName = formData.get("directorName") as string
+  const directorPosition = formData.get("directorPosition") as string
   const customRateStr = formData.get("customRate") as string
   const cleaningFeeStr = formData.get("cleaningFee") as string
   const needsCleaning = formData.get("needsCleaning") === "on"
@@ -23,11 +28,16 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     data: {
       companyName,
       bin: bin || null,
+      iin: iin || null,
       bankName: bankName || null,
       iik: iik || null,
       bik: bik || null,
       legalType,
       category: category || null,
+      legalAddress: legalAddress || null,
+      actualAddress: actualAddress || null,
+      directorName: directorName || null,
+      directorPosition: directorPosition || null,
       customRate: customRateStr ? parseFloat(customRateStr) : null,
       cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
       needsCleaning,
