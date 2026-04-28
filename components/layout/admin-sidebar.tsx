@@ -6,12 +6,15 @@ import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare, UserCog,
   MessageSquare, AlertCircle, Phone, BarChart3,
-  LogOut, ChevronDown, ChevronRight, Building, Settings, Shield,
+  LogOut, Building, Settings, Shield, ShieldCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { logout } from "@/app/actions/auth"
 
-const nav = [
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; ownerOnly?: boolean }
+type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
+
+const nav: NavSection[] = [
   {
     items: [
       { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true },
@@ -62,15 +65,25 @@ const nav = [
       { href: "/admin/roles", label: "Роли и доступ", icon: Shield },
     ],
   },
+  {
+    title: "СУПЕР-АДМИН",
+    ownerOnly: true,
+    items: [
+      { href: "/admin/users", label: "Все пользователи", icon: ShieldCheck, ownerOnly: true },
+    ],
+  },
 ]
 
-export function AdminSidebar({ buildingName }: { buildingName?: string }) {
+export function AdminSidebar({ buildingName, userRole }: { buildingName?: string; userRole?: string }) {
   const pathname = usePathname()
+  const isOwner = userRole === "OWNER"
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href
     return pathname.startsWith(href)
   }
+
+  const visibleNav = nav.filter((s) => !s.ownerOnly || isOwner)
 
   return (
     <div className="flex h-full w-60 flex-col bg-slate-900">
@@ -89,7 +102,7 @@ export function AdminSidebar({ buildingName }: { buildingName?: string }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-        {nav.map((section, si) => (
+        {visibleNav.map((section, si) => (
           <div key={si}>
             {section.title && (
               <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 uppercase">

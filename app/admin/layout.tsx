@@ -19,7 +19,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <AdminSidebar buildingName={building?.name} />
+      <AdminSidebar buildingName={building?.name} userRole={session.user.role} />
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
