@@ -159,6 +159,29 @@ export class LimitExceededError extends Error {
   }
 }
 
+// Проверка что подписка активна (не истекла, не приостановлена)
+export async function requireSubscriptionActive(orgId: string) {
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { isActive: true, isSuspended: true, planExpiresAt: true },
+  })
+  if (!org) throw new Error("Организация не найдена")
+  if (!org.isActive) throw new Error("Организация деактивирована")
+  if (org.isSuspended) throw new Error("Подписка приостановлена. Обратитесь в поддержку.")
+  if (org.planExpiresAt && org.planExpiresAt < new Date()) {
+    throw new Error("Подписка истекла. Продлите чтобы продолжить работу.")
+  }
+}
+
+// Проверка фичи по плану — кидает понятную ошибку если нет
+export async function requireFeature(orgId: string, key: string, label?: string) {
+  const org = await getOrgPlan(orgId)
+  if (!org?.plan) throw new Error("План не назначен")
+  if (!planHasFeature(org.plan.features, key)) {
+    throw new Error(`Функция "${label ?? key}" недоступна на тарифе ${org.plan.name}. Обновите тариф.`)
+  }
+}
+
 export async function checkLimit(orgId: string, type: "buildings" | "tenants" | "users" | "leads") {
   const org = await getOrgPlan(orgId)
   if (!org?.plan) return // нет плана — пропускаем (для миграционного периода)

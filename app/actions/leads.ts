@@ -5,9 +5,15 @@ import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/permissions"
 import { audit } from "@/lib/audit"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
 
 export async function createLead(formData: FormData) {
   await requireAdmin()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) throw new Error("Организация не выбрана")
+  await requireSubscriptionActive(orgId)
+  await checkLimit(orgId, "leads")
+
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) throw new Error("Здание не выбрано")
 

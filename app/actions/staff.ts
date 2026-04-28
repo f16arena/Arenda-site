@@ -3,8 +3,14 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
 
 export async function createStaff(formData: FormData) {
+  const orgId = await getCurrentOrgId()
+  if (!orgId) throw new Error("Организация не выбрана")
+  await requireSubscriptionActive(orgId)
+  await checkLimit(orgId, "users")
+
   const name = formData.get("name") as string
   const phone = formData.get("phone") as string
   const email = formData.get("email") as string
@@ -22,6 +28,7 @@ export async function createStaff(formData: FormData) {
       email: email || null,
       password: hash,
       role,
+      organizationId: orgId,
     },
   })
 

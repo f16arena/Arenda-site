@@ -4,9 +4,14 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOwner } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
+import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
 
 export async function createUserAdmin(formData: FormData) {
   await requireOwner()
+  const orgId = await getCurrentOrgId()
+  if (!orgId) throw new Error("Организация не выбрана")
+  await requireSubscriptionActive(orgId)
+  await checkLimit(orgId, "users")
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = String(formData.get("phone") ?? "").trim()
@@ -29,6 +34,7 @@ export async function createUserAdmin(formData: FormData) {
       email: email || null,
       password: hash,
       role,
+      organizationId: orgId,
     },
   })
 

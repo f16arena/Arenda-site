@@ -3,8 +3,14 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
 
 export async function createTenant(formData: FormData) {
+  const orgId = await getCurrentOrgId()
+  if (!orgId) throw new Error("Организация не выбрана")
+  await requireSubscriptionActive(orgId)
+  await checkLimit(orgId, "tenants")
+
   const name = String(formData.get("name") ?? "").trim()
   const phone = String(formData.get("phone") ?? "").trim()
   const password = String(formData.get("password") ?? "")
@@ -35,6 +41,7 @@ export async function createTenant(formData: FormData) {
         phone: phone || null,
         password: hash,
         role: "TENANT",
+        organizationId: orgId,
       },
       select: { id: true },
     })
