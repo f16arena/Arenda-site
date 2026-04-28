@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?  @unique
+  email     String?  @unique
+  password  String
+  role      String   @default("TENANT")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant           Tenant?
+  staff            Staff?
+  sentMessages     Message[]        @relation("MessageSender")
+  receivedMessages Message[]        @relation("MessageReceiver")
+  assignedTasks    Task[]           @relation("TaskAssignee")
+  createdTasks     Task[]           @relation("TaskCreator")
+  requests         Request[]
+  requestComments  RequestComment[]
+  complaints       Complaint[]
+}
+
+model Building {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  description String?
+  phone       String?
+  email       String?
+  responsible String?
+  totalArea   Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  floors            Floor[]
+  emergencyContacts EmergencyContact[]
+  expenses          Expense[]
+}
+
+model Floor {
+  id         String  @id @default(cuid())
+  buildingId String
+  number     Int
+  name       String
+  ratePerSqm Float   @default(0)
+  totalArea  Float?
+  layoutJson String?
+
+  building Building @relation(fields: [buildingId], references: [id])
+  spaces   Space[]
+}
+
+model Space {
+  id          String  @id @default(cuid())
+  floorId     String
+  number      String
+  area        Float
+  status      String  @default("VACANT")
+  description String?
+
+  floor  Floor   @relation(fields: [floorId], references: [id])
+  tenant Tenant?
+  meters Meter[]
+}
+
+model Tenant {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  spaceId       String?   @unique
+  companyName   String
+  bin           String?
+  bankName      String?
+  iik           String?
+  bik           String?
+  legalType     String    @default("IP")
+  category      String?
+  needsCleaning Boolean   @default(false)
+  cleaningFee   Float     @default(0)
+  customRate    Float?
+  contractStart DateTime?
+  contractEnd   DateTime?
+  createdAt     DateTime  @default(now())
+
+  user      User             @relation(fields: [userId], references: [id])
+  space     Space?           @relation(fields: [spaceId], references: [id])
+  charges   Charge[]
+  payments  Payment[]
+  contracts Contract[]
+  documents TenantDocument[]
+  requests  Request[]
+}
+
+model Staff {
+  id       String   @id @default(cuid())
+  userId   String   @unique
+  position String
+  salary   Float    @default(0)
+  hireDate DateTime @default(now())
+
+  user           User            @relation(fields: [userId], references: [id])
+  salaryPayments SalaryPayment[]
+}
+
+model Contract {
+  id        String    @id @default(cuid())
+  tenantId  String
+  number    String
+  type      String    @default("STANDARD")
+  content   String
+  status    String    @default("DRAFT")
+  signedAt  DateTime?
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Charge {
+  id          String    @id @default(cuid())
+  tenantId    String
+  period      String
+  type        String
+  amount      Float
+  description String?
+  isPaid      Boolean   @default(false)
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  amount      Float
+  paymentDate DateTime
+  method      String   @default("TRANSFER")
+  note        String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Meter {
+  id      String @id @default(cuid())
+  spaceId String
+  type    String
+  number  String
+
+  space    Space          @relation(fields: [spaceId], references: [id])
+  readings MeterReading[]
+}
+
+model MeterReading {
+  id        String   @id @default(cuid())
+  meterId   String
+  period    String
+  value     Float
+  previous  Float    @default(0)
+  createdAt DateTime @default(now())
+
+  meter Meter @relation(fields: [meterId], references: [id])
+}
+
+model Request {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  title       String
+  description String
+  type        String   @default("OTHER")
+  priority    String   @default("MEDIUM")
+  status      String   @default("NEW")
+  assigneeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  user     User             @relation(fields: [userId], references: [id])
+  comments RequestComment[]
+}
+
+model RequestComment {
+  id        String   @id @default(cuid())
+  requestId String
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  request Request @relation(fields: [requestId], references: [id])
+  author  User    @relation(fields: [authorId], references: [id])
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  buildingId    String?
+  title         String
+  description   String?
+  category      String    @default("OTHER")
+  floorNumber   Int?
+  spaceNumber   String?
+  estimatedCost Float?
+  actualCost    Float?
+  dueDate       DateTime?
+  status        String    @default("NEW")
+  priority      String    @default("MEDIUM")
+  createdById   String
+  assignedToId  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy  User  @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  buildingId  String
+  category    String
+  amount      Float
+  period      String
+  description String?
+  date        DateTime
+  createdAt   DateTime @default(now())
+
+  building Building @relation(fields: [buildingId], references: [id])
+}
+
+model SalaryPayment {
+  id        String    @id @default(cuid())
+  staffId   String
+  amount    Float
+  period    String
+  paidAt    DateTime?
+  status    String    @default("PENDING")
+  createdAt DateTime  @default(now())
+
+  staff Staff @relation(fields: [staffId], references: [id])
+}
+
+model TenantDocument {
+  id        String   @id @default(cuid())
+  tenantId  String
+  type      String
+  name      String
+  fileUrl   String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  fromId        String
+  toId          String
+  subject       String?
+  body          String
+  isRead        Boolean  @default(false)
+  attachmentUrl String?
+  createdAt     DateTime @default(now())
+
+  from User @relation("MessageSender", fields: [fromId], references: [id])
+  to   User @relation("MessageReceiver", fields: [toId], references: [id])
+}
+
+model EmergencyContact {
+  id         String @id @default(cuid())
+  buildingId String
+  name       String
+  phone      String
+  category   String
+
+  building Building @relation(fields: [buildingId], references: [id])
+}
+
+model Complaint {
+  id        String   @id @default(cuid())
+  userId    String?
+  name      String?
+  text      String
+  status    String   @default("NEW")
+  response  String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
