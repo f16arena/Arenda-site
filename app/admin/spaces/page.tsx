@@ -6,6 +6,8 @@ import { Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
+import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
+import { isLayoutV2 } from "@/lib/floor-layout"
 
 export default async function SpacesPage() {
   const building = await db.building.findFirst({
@@ -15,7 +17,16 @@ export default async function SpacesPage() {
         orderBy: { number: "asc" },
         include: {
           spaces: {
-            include: { tenant: { select: { id: true, companyName: true } } },
+            include: {
+              tenant: {
+                select: {
+                  id: true,
+                  companyName: true,
+                  contractEnd: true,
+                  charges: { where: { isPaid: false }, select: { amount: true } },
+                },
+              },
+            },
             orderBy: { number: "asc" },
           },
         },
@@ -62,7 +73,30 @@ export default async function SpacesPage() {
       {floors.map((floor) => {
         const floorOccupied = floor.spaces.filter((s) => s.status === "OCCUPIED").length
         const floorArea = floor.spaces.reduce((s, sp) => s + sp.area, 0)
-        const maxArea = Math.max(...floor.spaces.map((s) => s.area), 1)
+
+        // Парсим план этажа
+        let layout = null
+        if (floor.layoutJson) {
+          try {
+            const parsed = JSON.parse(floor.layoutJson)
+            if (isLayoutV2(parsed)) layout = parsed
+          } catch {}
+        }
+
+        // Готовим данные о помещениях для FloorView
+        const spaceInfos: SpaceInfo[] = floor.spaces.map((s) => ({
+          id: s.id,
+          number: s.number,
+          area: s.area,
+          status: s.status,
+          description: s.description,
+          tenant: s.tenant ? {
+            id: s.tenant.id,
+            companyName: s.tenant.companyName,
+            contractEnd: s.tenant.contractEnd,
+            debt: s.tenant.charges.reduce((sum, c) => sum + c.amount, 0),
+          } : null,
+        }))
 
         return (
           <div key={floor.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -87,36 +121,20 @@ export default async function SpacesPage() {
                 <p className="text-sm text-slate-400 text-center py-6">Нет помещений на этом этаже</p>
               ) : (
                 <div className="space-y-3">
-                  {/* Visual map */}
-                  <div className="relative border-2 border-slate-200 rounded-lg p-4 bg-slate-50 min-h-[80px]">
-                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
-                      <span className="text-[10px] text-slate-300 uppercase tracking-widest font-semibold bg-slate-50 px-2">Коридор</span>
-                      <div className="absolute left-4 right-4 h-px bg-slate-200 -z-10" />
+                  {/* Visual map — SVG план если задан, иначе fallback */}
+                  {layout ? (
+                    <FloorView layout={layout} spaces={spaceInfos} floorId={floor.id} />
+                  ) : (
+                    <div className="relative border-2 border-dashed border-slate-200 rounded-lg p-6 bg-slate-50 text-center">
+                      <p className="text-sm text-slate-500 mb-2">План этажа не нарисован</p>
+                      <Link
+                        href={`/admin/floors/${floor.id}`}
+                        className="inline-flex items-center gap-2 text-xs text-blue-600 hover:underline"
+                      >
+                        Открыть редактор плана →
+                      </Link>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {floor.spaces.map((space) => {
-                        const widthPx = Math.max(60, Math.min(160, (space.area / maxArea) * 140 + 60))
-                        return (
-                          <div
-                            key={space.id}
-                            className={cn(
-                              "relative flex flex-col justify-between rounded border p-2",
-                              space.status === "OCCUPIED" ? "border-blue-200 bg-blue-50"
-                              : space.status === "VACANT" ? "border-emerald-200 bg-emerald-50"
-                              : "border-amber-200 bg-amber-50"
-                            )}
-                            style={{ width: `${widthPx}px`, minHeight: "72px" }}
-                          >
-                            <p className="text-xs font-bold text-slate-800">{space.number}</p>
-                            <p className="text-[10px] text-slate-500">{space.area} м²</p>
-                            {space.tenant && (
-                              <p className="text-[10px] text-slate-600 truncate">{space.tenant.companyName}</p>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Table */}
                   <table className="w-full text-xs border border-slate-100 rounded-lg overflow-hidden">
