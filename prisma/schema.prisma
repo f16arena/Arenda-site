@@ -370,6 +370,26 @@ model EmergencyContact {
   @@map("emergency_contacts")
 }
 
+model EmailLog {
+  id         String    @id @default(cuid())
+  recipient  String
+  subject    String
+  type       String    // INVOICE | ACT | CONTRACT | NOTIFICATION | OTHER
+  tenantId   String?   @map("tenant_id")
+  userId     String?   @map("user_id")
+  externalId String?   @map("external_id")
+  status     String    @default("SENT")
+  error      String?
+  openedAt   DateTime? @map("opened_at")
+  openCount  Int       @default(0) @map("open_count")
+  sentAt     DateTime  @default(now()) @map("sent_at")
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([sentAt])
+  @@map("email_logs")
+}
+
 model RolePermission {
   id        String   @id @default(cuid())
   role      String   // OWNER | ADMIN | ACCOUNTANT | FACILITY_MANAGER | TENANT

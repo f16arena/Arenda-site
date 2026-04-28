@@ -14,6 +14,7 @@ import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
 import { DocumentsChecklist } from "./documents-checklist"
 import { FullFloorAssign } from "./full-floor-assign"
+import { DocumentsActions } from "./documents-actions"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -388,6 +389,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
             </form>
           </div>
+
+          {/* Documents actions: invoice, act, contract, handover */}
+          <DocumentsActions
+            tenantId={tenant.id}
+            tenantHasEmail={!!tenant.user.email}
+          />
 
           {/* Documents checklist */}
           <DocumentsChecklist
