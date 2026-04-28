@@ -4,9 +4,12 @@ import { AdminSidebar } from "@/components/layout/admin-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { BuildingSwitcher } from "@/components/layout/building-switcher"
 import { CommandPalette } from "@/components/layout/command-palette"
+import { ImpersonateBanner } from "@/components/layout/impersonate-banner"
+import { SubscriptionBanner } from "@/components/layout/subscription-banner"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getAllowedSections } from "@/lib/acl"
+import { getImpersonateData, getCurrentOrgId } from "@/lib/org"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -20,6 +23,20 @@ export default async function AdminLayout({
   if (!ALLOWED_ROLES.includes(session.user.role)) redirect("/cabinet")
 
   const currentBuildingId = await getCurrentBuildingId().catch(() => null)
+  const impersonate = await getImpersonateData().catch(() => null)
+  const currentOrgId = await getCurrentOrgId().catch(() => null)
+  const currentOrg = currentOrgId
+    ? await db.organization.findUnique({
+        where: { id: currentOrgId },
+        select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
+      }).catch(() => null)
+    : null
+
+  const now = new Date()
+  const isExpired = !!(currentOrg?.planExpiresAt && currentOrg.planExpiresAt < now)
+  const daysLeft = currentOrg?.planExpiresAt
+    ? Math.max(0, Math.ceil((currentOrg.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
+    : null
   const [building, allBuildings, notifications, allowedSections] = await Promise.all([
     currentBuildingId
       ? db.building.findUnique({
@@ -55,6 +72,14 @@ export default async function AdminLayout({
         allowedSections={Array.from(allowedSections)}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
+        {impersonate && currentOrg && <ImpersonateBanner orgName={currentOrg.name} />}
+        {!impersonate && currentOrg && (
+          <SubscriptionBanner
+            daysLeft={daysLeft}
+            isSuspended={currentOrg.isSuspended ?? false}
+            isExpired={isExpired}
+          />
+        )}
         {/* Top Header */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
           <BuildingSwitcher

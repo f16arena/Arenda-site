@@ -144,6 +144,23 @@ export async function extendSubscription(orgId: string, months: number, paidAmou
   revalidatePath(`/superadmin/orgs/${orgId}`)
 }
 
+export async function changeOrgOwner(orgId: string, newOwnerId: string) {
+  await requirePlatformOwner()
+
+  const user = await db.user.findUnique({ where: { id: newOwnerId }, select: { organizationId: true, role: true } })
+  if (!user || user.organizationId !== orgId) {
+    throw new Error("Пользователь не принадлежит этой организации")
+  }
+
+  await db.organization.update({
+    where: { id: orgId },
+    data: { ownerUserId: newOwnerId },
+  })
+
+  await audit({ action: "UPDATE", entity: "user", entityId: newOwnerId, details: { changed_owner_for_org: orgId } })
+  revalidatePath(`/superadmin/orgs/${orgId}`)
+}
+
 export async function impersonateOrg(orgId: string) {
   const session = await requirePlatformOwner()
   const owner = await db.user.findFirst({

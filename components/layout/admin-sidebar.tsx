@@ -7,7 +7,7 @@ import {
   FileText, ClipboardList, CheckSquare, UserCog,
   MessageSquare, AlertCircle, Phone, BarChart3,
   LogOut, Building, Settings, Shield, ShieldCheck,
-  TrendingUp, History,
+  TrendingUp, History, Package,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { logout } from "@/app/actions/auth"
@@ -74,6 +74,7 @@ const nav: NavSection[] = [
       { href: "/admin/settings", label: "Настройки", icon: Settings, section: "settings" },
       { href: "/admin/roles", label: "Роли и доступ", icon: Shield, section: "roles" },
       { href: "/admin/profile", label: "Мой профиль", icon: UserCog, section: "profile" },
+      { href: "/admin/subscription", label: "Моя подписка", icon: Package, section: "profile" },
     ],
   },
   {
