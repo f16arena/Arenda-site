@@ -7,11 +7,15 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
+  // Для serverless (Vercel) — минимальный pool на инстанс.
+  // Каждый serverless invocation использует 1 connection и быстро освобождает.
+  // Total = vercel_instances × max. Supabase Session Pooler лимит ~15 коннектов.
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 5,
-    idleTimeoutMillis: 10_000,
+    max: 1,
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 10_000,
   })
   const adapter = new PrismaPg(pool)
   return new PrismaClient({ adapter })
