@@ -18,8 +18,11 @@ const statusColor: Record<string, string> = {
 export default async function ComplaintsPage() {
   const complaints = await db.complaint.findMany({
     orderBy: { createdAt: "desc" },
-    include: { user: { select: { name: true } } },
-  })
+    select: {
+      id: true, name: true, text: true, status: true, response: true, createdAt: true,
+      user: { select: { name: true } },
+    },
+  }).catch(() => [])
 
   return (
     <div className="space-y-5">

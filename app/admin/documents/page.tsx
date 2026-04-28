@@ -10,9 +10,13 @@ export default async function DocumentsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const contracts = await db.contract.findMany({
-    include: { tenant: true },
+    select: {
+      id: true, number: true, type: true, status: true,
+      startDate: true, endDate: true, signedAt: true, createdAt: true,
+      tenant: { select: { id: true, companyName: true } },
+    },
     orderBy: { createdAt: "desc" },
-  })
+  }).catch(() => [])
 
   const typeLabel: Record<string, string> = {
     STANDARD: "Договор аренды",

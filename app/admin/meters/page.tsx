@@ -32,24 +32,33 @@ export default async function MetersPage() {
 
   const [meters, spaces, tariffs] = await Promise.all([
     db.meter.findMany({
-      include: {
+      select: {
+        id: true, type: true, number: true, spaceId: true,
         space: {
-          include: {
-            floor: true,
+          select: {
+            id: true, number: true,
+            floor: { select: { id: true, name: true, number: true } },
             tenant: { select: { companyName: true } },
           },
         },
         readings: {
           where: { period: { in: [currentPeriod, prevPeriod] } },
           orderBy: { period: "desc" },
+          select: { id: true, period: true, value: true, previous: true, createdAt: true },
         },
       },
-    }),
+    }).catch(() => []),
     db.space.findMany({
-      include: { floor: true },
+      select: {
+        id: true, number: true, area: true, status: true,
+        floor: { select: { id: true, name: true, number: true } },
+      },
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
-    }),
-    db.tariff.findMany({ where: { isActive: true } }),
+    }).catch(() => []),
+    db.tariff.findMany({
+      where: { isActive: true },
+      select: { id: true, type: true, name: true, rate: true, unit: true },
+    }).catch(() => []),
   ])
 
   const tariffByType = new Map(tariffs.map((t) => [t.type, t]))

@@ -13,18 +13,30 @@ export default async function FinancesPage() {
   const [charges, payments, expenses] = await Promise.all([
     db.charge.findMany({
       where: { period: currentPeriod },
-      include: { tenant: true },
+      select: {
+        id: true, tenantId: true, period: true, type: true, amount: true,
+        description: true, isPaid: true, dueDate: true, createdAt: true,
+        tenant: { select: { id: true, companyName: true } },
+      },
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => []),
     db.payment.findMany({
       orderBy: { paymentDate: "desc" },
       take: 20,
-      include: { tenant: true },
-    }),
+      select: {
+        id: true, tenantId: true, amount: true, method: true,
+        paymentDate: true, note: true,
+        tenant: { select: { id: true, companyName: true } },
+      },
+    }).catch(() => []),
     db.expense.findMany({
       where: { period: currentPeriod },
+      select: {
+        id: true, buildingId: true, category: true, amount: true,
+        period: true, description: true, date: true,
+      },
       orderBy: { date: "desc" },
-    }),
+    }).catch(() => []),
   ])
 
   const totalCharges = charges.reduce((s, c) => s + c.amount, 0)

@@ -10,17 +10,20 @@ import { DeleteAction } from "@/components/ui/delete-action"
 
 export default async function TasksPage() {
   const tasks = await db.task.findMany({
-    include: {
+    select: {
+      id: true, title: true, description: true, category: true,
+      priority: true, status: true, floorNumber: true, spaceNumber: true,
+      estimatedCost: true, actualCost: true, dueDate: true, createdAt: true,
       createdBy: { select: { name: true } },
       assignedTo: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
-  })
+  }).catch(() => [])
 
   const staffUsers = await db.user.findMany({
     where: { role: { not: "TENANT" }, isActive: true },
     select: { id: true, name: true },
-  })
+  }).catch(() => [])
 
   const stats = {
     total: tasks.length,

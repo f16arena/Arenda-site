@@ -10,12 +10,14 @@ import { deleteRequest } from "@/app/actions/requests"
 
 export default async function RequestsPage() {
   const requests = await db.request.findMany({
-    include: {
-      tenant: true,
+    select: {
+      id: true, title: true, description: true, type: true,
+      priority: true, status: true, createdAt: true,
+      tenant: { select: { id: true, companyName: true } },
       user: { select: { name: true } },
     },
     orderBy: { createdAt: "desc" },
-  })
+  }).catch(() => [])
 
   return (
     <div className="space-y-5">
