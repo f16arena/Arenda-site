@@ -22,8 +22,9 @@ export async function login(prevState: { error?: string } | undefined, formData:
       },
       select: { role: true },
     })
-  } catch {
-    return { error: "Ошибка подключения к базе данных. Попробуйте позже." }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { error: `Ошибка БД: ${msg}` }
   }
 
   if (!user) {
