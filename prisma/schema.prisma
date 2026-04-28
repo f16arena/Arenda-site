@@ -14,9 +14,9 @@ model User {
   email     String?  @unique
   password  String
   role      String   @default("TENANT")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)  @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
 
   tenant           Tenant?
   staff            Staff?
@@ -27,6 +27,8 @@ model User {
   requests         Request[]
   requestComments  RequestComment[]
   complaints       Complaint[]
+
+  @@map("users")
 }
 
 model Building {
@@ -37,31 +39,35 @@ model Building {
   phone       String?
   email       String?
   responsible String?
-  totalArea   Float?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  totalArea   Float?   @map("total_area")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   floors            Floor[]
   emergencyContacts EmergencyContact[]
   expenses          Expense[]
+
+  @@map("buildings")
 }
 
 model Floor {
   id         String  @id @default(cuid())
-  buildingId String
+  buildingId String  @map("building_id")
   number     Int
   name       String
-  ratePerSqm Float   @default(0)
-  totalArea  Float?
-  layoutJson String?
+  ratePerSqm Float   @default(0) @map("rate_per_sqm")
+  totalArea  Float?  @map("total_area")
+  layoutJson String? @map("layout_json")
 
   building Building @relation(fields: [buildingId], references: [id])
   spaces   Space[]
+
+  @@map("floors")
 }
 
 model Space {
   id          String  @id @default(cuid())
-  floorId     String
+  floorId     String  @map("floor_id")
   number      String
   area        Float
   status      String  @default("VACANT")
@@ -70,25 +76,27 @@ model Space {
   floor  Floor   @relation(fields: [floorId], references: [id])
   tenant Tenant?
   meters Meter[]
+
+  @@map("spaces")
 }
 
 model Tenant {
   id            String    @id @default(cuid())
-  userId        String    @unique
-  spaceId       String?   @unique
-  companyName   String
+  userId        String    @unique @map("user_id")
+  spaceId       String?   @unique @map("space_id")
+  companyName   String    @map("company_name")
   bin           String?
-  bankName      String?
+  bankName      String?   @map("bank_name")
   iik           String?
   bik           String?
-  legalType     String    @default("IP")
+  legalType     String    @default("IP") @map("legal_type")
   category      String?
-  needsCleaning Boolean   @default(false)
-  cleaningFee   Float     @default(0)
-  customRate    Float?
-  contractStart DateTime?
-  contractEnd   DateTime?
-  createdAt     DateTime  @default(now())
+  needsCleaning Boolean   @default(false) @map("needs_cleaning")
+  cleaningFee   Float     @default(0)     @map("cleaning_fee")
+  customRate    Float?    @map("custom_rate")
+  contractStart DateTime? @map("contract_start")
+  contractEnd   DateTime? @map("contract_end")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   user      User             @relation(fields: [userId], references: [id])
   space     Space?           @relation(fields: [spaceId], references: [id])
@@ -97,200 +105,232 @@ model Tenant {
   contracts Contract[]
   documents TenantDocument[]
   requests  Request[]
+
+  @@map("tenants")
 }
 
 model Staff {
   id       String   @id @default(cuid())
-  userId   String   @unique
+  userId   String   @unique @map("user_id")
   position String
   salary   Float    @default(0)
-  hireDate DateTime @default(now())
+  hireDate DateTime @default(now()) @map("hire_date")
 
   user           User            @relation(fields: [userId], references: [id])
   salaryPayments SalaryPayment[]
+
+  @@map("staff")
 }
 
 model Contract {
   id        String    @id @default(cuid())
-  tenantId  String
+  tenantId  String    @map("tenant_id")
   number    String
   type      String    @default("STANDARD")
   content   String
   status    String    @default("DRAFT")
-  signedAt  DateTime?
-  startDate DateTime?
-  endDate   DateTime?
-  createdAt DateTime  @default(now())
+  signedAt  DateTime? @map("signed_at")
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("contracts")
 }
 
 model Charge {
   id          String    @id @default(cuid())
-  tenantId    String
+  tenantId    String    @map("tenant_id")
   period      String
   type        String
   amount      Float
   description String?
-  isPaid      Boolean   @default(false)
-  dueDate     DateTime?
-  createdAt   DateTime  @default(now())
+  isPaid      Boolean   @default(false) @map("is_paid")
+  dueDate     DateTime? @map("due_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("charges")
 }
 
 model Payment {
   id          String   @id @default(cuid())
-  tenantId    String
+  tenantId    String   @map("tenant_id")
   amount      Float
-  paymentDate DateTime
+  paymentDate DateTime @map("payment_date")
   method      String   @default("TRANSFER")
   note        String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("payments")
 }
 
 model Meter {
   id      String @id @default(cuid())
-  spaceId String
+  spaceId String @map("space_id")
   type    String
   number  String
 
   space    Space          @relation(fields: [spaceId], references: [id])
   readings MeterReading[]
+
+  @@map("meters")
 }
 
 model MeterReading {
   id        String   @id @default(cuid())
-  meterId   String
+  meterId   String   @map("meter_id")
   period    String
   value     Float
   previous  Float    @default(0)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   meter Meter @relation(fields: [meterId], references: [id])
+
+  @@map("meter_readings")
 }
 
 model Request {
   id          String   @id @default(cuid())
-  tenantId    String
-  userId      String
+  tenantId    String   @map("tenant_id")
+  userId      String   @map("user_id")
   title       String
   description String
   type        String   @default("OTHER")
   priority    String   @default("MEDIUM")
   status      String   @default("NEW")
-  assigneeId  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  assigneeId  String?  @map("assignee_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt      @map("updated_at")
 
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
   user     User             @relation(fields: [userId], references: [id])
   comments RequestComment[]
+
+  @@map("requests")
 }
 
 model RequestComment {
   id        String   @id @default(cuid())
-  requestId String
-  authorId  String
+  requestId String   @map("request_id")
+  authorId  String   @map("author_id")
   text      String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   request Request @relation(fields: [requestId], references: [id])
   author  User    @relation(fields: [authorId], references: [id])
+
+  @@map("request_comments")
 }
 
 model Task {
   id            String    @id @default(cuid())
-  buildingId    String?
+  buildingId    String?   @map("building_id")
   title         String
   description   String?
   category      String    @default("OTHER")
-  floorNumber   Int?
-  spaceNumber   String?
-  estimatedCost Float?
-  actualCost    Float?
-  dueDate       DateTime?
+  floorNumber   Int?      @map("floor_number")
+  spaceNumber   String?   @map("space_number")
+  estimatedCost Float?    @map("estimated_cost")
+  actualCost    Float?    @map("actual_cost")
+  dueDate       DateTime? @map("due_date")
   status        String    @default("NEW")
   priority      String    @default("MEDIUM")
-  createdById   String
-  assignedToId  String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdById   String    @map("created_by_id")
+  assignedToId  String?   @map("assigned_to_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt      @map("updated_at")
 
-  createdBy  User  @relation("TaskCreator", fields: [createdById], references: [id])
+  createdBy  User  @relation("TaskCreator",  fields: [createdById],  references: [id])
   assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
+
+  @@map("tasks")
 }
 
 model Expense {
   id          String   @id @default(cuid())
-  buildingId  String
+  buildingId  String   @map("building_id")
   category    String
   amount      Float
   period      String
   description String?
   date        DateTime
-  createdAt   DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
 
   building Building @relation(fields: [buildingId], references: [id])
+
+  @@map("expenses")
 }
 
 model SalaryPayment {
   id        String    @id @default(cuid())
-  staffId   String
+  staffId   String    @map("staff_id")
   amount    Float
   period    String
-  paidAt    DateTime?
+  paidAt    DateTime? @map("paid_at")
   status    String    @default("PENDING")
-  createdAt DateTime  @default(now())
+  createdAt DateTime  @default(now()) @map("created_at")
 
   staff Staff @relation(fields: [staffId], references: [id])
+
+  @@map("salary_payments")
 }
 
 model TenantDocument {
   id        String   @id @default(cuid())
-  tenantId  String
+  tenantId  String   @map("tenant_id")
   type      String
   name      String
-  fileUrl   String
-  createdAt DateTime @default(now())
+  fileUrl   String   @map("file_url")
+  createdAt DateTime @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_documents")
 }
 
 model Message {
   id            String   @id @default(cuid())
-  fromId        String
-  toId          String
+  fromId        String   @map("from_id")
+  toId          String   @map("to_id")
   subject       String?
   body          String
-  isRead        Boolean  @default(false)
-  attachmentUrl String?
-  createdAt     DateTime @default(now())
+  isRead        Boolean  @default(false) @map("is_read")
+  attachmentUrl String?  @map("attachment_url")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  from User @relation("MessageSender", fields: [fromId], references: [id])
-  to   User @relation("MessageReceiver", fields: [toId], references: [id])
+  from User @relation("MessageSender",   fields: [fromId], references: [id])
+  to   User @relation("MessageReceiver", fields: [toId],   references: [id])
+
+  @@map("messages")
 }
 
 model EmergencyContact {
   id         String @id @default(cuid())
-  buildingId String
+  buildingId String @map("building_id")
   name       String
   phone      String
   category   String
 
   building Building @relation(fields: [buildingId], references: [id])
+
+  @@map("emergency_contacts")
 }
 
 model Complaint {
   id        String   @id @default(cuid())
-  userId    String?
+  userId    String?  @map("user_id")
   name      String?
   text      String
   status    String   @default("NEW")
   response  String?
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id])
+
+  @@map("complaints")
 }
