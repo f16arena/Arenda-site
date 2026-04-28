@@ -8,10 +8,12 @@ import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
 import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
 import { isLayoutV2 } from "@/lib/floor-layout"
+import { getCurrentBuildingId } from "@/lib/current-building"
 
 export default async function SpacesPage() {
-  const building = await db.building.findFirst({
-    where: { isActive: true },
+  const buildingId = await getCurrentBuildingId()
+  const building = buildingId ? await db.building.findUnique({
+    where: { id: buildingId },
     include: {
       floors: {
         orderBy: { number: "asc" },
@@ -32,7 +34,7 @@ export default async function SpacesPage() {
         },
       },
     },
-  })
+  }) : null
 
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
   const total = allSpaces.length

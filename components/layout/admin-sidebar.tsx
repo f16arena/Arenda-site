@@ -21,10 +21,16 @@ const nav: NavSection[] = [
     ],
   },
   {
+    title: "ОБЪЕКТЫ",
+    items: [
+      { href: "/admin/buildings", label: "Здания", icon: Building },
+      { href: "/admin/spaces", label: "Помещения", icon: Building2 },
+    ],
+  },
+  {
     title: "АРЕНДА",
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users },
-      { href: "/admin/spaces", label: "Помещения", icon: Building2 },
     ],
   },
   {

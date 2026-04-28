@@ -6,21 +6,30 @@ import { createTariff, updateTariff, deleteTariff } from "@/app/actions/tariffs"
 import { Building2, Phone, Layers, Plus, Zap } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { getCurrentBuildingId } from "@/lib/current-building"
 
 export default async function SettingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
 
-  const building = await db.building.findFirst({
-    where: { isActive: true },
+  const buildingId = await getCurrentBuildingId()
+  const building = buildingId ? await db.building.findUnique({
+    where: { id: buildingId },
     include: {
       floors: { orderBy: { number: "desc" } },
       emergencyContacts: { orderBy: { category: "asc" } },
       tariffs: { orderBy: { type: "asc" } },
     },
-  })
+  }) : null
 
-  if (!building) return <p className="text-slate-500">Здание не найдено</p>
+  if (!building) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+        <p className="text-sm text-amber-800 mb-2">Здание не выбрано</p>
+        <a href="/admin/buildings" className="text-xs text-amber-700 underline">Перейти к списку зданий →</a>
+      </div>
+    )
+  }
 
   const CATEGORY_LABELS: Record<string, string> = {
     WATER: "Водоснабжение",

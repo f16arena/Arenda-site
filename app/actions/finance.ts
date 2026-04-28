@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { getCurrentBuildingId } from "@/lib/current-building"
 
 export async function recordPayment(formData: FormData) {
   const tenantId = formData.get("tenantId") as string
@@ -144,8 +145,9 @@ export async function deleteExpense(expenseId: string) {
 }
 
 export async function addExpense(formData: FormData) {
-  const building = await db.building.findFirst({ where: { isActive: true } })
-  if (!building) return { error: "Здание не найдено" }
+  const buildingId = await getCurrentBuildingId()
+  if (!buildingId) return { error: "Здание не выбрано" }
+  const building = { id: buildingId }
 
   const category = formData.get("category") as string
   const amountStr = formData.get("amount") as string

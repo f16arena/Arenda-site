@@ -2,7 +2,9 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
+import { BuildingSwitcher } from "@/components/layout/building-switcher"
 import { db } from "@/lib/db"
+import { getCurrentBuildingId } from "@/lib/current-building"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -15,8 +17,16 @@ export default async function AdminLayout({
   if (!session) redirect("/login")
   if (!ALLOWED_ROLES.includes(session.user.role)) redirect("/cabinet")
 
-  const [building, notifications] = await Promise.all([
-    db.building.findFirst({ where: { isActive: true } }),
+  const currentBuildingId = await getCurrentBuildingId()
+  const [building, allBuildings, notifications] = await Promise.all([
+    currentBuildingId
+      ? db.building.findUnique({ where: { id: currentBuildingId } })
+      : Promise.resolve(null),
+    db.building.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, address: true },
+      orderBy: { createdAt: "asc" },
+    }),
     db.notification.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
@@ -30,7 +40,11 @@ export default async function AdminLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
-          <div />
+          <BuildingSwitcher
+            current={building ? { id: building.id, name: building.name, address: building.address } : null}
+            options={allBuildings}
+            canCreate={session.user.role === "OWNER"}
+          />
           <div className="flex items-center gap-4">
             <NotificationBell items={notifications} />
             <div className="flex items-center gap-2">

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney } from "@/lib/utils"
+import { getCurrentBuildingId } from "@/lib/current-building"
 import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
@@ -9,6 +10,33 @@ import {
 import Link from "next/link"
 
 export default async function AdminDashboard() {
+  const buildingId = await getCurrentBuildingId()
+  if (!buildingId) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+        <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+        <p className="text-slate-700 font-semibold mb-1">Здание не выбрано</p>
+        <p className="text-sm text-slate-500 mb-4">Создайте здание чтобы начать работу</p>
+        <Link href="/admin/buildings" className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+          К списку зданий
+        </Link>
+      </div>
+    )
+  }
+  // Получим список этажей текущего здания для фильтра
+  const floorIds = (await db.floor.findMany({
+    where: { buildingId },
+    select: { id: true },
+  })).map((f) => f.id)
+
+  // Все запросы фильтруем по floorIds (помещения этого здания)
+  const tenantWhereInBuilding = {
+    OR: [
+      { space: { floorId: { in: floorIds } } },
+      { fullFloors: { some: { id: { in: floorIds } } } },
+    ],
+  }
+
   const [
     tenantsCount,
     activeTenants,
@@ -19,39 +47,52 @@ export default async function AdminDashboard() {
     debtsByTenant,
     topTenants,
   ] = await Promise.all([
-    db.tenant.count(),
+    db.tenant.count({ where: tenantWhereInBuilding }),
     db.tenant.findMany({
-      where: { spaceId: { not: null } },
+      where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
       select: { id: true, customRate: true, space: { select: { area: true } } },
     }),
     db.space.groupBy({
       by: ["status"],
+      where: { floorId: { in: floorIds } },
       _count: { _all: true },
     }),
     db.charge.aggregate({
-      where: { isPaid: false },
+      where: {
+        isPaid: false,
+        tenant: tenantWhereInBuilding,
+      },
       _sum: { amount: true },
       _count: { _all: true },
     }),
     db.request.findMany({
-      where: { status: { in: ["NEW", "IN_PROGRESS"] } },
+      where: {
+        status: { in: ["NEW", "IN_PROGRESS"] },
+        tenant: tenantWhereInBuilding,
+      },
       select: { id: true, title: true, status: true },
       take: 5,
       orderBy: { createdAt: "desc" },
     }),
     db.task.findMany({
-      where: { status: { in: ["NEW", "IN_PROGRESS"] } },
+      where: {
+        status: { in: ["NEW", "IN_PROGRESS"] },
+        OR: [{ buildingId }, { buildingId: null }],
+      },
       select: { id: true, title: true, status: true },
       take: 5,
       orderBy: { createdAt: "desc" },
     }),
     db.charge.groupBy({
       by: ["tenantId"],
-      where: { isPaid: false },
+      where: {
+        isPaid: false,
+        tenant: tenantWhereInBuilding,
+      },
       _sum: { amount: true },
     }),
     db.tenant.findMany({
-      where: { spaceId: { not: null } },
+      where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
       select: {
         id: true,
         companyName: true,
