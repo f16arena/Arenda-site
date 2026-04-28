@@ -51,12 +51,12 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           {created.ownerEmail && <div>Логин (email): <b>{created.ownerEmail}</b></div>}
           {created.ownerPhone && <div>Логин (телефон): <b>{created.ownerPhone}</b></div>}
           <div>Временный пароль: <b>{created.tempPassword}</b></div>
-          <div>URL для входа: <b>https://arenda-site-two.vercel.app/login</b></div>
+          <div>URL для входа: <b>https://commrent.kz/login</b></div>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => {
-              const text = `Логин: ${created.ownerEmail || created.ownerPhone}\nПароль: ${created.tempPassword}\nURL: https://arenda-site-two.vercel.app/login`
+              const text = `Логин: ${created.ownerEmail || created.ownerPhone}\nПароль: ${created.tempPassword}\nURL: https://commrent.kz/login`
               navigator.clipboard.writeText(text)
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)

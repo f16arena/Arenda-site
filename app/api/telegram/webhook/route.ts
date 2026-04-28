@@ -4,7 +4,7 @@ import { sendTelegram } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
 
-// Webhook от Telegram. URL: https://arenda-site-two.vercel.app/api/telegram/webhook
+// Webhook от Telegram. URL: https://commrent.kz/api/telegram/webhook
 // Регистрируется через /api/telegram/setup
 
 interface TelegramMessage {
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       `🆔 Ваш Chat ID: <code>${chatId}</code>\n\n` +
       `<b>Что делать дальше:</b>\n` +
       `1. Скопируйте Chat ID выше\n` +
-      `2. Откройте https://arenda-site-two.vercel.app/login\n` +
+      `2. Откройте https://commrent.kz/login\n` +
       `3. Войдите → Мой профиль → вставьте Chat ID\n\n` +
       `После этого вы будете получать уведомления:\n` +
       `• ⏰ За 20 дней до окончания договора\n` +
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       `/myid — показать ваш Chat ID\n` +
       `/status — статус подключения и непрочитанные уведомления\n` +
       `/help — эта справка\n\n` +
-      `🌐 Сайт: https://arenda-site-two.vercel.app`
+      `🌐 Сайт: https://commrent.kz`
     )
     return NextResponse.json({ ok: true })
   }
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
           `❌ Этот Telegram не подключён к аккаунту ArendaPro.\n\n` +
           `Для подключения:\n` +
           `1. Скопируйте ваш Chat ID: <code>${chatId}</code>\n` +
-          `2. Откройте https://arenda-site-two.vercel.app/login\n` +
+          `2. Откройте https://commrent.kz/login\n` +
           `3. Войдите → Мой профиль → вставьте Chat ID`
         )
       } else {
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
           `✅ Подключён как <b>${user.name}</b>\n` +
           `Роль: ${roleLabels[user.role] ?? user.role}\n` +
           `Непрочитанных уведомлений: <b>${unread}</b>\n\n` +
-          `🌐 https://arenda-site-two.vercel.app`
+          `🌐 https://commrent.kz`
         )
       }
     } catch (e) {
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
   await sendTelegram(chatId,
     `🤖 Я бот ArendaPro и пока умею только отправлять уведомления.\n\n` +
     `Для управления арендой используйте сайт:\n` +
-    `https://arenda-site-two.vercel.app\n\n` +
+    `https://commrent.kz\n\n` +
     `Команды: /help`
   )
 
