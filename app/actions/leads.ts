@@ -6,9 +6,6 @@ import { requireAdmin } from "@/lib/permissions"
 import { audit } from "@/lib/audit"
 import { getCurrentBuildingId } from "@/lib/current-building"
 
-export const LEAD_STATUSES = ["NEW", "SHOWN", "NEGOTIATION", "SIGNED", "LOST"] as const
-export const LEAD_SOURCES = ["SITE", "KRISHA", "OLX", "WORD_OF_MOUTH", "CALL", "OTHER"] as const
-
 export async function createLead(formData: FormData) {
   await requireAdmin()
   const buildingId = await getCurrentBuildingId()
