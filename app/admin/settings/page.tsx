@@ -2,7 +2,9 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { updateBuilding, updateFloor, updateEmergencyContact, addEmergencyContact, deleteEmergencyContact } from "@/app/actions/building"
-import { Building2, Phone, Mail, User, Layers, Trash2, Plus } from "lucide-react"
+import { Building2, Phone, Layers, Plus } from "lucide-react"
+import { ServerForm } from "@/components/ui/server-form"
+import { DeleteAction } from "@/components/ui/delete-action"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -41,11 +43,9 @@ export default async function SettingsPage() {
           <Building2 className="h-4 w-4 text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-900">Основные сведения</h2>
         </div>
-        <form
-          action={async (formData: FormData) => {
-            "use server"
-            await updateBuilding(building.id, formData)
-          }}
+        <ServerForm
+          action={updateBuilding.bind(null, building.id)}
+          successMessage="Данные здания сохранены"
           className="p-5 grid grid-cols-2 gap-4"
         >
           <div className="col-span-2 grid grid-cols-2 gap-4">
@@ -121,7 +121,7 @@ export default async function SettingsPage() {
               Сохранить
             </button>
           </div>
-        </form>
+        </ServerForm>
       </div>
 
       {/* Floors */}
@@ -132,12 +132,10 @@ export default async function SettingsPage() {
         </div>
         <div className="divide-y divide-slate-50">
           {building.floors.map((floor) => (
-            <form
+            <ServerForm
               key={floor.id}
-              action={async (formData: FormData) => {
-                "use server"
-                await updateFloor(floor.id, formData)
-              }}
+              action={updateFloor.bind(null, floor.id)}
+              successMessage={`${floor.name} сохранён`}
               className="px-5 py-4 grid grid-cols-4 gap-3 items-end"
             >
               <div>
@@ -177,7 +175,7 @@ export default async function SettingsPage() {
                   Сохранить
                 </button>
               </div>
-            </form>
+            </ServerForm>
           ))}
         </div>
       </div>
@@ -192,8 +190,10 @@ export default async function SettingsPage() {
         </div>
         <div className="divide-y divide-slate-50">
           {building.emergencyContacts.map((ec) => (
-            <form
+            <ServerForm
               key={ec.id}
+              action={updateEmergencyContact.bind(null, ec.id)}
+              successMessage="Контакт обновлён"
               className="px-5 py-3.5 grid grid-cols-4 gap-3 items-center"
             >
               <div>
@@ -214,34 +214,25 @@ export default async function SettingsPage() {
               </div>
               <div className="flex gap-2 justify-end mt-4">
                 <button
-                  formAction={async (formData: FormData) => {
-                    "use server"
-                    await updateEmergencyContact(ec.id, formData)
-                  }}
+                  type="submit"
                   className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
                 >
                   Сохранить
                 </button>
-                <button
-                  formAction={async () => {
-                    "use server"
-                    await deleteEmergencyContact(ec.id)
-                  }}
-                  className="rounded-lg border border-red-200 p-2 text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <DeleteAction
+                  action={deleteEmergencyContact.bind(null, ec.id)}
+                  entity="контакт"
+                  successMessage="Контакт удалён"
+                />
               </div>
-            </form>
+            </ServerForm>
           ))}
         </div>
 
         {/* Add new contact */}
-        <form
-          action={async (formData: FormData) => {
-            "use server"
-            await addEmergencyContact(building.id, formData)
-          }}
+        <ServerForm
+          action={addEmergencyContact.bind(null, building.id)}
+          successMessage="Контакт добавлен"
           className="border-t border-dashed border-slate-200 px-5 py-4 grid grid-cols-4 gap-3 items-end bg-slate-50/50"
         >
           <div>
@@ -282,7 +273,7 @@ export default async function SettingsPage() {
               Добавить
             </button>
           </div>
-        </form>
+        </ServerForm>
       </div>
     </div>
   )

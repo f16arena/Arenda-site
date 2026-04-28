@@ -1,14 +1,82 @@
-import { MessageSquare } from "lucide-react"
+export const dynamic = "force-dynamic"
 
-export default function CabinetMessages() {
+import { db } from "@/lib/db"
+import { auth } from "@/auth"
+import { redirect } from "next/navigation"
+import { ChatView, type ChatUser, type ChatMessage } from "@/components/messages/chat-view"
+
+export default async function CabinetMessages() {
+  const session = await auth()
+  if (!session?.user) redirect("/login")
+
+  const me = session.user.id
+
+  // Для арендатора — только сотрудники здания (не другие арендаторы)
+  const staff = await db.user.findMany({
+    where: {
+      isActive: true,
+      role: { in: ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER"] },
+    },
+    select: { id: true, name: true, role: true },
+    orderBy: { role: "asc" },
+  })
+
+  const allMessages = await db.message.findMany({
+    where: {
+      OR: [{ fromId: me }, { toId: me }],
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      fromId: true,
+      toId: true,
+      subject: true,
+      body: true,
+      isRead: true,
+      createdAt: true,
+    },
+  })
+
+  const messagesByContact: Record<string, ChatMessage[]> = {}
+  for (const m of allMessages) {
+    const otherId = m.fromId === me ? m.toId : m.fromId
+    if (!messagesByContact[otherId]) messagesByContact[otherId] = []
+    messagesByContact[otherId].push(m)
+  }
+
+  const contacts: ChatUser[] = staff.map((u) => {
+    const conv = messagesByContact[u.id] ?? []
+    const last = conv[conv.length - 1]
+    const unread = conv.filter((m) => m.toId === me && !m.isRead).length
+    return {
+      id: u.id,
+      name: u.name,
+      role: u.role,
+      unread,
+      lastMessage: last?.body ?? null,
+      lastMessageAt: last?.createdAt ?? null,
+    }
+  })
+
+  contacts.sort((a, b) => {
+    if (a.unread !== b.unread) return b.unread - a.unread
+    if (a.lastMessageAt && b.lastMessageAt) return b.lastMessageAt.getTime() - a.lastMessageAt.getTime()
+    if (a.lastMessageAt) return -1
+    if (b.lastMessageAt) return 1
+    return a.name.localeCompare(b.name)
+  })
+
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-semibold text-slate-900">Сообщения</h1>
-      <div className="bg-white rounded-xl border border-slate-200 py-20 text-center">
-        <MessageSquare className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-        <p className="text-sm font-medium text-slate-600">Чат в разработке</p>
-        <p className="text-xs text-slate-400 mt-1">Будет добавлен в следующей фазе</p>
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Сообщения</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Связь с администрацией здания</p>
       </div>
+      <ChatView
+        currentUserId={me}
+        contacts={contacts}
+        messagesByContact={messagesByContact}
+      />
     </div>
   )
 }
