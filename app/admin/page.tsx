@@ -25,10 +25,10 @@ export default async function AdminDashboard() {
     )
   }
   // Получим список этажей текущего здания для фильтра
-  const floorIds = (await db.floor.findMany({
+  const floorIds = await db.floor.findMany({
     where: { buildingId },
     select: { id: true },
-  })).map((f) => f.id)
+  }).then((floors) => floors.map((f) => f.id)).catch(() => [] as string[])
 
   // Все запросы фильтруем по floorIds (помещения этого здания)
   // Используем простой filter без fullFloors чтобы работало даже без миграции 004
@@ -46,16 +46,16 @@ export default async function AdminDashboard() {
     debtsByTenant,
     topTenants,
   ] = await Promise.all([
-    db.tenant.count({ where: tenantWhereInBuilding }),
+    db.tenant.count({ where: tenantWhereInBuilding }).catch(() => 0),
     db.tenant.findMany({
       where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
       select: { id: true, customRate: true, space: { select: { area: true } } },
-    }),
+    }).catch(() => [] as Array<{ id: string; customRate: number | null; space: { area: number } | null }>),
     db.space.groupBy({
       by: ["status"],
       where: { floorId: { in: floorIds } },
       _count: { _all: true },
-    }),
+    }).catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
     db.charge.aggregate({
       where: {
         isPaid: false,
@@ -63,7 +63,7 @@ export default async function AdminDashboard() {
       },
       _sum: { amount: true },
       _count: { _all: true },
-    }),
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
     db.request.findMany({
       where: {
         status: { in: ["NEW", "IN_PROGRESS"] },
@@ -72,7 +72,7 @@ export default async function AdminDashboard() {
       select: { id: true, title: true, status: true },
       take: 5,
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => [] as Array<{ id: string; title: string; status: string }>),
     db.task.findMany({
       where: {
         status: { in: ["NEW", "IN_PROGRESS"] },
@@ -81,7 +81,7 @@ export default async function AdminDashboard() {
       select: { id: true, title: true, status: true },
       take: 5,
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => [] as Array<{ id: string; title: string; status: string }>),
     db.charge.groupBy({
       by: ["tenantId"],
       where: {
@@ -89,7 +89,7 @@ export default async function AdminDashboard() {
         tenant: tenantWhereInBuilding,
       },
       _sum: { amount: true },
-    }),
+    }).catch(() => [] as Array<{ tenantId: string; _sum: { amount: number | null } }>),
     db.tenant.findMany({
       where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
       select: {
@@ -99,7 +99,7 @@ export default async function AdminDashboard() {
       },
       take: 6,
       orderBy: { createdAt: "desc" },
-    }),
+    }).catch(() => [] as Array<{ id: string; companyName: string; space: { number: string } | null }>),
   ])
 
   const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
