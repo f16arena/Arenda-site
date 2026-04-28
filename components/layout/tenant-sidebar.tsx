@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, CreditCard, FileText,
-  ClipboardList, MessageSquare, LogOut, Building, Gauge,
+  ClipboardList, MessageSquare, LogOut, Building, Gauge, User,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { logout } from "@/app/actions/auth"
@@ -28,6 +28,7 @@ const nav = [
     items: [
       { href: "/cabinet/requests", label: "Заявки", icon: ClipboardList },
       { href: "/cabinet/messages", label: "Сообщения", icon: MessageSquare },
+      { href: "/cabinet/profile", label: "Мой профиль", icon: User },
     ],
   },
 ]

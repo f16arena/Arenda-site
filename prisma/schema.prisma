@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?  @unique
-  email     String?  @unique
-  password  String
-  role      String   @default("TENANT")
-  isActive  Boolean  @default(true)  @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt      @map("updated_at")
+  id             String   @id @default(cuid())
+  name           String
+  phone          String?  @unique
+  email          String?  @unique
+  password       String
+  role           String   @default("TENANT")
+  isActive       Boolean  @default(true)  @map("is_active")
+  telegramChatId String?  @map("telegram_chat_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt      @map("updated_at")
 
   tenant           Tenant?
   staff            Staff?
@@ -27,8 +28,25 @@ model User {
   requests         Request[]
   requestComments  RequestComment[]
   complaints       Complaint[]
+  notifications    Notification[]
 
   @@map("users")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String   // CONTRACT_EXPIRING | PAYMENT_DUE | NEW_REQUEST | NEW_COMPLAINT | INFO
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
 }
 
 model Building {
@@ -122,6 +140,8 @@ model Tenant {
   customRate       Float?    @map("custom_rate")
   contractStart    DateTime? @map("contract_start")
   contractEnd      DateTime? @map("contract_end")
+  paymentDueDay    Int       @default(10) @map("payment_due_day")
+  penaltyPercent   Float     @default(1) @map("penalty_percent")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   user        User             @relation(fields: [userId], references: [id])

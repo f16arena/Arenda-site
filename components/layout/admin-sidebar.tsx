@@ -37,8 +37,9 @@ const nav: NavSection[] = [
   {
     title: "ДОКУМЕНТЫ",
     items: [
-      { href: "/admin/documents", label: "Документы", icon: FileText },
-      { href: "/admin/documents/templates/rental", label: "Договор аренды", icon: FileText },
+      { href: "/admin/contracts", label: "Договоры", icon: FileText },
+      { href: "/admin/documents", label: "Все документы", icon: FileText },
+      { href: "/admin/documents/templates/rental", label: "Шаблон договора", icon: FileText },
       { href: "/admin/documents/templates/reconciliation", label: "Акт сверки", icon: BarChart3 },
     ],
   },
@@ -64,6 +65,7 @@ const nav: NavSection[] = [
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3 },
       { href: "/admin/settings", label: "Настройки", icon: Settings },
       { href: "/admin/roles", label: "Роли и доступ", icon: Shield },
+      { href: "/admin/profile", label: "Мой профиль", icon: UserCog },
     ],
   },
   {
