@@ -7,6 +7,7 @@ import {
   Save, Trash2, Square, Pentagon, DoorOpen, Type, Minus,
   MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move, Sparkles,
   Image as ImageIcon, X as XIcon, Undo2, Redo2, Copy, MoreHorizontal,
+  Eye, Layers as LayersIcon, Ruler, Box,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -72,6 +73,11 @@ export function FloorEditor({
   const [polygonInProgress, setPolygonInProgress] = useState<Point[] | null>(null)
   const [saving, setSaving] = useState(false)
   const [underlayOpacity, setUnderlayOpacity] = useState(0.5)
+  const [displayMode, setDisplayMode] = useState<"full" | "outline" | "underlay-only">("full")
+  const [view3D, setView3D] = useState(false)
+  const [calibration, setCalibration] = useState<{ active: boolean; first: Point | null; second: Point | null }>({
+    active: false, first: null, second: null,
+  })
 
   // setLayout с записью в историю
   const setLayout = useCallback((next: FloorLayoutV2 | ((prev: FloorLayoutV2) => FloorLayoutV2)) => {
@@ -272,6 +278,34 @@ export function FloorEditor({
     }
 
     const pt = screenToSvg(e.clientX, e.clientY)
+
+    // Калибровка: клик отмечает 2 точки
+    if (calibration.active) {
+      if (!calibration.first) {
+        setCalibration({ ...calibration, first: pt })
+      } else if (!calibration.second) {
+        const second = pt
+        const first = calibration.first
+        const pixelDist = Math.hypot(second.x - first.x, second.y - first.y) // в наших "метрах" (текущая шкала)
+        const realStr = window.prompt(`Расстояние между точками сейчас: ${pixelDist.toFixed(2)} м.\nВведите реальное расстояние в метрах:`)
+        if (realStr) {
+          const realDist = parseFloat(realStr.replace(",", "."))
+          if (!Number.isNaN(realDist) && realDist > 0) {
+            const ratio = realDist / pixelDist
+            // Масштабируем размеры холста и все элементы на ratio
+            setLayout((prev) => ({
+              ...prev,
+              width: prev.width * ratio,
+              height: prev.height * ratio,
+              elements: prev.elements.map((el) => scaleElement(el, ratio)),
+            }))
+            toast.success(`Масштаб откалиброван: 1 → ${ratio.toFixed(3)}`)
+          }
+        }
+        setCalibration({ active: false, first: null, second: null })
+      }
+      return
+    }
 
     if (tool === "rect") {
       const id = addRect(pt.x, pt.y, 0.5, 0.5)
@@ -625,7 +659,52 @@ export function FloorEditor({
             {tool === "label" && "Кликните чтобы добавить подпись"}
             {tool === "select" && "Shift+drag — панорама. Ctrl+wheel — зум. Del — удалить"}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Режимы отображения */}
+            <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setDisplayMode("full")}
+                title="Полный вид"
+                className={`px-2 py-1 rounded text-xs ${displayMode === "full" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Полный
+              </button>
+              <button
+                onClick={() => setDisplayMode("outline")}
+                title="Только контур"
+                className={`px-2 py-1 rounded text-xs ${displayMode === "outline" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Контур
+              </button>
+              {layout.underlayUrl && (
+                <button
+                  onClick={() => setDisplayMode("underlay-only")}
+                  title="Только подложка"
+                  className={`px-2 py-1 rounded text-xs ${displayMode === "underlay-only" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  Подложка
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => setView3D(!view3D)}
+              title="Изометрический 3D-вид"
+              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 text-purple-700" : "text-slate-500 hover:bg-slate-100"}`}
+            >
+              <Box className="h-4 w-4" />
+            </button>
+
+            <button
+              onClick={() => setCalibration({ active: !calibration.active, first: null, second: null })}
+              title="Калибровка масштаба (клик 2 точки)"
+              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 text-orange-700" : "text-slate-500 hover:bg-slate-100"}`}
+            >
+              <Ruler className="h-4 w-4" />
+            </button>
+
+            <span className="w-px h-5 bg-slate-200 mx-1" />
+
             <button
               onClick={undo}
               disabled={history.length === 0}
@@ -680,10 +759,26 @@ export function FloorEditor({
         </div>
 
         <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden relative">
+          {/* Информер по калибровке */}
+          {calibration.active && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-orange-100 border border-orange-300 rounded-lg px-4 py-2 text-xs text-orange-800 shadow-lg">
+              {!calibration.first
+                ? "📍 Кликните по первой точке известного расстояния"
+                : "📍 Теперь кликните по второй точке"}
+              <button onClick={() => setCalibration({ active: false, first: null, second: null })}
+                className="ml-3 text-orange-600 underline">Отмена</button>
+            </div>
+          )}
+
           <svg
             ref={svgRef}
             className="w-full h-full"
-            style={{ cursor: tool === "select" ? "default" : "crosshair" }}
+            style={{
+              cursor: calibration.active ? "crosshair" : tool === "select" ? "default" : "crosshair",
+              transform: view3D ? "perspective(1500px) rotateX(55deg) rotateZ(-30deg)" : "none",
+              transformOrigin: "center",
+              transition: "transform 0.4s ease",
+            }}
             onMouseDown={onSvgMouseDown}
             onMouseMove={onSvgMouseMove}
             onMouseUp={onSvgMouseUp}
@@ -743,18 +838,35 @@ export function FloorEditor({
               )}
 
               {/* Elements */}
-              {layout.elements.map((el) => (
+              {displayMode !== "underlay-only" && layout.elements.map((el) => (
                 <RenderElement
                   key={el.id}
                   el={el}
                   selected={el.id === selectedId}
                   zoom={zoom}
                   spaces={spaces}
+                  outlineOnly={displayMode === "outline"}
                   onMouseDown={(e) => startMove(e, el)}
                   onResizeRect={(e, h) => startResizeRect(e, el, h)}
                   onResizePoly={(e, vi) => startResizePoly(e, el, vi)}
                 />
               ))}
+
+              {/* Calibration markers */}
+              {calibration.first && (
+                <circle cx={calibration.first.x * PX_PER_METER} cy={calibration.first.y * PX_PER_METER}
+                  r={8 / zoom} fill="#fb923c" stroke="white" strokeWidth={2 / zoom} />
+              )}
+              {calibration.second && (
+                <circle cx={calibration.second.x * PX_PER_METER} cy={calibration.second.y * PX_PER_METER}
+                  r={8 / zoom} fill="#fb923c" stroke="white" strokeWidth={2 / zoom} />
+              )}
+              {calibration.first && calibration.second && (
+                <line
+                  x1={calibration.first.x * PX_PER_METER} y1={calibration.first.y * PX_PER_METER}
+                  x2={calibration.second.x * PX_PER_METER} y2={calibration.second.y * PX_PER_METER}
+                  stroke="#fb923c" strokeWidth={2 / zoom} strokeDasharray={`${4 / zoom} ${4 / zoom}`} />
+              )}
 
               {/* Polygon in progress preview */}
               {polygonInProgress && polygonInProgress.length > 0 && (
@@ -914,13 +1026,14 @@ export function FloorEditor({
 
 // ── Render single element ──────────────────────────────────────
 function RenderElement({
-  el, selected, zoom, spaces,
+  el, selected, zoom, spaces, outlineOnly,
   onMouseDown, onResizeRect, onResizePoly,
 }: {
   el: FloorElement
   selected: boolean
   zoom: number
   spaces: SpaceLite[]
+  outlineOnly?: boolean
   onMouseDown: (e: ReactMouseEvent) => void
   onResizeRect: (e: ReactMouseEvent, handle: string) => void
   onResizePoly: (e: ReactMouseEvent, vertexIndex: number) => void
@@ -929,7 +1042,7 @@ function RenderElement({
     ? spaces.find((s) => s.id === el.spaceId)
     : undefined
   const status = linkedSpace?.status ?? "UNLINKED"
-  const fill = STATUS_FILL[status] ?? STATUS_FILL.UNLINKED
+  const fill = outlineOnly ? "transparent" : (STATUS_FILL[status] ?? STATUS_FILL.UNLINKED)
   const stroke = selected ? "#3b82f6" : (STATUS_STROKE[status] ?? STATUS_STROKE.UNLINKED)
   const strokeWidth = selected ? 3 / zoom : 1.5 / zoom
 
@@ -1411,6 +1524,17 @@ function PropertiesPanel({
       )}
     </div>
   )
+}
+
+function scaleElement(el: FloorElement, k: number): FloorElement {
+  if (el.type === "rect") return { ...el, x: el.x * k, y: el.y * k, width: el.width * k, height: el.height * k }
+  if (el.type === "polygon") return { ...el, points: el.points.map((p) => ({ x: p.x * k, y: p.y * k })) }
+  if (el.type === "door") return { ...el, x: el.x * k, y: el.y * k, width: el.width * k }
+  if (el.type === "window") return { ...el, x: el.x * k, y: el.y * k, width: el.width * k }
+  if (el.type === "label") return { ...el, x: el.x * k, y: el.y * k, fontSize: (el.fontSize ?? 0.5) * k }
+  if (el.type === "wall") return { ...el, x1: el.x1 * k, y1: el.y1 * k, x2: el.x2 * k, y2: el.y2 * k, thickness: (el.thickness ?? 0.15) * k }
+  if (el.type === "icon") return { ...el, x: el.x * k, y: el.y * k, size: el.size * k }
+  return el
 }
 
 function Field({ label, value, onChange, step = 0.5 }: { label: string; value: number; onChange: (v: number) => void; step?: number }) {
