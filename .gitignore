@@ -47,3 +47,9 @@ next-env.d.ts
 *.db-journal
 *.db-shm
 *.db-wal
+
+# DB exports / dumps — содержат хеши паролей и персональные данные
+prisma/sydney-dump.json
+prisma/*-dump.json
+*.dump.json
+.commit-msg.tmp
