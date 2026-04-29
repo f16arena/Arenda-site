@@ -109,11 +109,15 @@ export async function requireOrgAccess(): Promise<OrgContext> {
     else redirect("/login")
   }
 
-  // Проверка slug ↔ orgId. Платформенный админ может работать на любом
-  // поддомене (impersonate), потому пропускаем для него.
-  if (hostSlug && !isPlatformOwner && org!.slug !== hostSlug) {
-    // Сессия не соответствует поддомену — это либо подмена host header,
-    // либо переход с одного поддомена на другой. Чистим и отправляем на login.
+  // Проверка slug ↔ orgId. Включается через ENFORCE_SUBDOMAIN=true (после
+  // настройки DNS на *.commrent.kz). Платформенный админ может работать на
+  // любом поддомене (impersonate), потому пропускаем для него.
+  if (
+    process.env.ENFORCE_SUBDOMAIN === "true"
+    && hostSlug
+    && !isPlatformOwner
+    && org!.slug !== hostSlug
+  ) {
     redirect("/login")
   }
 

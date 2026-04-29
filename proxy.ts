@@ -26,6 +26,10 @@ function isPublicRootPath(path: string): boolean {
   return PUBLIC_ROOT_PREFIXES.some((p) => path.startsWith(p))
 }
 
+// Включается, когда DNS на *.commrent.kz уже настроен. Пока false — root-домен
+// тоже пускает в /admin и /cabinet (иначе вход ломается до настройки поддоменов).
+const ENFORCE_SUBDOMAIN = process.env.ENFORCE_SUBDOMAIN === "true"
+
 export default auth((req) => {
   const { nextUrl } = req
   const session = req.auth
@@ -42,29 +46,26 @@ export default auth((req) => {
   const isLoginPage = path === "/login"
 
   // ─── Корневой / external host (публичный сайт) ──────────────────
-  if (host.kind === "root" || host.kind === "external") {
-    // Платформенный админ — пропускаем в /superadmin везде, где есть.
-    // Это позволяет работать на корневом домене и preview-инстансах.
-    if (host.kind === "root") {
-      // На корневом домене не разрешаем вход в admin/cabinet —
-      // вход в систему всегда через slug-поддомен.
-      if (isAdminRoute || isCabinetRoute) {
-        // Платформенный админ — отдельная история, его пускаем (он на корневом).
-        if (isLoggedIn && isPlatformOwner) {
-          // OK — в impersonate-режиме платформа-админ работает в /admin
-        } else {
-          return NextResponse.redirect(new URL("/login", req.url))
-        }
+  // Жёсткое разделение root vs subdomain включается через ENFORCE_SUBDOMAIN=true,
+  // когда DNS на *.commrent.kz готов. Пока false — пускаем всех на корне.
+  if (ENFORCE_SUBDOMAIN && host.kind === "root") {
+    // На корневом домене не разрешаем вход в admin/cabinet —
+    // вход в систему всегда через slug-поддомен.
+    if (isAdminRoute || isCabinetRoute) {
+      if (isLoggedIn && isPlatformOwner) {
+        // OK — платформ-админ работает в /admin (impersonate)
+      } else {
+        return NextResponse.redirect(new URL("/login", req.url))
       }
+    }
 
-      // Только публичные пути и /superadmin (для платформ-админа) на корневом.
-      const allowed = isPublicRootPath(path)
-        || isAdminRoute
-        || isCabinetRoute
-        || isSuperadminRoute
-      if (!allowed) {
-        return NextResponse.redirect(new URL("/", req.url))
-      }
+    // Только публичные пути и /superadmin (для платформ-админа) на корневом.
+    const allowed = isPublicRootPath(path)
+      || isAdminRoute
+      || isCabinetRoute
+      || isSuperadminRoute
+    if (!allowed) {
+      return NextResponse.redirect(new URL("/", req.url))
     }
   }
 
