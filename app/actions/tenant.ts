@@ -3,8 +3,17 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { requireOrgAccess } from "@/lib/org"
+import {
+  assertTenantInOrg,
+  assertSpaceInOrg,
+  assertUserInOrg,
+} from "@/lib/scope-guards"
 
 export async function updateTenant(tenantId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
   const companyName = formData.get("companyName") as string
   const bin = formData.get("bin") as string
   const iin = formData.get("iin") as string
@@ -52,6 +61,9 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 }
 
 export async function updateTenantRequisites(tenantId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
   const bankName = formData.get("bankName") as string
   const iik = formData.get("iik") as string
   const bik = formData.get("bik") as string
@@ -72,6 +84,9 @@ export async function updateTenantRequisites(tenantId: string, formData: FormDat
 }
 
 export async function updateTenantRentalTerms(tenantId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
   const customRateStr = formData.get("customRate") as string
   const cleaningFeeStr = formData.get("cleaningFee") as string
   const needsCleaning = formData.get("needsCleaning") === "on"
@@ -90,6 +105,10 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
 }
 
 export async function updateTenantUser(userId: string, tenantId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+  await assertUserInOrg(userId, orgId)
+
   const name = formData.get("name") as string
   const phone = formData.get("phone") as string
   const email = formData.get("email") as string
@@ -109,6 +128,9 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
 }
 
 export async function deleteTenant(tenantId: string, options?: { redirectAfter?: boolean }) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     select: { id: true, userId: true, spaceId: true, companyName: true },
@@ -138,6 +160,10 @@ export async function deleteTenant(tenantId: string, options?: { redirectAfter?:
 }
 
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+  if (spaceId) await assertSpaceInOrg(spaceId, orgId)
+
   const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
 
   if (tenant?.spaceId) {

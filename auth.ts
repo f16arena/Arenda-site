@@ -3,6 +3,15 @@ import Credentials from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
+const isProduction = process.env.NODE_ENV === "production"
+
+// Cookie session-токена — domain НЕ указываем, чтобы cookie работал ТОЛЬКО
+// на текущем поддомене. Это изолирует сессии разных организаций:
+// логин на bcf16.commrent.kz не передаст сессию на other.commrent.kz.
+const SESSION_COOKIE_NAME = isProduction
+  ? "__Secure-commrent.session-token"
+  : "commrent.session-token"
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -63,6 +72,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.organizationId = (token.organizationId as string | null) ?? null
       session.user.isPlatformOwner = (token.isPlatformOwner as boolean) ?? false
       return session
+    },
+  },
+  cookies: {
+    sessionToken: {
+      name: SESSION_COOKIE_NAME,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: isProduction,
+        // domain НЕ задаётся → cookie живёт только на host из URL запроса
+        // (один поддомен = одна изолированная сессия).
+      },
     },
   },
   pages: {

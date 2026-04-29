@@ -5,6 +5,8 @@ import { auth } from "@/auth"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
+import { requireOrgAccess } from "@/lib/org"
+import { assertTenantInOrg } from "@/lib/scope-guards"
 
 export type DocumentType = "INVOICE" | "ACT" | "CONTRACT" | "HANDOVER"
 
@@ -45,6 +47,13 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
     return { ok: false, error: "Не авторизован" }
+  }
+
+  const { orgId } = await requireOrgAccess()
+  try {
+    await assertTenantInOrg(params.tenantId, orgId)
+  } catch {
+    return { ok: false, error: "Нет доступа к этому арендатору" }
   }
 
   const tenant = await db.tenant.findUnique({

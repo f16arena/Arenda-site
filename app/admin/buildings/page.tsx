@@ -7,15 +7,18 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { Building2, MapPin, Layers, Users, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
+import { requireOrgAccess } from "@/lib/org"
 
 export default async function BuildingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
   const isOwner = session.user.role === "OWNER"
 
   const currentBuildingId = await getCurrentBuildingId()
 
   const buildings = await db.building.findMany({
+    where: { organizationId: orgId },
     select: {
       id: true,
       name: true,

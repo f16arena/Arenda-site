@@ -6,21 +6,21 @@ import { Search } from "lucide-react"
 import Link from "next/link"
 import { TenantDialog } from "./tenant-dialog"
 import { DeleteTenantButton } from "./delete-tenant-button"
-import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { tenantScope, spaceScope } from "@/lib/tenant-scope"
 
 export default async function TenantsPage() {
-  const buildingId = await getCurrentBuildingId()
-  const floorIds = buildingId
-    ? (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
-    : []
+  const { orgId } = await requireOrgAccess()
 
+  // Все арендаторы текущей организации — включая ещё не назначенных на помещение,
+  // но привязанных через user.organizationId (если spaceId = null).
   const tenants = await db.tenant.findMany({
-    where: floorIds.length > 0 ? {
+    where: {
       OR: [
-        { space: { floorId: { in: floorIds } } },
-        { spaceId: null }, // тенанты без помещения (свежесозданные) — показываем всем
+        tenantScope(orgId),
+        { spaceId: null, user: { organizationId: orgId } },
       ],
-    } : undefined,
+    },
     select: {
       id: true,
       companyName: true,
@@ -42,7 +42,9 @@ export default async function TenantsPage() {
   })
 
   const vacantSpaces = await db.space.findMany({
-    where: { status: "VACANT", ...(floorIds.length > 0 ? { floorId: { in: floorIds } } : {}) },
+    where: {
+      AND: [spaceScope(orgId), { status: "VACANT" }],
+    },
     select: {
       id: true,
       number: true,

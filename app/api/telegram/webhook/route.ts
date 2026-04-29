@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   if (text.startsWith("/start")) {
     await sendTelegram(chatId,
       `👋 Привет, <b>${userName}</b>!\n\n` +
-      `Это бот <b>ArendaPro</b> — система управления арендой БЦ F16.\n\n` +
+      `Это бот <b>Commrent</b> — платформа управления коммерческой арендой.\n\n` +
       `🆔 Ваш Chat ID: <code>${chatId}</code>\n\n` +
       `<b>Что делать дальше:</b>\n` +
       `1. Скопируйте Chat ID выше\n` +
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
       })
       if (!user) {
         await sendTelegram(chatId,
-          `❌ Этот Telegram не подключён к аккаунту ArendaPro.\n\n` +
+          `❌ Этот Telegram не подключён к аккаунту Commrent.\n\n` +
           `Для подключения:\n` +
           `1. Скопируйте ваш Chat ID: <code>${chatId}</code>\n` +
           `2. Откройте https://commrent.kz/login\n` +
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
   // Любое другое сообщение — подсказка
   await sendTelegram(chatId,
-    `🤖 Я бот ArendaPro и пока умею только отправлять уведомления.\n\n` +
+    `🤖 Я бот Commrent и пока умею только отправлять уведомления.\n\n` +
     `Для управления арендой используйте сайт:\n` +
     `https://commrent.kz\n\n` +
     `Команды: /help`

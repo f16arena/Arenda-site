@@ -5,10 +5,13 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { LeadKanban } from "./lead-kanban"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 
 export default async function LeadsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
 
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) {
@@ -18,6 +21,7 @@ export default async function LeadsPage() {
       </div>
     )
   }
+  await assertBuildingInOrg(buildingId, orgId)
 
   const leads = await db.lead.findMany({
     where: { buildingId },

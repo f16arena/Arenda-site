@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { db } from "./db"
 
 const SUPERADMIN_ORG_COOKIE = "superadmin_currentOrgId"
@@ -11,6 +11,30 @@ export type OrgContext = {
   userId: string
   isPlatformOwner: boolean
   isImpersonating: boolean
+  hostSlug: string | null   // slug из URL поддомена, если есть
+}
+
+/**
+ * Получает slug организации из URL (через заголовки от proxy.ts).
+ * Возвращает null, если запрос пришёл с корневого домена.
+ */
+export async function getHostSlug(): Promise<string | null> {
+  const h = await headers()
+  return h.get("x-org-slug")
+}
+
+/**
+ * По slug возвращает organizationId (или null).
+ * Кешируется на запрос (через React cache при необходимости).
+ */
+export async function getOrgIdBySlug(slug: string): Promise<string | null> {
+  if (!slug) return null
+  const org = await db.organization.findUnique({
+    where: { slug },
+    select: { id: true, isActive: true, isSuspended: true },
+  })
+  if (!org || !org.isActive) return null
+  return org.id
 }
 
 // Получить текущую организацию
@@ -55,13 +79,19 @@ export async function setSuperadminOrgCookie(orgId: string | null) {
 }
 
 // Helper: требует что пользователь имеет доступ к организации
-// Возвращает контекст или редиректит
+// Возвращает контекст или редиректит.
+//
+// БЕЗОПАСНОСТЬ: дополнительно проверяет, что slug в URL поддомена соответствует
+// organizationId пользователя. Если нет — редирект на /login (мы не должны
+// случайно работать с чужой организацией, даже если cookie каким-то образом
+// прошёл на чужой поддомен).
 export async function requireOrgAccess(): Promise<OrgContext> {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
   const orgId = await getCurrentOrgId()
   const isPlatformOwner = session.user.isPlatformOwner ?? false
+  const hostSlug = await getHostSlug()
 
   if (!orgId) {
     if (isPlatformOwner) redirect("/superadmin")
@@ -71,12 +101,20 @@ export async function requireOrgAccess(): Promise<OrgContext> {
   // Проверим что организация активна и не приостановлена
   const org = await db.organization.findUnique({
     where: { id: orgId! },
-    select: { isActive: true, isSuspended: true },
+    select: { id: true, slug: true, isActive: true, isSuspended: true },
   }).catch(() => null)
 
   if (!org || !org.isActive) {
     if (isPlatformOwner) redirect("/superadmin")
     else redirect("/login")
+  }
+
+  // Проверка slug ↔ orgId. Платформенный админ может работать на любом
+  // поддомене (impersonate), потому пропускаем для него.
+  if (hostSlug && !isPlatformOwner && org!.slug !== hostSlug) {
+    // Сессия не соответствует поддомену — это либо подмена host header,
+    // либо переход с одного поддомена на другой. Чистим и отправляем на login.
+    redirect("/login")
   }
 
   const imp = await getImpersonateData()
@@ -86,6 +124,7 @@ export async function requireOrgAccess(): Promise<OrgContext> {
     userId: imp?.actAsUserId ?? session.user.id,
     isPlatformOwner,
     isImpersonating: !!imp,
+    hostSlug,
   }
 }
 

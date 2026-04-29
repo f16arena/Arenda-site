@@ -4,9 +4,13 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOwner, requireAdmin } from "@/lib/permissions"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
+import { requireOrgAccess, checkLimit } from "@/lib/org"
+import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 
 export async function createBuilding(formData: FormData) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await checkLimit(orgId, "buildings")
 
   const name = String(formData.get("name") ?? "").trim()
   const address = String(formData.get("address") ?? "").trim()
@@ -19,12 +23,6 @@ export async function createBuilding(formData: FormData) {
 
   if (!name) throw new Error("Название обязательно")
   if (!address) throw new Error("Адрес обязателен")
-
-  // Получим текущую организацию из контекста
-  const { getCurrentOrgId, checkLimit } = await import("@/lib/org")
-  const orgId = await getCurrentOrgId()
-  if (!orgId) throw new Error("Не выбрана организация")
-  await checkLimit(orgId, "buildings")
 
   const building = await db.building.create({
     data: {
@@ -40,7 +38,6 @@ export async function createBuilding(formData: FormData) {
     },
   })
 
-  // Сразу переключим на новое здание
   await setCurrentBuildingCookie(building.id)
 
   revalidatePath("/admin/buildings")
@@ -50,6 +47,8 @@ export async function createBuilding(formData: FormData) {
 
 export async function updateBuildingDetails(buildingId: string, formData: FormData) {
   await requireAdmin()
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
 
   const name = String(formData.get("name") ?? "").trim()
   const address = String(formData.get("address") ?? "").trim()
@@ -80,6 +79,8 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
 
 export async function toggleBuildingActive(buildingId: string, isActive: boolean) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
 
   await db.building.update({
     where: { id: buildingId },
@@ -91,8 +92,9 @@ export async function toggleBuildingActive(buildingId: string, isActive: boolean
 
 export async function deleteBuilding(buildingId: string) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
 
-  // Проверка: нет ли активных арендаторов или помещений
   const floorsWithSpaces = await db.floor.count({ where: { buildingId } })
   if (floorsWithSpaces > 0) {
     throw new Error("Нельзя удалить — у здания есть этажи и помещения. Сначала удалите их или просто деактивируйте здание.")
@@ -104,15 +106,19 @@ export async function deleteBuilding(buildingId: string) {
 }
 
 export async function switchBuilding(buildingId: string) {
-  // Любой роли можно переключаться
+  // Переключаться можно только на здание из своей организации
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+
   await setCurrentBuildingCookie(buildingId)
 
-  // Инвалидируем все админ-страницы потому что данные другого здания
   revalidatePath("/admin", "layout")
 }
 
 export async function createFloor(buildingId: string, formData: FormData) {
   await requireAdmin()
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
 
   const numberStr = String(formData.get("number") ?? "")
   const name = String(formData.get("name") ?? "").trim()
@@ -140,6 +146,8 @@ export async function createFloor(buildingId: string, formData: FormData) {
 
 export async function deleteFloor(floorId: string) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertFloorInOrg(floorId, orgId)
 
   const spaceCount = await db.space.count({ where: { floorId } })
   if (spaceCount > 0) {

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 import ExcelJS from "exceljs"
 
 export const dynamic = "force-dynamic"
@@ -14,8 +16,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) return NextResponse.json({ error: "Building not selected" }, { status: 400 })
+  await assertBuildingInOrg(buildingId, orgId)
 
   const { searchParams } = new URL(req.url)
   const fromStr = searchParams.get("from")
@@ -64,7 +68,7 @@ export async function GET(req: Request) {
   ])
 
   const wb = new ExcelJS.Workbook()
-  wb.creator = "ArendaPro"
+  wb.creator = "Commrent"
   wb.created = new Date()
 
   // ── Sheet 1: Начисления ─────────────────────────────────────

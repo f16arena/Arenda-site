@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
+import { requireOrgAccess } from "@/lib/org"
+import { assertTenantInOrg } from "@/lib/scope-guards"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
 
@@ -18,6 +20,13 @@ export async function GET(req: Request) {
   const tenantId = searchParams.get("tenantId")
   if (!tenantId) {
     return NextResponse.json({ error: "tenantId required" }, { status: 400 })
+  }
+
+  const { orgId } = await requireOrgAccess()
+  try {
+    await assertTenantInOrg(tenantId, orgId)
+  } catch {
+    return NextResponse.json({ error: "Forbidden: cross-tenant access" }, { status: 403 })
   }
 
   const tenant = await db.tenant.findUnique({

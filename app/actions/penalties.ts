@@ -2,13 +2,19 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireOrgAccess } from "@/lib/org"
+import { chargeScope } from "@/lib/tenant-scope"
 
 export async function calculatePenalties() {
+  const { orgId } = await requireOrgAccess()
+
   const today = new Date()
   const period = today.toISOString().slice(0, 7)
 
+  // Только начисления арендаторов текущей организации
   const overdueCharges = await db.charge.findMany({
     where: {
+      ...chargeScope(orgId),
       isPaid: false,
       dueDate: { lt: today },
       type: { not: "PENALTY" },
@@ -17,8 +23,8 @@ export async function calculatePenalties() {
   })
 
   let penaltiesCreated = 0
-  const DAILY_RATE = 0.01    // 1% в день
-  const MAX_RATE   = 0.10    // максимум 10% от суммы
+  const DAILY_RATE = 0.01
+  const MAX_RATE = 0.10
 
   for (const charge of overdueCharges) {
     const daysOverdue = Math.floor(
@@ -28,9 +34,8 @@ export async function calculatePenalties() {
 
     const penaltyRate = Math.min(daysOverdue * DAILY_RATE, MAX_RATE)
     const penaltyAmount = Math.round(charge.amount * penaltyRate)
-    if (penaltyAmount < 100) continue // минимальная пеня 100 тенге
+    if (penaltyAmount < 100) continue
 
-    // Проверяем: уже есть пеня по этому начислению?
     const existing = await db.charge.findFirst({
       where: {
         tenantId: charge.tenantId,

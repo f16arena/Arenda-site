@@ -3,10 +3,13 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { requireOrgAccess } from "@/lib/org"
+import { assertTaskInOrg, assertUserInOrg } from "@/lib/scope-guards"
 
 export async function createTask(formData: FormData) {
   const session = await auth()
   if (!session) return { error: "Не авторизован" }
+  const { orgId } = await requireOrgAccess()
 
   const title = formData.get("title") as string
   const description = formData.get("description") as string
@@ -17,6 +20,10 @@ export async function createTask(formData: FormData) {
   const estimatedCostStr = formData.get("estimatedCost") as string
   const dueDateStr = formData.get("dueDate") as string
   const assignedToId = formData.get("assignedToId") as string
+
+  if (assignedToId) {
+    await assertUserInOrg(assignedToId, orgId)
+  }
 
   await db.task.create({
     data: {
@@ -39,17 +46,26 @@ export async function createTask(formData: FormData) {
 }
 
 export async function updateTaskStatus(taskId: string, status: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertTaskInOrg(taskId, orgId)
+
   await db.task.update({ where: { id: taskId }, data: { status } })
   revalidatePath("/admin/tasks")
   return { success: true }
 }
 
 export async function deleteTask(taskId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertTaskInOrg(taskId, orgId)
+
   await db.task.delete({ where: { id: taskId } })
   revalidatePath("/admin/tasks")
 }
 
 export async function updateTask(taskId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertTaskInOrg(taskId, orgId)
+
   const title = formData.get("title") as string
   const description = formData.get("description") as string
   const category = formData.get("category") as string
@@ -59,6 +75,10 @@ export async function updateTask(taskId: string, formData: FormData) {
   const actualCostStr = formData.get("actualCost") as string
   const dueDateStr = formData.get("dueDate") as string
   const assignedToId = formData.get("assignedToId") as string
+
+  if (assignedToId) {
+    await assertUserInOrg(assignedToId, orgId)
+  }
 
   await db.task.update({
     where: { id: taskId },

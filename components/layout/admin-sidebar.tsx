@@ -126,7 +126,7 @@ export function AdminSidebar({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-white truncate">
-            {buildingName ?? "ArendaPro"}
+            {buildingName ?? "Commrent"}
           </p>
           <p className="text-[11px] text-slate-400">Панель управления</p>
         </div>

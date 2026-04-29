@@ -2,9 +2,14 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireOrgAccess } from "@/lib/org"
+import { assertFloorInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 
 export async function createSpace(formData: FormData) {
+  const { orgId } = await requireOrgAccess()
   const floorId = formData.get("floorId") as string
+  await assertFloorInOrg(floorId, orgId)
+
   const number = formData.get("number") as string
   const area = parseFloat(formData.get("area") as string)
   const description = formData.get("description") as string
@@ -18,6 +23,9 @@ export async function createSpace(formData: FormData) {
 }
 
 export async function updateSpace(id: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertSpaceInOrg(id, orgId)
+
   const number = formData.get("number") as string
   const area = parseFloat(formData.get("area") as string)
   const description = formData.get("description") as string
@@ -33,6 +41,9 @@ export async function updateSpace(id: string, formData: FormData) {
 }
 
 export async function deleteSpace(id: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertSpaceInOrg(id, orgId)
+
   const space = await db.space.findUnique({ where: { id }, include: { tenant: true } })
   if (space?.tenant) return { error: "Нельзя удалить — есть арендатор" }
 

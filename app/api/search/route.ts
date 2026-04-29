@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
+import { requireOrgAccess } from "@/lib/org"
+import { tenantScope, spaceScope, requestScope, leadScope } from "@/lib/tenant-scope"
 
 export const dynamic = "force-dynamic"
 
 // GET /api/search?q=foo
-// Возвращает помещения, арендаторов, заявки, лиды по ключу
+// Возвращает помещения, арендаторов, заявки, лиды по ключу — только в текущей организации.
 export async function GET(req: Request) {
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const { orgId } = await requireOrgAccess()
 
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get("q") ?? "").trim()
@@ -19,18 +23,28 @@ export async function GET(req: Request) {
   const [tenants, spaces, requests, leads] = await Promise.all([
     db.tenant.findMany({
       where: {
-        OR: [
-          { companyName: { contains: q, mode: "insensitive" } },
-          { bin: { contains: q } },
-          { iin: { contains: q } },
-          { user: { name: { contains: q, mode: "insensitive" } } },
+        AND: [
+          tenantScope(orgId),
+          {
+            OR: [
+              { companyName: { contains: q, mode: "insensitive" } },
+              { bin: { contains: q } },
+              { iin: { contains: q } },
+              { user: { name: { contains: q, mode: "insensitive" } } },
+            ],
+          },
         ],
       },
       select: { id: true, companyName: true, user: { select: { name: true } } },
       take: 5,
     }).catch(() => []),
     db.space.findMany({
-      where: { number: { contains: q, mode: "insensitive" } },
+      where: {
+        AND: [
+          spaceScope(orgId),
+          { number: { contains: q, mode: "insensitive" } },
+        ],
+      },
       select: {
         id: true, number: true,
         floor: { select: { name: true, buildingId: true } },
@@ -38,16 +52,26 @@ export async function GET(req: Request) {
       take: 5,
     }).catch(() => []),
     db.request.findMany({
-      where: { title: { contains: q, mode: "insensitive" } },
+      where: {
+        AND: [
+          requestScope(orgId),
+          { title: { contains: q, mode: "insensitive" } },
+        ],
+      },
       select: { id: true, title: true, status: true },
       take: 5,
     }).catch(() => []),
     db.lead.findMany({
       where: {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { contact: { contains: q } },
-          { companyName: { contains: q, mode: "insensitive" } },
+        AND: [
+          leadScope(orgId),
+          {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { contact: { contains: q } },
+              { companyName: { contains: q, mode: "insensitive" } },
+            ],
+          },
         ],
       },
       select: { id: true, name: true, companyName: true },

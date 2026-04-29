@@ -4,24 +4,33 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { ChatView, type ChatUser, type ChatMessage } from "@/components/messages/chat-view"
+import { requireOrgAccess } from "@/lib/org"
 
 export default async function AdminMessagesPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
+  const { orgId } = await requireOrgAccess()
 
   const me = session.user.id
 
-  // Все активные пользователи кроме меня — потенциальные собеседники
+  // Только пользователи моей организации
   const others = await db.user.findMany({
-    where: { isActive: true, id: { not: me } },
+    where: { isActive: true, id: { not: me }, organizationId: orgId },
     select: { id: true, name: true, role: true },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   })
 
-  // Все мои сообщения
+  // Только сообщения, где обе стороны в моей организации
   const allMessages = await db.message.findMany({
     where: {
-      OR: [{ fromId: me }, { toId: me }],
+      AND: [
+        { OR: [{ fromId: me }, { toId: me }] },
+        {
+          OR: [
+            { from: { organizationId: orgId }, to: { organizationId: orgId } },
+          ],
+        },
+      ],
     },
     orderBy: { createdAt: "asc" },
     select: {

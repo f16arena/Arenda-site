@@ -7,9 +7,13 @@ import { cn } from "@/lib/utils"
 import { TaskDialog } from "./task-dialog"
 import { updateTaskStatus, deleteTask } from "@/app/actions/tasks"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { requireOrgAccess } from "@/lib/org"
+import { taskScope } from "@/lib/tenant-scope"
 
 export default async function TasksPage() {
+  const { orgId } = await requireOrgAccess()
   const tasks = await db.task.findMany({
+    where: taskScope(orgId),
     select: {
       id: true, title: true, description: true, category: true,
       priority: true, status: true, floorNumber: true, spaceNumber: true,
@@ -21,7 +25,7 @@ export default async function TasksPage() {
   }).catch(() => [])
 
   const staffUsers = await db.user.findMany({
-    where: { role: { not: "TENANT" }, isActive: true },
+    where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
     select: { id: true, name: true },
   }).catch(() => [])
 

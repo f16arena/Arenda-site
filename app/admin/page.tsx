@@ -9,9 +9,13 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 
 export default async function AdminDashboard() {
+  const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   if (!buildingId) {
     return (
       <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">

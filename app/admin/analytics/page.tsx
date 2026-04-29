@@ -7,12 +7,16 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { formatMoney } from "@/lib/utils"
 import { TrendingUp, Users, Building2, Award, Activity } from "lucide-react"
 import { OccupancyHeatmap } from "./occupancy-heatmap"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 
 export default async function AnalyticsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
 
   const buildingId = await getCurrentBuildingId()
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   if (!buildingId) {
     return <div className="p-12 bg-white rounded-xl border border-slate-200 text-center text-slate-500">Выберите здание</div>
   }

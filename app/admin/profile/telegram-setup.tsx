@@ -8,7 +8,7 @@ import { setMyTelegramChatId } from "@/app/actions/notifications"
 export function TelegramSetup({ currentChatId }: { currentChatId: string | null }) {
   const [chatId, setChatId] = useState(currentChatId ?? "")
   const [pending, startTransition] = useTransition()
-  const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME ?? "ArendaProBot"
+  const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME ?? "CommrentBot"
 
   if (currentChatId) {
     return (

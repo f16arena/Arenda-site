@@ -1,12 +1,23 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { tenantScope } from "@/lib/tenant-scope"
+import {
+  assertTenantInOrg,
+  assertChargeInOrg,
+  assertPaymentInOrg,
+  assertExpenseInOrg,
+  assertBuildingInOrg,
+} from "@/lib/scope-guards"
 
 export async function recordPayment(formData: FormData) {
+  const { orgId } = await requireOrgAccess()
   const tenantId = formData.get("tenantId") as string
+  await assertTenantInOrg(tenantId, orgId)
+
   const amountStr = formData.get("amount") as string
   const method = formData.get("method") as string
   const note = formData.get("note") as string
@@ -23,7 +34,7 @@ export async function recordPayment(formData: FormData) {
     },
   })
 
-  // Mark selected charges as paid
+  // Mark selected charges as paid (фильтруем по tenantId — он уже scoped)
   if (chargeIds.length > 0) {
     await db.charge.updateMany({
       where: { id: { in: chargeIds }, tenantId },
@@ -37,7 +48,11 @@ export async function recordPayment(formData: FormData) {
 }
 
 export async function generateMonthlyCharges(period: string) {
+  const { orgId } = await requireOrgAccess()
+
+  // Только арендаторы текущей организации
   const tenants = await db.tenant.findMany({
+    where: tenantScope(orgId),
     include: {
       space: { include: { floor: true } },
       charges: { where: { period, type: "RENT" } },
@@ -82,6 +97,9 @@ export async function generateMonthlyCharges(period: string) {
 }
 
 export async function addPenalty(tenantId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
   const amountStr = formData.get("amount") as string
   const description = formData.get("description") as string
   const period = new Date().toISOString().slice(0, 7)
@@ -102,7 +120,10 @@ export async function addPenalty(tenantId: string, formData: FormData) {
 }
 
 export async function addCharge(formData: FormData) {
+  const { orgId } = await requireOrgAccess()
   const tenantId = formData.get("tenantId") as string
+  await assertTenantInOrg(tenantId, orgId)
+
   const type = formData.get("type") as string
   const amountStr = formData.get("amount") as string
   const description = formData.get("description") as string
@@ -126,6 +147,9 @@ export async function addCharge(formData: FormData) {
 }
 
 export async function deleteCharge(chargeId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertChargeInOrg(chargeId, orgId)
+
   const charge = await db.charge.findUnique({ where: { id: chargeId }, select: { tenantId: true } })
   await db.charge.delete({ where: { id: chargeId } })
   revalidatePath("/admin/finances")
@@ -133,6 +157,9 @@ export async function deleteCharge(chargeId: string) {
 }
 
 export async function deletePayment(paymentId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertPaymentInOrg(paymentId, orgId)
+
   const payment = await db.payment.findUnique({ where: { id: paymentId }, select: { tenantId: true } })
   await db.payment.delete({ where: { id: paymentId } })
   revalidatePath("/admin/finances")
@@ -140,14 +167,18 @@ export async function deletePayment(paymentId: string) {
 }
 
 export async function deleteExpense(expenseId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertExpenseInOrg(expenseId, orgId)
+
   await db.expense.delete({ where: { id: expenseId } })
   revalidatePath("/admin/finances")
 }
 
 export async function addExpense(formData: FormData) {
+  const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) return { error: "Здание не выбрано" }
-  const building = { id: buildingId }
+  await assertBuildingInOrg(buildingId, orgId)
 
   const category = formData.get("category") as string
   const amountStr = formData.get("amount") as string
@@ -157,7 +188,7 @@ export async function addExpense(formData: FormData) {
 
   await db.expense.create({
     data: {
-      buildingId: building.id,
+      buildingId,
       category,
       amount: parseFloat(amountStr),
       description: description || null,

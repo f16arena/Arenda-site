@@ -7,13 +7,16 @@ import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
+import { requireOrgAccess } from "@/lib/org"
+import { chargeScope, paymentScope, expenseScope } from "@/lib/tenant-scope"
 
 export default async function FinancesPage() {
+  const { orgId } = await requireOrgAccess()
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
 
   const [charges, payments, expenses] = await Promise.all([
     db.charge.findMany({
-      where: { period: currentPeriod },
+      where: { AND: [chargeScope(orgId), { period: currentPeriod }] },
       select: {
         id: true, tenantId: true, period: true, type: true, amount: true,
         description: true, isPaid: true, dueDate: true, createdAt: true,
@@ -22,6 +25,7 @@ export default async function FinancesPage() {
       orderBy: { createdAt: "desc" },
     }).catch(() => []),
     db.payment.findMany({
+      where: paymentScope(orgId),
       orderBy: { paymentDate: "desc" },
       take: 20,
       select: {
@@ -31,7 +35,7 @@ export default async function FinancesPage() {
       },
     }).catch(() => []),
     db.expense.findMany({
-      where: { period: currentPeriod },
+      where: { AND: [expenseScope(orgId), { period: currentPeriod }] },
       select: {
         id: true, buildingId: true, category: true, amount: true,
         period: true, description: true, date: true,

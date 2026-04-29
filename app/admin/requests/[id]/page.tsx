@@ -1,6 +1,8 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound } from "next/navigation"
+import { requireOrgAccess } from "@/lib/org"
+import { assertRequestInOrg } from "@/lib/scope-guards"
 import { cn } from "@/lib/utils"
 import {
   STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST_TYPE_LABELS,
@@ -12,6 +14,12 @@ import { addRequestComment, updateRequestStatus } from "@/app/actions/requests"
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await auth()
+  const { orgId } = await requireOrgAccess()
+  try {
+    await assertRequestInOrg(id, orgId)
+  } catch {
+    notFound()
+  }
 
   const [request, staff] = await Promise.all([
     db.request.findUnique({
@@ -26,7 +34,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
       },
     }),
     db.user.findMany({
-      where: { role: { not: "TENANT" }, isActive: true },
+      where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
       select: { id: true, name: true, role: true },
     }),
   ])

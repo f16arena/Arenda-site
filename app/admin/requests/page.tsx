@@ -7,9 +7,13 @@ import { ClipboardList } from "lucide-react"
 import Link from "next/link"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteRequest } from "@/app/actions/requests"
+import { requireOrgAccess } from "@/lib/org"
+import { requestScope } from "@/lib/tenant-scope"
 
 export default async function RequestsPage() {
+  const { orgId } = await requireOrgAccess()
   const requests = await db.request.findMany({
+    where: requestScope(orgId),
     select: {
       id: true, title: true, description: true, type: true,
       priority: true, status: true, createdAt: true,

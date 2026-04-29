@@ -6,14 +6,14 @@ import "./globals.css"
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ArendaPro — Управление арендой",
-  description: "Платформа для управления коммерческой недвижимостью",
+  title: "Commrent — управление коммерческой арендой",
+  description: "SaaS-платформа для собственников бизнес-центров и коммерческой недвижимости в Казахстане",
   manifest: "/manifest.json",
   themeColor: "#0f172a",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "ArendaPro",
+    title: "Commrent",
   },
 }
 

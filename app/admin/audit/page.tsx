@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { requireOwner } from "@/lib/permissions"
+import { requireOrgAccess } from "@/lib/org"
+import { auditLogScope } from "@/lib/tenant-scope"
 import { History, User, Edit2, Trash2, PlusCircle, LogIn } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -40,8 +42,10 @@ const ENTITY_LABELS: Record<string, string> = {
 
 export default async function AuditPage() {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
 
   const logs = await db.auditLog.findMany({
+    where: auditLogScope(orgId),
     orderBy: { createdAt: "desc" },
     take: 200,
   }).catch(() => [])

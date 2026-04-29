@@ -39,7 +39,13 @@ export default async function CabinetDashboard() {
 
   const totalDebt = tenant.charges.reduce((s, c) => s + c.amount, 0)
   const nextCharge = tenant.charges[0]
-  const building = await db.building.findFirst({ where: { isActive: true } })
+  // Здание показываем только из организации арендатора
+  const building = await db.building.findFirst({
+    where: {
+      isActive: true,
+      organizationId: session!.user.organizationId ?? "__none__",
+    },
+  })
 
   return (
     <div className="space-y-6">

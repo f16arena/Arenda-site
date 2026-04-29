@@ -2,8 +2,10 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { auth } from "@/auth"
+import { requireOrgAccess } from "@/lib/org"
+import { assertMeterInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 
-// Маппинг типа счётчика на тип тарифа
 const TARIFF_TYPE_BY_METER: Record<string, string> = {
   ELECTRICITY: "ELECTRICITY",
   WATER: "WATER",
@@ -17,7 +19,10 @@ const CHARGE_TYPE_BY_METER: Record<string, string> = {
 }
 
 export async function saveMeterReading(formData: FormData) {
+  const { orgId } = await requireOrgAccess()
   const meterId = formData.get("meterId") as string
+  await assertMeterInOrg(meterId, orgId)
+
   const valueStr = formData.get("value") as string
   const period = formData.get("period") as string
 
@@ -38,7 +43,6 @@ export async function saveMeterReading(formData: FormData) {
     data: { meterId, period, value, previous },
   })
 
-  // Авто-начисление тенанту по тарифу из БД
   if (meter.space.tenant && consumption > 0) {
     const tariffType = TARIFF_TYPE_BY_METER[meter.type]
     const tariff = tariffType
@@ -77,25 +81,41 @@ export async function saveMeterReading(formData: FormData) {
   return { success: true, consumption }
 }
 
+// Tenant-side: показания от арендатора. Проверяем, что счётчик
+// действительно принадлежит арендатору-в-сессии.
 export async function submitTenantMeterReading(formData: FormData) {
+  const session = await auth()
+  if (!session?.user) throw new Error("Не авторизован")
+
   const meterId = formData.get("meterId") as string
   const valueStr = formData.get("value") as string
   const period = new Date().toISOString().slice(0, 7)
 
-  return saveMeterReading(
-    Object.assign(new FormData(), { get: (k: string) => ({ meterId, value: valueStr, period }[k] ?? null) }) as FormData
-  )
+  // Счётчик должен быть в помещении, где арендатор — текущий пользователь
+  const owns = await db.meter.findFirst({
+    where: { id: meterId, space: { tenant: { userId: session.user.id } } },
+    select: { id: true },
+  })
+  if (!owns) throw new Error("Счётчик не принадлежит вам")
+
+  const fd = new FormData()
+  fd.set("meterId", meterId)
+  fd.set("value", valueStr)
+  fd.set("period", period)
+  return saveMeterReading(fd)
 }
 
 export async function createMeter(formData: FormData) {
+  const { orgId } = await requireOrgAccess()
   const spaceId = formData.get("spaceId") as string
+  await assertSpaceInOrg(spaceId, orgId)
+
   const type = formData.get("type") as string
   const number = formData.get("number") as string
   const initialValueStr = formData.get("initialValue") as string
 
   const meter = await db.meter.create({ data: { spaceId, type, number } })
 
-  // Если задано начальное показание — создаём первое чтение в текущем периоде
   if (initialValueStr) {
     const initialValue = parseFloat(initialValueStr)
     if (!Number.isNaN(initialValue)) {
@@ -111,11 +131,25 @@ export async function createMeter(formData: FormData) {
 }
 
 export async function deleteMeter(meterId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertMeterInOrg(meterId, orgId)
+
   await db.meter.delete({ where: { id: meterId } })
   revalidatePath("/admin/meters")
 }
 
 export async function deleteMeterReading(readingId: string) {
+  const { orgId } = await requireOrgAccess()
+  // Проверка через scope: meter → space → floor → building → org
+  const reading = await db.meterReading.findFirst({
+    where: {
+      id: readingId,
+      meter: { space: { floor: { building: { organizationId: orgId } } } },
+    },
+    select: { id: true },
+  })
+  if (!reading) throw new Error("Показание не найдено или нет доступа")
+
   await db.meterReading.delete({ where: { id: readingId } })
   revalidatePath("/admin/meters")
   revalidatePath("/cabinet/meters")

@@ -1,6 +1,8 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
+import { requireOrgAccess } from "@/lib/org"
+import { assertTenantInOrg } from "@/lib/scope-guards"
 import {
   updateTenant,
   updateTenantUser,
@@ -20,8 +22,14 @@ import { EmailLog } from "./email-log"
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
 
   const { id } = await params
+  try {
+    await assertTenantInOrg(id, orgId)
+  } catch {
+    notFound()
+  }
 
   const tenant = await db.tenant.findUnique({
     where: { id },

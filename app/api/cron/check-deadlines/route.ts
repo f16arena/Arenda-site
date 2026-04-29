@@ -4,7 +4,6 @@ import { sendTelegram } from "@/lib/telegram"
 
 export const dynamic = "force-dynamic"
 
-// Защита: только Vercel Cron или ручной запуск с секретом
 function authorize(req: Request): boolean {
   const auth = req.headers.get("authorization")
   if (auth === `Bearer ${process.env.CRON_SECRET}`) return true
@@ -12,15 +11,44 @@ function authorize(req: Request): boolean {
   const url = new URL(req.url)
   if (url.searchParams.get("secret") === process.env.CRON_SECRET) return true
 
-  // Vercel Cron автоматически добавляет этот заголовок
   if (req.headers.get("user-agent")?.includes("vercel-cron")) return true
 
   return false
 }
 
-const CONTRACT_WARN_DAYS = 20  // за 20 дней до окончания договора
-const PAYMENT_WARN_DAYS = 10   // за 10 дней до даты оплаты (если не оплачено)
-const PENALTY_GRACE_DAYS = 1   // льготный период перед начислением пени
+const CONTRACT_WARN_DAYS = 20
+const PAYMENT_WARN_DAYS = 10
+const PENALTY_GRACE_DAYS = 1
+
+// Кэш: orgId → staff list (чтобы не тащить из БД на каждого арендатора)
+async function getStaffForOrg(cache: Map<string, { id: string; name: string; telegramChatId: string | null }[]>, orgId: string) {
+  const cached = cache.get(orgId)
+  if (cached) return cached
+  const list = await db.user.findMany({
+    where: {
+      isActive: true,
+      role: { in: ["OWNER", "ADMIN"] },
+      organizationId: orgId,
+    },
+    select: { id: true, name: true, telegramChatId: true },
+  })
+  cache.set(orgId, list)
+  return list
+}
+
+// Возвращает orgId арендатора через цепочку space → floor → building.
+async function tenantOrgId(tenantId: string): Promise<string | null> {
+  const t = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      space: { select: { floor: { select: { building: { select: { organizationId: true } } } } } },
+      fullFloors: { select: { building: { select: { organizationId: true } } }, take: 1 },
+    },
+  })
+  return t?.space?.floor.building.organizationId
+    ?? t?.fullFloors[0]?.building.organizationId
+    ?? null
+}
 
 export async function GET(req: Request) {
   if (!authorize(req)) {
@@ -39,6 +67,8 @@ export async function GET(req: Request) {
     errors: [] as string[],
   }
 
+  const staffCache = new Map<string, { id: string; name: string; telegramChatId: string | null }[]>()
+
   try {
     // ── 1. Договоры — проверяем contractEnd ─────────────────────
     const expiringIn = new Date(now)
@@ -55,17 +85,10 @@ export async function GET(req: Request) {
     })
     results.contractsChecked = tenantsExpiring.length
 
-    // Получим всех админов и владельцев — им тоже шлём
-    const staff = await db.user.findMany({
-      where: { isActive: true, role: { in: ["OWNER", "ADMIN"] } },
-      select: { id: true, name: true, telegramChatId: true },
-    })
-
     for (const t of tenantsExpiring) {
       if (!t.contractEnd) continue
       const daysLeft = Math.ceil((t.contractEnd.getTime() - now.getTime()) / 86_400_000)
 
-      // Чтобы не дублировать — проверим уже было ли сегодня
       const recentNotif = await db.notification.findFirst({
         where: {
           type: "CONTRACT_EXPIRING",
@@ -79,7 +102,6 @@ export async function GET(req: Request) {
       const message = `Арендатор «${t.companyName}» (id:${t.id}). Окончание договора: ${t.contractEnd.toLocaleDateString("ru-RU")}. Необходимо подготовить продление.`
       const link = `/admin/tenants/${t.id}`
 
-      // Уведомление арендатору
       await db.notification.create({
         data: { userId: t.user.id, type: "CONTRACT_EXPIRING", title, message, link: `/cabinet` },
       })
@@ -89,7 +111,10 @@ export async function GET(req: Request) {
         if (sent) results.telegramSent++
       }
 
-      // Уведомления всем сотрудникам (OWNER+ADMIN)
+      // Уведомления только сотрудникам ИЗ ТОЙ ЖЕ организации
+      const orgId = await tenantOrgId(t.id)
+      if (!orgId) continue
+      const staff = await getStaffForOrg(staffCache, orgId)
       for (const s of staff) {
         await db.notification.create({
           data: { userId: s.id, type: "CONTRACT_EXPIRING", title, message, link },
@@ -104,7 +129,7 @@ export async function GET(req: Request) {
       results.contractsWarned++
     }
 
-    // ── 2. Платежи — проверяем неоплаченные начисления ──────────
+    // ── 2. Платежи ──────────────────────────────────────────────
     const tenantsWithDebt = await db.tenant.findMany({
       where: { charges: { some: { isPaid: false } } },
       include: {
@@ -118,7 +143,6 @@ export async function GET(req: Request) {
 
     for (const t of tenantsWithDebt) {
       const totalDebt = t.charges.reduce((s, c) => s + c.amount, 0)
-      // Берём ближайший дедлайн
       const earliestDue = t.charges
         .map((c) => c.dueDate)
         .filter((d): d is Date => d !== null)
@@ -127,7 +151,6 @@ export async function GET(req: Request) {
       if (!earliestDue) continue
       const daysToDue = Math.ceil((earliestDue.getTime() - now.getTime()) / 86_400_000)
 
-      // Уведомляем если до дедлайна <= 10 дней (включая просрочку)
       if (daysToDue > PAYMENT_WARN_DAYS) continue
 
       const recentNotif = await db.notification.findFirst({
@@ -157,8 +180,11 @@ export async function GET(req: Request) {
       }
       results.paymentsWarned++
 
-      // Дополнительно: уведомить админов о просрочке > 5 дней
+      // Уведомления админам — только из той же организации
       if (overdue && Math.abs(daysToDue) > 5) {
+        const orgId = await tenantOrgId(t.id)
+        if (!orgId) continue
+        const staff = await getStaffForOrg(staffCache, orgId)
         for (const s of staff) {
           await db.notification.create({
             data: {
@@ -178,9 +204,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // ── 3. Авто-начисление пеней за просрочку ─────────────────
-    // Для каждого неоплаченного начисления с dueDate < now - GRACE
-    // считаем пеню и создаём начисление PENALTY (если ещё не создано на сегодня)
+    // ── 3. Пени ──────────────────────────────────────────────
     const todayStr = now.toISOString().slice(0, 10)
     const overdueCharges = await db.charge.findMany({
       where: {
@@ -205,11 +229,9 @@ export async function GET(req: Request) {
 
       const penaltyPercent = c.tenant.penaltyPercent ?? 1
       const penaltyAmount = Math.round((c.amount * penaltyPercent / 100) * daysOverdue)
-      // Ограничение 10% от суммы
       const cap = Math.round(c.amount * 0.1)
       const actualPenalty = Math.min(penaltyAmount, cap)
 
-      // Проверим что пеня за сегодня по этому начислению ещё не начислена
       const existingPenaltyToday = await db.charge.findFirst({
         where: {
           tenantId: c.tenant.id,
@@ -220,7 +242,6 @@ export async function GET(req: Request) {
       })
       if (existingPenaltyToday) continue
 
-      // Удалим вчерашнюю пеню (если есть) и создадим актуальную с накопленным итогом
       await db.charge.deleteMany({
         where: {
           tenantId: c.tenant.id,

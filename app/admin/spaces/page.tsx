@@ -9,9 +9,13 @@ import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-acti
 import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 
 export default async function SpacesPage() {
+  const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const building = buildingId ? await db.building.findUnique({
     where: { id: buildingId },
     include: {

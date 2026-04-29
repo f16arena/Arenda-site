@@ -2,8 +2,21 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireOrgAccess } from "@/lib/org"
+import { complaintScope } from "@/lib/tenant-scope"
+
+async function assertComplaintInOrg(id: string, orgId: string) {
+  const found = await db.complaint.findFirst({
+    where: { id, ...complaintScope(orgId) },
+    select: { id: true },
+  })
+  if (!found) throw new Error("Жалоба не найдена или нет доступа")
+}
 
 export async function respondToComplaint(id: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertComplaintInOrg(id, orgId)
+
   const response = formData.get("response") as string
   await db.complaint.update({
     where: { id },
@@ -14,6 +27,9 @@ export async function respondToComplaint(id: string, formData: FormData) {
 }
 
 export async function resolveComplaint(id: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertComplaintInOrg(id, orgId)
+
   await db.complaint.update({
     where: { id },
     data: { status: "RESOLVED" },

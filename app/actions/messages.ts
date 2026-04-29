@@ -3,12 +3,15 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { requireOrgAccess } from "@/lib/org"
+import { assertUserInOrg } from "@/lib/scope-guards"
 
 const BROADCAST_ID = "BROADCAST_ALL"
 
 export async function sendMessage(formData: FormData) {
   const session = await auth()
   if (!session?.user) throw new Error("Не авторизован")
+  const { orgId } = await requireOrgAccess()
 
   const toId = String(formData.get("toId") ?? "").trim()
   const body = String(formData.get("body") ?? "").trim()
@@ -17,10 +20,14 @@ export async function sendMessage(formData: FormData) {
   if (!toId) throw new Error("Не указан получатель")
   if (!body) throw new Error("Сообщение не может быть пустым")
 
-  // Общий чат — отправить всем активным пользователям (кроме себя)
+  // Общий чат — рассылка только пользователям своей организации
   if (toId === BROADCAST_ID) {
     const recipients = await db.user.findMany({
-      where: { isActive: true, id: { not: session.user.id } },
+      where: {
+        isActive: true,
+        id: { not: session.user.id },
+        organizationId: orgId,
+      },
       select: { id: true },
     })
 
@@ -35,6 +42,8 @@ export async function sendMessage(formData: FormData) {
       })),
     })
   } else {
+    // Адресное сообщение — получатель должен быть в той же организации
+    await assertUserInOrg(toId, orgId)
     await db.message.create({
       data: {
         fromId: session.user.id,
@@ -70,7 +79,6 @@ export async function deleteMessage(messageId: string) {
   const session = await auth()
   if (!session?.user) throw new Error("Не авторизован")
 
-  // Только отправитель может удалить своё сообщение
   const msg = await db.message.findUnique({ where: { id: messageId }, select: { fromId: true } })
   if (!msg) throw new Error("Сообщение не найдено")
   if (msg.fromId !== session.user.id && session.user.role !== "OWNER") {

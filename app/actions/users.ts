@@ -4,12 +4,12 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOwner } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
-import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { assertUserInOrg } from "@/lib/scope-guards"
 
 export async function createUserAdmin(formData: FormData) {
   await requireOwner()
-  const orgId = await getCurrentOrgId()
-  if (!orgId) throw new Error("Организация не выбрана")
+  const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "users")
 
@@ -38,7 +38,6 @@ export async function createUserAdmin(formData: FormData) {
     },
   })
 
-  // Если это сотрудник — создаём профиль staff
   if (["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER"].includes(role)) {
     await db.staff.create({
       data: {
@@ -55,6 +54,8 @@ export async function createUserAdmin(formData: FormData) {
 
 export async function updateUserAdmin(userId: string, formData: FormData) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertUserInOrg(userId, orgId)
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = String(formData.get("phone") ?? "").trim()
@@ -80,6 +81,8 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
 
 export async function toggleUserActive(userId: string, isActive: boolean) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertUserInOrg(userId, orgId)
 
   await db.user.update({
     where: { id: userId },
@@ -91,6 +94,8 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
 
 export async function resetUserPassword(userId: string, newPassword: string) {
   await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertUserInOrg(userId, orgId)
 
   if (newPassword.length < 6) throw new Error("Пароль минимум 6 символов")
 
@@ -104,12 +109,13 @@ export async function resetUserPassword(userId: string, newPassword: string) {
 
 export async function deleteUserAdmin(userId: string) {
   const session = await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertUserInOrg(userId, orgId)
 
   if (userId === session.id) {
     throw new Error("Нельзя удалить самого себя")
   }
 
-  // Проверяем есть ли связанный профиль арендатора — каскадом удалится через tenant
   const tenant = await db.tenant.findUnique({ where: { userId } })
   if (tenant) {
     if (tenant.spaceId) {
@@ -118,10 +124,8 @@ export async function deleteUserAdmin(userId: string) {
     await db.tenant.delete({ where: { id: tenant.id } })
   }
 
-  // Удаляем staff-профиль если есть
   await db.staff.deleteMany({ where: { userId } })
 
-  // Деактивируем пользователя (оставляем запись для истории — иначе сломаются комментарии/задачи)
   await db.user.update({
     where: { id: userId },
     data: { isActive: false },

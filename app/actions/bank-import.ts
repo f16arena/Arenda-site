@@ -4,7 +4,9 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/permissions"
 import { audit } from "@/lib/audit"
-import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { tenantScope } from "@/lib/tenant-scope"
+import { assertTenantInOrg } from "@/lib/scope-guards"
 
 export type ParsedRow = {
   date: string
@@ -42,16 +44,10 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
     return { rows: [], errors }
   }
 
-  // Получим всех тенантов с реквизитами для матчинга
-  const buildingId = await getCurrentBuildingId()
-  const floorIds = buildingId
-    ? (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
-    : []
+  // Получим всех тенантов с реквизитами для матчинга — только в текущей организации
+  const { orgId } = await requireOrgAccess()
   const tenants = await db.tenant.findMany({
-    where: floorIds.length > 0 ? { OR: [
-      { space: { floorId: { in: floorIds } } },
-      { spaceId: null },
-    ] } : undefined,
+    where: tenantScope(orgId),
     select: { id: true, companyName: true, bin: true, iin: true },
   })
 
@@ -102,10 +98,17 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
 
 export async function applyBankImport(rows: { date: string; amount: number; tenantId: string; description: string }[]) {
   await requireAdmin()
+  const { orgId } = await requireOrgAccess()
 
   let created = 0
   for (const r of rows) {
     if (!r.tenantId) continue
+    // Подмена tenantId на чужой → отвергаем строку, не падаем целиком
+    try {
+      await assertTenantInOrg(r.tenantId, orgId)
+    } catch {
+      continue
+    }
     try {
       const paymentDate = parseDate(r.date) ?? new Date()
       await db.payment.create({

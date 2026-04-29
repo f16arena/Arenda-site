@@ -2,36 +2,58 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/auth"
 import { requireAdmin } from "@/lib/permissions"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
+import type { DocumentKind } from "@/lib/document-numbering"
 
-export async function setContractPrefix(buildingId: string, formData: FormData) {
+const KIND_TO_FIELD: Record<DocumentKind, "contractPrefix" | "invoicePrefix" | "actPrefix" | "reconciliationPrefix"> = {
+  contract: "contractPrefix",
+  invoice: "invoicePrefix",
+  act: "actPrefix",
+  reconciliation: "reconciliationPrefix",
+}
+
+// Кириллица допустима — для номеров счетов-фактур типично использовать русские суффиксы (СФ, АОУ).
+const PREFIX_VALID = /^[A-Za-zА-Яа-яЁё0-9-]{1,10}$/
+
+export async function setDocumentPrefix(buildingId: string, kind: DocumentKind, formData: FormData) {
   await requireAdmin()
-  const prefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
-  if (prefix && !/^[A-Z0-9-]{1,10}$/i.test(prefix)) {
-    throw new Error("Префикс может содержать только латинские буквы, цифры и дефис, до 10 символов")
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+  const raw = String(formData.get("prefix") ?? "").trim()
+  // Латиницу приводим к uppercase, кириллицу не трогаем (toUpperCase для неё корректен).
+  const prefix = raw.toUpperCase()
+  if (prefix && !PREFIX_VALID.test(prefix)) {
+    throw new Error("Префикс: до 10 символов (буквы, цифры, дефис)")
   }
   await db.building.update({
     where: { id: buildingId },
-    data: { contractPrefix: prefix || null },
+    data: { [KIND_TO_FIELD[kind]]: prefix || null },
   })
-  revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
+  revalidatePath("/admin/buildings")
+}
+
+// Старый API — оставляем для совместимости со страницами/формами, которые могут
+// его использовать. Новый код должен вызывать setDocumentPrefix(_, "contract", ...).
+export async function setContractPrefix(buildingId: string, formData: FormData) {
+  return setDocumentPrefix(buildingId, "contract", formData)
 }
 
 export async function createContract(formData: FormData) {
-  const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { orgId } = await requireOrgAccess()
 
   const tenantId = String(formData.get("tenantId") ?? "")
+  await assertTenantInOrg(tenantId, orgId)
+
   const number = String(formData.get("number") ?? "").trim()
   const startDate = String(formData.get("startDate") ?? "")
   const endDate = String(formData.get("endDate") ?? "")
   const type = String(formData.get("type") ?? "STANDARD")
   const content = String(formData.get("content") ?? "")
 
-  if (!tenantId) throw new Error("Не указан арендатор")
   if (!number) throw new Error("Не указан номер договора")
 
   // Найдём здание арендатора для проверки уникальности номера

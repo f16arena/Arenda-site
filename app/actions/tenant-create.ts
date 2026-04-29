@@ -3,11 +3,11 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
-import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { assertSpaceInOrg } from "@/lib/scope-guards"
 
 export async function createTenant(formData: FormData) {
-  const orgId = await getCurrentOrgId()
-  if (!orgId) throw new Error("Организация не выбрана")
+  const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "tenants")
 
@@ -25,7 +25,11 @@ export async function createTenant(formData: FormData) {
   if (!name) throw new Error("Введите ФИО контактного лица")
   if (!companyName) throw new Error("Введите название компании")
 
-  // Проверим что телефон не занят (если задан)
+  // Если задан spaceId — он должен принадлежать текущей организации
+  if (spaceId) {
+    await assertSpaceInOrg(spaceId, orgId)
+  }
+
   if (phone) {
     const existing = await db.user.findUnique({ where: { phone }, select: { id: true } })
     if (existing) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
@@ -49,7 +53,7 @@ export async function createTenant(formData: FormData) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown"
     if (msg.includes("does not exist") || msg.includes("column")) {
-      throw new Error("Не применены миграции БД (005-007). Запустите SQL из migrations/ в Supabase.")
+      throw new Error("Не применены миграции БД. Запустите prisma db push.")
     }
     throw new Error(`Не удалось создать пользователя: ${msg}`)
   }
@@ -71,11 +75,10 @@ export async function createTenant(formData: FormData) {
     })
     tenantId = tenant.id
   } catch (e) {
-    // Откат: удалим только что созданного юзера
     await db.user.delete({ where: { id: userId } }).catch(() => {})
     const msg = e instanceof Error ? e.message : "unknown"
     if (msg.includes("does not exist") || msg.includes("column")) {
-      throw new Error("Не применены миграции БД (004-007). Запустите SQL из migrations/ в Supabase.")
+      throw new Error("Не применены миграции БД. Запустите prisma db push.")
     }
     throw new Error(`Не удалось создать арендатора: ${msg}`)
   }

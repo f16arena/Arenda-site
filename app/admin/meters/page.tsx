@@ -5,6 +5,8 @@ import { Gauge } from "lucide-react"
 import { MeterReadingDialog, AddMeterDialog, InlineReadingButton } from "./meter-actions"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteMeter } from "@/app/actions/meters"
+import { requireOrgAccess } from "@/lib/org"
+import { meterScope, spaceScope, tariffScope } from "@/lib/tenant-scope"
 
 const typeLabel: Record<string, string> = {
   ELECTRICITY: "Электричество",
@@ -25,6 +27,7 @@ const TARIFF_TYPE_BY_METER: Record<string, string> = {
 }
 
 export default async function MetersPage() {
+  const { orgId } = await requireOrgAccess()
   const currentPeriod = new Date().toISOString().slice(0, 7)
   const prevDate = new Date()
   prevDate.setMonth(prevDate.getMonth() - 1)
@@ -32,6 +35,7 @@ export default async function MetersPage() {
 
   const [meters, spaces, tariffs] = await Promise.all([
     db.meter.findMany({
+      where: meterScope(orgId),
       select: {
         id: true, type: true, number: true, spaceId: true,
         space: {
@@ -49,6 +53,7 @@ export default async function MetersPage() {
       },
     }).catch(() => []),
     db.space.findMany({
+      where: spaceScope(orgId),
       select: {
         id: true, number: true, area: true, status: true,
         floor: { select: { id: true, name: true, number: true } },
@@ -56,7 +61,7 @@ export default async function MetersPage() {
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
     }).catch(() => []),
     db.tariff.findMany({
-      where: { isActive: true },
+      where: { AND: [tariffScope(orgId), { isActive: true }] },
       select: { id: true, type: true, name: true, rate: true, unit: true },
     }).catch(() => []),
   ])

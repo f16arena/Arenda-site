@@ -1,7 +1,7 @@
 {
-  "name": "ArendaPro — БЦ F16",
-  "short_name": "ArendaPro",
-  "description": "Система управления арендой бизнес-центра",
+  "name": "Commrent — управление коммерческой арендой",
+  "short_name": "Commrent",
+  "description": "Платформа управления коммерческой недвижимостью",
   "start_url": "/admin",
   "display": "standalone",
   "background_color": "#f8fafc",

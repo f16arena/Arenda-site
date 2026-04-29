@@ -4,7 +4,7 @@
 // Setup:
 // 1. Зарегистрироваться на resend.com
 // 2. Подтвердить домен или использовать onboarding@resend.dev для тестов
-// 3. В Vercel env: RESEND_API_KEY=re_xxxxx, EMAIL_FROM="БЦ F16 <noreply@bcf16.kz>"
+// 3. В Vercel env: RESEND_API_KEY=re_xxxxx, EMAIL_FROM="Commrent <noreply@commrent.kz>"
 
 import { Resend } from "resend"
 
@@ -38,7 +38,7 @@ function getClient(): Resend | null {
 
 export async function sendEmail(p: SendEmailParams): Promise<SendResult> {
   const client = getClient()
-  const from = process.env.EMAIL_FROM || "ArendaPro <onboarding@resend.dev>"
+  const from = process.env.EMAIL_FROM || "Commrent <onboarding@resend.dev>"
 
   // Добавляем трекинг-пиксель если задан
   let html = p.html
@@ -90,7 +90,7 @@ export function basicEmailTemplate(params: {
 <tr><td align="center">
 <table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
 <tr><td style="padding:24px;background:#0f172a;color:white;">
-<h1 style="margin:0;font-size:18px;font-weight:600;">БЦ F16</h1>
+<h1 style="margin:0;font-size:18px;font-weight:600;">Commrent</h1>
 </td></tr>
 <tr><td style="padding:32px 24px;color:#0f172a;font-size:14px;line-height:1.6;">
 <h2 style="margin:0 0 16px 0;font-size:20px;font-weight:600;">${title}</h2>

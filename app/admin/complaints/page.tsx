@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { CheckCircle } from "lucide-react"
 import { RespondButton } from "./complaint-actions"
+import { requireOrgAccess } from "@/lib/org"
+import { complaintScope } from "@/lib/tenant-scope"
 
 const statusLabel: Record<string, string> = {
   NEW: "Новая",
@@ -16,7 +18,9 @@ const statusColor: Record<string, string> = {
 }
 
 export default async function ComplaintsPage() {
+  const { orgId } = await requireOrgAccess()
   const complaints = await db.complaint.findMany({
+    where: complaintScope(orgId),
     orderBy: { createdAt: "desc" },
     select: {
       id: true, name: true, text: true, status: true, response: true, createdAt: true,

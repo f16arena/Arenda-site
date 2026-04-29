@@ -3,6 +3,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { formatMoney } from "@/lib/utils"
 import { TenantSelector, PrintButton } from "../tenant-selector"
+import { suggestDocumentNumber } from "@/lib/document-numbering"
 
 const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода",
@@ -90,6 +91,9 @@ export default async function ReconciliationPage({
 
   const building = await db.building.findFirst({ where: { isActive: true } })
   const today = new Date().toLocaleDateString("ru-RU")
+  const reconciliationNumber = building && selected
+    ? await suggestDocumentNumber(building.id, "reconciliation")
+    : null
 
   return (
     <div className="space-y-5">
@@ -126,6 +130,11 @@ export default async function ReconciliationPage({
           {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-lg font-bold text-slate-900">АКТ СВЕРКИ ВЗАИМНЫХ РАСЧЁТОВ</h2>
+            {reconciliationNumber && (
+              <p className="text-sm text-slate-700 font-medium mt-1">
+                № <span className="font-mono">{reconciliationNumber}</span>
+              </p>
+            )}
             <p className="text-sm text-slate-600 mt-1">за период с 01.01.{selectedYear} по 31.12.{selectedYear}</p>
           </div>
 

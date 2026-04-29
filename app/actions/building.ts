@@ -2,8 +2,17 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireOrgAccess } from "@/lib/org"
+import {
+  assertBuildingInOrg,
+  assertFloorInOrg,
+} from "@/lib/scope-guards"
+import { emergencyContactScope } from "@/lib/tenant-scope"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+
   const name = formData.get("name") as string
   const address = formData.get("address") as string
   const description = formData.get("description") as string
@@ -31,6 +40,9 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
 }
 
 export async function updateFloor(floorId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertFloorInOrg(floorId, orgId)
+
   const name = formData.get("name") as string
   const rateStr = formData.get("ratePerSqm") as string
   const areaStr = formData.get("totalArea") as string
@@ -49,7 +61,18 @@ export async function updateFloor(floorId: string, formData: FormData) {
   return { success: true }
 }
 
+async function assertEmergencyContactInOrg(id: string, orgId: string) {
+  const found = await db.emergencyContact.findFirst({
+    where: { id, ...emergencyContactScope(orgId) },
+    select: { id: true },
+  })
+  if (!found) throw new Error("Контакт не найден или нет доступа")
+}
+
 export async function updateEmergencyContact(id: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertEmergencyContactInOrg(id, orgId)
+
   const name = formData.get("name") as string
   const phone = formData.get("phone") as string
 
@@ -64,6 +87,9 @@ export async function updateEmergencyContact(id: string, formData: FormData) {
 }
 
 export async function addEmergencyContact(buildingId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+
   const name = formData.get("name") as string
   const phone = formData.get("phone") as string
   const category = formData.get("category") as string
@@ -78,6 +104,9 @@ export async function addEmergencyContact(buildingId: string, formData: FormData
 }
 
 export async function deleteEmergencyContact(id: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertEmergencyContactInOrg(id, orgId)
+
   await db.emergencyContact.delete({ where: { id } })
   revalidatePath("/admin/settings")
   revalidatePath("/admin/emergency")

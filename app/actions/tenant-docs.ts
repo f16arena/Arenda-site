@@ -2,11 +2,12 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { auth } from "@/auth"
+import { requireOrgAccess } from "@/lib/org"
+import { assertTenantInOrg, assertTenantDocumentInOrg } from "@/lib/scope-guards"
 
 export async function addTenantDocument(tenantId: string, formData: FormData) {
-  const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
 
   const type = String(formData.get("type") ?? "OTHER")
   const name = String(formData.get("name") ?? "").trim()
@@ -23,6 +24,9 @@ export async function addTenantDocument(tenantId: string, formData: FormData) {
 }
 
 export async function deleteTenantDocument(documentId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantDocumentInOrg(documentId, orgId)
+
   const doc = await db.tenantDocument.findUnique({
     where: { id: documentId },
     select: { tenantId: true },

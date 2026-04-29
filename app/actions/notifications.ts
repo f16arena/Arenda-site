@@ -4,6 +4,8 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { sendTelegram } from "@/lib/telegram"
+import { requireOrgAccess } from "@/lib/org"
+import { assertUserInOrg } from "@/lib/scope-guards"
 
 export async function createNotification(opts: {
   userId: string
@@ -13,6 +15,14 @@ export async function createNotification(opts: {
   link?: string
   sendTelegram?: boolean
 }) {
+  // Уведомления может создавать как server-action (вызов от admin)
+  // так и серверный код (cron). Если есть сессия — проверяем org-scope.
+  const session = await auth()
+  if (session?.user) {
+    const { orgId } = await requireOrgAccess()
+    await assertUserInOrg(opts.userId, orgId)
+  }
+
   const created = await db.notification.create({
     data: {
       userId: opts.userId,
@@ -40,8 +50,9 @@ export async function markNotificationRead(notificationId: string) {
   const session = await auth()
   if (!session?.user) throw new Error("Не авторизован")
 
-  await db.notification.update({
-    where: { id: notificationId },
+  // Только своё уведомление
+  await db.notification.updateMany({
+    where: { id: notificationId, userId: session.user.id },
     data: { isRead: true },
   })
 
@@ -66,7 +77,10 @@ export async function deleteNotification(notificationId: string) {
   const session = await auth()
   if (!session?.user) throw new Error("Не авторизован")
 
-  await db.notification.delete({ where: { id: notificationId } })
+  // Только своё уведомление
+  await db.notification.deleteMany({
+    where: { id: notificationId, userId: session.user.id },
+  })
   revalidatePath("/admin")
   revalidatePath("/cabinet")
 }

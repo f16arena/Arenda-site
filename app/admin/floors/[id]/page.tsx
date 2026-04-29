@@ -5,12 +5,20 @@ import { FloorEditor } from "./floor-editor"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
+import { requireOrgAccess } from "@/lib/org"
+import { assertFloorInOrg } from "@/lib/scope-guards"
 
 export default async function FloorEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
 
   const { id } = await params
+  try {
+    await assertFloorInOrg(id, orgId)
+  } catch {
+    notFound()
+  }
 
   const floor = await db.floor.findUnique({
     where: { id },

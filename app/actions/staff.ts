@@ -3,11 +3,11 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
-import { getCurrentOrgId, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { assertStaffInOrg, assertUserInOrg } from "@/lib/scope-guards"
 
 export async function createStaff(formData: FormData) {
-  const orgId = await getCurrentOrgId()
-  if (!orgId) throw new Error("Организация не выбрана")
+  const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "users")
 
@@ -45,6 +45,10 @@ export async function createStaff(formData: FormData) {
 }
 
 export async function updateStaff(staffId: string, userId: string, formData: FormData) {
+  const { orgId } = await requireOrgAccess()
+  await assertStaffInOrg(staffId, orgId)
+  await assertUserInOrg(userId, orgId)
+
   const name = formData.get("name") as string
   const phone = formData.get("phone") as string
   const email = formData.get("email") as string
@@ -77,6 +81,9 @@ export async function updateStaff(staffId: string, userId: string, formData: For
 }
 
 export async function deactivateStaff(userId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertUserInOrg(userId, orgId)
+
   await db.user.update({
     where: { id: userId },
     data: { isActive: false },
@@ -87,6 +94,9 @@ export async function deactivateStaff(userId: string) {
 }
 
 export async function reactivateStaff(userId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertUserInOrg(userId, orgId)
+
   await db.user.update({
     where: { id: userId },
     data: { isActive: true },
@@ -97,8 +107,10 @@ export async function reactivateStaff(userId: string) {
 }
 
 export async function deleteStaff(staffId: string, userId: string) {
-  // Удаляем профиль сотрудника, пользователя — деактивируем (не удаляем,
-  // чтобы не сломать ссылки в задачах/комментариях/заявках)
+  const { orgId } = await requireOrgAccess()
+  await assertStaffInOrg(staffId, orgId)
+  await assertUserInOrg(userId, orgId)
+
   await db.staff.delete({ where: { id: staffId } })
   await db.user.update({ where: { id: userId }, data: { isActive: false } })
 

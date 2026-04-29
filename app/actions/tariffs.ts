@@ -3,9 +3,22 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/permissions"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { tariffScope } from "@/lib/tenant-scope"
+
+async function assertTariffInOrg(id: string, orgId: string) {
+  const found = await db.tariff.findFirst({
+    where: { id, ...tariffScope(orgId) },
+    select: { id: true },
+  })
+  if (!found) throw new Error("Тариф не найден или нет доступа")
+}
 
 export async function createTariff(buildingId: string, formData: FormData) {
   await requireAdmin()
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
 
   const type = String(formData.get("type") ?? "OTHER")
   const name = String(formData.get("name") ?? "").trim()
@@ -33,6 +46,8 @@ export async function createTariff(buildingId: string, formData: FormData) {
 
 export async function updateTariff(tariffId: string, formData: FormData) {
   await requireAdmin()
+  const { orgId } = await requireOrgAccess()
+  await assertTariffInOrg(tariffId, orgId)
 
   const name = String(formData.get("name") ?? "").trim()
   const rateStr = String(formData.get("rate") ?? "")
@@ -60,6 +75,9 @@ export async function updateTariff(tariffId: string, formData: FormData) {
 
 export async function deleteTariff(tariffId: string) {
   await requireAdmin()
+  const { orgId } = await requireOrgAccess()
+  await assertTariffInOrg(tariffId, orgId)
+
   await db.tariff.delete({ where: { id: tariffId } })
   revalidatePath("/admin/settings")
   revalidatePath("/admin/tariffs")

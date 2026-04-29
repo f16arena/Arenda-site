@@ -7,6 +7,7 @@ import { Building2, Phone, Layers, Plus, Zap } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -190,6 +191,9 @@ export default async function SettingsPage() {
           ))}
         </div>
       </div>
+
+      {/* Document numbering */}
+      <DocumentNumberingSection building={building} />
 
       {/* Tariffs */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

@@ -5,45 +5,84 @@ import { AuthError } from "next-auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
 
-export async function login(prevState: { error?: string } | undefined, formData: FormData) {
+export interface LoginState {
+  error?: string
+  details?: { step: string; ms: number; ok: boolean; note?: string }[]
+}
+
+export async function login(_prevState: LoginState | undefined, formData: FormData): Promise<LoginState> {
   const loginValue = String(formData.get("login") ?? "").trim()
   const password = String(formData.get("password") ?? "")
+  const details: NonNullable<LoginState["details"]> = []
 
-  if (!loginValue || !password) {
-    return { error: "Введите телефон/email и пароль" }
+  function step(label: string, t0: number, ok: boolean, note?: string) {
+    details.push({ step: label, ms: Date.now() - t0, ok, note })
   }
 
-  let user: { role: string } | null = null
+  if (!loginValue || !password) {
+    return { error: "Введите телефон/email и пароль", details }
+  }
+
+  // ── 1. Sanity-check БД через простой запрос ────────────────────
+  let t0 = Date.now()
   try {
-    user = await db.user.findFirst({
-      where: {
-        OR: [{ phone: loginValue }, { email: loginValue }],
-        isActive: true,
-      },
-      select: { role: true },
-    })
+    await db.$queryRawUnsafe<{ ok: number }[]>("SELECT 1 as ok")
+    step("db.ping", t0, true)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    return { error: `Ошибка БД: ${msg}` }
+    step("db.ping", t0, false, msg)
+    return {
+      error: `Сервер БД недоступен. ${msg}`,
+      details,
+    }
+  }
+
+  // ── 2. Поиск пользователя ──────────────────────────────────────
+  let user: { id: string; role: string; isActive: boolean } | null = null
+  t0 = Date.now()
+  try {
+    user = await db.user.findFirst({
+      where: { OR: [{ phone: loginValue }, { email: loginValue }] },
+      select: { id: true, role: true, isActive: true },
+    })
+    step("db.findUser", t0, true, user ? `id=${user.id} role=${user.role} active=${user.isActive}` : "not_found")
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    step("db.findUser", t0, false, msg)
+    return { error: `Ошибка поиска пользователя: ${msg}`, details }
   }
 
   if (!user) {
-    return { error: "Пользователь не найден или доступ запрещён" }
+    return { error: "Пользователь не найден. Проверьте телефон/email.", details }
+  }
+  if (!user.isActive) {
+    return { error: "Аккаунт деактивирован. Обратитесь к администратору.", details }
   }
 
+  // ── 3. signIn ──────────────────────────────────────────────────
+  t0 = Date.now()
   try {
     await signIn("credentials", {
       login: loginValue,
       password,
       redirect: false,
     })
+    step("auth.signIn", t0, true)
   } catch (error) {
+    const ms = Date.now() - t0
     if (error instanceof AuthError) {
-      const msg = (error as any).cause?.err?.message ?? error.message ?? ""
-      return { error: `Неверный пароль или внутренняя ошибка: ${msg}` }
+      const cause = (error as { cause?: { err?: { message?: string } } }).cause?.err?.message
+      step("auth.signIn", t0, false, `AuthError: ${cause ?? error.message}`)
+      return {
+        error: cause?.includes("password") || error.type === "CredentialsSignin"
+          ? "Неверный пароль"
+          : `Ошибка авторизации: ${cause ?? error.message}`,
+        details,
+      }
     }
     const msg = error instanceof Error ? error.message : String(error)
-    return { error: `Ошибка входа: ${msg}` }
+    step("auth.signIn", t0, false, msg)
+    return { error: `Ошибка входа: ${msg}`, details }
   }
 
   redirect(user.role === "TENANT" ? "/cabinet" : "/admin")

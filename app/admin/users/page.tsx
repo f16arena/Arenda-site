@@ -6,11 +6,14 @@ import { ROLES, ROLE_COLORS, formatDate } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { Shield, Users as UsersIcon } from "lucide-react"
 import { CreateUserDialog, EditUserDialog, ToggleActiveButton, ResetPasswordDialog, DeleteUserButton } from "./user-actions"
+import { requireOrgAccess } from "@/lib/org"
 
 export default async function UsersPage() {
   const session = await requireOwner()
+  const { orgId } = await requireOrgAccess()
 
   const users = await db.user.findMany({
+    where: { organizationId: orgId },
     select: {
       id: true,
       name: true,

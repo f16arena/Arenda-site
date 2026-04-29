@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { LANDLORD } from "@/lib/landlord"
 
 export const dynamic = "force-dynamic"
@@ -14,8 +16,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) return NextResponse.json({ error: "Building not selected" }, { status: 400 })
+  await assertBuildingInOrg(buildingId, orgId)
 
   const { searchParams } = new URL(req.url)
   const fromStr = searchParams.get("from")
@@ -43,7 +47,7 @@ export async function GET(req: Request) {
   lines.push("1CClientBankExchange")
   lines.push("ВерсияФормата=1.02")
   lines.push("Кодировка=UTF-8")
-  lines.push(`Отправитель=ArendaPro`)
+  lines.push(`Отправитель=Commrent`)
   lines.push(`ДатаСоздания=${today.toISOString().slice(0, 10).replace(/-/g, ".")}`)
   lines.push(`ВремяСоздания=${today.toTimeString().slice(0, 5)}`)
   lines.push(`ДатаНачала=${from.toISOString().slice(0, 10).replace(/-/g, ".")}`)
