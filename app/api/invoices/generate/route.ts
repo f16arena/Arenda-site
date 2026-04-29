@@ -10,6 +10,7 @@ import {
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"
+import { renderDocx, renderXlsx } from "@/lib/template-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -203,13 +204,94 @@ export async function GET(req: Request) {
     }],
   })
 
-  const buffer = await Packer.toBuffer(doc)
+  // Если есть активный кастомный шаблон — используем его
+  const customTemplate = await db.documentTemplate.findFirst({
+    where: { organizationId: orgId, documentType: "INVOICE", isActive: true },
+    orderBy: { uploadedAt: "desc" },
+  }).catch(() => null)
+
+  let buffer: Buffer
+  let format: "DOCX" | "XLSX" = "DOCX"
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  const fileName = `Счет_на_оплату_${invoiceNumber}_${safeTenant}_${period}.docx`
+  let fileName = `Счет_на_оплату_${invoiceNumber}_${safeTenant}_${period}.docx`
+
+  if (customTemplate && customTemplate.format !== "PDF") {
+    // Подготовим данные для подстановки
+    const templateData = {
+      invoice_number: invoiceNumber,
+      invoice_date: fmtDate(today),
+      due_date: fmtDate(dueDate),
+      period: periodLabel(period),
+      tenant_name: tenant.companyName,
+      tenant_bin: tenant.bin || tenant.iin || "",
+      tenant_address: tenant.legalAddress || "",
+      tenant_iik: tenant.iik || "",
+      tenant_bank: tenant.bankName || "",
+      landlord_name: LANDLORD.fullName,
+      landlord_bin: LANDLORD.iin,
+      landlord_iik: LANDLORD.iik,
+      landlord_bik: LANDLORD.bik,
+      landlord_bank: LANDLORD.bank,
+      landlord_director: LANDLORD.directorShort,
+      subtotal: fmtMoney(subtotal),
+      vat_rate: withVat ? `${vatRate}` : "",
+      vat_amount: withVat ? fmtMoney(vatAmount) : "",
+      total: fmtMoney(total),
+      total_in_words: numberToWords(total),
+      contract_number: contract?.number || "",
+      purpose: `Оплата за аренду по счёту № ${invoiceNumber} от ${fmtDate(today)}${contract ? `, договор № ${contract.number}` : ""}`,
+      items: items.map((it) => ({
+        name: it.name,
+        qty: it.qty,
+        unit: it.unit,
+        price: fmtMoney(it.price),
+        amount: fmtMoney(it.amount),
+      })),
+    }
+
+    try {
+      const tplBuf = Buffer.from(customTemplate.fileBytes)
+      if (customTemplate.format === "DOCX") {
+        buffer = renderDocx(tplBuf, templateData)
+      } else {
+        buffer = await renderXlsx(tplBuf, templateData)
+        format = "XLSX"
+        fileName = fileName.replace(/\.docx$/, ".xlsx")
+      }
+    } catch (e) {
+      console.error("[invoice template render error]", e)
+      // Fallback на стандартный
+      buffer = await Packer.toBuffer(doc)
+    }
+  } else {
+    buffer = await Packer.toBuffer(doc)
+  }
+
+  // Сохраняем копию в архив
+  await db.generatedDocument.create({
+    data: {
+      organizationId: orgId,
+      documentType: "INVOICE",
+      number: invoiceNumber,
+      tenantId: tenant.id,
+      tenantName: tenant.companyName,
+      period,
+      totalAmount: total,
+      fileName,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fileBytes: buffer as any,
+      fileSize: buffer.length,
+      format,
+      generatedById: session.user.id,
+      templateUsedId: customTemplate?.id ?? null,
+    },
+  }).catch((e) => console.error("[archive save error]", e))
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Type": format === "XLSX"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     },
   })

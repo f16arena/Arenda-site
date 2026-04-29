@@ -4,6 +4,10 @@ import { redirect } from "next/navigation"
 import { formatMoney } from "@/lib/utils"
 import { TenantSelector, PrintButton } from "../tenant-selector"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
+import { requireOrgAccess } from "@/lib/org"
+import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
+import { DocumentArchive } from "@/components/documents/document-archive"
+import { getActiveTemplate } from "@/app/actions/document-templates"
 
 const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода",
@@ -17,6 +21,8 @@ export default async function ReconciliationPage({
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
+  const activeTemplate = await getActiveTemplate("RECONCILIATION").catch(() => null)
 
   const { tenantId, year } = await searchParams
   const currentYear = new Date().getFullYear()
@@ -97,6 +103,8 @@ export default async function ReconciliationPage({
 
   return (
     <div className="space-y-5">
+      <CustomTemplateBlock documentType="RECONCILIATION" active={activeTemplate} />
+
       <div className="flex items-center justify-between no-print">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Акт сверки</h1>
@@ -224,6 +232,8 @@ export default async function ReconciliationPage({
           </div>
         </div>
       )}
+
+      <DocumentArchive organizationId={orgId} documentType="RECONCILIATION" />
     </div>
   )
 }

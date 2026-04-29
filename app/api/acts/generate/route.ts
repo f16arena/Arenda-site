@@ -10,6 +10,7 @@ import {
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"
+import { renderDocx, renderXlsx } from "@/lib/template-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -184,13 +185,77 @@ export async function GET(req: Request) {
     }],
   })
 
-  const buffer = await Packer.toBuffer(doc)
+  const customTemplate = await db.documentTemplate.findFirst({
+    where: { organizationId: orgId, documentType: "ACT", isActive: true },
+    orderBy: { uploadedAt: "desc" },
+  }).catch(() => null)
+
+  let buffer: Buffer
+  let format: "DOCX" | "XLSX" = "DOCX"
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  const fileName = `Акт_${actNumber}_${safeTenant}_${period}.docx`
+  let fileName = `Акт_${actNumber}_${safeTenant}_${period}.docx`
+
+  if (customTemplate && customTemplate.format !== "PDF") {
+    const templateData = {
+      act_number: actNumber,
+      act_date: fmtDate(today),
+      period_start: fmtDate(periodStart),
+      period_end: fmtDate(periodEnd),
+      tenant_name: tenant.companyName,
+      tenant_bin: tenant.bin || tenant.iin || "",
+      tenant_director: tenant.directorName || tenant.user.name,
+      landlord_name: LANDLORD.fullName,
+      landlord_bin: LANDLORD.iin,
+      landlord_director: LANDLORD.directorShort,
+      subtotal: fmtMoney(subtotal),
+      vat_rate: withVat ? `${vatRate}` : "",
+      vat_amount: withVat ? fmtMoney(vatAmount) : "",
+      total: fmtMoney(total),
+      total_in_words: numberToWords(total),
+      contract_number: contract?.number || "",
+      items: items.map((it) => ({ name: it.name, amount: fmtMoney(it.amount) })),
+    }
+    try {
+      const tplBuf = Buffer.from(customTemplate.fileBytes)
+      if (customTemplate.format === "DOCX") {
+        buffer = renderDocx(tplBuf, templateData)
+      } else {
+        buffer = await renderXlsx(tplBuf, templateData)
+        format = "XLSX"
+        fileName = fileName.replace(/\.docx$/, ".xlsx")
+      }
+    } catch (e) {
+      console.error("[act template render error]", e)
+      buffer = await Packer.toBuffer(doc)
+    }
+  } else {
+    buffer = await Packer.toBuffer(doc)
+  }
+
+  await db.generatedDocument.create({
+    data: {
+      organizationId: orgId,
+      documentType: "ACT",
+      number: actNumber,
+      tenantId: tenant.id,
+      tenantName: tenant.companyName,
+      period,
+      totalAmount: total,
+      fileName,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fileBytes: buffer as any,
+      fileSize: buffer.length,
+      format,
+      generatedById: session.user.id,
+      templateUsedId: customTemplate?.id ?? null,
+    },
+  }).catch((e) => console.error("[archive save error]", e))
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Type": format === "XLSX"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     },
   })

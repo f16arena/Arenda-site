@@ -10,6 +10,10 @@ import { ContractNumberInput } from "./contract-number-input"
 import { suggestContractNumber } from "@/lib/contract-numbering"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
+import { requireOrgAccess } from "@/lib/org"
+import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
+import { DocumentArchive } from "@/components/documents/document-archive"
+import { getActiveTemplate } from "@/app/actions/document-templates"
 
 interface PageProps {
   searchParams: Promise<{ tenantId?: string }>
@@ -18,6 +22,8 @@ interface PageProps {
 export default async function RentalContractPage({ searchParams }: PageProps) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
+  const activeTemplate = await getActiveTemplate("CONTRACT").catch(() => null)
 
   const { tenantId } = await searchParams
 
@@ -81,6 +87,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5 print:space-y-0">
+      <CustomTemplateBlock documentType="CONTRACT" active={activeTemplate} />
+
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3">
           <Link href="/admin/documents" className="text-slate-500 hover:text-slate-900">
@@ -88,7 +96,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Договор аренды</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Шаблон БЦ F16 с автозаполнением</p>
+            <p className="text-sm text-slate-500 mt-0.5">Автозаполнение из карточки арендатора</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -244,6 +252,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
         </div>
         </>
       )}
+
+      <DocumentArchive organizationId={orgId} documentType="CONTRACT" />
 
       <style>{`
         @media print {

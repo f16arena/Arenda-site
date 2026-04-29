@@ -543,6 +543,52 @@ model Complaint {
   @@map("complaints")
 }
 
+// Кастомный шаблон документа на уровне организации.
+// На каждый тип (CONTRACT / INVOICE / ACT / RECONCILIATION) хранится один
+// активный шаблон (предыдущие — деактивированные, для истории).
+// DOCX (через docxtemplater) и XLSX (через ExcelJS) — для генерации.
+// PDF — только как образец-превью, не для подстановки.
+model DocumentTemplate {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  documentType   String   @map("document_type")
+  format         String
+  fileName       String   @map("file_name")
+  fileBytes      Bytes    @map("file_bytes")
+  fileSize       Int      @map("file_size")
+  isActive       Boolean  @default(true) @map("is_active")
+  uploadedById   String?  @map("uploaded_by_id")
+  uploadedAt     DateTime @default(now()) @map("uploaded_at")
+  notes          String?
+
+  @@index([organizationId, documentType, isActive])
+  @@map("document_templates")
+}
+
+// Архив сгенерированных документов — для повторного скачивания и фильтра.
+model GeneratedDocument {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  documentType   String   @map("document_type")
+  number         String?
+  tenantId       String?  @map("tenant_id")
+  tenantName     String   @map("tenant_name")
+  period         String?
+  totalAmount    Float?   @map("total_amount")
+  fileName       String   @map("file_name")
+  fileBytes      Bytes    @map("file_bytes")
+  fileSize       Int      @map("file_size")
+  format         String   @default("DOCX")
+  generatedById  String?  @map("generated_by_id")
+  generatedAt    DateTime @default(now()) @map("generated_at")
+  templateUsedId String?  @map("template_used_id")
+
+  @@index([organizationId, documentType])
+  @@index([organizationId, period])
+  @@index([tenantId])
+  @@map("generated_documents")
+}
+
 // Хранилище ЭЦП-подписей документов через NCALayer (НУЦ РК).
 // Один документ может быть подписан несколькими сторонами (арендодатель + арендатор).
 model DocumentSignature {

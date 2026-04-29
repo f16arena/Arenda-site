@@ -12,6 +12,10 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { NcaSignButton } from "@/components/nca-sign-button"
+import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
+import { PeriodPicker } from "@/components/documents/period-picker"
+import { DocumentArchive } from "@/components/documents/document-archive"
+import { getActiveTemplate } from "@/app/actions/document-templates"
 
 const MONTHS = [
   "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -32,6 +36,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
     orderBy: { companyName: "asc" },
   })
 
+  const activeTemplate = await getActiveTemplate("INVOICE").catch(() => null)
   const [organization, tenant] = await Promise.all([
     db.organization.findUnique({
       where: { id: orgId },
@@ -103,7 +108,8 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
             <p className="text-sm text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodPicker value={currentPeriod} />
           <div className="w-64">
             <TenantSelector tenants={tenants.map((t) => ({ id: t.id, companyName: t.companyName, userName: t.user.name, spaceNumber: t.space?.number }))} selectedId={tenantId} />
           </div>
@@ -117,6 +123,8 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
           )}
         </div>
       </div>
+
+      <CustomTemplateBlock documentType="INVOICE" active={activeTemplate} />
 
       {!tenant && (
         <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
@@ -205,6 +213,8 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
           </div>
         </div>
       )}
+
+      <DocumentArchive organizationId={orgId} documentType="INVOICE" period={currentPeriod} />
     </div>
   )
 }
