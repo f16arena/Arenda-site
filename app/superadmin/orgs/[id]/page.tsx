@@ -4,9 +4,13 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Building2, Users, Calendar, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Building2, Users, AlertTriangle } from "lucide-react"
 import { OrgActions, OrgEditForm, ExtendForm, ChangeOwnerForm, DangerZone } from "./client-actions"
+import { OrgUrlCard } from "./org-url-card"
+import { LimitsCard } from "./limits-card"
 import { cn } from "@/lib/utils"
+import { ROOT_HOST } from "@/lib/host"
+import { tenantScope, leadScope } from "@/lib/tenant-scope"
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePlatformOwner()
@@ -15,13 +19,21 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
   const org = await db.organization.findUnique({
     where: { id },
     include: {
-      plan: { select: { id: true, name: true, code: true, priceMonthly: true } },
+      plan: {
+        select: {
+          id: true, name: true, code: true, priceMonthly: true,
+          maxBuildings: true, maxTenants: true, maxUsers: true, maxLeads: true,
+        },
+      },
       _count: { select: { buildings: true, users: true, subscriptions: true } },
     },
   })
   if (!org) notFound()
 
-  const [plans, ownerUser, allUsers, subscriptions] = await Promise.all([
+  // Реальные счётчики tenants/leads для блока лимитов
+  const [tenantsCount, leadsCount, plans, ownerUser, allUsers, subscriptions] = await Promise.all([
+    db.tenant.count({ where: tenantScope(org.id) }).catch(() => 0),
+    db.lead.count({ where: leadScope(org.id) }).catch(() => 0),
     db.plan.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
     org.ownerUserId ? db.user.findUnique({
       where: { id: org.ownerUserId },
@@ -59,6 +71,9 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         <OrgActions orgId={org.id} hasOwner={!!ownerUser} />
       </div>
 
+      {/* URL поддомена */}
+      <OrgUrlCard slug={org.slug} rootHost={ROOT_HOST} />
+
       {/* Status alerts */}
       {org.isSuspended && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
@@ -82,6 +97,18 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         <Stat label="Зданий" value={String(org._count.buildings)} icon={Building2} />
         <Stat label="Пользователей" value={String(org._count.users)} icon={Users} />
       </div>
+
+      {/* Лимиты тарифа */}
+      <LimitsCard
+        buildings={org._count.buildings}
+        tenants={tenantsCount}
+        users={org._count.users}
+        leads={leadsCount}
+        maxBuildings={org.plan?.maxBuildings ?? null}
+        maxTenants={org.plan?.maxTenants ?? null}
+        maxUsers={org.plan?.maxUsers ?? null}
+        maxLeads={org.plan?.maxLeads ?? null}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Edit form */}

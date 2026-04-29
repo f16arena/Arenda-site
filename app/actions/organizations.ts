@@ -10,13 +10,50 @@ import {
   setSuperadminOrgCookie,
 } from "@/lib/org"
 import { audit } from "@/lib/audit"
+import { validateSlug } from "@/lib/reserved-slugs"
+import { slugify, suggestSlugs } from "@/lib/slugify"
+import { ROOT_HOST } from "@/lib/host"
 import bcrypt from "bcryptjs"
+
+/**
+ * Проверяет доступность slug для регистрации организации.
+ * Используется на форме (с debounce) для live-валидации.
+ * Возвращает {ok:true} либо {ok:false, reason, suggestions?}.
+ */
+export type SlugCheckResult =
+  | { ok: true; url: string }
+  | { ok: false; reason: string; suggestions?: string[] }
+
+export async function checkSlugAvailable(rawSlug: string): Promise<SlugCheckResult> {
+  await requirePlatformOwner()
+  const slug = (rawSlug ?? "").trim().toLowerCase()
+
+  // Формат и резерв
+  const v = validateSlug(slug)
+  if (!v.ok) return { ok: false, reason: v.reason }
+
+  // Занятость
+  const existing = await db.organization.findUnique({
+    where: { slug },
+    select: { id: true, name: true },
+  })
+  if (existing) {
+    return {
+      ok: false,
+      reason: `Поддомен «${slug}» уже используется организацией «${existing.name}»`,
+      suggestions: suggestSlugs(slug),
+    }
+  }
+
+  return { ok: true, url: `https://${slug}.${ROOT_HOST}` }
+}
 
 export async function createOrganization(formData: FormData): Promise<{ orgId: string; ownerEmail: string | null; ownerPhone: string | null; tempPassword: string }> {
   await requirePlatformOwner()
 
   const name = String(formData.get("name") ?? "").trim()
-  const slug = String(formData.get("slug") ?? "").trim().toLowerCase().replace(/[^a-z0-9-]/g, "-")
+  // Нормализуем введённый slug через общий slugify (чтобы клиент и сервер совпадали)
+  const slug = slugify(String(formData.get("slug") ?? ""))
   const planId = String(formData.get("planId") ?? "")
   const monthsStr = String(formData.get("months") ?? "1")
   const ownerName = String(formData.get("ownerName") ?? "").trim()
@@ -25,13 +62,19 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   const ownerPassword = String(formData.get("ownerPassword") ?? "").trim() || generatePassword()
 
   if (!name) throw new Error("Название обязательно")
-  if (!slug) throw new Error("Slug обязателен (только латиница, цифры, дефис)")
   if (!planId) throw new Error("Выберите тариф")
   if (!ownerName) throw new Error("Имя владельца обязательно")
   if (!ownerEmail && !ownerPhone) throw new Error("Укажите email или телефон владельца")
 
+  // Полная серверная валидация slug (формат + резерв)
+  const v = validateSlug(slug)
+  if (!v.ok) throw new Error(v.reason)
+
   const existing = await db.organization.findUnique({ where: { slug } })
-  if (existing) throw new Error(`Организация со slug "${slug}" уже существует`)
+  if (existing) {
+    const suggestions = suggestSlugs(slug).join(", ")
+    throw new Error(`Поддомен «${slug}» уже занят. Попробуйте: ${suggestions}`)
+  }
 
   const months = parseInt(monthsStr) || 1
   const planExpiresAt = new Date()

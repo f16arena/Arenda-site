@@ -2,7 +2,9 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
-import { Building2, Users, Package, TrendingUp, AlertTriangle } from "lucide-react"
+import Link from "next/link"
+import { Building2, Users, Package, TrendingUp, AlertTriangle, ArrowRight, ExternalLink } from "lucide-react"
+import { ROOT_HOST } from "@/lib/host"
 
 export default async function SuperadminHomePage() {
   await requirePlatformOwner()
@@ -88,12 +90,86 @@ export default async function SuperadminHomePage() {
         <SubscriptionDynamics />
       </div>
 
+      <TopOrgsByMrr />
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-900">Последние действия (всех организаций)</h2>
         </div>
         <RecentAuditTable />
       </div>
+    </div>
+  )
+}
+
+async function TopOrgsByMrr() {
+  const orgs = await db.organization.findMany({
+    where: { isActive: true },
+    select: {
+      id: true, name: true, slug: true, isSuspended: true,
+      plan: { select: { name: true, priceMonthly: true } },
+      _count: { select: { buildings: true, users: true } },
+    },
+  }).catch(() => [])
+
+  const sorted = orgs
+    .map((o) => ({ ...o, mrr: o.plan?.priceMonthly ?? 0 }))
+    .sort((a, b) => b.mrr - a.mrr || b._count.buildings - a._count.buildings)
+    .slice(0, 5)
+
+  if (sorted.length === 0) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-900">Топ организаций по MRR</h2>
+        <Link href="/superadmin/orgs" className="text-xs text-purple-600 hover:underline flex items-center gap-1">
+          Все организации <ArrowRight className="h-3 w-3" />
+        </Link>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50/50">
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Организация</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">MRR</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Зданий</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Юзеров</th>
+            <th className="px-5 py-2" />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((o) => (
+            <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
+              <td className="px-5 py-2.5">
+                <Link href={`/superadmin/orgs/${o.id}`} className="block">
+                  <p className="font-medium text-slate-900 hover:text-purple-600">{o.name}</p>
+                  <a
+                    href={`https://${o.slug}.${ROOT_HOST}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-[10px] text-slate-400 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
+                  >
+                    {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
+                  </a>
+                </Link>
+              </td>
+              <td className="px-5 py-2.5 text-xs text-slate-600">{o.plan?.name ?? "—"}</td>
+              <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
+                {o.mrr.toLocaleString("ru-RU")} ₸
+              </td>
+              <td className="px-5 py-2.5 text-right text-slate-600">{o._count.buildings}</td>
+              <td className="px-5 py-2.5 text-right text-slate-600">{o._count.users}</td>
+              <td className="px-5 py-2.5 text-right">
+                {o.isSuspended && (
+                  <span className="text-[10px] text-red-600 font-medium">приостановлен</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

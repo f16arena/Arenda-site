@@ -5,6 +5,7 @@ import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
 import { Plus, Building2, CheckCircle2, Clock, Pause } from "lucide-react"
 import { OrgsListClient } from "./list-client"
+import { ROOT_HOST } from "@/lib/host"
 
 export default async function OrgsListPage() {
   await requirePlatformOwner()
@@ -84,7 +85,7 @@ export default async function OrgsListPage() {
           <p className="text-xs text-slate-500 mt-1">Создайте первую через кнопку выше</p>
         </div>
       ) : (
-        <OrgsListClient items={items} />
+        <OrgsListClient items={items} rootHost={ROOT_HOST} />
       )}
     </div>
   )

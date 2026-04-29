@@ -26,7 +26,7 @@ type Item = {
 
 type Filter = "all" | "active" | "expiring" | "suspended" | "inactive"
 
-export function OrgsListClient({ items }: { items: Item[] }) {
+export function OrgsListClient({ items, rootHost }: { items: Item[]; rootHost: string }) {
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
 
@@ -84,7 +84,7 @@ export function OrgsListClient({ items }: { items: Item[] }) {
             </thead>
             <tbody>
               {filtered.map((o) => (
-                <Row key={o.id} o={o} />
+                <Row key={o.id} o={o} rootHost={rootHost} />
               ))}
             </tbody>
           </table>
@@ -94,9 +94,10 @@ export function OrgsListClient({ items }: { items: Item[] }) {
   )
 }
 
-function Row({ o }: { o: Item }) {
+function Row({ o, rootHost }: { o: Item; rootHost: string }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const orgUrl = `https://${o.slug}.${rootHost}`
 
   return (
     <tr className={cn(
@@ -107,7 +108,17 @@ function Row({ o }: { o: Item }) {
       <td className="px-5 py-3.5">
         <Link href={`/superadmin/orgs/${o.id}`} className="block">
           <p className="font-medium text-slate-900 hover:text-purple-600 transition">{o.name}</p>
-          <p className="text-[10px] text-slate-400 font-mono mt-0.5">{o.slug}</p>
+          <a
+            href={orgUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[10px] text-slate-500 hover:text-blue-600 font-mono mt-0.5 inline-flex items-center gap-0.5"
+            title="Открыть поддомен в новой вкладке"
+          >
+            {o.slug}.{rootHost}
+            <ExternalLink className="h-2.5 w-2.5" />
+          </a>
         </Link>
       </td>
       <td className="px-5 py-3.5 text-slate-600">
