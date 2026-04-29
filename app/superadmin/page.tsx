@@ -142,18 +142,19 @@ async function TopOrgsByMrr() {
           {sorted.map((o) => (
             <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
               <td className="px-5 py-2.5">
-                <Link href={`/superadmin/orgs/${o.id}`} className="block">
-                  <p className="font-medium text-slate-900 hover:text-purple-600">{o.name}</p>
+                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 hover:text-purple-600">
+                  {o.name}
+                </Link>
+                <div>
                   <a
                     href={`https://${o.slug}.${ROOT_HOST}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
                     className="text-[10px] text-slate-400 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
                   >
                     {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                   </a>
-                </Link>
+                </div>
               </td>
               <td className="px-5 py-2.5 text-xs text-slate-600">{o.plan?.name ?? "—"}</td>
               <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
