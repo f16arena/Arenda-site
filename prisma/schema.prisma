@@ -18,6 +18,8 @@ model User {
   telegramChatId  String?  @map("telegram_chat_id")
   organizationId  String?  @map("organization_id")  // null только для PLATFORM_OWNER
   isPlatformOwner Boolean  @default(false) @map("is_platform_owner")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  phoneVerifiedAt DateTime? @map("phone_verified_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt      @map("updated_at")
 
@@ -612,4 +614,21 @@ model DocumentSignature {
   @@index([organizationId])
   @@index([documentType, documentId])
   @@map("document_signatures")
+}
+
+// Токены для верификации email/телефона + сброса пароля.
+// Один пользователь может иметь несколько активных токенов (разные сценарии).
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")  // null для password-reset по email до создания юзера (не используем)
+  type      String   // EMAIL_VERIFY | PHONE_VERIFY | PASSWORD_RESET | EMAIL_CHANGE | PHONE_CHANGE
+  target    String   // email или телефон
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, type])
+  @@index([token])
+  @@map("verification_tokens")
 }

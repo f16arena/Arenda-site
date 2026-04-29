@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { TelegramSetup } from "@/app/admin/profile/telegram-setup"
 import { Send, User } from "lucide-react"
+import { ProfileForms } from "@/components/profile/profile-forms"
 
 export default async function CabinetProfilePage() {
   const session = await auth()
@@ -12,7 +13,11 @@ export default async function CabinetProfilePage() {
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, phone: true, telegramChatId: true, tenant: { select: { companyName: true } } },
+    select: {
+      id: true, name: true, email: true, phone: true,
+      telegramChatId: true, emailVerifiedAt: true,
+      tenant: { select: { companyName: true } },
+    },
   })
 
   if (!user) redirect("/login")
@@ -28,6 +33,12 @@ export default async function CabinetProfilePage() {
           <p className="text-sm text-slate-500 mt-0.5">{user.name} {user.tenant && `· ${user.tenant.companyName}`}</p>
         </div>
       </div>
+
+      <ProfileForms
+        currentName={user.name}
+        currentEmail={user.email}
+        emailVerified={!!user.emailVerifiedAt}
+      />
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">

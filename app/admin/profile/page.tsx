@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { TelegramSetup } from "./telegram-setup"
 import { Send, User } from "lucide-react"
+import { ProfileForms } from "@/components/profile/profile-forms"
 
 export default async function ProfilePage() {
   const session = await auth()
@@ -12,7 +13,10 @@ export default async function ProfilePage() {
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, phone: true, role: true, telegramChatId: true },
+    select: {
+      id: true, name: true, email: true, phone: true, role: true,
+      telegramChatId: true, emailVerifiedAt: true,
+    },
   })
 
   if (!user) redirect("/login")
@@ -29,7 +33,12 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      {/* Telegram */}
+      <ProfileForms
+        currentName={user.name}
+        currentEmail={user.email}
+        emailVerified={!!user.emailVerifiedAt}
+      />
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
           <Send className="h-4 w-4 text-blue-500" />
@@ -40,16 +49,11 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      {/* Contact info */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
           <h2 className="text-sm font-semibold text-slate-900">Контакты</h2>
         </div>
         <div className="p-5 space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-500">Email:</span>
-            <span className="text-slate-900 font-medium">{user.email ?? "не указан"}</span>
-          </div>
           <div className="flex justify-between">
             <span className="text-slate-500">Телефон:</span>
             <span className="text-slate-900 font-medium font-mono">{user.phone ?? "не указан"}</span>

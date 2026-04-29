@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import Link from "next/link"
-import { Shield, Building2, Package, BarChart3, LogOut, ArrowLeft, History } from "lucide-react"
+import { Shield, Building2, Package, BarChart3, LogOut, ArrowLeft, History, UserCircle } from "lucide-react"
 import { logout } from "@/app/actions/auth"
 
 export default async function SuperadminLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +27,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
           <SideLink href="/superadmin/orgs" icon={Building2} label="Организации" />
           <SideLink href="/superadmin/plans" icon={Package} label="Тарифы" />
           <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
+          <SideLink href="/superadmin/profile" icon={UserCircle} label="Профиль" />
 
           <div className="border-t border-purple-800 my-3" />
 
