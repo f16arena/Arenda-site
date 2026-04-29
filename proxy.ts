@@ -17,7 +17,7 @@ import { parseHost } from "@/lib/host"
 
 // Пути, разрешённые на корневом домене
 const PUBLIC_ROOT_PATHS = new Set([
-  "/", "/login", "/offer", "/privacy", "/terms", "/sla",
+  "/", "/login", "/signup", "/offer", "/privacy", "/terms", "/sla",
 ])
 const PUBLIC_ROOT_PREFIXES = ["/api/health", "/_next", "/favicon", "/icon", "/manifest"]
 

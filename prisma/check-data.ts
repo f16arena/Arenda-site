@@ -13,13 +13,24 @@ const adapter = new PrismaPg(pool)
 const db = new PrismaClient({ adapter })
 
 async function main() {
-  console.time("connect+query")
-  const orgs = await db.organization.findMany({
-    select: { id: true, name: true, slug: true, _count: { select: { buildings: true } } },
+  // Найдём пользователя по id из ошибки
+  const target = await db.user.findUnique({
+    where: { id: "cmojz2cjv000040us5hzl7zxm" },
+    select: { id: true, name: true, email: true, phone: true, role: true, isPlatformOwner: true, organizationId: true, isActive: true },
   })
-  console.timeEnd("connect+query")
-  console.log("Organizations:")
-  for (const o of orgs) console.log(`  - ${o.name} (slug=${o.slug}, buildings=${o._count.buildings})`)
+  console.log("Target user (id=cmojz2cjv000040us5hzl7zxm):")
+  console.log(target ?? "  NOT FOUND")
+
+  console.log("\nAll OWNER role users:")
+  const owners = await db.user.findMany({
+    where: { role: "OWNER" },
+    select: { id: true, name: true, email: true, phone: true, isPlatformOwner: true, organizationId: true },
+    orderBy: { createdAt: "asc" },
+  })
+  for (const u of owners) {
+    const flag = u.isPlatformOwner ? " [PLATFORM]" : ""
+    console.log(`  - ${u.email || u.phone || "-"} (${u.name}, orgId=${u.organizationId})${flag}`)
+  }
 }
 
 main().catch((e) => {

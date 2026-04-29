@@ -25,7 +25,8 @@ export type SlugCheckResult =
   | { ok: false; reason: string; suggestions?: string[] }
 
 export async function checkSlugAvailable(rawSlug: string): Promise<SlugCheckResult> {
-  await requirePlatformOwner()
+  // Доступно без авторизации — нужно для формы регистрации /signup.
+  // Утечка минимальная: знание о том, занят ли slug, не нарушает изоляцию.
   const slug = (rawSlug ?? "").trim().toLowerCase()
 
   // Формат и резерв

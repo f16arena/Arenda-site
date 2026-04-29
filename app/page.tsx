@@ -38,7 +38,7 @@ export default async function Home() {
               Войти
             </Link>
             <Link
-              href="#pricing"
+              href="/signup"
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
             >
               Попробовать
@@ -64,13 +64,13 @@ export default async function Home() {
             для арендатора. Меньше Excel — больше контроля.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
-            <a
-              href="#pricing"
+            <Link
+              href="/signup"
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-medium text-white hover:bg-slate-800 transition-colors"
             >
               Попробовать 14&nbsp;дней бесплатно
               <ArrowRight className="h-4 w-4" />
-            </a>
+            </Link>
             <a
               href="#features"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-6 py-3 text-base font-medium text-slate-700 hover:bg-slate-50 transition-colors"
@@ -337,7 +337,7 @@ export default async function Home() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-7">
             <Link
-              href="/login"
+              href="/signup"
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-3 text-base font-medium text-white hover:bg-slate-800 transition-colors"
             >
               Начать бесплатно
@@ -516,7 +516,7 @@ function PricingCard({
         <p className="text-xs text-slate-400 mt-1">или {yearly} ₸ при оплате за&nbsp;год (−20%)</p>
       </div>
       <Link
-        href="/login"
+        href="/signup"
         className={`mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
           popular
             ? "bg-blue-600 text-white hover:bg-blue-700"

@@ -7,7 +7,7 @@ import {
   FileText, ClipboardList, CheckSquare, UserCog,
   MessageSquare, AlertCircle, Phone, BarChart3,
   LogOut, Building, Settings, Shield, ShieldCheck,
-  TrendingUp, History, Package,
+  TrendingUp, History, Package, Upload,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { logout } from "@/app/actions/auth"
@@ -33,6 +33,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
       { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "tenants" },
+      { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "tenants" },
     ],
   },
   {
