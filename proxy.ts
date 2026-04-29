@@ -55,6 +55,33 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", `https://${process.env.ROOT_HOST || "commrent.kz"}`))
   }
 
+  // ─── Slug-поддомен: только рабочая зона ─────────────────────────
+  // На bcf16.commrent.kz: разрешены только /admin/*, /cabinet/*, /api/*.
+  // Лендинг, юр. документы, /login — всё это живёт ТОЛЬКО на root.
+  // Заходишь на bcf16.commrent.kz/ → тебя выкидывает: либо в /admin
+  // (если залогинен и в этой org), либо на commrent.kz/login.
+  if (host.kind === "subdomain") {
+    const rootHost = process.env.ROOT_HOST || "commrent.kz"
+    const isApi = path.startsWith("/api/")
+    const isStatic = path.startsWith("/_next/") || path.startsWith("/favicon") || path.startsWith("/icon") || path.startsWith("/manifest")
+
+    if (!isAdminRoute && !isCabinetRoute && !isSuperadminRoute && !isApi && !isStatic) {
+      // Корень или любой публичный путь на slug → редирект
+      if (path === "/") {
+        if (isLoggedIn && !isPlatformOwner) {
+          return NextResponse.redirect(new URL(role === "TENANT" ? "/cabinet" : "/admin", req.url))
+        }
+        return NextResponse.redirect(`https://${rootHost}/login`)
+      }
+      if (path === "/login") {
+        // /login доступен только на корне
+        return NextResponse.redirect(`https://${rootHost}/login`)
+      }
+      // Юр. документы и любые другие статические — на корень
+      return NextResponse.redirect(`https://${rootHost}${path}`)
+    }
+  }
+
   // ─── Корневой/external host: /admin и /cabinet недоступны ───────
   // Когда ENFORCE_SUBDOMAIN включён, рабочая зона живёт на slug-поддомене.
   // На root домене / vercel.app: не пускаем в /admin и /cabinet кроме платформа-админа.
