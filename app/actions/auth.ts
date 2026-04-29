@@ -3,7 +3,9 @@
 import { signIn, signOut } from "@/auth"
 import { AuthError } from "next-auth"
 import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 import { db } from "@/lib/db"
+import { parseHost, ROOT_HOST } from "@/lib/host"
 
 export interface LoginState {
   error?: string
@@ -38,12 +40,26 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   }
 
   // ── 2. Поиск пользователя ──────────────────────────────────────
-  let user: { id: string; role: string; isActive: boolean } | null = null
+  let user: {
+    id: string
+    role: string
+    isActive: boolean
+    isPlatformOwner: boolean
+    organizationId: string | null
+    organization: { slug: string } | null
+  } | null = null
   t0 = Date.now()
   try {
     user = await db.user.findFirst({
       where: { OR: [{ phone: loginValue }, { email: loginValue }] },
-      select: { id: true, role: true, isActive: true },
+      select: {
+        id: true,
+        role: true,
+        isActive: true,
+        isPlatformOwner: true,
+        organizationId: true,
+        organization: { select: { slug: true } },
+      },
     })
     step("db.findUser", t0, true, user ? `id=${user.id} role=${user.role} active=${user.isActive}` : "not_found")
   } catch (e) {
@@ -69,7 +85,6 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     })
     step("auth.signIn", t0, true)
   } catch (error) {
-    const ms = Date.now() - t0
     if (error instanceof AuthError) {
       const cause = (error as { cause?: { err?: { message?: string } } }).cause?.err?.message
       step("auth.signIn", t0, false, `AuthError: ${cause ?? error.message}`)
@@ -85,7 +100,30 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     return { error: `Ошибка входа: ${msg}`, details }
   }
 
-  redirect(user.role === "TENANT" ? "/cabinet" : "/admin")
+  // ── 4. Редирект ────────────────────────────────────────────────
+  // Платформенный админ → /superadmin (на текущем домене)
+  if (user.isPlatformOwner) {
+    redirect("/superadmin")
+  }
+
+  const target = user.role === "TENANT" ? "/cabinet" : "/admin"
+
+  // Без организации (orphan) — некуда вести; пусть /admin сам обработает
+  if (!user.organization?.slug) {
+    redirect(target)
+  }
+
+  // Если уже на нужном поддомене — относительный редирект.
+  const h = await headers()
+  const host = parseHost(h.get("host"))
+  if (host.kind === "subdomain" && host.slug === user.organization.slug) {
+    redirect(target)
+  }
+
+  // Иначе — абсолютный редирект на slug-поддомен.
+  // Cookie domain=.commrent.kz уже выставлен в auth.ts → сессия сохранится.
+  const proto = h.get("x-forwarded-proto") ?? "https"
+  redirect(`${proto}://${user.organization.slug}.${ROOT_HOST}${target}`)
 }
 
 export async function logout() {

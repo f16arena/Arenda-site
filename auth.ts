@@ -5,9 +5,15 @@ import bcrypt from "bcryptjs"
 
 const isProduction = process.env.NODE_ENV === "production"
 
-// Cookie session-токена — domain НЕ указываем, чтобы cookie работал ТОЛЬКО
-// на текущем поддомене. Это изолирует сессии разных организаций:
-// логин на bcf16.commrent.kz не передаст сессию на other.commrent.kz.
+// Cookie session-токена работает на всех *.commrent.kz, чтобы вход на
+// commrent.kz/login → редирект на bcf16.commrent.kz/admin сохранял сессию.
+// Изоляция между организациями — на app-level через requireOrgAccess
+// (slug в URL должен совпадать с user.organizationId.slug).
+const ROOT_HOST_FOR_COOKIE = process.env.ROOT_HOST
+const SESSION_COOKIE_DOMAIN = isProduction && ROOT_HOST_FOR_COOKIE
+  ? `.${ROOT_HOST_FOR_COOKIE}`
+  : undefined
+
 const SESSION_COOKIE_NAME = isProduction
   ? "__Secure-commrent.session-token"
   : "commrent.session-token"
@@ -82,8 +88,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         sameSite: "lax",
         path: "/",
         secure: isProduction,
-        // domain НЕ задаётся → cookie живёт только на host из URL запроса
-        // (один поддомен = одна изолированная сессия).
+        // domain=.commrent.kz → cookie работает на всех *.commrent.kz,
+        // чтобы login на commrent.kz → редирект на slug-поддомен сохранял сессию.
+        ...(SESSION_COOKIE_DOMAIN ? { domain: SESSION_COOKIE_DOMAIN } : {}),
       },
     },
   },

@@ -45,30 +45,6 @@ export default auth((req) => {
   const isSuperadminRoute = path.startsWith("/superadmin")
   const isLoginPage = path === "/login"
 
-  // ─── Корневой / external host (публичный сайт) ──────────────────
-  // Жёсткое разделение root vs subdomain включается через ENFORCE_SUBDOMAIN=true,
-  // когда DNS на *.commrent.kz готов. Пока false — пускаем всех на корне.
-  if (ENFORCE_SUBDOMAIN && host.kind === "root") {
-    // На корневом домене не разрешаем вход в admin/cabinet —
-    // вход в систему всегда через slug-поддомен.
-    if (isAdminRoute || isCabinetRoute) {
-      if (isLoggedIn && isPlatformOwner) {
-        // OK — платформ-админ работает в /admin (impersonate)
-      } else {
-        return NextResponse.redirect(new URL("/login", req.url))
-      }
-    }
-
-    // Только публичные пути и /superadmin (для платформ-админа) на корневом.
-    const allowed = isPublicRootPath(path)
-      || isAdminRoute
-      || isCabinetRoute
-      || isSuperadminRoute
-    if (!allowed) {
-      return NextResponse.redirect(new URL("/", req.url))
-    }
-  }
-
   // ─── Reserved subdomain — 404 ───────────────────────────────────
   if (host.kind === "reserved") {
     return new NextResponse("Not Found", { status: 404 })
@@ -79,17 +55,36 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", `https://${process.env.ROOT_HOST || "commrent.kz"}`))
   }
 
-  // ─── Login redirect для уже залогиненных ────────────────────────
-  if (isLoginPage && isLoggedIn) {
-    if (isPlatformOwner) {
-      const res = NextResponse.redirect(new URL("/superadmin", req.url))
-      res.cookies.delete("impersonating")
-      res.cookies.delete("superadmin_currentOrgId")
-      return res
+  // ─── Корневой/external host: /admin и /cabinet недоступны ───────
+  // Когда ENFORCE_SUBDOMAIN включён, рабочая зона живёт на slug-поддомене.
+  // На root домене / vercel.app: не пускаем в /admin и /cabinet кроме платформа-админа.
+  // (Не редиректим в middleware — отправляем на /login, где server-component
+  // разрулит куда дальше: на slug.commrent.kz или /superadmin.)
+  if (ENFORCE_SUBDOMAIN && (host.kind === "root" || host.kind === "external")) {
+    if ((isAdminRoute || isCabinetRoute) && !isPlatformOwner) {
+      return NextResponse.redirect(new URL("/login", req.url))
     }
-    return NextResponse.redirect(
-      new URL(role === "TENANT" ? "/cabinet" : "/admin", req.url)
-    )
+
+    // Только публичные пути и /superadmin (для платформ-админа).
+    if (host.kind === "root") {
+      const allowed = isPublicRootPath(path)
+        || isAdminRoute   // (только для platformOwner — выше уже отфильтровано)
+        || isCabinetRoute // (то же)
+        || isSuperadminRoute
+      if (!allowed) {
+        return NextResponse.redirect(new URL("/", req.url))
+      }
+    }
+  }
+
+  // ─── Login для платформ-админа: сразу в /superadmin ─────────────
+  // (для остальных: server-component на /login сам сделает редирект на slug-поддомен,
+  // через middleware не делаем — иначе redirect loop с /admin на root домене.)
+  if (isLoginPage && isLoggedIn && isPlatformOwner) {
+    const res = NextResponse.redirect(new URL("/superadmin", req.url))
+    res.cookies.delete("impersonating")
+    res.cookies.delete("superadmin_currentOrgId")
+    return res
   }
 
   // ─── Защита приватных маршрутов ─────────────────────────────────
