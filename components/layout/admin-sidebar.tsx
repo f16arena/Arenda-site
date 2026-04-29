@@ -49,6 +49,8 @@ const nav: NavSection[] = [
       { href: "/admin/contracts", label: "Договоры", icon: FileText, section: "contracts" },
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
       { href: "/admin/documents/templates/rental", label: "Шаблон договора", icon: FileText, section: "documents" },
+      { href: "/admin/documents/templates/invoice", label: "Счёт на оплату", icon: FileText, section: "documents" },
+      { href: "/admin/documents/templates/act", label: "Акт оказанных услуг", icon: FileText, section: "documents" },
       { href: "/admin/documents/templates/reconciliation", label: "Акт сверки", icon: BarChart3, section: "documents" },
     ],
   },

@@ -7,13 +7,22 @@ import { Building2, Phone, Layers, Plus, Zap } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
+import { VatSection } from "@/components/settings/vat-section"
 
 export default async function SettingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { orgId } = await requireOrgAccess()
 
-  const buildingId = await getCurrentBuildingId()
+  const [organization, buildingId] = await Promise.all([
+    db.organization.findUnique({
+      where: { id: orgId },
+      select: { id: true, isVatPayer: true, vatRate: true, vatNumber: true },
+    }),
+    getCurrentBuildingId(),
+  ])
   const building = buildingId ? await db.building.findUnique({
     where: { id: buildingId },
     include: {
@@ -191,6 +200,9 @@ export default async function SettingsPage() {
           ))}
         </div>
       </div>
+
+      {/* НДС настройки */}
+      {organization && <VatSection organization={organization} />}
 
       {/* Document numbering */}
       <DocumentNumberingSection building={building} />

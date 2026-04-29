@@ -34,18 +34,31 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden: cross-tenant access" }, { status: 403 })
   }
 
-  const tenant = await db.tenant.findUnique({
-    where: { id: tenantId },
-    include: {
-      user: true,
-      space: { include: { floor: true } },
-      fullFloors: true,
-      charges: { where: { period }, orderBy: { createdAt: "asc" } },
-    },
-  })
+  const [tenant, organization] = await Promise.all([
+    db.tenant.findUnique({
+      where: { id: tenantId },
+      include: {
+        user: true,
+        space: { include: { floor: true } },
+        fullFloors: true,
+        charges: { where: { period }, orderBy: { createdAt: "asc" } },
+        contracts: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+    }),
+    db.organization.findUnique({
+      where: { id: orgId },
+      select: { isVatPayer: true, vatRate: true },
+    }),
+  ])
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
   const today = new Date()
+  const contract = tenant.contracts[0]
+  const withVat = !!organization?.isVatPayer
+  const vatRate = organization?.vatRate ?? 12
+  const [py, pm] = period.split("-").map(Number)
+  const periodStart = new Date(py, pm - 1, 1)
+  const periodEnd = new Date(py, pm, 0)
   const fullFloor = tenant.fullFloors?.[0]
   const monthlyRent = fullFloor?.fixedMonthlyRent
     ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
@@ -65,7 +78,9 @@ export async function GET(req: Request) {
       items.push({ name: `Уборка помещения за ${periodLabel(period)}`, amount: tenant.cleaningFee })
     }
   }
-  const total = items.reduce((s, it) => s + it.amount, 0)
+  const subtotal = items.reduce((s, it) => s + it.amount, 0)
+  const vatAmount = withVat ? Math.round(subtotal * vatRate / 100) : 0
+  const total = subtotal + vatAmount
 
   const itemsTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -83,7 +98,15 @@ export async function GET(req: Request) {
           align: [AlignmentType.CENTER, AlignmentType.LEFT, AlignmentType.CENTER, AlignmentType.RIGHT],
         }
       )),
-      row(["", "Итого:", "", fmtMoney(total)], {
+      row(["", "Итого:", "", fmtMoney(subtotal)], {
+        widths: [5, 60, 15, 20],
+        align: [AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.CENTER, AlignmentType.RIGHT],
+      }),
+      ...(withVat ? [row(["", `НДС ${vatRate}%:`, "", fmtMoney(vatAmount)], {
+        widths: [5, 60, 15, 20],
+        align: [AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.CENTER, AlignmentType.RIGHT],
+      })] : []),
+      row(["", "Всего:", "", fmtMoney(total)], {
         bold: true,
         widths: [5, 60, 15, 20],
         align: [AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.CENTER, AlignmentType.RIGHT],
@@ -144,11 +167,15 @@ export async function GET(req: Request) {
       properties: { page: { margin: { top: 1000, bottom: 1000, left: 1200, right: 1000 } } },
       children: [
         center(`Акт оказанных услуг № ${actNumber} от ${fmtDate(today)}`),
+        new Paragraph({ children: [new TextRun("")], spacing: { after: 100 } }),
+        ...(contract ? [p(`К договору № ${contract.number}${contract.startDate ? ` от ${fmtDate(contract.startDate)}` : ""}`, { indent: false })] : []),
+        p(`Период оказания услуг: с ${fmtDate(periodStart)} по ${fmtDate(periodEnd)}`, { indent: false }),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
         p(`Мы, нижеподписавшиеся, ${LANDLORD.fullName} (далее — Исполнитель), в лице руководителя ${LANDLORD.directorShort}, с одной стороны, и ${tenant.companyName} (далее — Заказчик), в лице ${tenant.directorName ?? tenant.user.name}, с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки, а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:`),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
         itemsTable,
         new Paragraph({ children: [new TextRun("")], spacing: { before: 200 } }),
+        ...(withVat ? [p(`в т.ч. НДС ${vatRate}%: ${fmtMoney(vatAmount)} тенге`, { indent: false })] : [p("Без НДС (Исполнитель не плательщик НДС).", { indent: false })]),
         p(`Всего на сумму: ${fmtMoney(total)} (${numberToWords(total)}) тенге.`, { bold: true, indent: false }),
         p("Услуги оказаны в полном объёме, в установленные сроки. Стороны претензий друг к другу не имеют.", { indent: false }),
         new Paragraph({ children: [new TextRun("")], spacing: { before: 400 } }),

@@ -14,6 +14,8 @@ import {
 export const dynamic = "force-dynamic"
 
 // GET /api/invoices/generate?tenantId=xxx&period=2026-04&number=001
+// "Счёт на оплату" — произвольная форма по РК. Не НДС-документ, не основание для бухучёта.
+// Только инструкция плательщику для перевода. ЭСФ выпускается отдельно через esf.gov.kz.
 export async function GET(req: Request) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") {
@@ -34,18 +36,29 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden: cross-tenant access" }, { status: 403 })
   }
 
-  const tenant = await db.tenant.findUnique({
-    where: { id: tenantId },
-    include: {
-      user: true,
-      space: { include: { floor: true } },
-      fullFloors: true,
-      charges: { where: { period }, orderBy: { createdAt: "asc" } },
-    },
-  })
+  const [tenant, organization] = await Promise.all([
+    db.tenant.findUnique({
+      where: { id: tenantId },
+      include: {
+        user: true,
+        space: { include: { floor: true } },
+        fullFloors: true,
+        charges: { where: { period }, orderBy: { createdAt: "asc" } },
+        contracts: { orderBy: { createdAt: "desc" }, take: 1 },
+      },
+    }),
+    db.organization.findUnique({
+      where: { id: orgId },
+      select: { isVatPayer: true, vatRate: true },
+    }),
+  ])
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
   const today = new Date()
+  const dueDate = new Date(today.getFullYear(), today.getMonth(), tenant.paymentDueDay)
+  const contract = tenant.contracts[0]
+  const withVat = !!organization?.isVatPayer
+  const vatRate = organization?.vatRate ?? 12
 
   // Считаем строки счёта
   const items: { name: string; qty: number; unit: string; price: number; amount: number }[] = []
@@ -85,7 +98,10 @@ export async function GET(req: Request) {
     }
   }
 
-  const total = items.reduce((s, it) => s + it.amount, 0)
+  const subtotal = items.reduce((s, it) => s + it.amount, 0)
+  // НДС начисляется "сверху" — стандартная схема для РК
+  const vatAmount = withVat ? Math.round(subtotal * vatRate / 100) : 0
+  const total = subtotal + vatAmount
 
   // Build DOCX
   const itemsTable = new Table({
@@ -106,7 +122,17 @@ export async function GET(req: Request) {
                   AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.RIGHT],
         }
       )),
-      row(["", "Итого:", "", "", "", fmtMoney(total)], {
+      row(["", "Итого:", "", "", "", fmtMoney(subtotal)], {
+        widths: [5, 50, 10, 10, 12, 13],
+        align: [AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.CENTER,
+                AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.RIGHT],
+      }),
+      ...(withVat ? [row(["", `НДС ${vatRate}%:`, "", "", "", fmtMoney(vatAmount)], {
+        widths: [5, 50, 10, 10, 12, 13],
+        align: [AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.CENTER,
+                AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.RIGHT],
+      })] : []),
+      row(["", "Всего к оплате:", "", "", "", fmtMoney(total)], {
         bold: true,
         widths: [5, 50, 10, 10, 12, 13],
         align: [AlignmentType.CENTER, AlignmentType.RIGHT, AlignmentType.CENTER,
@@ -157,14 +183,20 @@ export async function GET(req: Request) {
     sections: [{
       properties: { page: { margin: { top: 1000, bottom: 1000, left: 1200, right: 1000 } } },
       children: [
-        center(`Счёт-фактура № ${invoiceNumber} от ${fmtDate(today)}`),
+        center(`Счёт на оплату № ${invoiceNumber} от ${fmtDate(today)}`),
+        new Paragraph({ children: [new TextRun("")], spacing: { after: 100 } }),
+        ...(contract ? [p(`По договору № ${contract.number}${contract.startDate ? ` от ${fmtDate(contract.startDate)}` : ""}`, { indent: false })] : []),
+        p(`Срок оплаты: до ${fmtDate(dueDate)}`, { indent: false }),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
         sideTable,
         new Paragraph({ children: [new TextRun("")], spacing: { before: 300 } }),
         heading("Услуги"),
         itemsTable,
         new Paragraph({ children: [new TextRun("")], spacing: { before: 200 } }),
+        ...(withVat ? [p(`в т.ч. НДС ${vatRate}%: ${fmtMoney(vatAmount)} тенге`, { indent: false })] : [p("Без НДС (поставщик не плательщик НДС).", { indent: false })]),
         p(`Всего к оплате: ${fmtMoney(total)} (${numberToWords(total)}) тенге`, { bold: true, indent: false }),
+        new Paragraph({ children: [new TextRun("")], spacing: { before: 200 } }),
+        p(`Назначение платежа: «Оплата за аренду по счёту № ${invoiceNumber} от ${fmtDate(today)}${contract ? `, договор № ${contract.number}` : ""}»`, { indent: false }),
         new Paragraph({ children: [new TextRun("")], spacing: { before: 400 } }),
         p(`Поставщик: ___________________ ${LANDLORD.directorShort}    М.П.`, { indent: false }),
       ],
@@ -173,7 +205,7 @@ export async function GET(req: Request) {
 
   const buffer = await Packer.toBuffer(doc)
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  const fileName = `Счет_${invoiceNumber}_${safeTenant}_${period}.docx`
+  const fileName = `Счет_на_оплату_${invoiceNumber}_${safeTenant}_${period}.docx`
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
