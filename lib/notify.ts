@@ -76,12 +76,28 @@ export async function notifyUser(opts: NotifyOpts) {
         buttonUrl: fullLink,
       })
 
-      await sendEmail({
+      const subject = `Commrent · ${opts.title}`
+      const result = await sendEmail({
         to: user.email,
-        subject: `Commrent · ${opts.title}`,
+        subject,
         html,
         text: `${opts.title}\n\n${opts.message}${fullLink ? `\n\n${fullLink}` : ""}`,
       })
+
+      // Лог в email_logs (best-effort, не блокирует если таблица не создана)
+      try {
+        await db.emailLog.create({
+          data: {
+            recipient: user.email,
+            subject,
+            type: opts.type,
+            userId: opts.userId,
+            externalId: result.id,
+            status: result.ok ? "SENT" : "FAILED",
+            error: result.error,
+          },
+        })
+      } catch {}
     } catch (e) {
       console.warn("[notify] email failed:", e instanceof Error ? e.message : e)
     }

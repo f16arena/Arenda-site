@@ -1,7 +1,7 @@
 import Link from "next/link"
 import {
   Building, LayoutGrid, Users, Shield, Package,
-  Gauge, Settings, ArrowRight, Wallet, BarChart3,
+  Gauge, Settings, ArrowRight, Wallet, BarChart3, Mail,
 } from "lucide-react"
 
 interface Stats {
@@ -83,6 +83,13 @@ export function ManagementHub({ stats }: { stats?: Stats }) {
       label: "Аналитика",
       description: "Доходы, заполняемость, отчёты",
       color: "bg-rose-50 text-rose-600",
+    },
+    {
+      href: "/admin/email-logs",
+      icon: Mail,
+      label: "Журнал email",
+      description: "История отправки писем, статусы доставки",
+      color: "bg-indigo-50 text-indigo-600",
     },
   ]
 
