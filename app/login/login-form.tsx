@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
+import Link from "next/link"
 import { login } from "@/app/actions/auth"
 import { Building, Loader2, AlertCircle, CheckCircle2, XCircle } from "lucide-react"
 
@@ -35,9 +36,14 @@ export function LoginForm() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Пароль
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-slate-700">
+                Пароль
+              </label>
+              <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">
+                Забыли пароль?
+              </Link>
+            </div>
             <input
               name="password"
               type="password"
