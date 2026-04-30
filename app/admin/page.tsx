@@ -6,6 +6,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
+  Clock, Calendar as CalendarIcon, Mail, Wallet,
 } from "lucide-react"
 import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
@@ -164,11 +165,98 @@ export default async function AdminDashboard() {
     months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
   }
 
+  // ─── Блок "Сегодня" ────────────────────────────────────────────
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
+  const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
+
+  const [
+    overdueCharges,
+    expiringContracts,
+    todayRequests,
+    yesterdayPayments,
+  ] = await Promise.all([
+    db.charge.aggregate({
+      where: {
+        isPaid: false,
+        dueDate: { lt: todayStart },
+        tenant: tenantWhereInBuilding,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    db.tenant.count({
+      where: {
+        ...tenantWhereInBuilding,
+        contractEnd: { gte: todayStart, lte: in30Days },
+      },
+    }).catch(() => 0),
+    db.request.count({
+      where: {
+        createdAt: { gte: todayStart, lt: tomorrow },
+        tenant: tenantWhereInBuilding,
+      },
+    }).catch(() => 0),
+    db.payment.aggregate({
+      where: {
+        paymentDate: { gte: yesterdayStart, lt: todayStart },
+        tenant: tenantWhereInBuilding,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+  ])
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900">Дашборд</h1>
         <p className="text-sm text-slate-500 mt-0.5">Обзор состояния здания</p>
+      </div>
+
+      {/* Сегодня */}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+          <Clock className="h-4 w-4 text-slate-400" />
+          Сегодня
+        </h2>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <TodayCard
+            href="/admin/finances?filter=overdue"
+            icon={AlertTriangle}
+            color="red"
+            label="Просроченные платежи"
+            value={(overdueCharges._count._all ?? 0) > 0 ? `${overdueCharges._count._all} шт` : "Нет"}
+            sub={(overdueCharges._sum.amount ?? 0) > 0 ? formatMoney(overdueCharges._sum.amount ?? 0) : "—"}
+            urgent={(overdueCharges._count._all ?? 0) > 0}
+          />
+          <TodayCard
+            href="/admin/tenants?filter=expiring"
+            icon={CalendarIcon}
+            color="amber"
+            label="Истекают договоры"
+            value={expiringContracts > 0 ? `${expiringContracts} шт` : "Нет"}
+            sub="за 30 дней"
+            urgent={expiringContracts > 0}
+          />
+          <TodayCard
+            href="/admin/requests"
+            icon={Mail}
+            color="blue"
+            label="Новые заявки"
+            value={todayRequests > 0 ? `${todayRequests} шт` : "Нет"}
+            sub="за сегодня"
+          />
+          <TodayCard
+            href="/admin/finances/payments"
+            icon={Wallet}
+            color="emerald"
+            label="Поступления"
+            value={(yesterdayPayments._sum.amount ?? 0) > 0 ? formatMoney(yesterdayPayments._sum.amount ?? 0) : "Нет"}
+            sub={`за вчера${(yesterdayPayments._count._all ?? 0) > 0 ? ` · ${yesterdayPayments._count._all} платеж(ей)` : ""}`}
+          />
+        </div>
       </div>
 
       {/* Cashflow chart */}
@@ -293,6 +381,41 @@ export default async function AdminDashboard() {
         </table>
       </div>
     </div>
+  )
+}
+
+function TodayCard({
+  href, icon: Icon, color, label, value, sub, urgent,
+}: {
+  href: string
+  icon: React.ElementType
+  color: "red" | "amber" | "blue" | "emerald"
+  label: string
+  value: string
+  sub: string
+  urgent?: boolean
+}) {
+  const colors = {
+    red: "bg-red-50 text-red-600 border-red-200",
+    amber: "bg-amber-50 text-amber-600 border-amber-200",
+    blue: "bg-blue-50 text-blue-600 border-blue-200",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
+  }
+  return (
+    <Link
+      href={href}
+      className={`block bg-white rounded-xl border p-4 transition hover:shadow-sm ${urgent ? "border-red-200 ring-1 ring-red-100" : "border-slate-200"}`}
+    >
+      <div className="flex items-start justify-between mb-2">
+        <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${colors[color]}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <ArrowUpRight className="h-3.5 w-3.5 text-slate-300" />
+      </div>
+      <p className="text-lg font-bold text-slate-900 truncate">{value}</p>
+      <p className="text-xs font-medium text-slate-700 mt-0.5">{label}</p>
+      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{sub}</p>
+    </Link>
   )
 }
 

@@ -7,7 +7,7 @@ import {
   FileText, ClipboardList, CheckSquare, UserCog,
   MessageSquare, AlertCircle, Phone, BarChart3,
   LogOut, Building, Settings, Shield, ShieldCheck,
-  TrendingUp, History, Package, Upload,
+  TrendingUp, History, Package, Upload, CalendarDays,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -18,6 +18,7 @@ const nav: NavSection[] = [
   {
     items: [
       { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, section: "dashboard" },
+      { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
     ],
   },
   {
@@ -25,6 +26,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
       { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
+      { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
     ],
   },
   {
@@ -32,25 +34,20 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
       { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "tenants" },
-      { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "tenants" },
     ],
   },
   {
     title: "ФИНАНСЫ",
     items: [
       { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
-      { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
     ],
   },
   {
     title: "ДОКУМЕНТЫ",
     items: [
-      { href: "/admin/contracts", label: "Договоры", icon: FileText, section: "contracts" },
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
-      { href: "/admin/documents/templates/rental", label: "Шаблон договора", icon: FileText, section: "documents" },
-      { href: "/admin/documents/templates/invoice", label: "Счёт на оплату", icon: FileText, section: "documents" },
-      { href: "/admin/documents/templates/act", label: "Акт оказанных услуг", icon: FileText, section: "documents" },
-      { href: "/admin/documents/templates/reconciliation", label: "Акт сверки", icon: BarChart3, section: "documents" },
+      { href: "/admin/contracts", label: "Договоры", icon: FileText, section: "contracts" },
+      { href: "/admin/documents/templates", label: "Шаблоны", icon: Package, section: "documents" },
     ],
   },
   {
@@ -58,25 +55,31 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests" },
       { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks" },
+      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages" },
+      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints" },
     ],
   },
   {
     title: "ПЕРСОНАЛ",
     items: [
       { href: "/admin/staff", label: "Сотрудники", icon: UserCog, section: "staff" },
+      { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
     ],
   },
   {
-    title: "ПРОЧЕЕ",
+    title: "АНАЛИТИКА",
     items: [
-      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages" },
-      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints" },
-      { href: "/admin/emergency", label: "Экстренные", icon: Phone, section: "settings" },
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
-      { href: "/admin/settings", label: "Настройки", icon: Settings, section: "settings" },
+    ],
+  },
+  {
+    title: "НАСТРОЙКИ",
+    items: [
+      { href: "/admin/settings", label: "Организация", icon: Settings, section: "settings" },
       { href: "/admin/roles", label: "Роли и доступ", icon: Shield, section: "roles" },
+      { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "tenants" },
+      { href: "/admin/subscription", label: "Подписка", icon: Package, section: "profile" },
       { href: "/admin/profile", label: "Мой профиль", icon: UserCog, section: "profile" },
-      { href: "/admin/subscription", label: "Моя подписка", icon: Package, section: "profile" },
     ],
   },
   {
