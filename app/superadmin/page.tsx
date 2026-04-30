@@ -3,7 +3,10 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
-import { Building2, Users, Package, TrendingUp, AlertTriangle, ArrowRight, ExternalLink } from "lucide-react"
+import {
+  Building2, Users, Package, TrendingUp, AlertTriangle, ArrowRight,
+  ExternalLink, UserCheck, TrendingDown, Briefcase, Target,
+} from "lucide-react"
 import { ROOT_HOST } from "@/lib/host"
 
 export default async function SuperadminHomePage() {
@@ -57,6 +60,8 @@ export default async function SuperadminHomePage() {
         <Card label="Истекают за 7 дней" value={expiringOrgs} icon={AlertTriangle} color="amber" />
         <Card label="MRR этого месяца" value={`${(revenueAgg._sum.paidAmount ?? 0).toLocaleString("ru-RU")} ₸`} icon={TrendingUp} color="blue" />
       </div>
+
+      <KpiBlock />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Распределение по тарифам */}
@@ -261,6 +266,143 @@ async function RecentAuditTable() {
         ))}
       </tbody>
     </table>
+  )
+}
+
+async function KpiBlock() {
+  const now = new Date()
+  const monthAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+  const twoMonthsAgo = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
+
+  const [
+    totalUsers,
+    totalTenants,
+    paidSubsLast30,
+    trialOrgsCreated30To60,
+    convertedTo30,
+    activeOrgs30Ago,
+    deactivated30,
+    avgPlanRevenue,
+  ] = await Promise.all([
+    // Активные пользователи на платформе (исключая платформ-админов)
+    db.user.count({ where: { isActive: true, isPlatformOwner: false } }).catch(() => 0),
+    // Всего арендаторов
+    db.tenant.count().catch(() => 0),
+    // Платных подписок (paymentMethod != TRIAL) за последние 30 дней
+    db.subscription.count({
+      where: {
+        startedAt: { gte: monthAgo },
+        paymentMethod: { not: "TRIAL" },
+      },
+    }).catch(() => 0),
+    // Орги, созданные 30-60 дней назад (для конверсии trial → paid)
+    db.organization.count({
+      where: {
+        createdAt: { gte: twoMonthsAgo, lt: monthAgo },
+      },
+    }).catch(() => 0),
+    // Из них перешли на платный тариф (имеют subscription с paymentMethod != TRIAL)
+    db.organization.count({
+      where: {
+        createdAt: { gte: twoMonthsAgo, lt: monthAgo },
+        subscriptions: {
+          some: { paymentMethod: { not: "TRIAL" } },
+        },
+      },
+    }).catch(() => 0),
+    // Сколько было активных орг на 30 дней назад
+    db.organization.count({
+      where: { createdAt: { lt: monthAgo }, isActive: true },
+    }).catch(() => 0),
+    // Сколько из них деактивировано за последние 30 дней
+    db.organization.count({
+      where: {
+        createdAt: { lt: monthAgo },
+        OR: [
+          { isActive: false, updatedAt: { gte: monthAgo } },
+          { isSuspended: true, updatedAt: { gte: monthAgo } },
+        ],
+      },
+    }).catch(() => 0),
+    // Средний MRR по активным платным
+    db.organization.findMany({
+      where: { isActive: true, isSuspended: false },
+      select: { plan: { select: { priceMonthly: true } } },
+    }).then((orgs) => {
+      const paidOrgs = orgs.filter((o) => (o.plan?.priceMonthly ?? 0) > 0)
+      if (paidOrgs.length === 0) return 0
+      const total = paidOrgs.reduce((s, o) => s + (o.plan?.priceMonthly ?? 0), 0)
+      return Math.round(total / paidOrgs.length)
+    }).catch(() => 0),
+  ])
+
+  const conversionRate = trialOrgsCreated30To60 > 0
+    ? Math.round((convertedTo30 / trialOrgsCreated30To60) * 100)
+    : null
+  const churnRate = activeOrgs30Ago > 0
+    ? Math.round((deactivated30 / activeOrgs30Ago) * 100)
+    : null
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <Kpi
+        icon={Target}
+        color="emerald"
+        label="Конверсия trial→paid"
+        value={conversionRate !== null ? `${conversionRate}%` : "—"}
+        sub={`${convertedTo30} из ${trialOrgsCreated30To60} за 30-60 дн.`}
+      />
+      <Kpi
+        icon={TrendingDown}
+        color={churnRate !== null && churnRate > 5 ? "red" : "slate"}
+        label="Churn (30 дней)"
+        value={churnRate !== null ? `${churnRate}%` : "—"}
+        sub={`${deactivated30} ушло из ${activeOrgs30Ago}`}
+      />
+      <Kpi
+        icon={UserCheck}
+        color="blue"
+        label="Активных юзеров"
+        value={totalUsers}
+        sub={`${paidSubsLast30} новых платных подписок`}
+      />
+      <Kpi
+        icon={Briefcase}
+        color="purple"
+        label="Арендаторов"
+        value={totalTenants}
+        sub={`Сред. MRR: ${avgPlanRevenue.toLocaleString("ru-RU")} ₸`}
+      />
+    </div>
+  )
+}
+
+function Kpi({ icon: Icon, color, label, value, sub }: {
+  icon: React.ElementType
+  color: "blue" | "emerald" | "amber" | "purple" | "red" | "slate"
+  label: string
+  value: string | number
+  sub?: string
+}) {
+  const colors: Record<typeof color, string> = {
+    blue: "bg-blue-50 text-blue-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    amber: "bg-amber-50 text-amber-600",
+    purple: "bg-purple-50 text-purple-600",
+    red: "bg-red-50 text-red-600",
+    slate: "bg-slate-100 text-slate-600",
+  }
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <div className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${colors[color]}`}>
+          <Icon className="h-3.5 w-3.5" />
+        </div>
+      </div>
+      <p className="text-xl font-bold text-slate-900">{value}</p>
+      {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
+    </div>
   )
 }
 
