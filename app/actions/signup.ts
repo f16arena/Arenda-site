@@ -8,7 +8,9 @@ import { validateSlug } from "@/lib/reserved-slugs"
 import { slugify, suggestSlugs } from "@/lib/slugify"
 import { ROOT_HOST } from "@/lib/host"
 import { audit } from "@/lib/audit"
+import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import bcrypt from "bcryptjs"
+import crypto from "crypto"
 
 const TRIAL_DAYS = 14
 
@@ -164,6 +166,53 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     entityId: orgId,
     details: { type: "organization", source: "signup", slug, name: companyName },
   })
+
+  // ── Welcome-письмо + ссылка для подтверждения email ─────────────
+  // Не блокирует регистрацию: если письмо не ушло — просто пропускаем,
+  // юзер сможет запросить повторное подтверждение из /admin/profile.
+  if (ownerEmail) {
+    try {
+      const token = crypto.randomBytes(32).toString("hex")
+      const expiresAt = new Date(Date.now() + 24 * 3600 * 1000) // 24 часа
+
+      await db.verificationToken.create({
+        data: {
+          userId,
+          type: "EMAIL_VERIFY",
+          target: ownerEmail,
+          token,
+          expiresAt,
+        },
+      })
+
+      const h = await headers()
+      const proto = h.get("x-forwarded-proto") ?? "https"
+      const verifyLink = `${proto}://${ROOT_HOST}/verify-email?token=${token}`
+      const adminLink = `${proto}://${slug}.${ROOT_HOST}/admin`
+
+      const html = basicEmailTemplate({
+        title: "Добро пожаловать в Commrent!",
+        body: `<p>Здравствуйте, ${ownerName}!</p>
+<p>Ваша организация <b>${companyName}</b> успешно зарегистрирована в Commrent.</p>
+<p>Доступ к рабочему кабинету: <a href="${adminLink}">${slug}.commrent.kz</a></p>
+<p>Логин: <b>${ownerEmail}</b></p>
+<p>14 дней бесплатно — все функции тарифа «Бизнес». После пробного периода — выбор тарифа в кабинете.</p>
+<p>Подтвердите email, чтобы получать важные уведомления (договоры, счета, напоминания):</p>`,
+        buttonText: "Подтвердить email",
+        buttonUrl: verifyLink,
+        footer: "Если вы не регистрировались — проигнорируйте это письмо или ответьте на него для блокировки аккаунта.",
+      })
+
+      await sendEmail({
+        to: ownerEmail,
+        subject: `Добро пожаловать в Commrent · ${companyName}`,
+        html,
+        text: `Здравствуйте, ${ownerName}!\n\nВаша организация ${companyName} зарегистрирована.\nКабинет: ${adminLink}\n\nПодтвердите email: ${verifyLink}`,
+      })
+    } catch (e) {
+      console.warn("[signup] welcome email failed:", e instanceof Error ? e.message : e)
+    }
+  }
 
   // ── Автологин ─────────────────────────────────────────────────
   t0 = Date.now()

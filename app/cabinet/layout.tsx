@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { TenantSidebar } from "@/components/layout/tenant-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
+import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
 import { db } from "@/lib/db"
 
 export default async function CabinetLayout({
@@ -16,7 +17,7 @@ export default async function CabinetLayout({
   if (session.user.isPlatformOwner) redirect("/superadmin")
   if (session.user.role !== "TENANT") redirect("/admin")
 
-  const [tenant, notifications] = await Promise.all([
+  const [tenant, notifications, userMail] = await Promise.all([
     db.tenant.findUnique({
       where: { userId: session.user.id },
       select: { companyName: true },
@@ -26,12 +27,19 @@ export default async function CabinetLayout({
       orderBy: { createdAt: "desc" },
       take: 30,
     }),
+    db.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true, emailVerifiedAt: true },
+    }).catch(() => null),
   ])
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       <TenantSidebar companyName={tenant?.companyName} />
       <div className="flex flex-1 flex-col overflow-hidden">
+        {userMail && !userMail.emailVerifiedAt && (
+          <EmailNotVerifiedBanner email={userMail.email} profileHref="/cabinet/profile" />
+        )}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
           <div />
           <div className="flex items-center gap-4">

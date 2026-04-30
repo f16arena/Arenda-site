@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/layout/command-palette"
 import { ImpersonateBanner } from "@/components/layout/impersonate-banner"
 import { PlatformViewBanner } from "@/components/layout/platform-view-banner"
 import { SubscriptionBanner } from "@/components/layout/subscription-banner"
+import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
 import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -70,6 +71,15 @@ export default async function AdminLayout({
   const daysLeft = currentOrg?.planExpiresAt
     ? Math.max(0, Math.ceil((currentOrg.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
+  // Подгружаем email/emailVerifiedAt для баннера "Подтвердите email".
+  // Платформенному админу баннер не нужен — он сам управляет.
+  const userMail = !isPlatformOwner
+    ? await db.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true, emailVerifiedAt: true },
+      }).catch(() => null)
+    : null
+
   const [building, allBuildings, notifications, allowedSections] = await Promise.all([
     currentBuildingId
       ? db.building.findUnique({
@@ -113,6 +123,9 @@ export default async function AdminLayout({
             isSuspended={currentOrg.isSuspended ?? false}
             isExpired={isExpired}
           />
+        )}
+        {userMail && !userMail.emailVerifiedAt && (
+          <EmailNotVerifiedBanner email={userMail.email} profileHref="/admin/profile" />
         )}
         {/* Top Header */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
