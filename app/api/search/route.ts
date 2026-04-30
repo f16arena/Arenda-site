@@ -2,12 +2,13 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
-import { tenantScope, spaceScope, requestScope, leadScope } from "@/lib/tenant-scope"
+import { tenantScope, spaceScope, requestScope, leadScope, contractScope, userScope } from "@/lib/tenant-scope"
 
 export const dynamic = "force-dynamic"
 
 // GET /api/search?q=foo
-// Возвращает помещения, арендаторов, заявки, лиды по ключу — только в текущей организации.
+// Возвращает помещения, арендаторов, заявки, лиды, договоры, сотрудников
+// по ключу — только в текущей организации.
 export async function GET(req: Request) {
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
   const q = (searchParams.get("q") ?? "").trim()
   if (!q || q.length < 2) return NextResponse.json({ items: [] })
 
-  const [tenants, spaces, requests, leads] = await Promise.all([
+  const [tenants, spaces, requests, leads, contracts, generated, staff] = await Promise.all([
     db.tenant.findMany({
       where: {
         AND: [
@@ -77,6 +78,50 @@ export async function GET(req: Request) {
       select: { id: true, name: true, companyName: true },
       take: 5,
     }).catch(() => []),
+    db.contract.findMany({
+      where: {
+        AND: [
+          contractScope(orgId),
+          { number: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true, number: true,
+        tenant: { select: { id: true, companyName: true } },
+      },
+      take: 5,
+    }).catch(() => []),
+    db.generatedDocument.findMany({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { number: { contains: q, mode: "insensitive" } },
+          { tenantName: { contains: q, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true, number: true, documentType: true,
+        tenantName: true, tenantId: true,
+      },
+      take: 5,
+    }).catch(() => []),
+    db.user.findMany({
+      where: {
+        AND: [
+          userScope(orgId),
+          { isActive: true, role: { not: "TENANT" } },
+          {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { email: { contains: q, mode: "insensitive" } },
+              { phone: { contains: q } },
+            ],
+          },
+        ],
+      },
+      select: { id: true, name: true, email: true, role: true },
+      take: 5,
+    }).catch(() => []),
   ])
 
   type Item = { type: string; id: string; title: string; subtitle?: string; href: string }
@@ -109,7 +154,50 @@ export async function GET(req: Request) {
       subtitle: l.companyName ?? "Лид",
       href: `/admin/leads`,
     })),
+    ...contracts.map((c) => ({
+      type: "contract",
+      id: c.id,
+      title: `Договор № ${c.number}`,
+      subtitle: c.tenant.companyName,
+      href: `/admin/tenants/${c.tenant.id}`,
+    })),
+    ...generated.map((g) => ({
+      type: "document",
+      id: g.id,
+      title: `${docTypeLabel(g.documentType)} № ${g.number ?? "—"}`,
+      subtitle: g.tenantName,
+      href: g.tenantId ? `/admin/tenants/${g.tenantId}` : "/admin/documents",
+    })),
+    ...staff.map((s) => ({
+      type: "staff",
+      id: s.id,
+      title: s.name,
+      subtitle: `${roleLabel(s.role)}${s.email ? ` · ${s.email}` : ""}`,
+      href: `/admin/staff`,
+    })),
   ]
 
   return NextResponse.json({ items })
+}
+
+function docTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    INVOICE: "Счёт",
+    ACT: "Акт услуг",
+    RECONCILIATION: "Акт сверки",
+    HANDOVER: "Передача",
+    CONTRACT: "Договор",
+  }
+  return map[type] ?? type
+}
+
+function roleLabel(role: string): string {
+  const map: Record<string, string> = {
+    OWNER: "Владелец",
+    ADMIN: "Администратор",
+    ACCOUNTANT: "Бухгалтер",
+    FACILITY_MANAGER: "Управляющий",
+    EMPLOYEE: "Сотрудник",
+  }
+  return map[role] ?? role
 }

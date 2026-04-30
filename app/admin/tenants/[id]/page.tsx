@@ -11,7 +11,10 @@ import {
   assignTenantSpace,
 } from "@/app/actions/tenant"
 import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/utils"
-import { ArrowLeft, Building2, User, CreditCard, FileText, Receipt } from "lucide-react"
+import {
+  ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
+  Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare,
+} from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
 import { DocumentsChecklist } from "./documents-checklist"
@@ -93,6 +96,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     .filter((c) => !c.isPaid)
     .reduce((s, c) => s + c.amount, 0)
 
+  // Дни до окончания договора (отрицательное = истёк)
+  const today = new Date()
+  const daysToContractEnd = tenant.contractEnd
+    ? Math.ceil((tenant.contractEnd.getTime() - today.getTime()) / 86_400_000)
+    : null
+
+  // Период = текущий месяц для генератора счёта
+  const currentPeriod = today.toISOString().slice(0, 7)
+
   const vacantSpaces = await db.space.findMany({
     where: { status: "VACANT" },
     select: {
@@ -143,19 +155,82 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             {tenant.category ? ` · ${tenant.category}` : ""}
           </p>
         </div>
-        <div className="text-right">
-          {totalDebt > 0 ? (
-            <p className="text-lg font-bold text-red-600">{formatMoney(totalDebt)}</p>
-          ) : (
-            <p className="text-sm font-medium text-emerald-600">Задолженности нет</p>
-          )}
-          <p className="text-xs text-slate-400 mt-0.5">Текущий долг</p>
-        </div>
         <DeleteTenantButton
           tenantId={tenant.id}
           companyName={tenant.companyName}
           redirectAfter
         />
+      </div>
+
+      {/* Quick stats + actions */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="grid grid-cols-3 divide-x divide-slate-100">
+          <QuickStat
+            icon={Wallet}
+            label="Текущий долг"
+            value={totalDebt > 0 ? formatMoney(totalDebt) : "Нет"}
+            valueClass={totalDebt > 0 ? "text-red-600" : "text-emerald-600"}
+            sub={totalDebt > 0 ? `${tenant.charges.filter((c) => !c.isPaid).length} начислений` : "Все оплачено"}
+          />
+          <QuickStat
+            icon={Building2}
+            label="Помещение"
+            value={tenant.space ? `Каб. ${tenant.space.number}` : myFullFloors[0] ? myFullFloors[0].name : "—"}
+            valueClass="text-slate-900"
+            sub={tenant.space ? `${tenant.space.area} м² · ${tenant.space.floor.name}` : myFullFloors.length > 0 ? "Целый этаж" : "Не назначено"}
+          />
+          <QuickStat
+            icon={CalendarIcon}
+            label="До конца договора"
+            value={daysToContractEnd === null ? "—" : daysToContractEnd < 0 ? "Истёк" : `${daysToContractEnd} дн.`}
+            valueClass={
+              daysToContractEnd === null ? "text-slate-500"
+                : daysToContractEnd < 0 ? "text-red-600"
+                : daysToContractEnd < 30 ? "text-amber-600"
+                : "text-slate-900"
+            }
+            sub={tenant.contractEnd ? formatDate(tenant.contractEnd) : "Договор не заключён"}
+          />
+        </div>
+
+        {/* Action bar */}
+        <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50">
+          <Link
+            href={`/admin/documents/templates/invoice?tenantId=${tenant.id}&period=${currentPeriod}`}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            Создать счёт
+          </Link>
+          <Link
+            href={`/admin/documents/templates/act?tenantId=${tenant.id}&period=${currentPeriod}`}
+            className="inline-flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Создать акт услуг
+          </Link>
+          <Link
+            href={`/admin/documents/templates/reconciliation?tenantId=${tenant.id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+          >
+            <TrendingDown className="h-3.5 w-3.5" />
+            Акт сверки
+          </Link>
+          <Link
+            href={`/admin/messages?to=${tenant.userId}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Написать
+          </Link>
+          <Link
+            href={`/admin/requests?tenantId=${tenant.id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+          >
+            <ClipboardList className="h-3.5 w-3.5" />
+            Заявки
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
@@ -604,6 +679,27 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function QuickStat({
+  icon: Icon, label, value, valueClass, sub,
+}: {
+  icon: React.ElementType
+  label: string
+  value: string
+  valueClass?: string
+  sub?: string
+}) {
+  return (
+    <div className="px-5 py-4">
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <p className={`text-lg font-bold ${valueClass ?? "text-slate-900"}`}>{value}</p>
+      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
     </div>
   )
 }

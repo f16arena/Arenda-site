@@ -1,9 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Command } from "cmdk"
 import { useRouter } from "next/navigation"
-import { Search, Building2, Users, ClipboardList, TrendingUp, Loader2 } from "lucide-react"
+import {
+  Search, Building2, Users, ClipboardList, TrendingUp, Loader2,
+  FileText, UserCog, Wallet, CalendarDays, Plus, LayoutDashboard,
+  Receipt,
+} from "lucide-react"
 
 type Item = {
   type: string
@@ -13,12 +17,35 @@ type Item = {
   href: string
 }
 
-const TYPE_ICONS: Record<string, React.ElementType> = {
-  tenant: Users,
-  space: Building2,
-  request: ClipboardList,
-  lead: TrendingUp,
+const TYPE_META: Record<string, { icon: React.ElementType; label: string }> = {
+  tenant: { icon: Users, label: "Арендаторы" },
+  space: { icon: Building2, label: "Помещения" },
+  request: { icon: ClipboardList, label: "Заявки" },
+  lead: { icon: TrendingUp, label: "Лиды" },
+  contract: { icon: FileText, label: "Договоры" },
+  document: { icon: Receipt, label: "Документы" },
+  staff: { icon: UserCog, label: "Сотрудники" },
 }
+
+// Быстрые действия — всегда доступны без поиска
+const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; keywords: string }[] = [
+  { label: "Дашборд", href: "/admin", icon: LayoutDashboard, keywords: "главная dashboard" },
+  { label: "Календарь", href: "/admin/calendar", icon: CalendarDays, keywords: "calendar события" },
+  { label: "Арендаторы", href: "/admin/tenants", icon: Users, keywords: "tenants клиенты" },
+  { label: "Лиды (CRM)", href: "/admin/leads", icon: TrendingUp, keywords: "leads crm" },
+  { label: "Финансы", href: "/admin/finances", icon: Wallet, keywords: "finance деньги" },
+  { label: "Документы", href: "/admin/documents", icon: FileText, keywords: "documents" },
+  { label: "Заявки", href: "/admin/requests", icon: ClipboardList, keywords: "requests" },
+  { label: "Сотрудники", href: "/admin/staff", icon: UserCog, keywords: "staff" },
+]
+
+const QUICK_CREATE: { label: string; href: string; icon: React.ElementType; keywords: string }[] = [
+  { label: "Создать счёт на оплату", href: "/admin/documents/templates/invoice", icon: Plus, keywords: "счет invoice новый" },
+  { label: "Создать акт услуг", href: "/admin/documents/templates/act", icon: Plus, keywords: "акт act" },
+  { label: "Создать акт сверки", href: "/admin/documents/templates/reconciliation", icon: Plus, keywords: "сверка reconciliation" },
+  { label: "Добавить арендатора", href: "/admin/tenants?new=1", icon: Plus, keywords: "арендатор новый создать" },
+  { label: "Добавить лида", href: "/admin/leads?new=1", icon: Plus, keywords: "лид lead" },
+]
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
@@ -45,18 +72,41 @@ export function CommandPalette() {
     }
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: ctrl.signal })
-      .then((r) => r.json())
-      .then((d) => setItems(d.items ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-    return () => ctrl.abort()
+    const debounce = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: ctrl.signal })
+        .then((r) => r.json())
+        .then((d) => setItems(d.items ?? []))
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    }, 200)
+    return () => {
+      ctrl.abort()
+      clearTimeout(debounce)
+    }
   }, [query])
+
+  // Группируем результаты по типу
+  const groupedItems = useMemo(() => {
+    const map = new Map<string, Item[]>()
+    for (const item of items) {
+      if (!map.has(item.type)) map.set(item.type, [])
+      map.get(item.type)!.push(item)
+    }
+    return Array.from(map.entries())
+  }, [items])
+
+  function go(href: string) {
+    router.push(href)
+    setOpen(false)
+    setQuery("")
+  }
 
   if (!open) return null
 
+  const showQuickPanels = query.length < 2
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh] px-4 bg-black/40">
+    <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh] px-4 bg-black/40" onClick={() => setOpen(false)}>
       <Command
         label="Глобальный поиск"
         className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
@@ -67,7 +117,7 @@ export function CommandPalette() {
           <Command.Input
             value={query}
             onValueChange={setQuery}
-            placeholder="Поиск арендаторов, помещений, заявок, лидов..."
+            placeholder="Поиск или быстрое действие..."
             className="flex-1 outline-none bg-transparent text-sm"
             autoFocus
           />
@@ -75,23 +125,63 @@ export function CommandPalette() {
           <kbd className="text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">Esc</kbd>
         </div>
 
-        <Command.List className="max-h-80 overflow-y-auto p-2">
+        <Command.List className="max-h-96 overflow-y-auto p-2">
           <Command.Empty className="text-center text-sm text-slate-400 py-8">
             {query.length < 2 ? "Начните вводить запрос..." : "Ничего не найдено"}
           </Command.Empty>
 
-          {items.length > 0 && (
-            <Command.Group heading="Результаты" className="text-xs text-slate-400 px-2 py-1">
-              {items.map((item) => {
-                const Icon = TYPE_ICONS[item.type] ?? Search
-                return (
+          {showQuickPanels && (
+            <>
+              <Command.Group heading="Перейти" className="text-[10px] uppercase tracking-widest text-slate-400 px-2 py-1">
+                {QUICK_ACTIONS.map((a) => {
+                  const Icon = a.icon
+                  return (
+                    <Command.Item
+                      key={a.href}
+                      value={`${a.label} ${a.keywords}`}
+                      onSelect={() => go(a.href)}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 data-[selected=true]:bg-blue-50"
+                    >
+                      <Icon className="h-4 w-4 text-slate-400 shrink-0" />
+                      <span className="flex-1 text-slate-900">{a.label}</span>
+                    </Command.Item>
+                  )
+                })}
+              </Command.Group>
+
+              <Command.Group heading="Создать" className="text-[10px] uppercase tracking-widest text-slate-400 px-2 py-1 mt-2">
+                {QUICK_CREATE.map((a) => {
+                  const Icon = a.icon
+                  return (
+                    <Command.Item
+                      key={a.href}
+                      value={`${a.label} ${a.keywords}`}
+                      onSelect={() => go(a.href)}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 data-[selected=true]:bg-blue-50"
+                    >
+                      <Icon className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="flex-1 text-slate-900">{a.label}</span>
+                    </Command.Item>
+                  )
+                })}
+              </Command.Group>
+            </>
+          )}
+
+          {!showQuickPanels && groupedItems.map(([type, list]) => {
+            const meta = TYPE_META[type] ?? { icon: Search, label: type }
+            const Icon = meta.icon
+            return (
+              <Command.Group
+                key={type}
+                heading={`${meta.label} (${list.length})`}
+                className="text-[10px] uppercase tracking-widest text-slate-400 px-2 py-1"
+              >
+                {list.map((item) => (
                   <Command.Item
                     key={`${item.type}-${item.id}`}
-                    onSelect={() => {
-                      router.push(item.href)
-                      setOpen(false)
-                      setQuery("")
-                    }}
+                    value={`${item.title} ${item.subtitle ?? ""}`}
+                    onSelect={() => go(item.href)}
                     className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 data-[selected=true]:bg-blue-50"
                   >
                     <Icon className="h-4 w-4 text-slate-400 shrink-0" />
@@ -100,10 +190,10 @@ export function CommandPalette() {
                       {item.subtitle && <p className="text-xs text-slate-500 truncate">{item.subtitle}</p>}
                     </div>
                   </Command.Item>
-                )
-              })}
-            </Command.Group>
-          )}
+                ))}
+              </Command.Group>
+            )
+          })}
         </Command.List>
 
         <div className="px-4 py-2 border-t border-slate-100 text-[10px] text-slate-400 flex items-center gap-3">
