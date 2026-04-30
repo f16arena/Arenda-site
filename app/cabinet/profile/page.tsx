@@ -6,6 +6,8 @@ import { redirect } from "next/navigation"
 import { TelegramSetup } from "@/app/admin/profile/telegram-setup"
 import { Send, User } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
+import { NotificationSettingsForm } from "@/components/profile/notification-settings"
+import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 
 export default async function CabinetProfilePage() {
   const session = await auth()
@@ -21,6 +23,8 @@ export default async function CabinetProfilePage() {
   })
 
   if (!user) redirect("/login")
+
+  const notifSettings = await getMyNotificationSettings()
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -42,13 +46,16 @@ export default async function CabinetProfilePage() {
         emailVerified={!!user.emailVerifiedAt}
         phone={user.phone}
         notificationsSlot={
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <Send className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-slate-900">Уведомления в Telegram</h2>
-            </div>
-            <div className="p-5">
-              <TelegramSetup currentChatId={user.telegramChatId} />
+          <div className="space-y-5">
+            <NotificationSettingsForm initial={notifSettings} />
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                <Send className="h-4 w-4 text-blue-500" />
+                <h2 className="text-sm font-semibold text-slate-900">Telegram-бот</h2>
+              </div>
+              <div className="p-5">
+                <TelegramSetup currentChatId={user.telegramChatId} />
+              </div>
             </div>
           </div>
         }

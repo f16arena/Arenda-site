@@ -1,0 +1,232 @@
+export const dynamic = "force-dynamic"
+
+import { db } from "@/lib/db"
+import { requirePlatformOwner } from "@/lib/org"
+import Link from "next/link"
+import {
+  Calendar as CalendarIcon, AlertTriangle, CheckCircle,
+  Clock, ExternalLink,
+} from "lucide-react"
+import { ROOT_HOST } from "@/lib/host"
+
+export default async function SubscriptionsTimelinePage() {
+  await requirePlatformOwner()
+
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 1)
+  const in7Days = new Date(now.getTime() + 7 * 24 * 3600 * 1000)
+  const in30Days = new Date(now.getTime() + 30 * 24 * 3600 * 1000)
+
+  const orgs = await db.organization.findMany({
+    where: { isActive: true },
+    select: {
+      id: true, name: true, slug: true, isSuspended: true,
+      planExpiresAt: true,
+      plan: { select: { name: true, priceMonthly: true } },
+      _count: { select: { buildings: true, users: true } },
+    },
+    orderBy: { planExpiresAt: "asc" },
+  }).catch(() => [])
+
+  // Группируем
+  const expired = orgs.filter((o) => o.planExpiresAt && o.planExpiresAt < now)
+  const expiring7 = orgs.filter((o) => o.planExpiresAt && o.planExpiresAt >= now && o.planExpiresAt <= in7Days)
+  const expiring30 = orgs.filter((o) => o.planExpiresAt && o.planExpiresAt > in7Days && o.planExpiresAt <= in30Days)
+  const ok = orgs.filter((o) => o.planExpiresAt && o.planExpiresAt > in30Days)
+  const noExpiry = orgs.filter((o) => !o.planExpiresAt)
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
+          <CalendarIcon className="h-6 w-6 text-slate-400" />
+          Подписки организаций
+        </h1>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Состояние тарифов всех {orgs.length} активных организаций
+        </p>
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Истекли"
+          value={expired.length}
+          icon={AlertTriangle}
+          color="red"
+          urgent={expired.length > 0}
+        />
+        <StatCard
+          label="Истекают за 7 дней"
+          value={expiring7.length}
+          icon={AlertTriangle}
+          color="amber"
+          urgent={expiring7.length > 0}
+        />
+        <StatCard
+          label="Истекают за 30 дней"
+          value={expiring30.length}
+          icon={Clock}
+          color="blue"
+        />
+        <StatCard
+          label="В порядке"
+          value={ok.length}
+          icon={CheckCircle}
+          color="emerald"
+        />
+      </div>
+
+      {/* Группы */}
+      <Group title="🚨 Истекли" orgs={expired} colorClass="bg-red-50 border-red-200" emptyText="Нет истёкших подписок" />
+      <Group title="⚠️ Истекают в течение 7 дней" orgs={expiring7} colorClass="bg-amber-50 border-amber-200" emptyText="Все стабильны на ближайшую неделю" />
+      <Group title="📅 Истекают в течение 30 дней" orgs={expiring30} colorClass="bg-blue-50 border-blue-200" emptyText="" />
+      <Group title="✓ Активные подписки" orgs={ok} colorClass="bg-emerald-50 border-emerald-200" emptyText="" />
+      {noExpiry.length > 0 && (
+        <Group title="❓ Без даты окончания" orgs={noExpiry} colorClass="bg-slate-50 border-slate-200" emptyText="" />
+      )}
+    </div>
+  )
+}
+
+interface OrgRow {
+  id: string
+  name: string
+  slug: string
+  isSuspended: boolean
+  planExpiresAt: Date | null
+  plan: { name: string; priceMonthly: number } | null
+  _count: { buildings: number; users: number }
+}
+
+function Group({
+  title, orgs, colorClass, emptyText,
+}: {
+  title: string
+  orgs: OrgRow[]
+  colorClass: string
+  emptyText: string
+}) {
+  if (orgs.length === 0) {
+    if (!emptyText) return null
+    return (
+      <div className={`rounded-xl border p-4 text-sm text-slate-500 ${colorClass}`}>
+        <p className="font-semibold text-slate-700 mb-1">{title}</p>
+        <p className="text-xs">{emptyText}</p>
+      </div>
+    )
+  }
+
+  const now = new Date()
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${colorClass}`}>
+      <div className="px-5 py-3 border-b border-black/5">
+        <h2 className="text-sm font-semibold text-slate-900">
+          {title} <span className="text-slate-500 font-normal">· {orgs.length}</span>
+        </h2>
+      </div>
+      <div className="bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50/50">
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Организация</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Истекает</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">MRR</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Зданий</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Юзеров</th>
+              <th className="px-5 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {orgs.map((o) => {
+              const days = o.planExpiresAt
+                ? Math.ceil((o.planExpiresAt.getTime() - now.getTime()) / 86_400_000)
+                : null
+              return (
+                <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
+                  <td className="px-5 py-2.5">
+                    <Link
+                      href={`/superadmin/orgs/${o.id}`}
+                      className="font-medium text-slate-900 hover:text-purple-600"
+                    >
+                      {o.name}
+                    </Link>
+                    <div>
+                      <a
+                        href={`https://${o.slug}.${ROOT_HOST}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-slate-400 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
+                      >
+                        {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
+                      </a>
+                    </div>
+                  </td>
+                  <td className="px-5 py-2.5 text-slate-600">{o.plan?.name ?? "—"}</td>
+                  <td className="px-5 py-2.5">
+                    {o.planExpiresAt ? (
+                      <div>
+                        <p className="text-slate-700">
+                          {o.planExpiresAt.toLocaleDateString("ru-RU")}
+                        </p>
+                        {days !== null && (
+                          <p className={`text-[11px] ${
+                            days < 0 ? "text-red-600 font-medium"
+                              : days <= 7 ? "text-amber-600 font-medium"
+                              : "text-slate-400"
+                          }`}>
+                            {days < 0 ? `просрочено ${Math.abs(days)} дн.` : `через ${days} дн.`}
+                          </p>
+                        )}
+                      </div>
+                    ) : "—"}
+                  </td>
+                  <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
+                    {o.plan ? `${o.plan.priceMonthly.toLocaleString("ru-RU")} ₸` : "—"}
+                  </td>
+                  <td className="px-5 py-2.5 text-right text-slate-600">{o._count.buildings}</td>
+                  <td className="px-5 py-2.5 text-right text-slate-600">{o._count.users}</td>
+                  <td className="px-5 py-2.5 text-right">
+                    {o.isSuspended && (
+                      <span className="text-[10px] text-red-600 font-medium">приостановлен</span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({
+  label, value, icon: Icon, color, urgent,
+}: {
+  label: string
+  value: number
+  icon: React.ElementType
+  color: "red" | "amber" | "blue" | "emerald"
+  urgent?: boolean
+}) {
+  const colors = {
+    red: "bg-red-50 text-red-600 border-red-200",
+    amber: "bg-amber-50 text-amber-600 border-amber-200",
+    blue: "bg-blue-50 text-blue-600 border-blue-200",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
+  }
+  return (
+    <div className={`bg-white rounded-xl border p-4 ${urgent ? colors[color] : "border-slate-200"}`}>
+      <div className="flex items-start justify-between mb-1">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <Icon className={`h-4 w-4 ${urgent ? colors[color].split(" ")[1] : "text-slate-400"}`} />
+      </div>
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+    </div>
+  )
+}

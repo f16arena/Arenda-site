@@ -48,12 +48,23 @@ export async function notifyUser(opts: NotifyOpts) {
 
   const user = await db.user.findUnique({
     where: { id: opts.userId },
-    select: { telegramChatId: true, email: true, name: true },
+    select: {
+      telegramChatId: true, email: true, name: true,
+      notifyEmail: true, notifyTelegram: true,
+      notifyMutedTypes: true,
+    },
   }).catch(() => null)
   if (!user) return
 
+  // Если этот тип события у юзера в muted — ни telegram, ни email не шлём
+  // (in-app уведомление уже создано выше).
+  const mutedTypes = Array.isArray(user.notifyMutedTypes)
+    ? user.notifyMutedTypes.filter((x): x is string => typeof x === "string")
+    : []
+  const isMuted = mutedTypes.includes(opts.type)
+
   // 2. Telegram
-  if (opts.sendTelegram !== false && user.telegramChatId) {
+  if (opts.sendTelegram !== false && user.telegramChatId && (user.notifyTelegram ?? true) && !isMuted) {
     try {
       await sendTelegram(user.telegramChatId, `<b>${opts.title}</b>\n\n${opts.message}`)
     } catch (e) {
@@ -62,7 +73,7 @@ export async function notifyUser(opts: NotifyOpts) {
   }
 
   // 3. Email
-  if (opts.sendEmail !== false && user.email) {
+  if (opts.sendEmail !== false && user.email && (user.notifyEmail ?? true) && !isMuted) {
     try {
       const rootHost = process.env.ROOT_HOST || "commrent.kz"
       const fullLink = opts.link

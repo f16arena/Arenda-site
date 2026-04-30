@@ -7,6 +7,8 @@ import { TelegramSetup } from "./telegram-setup"
 import { Send, User } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
 import { ManagementHub } from "@/components/profile/management-hub"
+import { NotificationSettingsForm } from "@/components/profile/notification-settings"
+import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 
@@ -31,6 +33,8 @@ export default async function ProfilePage() {
   })
 
   if (!user) redirect("/login")
+
+  const notifSettings = await getMyNotificationSettings()
 
   // Hub-статистика только для OWNER (показываем количество объектов рядом с ссылками)
   const isOwner = user.role === "OWNER"
@@ -70,13 +74,16 @@ export default async function ProfilePage() {
         emailVerified={!!user.emailVerifiedAt}
         phone={user.phone}
         notificationsSlot={
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <Send className="h-4 w-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-slate-900">Уведомления в Telegram</h2>
-            </div>
-            <div className="p-5">
-              <TelegramSetup currentChatId={user.telegramChatId} />
+          <div className="space-y-5">
+            <NotificationSettingsForm initial={notifSettings} />
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+                <Send className="h-4 w-4 text-blue-500" />
+                <h2 className="text-sm font-semibold text-slate-900">Telegram-бот</h2>
+              </div>
+              <div className="p-5">
+                <TelegramSetup currentChatId={user.telegramChatId} />
+              </div>
             </div>
           </div>
         }
