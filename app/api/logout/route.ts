@@ -2,12 +2,26 @@ import { NextResponse } from "next/server"
 import { ROOT_HOST } from "@/lib/host"
 
 /**
- * Альтернативный logout через API route.
- * Server actions иногда не дочищают cookie на slug-поддомене —
- * этот эндпоинт строит ответ напрямую и явно стирает cookie во всех скоупах.
- *
- * Поддерживает GET и POST (для form action и для прямой ссылки).
+ * Logout через API route — обходим NextResponse.cookies.set, который
+ * под капотом дедуплицирует cookie по имени (так что 4 set с одним
+ * именем уходят в браузер как ОДИН последний). Ставим Set-Cookie
+ * напрямую через headers.append — в HTTP допускаются несколько
+ * Set-Cookie с одинаковым именем (но разными path/domain).
  */
+function buildClearCookie(name: string, opts: { domain?: string; secure?: boolean }): string {
+  const parts = [
+    `${name}=`,
+    `Path=/`,
+    `Max-Age=0`,
+    `Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+    `HttpOnly`,
+    `SameSite=Lax`,
+  ]
+  if (opts.secure) parts.push(`Secure`)
+  if (opts.domain) parts.push(`Domain=${opts.domain}`)
+  return parts.join("; ")
+}
+
 function buildLogoutResponse(req: Request): NextResponse {
   const isProduction = process.env.NODE_ENV === "production"
   const cookieName = isProduction
@@ -19,28 +33,20 @@ function buildLogoutResponse(req: Request): NextResponse {
   const rootHost = ROOT_HOST || "commrent.kz"
   const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "") ?? "https"
 
-  // Редиректим на корневой /login (303 See Other для form-submit)
+  // 303 See Other → браузер переключится с POST на GET.
   const res = NextResponse.redirect(`${proto}://${rootHost}/login`, 303)
 
-  // Все скоупы, на которых cookie мог быть выставлен
+  // Все возможные домены, на которых cookie мог быть выставлен.
+  // Каждый — отдельный Set-Cookie заголовок (через append).
   const domains: (string | undefined)[] = [
-    undefined,         // host-scoped
+    undefined,         // host-scoped (без атрибута Domain)
     currentHost,       // bcf16.commrent.kz
-    `.${rootHost}`,    // .commrent.kz
+    `.${rootHost}`,    // .commrent.kz (это то, что выставляет наш auth.ts)
     rootHost,          // commrent.kz без точки
   ]
 
   for (const domain of domains) {
-    res.cookies.set({
-      name: cookieName,
-      value: "",
-      path: "/",
-      maxAge: 0,
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      ...(domain ? { domain } : {}),
-    })
+    res.headers.append("Set-Cookie", buildClearCookie(cookieName, { domain, secure: true }))
   }
 
   // CSRF/callback токены NextAuth — на всякий случай
@@ -50,13 +56,7 @@ function buildLogoutResponse(req: Request): NextResponse {
     "authjs.callback-url",
     "__Secure-authjs.callback-url",
   ]) {
-    res.cookies.set({
-      name,
-      value: "",
-      path: "/",
-      maxAge: 0,
-      sameSite: "lax",
-    })
+    res.headers.append("Set-Cookie", buildClearCookie(name, { secure: isProduction }))
   }
 
   return res
