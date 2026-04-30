@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import Link from "next/link"
 import { Shield, Building2, Package, BarChart3, LogOut, ArrowLeft, History, UserCircle, Calendar as CalendarIcon } from "lucide-react"
+import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 
 export default async function SuperadminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -59,6 +60,8 @@ export default async function SuperadminLayout({ children }: { children: React.R
           <div>
             <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-semibold">PLATFORM_OWNER</span>
           </div>
+          <div className="flex items-center gap-2">
+          <ThemeIconToggle />
           <Link
             href="/superadmin/profile"
             className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 transition"
@@ -71,6 +74,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
             </div>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{session.user.name}</span>
           </Link>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>

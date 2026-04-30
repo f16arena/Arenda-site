@@ -4,6 +4,7 @@ import Link from "next/link"
 import { TenantSidebar } from "@/components/layout/tenant-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
+import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { db } from "@/lib/db"
 
 export default async function CabinetLayout({
@@ -44,6 +45,7 @@ export default async function CabinetLayout({
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pl-16 lg:pl-6">
           <div />
           <div className="flex items-center gap-4">
+            <ThemeIconToggle />
             <NotificationBell items={notifications} />
             <Link
               href="/cabinet/profile"

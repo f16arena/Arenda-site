@@ -9,6 +9,7 @@ import { ImpersonateBanner } from "@/components/layout/impersonate-banner"
 import { PlatformViewBanner } from "@/components/layout/platform-view-banner"
 import { SubscriptionBanner } from "@/components/layout/subscription-banner"
 import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
+import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -139,6 +140,7 @@ export default async function AdminLayout({
             <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
               Ctrl+K — поиск
             </kbd>
+            <ThemeIconToggle />
             <NotificationBell items={notifications} />
             <Link
               href="/admin/profile"

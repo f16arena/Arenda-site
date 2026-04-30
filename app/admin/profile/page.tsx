@@ -8,7 +8,6 @@ import { Send, User } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
 import { ManagementHub } from "@/components/profile/management-hub"
 import { NotificationSettingsForm } from "@/components/profile/notification-settings"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
@@ -76,7 +75,6 @@ export default async function ProfilePage() {
         phone={user.phone}
         notificationsSlot={
           <div className="space-y-5">
-            <ThemeToggle />
             <NotificationSettingsForm initial={notifSettings} />
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
