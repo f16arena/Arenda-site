@@ -2,6 +2,7 @@ import Link from "next/link"
 import {
   Building, LayoutGrid, Users, Shield, Package,
   Gauge, Settings, ArrowRight, Wallet, BarChart3, Mail,
+  TrendingUp, History, ShieldCheck,
 } from "lucide-react"
 
 interface Stats {
@@ -90,6 +91,34 @@ export function ManagementHub({ stats }: { stats?: Stats }) {
       label: "Журнал email",
       description: "История отправки писем, статусы доставки",
       color: "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+    },
+    {
+      href: "/admin/leads",
+      icon: TrendingUp,
+      label: "Лиды (CRM)",
+      description: "Потенциальные арендаторы, воронка продаж",
+      color: "bg-pink-50 dark:bg-pink-500/10 text-pink-600 dark:text-pink-400",
+    },
+    {
+      href: "/admin/contracts",
+      icon: ShieldCheck,
+      label: "Договоры (отдельный список)",
+      description: "Договоры также видны в «Все документы»",
+      color: "bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    },
+    {
+      href: "/admin/users",
+      icon: Users,
+      label: "Все пользователи",
+      description: "Полный список аккаунтов организации",
+      color: "bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400",
+    },
+    {
+      href: "/admin/audit",
+      icon: History,
+      label: "Журнал операций",
+      description: "История всех действий пользователей",
+      color: "bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
     },
   ]
 

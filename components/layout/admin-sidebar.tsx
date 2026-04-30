@@ -7,8 +7,8 @@ import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
-  LogOut, Building, ShieldCheck,
-  TrendingUp, History, Package, CalendarDays,
+  LogOut, Building,
+  Package, CalendarDays,
   Menu, X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -35,7 +35,6 @@ const nav: NavSection[] = [
     title: "АРЕНДА",
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
-      { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "tenants" },
     ],
   },
   {
@@ -48,7 +47,6 @@ const nav: NavSection[] = [
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
-      { href: "/admin/contracts", label: "Договоры", icon: FileText, section: "contracts" },
       { href: "/admin/documents/templates", label: "Шаблоны", icon: Package, section: "documents" },
     ],
   },
@@ -72,14 +70,7 @@ const nav: NavSection[] = [
   // вынесены в "Управление" внутри /admin/profile (видимо только OWNER-у).
   // Это упрощает sidebar, оставляя там только повседневные операционные разделы.
   // Доступ к профилю — через клик по имени в правом верхнем углу.
-  {
-    title: "СУПЕР-АДМИН",
-    ownerOnly: true,
-    items: [
-      { href: "/admin/users", label: "Все пользователи", icon: ShieldCheck, ownerOnly: true, section: "users" },
-      { href: "/admin/audit", label: "Журнал операций", icon: History, ownerOnly: true, section: "users" },
-    ],
-  },
+  // "Все пользователи" и "Журнал операций" перенесены в Management Hub профиля.
 ]
 
 export function AdminSidebar({

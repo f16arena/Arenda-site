@@ -68,6 +68,12 @@ function buildLogoutResponse(req: Request): NextResponse {
     res.headers.append("Set-Cookie", buildClearCookie(name, { secure: isProduction }))
   }
 
+  // КРИТИЧНО: чистим impersonate / superadmin_currentOrgId — иначе после
+  // logout-login другим юзером эти cookie оставят его в чужом orgId.
+  for (const name of ["impersonating", "superadmin_currentOrgId"]) {
+    res.headers.append("Set-Cookie", buildClearCookie(name, { secure: isProduction }))
+  }
+
   return res
 }
 

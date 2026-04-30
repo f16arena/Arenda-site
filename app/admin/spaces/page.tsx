@@ -16,6 +16,58 @@ export default async function SpacesPage() {
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
+
+  // Гейт: если в организации нет ни одного здания — блокируем создание помещений.
+  // Помещение не существует без здания.
+  if (!buildingId) {
+    const orgBuildingsCount = await db.building.count({
+      where: { organizationId: orgId },
+    }).catch(() => 0)
+
+    if (orgBuildingsCount === 0) {
+      return (
+        <div className="space-y-5">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Кабинеты и помещения в зданиях</p>
+          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-8 text-center">
+            <Building2 className="h-10 w-10 text-amber-500 mx-auto mb-3" />
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
+              Сначала создайте здание
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 max-w-md mx-auto">
+              Помещения существуют внутри зданий. Создайте первое здание (адрес,
+              количество этажей, площадь) — потом сможете добавлять помещения.
+            </p>
+            <Link
+              href="/admin/buildings"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
+            >
+              <Building2 className="h-4 w-4" />
+              К списку зданий →
+            </Link>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Выберите здание сверху чтобы видеть его помещения</p>
+        </div>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 text-center">
+          <Building2 className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Здание не выбрано. Используйте переключатель здания в шапке.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const building = buildingId ? await db.building.findUnique({
     where: { id: buildingId },
     include: {

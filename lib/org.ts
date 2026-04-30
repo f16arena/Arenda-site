@@ -38,15 +38,29 @@ export async function getOrgIdBySlug(slug: string): Promise<string | null> {
 }
 
 // Получить текущую организацию
-// - Для обычного пользователя: его organizationId
-// - Для платформа-админа: либо impersonate orgId, либо выбранная в cookie
+// - Для обычного пользователя: его organizationId (всегда!).
+//   Impersonate и superadmin cookies ИГНОРИРУЮТСЯ — обычный юзер не должен
+//   наследовать чужой контекст из cookie, оставшегося от другой сессии.
+// - Для платформа-админа: либо impersonate orgId (если он сам запустил),
+//   либо выбранная в cookie организация.
 export async function getCurrentOrgId(): Promise<string | null> {
   const session = await auth()
   if (!session?.user) return null
 
-  // Impersonate режим — приоритет
+  const isPlatformOwner = session.user.isPlatformOwner ?? false
+
+  // КРИТИЧНО: для НЕ-платформ-админа всегда возвращаем его собственную
+  // организацию. Не смотрим в impersonate/superadmin cookies, даже если они
+  // остались от предыдущей сессии (например после logout-login другим юзером).
+  if (!isPlatformOwner) {
+    return session.user.organizationId ?? null
+  }
+
+  // Платформа-админ — может быть в impersonate-режиме (если сам его запустил).
+  // Проверяем что realUserId в cookie совпадает с текущим session user —
+  // иначе игнорируем cookie.
   const imp = await getImpersonateData()
-  if (imp) {
+  if (imp && imp.realUserId === session.user.id) {
     const user = await db.user.findUnique({
       where: { id: imp.actAsUserId },
       select: { organizationId: true },
@@ -54,12 +68,7 @@ export async function getCurrentOrgId(): Promise<string | null> {
     return user?.organizationId ?? null
   }
 
-  // Обычный пользователь
-  if (!session.user.isPlatformOwner) {
-    return session.user.organizationId ?? null
-  }
-
-  // Платформа-админ — берёт из cookie или null
+  // Платформа-админ без impersonate — берёт orgId из cookie superadmin
   const store = await cookies()
   return store.get(SUPERADMIN_ORG_COOKIE)?.value ?? null
 }

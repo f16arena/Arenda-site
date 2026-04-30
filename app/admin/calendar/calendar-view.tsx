@@ -166,7 +166,7 @@ export function CalendarView({
           <div className="grid grid-cols-7">
             {cells.map((cell, i) => {
               if (!cell) {
-                return <div key={i} className="aspect-square border-b border-r border-slate-50 bg-slate-50 dark:bg-slate-800/50/30" />
+                return <div key={i} className="h-16 border-b border-r border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20" />
               }
               const dateKey = `${cell.getFullYear()}-${String(cell.getMonth() + 1).padStart(2, "0")}-${String(cell.getDate()).padStart(2, "0")}`
               const dayEvents = eventsByDate.get(dateKey) ?? []
@@ -183,30 +183,32 @@ export function CalendarView({
                 <button
                   key={i}
                   onClick={() => setSelectedDate(isSelected ? null : dateKey)}
-                  className={`aspect-square border-b border-r border-slate-100 dark:border-slate-800 p-1.5 flex flex-col items-start hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition text-left relative ${
-                    isSelected ? "bg-blue-50 dark:bg-blue-500/10 ring-2 ring-blue-500 ring-inset" : ""
+                  className={`h-16 border-b border-r border-slate-100 dark:border-slate-800 px-1 py-0.5 flex flex-col items-start hover:bg-slate-50 dark:hover:bg-slate-800/50 transition text-left relative ${
+                    isSelected ? "bg-blue-50 dark:bg-blue-500/10 ring-1 ring-blue-500 ring-inset" : ""
                   }`}
                 >
-                  <div className={`text-xs font-medium mb-1 ${
-                    isToday ? "rounded-full bg-blue-600 text-white px-1.5 py-0.5" : "text-slate-700 dark:text-slate-300 px-1"
+                  <div className={`text-[11px] font-medium ${
+                    isToday
+                      ? "rounded-full bg-blue-600 text-white px-1.5 py-0 inline-flex items-center justify-center min-w-[18px]"
+                      : "text-slate-700 dark:text-slate-300 px-0.5"
                   }`}>
                     {cell.getDate()}
                   </div>
-                  <div className="flex flex-col gap-0.5 w-full overflow-hidden">
-                    {sorted.slice(0, 3).map((e) => (
-                      <div
-                        key={e.id}
-                        className={`flex items-center gap-1 text-[10px] truncate text-white px-1 py-0.5 rounded ${EVENT_META[e.type].color}`}
-                      >
-                        <span className="truncate">{e.title}</span>
-                      </div>
-                    ))}
-                    {sorted.length > 3 && (
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">
-                        +{sorted.length - 3} ещё
-                      </div>
-                    )}
-                  </div>
+                  {sorted.length > 0 && (
+                    <div className="flex items-center gap-0.5 mt-0.5 w-full">
+                      {/* Цветные точки по уникальным типам — компактнее чем строки */}
+                      {Array.from(new Set(sorted.map((e) => e.type))).slice(0, 4).map((type) => (
+                        <span
+                          key={type}
+                          className={`inline-block h-1.5 w-1.5 rounded-full ${EVENT_META[type as keyof typeof EVENT_META].color}`}
+                          title={EVENT_META[type as keyof typeof EVENT_META].label}
+                        />
+                      ))}
+                      <span className="text-[9px] text-slate-500 dark:text-slate-400 ml-auto font-medium">
+                        {sorted.length}
+                      </span>
+                    </div>
+                  )}
                 </button>
               )
             })}
