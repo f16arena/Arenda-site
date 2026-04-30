@@ -4,22 +4,57 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
-import { assertTaskInOrg, assertUserInOrg } from "@/lib/scope-guards"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertTaskInOrg, assertUserInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
+
+const ALLOWED_CATEGORIES = ["MAINTENANCE", "REPAIR", "INSPECTION", "CLEANING", "ADMIN", "OTHER"]
+const ALLOWED_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
 export async function createTask(formData: FormData) {
   const session = await auth()
   if (!session) return { error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
 
-  const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const category = formData.get("category") as string
-  const priority = formData.get("priority") as string
-  const floorNumberStr = formData.get("floorNumber") as string
-  const spaceNumber = formData.get("spaceNumber") as string
-  const estimatedCostStr = formData.get("estimatedCost") as string
-  const dueDateStr = formData.get("dueDate") as string
-  const assignedToId = formData.get("assignedToId") as string
+  // Привязываем задачу к текущему зданию (если выбрано) — это даёт нам
+  // org-scope для задачи. Если здания нет — задача создаётся без привязки.
+  const buildingId = await getCurrentBuildingId().catch(() => null)
+  if (buildingId) {
+    await assertBuildingInOrg(buildingId, orgId)
+  }
+
+  const title = String(formData.get("title") ?? "").trim()
+  const description = String(formData.get("description") ?? "").trim()
+  const category = String(formData.get("category") ?? "OTHER")
+  const priority = String(formData.get("priority") ?? "MEDIUM")
+  const floorNumberStr = String(formData.get("floorNumber") ?? "").trim()
+  const spaceNumber = String(formData.get("spaceNumber") ?? "").trim()
+  const estimatedCostStr = String(formData.get("estimatedCost") ?? "").trim()
+  const dueDateStr = String(formData.get("dueDate") ?? "").trim()
+  const assignedToId = String(formData.get("assignedToId") ?? "").trim()
+
+  if (!title || title.length < 2) return { error: "Введите название задачи" }
+  if (!ALLOWED_CATEGORIES.includes(category)) return { error: "Неверная категория" }
+  if (!ALLOWED_PRIORITIES.includes(priority)) return { error: "Неверный приоритет" }
+
+  // Валидация floorNumber: только число, ограниченный диапазон.
+  // Нужен для UI-фильтра, не для БД-связи.
+  let floorNumber: number | null = null
+  if (floorNumberStr) {
+    const n = parseInt(floorNumberStr, 10)
+    if (!isFinite(n) || n < -10 || n > 200) return { error: "Этаж должен быть числом от -10 до 200" }
+    floorNumber = n
+  }
+
+  // spaceNumber — короткая строка (без HTML/спецсимволов в опасном виде)
+  if (spaceNumber.length > 50) return { error: "Слишком длинный номер помещения" }
+
+  // estimatedCost — число
+  let estimatedCost: number | null = null
+  if (estimatedCostStr) {
+    const n = parseFloat(estimatedCostStr.replace(",", "."))
+    if (!isFinite(n) || n < 0) return { error: "Неверная сумма" }
+    estimatedCost = n
+  }
 
   if (assignedToId) {
     await assertUserInOrg(assignedToId, orgId)
@@ -27,13 +62,14 @@ export async function createTask(formData: FormData) {
 
   await db.task.create({
     data: {
+      buildingId: buildingId ?? null,
       title,
       description: description || null,
       category,
       priority,
-      floorNumber: floorNumberStr ? parseInt(floorNumberStr) : null,
+      floorNumber,
       spaceNumber: spaceNumber || null,
-      estimatedCost: estimatedCostStr ? parseFloat(estimatedCostStr) : null,
+      estimatedCost,
       dueDate: dueDateStr ? new Date(dueDateStr) : null,
       assignedToId: assignedToId || null,
       createdById: session.user.id,
@@ -66,15 +102,32 @@ export async function updateTask(taskId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertTaskInOrg(taskId, orgId)
 
-  const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const category = formData.get("category") as string
-  const priority = formData.get("priority") as string
-  const status = formData.get("status") as string
-  const estimatedCostStr = formData.get("estimatedCost") as string
-  const actualCostStr = formData.get("actualCost") as string
-  const dueDateStr = formData.get("dueDate") as string
-  const assignedToId = formData.get("assignedToId") as string
+  const title = String(formData.get("title") ?? "").trim()
+  const description = String(formData.get("description") ?? "").trim()
+  const category = String(formData.get("category") ?? "OTHER")
+  const priority = String(formData.get("priority") ?? "MEDIUM")
+  const status = String(formData.get("status") ?? "NEW")
+  const estimatedCostStr = String(formData.get("estimatedCost") ?? "").trim()
+  const actualCostStr = String(formData.get("actualCost") ?? "").trim()
+  const dueDateStr = String(formData.get("dueDate") ?? "").trim()
+  const assignedToId = String(formData.get("assignedToId") ?? "").trim()
+
+  if (!title || title.length < 2) return { error: "Введите название задачи" }
+  if (!ALLOWED_CATEGORIES.includes(category)) return { error: "Неверная категория" }
+  if (!ALLOWED_PRIORITIES.includes(priority)) return { error: "Неверный приоритет" }
+
+  let estimatedCost: number | null = null
+  if (estimatedCostStr) {
+    const n = parseFloat(estimatedCostStr.replace(",", "."))
+    if (!isFinite(n) || n < 0) return { error: "Неверная плановая сумма" }
+    estimatedCost = n
+  }
+  let actualCost: number | null = null
+  if (actualCostStr) {
+    const n = parseFloat(actualCostStr.replace(",", "."))
+    if (!isFinite(n) || n < 0) return { error: "Неверная фактическая сумма" }
+    actualCost = n
+  }
 
   if (assignedToId) {
     await assertUserInOrg(assignedToId, orgId)
@@ -88,8 +141,8 @@ export async function updateTask(taskId: string, formData: FormData) {
       category,
       priority,
       status,
-      estimatedCost: estimatedCostStr ? parseFloat(estimatedCostStr) : null,
-      actualCost: actualCostStr ? parseFloat(actualCostStr) : null,
+      estimatedCost,
+      actualCost,
       dueDate: dueDateStr ? new Date(dueDateStr) : null,
       assignedToId: assignedToId || null,
     },

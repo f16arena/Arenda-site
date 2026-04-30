@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
-import { tenantScope } from "@/lib/tenant-scope"
+import { tenantScope, chargeScope } from "@/lib/tenant-scope"
 import {
   assertTenantInOrg,
   assertChargeInOrg,
@@ -77,12 +77,32 @@ export async function recordPayment(formData: FormData) {
   }
 
   if (chargeIds.length > 0) {
-    operations.push(
-      db.charge.updateMany({
-        where: { id: { in: chargeIds }, tenantId },
-        data: { isPaid: true },
-      }),
-    )
+    // БЕЗОПАСНОСТЬ: re-валидируем что каждый charge действительно
+    // принадлежит этой орге через chargeScope. Иначе теоретически
+    // можно подсунуть чужой charge с тем же tenantId.
+    const validCharges = await db.charge.findMany({
+      where: {
+        AND: [
+          chargeScope(orgId),
+          { id: { in: chargeIds }, tenantId },
+        ],
+      },
+      select: { id: true },
+    })
+    const validIds = validCharges.map((c) => c.id)
+
+    if (validIds.length !== chargeIds.length) {
+      throw new Error("Некоторые начисления недоступны для текущей организации")
+    }
+
+    if (validIds.length > 0) {
+      operations.push(
+        db.charge.updateMany({
+          where: { id: { in: validIds } },
+          data: { isPaid: true },
+        }),
+      )
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

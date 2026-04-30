@@ -3,10 +3,19 @@ import { db } from "./db"
 
 const COOKIE_NAME = "currentBuildingId"
 
-// Возвращает id текущего здания. Если cookie не задан — первое активное в текущей организации.
+/**
+ * Возвращает id текущего здания только в скоупе текущей орги.
+ *
+ * БЕЗОПАСНОСТЬ: если orgId === null (нет сессии или платформ-админ без
+ * выбранной организации) — возвращаем null. Раньше тут был fallback,
+ * который мог вернуть ЛЮБОЕ активное здание из БД — это была дыра.
+ */
 export async function getCurrentBuildingId(): Promise<string | null> {
   const { getCurrentOrgId } = await import("./org")
   const orgId = await getCurrentOrgId()
+
+  // КРИТИЧНО: без orgId не возвращаем здание. Никаких fallback на "любое".
+  if (!orgId) return null
 
   const store = await cookies()
   const fromCookie = store.get(COOKIE_NAME)?.value
@@ -15,11 +24,13 @@ export async function getCurrentBuildingId(): Promise<string | null> {
       where: { id: fromCookie },
       select: { id: true, isActive: true, organizationId: true },
     })
-    if (exists?.isActive && (!orgId || exists.organizationId === orgId)) return fromCookie
+    // Cookie действителен ТОЛЬКО если здание из текущей орги
+    if (exists?.isActive && exists.organizationId === orgId) return fromCookie
   }
 
+  // Fallback: первое активное здание ТОЛЬКО в текущей орге
   const first = await db.building.findFirst({
-    where: orgId ? { isActive: true, organizationId: orgId } : { isActive: true },
+    where: { isActive: true, organizationId: orgId },
     select: { id: true },
     orderBy: { createdAt: "asc" },
   })
