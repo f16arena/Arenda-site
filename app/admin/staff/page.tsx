@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
+import Link from "next/link"
 import { formatMoney, ROLES, ROLE_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { CreateStaffDialog, EditStaffDialog, DeactivateButton, GenerateSalaryButton, MarkSalaryPaidButton } from "./staff-modals"
@@ -55,15 +56,15 @@ export default async function StaffPage() {
               return (
                 <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-slate-600">{u.name[0]?.toUpperCase()}</span>
+                    <Link href={`/admin/staff/${u.id}`} className="flex items-center gap-3 group">
+                      <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition">
+                        <span className="text-xs font-bold text-slate-600 group-hover:text-blue-600">{u.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">{u.name}</p>
+                        <p className="font-medium text-slate-900 group-hover:text-blue-600 transition">{u.name}</p>
                         <p className="text-xs text-slate-400">{u.email ?? u.phone ?? "—"}</p>
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLORS[u.role])}>
@@ -126,15 +127,15 @@ export default async function StaffPage() {
               {inactive.map((u) => (
                 <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3 w-full">
-                    <div className="flex items-center gap-3">
+                    <Link href={`/admin/staff/${u.id}`} className="flex items-center gap-3 group">
                       <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center">
                         <span className="text-xs text-slate-400">{u.name[0]?.toUpperCase()}</span>
                       </div>
-                      <span className="text-slate-400 line-through">{u.name}</span>
+                      <span className="text-slate-400 line-through group-hover:text-slate-600">{u.name}</span>
                       <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", ROLE_COLORS[u.role])}>
                         {ROLES[u.role as keyof typeof ROLES] ?? u.role}
                       </span>
-                    </div>
+                    </Link>
                   </td>
                   <td className="px-5 py-3 text-right">
                     <DeactivateButton userId={u.id} isActive={false} />

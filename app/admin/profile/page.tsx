@@ -6,6 +6,9 @@ import { redirect } from "next/navigation"
 import { TelegramSetup } from "./telegram-setup"
 import { Send, User } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
+import { ManagementHub } from "@/components/profile/management-hub"
+import { requireOrgAccess } from "@/lib/org"
+import { tenantScope } from "@/lib/tenant-scope"
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: "Владелец",
@@ -28,6 +31,24 @@ export default async function ProfilePage() {
   })
 
   if (!user) redirect("/login")
+
+  // Hub-статистика только для OWNER (показываем количество объектов рядом с ссылками)
+  const isOwner = user.role === "OWNER"
+  let stats: { buildings: number; spaces: number; staff: number; tenants: number } | undefined
+  if (isOwner) {
+    try {
+      const { orgId } = await requireOrgAccess()
+      const [buildings, spaces, staff, tenants] = await Promise.all([
+        db.building.count({ where: { organizationId: orgId } }).catch(() => 0),
+        db.space.count({ where: { floor: { building: { organizationId: orgId } } } }).catch(() => 0),
+        db.user.count({ where: { organizationId: orgId, role: { not: "TENANT" }, isActive: true } }).catch(() => 0),
+        db.tenant.count({ where: tenantScope(orgId) }).catch(() => 0),
+      ])
+      stats = { buildings, spaces, staff, tenants }
+    } catch {
+      stats = undefined
+    }
+  }
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -59,6 +80,7 @@ export default async function ProfilePage() {
             </div>
           </div>
         }
+        managementSlot={isOwner ? <ManagementHub stats={stats} /> : undefined}
       />
     </div>
   )
