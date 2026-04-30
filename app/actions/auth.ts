@@ -1,6 +1,6 @@
 "use server"
 
-import { signIn, signOut } from "@/auth"
+import { signIn } from "@/auth"
 import { AuthError } from "next-auth"
 import { redirect } from "next/navigation"
 import { headers, cookies } from "next/headers"
@@ -127,36 +127,67 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
 }
 
 export async function logout() {
-  await signOut({ redirect: false })
-
-  // Явно вычищаем session cookie на ВСЕХ возможных скоупах:
-  // 1) текущий host (bcf16.commrent.kz),
-  // 2) родительский .commrent.kz (используется в production).
-  // NextAuth signOut иногда оставляет один из вариантов, что приводит к
-  // мнимому "залогинен" после редиректа.
+  // Не используем NextAuth signOut() — он непредсказуемо взаимодействует с
+  // domain=.commrent.kz cookie на slug-поддомене (один из cookie остаётся
+  // живым → пользователь "не выходит"). Чистим cookie сами во всех
+  // возможных скоупах (текущий host, .commrent.kz, commrent.kz без точки)
+  // и со ВСЕМИ комбинациями атрибутов, которые мог использовать NextAuth.
   const isProduction = process.env.NODE_ENV === "production"
   const cookieName = isProduction
     ? "__Secure-commrent.session-token"
     : "commrent.session-token"
 
+  const h = await headers()
+  const currentHost = (h.get("host") ?? "").split(":")[0]
+  const rootHost = ROOT_HOST || "commrent.kz"
   const cookieStore = await cookies()
-  cookieStore.set({ name: cookieName, value: "", path: "/", maxAge: 0 })
-  if (isProduction && ROOT_HOST) {
-    cookieStore.set({
-      name: cookieName,
-      value: "",
-      path: "/",
-      maxAge: 0,
-      domain: `.${ROOT_HOST}`,
-      secure: true,
-      sameSite: "lax",
-    })
+
+  const baseDeleteOptions = {
+    name: cookieName,
+    value: "",
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax" as const,
   }
 
-  // Редирект всегда на корневой /login (на slug-поддомене /login недоступен —
-  // proxy.ts всё равно бы перенаправил, но мы экономим прыжок).
-  const h = await headers()
+  // Все возможные домены, на которых cookie мог быть выставлен.
+  // Дубликаты не страшны — браузер их обработает.
+  const domains = [
+    undefined,                  // host-scoped (без атрибута Domain)
+    currentHost,                // явно текущий host (bcf16.commrent.kz)
+    `.${rootHost}`,             // .commrent.kz (текущий конфиг)
+    rootHost,                   // commrent.kz без точки
+  ]
+
+  for (const domain of domains) {
+    // С secure: true (для production / __Secure- префикса)
+    cookieStore.set({
+      ...baseDeleteOptions,
+      secure: true,
+      ...(domain ? { domain } : {}),
+    })
+    // Без secure (для dev / устаревших cookie)
+    if (!isProduction) {
+      cookieStore.set({
+        ...baseDeleteOptions,
+        secure: false,
+        ...(domain ? { domain } : {}),
+      })
+    }
+  }
+
+  // На всякий случай чистим CSRF/callback токены NextAuth
+  for (const name of [
+    "authjs.csrf-token",
+    "__Host-authjs.csrf-token",
+    "authjs.callback-url",
+    "__Secure-authjs.callback-url",
+  ]) {
+    cookieStore.set({ name, value: "", path: "/", maxAge: 0, sameSite: "lax" })
+  }
+
+  // Редирект всегда на корневой /login.
   const proto = h.get("x-forwarded-proto") ?? "https"
-  const rootHost = ROOT_HOST || "commrent.kz"
   redirect(`${proto}://${rootHost}/login`)
 }
