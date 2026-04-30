@@ -34,7 +34,7 @@ export function DeleteAction({
   const defaultTrigger = (
     <button
       disabled={pending}
-      className="text-red-400 hover:text-red-600 disabled:opacity-50 inline-flex items-center"
+      className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
       aria-label={`Удалить ${entity}`}
     >
       <Trash2 className={sizeClass} />

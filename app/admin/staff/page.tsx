@@ -57,11 +57,11 @@ export default async function StaffPage() {
                 <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3.5">
                     <Link href={`/admin/staff/${u.id}`} className="flex items-center gap-3 group">
-                      <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500 group-hover:text-blue-600">{u.name[0]?.toUpperCase()}</span>
+                      <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 group-hover:bg-blue-100 dark:hover:bg-blue-500/20 dark:bg-blue-500/20 transition">
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:text-blue-400">{u.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition">{u.name}</p>
+                        <p className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:text-blue-400 transition">{u.name}</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500">{u.email ?? u.phone ?? "—"}</p>
                       </div>
                     </Link>
@@ -80,7 +80,7 @@ export default async function StaffPage() {
                     {lastPayment ? (
                       <div className="flex items-center gap-2">
                         <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium",
-                          lastPayment.status === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                          lastPayment.status === "PAID" ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
                         )}>
                           {lastPayment.status === "PAID" ? "Выплачено" : "Ожидает"}
                         </span>

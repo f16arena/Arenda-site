@@ -12,7 +12,7 @@ export function ImpersonateBanner({ orgName }: { orgName: string }) {
 
   return (
     <div className="bg-amber-400 border-b-2 border-amber-500 px-4 py-2 flex items-center justify-between">
-      <div className="flex items-center gap-2 text-sm font-medium text-amber-900">
+      <div className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-200">
         <AlertTriangle className="h-4 w-4" />
         Вы вошли как поддержка в <b>{orgName}</b>. Все действия записываются в журнал.
       </div>

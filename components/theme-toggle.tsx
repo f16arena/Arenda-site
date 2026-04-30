@@ -84,7 +84,7 @@ export function ThemeToggle() {
               }`}
             >
               <Icon className={`h-5 w-5 ${active ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 dark:text-slate-500"}`} />
-              <span className={`text-xs font-medium ${active ? "text-blue-900 dark:text-blue-100" : "text-slate-700 dark:text-slate-300"}`}>
+              <span className={`text-xs font-medium ${active ? "text-blue-900 dark:text-blue-200 dark:text-blue-100" : "text-slate-700 dark:text-slate-300"}`}>
                 {item.label}
               </span>
             </button>

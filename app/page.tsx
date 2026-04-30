@@ -51,7 +51,7 @@ export default async function Home() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-50/60 via-white to-white pointer-events-none" />
         <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-16 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm text-blue-700 mb-6">
+          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-500/10 px-4 py-1.5 text-sm text-blue-700 dark:text-blue-300 mb-6">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
             SaaS для коммерческой аренды · Казахстан
           </div>
@@ -122,7 +122,7 @@ export default async function Home() {
       {/* ─── Features ────────────────────────────────────────── */}
       <section id="features" className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="text-sm font-semibold text-blue-600 mb-3">Возможности</p>
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">Возможности</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Всё для управления коммерческой арендой
           </h2>
@@ -183,7 +183,7 @@ export default async function Home() {
       <section id="how" className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-800">
         <div className="mx-auto max-w-6xl px-6 py-24">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <p className="text-sm font-semibold text-blue-600 mb-3">Как это работает</p>
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">Как это работает</p>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               Запуск за 15 минут
             </h2>
@@ -211,7 +211,7 @@ export default async function Home() {
       {/* ─── Pricing ─────────────────────────────────────────── */}
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="text-sm font-semibold text-blue-600 mb-3">Тарифы</p>
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">Тарифы</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Прозрачные цены без скрытых платежей
           </h2>
@@ -270,7 +270,7 @@ export default async function Home() {
 
         <p className="text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-8">
           Цены указаны в тенге за месяц. {" "}
-          <a href="/offer" className="text-blue-600 hover:underline">Условия — в публичной оферте</a>.
+          <a href="/offer" className="text-blue-600 dark:text-blue-400 hover:underline">Условия — в публичной оферте</a>.
         </p>
       </section>
 
@@ -295,7 +295,7 @@ export default async function Home() {
       {/* ─── FAQ ─────────────────────────────────────────────── */}
       <section id="faq" className="mx-auto max-w-3xl px-6 py-24">
         <div className="text-center mb-12">
-          <p className="text-sm font-semibold text-blue-600 mb-3">FAQ</p>
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">FAQ</p>
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Частые вопросы</h2>
         </div>
         <div className="space-y-3">
@@ -372,20 +372,20 @@ export default async function Home() {
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Продукт</p>
               <ul className="space-y-2 text-sm">
-                <li><a href="#features" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Возможности</a></li>
-                <li><a href="#pricing" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Тарифы</a></li>
-                <li><a href="#faq" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">FAQ</a></li>
-                <li><Link href="/login" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Войти</Link></li>
+                <li><a href="#features" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">Возможности</a></li>
+                <li><a href="#pricing" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">Тарифы</a></li>
+                <li><a href="#faq" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">FAQ</a></li>
+                <li><Link href="/login" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">Войти</Link></li>
               </ul>
             </div>
 
             <div>
               <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Документы</p>
               <ul className="space-y-2 text-sm">
-                <li><Link href="/offer" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Публичная оферта</Link></li>
-                <li><Link href="/privacy" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Политика конфиденциальности</Link></li>
-                <li><Link href="/terms" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Пользовательское соглашение</Link></li>
-                <li><Link href="/sla" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">SLA</Link></li>
+                <li><Link href="/offer" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">Публичная оферта</Link></li>
+                <li><Link href="/privacy" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">Политика конфиденциальности</Link></li>
+                <li><Link href="/terms" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">Пользовательское соглашение</Link></li>
+                <li><Link href="/sla" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">SLA</Link></li>
               </ul>
             </div>
 
@@ -393,7 +393,7 @@ export default async function Home() {
               <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Контакты</p>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">
+                  <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 transition-colors">
                     {LEGAL_ENTITY.email.support}
                   </a>
                 </li>
@@ -419,8 +419,8 @@ function StatTile({
   label, value, icon: Icon, accent,
 }: { label: string; value: string; icon: React.ElementType; accent: "blue" | "emerald" | "violet" }) {
   const accents = {
-    blue: "bg-blue-50 text-blue-600",
-    emerald: "bg-emerald-50 text-emerald-600",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     violet: "bg-violet-50 text-violet-600",
   }
   return (
@@ -440,9 +440,9 @@ function RowItem({
   name, meta, amount, tone,
 }: { name: string; meta: string; amount: string; tone: "emerald" | "slate" | "amber" }) {
   const tones = {
-    emerald: "text-emerald-600 bg-emerald-50",
+    emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     slate: "text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800",
-    amber: "text-amber-700 bg-amber-50",
+    amber: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10",
   }
   return (
     <li className="flex items-center justify-between gap-3 py-1.5">
@@ -460,8 +460,8 @@ function Feature({
 }: { icon: React.ElementType; title: string; text: string }) {
   return (
     <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-slate-200 hover:shadow-sm transition-all">
-      <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
-        <Icon className="h-5 w-5 text-blue-600" />
+      <div className="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center mb-4">
+        <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
       </div>
       <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
       <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-relaxed">{text}</p>
@@ -528,7 +528,7 @@ function PricingCard({
       <ul className="mt-6 space-y-3 text-sm flex-1">
         {features.map((f) => (
           <li key={f} className="flex items-start gap-2.5">
-            <Check className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
             <span className="text-slate-700 dark:text-slate-300">{f}</span>
           </li>
         ))}

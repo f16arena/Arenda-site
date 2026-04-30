@@ -92,7 +92,7 @@ export function EditSpaceDialog({ space, floors }: { space: Space; floors: Floor
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
         <Edit2 className="h-3 w-3" />
         Изменить
       </button>

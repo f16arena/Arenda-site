@@ -30,7 +30,7 @@ export function BuildingSwitcher({
       return (
         <Link
           href="/admin/buildings"
-          className="flex items-center gap-2 rounded-lg bg-amber-100 hover:bg-amber-200 px-3 py-1.5 text-sm font-medium text-amber-800"
+          className="flex items-center gap-2 rounded-lg bg-amber-100 dark:bg-amber-500/20 hover:bg-amber-200 dark:bg-amber-500/30 px-3 py-1.5 text-sm font-medium text-amber-800 dark:text-amber-200"
         >
           <Plus className="h-4 w-4" />
           Создать первое здание
@@ -84,7 +84,7 @@ export function BuildingSwitcher({
                     }}
                     className={cn(
                       "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
-                      isCurrent && "bg-blue-50 hover:bg-blue-50"
+                      isCurrent && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
                     )}
                   >
                     <div className={cn(
@@ -97,7 +97,7 @@ export function BuildingSwitcher({
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{b.name}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{b.address}</p>
                     </div>
-                    {isCurrent && <Check className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />}
+                    {isCurrent && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />}
                   </button>
                 )
               })}

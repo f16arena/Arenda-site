@@ -100,9 +100,9 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
             <div className="text-sm">
               <span className="text-slate-700 dark:text-slate-300 font-medium">{rows.length} строк</span>
               {" · "}
-              <span className="text-emerald-600">{rows.filter((r) => r.matchedTenantId).length} сопоставлено</span>
+              <span className="text-emerald-600 dark:text-emerald-400">{rows.filter((r) => r.matchedTenantId).length} сопоставлено</span>
               {" · "}
-              <span className="text-amber-600">{rows.filter((r) => !r.matchedTenantId).length} требует ручного выбора</span>
+              <span className="text-amber-600 dark:text-amber-400">{rows.filter((r) => !r.matchedTenantId).length} требует ручного выбора</span>
             </div>
             <div className="flex gap-2">
               <button
@@ -123,7 +123,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
           </div>
 
           {errors.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+            <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
               {errors.map((e, i) => <p key={i}>{e}</p>)}
             </div>
           )}
@@ -152,7 +152,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
                           value={r.matchedTenantId ?? ""}
                           onChange={(e) => setMatch(i, e.target.value)}
                           className={`text-xs rounded border px-2 py-1 ${
-                            r.matchedTenantId ? "border-emerald-300 bg-emerald-50" : "border-amber-300 bg-amber-50"
+                            r.matchedTenantId ? "border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10" : "border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10"
                           }`}
                         >
                           <option value="">— не выбран —</option>
@@ -161,7 +161,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
                           ))}
                         </select>
                         {r.matchType && (
-                          <span title={`Авто-матч по ${r.matchType}`} className="text-[10px] text-emerald-600 inline-flex items-center gap-0.5">
+                          <span title={`Авто-матч по ${r.matchType}`} className="text-[10px] text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-0.5">
                             <Check className="h-3 w-3" />
                             {r.matchType}
                           </span>

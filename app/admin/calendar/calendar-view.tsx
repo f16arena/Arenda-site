@@ -184,7 +184,7 @@ export function CalendarView({
                   key={i}
                   onClick={() => setSelectedDate(isSelected ? null : dateKey)}
                   className={`aspect-square border-b border-r border-slate-100 dark:border-slate-800 p-1.5 flex flex-col items-start hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition text-left relative ${
-                    isSelected ? "bg-blue-50 ring-2 ring-blue-500 ring-inset" : ""
+                    isSelected ? "bg-blue-50 dark:bg-blue-500/10 ring-2 ring-blue-500 ring-inset" : ""
                   }`}
                 >
                   <div className={`text-xs font-medium mb-1 ${

@@ -29,7 +29,7 @@ export function OccupancyHeatmap({ data }: {
                 key={s.spaceId}
                 className={cn(
                   "aspect-square rounded-lg p-2 text-center flex flex-col items-center justify-center border",
-                  s.percent >= 90 ? "border-red-300" : s.percent >= 50 ? "border-amber-300" : "border-slate-200 dark:border-slate-800"
+                  s.percent >= 90 ? "border-red-300 dark:border-red-500/40" : s.percent >= 50 ? "border-amber-300 dark:border-amber-500/40" : "border-slate-200 dark:border-slate-800"
                 )}
                 style={{ background: bg }}
                 title={`Каб. ${s.spaceNumber} · ${s.area} м² · занят ${s.percent}% времени`}

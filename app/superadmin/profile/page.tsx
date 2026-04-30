@@ -21,8 +21,8 @@ export default async function SuperadminProfilePage() {
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
-          <Shield className="h-5 w-5 text-purple-700" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-500/20">
+          <Shield className="h-5 w-5 text-purple-700 dark:text-purple-300" />
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>

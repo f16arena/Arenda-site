@@ -40,10 +40,10 @@ const STATUS_LABELS: Record<string, string> = {
   LOST: "Отказ",
 }
 const STATUS_COLORS: Record<string, string> = {
-  NEW: "bg-blue-50 border-blue-200",
-  SHOWN: "bg-amber-50 border-amber-200",
-  NEGOTIATION: "bg-purple-50 border-purple-200",
-  SIGNED: "bg-emerald-50 border-emerald-200",
+  NEW: "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30",
+  SHOWN: "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30",
+  NEGOTIATION: "bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30",
+  SIGNED: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30",
   LOST: "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800",
 }
 const SOURCE_LABELS: Record<string, string> = {
@@ -157,7 +157,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           {lead.companyName && <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{lead.companyName}</p>}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-          <button onClick={onDelete} className="text-slate-400 dark:text-slate-500 hover:text-red-600">
+          <button onClick={onDelete} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400">
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
@@ -174,7 +174,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
             <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 rounded px-1.5 py-0.5">{lead.desiredArea} м²</span>
           )}
           {lead.budget && (
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5">
+            <span className="text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded px-1.5 py-0.5">
               {lead.budget.toLocaleString("ru-RU")} ₸
             </span>
           )}
@@ -184,7 +184,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       <div className="mt-1.5 flex items-center justify-between">
         <span className="text-[10px] text-slate-400 dark:text-slate-500">{SOURCE_LABELS[lead.source] ?? lead.source}</span>
         {lead.spaceId && lead.bookedUntil && (
-          <span className="text-[10px] text-purple-600 inline-flex items-center gap-0.5">
+          <span className="text-[10px] text-purple-600 dark:text-purple-400 inline-flex items-center gap-0.5">
             <Calendar className="h-2.5 w-2.5" />
             До {new Date(lead.bookedUntil).toLocaleDateString("ru-RU")}
           </span>
@@ -196,7 +196,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           <ArrowLeft className="h-3 w-3 inline" />
         </button>
         {!lead.spaceId && lead.status !== "LOST" && lead.status !== "SIGNED" && (
-          <button onClick={onBook} className="flex-1 rounded text-[10px] py-1 hover:bg-purple-100 text-purple-600">
+          <button onClick={onBook} className="flex-1 rounded text-[10px] py-1 hover:bg-purple-100 dark:hover:bg-purple-500/20 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400">
             Бронь
           </button>
         )}

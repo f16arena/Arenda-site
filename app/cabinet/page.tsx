@@ -109,10 +109,10 @@ export default async function CabinetDashboard() {
       {/* Главная карточка состояния */}
       <div className={`rounded-2xl p-6 ${
         overdueTotal > 0
-          ? "bg-gradient-to-br from-red-50 to-red-100 border border-red-200"
+          ? "bg-gradient-to-br from-red-50 to-red-100 border border-red-200 dark:border-red-500/30"
           : totalDebt > 0
-            ? "bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200"
-            : "bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200"
+            ? "bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 dark:border-amber-500/30"
+            : "bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 dark:border-emerald-500/30"
       }`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -120,7 +120,7 @@ export default async function CabinetDashboard() {
               {overdueTotal > 0 ? "Просрочка платежа" : totalDebt > 0 ? "К оплате" : "Состояние счёта"}
             </p>
             <p className={`text-3xl md:text-4xl font-bold mt-2 ${
-              overdueTotal > 0 ? "text-red-700" : totalDebt > 0 ? "text-amber-700" : "text-emerald-700"
+              overdueTotal > 0 ? "text-red-700 dark:text-red-300" : totalDebt > 0 ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"
             }`}>
               {totalDebt > 0 ? formatMoney(totalDebt) : "Задолженности нет"}
             </p>
@@ -154,10 +154,10 @@ export default async function CabinetDashboard() {
             )}
           </div>
           <div className={`flex h-16 w-16 items-center justify-center rounded-2xl shrink-0 ${
-            overdueTotal > 0 ? "bg-red-200/50" : totalDebt > 0 ? "bg-amber-200/50" : "bg-emerald-200/50"
+            overdueTotal > 0 ? "bg-red-200 dark:bg-red-500/30/50" : totalDebt > 0 ? "bg-amber-200 dark:bg-amber-500/30/50" : "bg-emerald-200 dark:bg-emerald-500/30/50"
           }`}>
             <CreditCard className={`h-8 w-8 ${
-              overdueTotal > 0 ? "text-red-600" : totalDebt > 0 ? "text-amber-600" : "text-emerald-600"
+              overdueTotal > 0 ? "text-red-600 dark:text-red-400" : totalDebt > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
             }`} />
           </div>
         </div>
@@ -210,7 +210,7 @@ export default async function CabinetDashboard() {
               <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Документы
             </h2>
-            <Link href="/cabinet/documents" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <Link href="/cabinet/documents" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -222,7 +222,7 @@ export default async function CabinetDashboard() {
             ) : (
               recentDocs.map((d) => (
                 <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
                     <Receipt className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -239,7 +239,7 @@ export default async function CabinetDashboard() {
                   <a
                     href={`/api/documents/archive/${d.id}`}
                     download={d.fileName}
-                    className="text-slate-400 dark:text-slate-500 hover:text-blue-600 shrink-0"
+                    className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 shrink-0"
                     title="Скачать"
                   >
                     <Download className="h-4 w-4" />
@@ -262,7 +262,7 @@ export default async function CabinetDashboard() {
                 </span>
               )}
             </h2>
-            <Link href="/cabinet/messages" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <Link href="/cabinet/messages" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -276,7 +276,7 @@ export default async function CabinetDashboard() {
                 <Link
                   key={m.id}
                   href="/cabinet/messages"
-                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50/30" : ""}`}
+                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50 dark:bg-blue-500/10/30" : ""}`}
                 >
                   {!m.isRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />}
                   <div className="flex-1 min-w-0">
@@ -305,7 +305,7 @@ export default async function CabinetDashboard() {
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Неоплаченные начисления</h2>
-            <Link href="/cabinet/finances" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <Link href="/cabinet/finances" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -321,20 +321,20 @@ export default async function CabinetDashboard() {
                     <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {c.period}
                       {c.dueDate && (
-                        <span className={isOverdue ? "text-red-600 font-medium ml-1" : "ml-1"}>
+                        <span className={isOverdue ? "text-red-600 dark:text-red-400 font-medium ml-1" : "ml-1"}>
                           · до {new Date(c.dueDate).toLocaleDateString("ru-RU")}
                         </span>
                       )}
                     </p>
                   </div>
-                  <p className={`text-sm font-semibold ${isOverdue ? "text-red-600" : "text-slate-900 dark:text-slate-100"}`}>
+                  <p className={`text-sm font-semibold ${isOverdue ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}>
                     {formatMoney(c.amount)}
                   </p>
                 </div>
               )
             })}
             {tenant.charges.length === 0 && (
-              <p className="px-5 py-8 text-sm text-emerald-600 text-center font-medium">
+              <p className="px-5 py-8 text-sm text-emerald-600 dark:text-emerald-400 text-center font-medium">
                 ✓ Нет неоплаченных начислений
               </p>
             )}
@@ -344,7 +344,7 @@ export default async function CabinetDashboard() {
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние оплаты</h2>
-            <Link href="/cabinet/finances" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+            <Link href="/cabinet/finances" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               История <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -357,7 +357,7 @@ export default async function CabinetDashboard() {
                     {new Date(p.paymentDate).toLocaleDateString("ru-RU")}
                   </p>
                 </div>
-                <p className="text-sm font-semibold text-emerald-600">{formatMoney(p.amount)}</p>
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(p.amount)}</p>
               </div>
             ))}
             {tenant.payments.length === 0 && (
@@ -381,11 +381,11 @@ function InfoCard({
   href?: string
 }) {
   const inner = (
-    <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 transition ${highlight ? "border-amber-200 ring-1 ring-amber-100" : "border-slate-200 dark:border-slate-800"} ${href ? "hover:shadow-sm" : ""}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 transition ${highlight ? "border-amber-200 dark:border-amber-500/30 ring-1 ring-amber-100" : "border-slate-200 dark:border-slate-800"} ${href ? "hover:shadow-sm" : ""}`}>
       <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 mb-2" />
       <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{value}</p>
       <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5 font-medium">{label}</p>
-      {sub && <p className={`text-[11px] mt-0.5 ${highlight ? "text-amber-600 font-medium" : "text-slate-400 dark:text-slate-500"}`}>{sub}</p>}
+      {sub && <p className={`text-[11px] mt-0.5 ${highlight ? "text-amber-600 dark:text-amber-400 font-medium" : "text-slate-400 dark:text-slate-500"}`}>{sub}</p>}
     </div>
   )
   return href ? <Link href={href}>{inner}</Link> : inner

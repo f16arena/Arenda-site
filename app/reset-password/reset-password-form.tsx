@@ -15,12 +15,12 @@ export function ResetPasswordForm({ token }: { token: string }) {
   if (done) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4">
+        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-4">
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-emerald-900">Пароль изменён</p>
-              <p className="text-xs text-emerald-800 mt-1">Теперь вы можете войти с новым паролем.</p>
+              <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">Пароль изменён</p>
+              <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-1">Теперь вы можете войти с новым паролем.</p>
             </div>
           </div>
         </div>
@@ -87,7 +87,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
       </label>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
+        <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 font-medium">
           {error}
         </div>
       )}

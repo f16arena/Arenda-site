@@ -69,7 +69,7 @@ export function ImportTenantsClient() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
         <label
           className={`block border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${
-            pending ? "border-blue-400 bg-blue-50" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/30"
+            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
           }`}
         >
           <input
@@ -82,8 +82,8 @@ export function ImportTenantsClient() {
           <div className="flex flex-col items-center gap-3">
             {pending ? (
               <>
-                <Loader2 className="h-10 w-10 text-blue-600 animate-spin" />
-                <p className="text-sm font-medium text-blue-900">Парсим файл...</p>
+                <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 animate-spin" />
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Парсим файл...</p>
               </>
             ) : (
               <>
@@ -102,16 +102,16 @@ export function ImportTenantsClient() {
   if (stage === "preview" && preview) {
     if (preview.unmappedFields.length > 0) {
       return (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+        <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-5">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-red-900 mb-1">Не найдены обязательные колонки</p>
-              <p className="text-sm text-red-800 mb-3">
+              <p className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">Не найдены обязательные колонки</p>
+              <p className="text-sm text-red-800 dark:text-red-200 mb-3">
                 В вашем файле не найдены: <b>{preview.unmappedFields.join(", ")}</b>.
                 Скачайте наш шаблон сверху и перенесите данные с правильными названиями колонок.
               </p>
-              <button onClick={reset} className="text-xs text-red-700 hover:underline font-medium">Загрузить другой файл</button>
+              <button onClick={reset} className="text-xs text-red-700 dark:text-red-300 hover:underline font-medium">Загрузить другой файл</button>
             </div>
           </div>
         </div>
@@ -172,7 +172,7 @@ export function ImportTenantsClient() {
                       </td>
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.spaceNumber || "—"}</td>
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.rate ? `${r.data.rate} ₸` : "—"}</td>
-                      <td className="px-3 py-2 text-amber-600">
+                      <td className="px-3 py-2 text-amber-600 dark:text-amber-400">
                         {r.warnings.length > 0 && (
                           <span title={r.warnings.join("\n")}>
                             ⚠ {r.warnings.length}
@@ -189,13 +189,13 @@ export function ImportTenantsClient() {
 
         {/* Ошибки */}
         {preview.invalidRows.length > 0 && (
-          <details className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <summary className="text-sm font-medium text-red-900 cursor-pointer">
+          <details className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
+            <summary className="text-sm font-medium text-red-900 dark:text-red-200 cursor-pointer">
               Строки с ошибками ({preview.invalidRows.length}) — будут пропущены
             </summary>
             <ul className="mt-3 space-y-1 text-xs">
               {preview.invalidRows.slice(0, 50).map((e) => (
-                <li key={e.rowIndex} className="text-red-700">
+                <li key={e.rowIndex} className="text-red-700 dark:text-red-300">
                   Строка <span className="font-mono">{e.rowIndex}</span>: {e.error}
                 </li>
               ))}
@@ -225,7 +225,7 @@ export function ImportTenantsClient() {
   if (stage === "applying") {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
-        <Loader2 className="h-10 w-10 text-blue-600 mx-auto mb-3 animate-spin" />
+        <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 mx-auto mb-3 animate-spin" />
         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Сохраняем в БД...</p>
         <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Не закрывайте страницу</p>
       </div>
@@ -236,10 +236,10 @@ export function ImportTenantsClient() {
   if (stage === "done" && result) {
     return (
       <div className="space-y-3">
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+        <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-5">
           <div className="flex items-center gap-3 mb-3">
-            <Check className="h-5 w-5 text-emerald-600" />
-            <p className="text-sm font-semibold text-emerald-900">Импорт завершён</p>
+            <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Импорт завершён</p>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <Stat label="Создано" value={result.created} color="emerald" />
@@ -249,13 +249,13 @@ export function ImportTenantsClient() {
         </div>
 
         {result.errors.length > 0 && (
-          <details className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <summary className="text-sm font-medium text-red-900 cursor-pointer">
+          <details className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
+            <summary className="text-sm font-medium text-red-900 dark:text-red-200 cursor-pointer">
               Ошибки при импорте ({result.errors.length})
             </summary>
             <ul className="mt-3 space-y-1 text-xs">
               {result.errors.map((e) => (
-                <li key={e.rowIndex} className="text-red-700">
+                <li key={e.rowIndex} className="text-red-700 dark:text-red-300">
                   Строка <span className="font-mono">{e.rowIndex}</span>: {e.error}
                 </li>
               ))}
@@ -282,7 +282,7 @@ export function ImportTenantsClient() {
 }
 
 function Stat({ label, value, color }: { label: string; value: number; color?: "emerald" | "red" | "slate" }) {
-  const tone = color === "emerald" ? "text-emerald-700" : color === "red" ? "text-red-700" : "text-slate-700 dark:text-slate-300"
+  const tone = color === "emerald" ? "text-emerald-700 dark:text-emerald-300" : color === "red" ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300"
   return (
     <div>
       <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</p>

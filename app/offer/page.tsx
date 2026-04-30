@@ -35,7 +35,7 @@ export default function OfferPage() {
       <Section number="1" title="Термины и определения">
         <Clause num="1.1">
           Сервис / Платформа Commrent — программное обеспечение, доступное по адресу{" "}
-          <a href={LEGAL_ENTITY.site} className="text-blue-600 hover:underline">{LEGAL_ENTITY.site}</a> и
+          <a href={LEGAL_ENTITY.site} className="text-blue-600 dark:text-blue-400 hover:underline">{LEGAL_ENTITY.site}</a> и
           включающее веб-интерфейс, базы данных, документацию и сопутствующие сервисы, предназначенное для
           автоматизации управления арендой коммерческой недвижимости.
         </Clause>
@@ -217,7 +217,7 @@ export default function OfferPage() {
         </Clause>
         <Clause num="7.2">
           Обработка персональных данных осуществляется в соответствии с{" "}
-          <a href="/privacy" className="text-blue-600 hover:underline">Политикой конфиденциальности</a> и
+          <a href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">Политикой конфиденциальности</a> и
           Законом РК «О персональных данных и их защите» от 21.05.2013 № 94-V.
         </Clause>
         <Clause num="7.3">
@@ -319,7 +319,7 @@ export default function OfferPage() {
         <Clause num="12.4">
           Все уведомления направляются по электронной почте: со стороны Исполнителя — на адрес Заказчика,
           указанный при регистрации; со стороны Заказчика — на адрес{" "}
-          <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
+          <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 dark:text-blue-400 hover:underline">
             {LEGAL_ENTITY.email.support}
           </a>.
         </Clause>

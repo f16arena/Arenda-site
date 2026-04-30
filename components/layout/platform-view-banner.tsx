@@ -11,8 +11,8 @@ export function PlatformViewBanner({ orgName }: { orgName: string }) {
   const [pending, startTransition] = useTransition()
 
   return (
-    <div className="bg-purple-100 border-b-2 border-purple-300 px-4 py-2 flex items-center justify-between">
-      <div className="flex items-center gap-2 text-sm font-medium text-purple-900">
+    <div className="bg-purple-100 dark:bg-purple-500/20 border-b-2 border-purple-300 dark:border-purple-500/40 px-4 py-2 flex items-center justify-between">
+      <div className="flex items-center gap-2 text-sm font-medium text-purple-900 dark:text-purple-200">
         <Eye className="h-4 w-4" />
         Платформенный просмотр <b>{orgName}</b>. Вы действуете от своего имени.
       </div>

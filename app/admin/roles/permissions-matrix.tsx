@@ -86,8 +86,8 @@ export function PermissionsMatrix({
                         disabled={!editable || isOwner}
                         className={cn(
                           "inline-flex items-center justify-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors",
-                          p.canEdit ? "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200"
-                          : p.canView ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200"
+                          p.canEdit ? "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30 hover:bg-blue-200 dark:bg-blue-500/30"
+                          : p.canView ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30 hover:bg-emerald-200 dark:bg-emerald-500/30"
                           : "bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800",
                           editable && !isOwner ? "cursor-pointer" : "cursor-default"
                         )}

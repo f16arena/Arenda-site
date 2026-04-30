@@ -169,7 +169,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             icon={Wallet}
             label="Текущий долг"
             value={totalDebt > 0 ? formatMoney(totalDebt) : "Нет"}
-            valueClass={totalDebt > 0 ? "text-red-600" : "text-emerald-600"}
+            valueClass={totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}
             sub={totalDebt > 0 ? `${tenant.charges.filter((c) => !c.isPaid).length} начислений` : "Все оплачено"}
           />
           <QuickStat
@@ -185,8 +185,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             value={daysToContractEnd === null ? "—" : daysToContractEnd < 0 ? "Истёк" : `${daysToContractEnd} дн.`}
             valueClass={
               daysToContractEnd === null ? "text-slate-500 dark:text-slate-400 dark:text-slate-500"
-                : daysToContractEnd < 0 ? "text-red-600"
-                : daysToContractEnd < 30 ? "text-amber-600"
+                : daysToContractEnd < 0 ? "text-red-600 dark:text-red-400"
+                : daysToContractEnd < 30 ? "text-amber-600 dark:text-amber-400"
                 : "text-slate-900 dark:text-slate-100"
             }
             sub={tenant.contractEnd ? formatDate(tenant.contractEnd) : "Договор не заключён"}
@@ -569,7 +569,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">{tenant.space.area} м²</p>
                 {tenant.customRate ? (
-                  <p className="text-xs text-blue-600 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
                 ) : (
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                     Ставка этажа: {formatMoney(tenant.space.floor.ratePerSqm)}/м²
@@ -602,7 +602,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     >
                       <button
                         type="submit"
-                        className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                        className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10 transition-colors"
                       >
                         <span className="font-medium">Каб. {s.number}</span>
                         <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
@@ -635,8 +635,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     <span
                       className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                         c.status === "SIGNED"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
+                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                          : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
                       }`}
                     >
                       {c.status === "SIGNED" ? "Подписан" : "Черновик"}
@@ -665,7 +665,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.period}</p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-xs font-semibold ${c.isPaid ? "text-emerald-600" : "text-red-600"}`}>
+                    <p className={`text-xs font-semibold ${c.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                       {formatMoney(c.amount)}
                     </p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.isPaid ? "Оплачено" : "Долг"}</p>

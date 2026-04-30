@@ -20,7 +20,7 @@ export function InlineReadingButton({ meterId, period }: { meterId: string; peri
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 hover:underline">Внести</button>
+      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Внести</button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -44,7 +44,7 @@ export function InlineReadingButton({ meterId, period }: { meterId: string; peri
                 <input name="value" type="number" step="0.01" required autoFocus
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
-              {msg && <p className="text-xs text-center text-emerald-600">{msg}</p>}
+              {msg && <p className="text-xs text-center text-emerald-600 dark:text-emerald-400">{msg}</p>}
               <div className="flex gap-3">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
@@ -105,7 +105,7 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <input type="hidden" name="period" value={period} />
-              {msg && <p className="text-sm text-center text-emerald-600">{msg}</p>}
+              {msg && <p className="text-sm text-center text-emerald-600 dark:text-emerald-400">{msg}</p>}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">

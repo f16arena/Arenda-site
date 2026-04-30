@@ -102,18 +102,18 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
   return (
     <tr className={cn(
       "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition",
-      o.isSuspended && "bg-red-50/30",
+      o.isSuspended && "bg-red-50 dark:bg-red-500/10/30",
       !o.isActive && "opacity-60",
     )}>
       <td className="px-5 py-3.5">
         <Link href={`/superadmin/orgs/${o.id}`} className="block">
-          <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 transition">{o.name}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400 transition">{o.name}</p>
           <a
             href={orgUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-blue-600 font-mono mt-0.5 inline-flex items-center gap-0.5"
+            className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 font-mono mt-0.5 inline-flex items-center gap-0.5"
             title="Открыть поддомен в новой вкладке"
           >
             {o.slug}.{rootHost}
@@ -130,8 +130,8 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
         {o.planExpiresAt ? (
           <div>
             <p className={cn(
-              o.expired ? "text-red-600 font-medium" :
-              o.expiringSoon ? "text-amber-600 font-medium" : "text-slate-600 dark:text-slate-400 dark:text-slate-500"
+              o.expired ? "text-red-600 dark:text-red-400 font-medium" :
+              o.expiringSoon ? "text-amber-600 dark:text-amber-400 font-medium" : "text-slate-600 dark:text-slate-400 dark:text-slate-500"
             )}>
               {new Date(o.planExpiresAt).toLocaleDateString("ru-RU")}
             </p>
@@ -230,9 +230,9 @@ function Badge({
   children: React.ReactNode
 }) {
   const colors = {
-    emerald: "bg-emerald-100 text-emerald-700",
-    amber: "bg-amber-100 text-amber-700",
-    red: "bg-red-100 text-red-700",
+    emerald: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+    amber: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",
+    red: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300",
     slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
   }
   return (

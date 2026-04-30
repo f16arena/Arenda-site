@@ -41,12 +41,12 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
           {validationError ? (
             <div className="space-y-4">
-              <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+              <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 p-4">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-red-900">Ссылка недействительна</p>
-                    <p className="text-xs text-red-800 mt-1">{validationError}</p>
+                    <p className="text-sm font-medium text-red-900 dark:text-red-200">Ссылка недействительна</p>
+                    <p className="text-xs text-red-800 dark:text-red-200 mt-1">{validationError}</p>
                   </div>
                 </div>
               </div>
@@ -63,7 +63,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
         </div>
 
         <p className="text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-4">
-          <Link href="/login" className="text-blue-600 hover:underline font-medium">
+          <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
             Вернуться ко входу
           </Link>
         </p>

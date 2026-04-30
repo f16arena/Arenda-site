@@ -15,9 +15,9 @@ const typeLabel: Record<string, string> = {
 }
 
 const typeColor: Record<string, string> = {
-  ELECTRICITY: "bg-yellow-100 text-yellow-700",
-  WATER: "bg-blue-100 text-blue-700",
-  HEAT: "bg-orange-100 text-orange-700",
+  ELECTRICITY: "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300",
+  WATER: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  HEAT: "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300",
 }
 
 const TARIFF_TYPE_BY_METER: Record<string, string> = {
@@ -148,7 +148,7 @@ export default async function MetersPage() {
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {cost !== null ? (
-                      <span className="font-medium text-emerald-600">{cost.toLocaleString("ru-RU")} ₸</span>
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">{cost.toLocaleString("ru-RU")} ₸</span>
                     ) : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right">

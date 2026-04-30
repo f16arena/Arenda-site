@@ -19,12 +19,12 @@ export default function ImportTenantsPage() {
       </div>
 
       {/* Шаблон */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
         <div className="flex items-start gap-3">
-          <Info className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+          <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-900 mb-1">Не знаете формат?</p>
-            <p className="text-sm text-blue-800 mb-3">
+            <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">Не знаете формат?</p>
+            <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
               Скачайте наш шаблон со всеми колонками и примерами — заполните и загрузите обратно.
             </p>
             <a

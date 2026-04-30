@@ -70,7 +70,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Свой шаблон документа</h3>
         </div>
         {active && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
             Активен ({active.format})
           </span>
@@ -95,7 +95,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             >
               <Download className="h-3 w-3" />
             </a>
-            <button onClick={remove} disabled={pending} className="rounded-md border border-red-200 text-red-600 hover:bg-red-50 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1">
+            <button onClick={remove} disabled={pending} className="rounded-md border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1">
               <X className="h-3 w-3" />
               Удалить
             </button>
@@ -107,7 +107,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
         )}
 
         <label className={`block border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition ${
-          pending ? "border-blue-400 bg-blue-50" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/30"
+          pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
         }`}>
           <input
             type="file"
@@ -117,7 +117,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             className="hidden"
           />
           {pending ? (
-            <div className="flex items-center justify-center gap-2 text-sm text-blue-700">
+            <div className="flex items-center justify-center gap-2 text-sm text-blue-700 dark:text-blue-300">
               <Loader2 className="h-4 w-4 animate-spin" />
               Загружаем шаблон...
             </div>
@@ -133,18 +133,18 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
         </label>
 
         {uploadResult?.ok && uploadResult.detectedPlaceholders && uploadResult.detectedPlaceholders.length > 0 && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs">
-            <p className="font-semibold text-emerald-900 mb-1">Найдено {uploadResult.detectedPlaceholders.length} меток для подстановки:</p>
-            <p className="text-emerald-800 font-mono break-all">
+          <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-lg p-3 text-xs">
+            <p className="font-semibold text-emerald-900 dark:text-emerald-200 mb-1">Найдено {uploadResult.detectedPlaceholders.length} меток для подстановки:</p>
+            <p className="text-emerald-800 dark:text-emerald-200 font-mono break-all">
               {uploadResult.detectedPlaceholders.map((p) => `{${p}}`).join(", ")}
             </p>
           </div>
         )}
 
         {uploadResult?.warning && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs flex items-start gap-2">
-            <AlertCircle className="h-3.5 w-3.5 mt-0.5 text-amber-600 shrink-0" />
-            <p className="text-amber-800">{uploadResult.warning}</p>
+          <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-3 text-xs flex items-start gap-2">
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <p className="text-amber-800 dark:text-amber-200">{uploadResult.warning}</p>
           </div>
         )}
 
@@ -152,7 +152,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
         <button
           type="button"
           onClick={() => setShowHelp((v) => !v)}
-          className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+          className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
         >
           <Info className="h-3 w-3" />
           {showHelp ? "Скрыть" : "Показать"} доступные метки для {TYPE_LABELS[documentType]}
@@ -160,28 +160,28 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
         </button>
 
         {showHelp && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2 text-xs">
-            <p className="text-blue-900">
+          <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4 space-y-2 text-xs">
+            <p className="text-blue-900 dark:text-blue-200">
               Откройте свой шаблон в Word/Excel и в нужных местах вместо данных вставьте метку из списка ниже:
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
               {placeholders.map((p) => (
                 <div key={p.key} className="flex items-baseline gap-2">
-                  <code className="text-[10px] font-mono bg-white dark:bg-slate-900 border border-blue-200 px-1.5 py-0.5 rounded text-blue-700">
+                  <code className="text-[10px] font-mono bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 px-1.5 py-0.5 rounded text-blue-700 dark:text-blue-300">
                     {`{${p.key}}`}
                   </code>
-                  <span className="text-blue-900">— {p.label}</span>
+                  <span className="text-blue-900 dark:text-blue-200">— {p.label}</span>
                 </div>
               ))}
             </div>
-            <p className="text-blue-800 mt-3">
+            <p className="text-blue-800 dark:text-blue-200 mt-3">
               <b>Пример:</b> в шаблоне договора напишите{" "}
-              <code className="bg-white dark:bg-slate-900 border border-blue-200 px-1 rounded">«Арендатор: {`{tenant_name}`} (БИН {`{tenant_bin}`})»</code>
+              <code className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 px-1 rounded">«Арендатор: {`{tenant_name}`} (БИН {`{tenant_bin}`})»</code>
               — система при генерации подставит реальные данные конкретного арендатора.
             </p>
-            <p className="text-blue-800">
+            <p className="text-blue-800 dark:text-blue-200">
               Для повторяющихся данных (списки услуг) используйте конструкцию{" "}
-              <code className="bg-white dark:bg-slate-900 border border-blue-200 px-1 rounded text-[10px]">{`{#items}{name} — {amount}{/items}`}</code>.
+              <code className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 px-1 rounded text-[10px]">{`{#items}{name} — {amount}{/items}`}</code>.
             </p>
           </div>
         )}

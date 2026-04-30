@@ -13,7 +13,7 @@ export function RespondButton({ complaintId, hasResponse }: { complaintId: strin
     <>
       <div className="flex items-center gap-2 shrink-0">
         {!hasResponse && (
-          <button onClick={() => setOpen(true)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+          <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
             <MessageSquare className="h-3 w-3" />
             Ответить
           </button>
@@ -22,7 +22,7 @@ export function RespondButton({ complaintId, hasResponse }: { complaintId: strin
           <button
             onClick={() => startResolveTransition(async () => { await resolveComplaint(complaintId) })}
             disabled={resolvePending}
-            className="text-xs text-emerald-600 hover:underline flex items-center gap-1 disabled:opacity-50"
+            className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 disabled:opacity-50"
           >
             <CheckCircle className="h-3 w-3" />
             {resolvePending ? "..." : "Решена"}

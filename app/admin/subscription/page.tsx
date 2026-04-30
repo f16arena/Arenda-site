@@ -68,8 +68,8 @@ export default async function SubscriptionPage() {
   return (
     <div className="space-y-5 max-w-4xl">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50">
-          <Package className="h-5 w-5 text-purple-600" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10">
+          <Package className="h-5 w-5 text-purple-600 dark:text-purple-400" />
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Моя подписка</h1>
@@ -80,9 +80,9 @@ export default async function SubscriptionPage() {
       {/* Текущий план */}
       <div className={cn(
         "rounded-xl border-2 p-6",
-        expired ? "bg-red-50 border-red-200" :
-        daysLeft !== null && daysLeft <= 7 ? "bg-amber-50 border-amber-200" :
-        "bg-purple-50 border-purple-200"
+        expired ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30" :
+        daysLeft !== null && daysLeft <= 7 ? "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30" :
+        "bg-purple-50 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/30"
       )}>
         <div className="flex items-start justify-between">
           <div>
@@ -96,7 +96,7 @@ export default async function SubscriptionPage() {
           </div>
           <div className="text-right">
             {expired ? (
-              <div className="text-red-700">
+              <div className="text-red-700 dark:text-red-300">
                 <AlertTriangle className="h-5 w-5 inline mr-1" />
                 <span className="font-semibold">Подписка истекла</span>
               </div>
@@ -159,7 +159,7 @@ export default async function SubscriptionPage() {
             return (
               <div key={key} className={cn(
                 "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm",
-                enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 line-through"
+                enabled ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-slate-50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 line-through"
               )}>
                 {enabled ? <CheckCircle className="h-3.5 w-3.5" /> : <span className="w-3.5" />}
                 {label}
@@ -194,7 +194,7 @@ export default async function SubscriptionPage() {
                 <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   {new Date(s.startedAt).toLocaleDateString("ru-RU")} → {new Date(s.expiresAt).toLocaleDateString("ru-RU")}
                 </td>
-                <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
+                <td className="px-5 py-2.5 text-right font-medium text-emerald-600 dark:text-emerald-400">
                   {s.paidAmount.toLocaleString("ru-RU")} ₸
                 </td>
               </tr>
@@ -224,7 +224,7 @@ function Usage({ label, current, max, icon: Icon }: {
           {label}
         </div>
         <div className="text-sm font-medium">
-          <span className={cn(isFull ? "text-red-600" : isWarning ? "text-amber-600" : "text-slate-900 dark:text-slate-100")}>
+          <span className={cn(isFull ? "text-red-600 dark:text-red-400" : isWarning ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100")}>
             {current}
           </span>
           <span className="text-slate-400 dark:text-slate-500"> / {max === null ? "∞" : max}</span>

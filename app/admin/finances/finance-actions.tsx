@@ -161,7 +161,7 @@ export function PenaltyButton() {
 
   return (
     <div className="flex items-center gap-3">
-      {result && <span className="text-xs text-amber-600">{result}</span>}
+      {result && <span className="text-xs text-amber-600 dark:text-amber-400">{result}</span>}
       <button
         onClick={() => startTransition(async () => {
           const r = await calculatePenalties()
@@ -169,7 +169,7 @@ export function PenaltyButton() {
           setTimeout(() => setResult(null), 5000)
         })}
         disabled={pending}
-        className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+        className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 dark:bg-amber-500/20 disabled:opacity-60"
       >
         <AlertTriangle className="h-4 w-4" />
         {pending ? "Расчёт..." : "Рассчитать пени"}
@@ -185,7 +185,7 @@ export function GenerateChargesButton() {
 
   return (
     <div className="flex items-center gap-3">
-      {result && <span className="text-xs text-emerald-600">{result}</span>}
+      {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
       <button
         onClick={() => startTransition(async () => {
           const r = await generateMonthlyCharges(period)

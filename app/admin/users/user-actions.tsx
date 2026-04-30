@@ -111,7 +111,7 @@ export function EditUserDialog({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-blue-600 hover:text-blue-800"
+        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200"
         aria-label="Редактировать"
         title="Редактировать"
       >
@@ -177,7 +177,7 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-amber-600 hover:text-amber-800"
+        className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:text-amber-200"
         aria-label="Сбросить пароль"
         title="Сбросить пароль"
       >
@@ -257,7 +257,7 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
       }
       trigger={
         <button
-          className={isActive ? "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300" : "text-emerald-600 hover:text-emerald-800"}
+          className={isActive ? "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:text-emerald-200"}
           aria-label={isActive ? "Деактивировать" : "Активировать"}
           title={isActive ? "Деактивировать" : "Активировать"}
         >

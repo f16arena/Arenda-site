@@ -71,8 +71,8 @@ export function SignupForm() {
               maxLength={20}
               placeholder="bc-almaty"
               className={`w-full rounded-lg border px-3.5 py-2.5 pr-12 text-sm font-mono lowercase focus:outline-none focus:ring-2 transition ${
-                isSlugOk ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20"
-                : isSlugBad ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
+                isSlugOk ? "border-emerald-300 dark:border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500/20"
+                : isSlugBad ? "border-red-300 dark:border-red-500/40 focus:border-red-500 focus:ring-red-500/20"
                 : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
               }`}
             />
@@ -88,20 +88,20 @@ export function SignupForm() {
             </p>
           )}
           {isSlugOk && checkResult && checkResult.ok && (
-            <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700">
+            <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
               <Check className="h-3 w-3" />
               Свободно. Будет: {checkResult.url}
             </p>
           )}
           {isSlugBad && checkResult && !checkResult.ok && (
             <div className="mt-1">
-              <p className="text-[11px] text-red-600">{checkResult.reason}</p>
+              <p className="text-[11px] text-red-600 dark:text-red-400">{checkResult.reason}</p>
               {checkResult.suggestions && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
                   Свободные:{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
-                      <button type="button" onClick={() => { setSlugTouched(true); setSlug(s) }} className="font-mono text-blue-600 hover:underline">{s}</button>
+                      <button type="button" onClick={() => { setSlugTouched(true); setSlug(s) }} className="font-mono text-blue-600 dark:text-blue-400 hover:underline">{s}</button>
                       {i < checkResult.suggestions!.length - 1 && ", "}
                     </span>
                   ))}
@@ -133,14 +133,14 @@ export function SignupForm() {
         <input type="checkbox" name="agreed" className="mt-0.5 h-4 w-4 rounded border-slate-300" />
         <span>
           Я ознакомлен и согласен с{" "}
-          <Link href="/offer" className="text-blue-600 hover:underline" target="_blank">Публичной офертой</Link>{", "}
-          <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Политикой конфиденциальности</Link>{" и "}
-          <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Пользовательским соглашением</Link>
+          <Link href="/offer" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">Публичной офертой</Link>{", "}
+          <Link href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">Политикой конфиденциальности</Link>{" и "}
+          <Link href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">Пользовательским соглашением</Link>
         </span>
       </label>
 
       {state?.error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+        <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span className="font-medium">{state.error}</span>
         </div>

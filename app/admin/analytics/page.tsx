@@ -120,8 +120,8 @@ export default async function AnalyticsPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
-          <Activity className="h-5 w-5 text-blue-600" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
+          <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Аналитика</h1>
@@ -159,7 +159,7 @@ export default async function AnalyticsPage() {
                 <tr key={t.tenantId} className="border-b border-slate-50">
                   <td className="px-5 py-2.5 text-slate-400 dark:text-slate-500">#{i + 1}</td>
                   <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
-                  <td className="px-5 py-2.5 text-right font-semibold text-emerald-600">{formatMoney(amount)}</td>
+                  <td className="px-5 py-2.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(amount)}</td>
                   <td className="px-5 py-2.5 text-right text-slate-500 dark:text-slate-400 dark:text-slate-500">{percent}%</td>
                 </tr>
               )
@@ -181,10 +181,10 @@ function Kpi({ label, value, icon: Icon, sub, color }: {
   color: "blue" | "emerald" | "red" | "purple"
 }) {
   const colors = {
-    blue: "bg-blue-50 text-blue-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    red: "bg-red-50 text-red-600",
-    purple: "bg-purple-50 text-purple-600",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
+    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
   }
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">

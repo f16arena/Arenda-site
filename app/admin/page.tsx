@@ -300,7 +300,7 @@ export default async function AdminDashboard() {
               <ClipboardList className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Активные заявки
             </h2>
-            <Link href="/admin/requests" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+            <Link href="/admin/requests" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5">
               Все <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
@@ -324,7 +324,7 @@ export default async function AdminDashboard() {
               <CheckSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Задачи
             </h2>
-            <Link href="/admin/tasks" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+            <Link href="/admin/tasks" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5">
               Все <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
@@ -346,7 +346,7 @@ export default async function AdminDashboard() {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Арендаторы</h2>
-          <Link href="/admin/tenants" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
+          <Link href="/admin/tenants" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5">
             Все <ArrowUpRight className="h-3 w-3" />
           </Link>
         </div>
@@ -369,9 +369,9 @@ export default async function AdminDashboard() {
                   </td>
                   <td className="px-5 py-3 text-right">
                     {debt > 0 ? (
-                      <span className="text-red-600 font-medium">{formatMoney(debt)}</span>
+                      <span className="text-red-600 dark:text-red-400 font-medium">{formatMoney(debt)}</span>
                     ) : (
-                      <span className="text-emerald-600">Нет долга</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">Нет долга</span>
                     )}
                   </td>
                 </tr>
@@ -396,15 +396,15 @@ function TodayCard({
   urgent?: boolean
 }) {
   const colors = {
-    red: "bg-red-50 text-red-600 border-red-200",
-    amber: "bg-amber-50 text-amber-600 border-amber-200",
-    blue: "bg-blue-50 text-blue-600 border-blue-200",
-    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30",
+    amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30",
   }
   return (
     <Link
       href={href}
-      className={`block bg-white dark:bg-slate-900 rounded-xl border p-4 transition hover:shadow-sm ${urgent ? "border-red-200 ring-1 ring-red-100" : "border-slate-200 dark:border-slate-800"}`}
+      className={`block bg-white dark:bg-slate-900 rounded-xl border p-4 transition hover:shadow-sm ${urgent ? "border-red-200 dark:border-red-500/30 ring-1 ring-red-100" : "border-slate-200 dark:border-slate-800"}`}
     >
       <div className="flex items-start justify-between mb-2">
         <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${colors[color]}`}>
@@ -429,10 +429,10 @@ function StatCard({
   color: "blue" | "teal" | "green" | "red"
 }) {
   const colors = {
-    blue: "bg-blue-50 text-blue-600",
-    teal: "bg-teal-50 text-teal-600",
-    green: "bg-emerald-50 text-emerald-600",
-    red: "bg-red-50 text-red-600",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    teal: "bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400",
+    green: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
   }
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
@@ -448,9 +448,9 @@ function StatCard({
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    NEW: "bg-blue-100 text-blue-700",
-    IN_PROGRESS: "bg-amber-100 text-amber-700",
-    DONE: "bg-emerald-100 text-emerald-700",
+    NEW: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
+    IN_PROGRESS: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",
+    DONE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
   }
   const label: Record<string, string> = {
     NEW: "Новая",

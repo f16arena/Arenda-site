@@ -65,7 +65,7 @@ export function DocumentsChecklist({
                       href={uploaded.fileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                     >
                       {uploaded.name}
                       <ExternalLink className="h-3 w-3" />
@@ -94,7 +94,7 @@ export function DocumentsChecklist({
                   href={d.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                 >
                   Открыть <ExternalLink className="h-3 w-3" />
                 </a>

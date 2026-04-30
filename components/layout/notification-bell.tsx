@@ -120,7 +120,7 @@ export function NotificationBell({ items }: { items: NotificationItem[] }) {
                         try { await markAllRead() } catch { toast.error("Не удалось") }
                       })
                     }
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     Прочитать все
                   </button>
@@ -222,7 +222,7 @@ function NotificationRow({ item, onClose }: { item: NotificationItem; onClose: (
   const Icon = meta.icon
 
   const Inner = (
-    <div className={cn("px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 group", !item.isRead && "bg-blue-50/30")}>
+    <div className={cn("px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 group", !item.isRead && "bg-blue-50 dark:bg-blue-500/10/30")}>
       <div className="flex items-start gap-3">
         <div className={cn("mt-0.5 inline-flex h-7 w-7 items-center justify-center rounded-lg shrink-0", "bg-slate-100 dark:bg-slate-800", meta.color)}>
           <Icon className="h-3.5 w-3.5" />
@@ -247,7 +247,7 @@ function NotificationRow({ item, onClose }: { item: NotificationItem; onClose: (
                   try { await markNotificationRead(item.id) } catch { toast.error("Ошибка") }
                 })
               }}
-              className="text-slate-400 dark:text-slate-500 hover:text-emerald-600"
+              className="text-slate-400 dark:text-slate-500 hover:text-emerald-600 dark:text-emerald-400"
               title="Отметить прочитанным"
             >
               <Check className="h-3.5 w-3.5" />
@@ -261,7 +261,7 @@ function NotificationRow({ item, onClose }: { item: NotificationItem; onClose: (
                 try { await deleteNotification(item.id) } catch { toast.error("Ошибка") }
               })
             }}
-            className="text-slate-400 dark:text-slate-500 hover:text-red-600"
+            className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400"
             title="Удалить"
           >
             <X className="h-3.5 w-3.5" />

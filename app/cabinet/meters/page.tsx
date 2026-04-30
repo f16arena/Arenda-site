@@ -10,9 +10,9 @@ const typeLabel: Record<string, string> = {
   HEAT: "Тепло",
 }
 const typeColor: Record<string, string> = {
-  ELECTRICITY: "bg-yellow-100 text-yellow-700",
-  WATER: "bg-blue-100 text-blue-700",
-  HEAT: "bg-orange-100 text-orange-700",
+  ELECTRICITY: "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300",
+  WATER: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  HEAT: "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300",
 }
 
 export default async function CabinetMetersPage() {
@@ -62,7 +62,7 @@ export default async function CabinetMetersPage() {
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">#{meter.number}</span>
               {hasCurrent && (
-                <span className="ml-auto text-xs text-emerald-600 font-medium">✓ Показания внесены</span>
+                <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Показания внесены</span>
               )}
             </div>
 
@@ -83,7 +83,7 @@ export default async function CabinetMetersPage() {
             </div>
 
             {hasCurrent && (
-              <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3">
+              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-4 py-3">
                 <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Расход за период: <span className="font-semibold text-slate-900 dark:text-slate-100">
                   {(latest.value - latest.previous).toLocaleString("ru-RU")} {meter.type === "ELECTRICITY" ? "кВт·ч" : "м³"}
                 </span></p>

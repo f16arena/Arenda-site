@@ -25,9 +25,9 @@ const TYPE_LABELS: Record<string, string> = {
 
 const STATUS_COLORS: Record<string, string> = {
   QUEUED: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
-  SENT: "bg-blue-100 text-blue-700",
-  OPENED: "bg-emerald-100 text-emerald-700",
-  FAILED: "bg-red-100 text-red-700",
+  SENT: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  OPENED: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+  FAILED: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300",
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -78,7 +78,7 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
               </td>
               <td className="px-4 py-2.5 text-right">
                 {m.openedAt ? (
-                  <span className="inline-flex items-center gap-1 text-emerald-600">
+                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                     <Eye className="h-3 w-3" />
                     {new Date(m.openedAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     {m.openCount > 1 && <span className="text-slate-400 dark:text-slate-500">×{m.openCount}</span>}

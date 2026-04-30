@@ -128,7 +128,7 @@ async function TopOrgsByMrr() {
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ организаций по MRR</h2>
-        <Link href="/superadmin/orgs" className="text-xs text-purple-600 hover:underline flex items-center gap-1">
+        <Link href="/superadmin/orgs" className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1">
           Все организации <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
@@ -147,7 +147,7 @@ async function TopOrgsByMrr() {
           {sorted.map((o) => (
             <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition">
               <td className="px-5 py-2.5">
-                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600">
+                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400">
                   {o.name}
                 </Link>
                 <div>
@@ -155,21 +155,21 @@ async function TopOrgsByMrr() {
                     href={`https://${o.slug}.${ROOT_HOST}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
+                    className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 font-mono inline-flex items-center gap-0.5"
                   >
                     {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                   </a>
                 </div>
               </td>
               <td className="px-5 py-2.5 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.plan?.name ?? "—"}</td>
-              <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
+              <td className="px-5 py-2.5 text-right font-medium text-emerald-600 dark:text-emerald-400">
                 {o.mrr.toLocaleString("ru-RU")} ₸
               </td>
               <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.buildings}</td>
               <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.users}</td>
               <td className="px-5 py-2.5 text-right">
                 {o.isSuspended && (
-                  <span className="text-[10px] text-red-600 font-medium">приостановлен</span>
+                  <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">приостановлен</span>
                 )}
               </td>
             </tr>
@@ -219,7 +219,7 @@ async function SubscriptionDynamics() {
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{monthName}</p>
-                <p className="text-[10px] text-emerald-600 font-medium">+{m.created}</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">+{m.created}</p>
               </div>
             )
           })}
@@ -385,11 +385,11 @@ function Kpi({ icon: Icon, color, label, value, sub }: {
   sub?: string
 }) {
   const colors: Record<typeof color, string> = {
-    blue: "bg-blue-50 text-blue-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    purple: "bg-purple-50 text-purple-600",
-    red: "bg-red-50 text-red-600",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
     slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
   }
   return (
@@ -414,10 +414,10 @@ function Card({ label, value, icon: Icon, color, sub }: {
   sub?: string
 }) {
   const colors = {
-    blue: "bg-blue-50 text-blue-600",
-    emerald: "bg-emerald-50 text-emerald-600",
-    amber: "bg-amber-50 text-amber-600",
-    purple: "bg-purple-50 text-purple-600",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
   }
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">

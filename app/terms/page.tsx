@@ -17,7 +17,7 @@ export default function TermsPage() {
       <p>
         Настоящее Пользовательское соглашение (далее — «Соглашение») регулирует условия использования сервиса{" "}
         {LEGAL_ENTITY.brand} (далее — «Сервис»), доступного по адресу{" "}
-        <a href={LEGAL_ENTITY.site} className="text-blue-600 hover:underline">{LEGAL_ENTITY.site}</a>, и
+        <a href={LEGAL_ENTITY.site} className="text-blue-600 dark:text-blue-400 hover:underline">{LEGAL_ENTITY.site}</a>, и
         заключается между {LEGAL_ENTITY.fullName} (далее — «Администрация») и пользователем Сервиса (далее —
         «Пользователь»).
       </p>
@@ -34,7 +34,7 @@ export default function TermsPage() {
         </Clause>
         <Clause num="1.2">
           Доступ к Сервису предоставляется в соответствии с условиями{" "}
-          <a href="/offer" className="text-blue-600 hover:underline">Публичной оферты</a>.
+          <a href="/offer" className="text-blue-600 dark:text-blue-400 hover:underline">Публичной оферты</a>.
         </Clause>
         <Clause num="1.3">
           Настоящее Соглашение является дополнением к Публичной оферте и регулирует общие правила поведения
@@ -56,7 +56,7 @@ export default function TermsPage() {
         <Clause num="2.4">
           В случае подозрения на несанкционированный доступ Пользователь обязан немедленно уведомить
           Администрацию по адресу{" "}
-          <a href={`mailto:${LEGAL_ENTITY.email.security}`} className="text-blue-600 hover:underline">
+          <a href={`mailto:${LEGAL_ENTITY.email.security}`} className="text-blue-600 dark:text-blue-400 hover:underline">
             {LEGAL_ENTITY.email.security}
           </a>.
         </Clause>
@@ -156,7 +156,7 @@ export default function TermsPage() {
           <ClauseList
             items={[
               <>электронная почта:{" "}
-                <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
+                <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                   {LEGAL_ENTITY.email.support}
                 </a>;</>,
               "чат в Сервисе;",
@@ -166,7 +166,7 @@ export default function TermsPage() {
         </Clause>
         <Clause num="6.3">
           Время реакции и режим работы поддержки указаны в{" "}
-          <a href="/sla" className="text-blue-600 hover:underline">SLA</a>.
+          <a href="/sla" className="text-blue-600 dark:text-blue-400 hover:underline">SLA</a>.
         </Clause>
       </Section>
 

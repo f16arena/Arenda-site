@@ -37,8 +37,8 @@ export default async function UsersPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50">
-            <Shield className="h-5 w-5 text-purple-600" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10">
+            <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Управление пользователями</h1>
@@ -97,7 +97,7 @@ export default async function UsersPage() {
                         <p className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
                           {u.name}
                           {isSelf && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">ВЫ</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold">ВЫ</span>
                           )}
                           {!u.isActive && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 font-semibold">НЕАКТИВЕН</span>

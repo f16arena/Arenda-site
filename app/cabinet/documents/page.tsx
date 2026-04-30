@@ -53,8 +53,8 @@ export default async function CabinetDocuments() {
             {tenant.contracts.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                    <FileText className="h-4 w-4 text-blue-600" />
+                  <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -77,7 +77,7 @@ export default async function CabinetDocuments() {
                     </button>
                   )}
                   {c.status === "SIGNED" && (
-                    <button className="text-xs text-blue-600 hover:underline">Скачать</button>
+                    <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Скачать</button>
                   )}
                 </div>
               </div>
@@ -115,10 +115,10 @@ export default async function CabinetDocuments() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
                     Загружен
                   </span>
-                  <button className="text-xs text-blue-600 hover:underline">Открыть</button>
+                  <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Открыть</button>
                 </div>
               </div>
             ))}

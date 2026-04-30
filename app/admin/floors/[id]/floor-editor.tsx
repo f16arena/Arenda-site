@@ -690,7 +690,7 @@ export function FloorEditor({
             <button
               onClick={() => setView3D(!view3D)}
               title="Изометрический 3D-вид"
-              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 text-purple-700" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
+              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Box className="h-4 w-4" />
             </button>
@@ -698,7 +698,7 @@ export function FloorEditor({
             <button
               onClick={() => setCalibration({ active: !calibration.active, first: null, second: null })}
               title="Калибровка масштаба (клик 2 точки)"
-              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 text-orange-700" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
+              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Ruler className="h-4 w-4" />
             </button>
@@ -761,12 +761,12 @@ export function FloorEditor({
         <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative">
           {/* Информер по калибровке */}
           {calibration.active && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-orange-100 border border-orange-300 rounded-lg px-4 py-2 text-xs text-orange-800 shadow-lg">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-orange-100 dark:bg-orange-500/20 border border-orange-300 dark:border-orange-500/40 rounded-lg px-4 py-2 text-xs text-orange-800 dark:text-orange-200 shadow-lg">
               {!calibration.first
                 ? "📍 Кликните по первой точке известного расстояния"
                 : "📍 Теперь кликните по второй точке"}
               <button onClick={() => setCalibration({ active: false, first: null, second: null })}
-                className="ml-3 text-orange-600 underline">Отмена</button>
+                className="ml-3 text-orange-600 dark:text-orange-400 underline">Отмена</button>
             </div>
           )}
 
@@ -1340,7 +1340,7 @@ function PropertiesPanel({
             : element.type === "icon" ? `Иконка: ${element.kind}`
             : "Стена"}
         </p>
-        <button onClick={onDelete} className="text-red-400 hover:text-red-600">
+        <button onClick={onDelete} className="text-red-400 hover:text-red-600 dark:text-red-400">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
@@ -1416,13 +1416,13 @@ function PropertiesPanel({
             <div className="flex gap-2">
               <button
                 onClick={() => onUpdate({ swing: "left" } as Partial<FloorElement>)}
-                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "left" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}
+                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "left" ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}
               >
                 Слева
               </button>
               <button
                 onClick={() => onUpdate({ swing: "right" } as Partial<FloorElement>)}
-                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "right" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}
+                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "right" ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}
               >
                 Справа
               </button>

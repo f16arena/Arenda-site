@@ -33,11 +33,11 @@ export function ContractNumberInput({
           placeholder="F16-2026-001"
         />
         {isAuto ? (
-          <span className="text-xs text-emerald-600 flex items-center gap-1 shrink-0">
+          <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
             <Check className="h-3 w-3" /> Авто-номер
           </span>
         ) : suggestedNumber ? (
-          <button onClick={() => setNumber(suggestedNumber)} className="text-xs text-blue-600 hover:underline shrink-0">
+          <button onClick={() => setNumber(suggestedNumber)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0">
             Использовать «{suggestedNumber}»
           </button>
         ) : null}

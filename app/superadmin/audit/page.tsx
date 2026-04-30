@@ -6,9 +6,9 @@ import { History, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const ACTION_COLORS: Record<string, string> = {
-  CREATE: "bg-emerald-100 text-emerald-700",
-  UPDATE: "bg-blue-100 text-blue-700",
-  DELETE: "bg-red-100 text-red-700",
+  CREATE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+  UPDATE: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  DELETE: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300",
   LOGIN: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
 }
 
@@ -36,8 +36,8 @@ export default async function SuperadminAuditPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
-          <History className="h-5 w-5 text-amber-600" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10">
+          <History className="h-5 w-5 text-amber-600 dark:text-amber-400" />
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Журнал платформы</h1>
@@ -77,7 +77,7 @@ export default async function SuperadminAuditPage() {
                     {org ? (
                       <span className="text-xs text-slate-700 dark:text-slate-300 font-mono">{org.slug}</span>
                     ) : (
-                      <span className="text-xs text-purple-600 font-mono">PLATFORM</span>
+                      <span className="text-xs text-purple-600 dark:text-purple-400 font-mono">PLATFORM</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5">

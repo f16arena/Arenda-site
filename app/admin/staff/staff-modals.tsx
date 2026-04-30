@@ -106,7 +106,7 @@ export function EditStaffDialog({ user }: { user: StaffUser }) {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+      <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
         <Edit2 className="h-3 w-3" />
         Изменить
       </button>
@@ -183,7 +183,7 @@ export function GenerateSalaryButton({ period }: { period: string }) {
 
   return (
     <div className="flex items-center gap-3">
-      {result && <span className="text-xs text-emerald-600">{result}</span>}
+      {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
       <button
         onClick={() => startTransition(async () => {
           const r = await generateSalaryPayments(period)
@@ -207,7 +207,7 @@ export function MarkSalaryPaidButton({ salaryPaymentId }: { salaryPaymentId: str
     <button
       onClick={() => startTransition(async () => { await markSalaryPaid(salaryPaymentId) })}
       disabled={pending}
-      className="text-xs text-emerald-600 hover:underline flex items-center gap-1 disabled:opacity-50"
+      className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 disabled:opacity-50"
     >
       <CheckCircle className="h-3 w-3" />
       {pending ? "..." : "Выплатить"}
@@ -228,8 +228,8 @@ export function DeactivateButton({ userId, isActive }: { userId: string; isActiv
         disabled={pending}
         className={`text-xs flex items-center gap-1 ${
           isActive
-            ? "text-red-500 hover:text-red-700"
-            : "text-emerald-600 hover:text-emerald-800"
+            ? "text-red-500 hover:text-red-700 dark:text-red-300"
+            : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:text-emerald-200"
         } disabled:opacity-50`}
       >
         {isActive ? <UserX className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />}

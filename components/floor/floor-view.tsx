@@ -195,7 +195,7 @@ export function FloorView({
               <>
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
                   <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">Арендатор</p>
-                  <Link href={`/admin/tenants/${selectedSpace.tenant.id}`} className="text-blue-600 hover:underline font-medium">
+                  <Link href={`/admin/tenants/${selectedSpace.tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
                     {selectedSpace.tenant.companyName}
                   </Link>
                 </div>
@@ -208,10 +208,10 @@ export function FloorView({
                 {selectedSpace.tenant.debt > 0 ? (
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Долг:</span>
-                    <span className="font-bold text-red-600">{selectedSpace.tenant.debt.toLocaleString("ru-RU")} ₸</span>
+                    <span className="font-bold text-red-600 dark:text-red-400">{selectedSpace.tenant.debt.toLocaleString("ru-RU")} ₸</span>
                   </div>
                 ) : (
-                  <p className="text-xs text-emerald-600">Без задолженности</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">Без задолженности</p>
                 )}
               </>
             ) : (

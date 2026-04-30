@@ -94,7 +94,7 @@ export function OrgEditForm({
           <input type="checkbox" name="isActive" defaultChecked={initial.isActive} className="rounded" />
           Активна
         </label>
-        <label className="flex items-center gap-2 text-sm text-red-700 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300 cursor-pointer">
           <input type="checkbox" name="isSuspended" defaultChecked={initial.isSuspended} className="rounded" />
           Приостановлена
         </label>
@@ -184,14 +184,14 @@ export function DangerZone({
   const [showDelete, setShowDelete] = useState(false)
 
   return (
-    <div className="rounded-2xl border border-red-200 bg-red-50/50 p-5 space-y-4">
+    <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10/50 p-5 space-y-4">
       <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-red-600" />
-        <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">Опасная зона</p>
+        <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+        <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">Опасная зона</p>
       </div>
 
       {/* Деактивация / Реактивация */}
-      <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 rounded-xl border border-red-100 p-4">
+      <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 rounded-xl border border-red-100 dark:border-red-500/20 p-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
             {isActive ? "Деактивировать организацию" : "Активировать организацию"}
@@ -228,10 +228,10 @@ export function DangerZone({
       </div>
 
       {/* Удаление */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-red-200 p-4 space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-red-200 dark:border-red-500/30 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-red-900">Удалить организацию навсегда</p>
+            <p className="text-sm font-medium text-red-900 dark:text-red-200">Удалить организацию навсегда</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
               Удалит {buildingsCount} зданий и каскадно все связанные данные (этажи, помещения,
               арендаторы, договора, платежи). Пользователи останутся в системе как
@@ -250,8 +250,8 @@ export function DangerZone({
         </div>
 
         {showDelete && (
-          <div className="rounded-lg bg-red-50 border border-red-200 p-3 space-y-2">
-            <p className="text-xs text-red-800">
+          <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 p-3 space-y-2">
+            <p className="text-xs text-red-800 dark:text-red-200">
               Чтобы подтвердить — введите slug организации <b className="font-mono">{orgSlug}</b>:
             </p>
             <div className="flex gap-2">
@@ -259,7 +259,7 @@ export function DangerZone({
                 value={confirmInput}
                 onChange={(e) => setConfirmInput(e.target.value)}
                 placeholder={orgSlug}
-                className="flex-1 rounded-lg border border-red-300 px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900"
+                className="flex-1 rounded-lg border border-red-300 dark:border-red-500/40 px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900"
               />
               <button
                 onClick={() => {
@@ -295,7 +295,7 @@ export function DangerZone({
               </button>
             </div>
             {usersCount > 0 && (
-              <p className="text-[10px] text-amber-700">
+              <p className="text-[10px] text-amber-700 dark:text-amber-300">
                 ⚠️ {usersCount} пользователей будут отвязаны от организации и деактивированы.
               </p>
             )}
@@ -369,7 +369,7 @@ export function ChangeOwnerForm({
         </button>
       </div>
       {willPromote && (
-        <p className="text-[10px] text-amber-700">
+        <p className="text-[10px] text-amber-700 dark:text-amber-300">
           ⚠️ Пользователь будет автоматически повышен с ADMIN до OWNER.
         </p>
       )}

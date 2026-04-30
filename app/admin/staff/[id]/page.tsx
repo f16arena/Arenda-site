@@ -96,12 +96,12 @@ export default async function StaffDetailPage({
               <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">· {user.staff.position}</span>
             )}
             {!user.isActive && (
-              <span className="text-xs text-red-600 font-medium">УВОЛЕН</span>
+              <span className="text-xs text-red-600 dark:text-red-400 font-medium">УВОЛЕН</span>
             )}
             {isCurrentUser && (
               <Link
                 href="/admin/profile"
-                className="text-xs text-blue-600 hover:underline ml-2"
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline ml-2"
               >
                 Это ваш профиль → перейти к моим настройкам
               </Link>
@@ -178,7 +178,7 @@ export default async function StaffDetailPage({
                       <td className="px-5 py-2.5">
                         <span className={cn(
                           "px-2 py-0.5 rounded text-xs font-medium",
-                          p.status === "PAID" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                          p.status === "PAID" ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
                         )}>
                           {p.status === "PAID" ? "Выплачено" : "Ожидает"}
                         </span>
@@ -206,12 +206,12 @@ export default async function StaffDetailPage({
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Email подтверждён</span>
                 {user.emailVerifiedAt ? (
-                  <span className="flex items-center gap-1 text-emerald-600 text-xs">
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs">
                     <CheckCircle className="h-3.5 w-3.5" />
                     {new Date(user.emailVerifiedAt).toLocaleDateString("ru-RU")}
                   </span>
                 ) : user.email ? (
-                  <span className="flex items-center gap-1 text-amber-600 text-xs">
+                  <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs">
                     <AlertCircle className="h-3.5 w-3.5" />
                     Не подтверждён
                   </span>
@@ -222,7 +222,7 @@ export default async function StaffDetailPage({
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Telegram</span>
                 {user.telegramChatId ? (
-                  <span className="flex items-center gap-1 text-emerald-600 text-xs">
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs">
                     <CheckCircle className="h-3.5 w-3.5" />
                     Подключён
                   </span>

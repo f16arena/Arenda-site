@@ -41,7 +41,7 @@ export default function SlaPage() {
       </p>
       <p>
         SLA является неотъемлемой частью{" "}
-        <a href="/offer" className="text-blue-600 hover:underline">Публичной оферты</a>.
+        <a href="/offer" className="text-blue-600 dark:text-blue-400 hover:underline">Публичной оферты</a>.
       </p>
 
       <Section number="1" title="Определения">
@@ -168,7 +168,7 @@ export default function SlaPage() {
         </Clause>
         <Clause num="5.3">
           Для получения компенсации Заказчик подаёт письменное обращение на адрес{" "}
-          <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
+          <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 dark:text-blue-400 hover:underline">
             {LEGAL_ENTITY.email.support}
           </a>{" "}
           в течение 30 (тридцати) календарных дней с момента инцидента.
@@ -205,7 +205,7 @@ export default function SlaPage() {
           <ClauseList
             items={[
               <>электронная почта:{" "}
-                <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
+                <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                   {LEGAL_ENTITY.email.support}
                 </a>;</>,
               "чат в Сервисе;",
@@ -258,7 +258,7 @@ export default function SlaPage() {
       <Section number="10" title="Контакты для инцидентов">
         <p>
           E-mail инцидентов:{" "}
-          <a href={`mailto:${LEGAL_ENTITY.email.incident}`} className="text-blue-600 hover:underline">
+          <a href={`mailto:${LEGAL_ENTITY.email.incident}`} className="text-blue-600 dark:text-blue-400 hover:underline">
             {LEGAL_ENTITY.email.incident}
           </a>
         </p>

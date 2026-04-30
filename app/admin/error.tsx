@@ -26,8 +26,8 @@ export default function Error({
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="text-center max-w-lg">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-          <AlertCircle className="h-6 w-6 text-red-600" />
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10">
+          <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
         </div>
         <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Что-то пошло не так</h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">

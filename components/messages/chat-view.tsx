@@ -87,11 +87,11 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               onClick={() => setSelectedId(BROADCAST_ID)}
               className={cn(
                 "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
-                selectedId === BROADCAST_ID && "bg-blue-50 hover:bg-blue-50"
+                selectedId === BROADCAST_ID && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
               )}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 shrink-0">
-                <Megaphone className="h-4 w-4 text-amber-600" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20 shrink-0">
+                <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Всем (объявление)</p>
@@ -110,7 +110,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               onClick={() => setSelectedId(c.id)}
               className={cn(
                 "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
-                selectedId === c.id && "bg-blue-50 hover:bg-blue-50"
+                selectedId === c.id && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
               )}
             >
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 shrink-0">
@@ -147,8 +147,8 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
             <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
               {selectedId === BROADCAST_ID ? (
                 <>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
-                    <Megaphone className="h-4 w-4 text-amber-600" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
+                    <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Объявление всем</p>
@@ -211,7 +211,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                               if (!confirm("Удалить сообщение?")) return
                               deleteMessage(m.id).catch((e) => toast.error(e.message))
                             }}
-                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-600 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
                             aria-label="Удалить"
                           >
                             <Trash2 className="h-3 w-3" />

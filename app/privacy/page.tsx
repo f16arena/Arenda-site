@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         Настоящая Политика конфиденциальности (далее — «Политика») описывает, какие персональные данные
         собирает, использует и защищает {LEGAL_ENTITY.fullName} (далее — «Оператор», «мы») при предоставлении
         услуг через сервис {LEGAL_ENTITY.brand}, размещённый по адресу{" "}
-        <a href={LEGAL_ENTITY.site} className="text-blue-600 hover:underline">{LEGAL_ENTITY.site}</a>{" "}
+        <a href={LEGAL_ENTITY.site} className="text-blue-600 dark:text-blue-400 hover:underline">{LEGAL_ENTITY.site}</a>{" "}
         (далее — «Сервис»).
       </p>
       <p>
@@ -39,7 +39,7 @@ export default function PrivacyPage() {
             <p>БИН: <Field value={LEGAL_ENTITY.bin} /></p>
             <p>Юридический адрес: <Field value={LEGAL_ENTITY.legalAddress} /></p>
             <p>Электронная почта для запросов:{" "}
-              <a href={`mailto:${LEGAL_ENTITY.email.privacy}`} className="text-blue-600 hover:underline">
+              <a href={`mailto:${LEGAL_ENTITY.email.privacy}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                 {LEGAL_ENTITY.email.privacy}
               </a>
             </p>
@@ -235,7 +235,7 @@ export default function PrivacyPage() {
         </Clause>
         <Clause num="9.2">
           Запросы и обращения направляются на электронный адрес:{" "}
-          <a href={`mailto:${LEGAL_ENTITY.email.privacy}`} className="text-blue-600 hover:underline">
+          <a href={`mailto:${LEGAL_ENTITY.email.privacy}`} className="text-blue-600 dark:text-blue-400 hover:underline">
             {LEGAL_ENTITY.email.privacy}
           </a>.
         </Clause>

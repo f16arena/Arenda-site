@@ -152,7 +152,7 @@ export function StaffEditForm({
             })
           }
           className={`text-xs font-medium ${
-            initial.isActive ? "text-red-600 hover:text-red-700" : "text-emerald-600 hover:text-emerald-700"
+            initial.isActive ? "text-red-600 dark:text-red-400 hover:text-red-700 dark:text-red-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:text-emerald-300"
           } disabled:text-slate-400 dark:text-slate-500`}
           title={isCurrentUser ? "Себя уволить нельзя" : ""}
         >

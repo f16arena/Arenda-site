@@ -137,13 +137,13 @@ export function LegalShell({
             <dd><Field value={LEGAL_ENTITY.phone} /></dd>
             <dt className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Email поддержки</dt>
             <dd>
-              <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
+              <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                 {LEGAL_ENTITY.email.support}
               </a>
             </dd>
             <dt className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Сайт</dt>
             <dd>
-              <a href={LEGAL_ENTITY.site} className="text-blue-600 hover:underline">
+              <a href={LEGAL_ENTITY.site} className="text-blue-600 dark:text-blue-400 hover:underline">
                 {LEGAL_ENTITY.site}
               </a>
             </dd>
@@ -154,10 +154,10 @@ export function LegalShell({
         <nav className="mt-12 pt-6 border-t border-slate-100 dark:border-slate-800">
           <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Другие документы</p>
           <ul className="grid grid-cols-2 gap-2 text-sm">
-            <li><Link href="/offer" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:underline">Публичная оферта</Link></li>
-            <li><Link href="/privacy" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:underline">Политика конфиденциальности</Link></li>
-            <li><Link href="/terms" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:underline">Пользовательское соглашение</Link></li>
-            <li><Link href="/sla" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:underline">SLA</Link></li>
+            <li><Link href="/offer" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 hover:underline">Публичная оферта</Link></li>
+            <li><Link href="/privacy" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 hover:underline">Политика конфиденциальности</Link></li>
+            <li><Link href="/terms" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 hover:underline">Пользовательское соглашение</Link></li>
+            <li><Link href="/sla" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:text-blue-400 hover:underline">SLA</Link></li>
           </ul>
         </nav>
       </article>

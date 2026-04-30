@@ -15,19 +15,19 @@ export function ForgotPasswordForm() {
   if (done) {
     return (
       <div className="space-y-4">
-        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4">
+        <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-4">
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-emerald-900">Письмо отправлено</p>
-              <p className="text-xs text-emerald-800 mt-1">{message}</p>
+              <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">Письмо отправлено</p>
+              <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-1">{message}</p>
             </div>
           </div>
         </div>
 
         {previewLink && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
-            <p className="text-xs text-blue-900 font-medium">Тестовая ссылка (Resend не настроен):</p>
+          <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-3 space-y-2">
+            <p className="text-xs text-blue-900 dark:text-blue-200 font-medium">Тестовая ссылка (Resend не настроен):</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 truncate rounded bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-mono text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                 {previewLink}
@@ -98,7 +98,7 @@ export function ForgotPasswordForm() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
+        <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 font-medium">
           {error}
         </div>
       )}

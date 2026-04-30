@@ -73,7 +73,7 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
                   {p.description && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{p.description}</p>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setEditing(p)} className="text-blue-600 hover:text-blue-800" title="Редактировать">
+                  <button onClick={() => setEditing(p)} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200" title="Редактировать">
                     <Edit2 className="h-4 w-4" />
                   </button>
                   <DeleteButton planId={p.id} orgCount={p._count.organizations} />
@@ -93,7 +93,7 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
                 </p>
                 <div className="flex flex-wrap gap-1">
                   {FEATURE_KEYS.filter((f) => features[f.key]).map((f) => (
-                    <span key={f.key} className="text-[10px] bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5">
+                    <span key={f.key} className="text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded px-1.5 py-0.5">
                       {f.label}
                     </span>
                   ))}
@@ -157,7 +157,7 @@ function DeleteButton({ planId, orgCount }: { planId: string; orgCount: number }
         })
       }}
       disabled={pending}
-      className="text-red-400 hover:text-red-600"
+      className="text-red-400 hover:text-red-600 dark:text-red-400"
     >
       <Trash2 className="h-4 w-4" />
     </button>

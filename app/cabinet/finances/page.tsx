@@ -44,7 +44,7 @@ export default async function CabinetFinances() {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-          <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600" : "text-emerald-600"}`}>
+          <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {formatMoney(totalDebt)}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Задолженность</p>
@@ -106,7 +106,7 @@ export default async function CabinetFinances() {
                       </div>
                       <div className="flex items-center gap-3">
                         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(c.amount)}</p>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.isPaid ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.isPaid ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"}`}>
                           {c.isPaid ? "Оплачено" : "Долг"}
                         </span>
                       </div>

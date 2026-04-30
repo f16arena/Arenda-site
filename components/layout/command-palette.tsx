@@ -140,7 +140,7 @@ export function CommandPalette() {
                       key={a.href}
                       value={`${a.label} ${a.keywords}`}
                       onSelect={() => go(a.href)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50 dark:bg-blue-500/10"
                     >
                       <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                       <span className="flex-1 text-slate-900 dark:text-slate-100">{a.label}</span>
@@ -157,7 +157,7 @@ export function CommandPalette() {
                       key={a.href}
                       value={`${a.label} ${a.keywords}`}
                       onSelect={() => go(a.href)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50 dark:bg-blue-500/10"
                     >
                       <Icon className="h-4 w-4 text-emerald-500 shrink-0" />
                       <span className="flex-1 text-slate-900 dark:text-slate-100">{a.label}</span>
@@ -182,7 +182,7 @@ export function CommandPalette() {
                     key={`${item.type}-${item.id}`}
                     value={`${item.title} ${item.subtitle ?? ""}`}
                     onSelect={() => go(item.href)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50 dark:bg-blue-500/10"
                   >
                     <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                     <div className="flex-1 min-w-0">

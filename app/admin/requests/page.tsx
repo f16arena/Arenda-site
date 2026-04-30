@@ -63,7 +63,7 @@ export default async function RequestsPage() {
               <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
                 <td className="px-5 py-3.5">
                   <Link href={`/admin/requests/${r.id}`} className="block">
-                    <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600">{r.title}</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:text-blue-400">{r.title}</p>
                     <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-xs">{r.description}</p>
                   </Link>
                 </td>

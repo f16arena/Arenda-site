@@ -13,11 +13,11 @@ export function TelegramSetup({ currentChatId }: { currentChatId: string | null 
   if (currentChatId) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
-          <Check className="h-5 w-5 text-emerald-600 shrink-0" />
+        <div className="flex items-center gap-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 px-4 py-3">
+          <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-emerald-900">Telegram подключён</p>
-            <p className="text-xs text-emerald-700 mt-0.5">Chat ID: <span className="font-mono">{currentChatId}</span></p>
+            <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">Telegram подключён</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">Chat ID: <span className="font-mono">{currentChatId}</span></p>
           </div>
         </div>
         <button
@@ -50,7 +50,7 @@ export function TelegramSetup({ currentChatId }: { currentChatId: string | null 
         <ol className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-2 list-decimal list-inside">
           <li>
             Откройте бота:{" "}
-            <a href={`https://t.me/${botName}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-mono">
+            <a href={`https://t.me/${botName}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline font-mono">
               @{botName}
             </a>
           </li>

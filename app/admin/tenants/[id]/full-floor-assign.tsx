@@ -37,7 +37,7 @@ export function FullFloorAssign({
         {availableFloors.length > 0 && (
           <button
             onClick={() => setOpen(true)}
-            className="text-xs text-blue-600 hover:underline"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
             + Назначить
           </button>

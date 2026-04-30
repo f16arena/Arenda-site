@@ -34,9 +34,9 @@ export default async function SettingsPage() {
 
   if (!building) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
-        <p className="text-sm text-amber-800 mb-2">Здание не выбрано</p>
-        <a href="/admin/buildings" className="text-xs text-amber-700 underline">Перейти к списку зданий →</a>
+      <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-6 text-center">
+        <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">Здание не выбрано</p>
+        <a href="/admin/buildings" className="text-xs text-amber-700 dark:text-amber-300 underline">Перейти к списку зданий →</a>
       </div>
     )
   }

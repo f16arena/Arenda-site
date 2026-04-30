@@ -80,10 +80,10 @@ export default async function SubscriptionsTimelinePage() {
       </div>
 
       {/* Группы */}
-      <Group title="🚨 Истекли" orgs={expired} colorClass="bg-red-50 border-red-200" emptyText="Нет истёкших подписок" />
-      <Group title="⚠️ Истекают в течение 7 дней" orgs={expiring7} colorClass="bg-amber-50 border-amber-200" emptyText="Все стабильны на ближайшую неделю" />
-      <Group title="📅 Истекают в течение 30 дней" orgs={expiring30} colorClass="bg-blue-50 border-blue-200" emptyText="" />
-      <Group title="✓ Активные подписки" orgs={ok} colorClass="bg-emerald-50 border-emerald-200" emptyText="" />
+      <Group title="🚨 Истекли" orgs={expired} colorClass="bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30" emptyText="Нет истёкших подписок" />
+      <Group title="⚠️ Истекают в течение 7 дней" orgs={expiring7} colorClass="bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30" emptyText="Все стабильны на ближайшую неделю" />
+      <Group title="📅 Истекают в течение 30 дней" orgs={expiring30} colorClass="bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30" emptyText="" />
+      <Group title="✓ Активные подписки" orgs={ok} colorClass="bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30" emptyText="" />
       {noExpiry.length > 0 && (
         <Group title="❓ Без даты окончания" orgs={noExpiry} colorClass="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800" emptyText="" />
       )}
@@ -151,7 +151,7 @@ function Group({
                   <td className="px-5 py-2.5">
                     <Link
                       href={`/superadmin/orgs/${o.id}`}
-                      className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600"
+                      className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400"
                     >
                       {o.name}
                     </Link>
@@ -160,7 +160,7 @@ function Group({
                         href={`https://${o.slug}.${ROOT_HOST}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
+                        className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 font-mono inline-flex items-center gap-0.5"
                       >
                         {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                       </a>
@@ -175,8 +175,8 @@ function Group({
                         </p>
                         {days !== null && (
                           <p className={`text-[11px] ${
-                            days < 0 ? "text-red-600 font-medium"
-                              : days <= 7 ? "text-amber-600 font-medium"
+                            days < 0 ? "text-red-600 dark:text-red-400 font-medium"
+                              : days <= 7 ? "text-amber-600 dark:text-amber-400 font-medium"
                               : "text-slate-400 dark:text-slate-500"
                           }`}>
                             {days < 0 ? `просрочено ${Math.abs(days)} дн.` : `через ${days} дн.`}
@@ -185,14 +185,14 @@ function Group({
                       </div>
                     ) : "—"}
                   </td>
-                  <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
+                  <td className="px-5 py-2.5 text-right font-medium text-emerald-600 dark:text-emerald-400">
                     {o.plan ? `${o.plan.priceMonthly.toLocaleString("ru-RU")} ₸` : "—"}
                   </td>
                   <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.buildings}</td>
                   <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.users}</td>
                   <td className="px-5 py-2.5 text-right">
                     {o.isSuspended && (
-                      <span className="text-[10px] text-red-600 font-medium">приостановлен</span>
+                      <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">приостановлен</span>
                     )}
                   </td>
                 </tr>
@@ -215,10 +215,10 @@ function StatCard({
   urgent?: boolean
 }) {
   const colors = {
-    red: "bg-red-50 text-red-600 border-red-200",
-    amber: "bg-amber-50 text-amber-600 border-amber-200",
-    blue: "bg-blue-50 text-blue-600 border-blue-200",
-    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
+    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/30",
+    amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30",
+    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30",
+    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30",
   }
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 ${urgent ? colors[color] : "border-slate-200 dark:border-slate-800"}`}>

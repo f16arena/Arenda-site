@@ -58,7 +58,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
           <div>
-            <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-semibold">PLATFORM_OWNER</span>
+            <span className="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 px-2 py-0.5 rounded font-semibold">PLATFORM_OWNER</span>
           </div>
           <div className="flex items-center gap-2">
           <ThemeIconToggle />

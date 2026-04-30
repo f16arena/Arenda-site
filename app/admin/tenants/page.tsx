@@ -142,16 +142,16 @@ export default async function TenantsPage() {
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {debt > 0 ? (
-                      <span className="font-medium text-red-600">{formatMoney(debt)}</span>
+                      <span className="font-medium text-red-600 dark:text-red-400">{formatMoney(debt)}</span>
                     ) : (
-                      <span className="text-emerald-600 text-xs">Нет долга</span>
+                      <span className="text-emerald-600 dark:text-emerald-400 text-xs">Нет долга</span>
                     )}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-3">
                       <Link
                         href={`/admin/tenants/${t.id}`}
-                        className="text-xs text-blue-600 hover:underline"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         Открыть
                       </Link>

@@ -14,12 +14,12 @@ export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string 
   }
 
   return (
-    <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
-      <div className="h-10 w-10 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 flex items-center justify-center shrink-0">
-        <Globe className="h-5 w-5 text-purple-600" />
+    <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 flex items-center gap-3">
+      <div className="h-10 w-10 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-500/30 flex items-center justify-center shrink-0">
+        <Globe className="h-5 w-5 text-purple-600 dark:text-purple-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] uppercase tracking-widest text-purple-700 font-semibold">Рабочая зона организации</p>
+        <p className="text-[10px] uppercase tracking-widest text-purple-700 dark:text-purple-300 font-semibold">Рабочая зона организации</p>
         <p className="text-base font-mono text-slate-900 dark:text-slate-100 truncate">{url}</p>
       </div>
       <div className="flex gap-1.5 shrink-0">
@@ -28,7 +28,7 @@ export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string 
           className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
           title="Скопировать URL"
         >
-          {copied ? <><Check className="h-3.5 w-3.5 text-emerald-600" /> Скопировано</> : <><Copy className="h-3.5 w-3.5" /> Копировать</>}
+          {copied ? <><Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Скопировано</> : <><Copy className="h-3.5 w-3.5" /> Копировать</>}
         </button>
         <a
           href={url}

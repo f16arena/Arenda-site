@@ -49,7 +49,7 @@ export default function ImportHomePage() {
         />
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900">
+      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 text-sm text-blue-900 dark:text-blue-200">
         <p className="font-semibold mb-1">Как работать с 1С?</p>
         <p>
           В 1С: Бухгалтерии откройте справочник <i>«Контрагенты»</i> → меню <i>Файл → Сохранить как</i>{" "}
@@ -71,10 +71,10 @@ function ImportCard({ href, title, description, icon: Icon, color, available }: 
   available: boolean
 }) {
   const colors = {
-    blue: { bg: "bg-blue-50", text: "text-blue-600", hover: "hover:border-blue-300 hover:bg-blue-50/50" },
-    emerald: { bg: "bg-emerald-50", text: "text-emerald-600", hover: "hover:border-emerald-300 hover:bg-emerald-50/50" },
-    amber: { bg: "bg-amber-50", text: "text-amber-600", hover: "hover:border-amber-300 hover:bg-amber-50/50" },
-    purple: { bg: "bg-purple-50", text: "text-purple-600", hover: "hover:border-purple-300 hover:bg-purple-50/50" },
+    blue: { bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", hover: "hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/50" },
+    emerald: { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", hover: "hover:border-emerald-300 dark:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:bg-emerald-500/10/50" },
+    amber: { bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", hover: "hover:border-amber-300 dark:border-amber-500/40 hover:bg-amber-50 dark:hover:bg-amber-500/10 dark:bg-amber-500/10/50" },
+    purple: { bg: "bg-purple-50 dark:bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", hover: "hover:border-purple-300 dark:border-purple-500/40 hover:bg-purple-50 dark:hover:bg-purple-500/10 dark:bg-purple-500/10/50" },
   }
   const c = colors[color]
 
@@ -86,7 +86,7 @@ function ImportCard({ href, title, description, icon: Icon, color, available }: 
         </div>
         <div className="flex-1">
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
-          {!available && <span className="inline-block text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded mt-1">скоро</span>}
+          {!available && <span className="inline-block text-[10px] text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 rounded mt-1">скоро</span>}
         </div>
         {available && <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
       </div>

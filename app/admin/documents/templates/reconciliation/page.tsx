@@ -204,14 +204,14 @@ export default async function ReconciliationPage({
           <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-5 py-4 mb-8 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Задолженность арендатора на {today}:</span>
-              <span className={`font-bold text-base ${balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+              <span className={`font-bold text-base ${balance > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                 {balance >= 0 ? formatMoney(balance) : formatMoney(0)}
               </span>
             </div>
             {balance < 0 && (
               <div className="flex items-center justify-between mt-1">
                 <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Переплата арендатора:</span>
-                <span className="font-bold text-base text-blue-600">{formatMoney(Math.abs(balance))}</span>
+                <span className="font-bold text-base text-blue-600 dark:text-blue-400">{formatMoney(Math.abs(balance))}</span>
               </div>
             )}
           </div>

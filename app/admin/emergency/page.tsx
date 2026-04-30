@@ -14,12 +14,12 @@ const categoryLabel: Record<string, string> = {
 }
 
 const categoryColor: Record<string, string> = {
-  WATER: "bg-blue-100 text-blue-700",
-  ELECTRICITY: "bg-yellow-100 text-yellow-700",
-  GAS: "bg-orange-100 text-orange-700",
-  FIRE: "bg-red-100 text-red-700",
+  WATER: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
+  ELECTRICITY: "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300",
+  GAS: "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300",
+  FIRE: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300",
   POLICE: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
-  AMBULANCE: "bg-pink-100 text-pink-700",
+  AMBULANCE: "bg-pink-100 dark:bg-pink-500/20 text-pink-700 dark:text-pink-300",
   OTHER: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500",
 }
 
@@ -45,7 +45,7 @@ export default async function EmergencyPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {contacts.map((c) => (
           <div key={c.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 flex items-center gap-4">
-            <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <div className="h-10 w-10 rounded-full bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
               <Phone className="h-4 w-4 text-red-500" />
             </div>
             <div className="min-w-0">

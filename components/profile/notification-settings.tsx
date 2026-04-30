@@ -53,7 +53,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
         <div className="divide-y divide-slate-50">
           <ChannelRow
             icon={Bell}
-            color="text-blue-600 bg-blue-50"
+            color="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10"
             label="В приложении"
             description="Колокольчик в шапке"
             enabled={settings.notifyInApp}
@@ -62,7 +62,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
           />
           <ChannelRow
             icon={Mail}
-            color="text-purple-600 bg-purple-50"
+            color="text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10"
             label="Email"
             description="На вашу электронную почту"
             enabled={settings.notifyEmail}
@@ -71,7 +71,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
           />
           <ChannelRow
             icon={Send}
-            color="text-cyan-600 bg-cyan-50"
+            color="text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10"
             label="Telegram"
             description="В привязанный аккаунт Telegram"
             enabled={settings.notifyTelegram}

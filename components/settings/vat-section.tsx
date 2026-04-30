@@ -74,10 +74,10 @@ export function VatSection({ organization }: Props) {
           </button>
         </div>
 
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <b className="text-amber-800">Важно про РК:</b> с 2019 года плательщики НДС обязаны выписывать{" "}
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-3">
+          <b className="text-amber-800 dark:text-amber-200">Важно про РК:</b> с 2019 года плательщики НДС обязаны выписывать{" "}
           <b>электронные счёт-фактуры (ЭСФ)</b> через государственный портал{" "}
-          <a href="https://esf.gov.kz/" target="_blank" rel="noopener" className="underline text-amber-700">esf.gov.kz</a>.
+          <a href="https://esf.gov.kz/" target="_blank" rel="noopener" className="underline text-amber-700 dark:text-amber-300">esf.gov.kz</a>.
           Бумажные счёт-фактуры (для НДС-учёта) не используются. Текущая система формирует только{" "}
           <i>счёт на оплату</i> и <i>акт оказанных услуг</i> — это самостоятельные документы, не заменяющие ЭСФ.
         </div>

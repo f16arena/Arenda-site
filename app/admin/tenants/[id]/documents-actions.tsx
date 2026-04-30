@@ -6,10 +6,10 @@ import { toast } from "sonner"
 import { sendDocumentToTenant, type DocumentType } from "@/app/actions/send-document"
 
 const DOCS: { type: DocumentType; label: string; icon: typeof FileText; color: string }[] = [
-  { type: "INVOICE", label: "Счёт-фактура", icon: Receipt, color: "bg-blue-50 text-blue-700 border-blue-200" },
-  { type: "ACT", label: "Акт оказанных услуг", icon: FileCheck, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  { type: "INVOICE", label: "Счёт-фактура", icon: Receipt, color: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30" },
+  { type: "ACT", label: "Акт оказанных услуг", icon: FileCheck, color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30" },
   { type: "CONTRACT", label: "Договор аренды", icon: FileText, color: "bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800" },
-  { type: "HANDOVER", label: "Акт приёма-передачи", icon: Box, color: "bg-amber-50 text-amber-700 border-amber-200" },
+  { type: "HANDOVER", label: "Акт приёма-передачи", icon: Box, color: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30" },
 ]
 
 export function DocumentsActions({

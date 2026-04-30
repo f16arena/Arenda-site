@@ -63,8 +63,8 @@ export default async function SpacesPage() {
       <div className="grid grid-cols-5 gap-4">
         {[
           { label: "Всего", value: String(total), color: "text-slate-900 dark:text-slate-100" },
-          { label: "Занято", value: String(occupied), color: "text-blue-600" },
-          { label: "Свободно", value: String(vacant), color: "text-emerald-600" },
+          { label: "Занято", value: String(occupied), color: "text-blue-600 dark:text-blue-400" },
+          { label: "Свободно", value: String(vacant), color: "text-emerald-600 dark:text-emerald-400" },
           { label: "Заполняемость", value: `${total ? Math.round((occupied / total) * 100) : 0}%`, color: "text-slate-900 dark:text-slate-100" },
           { label: "Общая площадь", value: `${totalArea} м²`, color: "text-slate-900 dark:text-slate-100" },
         ].map((s) => (
@@ -114,9 +114,9 @@ export default async function SpacesPage() {
                 {floor.totalArea && <span className="text-xs text-slate-400 dark:text-slate-500">· {floor.totalArea} м²</span>}
               </div>
               <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                <span><span className="font-medium text-blue-600">{floorOccupied}</span> / {floor.spaces.length} занято</span>
+                <span><span className="font-medium text-blue-600 dark:text-blue-400">{floorOccupied}</span> / {floor.spaces.length} занято</span>
                 <span>{floorArea} м²</span>
-                <Link href={`/admin/floors/${floor.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
+                <Link href={`/admin/floors/${floor.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200 font-medium">
                   Редактировать план →
                 </Link>
               </div>
@@ -135,7 +135,7 @@ export default async function SpacesPage() {
                       <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">План этажа не нарисован</p>
                       <Link
                         href={`/admin/floors/${floor.id}`}
-                        className="inline-flex items-center gap-2 text-xs text-blue-600 hover:underline"
+                        className="inline-flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         Открыть редактор плана →
                       </Link>
@@ -163,7 +163,7 @@ export default async function SpacesPage() {
                           <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{formatMoney(space.area * floor.ratePerSqm)}</td>
                           <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                             {space.tenant ? (
-                              <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 hover:underline">
+                              <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                                 {space.tenant.companyName}
                               </Link>
                             ) : <span className="text-slate-400 dark:text-slate-500">—</span>}

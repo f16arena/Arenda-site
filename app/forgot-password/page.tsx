@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
 
         <p className="text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-4">
           Вспомнили пароль?{" "}
-          <Link href="/login" className="text-blue-600 hover:underline font-medium">
+          <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">
             Войти
           </Link>
         </p>

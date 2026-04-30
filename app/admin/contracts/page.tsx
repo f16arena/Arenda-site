@@ -100,9 +100,9 @@ function StatCard({
   icon: React.ElementType
 }) {
   const colors = {
-    emerald: "text-emerald-600 bg-emerald-50",
-    amber: "text-amber-600 bg-amber-50",
-    red: "text-red-600 bg-red-50",
+    emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+    amber: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
+    red: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10",
     slate: "text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50",
   }
   return (
@@ -167,8 +167,8 @@ function Section({
             return (
               <tr key={t.id} className={cn(
                 "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50",
-                highlight === "amber" && "bg-amber-50/30",
-                highlight === "red" && "bg-red-50/30"
+                highlight === "amber" && "bg-amber-50 dark:bg-amber-500/10/30",
+                highlight === "red" && "bg-red-50 dark:bg-red-500/10/30"
               )}>
                 <td className="px-5 py-3">
                   <p className="font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
@@ -182,8 +182,8 @@ function Section({
                       {daysLeft !== null && (
                         <p className={cn(
                           "mt-0.5",
-                          daysLeft < 0 && "text-red-600 font-medium",
-                          daysLeft >= 0 && daysLeft <= 20 && "text-amber-600 font-medium",
+                          daysLeft < 0 && "text-red-600 dark:text-red-400 font-medium",
+                          daysLeft >= 0 && daysLeft <= 20 && "text-amber-600 dark:text-amber-400 font-medium",
                           daysLeft > 20 && "text-slate-400 dark:text-slate-500"
                         )}>
                           {daysLeft < 0 ? `Просрочен ${Math.abs(daysLeft)} дн.` : `Осталось ${daysLeft} дн.`}
@@ -199,17 +199,17 @@ function Section({
                 </td>
                 <td className="px-5 py-3 text-right">
                   {debt > 0 ? (
-                    <span className="font-medium text-red-600">{formatMoney(debt)}</span>
+                    <span className="font-medium text-red-600 dark:text-red-400">{formatMoney(debt)}</span>
                   ) : (
-                    <span className="text-emerald-600 text-xs">—</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 text-xs">—</span>
                   )}
                 </td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex gap-3 justify-end text-xs">
-                    <Link href={`/admin/tenants/${t.id}`} className="text-blue-600 hover:underline">Карточка</Link>
+                    <Link href={`/admin/tenants/${t.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">Карточка</Link>
                     <Link
                       href={`/admin/documents/templates/rental?tenantId=${t.id}`}
-                      className="text-blue-600 hover:underline"
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
                     >
                       Договор
                     </Link>

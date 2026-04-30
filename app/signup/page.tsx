@@ -29,7 +29,7 @@ export default async function SignupPage() {
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Commrent</span>
           </Link>
           <Link href="/login" className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
-            Уже есть аккаунт? <span className="font-medium text-blue-600">Войти</span>
+            Уже есть аккаунт? <span className="font-medium text-blue-600 dark:text-blue-400">Войти</span>
           </Link>
         </div>
       </header>
@@ -52,10 +52,10 @@ export default async function SignupPage() {
 
           {/* Что внутри триала */}
           <aside className="space-y-4">
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-5">
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-4 w-4 text-blue-600" />
-                <p className="text-sm font-semibold text-blue-900">В триале доступно всё</p>
+                <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">В триале доступно всё</p>
               </div>
               <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                 {[
@@ -67,12 +67,12 @@ export default async function SignupPage() {
                   "Финансовый учёт и отчёты",
                 ].map((s) => (
                   <li key={s} className="flex items-start gap-2">
-                    <Check className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
                     <span>{s}</span>
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-4 pt-4 border-t border-blue-200">
+              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-4 pt-4 border-t border-blue-200 dark:border-blue-500/30">
                 После 14 дней выберете тариф (от 9 990 ₸/мес). Если не выберете — данные сохраним 30 дней
                 в режиме просмотра, без потери.
               </p>

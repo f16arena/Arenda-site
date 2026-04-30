@@ -40,7 +40,7 @@ export function LoginForm() {
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Пароль
               </label>
-              <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">
+              <Link href="/forgot-password" className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">
                 Забыли пароль?
               </Link>
             </div>
@@ -54,7 +54,7 @@ export function LoginForm() {
           </div>
 
           {state?.error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span className="font-medium">{state.error}</span>
@@ -83,15 +83,15 @@ export function LoginForm() {
             {state.details.map((d, i) => (
               <li key={i} className="flex items-start gap-2">
                 {d.ok
-                  ? <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-emerald-600 shrink-0" />
+                  ? <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   : <XCircle className="h-3.5 w-3.5 mt-0.5 text-red-500 shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between gap-2">
-                    <span className={d.ok ? "text-slate-700 dark:text-slate-300" : "text-red-700"}>{d.step}</span>
+                    <span className={d.ok ? "text-slate-700 dark:text-slate-300" : "text-red-700 dark:text-red-300"}>{d.step}</span>
                     <span className="text-slate-400 dark:text-slate-500">{d.ms}ms</span>
                   </div>
                   {d.note && (
-                    <p className={`mt-0.5 break-all ${d.ok ? "text-slate-500 dark:text-slate-400 dark:text-slate-500" : "text-red-600"}`}>
+                    <p className={`mt-0.5 break-all ${d.ok ? "text-slate-500 dark:text-slate-400 dark:text-slate-500" : "text-red-600 dark:text-red-400"}`}>
                       {d.note}
                     </p>
                   )}
@@ -101,13 +101,13 @@ export function LoginForm() {
           </ul>
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
             Подробнее по БД:{" "}
-            <a href="/api/health/db" className="text-blue-600 hover:underline" target="_blank">/api/health/db</a>
+            <a href="/api/health/db" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">/api/health/db</a>
           </div>
         </details>
       )}
 
       {process.env.NODE_ENV !== "production" && (
-        <div className="mt-4 rounded-xl bg-blue-50 border border-blue-100 p-4 text-xs text-blue-700 space-y-1">
+        <div className="mt-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 p-4 text-xs text-blue-700 dark:text-blue-300 space-y-1">
           <p className="font-semibold">Тестовые аккаунты (только в dev):</p>
           <p>Владелец: <span className="font-mono">+77000000001</span> / <span className="font-mono">owner123</span></p>
           <p>Администратор: <span className="font-mono">+77000000002</span> / <span className="font-mono">admin123</span></p>

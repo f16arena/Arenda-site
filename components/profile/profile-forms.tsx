@@ -89,13 +89,13 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
               <div className="flex items-center gap-1.5 mt-0.5">
                 {emailVerified ? (
                   <>
-                    <Check className="h-3 w-3 text-emerald-600" />
-                    <p className="text-xs text-emerald-700">Подтверждён</p>
+                    <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300">Подтверждён</p>
                   </>
                 ) : (
                   <>
-                    <AlertCircle className="h-3 w-3 text-amber-600" />
-                    <p className="text-xs text-amber-700">Не подтверждён</p>
+                    <AlertCircle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300">Не подтверждён</p>
                   </>
                 )}
               </div>
@@ -118,7 +118,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                   })
                 }
                 disabled={pending}
-                className="rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 disabled:opacity-50"
+                className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 dark:bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 disabled:opacity-50"
               >
                 Подтвердить
               </button>
@@ -170,8 +170,8 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
         </form>
 
         {previewLink && (
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
-            <p className="text-xs text-blue-900 font-medium">{previewMsg}</p>
+          <div className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 p-3 space-y-2">
+            <p className="text-xs text-blue-900 dark:text-blue-200 font-medium">{previewMsg}</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 truncate rounded bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-mono text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
                 {previewLink}

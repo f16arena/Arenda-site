@@ -44,10 +44,10 @@ export default async function OnboardingPage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-emerald-50 border border-blue-200 rounded-2xl p-6">
+      <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-emerald-50 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6">
         <div className="flex items-start gap-4">
-          <div className="h-12 w-12 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 flex items-center justify-center shrink-0">
-            <Sparkles className="h-5 w-5 text-blue-600" />
+          <div className="h-12 w-12 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center shrink-0">
+            <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
@@ -56,7 +56,7 @@ export default async function OnboardingPage() {
             <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">
               Аккаунт <b>{org?.name}</b> создан.{" "}
               {isTrial && daysLeft !== null && (
-                <span className="text-blue-700 font-medium">
+                <span className="text-blue-700 dark:text-blue-300 font-medium">
                   Триал: {daysLeft} {daysLeft === 1 ? "день" : daysLeft >= 2 && daysLeft <= 4 ? "дня" : "дней"} осталось.
                 </span>
               )}
@@ -91,8 +91,8 @@ export default async function OnboardingPage() {
                 href={s.href}
                 className={`flex items-center gap-4 p-4 rounded-xl border transition ${
                   s.done
-                    ? "border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50"
-                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 hover:bg-blue-50/30"
+                    ? "border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10/50 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:bg-emerald-500/10"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
                 }`}
               >
                 <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${
@@ -101,11 +101,11 @@ export default async function OnboardingPage() {
                   {s.done ? <Check className="h-4 w-4" /> : <span className="text-sm font-semibold">{i + 1}</span>}
                 </div>
                 <div className="flex-1">
-                  <p className={`text-sm font-medium ${s.done ? "text-emerald-900" : "text-slate-900 dark:text-slate-100"}`}>
+                  <p className={`text-sm font-medium ${s.done ? "text-emerald-900 dark:text-emerald-200" : "text-slate-900 dark:text-slate-100"}`}>
                     {s.label}
                   </p>
                 </div>
-                <ArrowRight className={`h-4 w-4 ${s.done ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`} />
+                <ArrowRight className={`h-4 w-4 ${s.done ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500"}`} />
               </Link>
             </li>
           ))}
@@ -116,11 +116,11 @@ export default async function OnboardingPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link
           href="/admin/import/tenants"
-          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-blue-300 hover:shadow-sm transition group"
+          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-blue-300 dark:border-blue-500/40 hover:shadow-sm transition group"
         >
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition">
-              <Upload className="h-5 w-5 text-blue-600" />
+            <div className="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-100 dark:hover:bg-blue-500/20 dark:bg-blue-500/20 transition">
+              <Upload className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Импорт из Excel</p>
@@ -133,11 +133,11 @@ export default async function OnboardingPage() {
 
         <Link
           href="/admin/buildings"
-          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-purple-300 hover:shadow-sm transition group"
+          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 hover:border-purple-300 dark:border-purple-500/40 hover:shadow-sm transition group"
         >
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-lg bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition">
-              <Building2 className="h-5 w-5 text-purple-600" />
+            <div className="h-10 w-10 rounded-lg bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-100 dark:hover:bg-purple-500/20 dark:bg-purple-500/20 transition">
+              <Building2 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Создать здание</p>
@@ -154,9 +154,9 @@ export default async function OnboardingPage() {
       </p>
 
       {allDone && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
-          <Check className="h-5 w-5 text-emerald-600 shrink-0" />
-          <p className="text-sm text-emerald-800">
+        <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-4 flex items-center gap-3">
+          <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <p className="text-sm text-emerald-800 dark:text-emerald-200">
             Всё готово! Можете переходить к <Link href="/admin" className="font-semibold underline">основной панели</Link>.
           </p>
         </div>

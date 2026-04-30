@@ -92,13 +92,13 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
       </button>
 
       {phase === "error" && error && (
-        <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 max-w-xs print:hidden">
+        <div className="rounded-md bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-3 py-2 text-xs text-red-700 dark:text-red-300 max-w-xs print:hidden">
           <div className="flex items-start gap-1.5">
             <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
           {showHelp && (
-            <p className="mt-2 text-[10px] text-red-600">
+            <p className="mt-2 text-[10px] text-red-600 dark:text-red-400">
               Установите NCALayer с{" "}
               <a href="https://pki.gov.kz/ncalayer/" target="_blank" rel="noopener" className="underline">pki.gov.kz/ncalayer</a>
               , запустите его (значок в трее) и нажмите Подписать снова.
@@ -110,14 +110,14 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
       {phase === "idle" && (
         <p className="text-[10px] text-slate-400 dark:text-slate-500 max-w-xs print:hidden">
           Требуется NCALayer.{" "}
-          <button type="button" onClick={() => setShowHelp((v) => !v)} className="text-blue-600 hover:underline">
+          <button type="button" onClick={() => setShowHelp((v) => !v)} className="text-blue-600 dark:text-blue-400 hover:underline">
             {showHelp ? "Скрыть" : "Что это?"}
           </button>
         </p>
       )}
 
       {showHelp && phase === "idle" && (
-        <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-900 max-w-sm print:hidden">
+        <div className="rounded-md bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200 max-w-sm print:hidden">
           <p className="font-medium mb-1">NCALayer</p>
           <p>Государственная программа для работы с ЭЦП НУЦ РК. Скачайте на{" "}
             <a href="https://pki.gov.kz/ncalayer/" target="_blank" rel="noopener" className="underline">pki.gov.kz/ncalayer</a>{" "}

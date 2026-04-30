@@ -8,10 +8,10 @@ import { SECTIONS, SECTION_LABELS } from "@/lib/acl"
 import { PermissionsMatrix } from "./permissions-matrix"
 
 const ROLES = [
-  { key: "OWNER", label: "Владелец", color: "bg-purple-50 text-purple-700" },
-  { key: "ADMIN", label: "Администратор", color: "bg-blue-50 text-blue-700" },
-  { key: "ACCOUNTANT", label: "Бухгалтер", color: "bg-green-50 text-green-700" },
-  { key: "FACILITY_MANAGER", label: "Завхоз", color: "bg-orange-50 text-orange-700" },
+  { key: "OWNER", label: "Владелец", color: "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300" },
+  { key: "ADMIN", label: "Администратор", color: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  { key: "ACCOUNTANT", label: "Бухгалтер", color: "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300" },
+  { key: "FACILITY_MANAGER", label: "Завхоз", color: "bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300" },
 ] as const
 
 export default async function RolesPage() {
@@ -38,8 +38,8 @@ export default async function RolesPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50">
-          <Shield className="h-5 w-5 text-purple-600" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10">
+          <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Роли и доступ</h1>
@@ -50,17 +50,17 @@ export default async function RolesPage() {
       </div>
 
       {migrationMissing && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-semibold text-amber-900 mb-1">Таблица прав не создана в базе</p>
-              <p className="text-sm text-amber-800 mb-3">
-                Запустите миграцию <code className="bg-amber-100 px-1.5 py-0.5 rounded">migrations/006_role_permissions.sql</code> в Supabase SQL Editor. После этого обновите страницу.
+              <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">Таблица прав не создана в базе</p>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
+                Запустите миграцию <code className="bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 rounded">migrations/006_role_permissions.sql</code> в Supabase SQL Editor. После этого обновите страницу.
               </p>
-              <details className="text-xs text-amber-700">
+              <details className="text-xs text-amber-700 dark:text-amber-300">
                 <summary className="cursor-pointer hover:underline">Показать SQL для запуска</summary>
-                <pre className="mt-2 bg-white dark:bg-slate-900 border border-amber-200 rounded p-3 overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
+                <pre className="mt-2 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/30 rounded p-3 overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
               </details>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default async function RolesPage() {
         editable={isOwner && !migrationMissing}
       />
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200">
         <p className="font-semibold mb-1">Как читать матрицу:</p>
         <ul className="text-xs space-y-1 list-disc list-inside">
           <li><b>👁</b> — может просматривать раздел (видит в меню и открывает страницу)</li>

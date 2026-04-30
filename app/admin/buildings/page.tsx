@@ -75,8 +75,8 @@ export default async function BuildingsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50">
-            <Building2 className="h-5 w-5 text-blue-600" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
+            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Здания</h1>
@@ -115,7 +115,7 @@ export default async function BuildingsPage() {
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{b.name}</h2>
                     {isCurrent && (
-                      <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                      <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
                         <Check className="h-3 w-3" />
                         Выбрано
                       </span>
@@ -155,8 +155,8 @@ export default async function BuildingsPage() {
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
                 <Stat label="Этажей" value={b._count.floors} icon={Layers} />
                 <Stat label="Помещений" value={s.spacesCount} icon={Building2} />
-                <Stat label="Занято" value={s.occupiedCount} accent="text-blue-600" />
-                <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} accent="text-emerald-600" />
+                <Stat label="Занято" value={s.occupiedCount} accent="text-blue-600 dark:text-blue-400" />
+                <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} accent="text-emerald-600 dark:text-emerald-400" />
                 <Stat label="Арендаторов" value={s.tenantsCount} icon={Users} />
               </div>
 

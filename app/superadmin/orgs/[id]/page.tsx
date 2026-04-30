@@ -76,15 +76,15 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
 
       {/* Status alerts */}
       {org.isSuspended && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-          <p className="text-sm text-red-800">Организация <b>приостановлена</b>. Клиент не может работать в системе.</p>
+        <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+          <p className="text-sm text-red-800 dark:text-red-200">Организация <b>приостановлена</b>. Клиент не может работать в системе.</p>
         </div>
       )}
       {expired && !org.isSuspended && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-          <p className="text-sm text-amber-800">Подписка <b>истекла</b>. Клиент не может создавать новые объекты.</p>
+        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4 flex items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-800 dark:text-amber-200">Подписка <b>истекла</b>. Клиент не может создавать новые объекты.</p>
         </div>
       )}
 
@@ -163,7 +163,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-emerald-600">{s.paidAmount.toLocaleString("ru-RU")} ₸</p>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{s.paidAmount.toLocaleString("ru-RU")} ₸</p>
                     {s.paymentMethod && <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.paymentMethod}</p>}
                   </div>
                 </div>
@@ -193,7 +193,7 @@ function Stat({ label, value, sub, icon: Icon, accent }: {
   icon?: React.ElementType
   accent?: "red" | "amber" | "slate"
 }) {
-  const accentClass = accent === "red" ? "text-red-600" : accent === "amber" ? "text-amber-600" : "text-slate-900 dark:text-slate-100"
+  const accentClass = accent === "red" ? "text-red-600 dark:text-red-400" : accent === "amber" ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
       <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">

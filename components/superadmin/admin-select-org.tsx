@@ -28,11 +28,11 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-purple-600" />
+            <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Платформенный режим</span>
             <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">· {userName}</span>
           </div>
-          <Link href="/superadmin" className="text-xs font-medium text-purple-600 hover:text-purple-700">
+          <Link href="/superadmin" className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:text-purple-300">
             ← Вернуться в супер-админ
           </Link>
         </div>
@@ -41,8 +41,8 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
       {/* Контент */}
       <main className="max-w-6xl mx-auto px-6 py-10">
         <div className="text-center mb-8">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 mb-4">
-            <Sparkles className="h-6 w-6 text-purple-600" />
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 dark:bg-purple-500/20 mb-4">
+            <Sparkles className="h-6 w-6 text-purple-600 dark:text-purple-400" />
           </div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Выберите организацию</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1.5 max-w-md mx-auto">
@@ -84,15 +84,15 @@ function OrgCard({ org }: { org: Org }) {
   const status: { label: string; className: string } = !org.isActive
     ? { label: "Деактивирована", className: "bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500" }
     : org.isSuspended
-    ? { label: "Приостановлена", className: "bg-red-100 text-red-700" }
+    ? { label: "Приостановлена", className: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" }
     : isExpired
-    ? { label: "Подписка истекла", className: "bg-red-100 text-red-700" }
+    ? { label: "Подписка истекла", className: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" }
     : daysLeft !== null && daysLeft <= 7
-    ? { label: `Истекает (${daysLeft} дн.)`, className: "bg-amber-100 text-amber-700" }
-    : { label: "Активна", className: "bg-emerald-100 text-emerald-700" }
+    ? { label: `Истекает (${daysLeft} дн.)`, className: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300" }
+    : { label: "Активна", className: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" }
 
   return (
-    <div className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-purple-300 hover:shadow-lg transition overflow-hidden">
+    <div className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-purple-300 dark:border-purple-500/40 hover:shadow-lg transition overflow-hidden">
       <div className="p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">

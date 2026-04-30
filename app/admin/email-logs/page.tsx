@@ -25,10 +25,10 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const STATUS_META: Record<string, { color: string; icon: React.ElementType; label: string }> = {
-  SENT: { color: "text-emerald-700 bg-emerald-50", icon: CheckCircle, label: "Отправлено" },
-  QUEUED: { color: "text-blue-700 bg-blue-50", icon: Clock, label: "В очереди" },
-  FAILED: { color: "text-red-700 bg-red-50", icon: XCircle, label: "Ошибка" },
-  BOUNCED: { color: "text-red-700 bg-red-50", icon: XCircle, label: "Отскок" },
+  SENT: { color: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10", icon: CheckCircle, label: "Отправлено" },
+  QUEUED: { color: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10", icon: Clock, label: "В очереди" },
+  FAILED: { color: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10", icon: XCircle, label: "Ошибка" },
+  BOUNCED: { color: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10", icon: XCircle, label: "Отскок" },
 }
 
 export default async function EmailLogsPage({
@@ -81,7 +81,7 @@ export default async function EmailLogsPage({
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           {logs.length} писем · {sentCount} доставлено · {openedCount} открыто
-          {failedCount > 0 && <span className="text-red-600"> · {failedCount} с ошибкой</span>}
+          {failedCount > 0 && <span className="text-red-600 dark:text-red-400"> · {failedCount} с ошибкой</span>}
         </p>
       </div>
 
@@ -133,7 +133,7 @@ export default async function EmailLogsPage({
                     </td>
                     <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
                       {log.tenantId ? (
-                        <Link href={`/admin/tenants/${log.tenantId}`} className="hover:text-blue-600 hover:underline">
+                        <Link href={`/admin/tenants/${log.tenantId}`} className="hover:text-blue-600 dark:text-blue-400 hover:underline">
                           {log.recipient}
                         </Link>
                       ) : (

@@ -58,13 +58,13 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
   if (created) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 space-y-4">
+      <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-6 space-y-4">
         <div className="flex items-center gap-3">
-          <Check className="h-6 w-6 text-emerald-600" />
-          <h2 className="text-lg font-semibold text-emerald-900">Организация создана</h2>
+          <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          <h2 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">Организация создана</h2>
         </div>
-        <p className="text-sm text-emerald-800">Передайте эти данные владельцу:</p>
-        <div className="bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 p-4 font-mono text-sm space-y-2">
+        <p className="text-sm text-emerald-800 dark:text-emerald-200">Передайте эти данные владельцу:</p>
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 dark:border-emerald-500/30 p-4 font-mono text-sm space-y-2">
           {created.ownerEmail && <div>Логин (email): <b>{created.ownerEmail}</b></div>}
           {created.ownerPhone && <div>Логин (телефон): <b>{created.ownerPhone}</b></div>}
           <div>Временный пароль: <b>{created.tempPassword}</b></div>
@@ -85,7 +85,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           </button>
           <button
             onClick={() => router.push(`/superadmin/orgs/${created.orgId}`)}
-            className="rounded-lg border border-emerald-300 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+            className="rounded-lg border border-emerald-300 dark:border-emerald-500/40 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:bg-emerald-500/10"
           >
             Перейти к организации
           </button>
@@ -143,15 +143,15 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
               placeholder="plaza"
               className={`w-full rounded-lg border px-3 py-2 pr-10 text-sm font-mono lowercase focus:outline-none focus:ring-2 transition ${
                 isSlugOk
-                  ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20"
+                  ? "border-emerald-300 dark:border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500/20"
                   : isSlugBad
-                  ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
+                  ? "border-red-300 dark:border-red-500/40 focus:border-red-500 focus:ring-red-500/20"
                   : "border-slate-200 dark:border-slate-800 focus:border-purple-500 focus:ring-purple-500/20"
               }`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
               {slugCheck.status === "checking" && <Loader2 className="h-4 w-4 text-slate-400 dark:text-slate-500 animate-spin" />}
-              {isSlugOk && <Check className="h-4 w-4 text-emerald-600" />}
+              {isSlugOk && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
               {isSlugBad && <AlertCircle className="h-4 w-4 text-red-500" />}
             </div>
           </div>
@@ -161,10 +161,10 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
             <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница нижнего регистра, цифры, дефис</p>
           )}
           {isSlugOk && checkResult && checkResult.ok && (
-            <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700">
+            <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
               <Check className="h-3 w-3" />
               Доступен. Будет:{" "}
-              <a href={checkResult.url} target="_blank" rel="noopener noreferrer" className="font-mono text-emerald-700 hover:underline inline-flex items-center gap-0.5">
+              <a href={checkResult.url} target="_blank" rel="noopener noreferrer" className="font-mono text-emerald-700 dark:text-emerald-300 hover:underline inline-flex items-center gap-0.5">
                 {checkResult.url}
                 <ExternalLink className="h-3 w-3" />
               </a>
@@ -172,7 +172,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           )}
           {isSlugBad && checkResult && !checkResult.ok && (
             <div className="mt-1 space-y-1">
-              <p className="text-[11px] text-red-600">{checkResult.reason}</p>
+              <p className="text-[11px] text-red-600 dark:text-red-400">{checkResult.reason}</p>
               {checkResult.suggestions && checkResult.suggestions.length > 0 && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   Свободные варианты:{" "}
@@ -181,7 +181,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
                       <button
                         type="button"
                         onClick={() => { setSlugTouched(true); setSlug(s) }}
-                        className="font-mono text-blue-600 hover:underline"
+                        className="font-mono text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         {s}
                       </button>
