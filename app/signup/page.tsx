@@ -52,7 +52,7 @@ export default async function SignupPage() {
 
           {/* Что внутри триала */}
           <aside className="space-y-4">
-            <div className="bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5">
+            <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-500/10 dark:to-purple-500/10 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">В триале доступно всё</p>

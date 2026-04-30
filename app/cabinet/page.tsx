@@ -109,10 +109,10 @@ export default async function CabinetDashboard() {
       {/* Главная карточка состояния */}
       <div className={`rounded-2xl p-6 ${
         overdueTotal > 0
-          ? "bg-gradient-to-br from-red-50 to-red-100 border border-red-200 dark:border-red-500/30"
+          ? "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-500/10 dark:to-red-500/5 border border-red-200 dark:border-red-500/30"
           : totalDebt > 0
-            ? "bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 dark:border-amber-500/30"
-            : "bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 dark:border-emerald-500/30"
+            ? "bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-500/10 dark:to-amber-500/5 border border-amber-200 dark:border-amber-500/30"
+            : "bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-500/10 dark:to-emerald-500/5 border border-emerald-200 dark:border-emerald-500/30"
       }`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">

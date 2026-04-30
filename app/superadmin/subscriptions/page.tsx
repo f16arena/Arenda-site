@@ -80,12 +80,12 @@ export default async function SubscriptionsTimelinePage() {
       </div>
 
       {/* Группы */}
-      <Group title="🚨 Истекли" orgs={expired} colorClass="bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30" emptyText="Нет истёкших подписок" />
-      <Group title="⚠️ Истекают в течение 7 дней" orgs={expiring7} colorClass="bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30" emptyText="Все стабильны на ближайшую неделю" />
-      <Group title="📅 Истекают в течение 30 дней" orgs={expiring30} colorClass="bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30" emptyText="" />
-      <Group title="✓ Активные подписки" orgs={ok} colorClass="bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30" emptyText="" />
+      <Group title="Истекли" orgs={expired} accent="red" emptyText="Нет истёкших подписок" />
+      <Group title="Истекают в течение 7 дней" orgs={expiring7} accent="amber" emptyText="Все стабильны на ближайшую неделю" />
+      <Group title="Истекают в течение 30 дней" orgs={expiring30} accent="blue" emptyText="" />
+      <Group title="Активные подписки" orgs={ok} accent="emerald" emptyText="" />
       {noExpiry.length > 0 && (
-        <Group title="❓ Без даты окончания" orgs={noExpiry} colorClass="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800" emptyText="" />
+        <Group title="Без даты окончания" orgs={noExpiry} accent="slate" emptyText="" />
       )}
     </div>
   )
@@ -101,20 +101,35 @@ interface OrgRow {
   _count: { buildings: number; users: number }
 }
 
+type Accent = "red" | "amber" | "blue" | "emerald" | "slate"
+
+const ACCENT_STYLES: Record<Accent, { dot: string; titleText: string }> = {
+  red: { dot: "bg-red-500", titleText: "text-red-700 dark:text-red-400" },
+  amber: { dot: "bg-amber-500", titleText: "text-amber-700 dark:text-amber-400" },
+  blue: { dot: "bg-blue-500", titleText: "text-blue-700 dark:text-blue-400" },
+  emerald: { dot: "bg-emerald-500", titleText: "text-emerald-700 dark:text-emerald-400" },
+  slate: { dot: "bg-slate-400", titleText: "text-slate-700 dark:text-slate-300" },
+}
+
 function Group({
-  title, orgs, colorClass, emptyText,
+  title, orgs, accent, emptyText,
 }: {
   title: string
   orgs: OrgRow[]
-  colorClass: string
+  accent: Accent
   emptyText: string
 }) {
+  const style = ACCENT_STYLES[accent]
+
   if (orgs.length === 0) {
     if (!emptyText) return null
     return (
-      <div className={`rounded-xl border p-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 ${colorClass}`}>
-        <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">{title}</p>
-        <p className="text-xs">{emptyText}</p>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-sm">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+          <p className={`font-semibold ${style.titleText}`}>{title}</p>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 ml-4">{emptyText}</p>
       </div>
     )
   }
@@ -122,10 +137,12 @@ function Group({
   const now = new Date()
 
   return (
-    <div className={`rounded-xl border overflow-hidden ${colorClass}`}>
-      <div className="px-5 py-3 border-b border-black/5">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          {title} <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-normal">· {orgs.length}</span>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${style.dot} shrink-0`} />
+        <h2 className={`text-sm font-semibold ${style.titleText}`}>
+          {title}
+          <span className="ml-2 text-slate-500 dark:text-slate-400 font-normal">· {orgs.length}</span>
         </h2>
       </div>
       <div className="bg-white dark:bg-slate-900">

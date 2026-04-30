@@ -44,7 +44,7 @@ export default async function OnboardingPage() {
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       {/* Welcome banner */}
-      <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-emerald-50 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6">
+      <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-emerald-50 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-emerald-500/10 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6">
         <div className="flex items-start gap-4">
           <div className="h-12 w-12 rounded-xl bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center shrink-0">
             <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />

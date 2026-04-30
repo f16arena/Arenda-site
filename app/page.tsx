@@ -83,7 +83,7 @@ export default async function Home() {
 
         {/* Mockup placeholder */}
         <div className="mx-auto max-w-5xl px-6 pb-16">
-          <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-white shadow-xl overflow-hidden">
+          <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 shadow-xl overflow-hidden">
             <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
