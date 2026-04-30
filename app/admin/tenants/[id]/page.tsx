@@ -54,6 +54,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       cleaningFee: true,
       needsCleaning: true,
       customRate: true,
+      paymentDueDay: true,
+      penaltyPercent: true,
+      isVatPayer: true,
       contractStart: true,
       contractEnd: true,
       user: { select: { id: true, name: true, email: true, phone: true } },
@@ -523,6 +526,52 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   Требуется уборка
                 </label>
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                  День оплаты (1-31)
+                </label>
+                <input
+                  name="paymentDueDay"
+                  type="number"
+                  min={1}
+                  max={31}
+                  defaultValue={tenant.paymentDueDay ?? 10}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  Срок оплаты счёта в каждом месяце
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                  Пеня % в день
+                </label>
+                <input
+                  name="penaltyPercent"
+                  type="number"
+                  step="0.1"
+                  min={0}
+                  max={100}
+                  defaultValue={tenant.penaltyPercent ?? 1}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  При просрочке (0 = без пени)
+                </p>
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    name="isVatPayer"
+                    type="checkbox"
+                    defaultChecked={tenant.isVatPayer}
+                    className="rounded border-slate-300"
+                  />
+                  Плательщик НДС
+                </label>
+              </div>
+
               <div className="col-span-3 flex justify-end">
                 <button
                   type="submit"

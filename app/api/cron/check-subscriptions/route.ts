@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { notifyUser } from "@/lib/notify"
 
 export const dynamic = "force-dynamic"
 
@@ -43,19 +44,16 @@ export async function GET(req: Request) {
       })
       result.suspended++
 
-      // Уведомить владельца
+      // Уведомить владельца — in-app + email + telegram
       if (org.ownerUserId) {
-        try {
-          await db.notification.create({
-            data: {
-              userId: org.ownerUserId,
-              type: "INFO",
-              title: "Подписка истекла",
-              message: `Подписка организации "${org.name}" истекла. Обратитесь в поддержку для продления.`,
-              link: "/admin/subscription",
-            },
-          })
-        } catch { /* notifications table */ }
+        await notifyUser({
+          userId: org.ownerUserId,
+          type: "SUBSCRIPTION_EXPIRED",
+          title: `Подписка истекла`,
+          message: `Подписка организации "${org.name}" истекла. Кабинет приостановлен. Свяжитесь с администрацией для продления.`,
+          link: "/admin/subscription",
+          emailButtonText: "Продлить подписку",
+        })
       }
     }
 
@@ -79,25 +77,24 @@ export async function GET(req: Request) {
       for (const org of orgs) {
         if (!org.ownerUserId) continue
         try {
-          // Дедуп — не более одного уведомления типа "expiring_${days}" в день
+          // Дедуп — не более одного уведомления этого типа за 22 часа
           const existing = await db.notification.findFirst({
             where: {
               userId: org.ownerUserId,
-              type: "INFO",
+              type: "SUBSCRIPTION_EXPIRING",
               title: { contains: `${days} дн.` },
-              createdAt: { gte: new Date(now.getTime() - 24 * 3600 * 1000) },
+              createdAt: { gte: new Date(now.getTime() - 22 * 3600 * 1000) },
             },
           })
           if (existing) continue
 
-          await db.notification.create({
-            data: {
-              userId: org.ownerUserId,
-              type: "INFO",
-              title: `Подписка истекает через ${days} дн.`,
-              message: `Подписка организации "${org.name}" истекает через ${days} ${days === 1 ? "день" : "дней"}. Свяжитесь с администрацией для продления.`,
-              link: "/admin/subscription",
-            },
+          await notifyUser({
+            userId: org.ownerUserId,
+            type: "SUBSCRIPTION_EXPIRING",
+            title: `Подписка истекает через ${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}`,
+            message: `Подписка организации "${org.name}" истекает через ${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}. Продлите чтобы избежать приостановки.`,
+            link: "/admin/subscription",
+            emailButtonText: "Продлить подписку",
           })
           result.warnings++
         } catch { /* skip */ }

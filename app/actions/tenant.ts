@@ -90,6 +90,21 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   const customRateStr = formData.get("customRate") as string
   const cleaningFeeStr = formData.get("cleaningFee") as string
   const needsCleaning = formData.get("needsCleaning") === "on"
+  const paymentDueDayStr = formData.get("paymentDueDay") as string
+  const penaltyPercentStr = formData.get("penaltyPercent") as string
+  const isVatPayer = formData.get("isVatPayer") === "on"
+
+  let paymentDueDay = 10
+  if (paymentDueDayStr) {
+    const n = parseInt(paymentDueDayStr, 10)
+    if (isFinite(n) && n >= 1 && n <= 31) paymentDueDay = n
+  }
+
+  let penaltyPercent = 1
+  if (penaltyPercentStr) {
+    const n = parseFloat(penaltyPercentStr.replace(",", "."))
+    if (isFinite(n) && n >= 0 && n <= 100) penaltyPercent = n
+  }
 
   await db.tenant.update({
     where: { id: tenantId },
@@ -97,6 +112,9 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
       customRate: customRateStr ? parseFloat(customRateStr) : null,
       cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
       needsCleaning,
+      paymentDueDay,
+      penaltyPercent,
+      isVatPayer,
     },
   })
 
