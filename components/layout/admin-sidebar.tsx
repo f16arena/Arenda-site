@@ -10,7 +10,6 @@ import {
   TrendingUp, History, Package, Upload,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { logout } from "@/app/actions/auth"
 
 type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; ownerOnly?: boolean; section?: string }
 type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
@@ -166,9 +165,12 @@ export function AdminSidebar({
         ))}
       </nav>
 
-      {/* Logout */}
+      {/* Logout: API route → browser выполняет полную навигацию,
+          получает Set-Cookie с очисткой и редирект на корневой /login.
+          Server action не используется, потому что он непредсказуемо
+          взаимодействует с cookie на slug-поддоменах. */}
       <div className="border-t border-slate-800 p-3">
-        <form action={logout}>
+        <form action="/api/logout" method="post">
           <button
             type="submit"
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"

@@ -7,7 +7,6 @@ import {
   ClipboardList, MessageSquare, LogOut, Building, Gauge, User,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { logout } from "@/app/actions/auth"
 
 const nav = [
   {
@@ -86,7 +85,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
       </nav>
 
       <div className="border-t border-slate-800 p-3">
-        <form action={logout}>
+        <form action="/api/logout" method="post">
           <button
             type="submit"
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"

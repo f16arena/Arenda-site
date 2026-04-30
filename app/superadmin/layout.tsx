@@ -2,7 +2,6 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import Link from "next/link"
 import { Shield, Building2, Package, BarChart3, LogOut, ArrowLeft, History, UserCircle } from "lucide-react"
-import { logout } from "@/app/actions/auth"
 
 export default async function SuperadminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -42,7 +41,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
 
         <div className="border-t border-purple-800 p-3">
           <p className="text-[10px] text-purple-300 mb-2 px-2">{session.user.name}</p>
-          <form action={logout}>
+          <form action="/api/logout" method="post">
             <button
               type="submit"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-purple-200 hover:bg-purple-800 hover:text-white"
