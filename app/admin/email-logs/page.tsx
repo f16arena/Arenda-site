@@ -25,7 +25,8 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const STATUS_META: Record<string, { color: string; icon: React.ElementType; label: string }> = {
-  SENT: { color: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10", icon: CheckCircle, label: "Отправлено" },
+  SENT: { color: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10", icon: CheckCircle, label: "Доставлено" },
+  OPENED: { color: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10", icon: Eye, label: "Открыто" },
   QUEUED: { color: "text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10", icon: Clock, label: "В очереди" },
   FAILED: { color: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10", icon: XCircle, label: "Ошибка" },
   BOUNCED: { color: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10", icon: XCircle, label: "Отскок" },
@@ -43,10 +44,17 @@ export default async function EmailLogsPage({
 
   const { status, type, q } = await searchParams
 
+  // Спец-фильтр "opened" — все письма, которые были открыты (openedAt != null).
+  // Иначе обычный фильтр по полю status.
+  const statusFilter: Prisma.EmailLogWhereInput | null =
+    status === "opened" ? { openedAt: { not: null } }
+    : status ? { status }
+    : null
+
   const where: Prisma.EmailLogWhereInput = {
     AND: [
       emailLogScope(orgId) as Prisma.EmailLogWhereInput,
-      ...(status ? [{ status }] : []),
+      ...(statusFilter ? [statusFilter] : []),
       ...(type ? [{ type }] : []),
       ...(q ? [{
         OR: [

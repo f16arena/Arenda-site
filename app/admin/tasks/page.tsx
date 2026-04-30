@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/utils"
-import { Calendar } from "lucide-react"
+import { Calendar, CheckSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskDialog } from "./task-dialog"
 import { updateTaskStatus, deleteTask } from "@/app/actions/tasks"
@@ -150,7 +150,12 @@ export default async function TasksPage() {
 
         {tasks.length === 0 && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
-            <p className="text-slate-400 dark:text-slate-500 text-sm">Задачи не созданы</p>
+            <CheckSquare className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+            <p className="text-slate-700 dark:text-slate-300 font-medium">Задач пока нет</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+              Здесь появятся задачи на ремонт, обслуживание и другие работы по зданию.
+              Нажмите «Создать задачу» вверху чтобы начать.
+            </p>
           </div>
         )}
       </div>

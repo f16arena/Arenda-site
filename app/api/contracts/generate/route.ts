@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
+import { renderDocx, renderXlsx } from "@/lib/template-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -39,7 +40,120 @@ export async function GET(req: Request) {
   })
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
-  const building = await db.building.findFirst({ where: { isActive: true } })
+  const building = await db.building.findFirst({
+    where: { isActive: true, organizationId: orgId },
+  })
+
+  const contractNumber = searchParams.get("number") || "01-XXX"
+
+  // ── Если есть кастомный шаблон — используем его ───────────────────
+  const customTemplate = await db.documentTemplate.findFirst({
+    where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
+    orderBy: { uploadedAt: "desc" },
+  }).catch(() => null)
+
+  if (customTemplate && customTemplate.format !== "PDF") {
+    // Подготовим данные для подстановки. Все плейсхолдеры в шаблоне вида {key}
+    const today = new Date()
+    const fullFloor = tenant.fullFloors?.[0]
+    const monthlyRent = fullFloor?.fixedMonthlyRent
+      ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
+    const start = tenant.contractStart ?? today
+    const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
+    const placement = fullFloor?.name
+      ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "")
+    const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
+
+    const data: Record<string, string | number> = {
+      contract_number: contractNumber,
+      contract_date: today.toLocaleDateString("ru-RU"),
+      contract_start: start.toLocaleDateString("ru-RU"),
+      contract_end: end.toLocaleDateString("ru-RU"),
+      // Арендодатель
+      landlord_name: LANDLORD.fullName,
+      landlord_short: LANDLORD.directorShort,
+      landlord_iin: LANDLORD.iin,
+      landlord_address: LANDLORD.legalAddress,
+      landlord_bank: LANDLORD.bank,
+      landlord_iik: LANDLORD.iik,
+      landlord_bik: LANDLORD.bik,
+      // Арендатор
+      tenant_name: tenant.companyName,
+      tenant_director: tenant.directorName ?? tenant.user.name,
+      tenant_position: tenant.directorPosition ?? "",
+      tenant_bin: tenant.bin ?? tenant.iin ?? "",
+      tenant_iin: tenant.iin ?? "",
+      tenant_address: tenant.legalAddress ?? "",
+      tenant_actual_address: tenant.actualAddress ?? "",
+      tenant_phone: tenant.user.phone ?? "",
+      tenant_email: tenant.user.email ?? "",
+      tenant_bank: tenant.bankName ?? "",
+      tenant_iik: tenant.iik ?? "",
+      tenant_bik: tenant.bik ?? "",
+      // Помещение
+      placement,
+      space_number: tenant.space?.number ?? "",
+      floor_name: tenant.space?.floor.name ?? "",
+      area: area,
+      area_str: `${area} м²`,
+      // Финансы
+      monthly_rent: monthlyRent.toLocaleString("ru-RU"),
+      monthly_rent_num: monthlyRent,
+      rate_per_sqm: (tenant.customRate ?? tenant.space?.floor.ratePerSqm ?? 0).toLocaleString("ru-RU"),
+      payment_due_day: tenant.paymentDueDay ?? 10,
+      penalty_percent: tenant.penaltyPercent ?? 1,
+      // Здание
+      building_name: building?.name ?? "",
+      building_address: building?.address ?? BUILDING_DEFAULT.address,
+    }
+
+    let bytes: Buffer
+    try {
+      if (customTemplate.format === "DOCX") {
+        bytes = await renderDocx(customTemplate.fileBytes as Buffer, data)
+      } else {
+        bytes = await renderXlsx(customTemplate.fileBytes as Buffer, data)
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "render failed"
+      return NextResponse.json({ error: `Ошибка рендеринга шаблона: ${msg}` }, { status: 500 })
+    }
+
+    // Сохраним в архив
+    try {
+      await db.generatedDocument.create({
+        data: {
+          organizationId: orgId,
+          documentType: "CONTRACT",
+          number: contractNumber,
+          tenantId: tenant.id,
+          tenantName: tenant.companyName,
+          totalAmount: monthlyRent,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          fileBytes: bytes as any,
+          fileName: `Договор_${contractNumber}_${tenant.companyName.replace(/[\\/:*?"<>|]/g, "_")}.${customTemplate.format.toLowerCase()}`,
+          fileSize: bytes.length,
+          format: customTemplate.format,
+          generatedById: session.user.id,
+          templateUsedId: customTemplate.id,
+        },
+      })
+    } catch {}
+
+    const ext = customTemplate.format === "DOCX" ? "docx" : "xlsx"
+    const mime = customTemplate.format === "DOCX"
+      ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return new NextResponse(bytes as unknown as BodyInit, {
+      status: 200,
+      headers: {
+        "Content-Type": mime,
+        "Content-Disposition": `attachment; filename="contract_${contractNumber}.${ext}"`,
+        "Content-Length": String(bytes.length),
+      },
+    })
+  }
+  // ── /кастомный шаблон ──────────────────────────────────────────────
 
   // Расчёт суммы аренды
   const fullFloor = tenant.fullFloors?.[0]
@@ -88,8 +202,6 @@ export async function GET(req: Request) {
     : tenant.iin
     ? `документа удостоверяющего личность (ИИН ${tenant.iin})`
     : "учредительных документов"
-
-  const contractNumber = searchParams.get("number") || "01-XXX"
 
   const children = [
     center(`Договор № ${contractNumber} аренды нежилого помещения`),
