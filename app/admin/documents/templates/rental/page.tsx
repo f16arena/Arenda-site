@@ -91,12 +91,12 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3">
-          <Link href="/admin/documents" className="text-slate-500 hover:text-slate-900">
+          <Link href="/admin/documents" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Договор аренды</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Автозаполнение из карточки арендатора</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Договор аренды</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Автозаполнение из карточки арендатора</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -106,8 +106,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
       </div>
 
       {!tenant ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-          <p className="text-slate-500">Выберите арендатора чтобы сформировать договор</p>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Выберите арендатора чтобы сформировать договор</p>
         </div>
       ) : (
         <>
@@ -116,7 +116,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           tenantId={tenant.id}
           suggestedNumber={suggestedNumber}
         />
-        <div className="bg-white rounded-xl border border-slate-200 p-10 max-w-[900px] mx-auto print:p-12 print:border-0 print:rounded-none print:shadow-none print:max-w-full text-[13px] leading-relaxed text-slate-900 contract-body">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 max-w-[900px] mx-auto print:p-12 print:border-0 print:rounded-none print:shadow-none print:max-w-full text-[13px] leading-relaxed text-slate-900 dark:text-slate-100 contract-body">
           <p className="text-center font-bold text-base">Договор № {initialContractNumber} аренды нежилого помещения</p>
           <div className="flex justify-between mt-4">
             <span>г. Усть-Каменогорск</span>
@@ -229,7 +229,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
               <p>Email: {LANDLORD.email}</p>
               <div className="mt-6 border-t border-slate-300 pt-2 text-center">
                 ___________________ {LANDLORD.directorShort}
-                <p className="text-[11px] text-slate-500 mt-1">М.П.</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">М.П.</p>
               </div>
             </div>
             <div>
@@ -245,7 +245,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
               {tenant.user.email && <p>Email: {tenant.user.email}</p>}
               <div className="mt-6 border-t border-slate-300 pt-2 text-center">
                 ___________________ {shortName(tenant.directorName ?? tenant.user.name)}
-                <p className="text-[11px] text-slate-500 mt-1">М.П.</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">М.П.</p>
               </div>
             </div>
           </div>

@@ -72,10 +72,10 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
   return (
     <div className="space-y-4">
       {rows.length === 0 ? (
-        <div className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border-2 border-dashed border-slate-300 p-12 text-center">
           <Upload className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-700 mb-1">Выберите CSV-файл выписки</p>
-          <p className="text-xs text-slate-500 mb-4">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Выберите CSV-файл выписки</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">
             Поддерживаются форматы Kaspi Business, Halyk Online, и стандартный CSV.<br />
             Колонки: <span className="font-mono">Дата, Сумма, Назначение</span>
           </p>
@@ -98,7 +98,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
         <>
           <div className="flex items-center justify-between">
             <div className="text-sm">
-              <span className="text-slate-700 font-medium">{rows.length} строк</span>
+              <span className="text-slate-700 dark:text-slate-300 font-medium">{rows.length} строк</span>
               {" · "}
               <span className="text-emerald-600">{rows.filter((r) => r.matchedTenantId).length} сопоставлено</span>
               {" · "}
@@ -107,7 +107,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
             <div className="flex gap-2">
               <button
                 onClick={() => setRows([])}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
               >
                 Очистить
               </button>
@@ -128,24 +128,24 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">Дата</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-slate-500">Сумма</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">Назначение</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-500">Арендатор</th>
+                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Назначение</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i} className="border-b border-slate-50">
-                    <td className="px-3 py-2 text-xs text-slate-600">{r.date}</td>
-                    <td className="px-3 py-2 text-right font-medium text-slate-900">
+                    <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.date}</td>
+                    <td className="px-3 py-2 text-right font-medium text-slate-900 dark:text-slate-100">
                       {r.amount.toLocaleString("ru-RU")} ₸
                     </td>
-                    <td className="px-3 py-2 text-xs text-slate-500 max-w-[300px] truncate">{r.description}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 max-w-[300px] truncate">{r.description}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <select

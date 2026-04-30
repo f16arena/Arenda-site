@@ -109,11 +109,11 @@ export function CommandPalette() {
     <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[15vh] px-4 bg-black/40" onClick={() => setOpen(false)}>
       <Command
         label="Глобальный поиск"
-        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
+        className="w-full max-w-xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
-          <Search className="h-4 w-4 text-slate-400" />
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+          <Search className="h-4 w-4 text-slate-400 dark:text-slate-500" />
           <Command.Input
             value={query}
             onValueChange={setQuery}
@@ -121,18 +121,18 @@ export function CommandPalette() {
             className="flex-1 outline-none bg-transparent text-sm"
             autoFocus
           />
-          {loading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
-          <kbd className="text-[10px] text-slate-400 bg-slate-100 rounded px-1.5 py-0.5">Esc</kbd>
+          {loading && <Loader2 className="h-4 w-4 animate-spin text-slate-400 dark:text-slate-500" />}
+          <kbd className="text-[10px] text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 rounded px-1.5 py-0.5">Esc</kbd>
         </div>
 
         <Command.List className="max-h-96 overflow-y-auto p-2">
-          <Command.Empty className="text-center text-sm text-slate-400 py-8">
+          <Command.Empty className="text-center text-sm text-slate-400 dark:text-slate-500 py-8">
             {query.length < 2 ? "Начните вводить запрос..." : "Ничего не найдено"}
           </Command.Empty>
 
           {showQuickPanels && (
             <>
-              <Command.Group heading="Перейти" className="text-[10px] uppercase tracking-widest text-slate-400 px-2 py-1">
+              <Command.Group heading="Перейти" className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 py-1">
                 {QUICK_ACTIONS.map((a) => {
                   const Icon = a.icon
                   return (
@@ -140,16 +140,16 @@ export function CommandPalette() {
                       key={a.href}
                       value={`${a.label} ${a.keywords}`}
                       onSelect={() => go(a.href)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 data-[selected=true]:bg-blue-50"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50"
                     >
-                      <Icon className="h-4 w-4 text-slate-400 shrink-0" />
-                      <span className="flex-1 text-slate-900">{a.label}</span>
+                      <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                      <span className="flex-1 text-slate-900 dark:text-slate-100">{a.label}</span>
                     </Command.Item>
                   )
                 })}
               </Command.Group>
 
-              <Command.Group heading="Создать" className="text-[10px] uppercase tracking-widest text-slate-400 px-2 py-1 mt-2">
+              <Command.Group heading="Создать" className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 py-1 mt-2">
                 {QUICK_CREATE.map((a) => {
                   const Icon = a.icon
                   return (
@@ -157,10 +157,10 @@ export function CommandPalette() {
                       key={a.href}
                       value={`${a.label} ${a.keywords}`}
                       onSelect={() => go(a.href)}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 data-[selected=true]:bg-blue-50"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50"
                     >
                       <Icon className="h-4 w-4 text-emerald-500 shrink-0" />
-                      <span className="flex-1 text-slate-900">{a.label}</span>
+                      <span className="flex-1 text-slate-900 dark:text-slate-100">{a.label}</span>
                     </Command.Item>
                   )
                 })}
@@ -175,19 +175,19 @@ export function CommandPalette() {
               <Command.Group
                 key={type}
                 heading={`${meta.label} (${list.length})`}
-                className="text-[10px] uppercase tracking-widest text-slate-400 px-2 py-1"
+                className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 py-1"
               >
                 {list.map((item) => (
                   <Command.Item
                     key={`${item.type}-${item.id}`}
                     value={`${item.title} ${item.subtitle ?? ""}`}
                     onSelect={() => go(item.href)}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 data-[selected=true]:bg-blue-50"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50"
                   >
-                    <Icon className="h-4 w-4 text-slate-400 shrink-0" />
+                    <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-900 truncate">{item.title}</p>
-                      {item.subtitle && <p className="text-xs text-slate-500 truncate">{item.subtitle}</p>}
+                      <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{item.title}</p>
+                      {item.subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{item.subtitle}</p>}
                     </div>
                   </Command.Item>
                 ))}
@@ -196,7 +196,7 @@ export function CommandPalette() {
           })}
         </Command.List>
 
-        <div className="px-4 py-2 border-t border-slate-100 text-[10px] text-slate-400 flex items-center gap-3">
+        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-3">
           <span>↑↓ навигация</span>
           <span>Enter — открыть</span>
           <span>Esc — закрыть</span>

@@ -31,9 +31,9 @@ export function FullFloorAssign({
   const availableFloors = floors.filter((f) => !f.fullFloorTenantId)
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-slate-400">АРЕНДА ЦЕЛОГО ЭТАЖА</p>
+        <p className="text-xs font-medium text-slate-400 dark:text-slate-500">АРЕНДА ЦЕЛОГО ЭТАЖА</p>
         {availableFloors.length > 0 && (
           <button
             onClick={() => setOpen(true)}
@@ -45,16 +45,16 @@ export function FullFloorAssign({
       </div>
 
       {currentFloors.length === 0 && (
-        <p className="text-sm text-slate-400">Не назначено</p>
+        <p className="text-sm text-slate-400 dark:text-slate-500">Не назначено</p>
       )}
 
       {currentFloors.map((f) => (
         <div key={f.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
           <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-slate-400" />
+            <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             <div>
-              <p className="text-sm font-medium text-slate-900">{f.name}</p>
-              <p className="text-xs text-slate-500">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
             </div>
           </div>
           <ConfirmDialog
@@ -83,18 +83,18 @@ export function FullFloorAssign({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Аренда целого этажа</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Этаж *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Этаж *</label>
                 <select
                   value={floorId}
                   onChange={(e) => setFloorId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
                 >
                   {availableFloors.map((f) => (
                     <option key={f.id} value={f.id}>
@@ -106,19 +106,19 @@ export function FullFloorAssign({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Сумма аренды ₸/мес *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Сумма аренды ₸/мес *</label>
                 <input
                   type="number"
                   step="0.01"
                   value={rent}
                   onChange={(e) => setRent(e.target.value)}
                   placeholder="600000"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">Фиксированная сумма независимо от площади</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Фиксированная сумма независимо от площади</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button
                   disabled={pending || !floorId || !rent}
                   onClick={() => {

@@ -58,12 +58,12 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
-          <User className="h-5 w-5 text-slate-700" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+          <User className="h-5 w-5 text-slate-700 dark:text-slate-300" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Мой профиль</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             {user.name} · {ROLE_LABELS[user.role] ?? user.role}
           </p>
         </div>

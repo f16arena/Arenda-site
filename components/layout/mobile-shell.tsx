@@ -20,7 +20,7 @@ export function MobileShell({ sidebar, header, children }: {
   }, [])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex">
         {sidebar}
@@ -37,10 +37,10 @@ export function MobileShell({ sidebar, header, children }: {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-6 gap-3">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 lg:px-6 gap-3">
           <button
             onClick={() => setOpen(true)}
-            className="lg:hidden text-slate-600 hover:text-slate-900"
+            className="lg:hidden text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100"
             aria-label="Открыть меню"
           >
             <Menu className="h-5 w-5" />

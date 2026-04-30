@@ -41,18 +41,18 @@ export function PeriodPicker({ value }: Props) {
   }
 
   return (
-    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white">
+    <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
       <button
         onClick={() => shift(-1)}
-        className="px-2 py-1.5 hover:bg-slate-50 rounded-l-lg"
+        className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-l-lg"
         title="Предыдущий месяц"
       >
-        <ChevronLeft className="h-4 w-4 text-slate-500" />
+        <ChevronLeft className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
       </button>
       <select
         value={month}
         onChange={(e) => setPeriod(year, parseInt(e.target.value))}
-        className="bg-transparent text-sm font-medium text-slate-700 px-1 py-1.5 focus:outline-none cursor-pointer"
+        className="bg-transparent text-sm font-medium text-slate-700 dark:text-slate-300 px-1 py-1.5 focus:outline-none cursor-pointer"
       >
         {MONTHS.map((name, i) => (
           <option key={i + 1} value={i + 1}>{name}</option>
@@ -61,7 +61,7 @@ export function PeriodPicker({ value }: Props) {
       <select
         value={year}
         onChange={(e) => setPeriod(parseInt(e.target.value), month)}
-        className="bg-transparent text-sm font-medium text-slate-700 px-1 py-1.5 focus:outline-none cursor-pointer border-l border-slate-200"
+        className="bg-transparent text-sm font-medium text-slate-700 dark:text-slate-300 px-1 py-1.5 focus:outline-none cursor-pointer border-l border-slate-200 dark:border-slate-800"
       >
         {Array.from({ length: 6 }, (_, i) => today.getFullYear() - 2 + i).map((y) => (
           <option key={y} value={y}>{y}</option>
@@ -69,10 +69,10 @@ export function PeriodPicker({ value }: Props) {
       </select>
       <button
         onClick={() => shift(1)}
-        className="px-2 py-1.5 hover:bg-slate-50 rounded-r-lg"
+        className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-r-lg"
         title="Следующий месяц"
       >
-        <ChevronRight className="h-4 w-4 text-slate-500" />
+        <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
       </button>
     </div>
   )

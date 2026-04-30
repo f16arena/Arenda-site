@@ -61,7 +61,7 @@ export function ManagementHub({ stats }: { stats?: Stats }) {
       icon: Settings,
       label: "Настройки организации",
       description: "Реквизиты, НДС, банковские данные",
-      color: "bg-slate-100 text-slate-600",
+      color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
     },
     {
       href: "/admin/meters",
@@ -101,22 +101,22 @@ export function ManagementHub({ stats }: { stats?: Stats }) {
           <Link
             key={c.href}
             href={c.href}
-            className="group bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300 hover:shadow-sm transition flex items-start gap-3"
+            className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 hover:border-slate-300 hover:shadow-sm transition flex items-start gap-3"
           >
             <div className={`flex h-10 w-10 items-center justify-center rounded-lg shrink-0 ${c.color}`}>
               <Icon className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {c.label}
                   {c.count !== undefined && (
-                    <span className="ml-1.5 text-xs font-medium text-slate-400">· {c.count}</span>
+                    <span className="ml-1.5 text-xs font-medium text-slate-400 dark:text-slate-500">· {c.count}</span>
                   )}
                 </p>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-600 group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 group-hover:translate-x-0.5 transition-all" />
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{c.description}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{c.description}</p>
             </div>
           </Link>
         )

@@ -22,7 +22,7 @@ const TYPE_COLORS: Record<string, string> = {
   INVOICE: "bg-emerald-50 text-emerald-700",
   ACT: "bg-purple-50 text-purple-700",
   RECONCILIATION: "bg-amber-50 text-amber-700",
-  HANDOVER: "bg-slate-100 text-slate-700",
+  HANDOVER: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
 }
 
 export interface DocRow {
@@ -118,13 +118,13 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     <div className="space-y-3">
       {/* View mode toggle */}
       <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-slate-500">Вид:</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Вид:</span>
         <button
           onClick={() => setGroupBy("none")}
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
             groupBy === "none"
               ? "bg-slate-900 text-white"
-              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
           }`}
         >
           <List className="h-3.5 w-3.5" />
@@ -135,7 +135,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
             groupBy === "tenant"
               ? "bg-slate-900 text-white"
-              : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
           }`}
         >
           <Folder className="h-3.5 w-3.5" />
@@ -168,10 +168,10 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50">
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <th className="w-10 px-3 py-3 text-center">
                 {selectableRows.length > 0 && (
                   <input
@@ -185,14 +185,14 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                   />
                 )}
               </th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Тип</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Номер</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тип</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Номер</th>
               {groupBy !== "tenant" && (
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Контрагент</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Контрагент</th>
               )}
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Период</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Сумма</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Создан</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Период</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Создан</th>
               <th className="px-5 py-3 text-right" />
             </tr>
           </thead>
@@ -203,14 +203,14 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
               const groupTotal = group.rows.reduce((s, r) => s + (r.totalAmount ?? 0), 0)
               return (
                 <>
-                  <tr key={`g-${groupName}`} className="bg-slate-50 border-y border-slate-200">
+                  <tr key={`g-${groupName}`} className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-800">
                     <td colSpan={8} className="px-3 py-2">
                       <button
                         onClick={() => toggleGroup(groupName)}
-                        className="w-full flex items-center gap-2 text-sm font-semibold text-slate-900 hover:text-blue-600"
+                        className="w-full flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600"
                       >
                         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        <Folder className="h-4 w-4 text-slate-400" />
+                        <Folder className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                         {group.tenantId ? (
                           <Link
                             href={`/admin/tenants/${group.tenantId}`}
@@ -222,7 +222,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                         ) : (
                           <span>{groupName}</span>
                         )}
-                        <span className="ml-auto flex items-center gap-3 text-xs font-normal text-slate-500">
+                        <span className="ml-auto flex items-center gap-3 text-xs font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">
                           <span>{group.rows.length} док.</span>
                           {groupTotal > 0 && <span>{formatMoney(groupTotal)}</span>}
                         </span>
@@ -234,7 +234,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                     return (
                       <tr
                         key={r.id}
-                        className={`border-b border-slate-50 transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-slate-50/50"}`}
+                        className={`border-b border-slate-50 transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50"}`}
                       >
                         <td className="px-3 py-3 text-center">
                           {r.generatedId ? (
@@ -247,16 +247,16 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                           ) : null}
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 text-slate-700"}`}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
                             {TYPE_LABELS[r.type] ?? r.type}
                           </span>
                         </td>
-                        <td className="px-5 py-3 font-mono text-xs text-slate-700">{r.number ?? "—"}</td>
-                        <td className="px-5 py-3 text-slate-600">{r.period ?? "—"}</td>
-                        <td className="px-5 py-3 text-right text-slate-700 font-medium">
+                        <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
+                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.period ?? "—"}</td>
+                        <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">
                           {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
                         </td>
-                        <td className="px-5 py-3 text-xs text-slate-500">
+                        <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                           {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
                         </td>
                         <td className="px-5 py-3 text-right">
@@ -264,7 +264,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                             <a
                               href={r.downloadHref}
                               download
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 hover:bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700"
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
                             >
                               <Download className="h-3 w-3" />
                               Скачать
@@ -287,7 +287,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
               return (
                 <tr
                   key={r.id}
-                  className={`border-b border-slate-50 transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-slate-50/50"}`}
+                  className={`border-b border-slate-50 transition-colors ${isSelected ? "bg-blue-50/50" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50"}`}
                 >
                   <td className="px-3 py-3 text-center">
                     {r.generatedId ? (
@@ -300,12 +300,12 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                     ) : null}
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 text-slate-700"}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
                       {TYPE_LABELS[r.type] ?? r.type}
                     </span>
                   </td>
-                  <td className="px-5 py-3 font-mono text-xs text-slate-700">{r.number ?? "—"}</td>
-                  <td className="px-5 py-3 text-slate-700">
+                  <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
+                  <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
                     {r.tenantId ? (
                       <Link href={`/admin/tenants/${r.tenantId}`} className="hover:text-blue-600 hover:underline">
                         {r.tenantName}
@@ -314,11 +314,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                       r.tenantName
                     )}
                   </td>
-                  <td className="px-5 py-3 text-slate-600">{r.period ?? "—"}</td>
-                  <td className="px-5 py-3 text-right text-slate-700 font-medium">
+                  <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.period ?? "—"}</td>
+                  <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">
                     {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
                   </td>
-                  <td className="px-5 py-3 text-xs text-slate-500">
+                  <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
                   </td>
                   <td className="px-5 py-3 text-right">
@@ -326,7 +326,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                       <a
                         href={r.downloadHref}
                         download
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 hover:bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700"
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
                       >
                         <Download className="h-3 w-3" />
                         Скачать
@@ -347,7 +347,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
               <tr>
                 <td colSpan={8} className="px-5 py-16 text-center">
                   <FileText className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">{emptyHint}</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">{emptyHint}</p>
                 </td>
               </tr>
             )}

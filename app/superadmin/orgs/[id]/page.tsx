@@ -61,12 +61,12 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/superadmin/orgs" className="text-slate-500 hover:text-slate-900">
+        <Link href="/superadmin/orgs" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-slate-900">{org.name}</h1>
-          <p className="text-sm text-slate-500 mt-0.5 font-mono">{org.slug}</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{org.name}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5 font-mono">{org.slug}</p>
         </div>
         <OrgActions orgId={org.id} hasOwner={!!ownerUser} />
       </div>
@@ -134,12 +134,12 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         <Card title="Владелец организации">
           {ownerUser ? (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-slate-900">{ownerUser.name}</p>
-              {ownerUser.email && <p className="text-xs text-slate-500">{ownerUser.email}</p>}
-              {ownerUser.phone && <p className="text-xs text-slate-500 font-mono">{ownerUser.phone}</p>}
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{ownerUser.name}</p>
+              {ownerUser.email && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{ownerUser.email}</p>}
+              {ownerUser.phone && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">{ownerUser.phone}</p>}
             </div>
           ) : (
-            <p className="text-sm text-slate-400">Владелец не назначен</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Владелец не назначен</p>
           )}
           <ChangeOwnerForm
             orgId={org.id}
@@ -151,20 +151,20 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         {/* Subscriptions history */}
         <Card title="История подписок">
           {subscriptions.length === 0 ? (
-            <p className="text-sm text-slate-400">Нет записей</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Нет записей</p>
           ) : (
             <div className="space-y-2">
               {subscriptions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0">
+                <div key={s.id} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2 last:border-0">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{s.plan.name}</p>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.plan.name}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {new Date(s.startedAt).toLocaleDateString("ru-RU")} → {new Date(s.expiresAt).toLocaleDateString("ru-RU")}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-emerald-600">{s.paidAmount.toLocaleString("ru-RU")} ₸</p>
-                    {s.paymentMethod && <p className="text-[10px] text-slate-400">{s.paymentMethod}</p>}
+                    {s.paymentMethod && <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.paymentMethod}</p>}
                   </div>
                 </div>
               ))}
@@ -193,23 +193,23 @@ function Stat({ label, value, sub, icon: Icon, accent }: {
   icon?: React.ElementType
   accent?: "red" | "amber" | "slate"
 }) {
-  const accentClass = accent === "red" ? "text-red-600" : accent === "amber" ? "text-amber-600" : "text-slate-900"
+  const accentClass = accent === "red" ? "text-red-600" : accent === "amber" ? "text-amber-600" : "text-slate-900 dark:text-slate-100"
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {label}
       </div>
       <p className={cn("text-xl font-bold", accentClass)}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
     </div>
   )
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{title}</p>
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">{title}</p>
       {children}
     </div>
   )

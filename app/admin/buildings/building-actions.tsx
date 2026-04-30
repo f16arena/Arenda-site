@@ -32,13 +32,13 @@ export function CreateBuildingButton() {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
               <h2 className="text-base font-semibold flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
                 Новое здание
               </h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -66,17 +66,17 @@ export function CreateBuildingButton() {
                 <Field label="Общая площадь, м²" name="totalArea" type="number" step="0.1" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Префикс договоров</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Префикс договоров</label>
                 <input
                   name="contractPrefix"
                   placeholder="F16"
                   maxLength={10}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">Используется в номере: {`{префикс}-{год}-{№}`}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Используется в номере: {`{префикс}-{год}-{№}`}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
                   {pending ? "Создание..." : "Создать"}
                 </button>
@@ -159,7 +159,7 @@ export function BuildingActions({
             })
           }
           trigger={
-            <button className={isActive ? "text-slate-500 hover:text-slate-700" : "text-emerald-600 hover:text-emerald-800"} title={isActive ? "Деактивировать" : "Активировать"}>
+            <button className={isActive ? "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300" : "text-emerald-600 hover:text-emerald-800"} title={isActive ? "Деактивировать" : "Активировать"}>
               <Power className="h-4 w-4" />
             </button>
           }
@@ -177,10 +177,10 @@ export function BuildingActions({
 
       {editOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Редактировать здание</h2>
-              <button onClick={() => setEditOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setEditOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -208,18 +208,18 @@ export function BuildingActions({
                 <Field label="Общая площадь, м²" name="totalArea" type="number" step="0.1" defaultValue={building.totalArea ?? ""} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Префикс договоров</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Префикс договоров</label>
                 <input
                   name="contractPrefix"
                   defaultValue={building.contractPrefix ?? ""}
                   placeholder="F16"
                   maxLength={10}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">Формат: {`{префикс}-{год}-{№}`} → {building.contractPrefix || "F16"}-{new Date().getFullYear()}-001</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Формат: {`{префикс}-{год}-{№}`} → {building.contractPrefix || "F16"}-{new Date().getFullYear()}-001</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setEditOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button type="button" onClick={() => setEditOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white">
                   Сохранить
                 </button>
@@ -245,7 +245,7 @@ export function FloorsList({
   return (
     <div className="px-5 py-4">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
           <Layers className="h-3.5 w-3.5" />
           Этажи ({floors.length})
         </p>
@@ -254,14 +254,14 @@ export function FloorsList({
         </button>
       </div>
       {floors.length === 0 ? (
-        <p className="text-xs text-slate-400">Нет этажей</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">Нет этажей</p>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {floors.map((f) => (
-            <div key={f.id} className="rounded-lg border border-slate-200 p-3 hover:bg-slate-50 group relative">
-              <p className="text-sm font-semibold text-slate-900">{f.name}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} помещ.</p>
-              {f.totalArea && <p className="text-xs text-slate-400">{f.totalArea} м²</p>}
+            <div key={f.id} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 group relative">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{f.name}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} помещ.</p>
+              {f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
               {isOwner && f.spacesCount === 0 && (
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100">
                   <DeleteAction
@@ -278,10 +278,10 @@ export function FloorsList({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Новый этаж</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -306,7 +306,7 @@ export function FloorsList({
                 <Field label="Площадь м²" name="totalArea" type="number" step="0.1" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
                   {pending ? "..." : "Создать"}
                 </button>
@@ -332,7 +332,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}
@@ -340,7 +340,7 @@ function Field({
         placeholder={placeholder}
         defaultValue={defaultValue ?? ""}
         step={step}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
       />
     </div>
   )

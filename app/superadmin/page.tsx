@@ -50,8 +50,8 @@ export default async function SuperadminHomePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Обзор платформы</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Метрики SaaS на {now.toLocaleDateString("ru-RU")}</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Обзор платформы</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Метрики SaaS на {now.toLocaleDateString("ru-RU")}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -65,10 +65,10 @@ export default async function SuperadminHomePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Распределение по тарифам */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <Package className="h-4 w-4 text-slate-400" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Package className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Распределение по тарифам
             </h2>
           </div>
@@ -80,10 +80,10 @@ export default async function SuperadminHomePage() {
               return (
                 <div key={p.id}>
                   <div className="flex items-center justify-between mb-1 text-sm">
-                    <span className="font-medium text-slate-700">{p.name}</span>
-                    <span className="text-slate-500">{p._count.organizations} ({percent}%) · {mrr.toLocaleString("ru-RU")} ₸</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">{p.name}</span>
+                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{p._count.organizations} ({percent}%) · {mrr.toLocaleString("ru-RU")} ₸</span>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div className="h-full bg-purple-500 transition-all" style={{ width: `${percent}%` }} />
                   </div>
                 </div>
@@ -97,9 +97,9 @@ export default async function SuperadminHomePage() {
 
       <TopOrgsByMrr />
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-900">Последние действия (всех организаций)</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия (всех организаций)</h2>
         </div>
         <RecentAuditTable />
       </div>
@@ -125,29 +125,29 @@ async function TopOrgsByMrr() {
   if (sorted.length === 0) return null
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">Топ организаций по MRR</h2>
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ организаций по MRR</h2>
         <Link href="/superadmin/orgs" className="text-xs text-purple-600 hover:underline flex items-center gap-1">
           Все организации <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/50">
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Организация</th>
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">MRR</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Зданий</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Юзеров</th>
+          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Организация</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">MRR</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Зданий</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Юзеров</th>
             <th className="px-5 py-2" />
           </tr>
         </thead>
         <tbody>
           {sorted.map((o) => (
-            <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
+            <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition">
               <td className="px-5 py-2.5">
-                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 hover:text-purple-600">
+                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600">
                   {o.name}
                 </Link>
                 <div>
@@ -155,18 +155,18 @@ async function TopOrgsByMrr() {
                     href={`https://${o.slug}.${ROOT_HOST}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-slate-400 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
+                    className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
                   >
                     {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                   </a>
                 </div>
               </td>
-              <td className="px-5 py-2.5 text-xs text-slate-600">{o.plan?.name ?? "—"}</td>
+              <td className="px-5 py-2.5 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.plan?.name ?? "—"}</td>
               <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
                 {o.mrr.toLocaleString("ru-RU")} ₸
               </td>
-              <td className="px-5 py-2.5 text-right text-slate-600">{o._count.buildings}</td>
-              <td className="px-5 py-2.5 text-right text-slate-600">{o._count.users}</td>
+              <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.buildings}</td>
+              <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.users}</td>
               <td className="px-5 py-2.5 text-right">
                 {o.isSuspended && (
                   <span className="text-[10px] text-red-600 font-medium">приостановлен</span>
@@ -200,9 +200,9 @@ async function SubscriptionDynamics() {
   const maxRevenue = Math.max(...months.map((m) => m.revenue), 1)
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100">
-        <h2 className="text-sm font-semibold text-slate-900">Динамика выручки (6 мес)</h2>
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Динамика выручки (6 мес)</h2>
       </div>
       <div className="p-5">
         <div className="flex items-end gap-2 h-32">
@@ -218,7 +218,7 @@ async function SubscriptionDynamics() {
                     title={`${m.revenue.toLocaleString("ru-RU")} ₸ · ${m.created} новых`}
                   />
                 </div>
-                <p className="text-[10px] text-slate-500">{monthName}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{monthName}</p>
                 <p className="text-[10px] text-emerald-600 font-medium">+{m.created}</p>
               </div>
             )
@@ -240,28 +240,28 @@ async function RecentAuditTable() {
   }).catch(() => [])
 
   if (logs.length === 0) {
-    return <p className="px-5 py-8 text-center text-sm text-slate-400">Нет записей</p>
+    return <p className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет записей</p>
   }
 
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-slate-100 bg-slate-50">
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Время</th>
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Пользователь</th>
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Действие</th>
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Объект</th>
+        <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Время</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Пользователь</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действие</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Объект</th>
         </tr>
       </thead>
       <tbody>
         {logs.map((l) => (
           <tr key={l.id} className="border-b border-slate-50">
-            <td className="px-5 py-2 text-xs text-slate-500">
+            <td className="px-5 py-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
               {new Date(l.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </td>
-            <td className="px-5 py-2 text-slate-700">{l.userName ?? "—"} <span className="text-[10px] text-slate-400">{l.userRole}</span></td>
-            <td className="px-5 py-2"><span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{l.action}</span></td>
-            <td className="px-5 py-2 text-slate-500 text-xs">{l.entity}</td>
+            <td className="px-5 py-2 text-slate-700 dark:text-slate-300">{l.userName ?? "—"} <span className="text-[10px] text-slate-400 dark:text-slate-500">{l.userRole}</span></td>
+            <td className="px-5 py-2"><span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500">{l.action}</span></td>
+            <td className="px-5 py-2 text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">{l.entity}</td>
           </tr>
         ))}
       </tbody>
@@ -390,18 +390,18 @@ function Kpi({ icon: Icon, color, label, value, sub }: {
     amber: "bg-amber-50 text-amber-600",
     purple: "bg-purple-50 text-purple-600",
     red: "bg-red-50 text-red-600",
-    slate: "bg-slate-100 text-slate-600",
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</span>
         <div className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${colors[color]}`}>
           <Icon className="h-3.5 w-3.5" />
         </div>
       </div>
-      <p className="text-xl font-bold text-slate-900">{value}</p>
-      {sub && <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>}
+      <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -420,13 +420,13 @@ function Card({ label, value, icon: Icon, color, sub }: {
     purple: "bg-purple-50 text-purple-600",
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
       <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors[color]} mb-3`}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-      {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+      {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>}
     </div>
   )
 }

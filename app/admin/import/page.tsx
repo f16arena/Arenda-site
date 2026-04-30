@@ -7,8 +7,8 @@ export default function ImportHomePage() {
   return (
     <div className="space-y-5 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Импорт данных</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Импорт данных</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           Загрузите данные из Excel или 1С — арендаторов, начисления, договоры
         </p>
       </div>
@@ -79,18 +79,18 @@ function ImportCard({ href, title, description, icon: Icon, color, available }: 
   const c = colors[color]
 
   const content = (
-    <div className={`bg-white rounded-2xl border border-slate-200 p-5 transition ${available ? c.hover : "opacity-50"}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 transition ${available ? c.hover : "opacity-50"}`}>
       <div className="flex items-start gap-3 mb-3">
         <div className={`h-10 w-10 rounded-lg ${c.bg} flex items-center justify-center`}>
           <Icon className={`h-5 w-5 ${c.text}`} />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-slate-900">{title}</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
           {!available && <span className="inline-block text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded mt-1">скоро</span>}
         </div>
-        {available && <ArrowRight className="h-4 w-4 text-slate-400" />}
+        {available && <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
       </div>
-      <p className="text-xs text-slate-500 leading-relaxed">{description}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-relaxed">{description}</p>
     </div>
   )
 

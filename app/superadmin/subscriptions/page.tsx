@@ -40,11 +40,11 @@ export default async function SubscriptionsTimelinePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-          <CalendarIcon className="h-6 w-6 text-slate-400" />
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <CalendarIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
           Подписки организаций
         </h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           Состояние тарифов всех {orgs.length} активных организаций
         </p>
       </div>
@@ -85,7 +85,7 @@ export default async function SubscriptionsTimelinePage() {
       <Group title="📅 Истекают в течение 30 дней" orgs={expiring30} colorClass="bg-blue-50 border-blue-200" emptyText="" />
       <Group title="✓ Активные подписки" orgs={ok} colorClass="bg-emerald-50 border-emerald-200" emptyText="" />
       {noExpiry.length > 0 && (
-        <Group title="❓ Без даты окончания" orgs={noExpiry} colorClass="bg-slate-50 border-slate-200" emptyText="" />
+        <Group title="❓ Без даты окончания" orgs={noExpiry} colorClass="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800" emptyText="" />
       )}
     </div>
   )
@@ -112,8 +112,8 @@ function Group({
   if (orgs.length === 0) {
     if (!emptyText) return null
     return (
-      <div className={`rounded-xl border p-4 text-sm text-slate-500 ${colorClass}`}>
-        <p className="font-semibold text-slate-700 mb-1">{title}</p>
+      <div className={`rounded-xl border p-4 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 ${colorClass}`}>
+        <p className="font-semibold text-slate-700 dark:text-slate-300 mb-1">{title}</p>
         <p className="text-xs">{emptyText}</p>
       </div>
     )
@@ -124,20 +124,20 @@ function Group({
   return (
     <div className={`rounded-xl border overflow-hidden ${colorClass}`}>
       <div className="px-5 py-3 border-b border-black/5">
-        <h2 className="text-sm font-semibold text-slate-900">
-          {title} <span className="text-slate-500 font-normal">· {orgs.length}</span>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          {title} <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-normal">· {orgs.length}</span>
         </h2>
       </div>
-      <div className="bg-white">
+      <div className="bg-white dark:bg-slate-900">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/50">
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Организация</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Истекает</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">MRR</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Зданий</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Юзеров</th>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Организация</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Истекает</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">MRR</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Зданий</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Юзеров</th>
               <th className="px-5 py-2" />
             </tr>
           </thead>
@@ -147,11 +147,11 @@ function Group({
                 ? Math.ceil((o.planExpiresAt.getTime() - now.getTime()) / 86_400_000)
                 : null
               return (
-                <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
+                <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition">
                   <td className="px-5 py-2.5">
                     <Link
                       href={`/superadmin/orgs/${o.id}`}
-                      className="font-medium text-slate-900 hover:text-purple-600"
+                      className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600"
                     >
                       {o.name}
                     </Link>
@@ -160,24 +160,24 @@ function Group({
                         href={`https://${o.slug}.${ROOT_HOST}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-slate-400 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
+                        className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 font-mono inline-flex items-center gap-0.5"
                       >
                         {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                       </a>
                     </div>
                   </td>
-                  <td className="px-5 py-2.5 text-slate-600">{o.plan?.name ?? "—"}</td>
+                  <td className="px-5 py-2.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.plan?.name ?? "—"}</td>
                   <td className="px-5 py-2.5">
                     {o.planExpiresAt ? (
                       <div>
-                        <p className="text-slate-700">
+                        <p className="text-slate-700 dark:text-slate-300">
                           {o.planExpiresAt.toLocaleDateString("ru-RU")}
                         </p>
                         {days !== null && (
                           <p className={`text-[11px] ${
                             days < 0 ? "text-red-600 font-medium"
                               : days <= 7 ? "text-amber-600 font-medium"
-                              : "text-slate-400"
+                              : "text-slate-400 dark:text-slate-500"
                           }`}>
                             {days < 0 ? `просрочено ${Math.abs(days)} дн.` : `через ${days} дн.`}
                           </p>
@@ -188,8 +188,8 @@ function Group({
                   <td className="px-5 py-2.5 text-right font-medium text-emerald-600">
                     {o.plan ? `${o.plan.priceMonthly.toLocaleString("ru-RU")} ₸` : "—"}
                   </td>
-                  <td className="px-5 py-2.5 text-right text-slate-600">{o._count.buildings}</td>
-                  <td className="px-5 py-2.5 text-right text-slate-600">{o._count.users}</td>
+                  <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.buildings}</td>
+                  <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o._count.users}</td>
                   <td className="px-5 py-2.5 text-right">
                     {o.isSuspended && (
                       <span className="text-[10px] text-red-600 font-medium">приостановлен</span>
@@ -221,12 +221,12 @@ function StatCard({
     emerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
   }
   return (
-    <div className={`bg-white rounded-xl border p-4 ${urgent ? colors[color] : "border-slate-200"}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 ${urgent ? colors[color] : "border-slate-200 dark:border-slate-800"}`}>
       <div className="flex items-start justify-between mb-1">
-        <span className="text-xs font-medium text-slate-500">{label}</span>
-        <Icon className={`h-4 w-4 ${urgent ? colors[color].split(" ")[1] : "text-slate-400"}`} />
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</span>
+        <Icon className={`h-4 w-4 ${urgent ? colors[color].split(" ")[1] : "text-slate-400 dark:text-slate-500"}`} />
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
     </div>
   )
 }

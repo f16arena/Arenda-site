@@ -108,7 +108,7 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
       )}
 
       {phase === "idle" && (
-        <p className="text-[10px] text-slate-400 max-w-xs print:hidden">
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 max-w-xs print:hidden">
           Требуется NCALayer.{" "}
           <button type="button" onClick={() => setShowHelp((v) => !v)} className="text-blue-600 hover:underline">
             {showHelp ? "Скрыть" : "Что это?"}

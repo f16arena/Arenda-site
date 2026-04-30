@@ -28,7 +28,7 @@ export function TenantSelector({
           const val = e.target.value
           router.push(val ? `?tenantId=${val}` : "?")
         }}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
       >
         <option value="">— Пустой шаблон —</option>
         {tenants.map((t) => (

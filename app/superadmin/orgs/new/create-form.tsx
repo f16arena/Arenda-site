@@ -64,7 +64,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           <h2 className="text-lg font-semibold text-emerald-900">Организация создана</h2>
         </div>
         <p className="text-sm text-emerald-800">Передайте эти данные владельцу:</p>
-        <div className="bg-white rounded-lg border border-emerald-200 p-4 font-mono text-sm space-y-2">
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 p-4 font-mono text-sm space-y-2">
           {created.ownerEmail && <div>Логин (email): <b>{created.ownerEmail}</b></div>}
           {created.ownerPhone && <div>Логин (телефон): <b>{created.ownerPhone}</b></div>}
           <div>Временный пароль: <b>{created.tempPassword}</b></div>
@@ -85,7 +85,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           </button>
           <button
             onClick={() => router.push(`/superadmin/orgs/${created.orgId}`)}
-            className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+            className="rounded-lg border border-emerald-300 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
           >
             Перейти к организации
           </button>
@@ -96,7 +96,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
               setSlug("")
               setSlugTouched(false)
             }}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
           >
             Создать ещё
           </button>
@@ -124,14 +124,14 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           }
         })
       }}
-      className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
+      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-5"
     >
       <Section title="Организация">
         <Field label="Название *" name="name" value={name} onChange={autoSlug} required placeholder='БЦ "Plaza"' />
 
         {/* Slug с live-проверкой */}
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1.5">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
             Поддомен (slug) *
           </label>
           <div className="relative">
@@ -146,11 +146,11 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
                   ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20"
                   : isSlugBad
                   ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                  : "border-slate-200 focus:border-purple-500 focus:ring-purple-500/20"
+                  : "border-slate-200 dark:border-slate-800 focus:border-purple-500 focus:ring-purple-500/20"
               }`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {slugCheck.status === "checking" && <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />}
+              {slugCheck.status === "checking" && <Loader2 className="h-4 w-4 text-slate-400 dark:text-slate-500 animate-spin" />}
               {isSlugOk && <Check className="h-4 w-4 text-emerald-600" />}
               {isSlugBad && <AlertCircle className="h-4 w-4 text-red-500" />}
             </div>
@@ -158,7 +158,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
           {/* Hint / preview / error */}
           {!slug && (
-            <p className="text-[11px] text-slate-400 mt-1">5–20 символов: латиница нижнего регистра, цифры, дефис</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница нижнего регистра, цифры, дефис</p>
           )}
           {isSlugOk && checkResult && checkResult.ok && (
             <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700">
@@ -174,7 +174,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
             <div className="mt-1 space-y-1">
               <p className="text-[11px] text-red-600">{checkResult.reason}</p>
               {checkResult.suggestions && checkResult.suggestions.length > 0 && (
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
                   Свободные варианты:{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
@@ -196,8 +196,8 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Тариф *</label>
-            <select name="planId" required className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тариф *</label>
+            <select name="planId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} — {p.priceMonthly.toLocaleString("ru-RU")} ₸/мес
@@ -238,7 +238,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{title}</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">{title}</p>
       {children}
     </div>
   )
@@ -259,7 +259,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}
@@ -268,9 +268,9 @@ function Field({
         defaultValue={defaultValue}
         required={required}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
       />
-      {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{hint}</p>}
     </div>
   )
 }

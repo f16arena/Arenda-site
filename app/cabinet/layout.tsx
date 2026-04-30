@@ -35,7 +35,7 @@ export default async function CabinetLayout({
   ])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
       <TenantSidebar companyName={tenant?.companyName} />
       <div className="flex flex-1 flex-col overflow-hidden">
         {userMail && !userMail.emailVerifiedAt && (
@@ -47,7 +47,7 @@ export default async function CabinetLayout({
             <NotificationBell items={notifications} />
             <Link
               href="/cabinet/profile"
-              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
               title="Открыть профиль"
             >
               <div className="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center">
@@ -55,7 +55,7 @@ export default async function CabinetLayout({
                   {session.user.name?.[0]?.toUpperCase()}
                 </span>
               </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
                 {session.user.name}
               </span>
             </Link>

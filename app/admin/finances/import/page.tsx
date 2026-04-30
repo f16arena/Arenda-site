@@ -26,8 +26,8 @@ export default async function ImportPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Импорт банковской выписки</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Импорт банковской выписки</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           Загрузите CSV из Kaspi Business / Halyk Online — система автоматически сопоставит платежи с арендаторами по БИН/ИИН в назначении платежа
         </p>
       </div>

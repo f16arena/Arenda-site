@@ -41,12 +41,12 @@ export default async function FloorEditorPage({ params }: { params: Promise<{ id
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Link href="/admin/spaces" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900">
+        <Link href="/admin/spaces" className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
           <ArrowLeft className="h-4 w-4" />
           К помещениям
         </Link>
         <span className="text-slate-300">/</span>
-        <h1 className="text-xl font-semibold text-slate-900">План этажа: {floor.name}</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">План этажа: {floor.name}</h1>
       </div>
 
       <FloorEditor

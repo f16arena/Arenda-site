@@ -148,7 +148,7 @@ export function AdminSidebar({
       {/* Кнопка закрыть на мобиле */}
       <button
         onClick={() => setMobileOpen(false)}
-        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800"
+        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-800"
         aria-label="Закрыть меню"
       >
         <X className="h-5 w-5" />
@@ -163,7 +163,7 @@ export function AdminSidebar({
           <p className="text-sm font-semibold text-white truncate">
             {buildingName ?? "Commrent"}
           </p>
-          <p className="text-[11px] text-slate-400">Панель управления</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">Панель управления</p>
         </div>
       </div>
 
@@ -172,7 +172,7 @@ export function AdminSidebar({
         {visibleNav.map((section, si) => (
           <div key={si}>
             {section.title && (
-              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
+              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">
                 {section.title}
               </p>
             )}
@@ -185,7 +185,7 @@ export function AdminSidebar({
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                       isActive(item.href, "exact" in item ? item.exact : undefined)
                         ? "bg-blue-600/20 text-white border-l-2 border-blue-500 pl-[10px]"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                        : "text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200"
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -206,7 +206,7 @@ export function AdminSidebar({
         <form action="/api/logout" method="post">
           <button
             type="submit"
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Выйти

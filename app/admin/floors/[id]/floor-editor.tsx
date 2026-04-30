@@ -600,14 +600,14 @@ export function FloorEditor({
   return (
     <div className="flex gap-3 h-[calc(100vh-140px)]">
       {/* Toolbox */}
-      <div className="w-14 shrink-0 bg-white rounded-xl border border-slate-200 p-1.5 flex flex-col gap-1">
+      <div className="w-14 shrink-0 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1.5 flex flex-col gap-1">
         {tools.map((t) => (
           <button
             key={t.id}
             onClick={() => { setTool(t.id); setPolygonInProgress(null) }}
             title={t.label}
             className={`flex h-10 items-center justify-center rounded-lg transition ${
-              tool === t.id ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100"
+              tool === t.id ? "bg-blue-600 text-white" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
             }`}
           >
             <t.icon className="h-4 w-4" />
@@ -618,7 +618,7 @@ export function FloorEditor({
           onClick={() => setShowGrid(!showGrid)}
           title="Сетка (G)"
           className={`flex h-10 items-center justify-center rounded-lg transition ${
-            showGrid ? "bg-slate-200" : "text-slate-500 hover:bg-slate-100"
+            showGrid ? "bg-slate-200" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
           }`}
         >
           <GridIcon className="h-4 w-4" />
@@ -626,21 +626,21 @@ export function FloorEditor({
         <button
           onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z * 1.2))}
           title="Увеличить"
-          className="flex h-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
         <button
           onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z / 1.2))}
           title="Уменьшить"
-          className="flex h-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
         <button
           onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
           title="Сброс"
-          className="flex h-10 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <Move className="h-4 w-4" />
         </button>
@@ -649,8 +649,8 @@ export function FloorEditor({
       {/* Canvas */}
       <div className="flex-1 flex flex-col gap-3 min-w-0">
         <div className="flex items-center justify-between text-sm">
-          <p className="text-slate-500">
-            <span className="font-medium text-slate-700">{floorName}</span>
+          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <span className="font-medium text-slate-700 dark:text-slate-300">{floorName}</span>
             {" · "}
             {tool === "rect" && "Растяните прямоугольник"}
             {tool === "polygon" && (polygonInProgress ? `Кликайте вершины (${polygonInProgress.length}). Двойной клик — завершить.` : "Кликайте вершины. Двойной клик — завершить")}
@@ -661,18 +661,18 @@ export function FloorEditor({
           </p>
           <div className="flex items-center gap-1.5">
             {/* Режимы отображения */}
-            <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
               <button
                 onClick={() => setDisplayMode("full")}
                 title="Полный вид"
-                className={`px-2 py-1 rounded text-xs ${displayMode === "full" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`px-2 py-1 rounded text-xs ${displayMode === "full" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
               >
                 Полный
               </button>
               <button
                 onClick={() => setDisplayMode("outline")}
                 title="Только контур"
-                className={`px-2 py-1 rounded text-xs ${displayMode === "outline" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`px-2 py-1 rounded text-xs ${displayMode === "outline" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
               >
                 Контур
               </button>
@@ -680,7 +680,7 @@ export function FloorEditor({
                 <button
                   onClick={() => setDisplayMode("underlay-only")}
                   title="Только подложка"
-                  className={`px-2 py-1 rounded text-xs ${displayMode === "underlay-only" ? "bg-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                  className={`px-2 py-1 rounded text-xs ${displayMode === "underlay-only" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
                 >
                   Подложка
                 </button>
@@ -690,7 +690,7 @@ export function FloorEditor({
             <button
               onClick={() => setView3D(!view3D)}
               title="Изометрический 3D-вид"
-              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 text-purple-700" : "text-slate-500 hover:bg-slate-100"}`}
+              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 text-purple-700" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Box className="h-4 w-4" />
             </button>
@@ -698,7 +698,7 @@ export function FloorEditor({
             <button
               onClick={() => setCalibration({ active: !calibration.active, first: null, second: null })}
               title="Калибровка масштаба (клик 2 точки)"
-              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 text-orange-700" : "text-slate-500 hover:bg-slate-100"}`}
+              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 text-orange-700" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Ruler className="h-4 w-4" />
             </button>
@@ -709,7 +709,7 @@ export function FloorEditor({
               onClick={undo}
               disabled={history.length === 0}
               title="Отменить (Ctrl+Z)"
-              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Undo2 className="h-4 w-4" />
             </button>
@@ -717,7 +717,7 @@ export function FloorEditor({
               onClick={redo}
               disabled={future.length === 0}
               title="Повторить (Ctrl+Y)"
-              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Redo2 className="h-4 w-4" />
             </button>
@@ -725,11 +725,11 @@ export function FloorEditor({
               onClick={copySelected}
               disabled={!selectedId}
               title="Копировать (Ctrl+C)"
-              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Copy className="h-4 w-4" />
             </button>
-            <span className="text-xs text-slate-400 ml-2">{Math.round(zoom * 100)}%</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{Math.round(zoom * 100)}%</span>
             {f16Template && (
               <button
                 onClick={() => {
@@ -758,7 +758,7 @@ export function FloorEditor({
           </div>
         </div>
 
-        <div className="flex-1 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden relative">
+        <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative">
           {/* Информер по калибровке */}
           {calibration.active && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-orange-100 border border-orange-300 rounded-lg px-4 py-2 text-xs text-orange-800 shadow-lg">
@@ -887,7 +887,7 @@ export function FloorEditor({
           </svg>
 
           {/* Scale indicator */}
-          <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 flex items-center gap-2">
+          <div className="absolute bottom-3 right-3 bg-white dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-center gap-2">
             <div style={{ width: px, height: 6, background: "linear-gradient(to right, black 50%, white 50%)", border: "1px solid black" }} />
             1 метр
           </div>
@@ -897,19 +897,19 @@ export function FloorEditor({
       {/* Properties */}
       <div className="w-72 shrink-0 flex flex-col gap-3">
         {/* Underlay image */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
             <ImageIcon className="h-3.5 w-3.5" />
             Подложка (фото плана)
           </p>
           {layout.underlayUrl ? (
             <>
-              <div className="relative aspect-video rounded border border-slate-200 overflow-hidden bg-slate-100">
+              <div className="relative aspect-video rounded border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-100 dark:bg-slate-800">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={layout.underlayUrl} alt="План" className="w-full h-full object-contain" />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Прозрачность: {Math.round(underlayOpacity * 100)}%</label>
+                <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Прозрачность: {Math.round(underlayOpacity * 100)}%</label>
                 <input
                   type="range"
                   min="0"
@@ -928,7 +928,7 @@ export function FloorEditor({
             </>
           ) : (
             <div>
-              <label className="block text-xs text-slate-400 mb-1.5">URL картинки</label>
+              <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1.5">URL картинки</label>
               <input
                 type="url"
                 placeholder="https://... или загрузите файл"
@@ -936,11 +936,11 @@ export function FloorEditor({
                   const url = e.target.value.trim()
                   if (url) setLayout((p) => ({ ...p, underlayUrl: url }))
                 }}
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs"
+                className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-xs"
               />
-              <p className="text-[10px] text-slate-400 mt-1">Загрузите PNG/JPG плана здания в Google Drive / Dropbox и вставьте прямую ссылку на изображение</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Загрузите PNG/JPG плана здания в Google Drive / Dropbox и вставьте прямую ссылку на изображение</p>
               <label className="block mt-2 text-xs cursor-pointer">
-                <span className="block text-center rounded-lg bg-slate-100 hover:bg-slate-200 py-1.5">📎 Или выберите файл (base64)</span>
+                <span className="block text-center rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 py-1.5">📎 Или выберите файл (base64)</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -967,11 +967,11 @@ export function FloorEditor({
         </div>
 
         {/* Canvas size */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Размеры этажа</p>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Размеры этажа</p>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Ширина (м)</label>
+              <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Ширина (м)</label>
               <input
                 type="number"
                 min="5"
@@ -979,11 +979,11 @@ export function FloorEditor({
                 step="0.5"
                 value={layout.width}
                 onChange={(e) => setLayout((p) => ({ ...p, width: parseFloat(e.target.value) || 30 }))}
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Высота (м)</label>
+              <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Высота (м)</label>
               <input
                 type="number"
                 min="5"
@@ -991,7 +991,7 @@ export function FloorEditor({
                 step="0.5"
                 value={layout.height}
                 onChange={(e) => setLayout((p) => ({ ...p, height: parseFloat(e.target.value) || 20 }))}
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
               />
             </div>
           </div>
@@ -1006,16 +1006,16 @@ export function FloorEditor({
             onDelete={() => deleteElement(selected.id)}
           />
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 p-4 text-xs text-slate-500">
-            <p className="font-semibold text-slate-700 mb-2">Выделите элемент</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Выделите элемент</p>
             <p>Кликните по элементу на плане чтобы редактировать его свойства.</p>
-            <div className="mt-3 space-y-1 text-slate-500">
-              <p><kbd className="bg-slate-100 px-1 rounded">V</kbd> — выбор</p>
-              <p><kbd className="bg-slate-100 px-1 rounded">R</kbd> — прямоугольник</p>
-              <p><kbd className="bg-slate-100 px-1 rounded">P</kbd> — многоугольник</p>
-              <p><kbd className="bg-slate-100 px-1 rounded">D</kbd> — дверь</p>
-              <p><kbd className="bg-slate-100 px-1 rounded">Esc</kbd> — отменить</p>
-              <p><kbd className="bg-slate-100 px-1 rounded">Del</kbd> — удалить выделенное</p>
+            <div className="mt-3 space-y-1 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">V</kbd> — выбор</p>
+              <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">R</kbd> — прямоугольник</p>
+              <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">P</kbd> — многоугольник</p>
+              <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">D</kbd> — дверь</p>
+              <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">Esc</kbd> — отменить</p>
+              <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">Del</kbd> — удалить выделенное</p>
             </div>
           </div>
         )}
@@ -1329,9 +1329,9 @@ function PropertiesPanel({
   onDelete: () => void
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
           {element.type === "rect" ? "Прямоугольник"
             : element.type === "polygon" ? "Многоугольник"
             : element.type === "door" ? "Дверь"
@@ -1348,26 +1348,26 @@ function PropertiesPanel({
       {(element.type === "rect" || element.type === "polygon") && (
         <>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Связать с помещением</label>
+            <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Связать с помещением</label>
             <select
               value={element.spaceId ?? ""}
               onChange={(e) => onUpdate({ spaceId: e.target.value || null } as Partial<FloorElement>)}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm bg-white"
+              className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
             >
               <option value="">— Не связано —</option>
               {spaces.map((s) => (
                 <option key={s.id} value={s.id}>Каб. {s.number} ({s.status})</option>
               ))}
             </select>
-            <p className="text-[10px] text-slate-400 mt-1">Цвет фигуры берётся из статуса помещения</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Цвет фигуры берётся из статуса помещения</p>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Подпись (если не связано)</label>
+            <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Подпись (если не связано)</label>
             <input
               value={element.label ?? ""}
               onChange={(e) => onUpdate({ label: e.target.value } as Partial<FloorElement>)}
               placeholder="Холл / Коридор / ..."
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
             />
           </div>
         </>
@@ -1379,14 +1379,14 @@ function PropertiesPanel({
           <Field label="Y (м)" value={element.y} onChange={(v) => onUpdate({ y: v } as Partial<FloorElement>)} />
           <Field label="Ширина (м)" value={element.width} onChange={(v) => onUpdate({ width: Math.max(0.1, v) } as Partial<FloorElement>)} />
           <Field label="Длина (м)" value={element.height} onChange={(v) => onUpdate({ height: Math.max(0.1, v) } as Partial<FloorElement>)} />
-          <div className="col-span-2 text-xs text-slate-500 bg-slate-50 rounded px-2 py-1.5">
+          <div className="col-span-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded px-2 py-1.5">
             Площадь: <b>{(element.width * element.height).toFixed(2)} м²</b>
           </div>
         </div>
       )}
 
       {element.type === "polygon" && (
-        <div className="text-xs text-slate-500 bg-slate-50 rounded px-2 py-1.5">
+        <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded px-2 py-1.5">
           Вершин: {element.points.length} · Площадь: <b>{polygonArea(element.points).toFixed(2)} м²</b>
         </div>
       )}
@@ -1398,11 +1398,11 @@ function PropertiesPanel({
             <Field label="Y (м)" value={element.y} onChange={(v) => onUpdate({ y: v } as Partial<FloorElement>)} />
             <Field label="Ширина (м)" value={element.width} onChange={(v) => onUpdate({ width: Math.max(0.4, v) } as Partial<FloorElement>)} step={0.1} />
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Поворот</label>
+              <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Поворот</label>
               <select
                 value={element.rotation}
                 onChange={(e) => onUpdate({ rotation: parseInt(e.target.value) } as Partial<FloorElement>)}
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm bg-white"
+                className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
               >
                 <option value={0}>0°</option>
                 <option value={90}>90°</option>
@@ -1412,17 +1412,17 @@ function PropertiesPanel({
             </div>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Сторона петель</label>
+            <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Сторона петель</label>
             <div className="flex gap-2">
               <button
                 onClick={() => onUpdate({ swing: "left" } as Partial<FloorElement>)}
-                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "left" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600"}`}
+                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "left" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}
               >
                 Слева
               </button>
               <button
                 onClick={() => onUpdate({ swing: "right" } as Partial<FloorElement>)}
-                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "right" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600"}`}
+                className={`flex-1 rounded border px-3 py-1.5 text-xs ${element.swing === "right" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}
               >
                 Справа
               </button>
@@ -1434,15 +1434,15 @@ function PropertiesPanel({
       {element.type === "label" && (
         <>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Текст</label>
+            <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Текст</label>
             <input
               value={element.text}
               onChange={(e) => onUpdate({ text: e.target.value } as Partial<FloorElement>)}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Размер (м)</label>
+            <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Размер (м)</label>
             <input
               type="number"
               min="0.2"
@@ -1450,7 +1450,7 @@ function PropertiesPanel({
               step="0.1"
               value={element.fontSize ?? 0.5}
               onChange={(e) => onUpdate({ fontSize: parseFloat(e.target.value) } as Partial<FloorElement>)}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
             />
           </div>
         </>
@@ -1475,11 +1475,11 @@ function PropertiesPanel({
             <Field label="Y (м)" value={element.y} onChange={(v) => onUpdate({ y: v } as Partial<FloorElement>)} />
             <Field label="Ширина (м)" value={element.width} step={0.1} onChange={(v) => onUpdate({ width: Math.max(0.3, v) } as Partial<FloorElement>)} />
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Поворот</label>
+              <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Поворот</label>
               <select
                 value={element.rotation}
                 onChange={(e) => onUpdate({ rotation: parseInt(e.target.value) } as Partial<FloorElement>)}
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm bg-white"
+                className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
               >
                 <option value={0}>0°</option>
                 <option value={90}>90°</option>
@@ -1498,11 +1498,11 @@ function PropertiesPanel({
             <Field label="Y (м)" value={element.y} onChange={(v) => onUpdate({ y: v } as Partial<FloorElement>)} />
             <Field label="Размер (м)" value={element.size} step={0.1} onChange={(v) => onUpdate({ size: Math.max(0.5, v) } as Partial<FloorElement>)} />
             <div>
-              <label className="block text-xs text-slate-400 mb-1">Тип</label>
+              <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Тип</label>
               <select
                 value={element.kind}
                 onChange={(e) => onUpdate({ kind: e.target.value } as Partial<FloorElement>)}
-                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm bg-white"
+                className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
               >
                 <option value="stairs">Лестница</option>
                 <option value="elevator">Лифт</option>
@@ -1513,11 +1513,11 @@ function PropertiesPanel({
             </div>
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Подпись</label>
+            <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">Подпись</label>
             <input
               value={element.label ?? ""}
               onChange={(e) => onUpdate({ label: e.target.value } as Partial<FloorElement>)}
-              className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
             />
           </div>
         </>
@@ -1540,13 +1540,13 @@ function scaleElement(el: FloorElement, k: number): FloorElement {
 function Field({ label, value, onChange, step = 0.5 }: { label: string; value: number; onChange: (v: number) => void; step?: number }) {
   return (
     <div>
-      <label className="block text-xs text-slate-400 mb-1">{label}</label>
+      <label className="block text-xs text-slate-400 dark:text-slate-500 mb-1">{label}</label>
       <input
         type="number"
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+        className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm"
       />
     </div>
   )

@@ -40,10 +40,10 @@ export function CreateUserDialog() {
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
               <h2 className="text-base font-semibold">Новый пользователь</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -66,11 +66,11 @@ export function CreateUserDialog() {
                 <Field label="Телефон" name="phone" placeholder="+77000000000" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Роль *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Роль *</label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
                 >
                   {ROLE_OPTIONS.map((r) => (
                     <option key={r.value} value={r.value}>{r.label}</option>
@@ -86,7 +86,7 @@ export function CreateUserDialog() {
               <Field label="Пароль *" name="password" type="password" required minLength={6} />
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
                   {pending ? "Создание..." : "Создать"}
                 </button>
@@ -120,10 +120,10 @@ export function EditUserDialog({
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Редактировать пользователя</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -145,8 +145,8 @@ export function EditUserDialog({
                 <Field label="Телефон" name="phone" defaultValue={user.phone ?? ""} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Роль</label>
-                <select name="role" defaultValue={user.role} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Роль</label>
+                <select name="role" defaultValue={user.role} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                   {ROLE_OPTIONS.map((r) => (
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
@@ -155,7 +155,7 @@ export function EditUserDialog({
               <Field label="Новый пароль (оставьте пустым чтобы не менять)" name="newPassword" type="password" />
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
                   {pending ? "Сохранение..." : "Сохранить"}
                 </button>
@@ -186,23 +186,23 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Сброс пароля</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-sm text-slate-600">Установить новый пароль для <span className="font-medium">{userName}</span>:</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Установить новый пароль для <span className="font-medium">{userName}</span>:</p>
               <input
                 type="text"
                 placeholder="Минимум 6 символов"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono"
                 minLength={6}
               />
               <div className="flex gap-3">
-                <button onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm text-slate-600">Отмена</button>
+                <button onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button
                   disabled={pending || password.length < 6}
                   onClick={() => {
@@ -257,7 +257,7 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
       }
       trigger={
         <button
-          className={isActive ? "text-slate-500 hover:text-slate-700" : "text-emerald-600 hover:text-emerald-800"}
+          className={isActive ? "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300" : "text-emerald-600 hover:text-emerald-800"}
           aria-label={isActive ? "Деактивировать" : "Активировать"}
           title={isActive ? "Деактивировать" : "Активировать"}
         >
@@ -299,7 +299,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}
@@ -307,7 +307,7 @@ function Field({
         defaultValue={defaultValue}
         required={required}
         minLength={minLength}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
       />
     </div>
   )

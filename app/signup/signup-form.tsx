@@ -60,7 +60,7 @@ export function SignupForm() {
         />
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
             Адрес вашей рабочей зоны *
           </label>
           <div className="relative">
@@ -73,17 +73,17 @@ export function SignupForm() {
               className={`w-full rounded-lg border px-3.5 py-2.5 pr-12 text-sm font-mono lowercase focus:outline-none focus:ring-2 transition ${
                 isSlugOk ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20"
                 : isSlugBad ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                : "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
               }`}
             />
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500 font-mono">
               .commrent.kz
             </span>
           </div>
           <input type="hidden" name="slug" value={slug} />
-          {!slug && <p className="text-[11px] text-slate-400 mt-1">5–20 символов: латиница, цифры, дефис</p>}
+          {!slug && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница, цифры, дефис</p>}
           {slugCheck.status === "checking" && (
-            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> Проверяем...
             </p>
           )}
@@ -97,7 +97,7 @@ export function SignupForm() {
             <div className="mt-1">
               <p className="text-[11px] text-red-600">{checkResult.reason}</p>
               {checkResult.suggestions && (
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
                   Свободные:{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
@@ -129,7 +129,7 @@ export function SignupForm() {
       </Section>
 
       {/* Согласие с офертой */}
-      <label className="flex items-start gap-2.5 cursor-pointer text-sm text-slate-700">
+      <label className="flex items-start gap-2.5 cursor-pointer text-sm text-slate-700 dark:text-slate-300">
         <input type="checkbox" name="agreed" className="mt-0.5 h-4 w-4 rounded border-slate-300" />
         <span>
           Я ознакомлен и согласен с{" "}
@@ -155,7 +155,7 @@ export function SignupForm() {
         {isPending ? "Создаём..." : "Начать 14-дневный триал бесплатно"}
       </button>
 
-      <p className="text-center text-xs text-slate-500">
+      <p className="text-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
         Без оплаты, без карты. После триала — выберете тариф или продолжите смотреть в режиме чтения.
       </p>
     </form>
@@ -165,7 +165,7 @@ export function SignupForm() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{title}</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">{title}</p>
       {children}
     </div>
   )
@@ -183,7 +183,7 @@ function Field({ label, name, type = "text", value, onChange, required, placehol
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}
@@ -191,9 +191,9 @@ function Field({ label, name, type = "text", value, onChange, required, placehol
         onChange={onChange ? (e) => onChange(e.target.value) : undefined}
         required={required}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       />
-      {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{hint}</p>}
     </div>
   )
 }

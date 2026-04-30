@@ -15,15 +15,15 @@ export function LoginForm() {
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 mb-4">
           <Building className="h-6 w-6 text-white" />
         </div>
-        <h1 className="text-2xl font-bold text-slate-900">Commrent</h1>
-        <p className="text-sm text-slate-500 mt-1">Войдите в свой аккаунт</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Commrent</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Войдите в свой аккаунт</p>
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
         <form action={action} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
               Телефон или Email
             </label>
             <input
@@ -31,13 +31,13 @@ export function LoginForm() {
               type="text"
               placeholder="+7 700 000 00 00"
               autoComplete="username"
-              className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-sm font-medium text-slate-700">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                 Пароль
               </label>
               <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">
@@ -49,7 +49,7 @@ export function LoginForm() {
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
-              className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             />
           </div>
 
@@ -75,8 +75,8 @@ export function LoginForm() {
 
       {/* Diagnostic block */}
       {state?.details && state.details.length > 0 && (
-        <details className="mt-3 rounded-xl bg-white border border-slate-200 p-4 text-xs">
-          <summary className="cursor-pointer text-slate-600 font-medium select-none">
+        <details className="mt-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-xs">
+          <summary className="cursor-pointer text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium select-none">
             Диагностика входа ({state.details.length} шагов)
           </summary>
           <ul className="mt-3 space-y-1.5 font-mono">
@@ -87,11 +87,11 @@ export function LoginForm() {
                   : <XCircle className="h-3.5 w-3.5 mt-0.5 text-red-500 shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between gap-2">
-                    <span className={d.ok ? "text-slate-700" : "text-red-700"}>{d.step}</span>
-                    <span className="text-slate-400">{d.ms}ms</span>
+                    <span className={d.ok ? "text-slate-700 dark:text-slate-300" : "text-red-700"}>{d.step}</span>
+                    <span className="text-slate-400 dark:text-slate-500">{d.ms}ms</span>
                   </div>
                   {d.note && (
-                    <p className={`mt-0.5 break-all ${d.ok ? "text-slate-500" : "text-red-600"}`}>
+                    <p className={`mt-0.5 break-all ${d.ok ? "text-slate-500 dark:text-slate-400 dark:text-slate-500" : "text-red-600"}`}>
                       {d.note}
                     </p>
                   )}
@@ -99,7 +99,7 @@ export function LoginForm() {
               </li>
             ))}
           </ul>
-          <div className="mt-3 pt-3 border-t border-slate-100 text-[11px] text-slate-500">
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
             Подробнее по БД:{" "}
             <a href="/api/health/db" className="text-blue-600 hover:underline" target="_blank">/api/health/db</a>
           </div>

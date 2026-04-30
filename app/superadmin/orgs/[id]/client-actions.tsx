@@ -69,20 +69,20 @@ export function OrgEditForm({
       className="space-y-3"
     >
       <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Название</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Название</label>
         <input
           name="name"
           defaultValue={initial.name}
           required
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Тариф</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Тариф</label>
         <select
           name="planId"
           defaultValue={initial.planId}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white"
+          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
         >
           {plans.map((p) => (
             <option key={p.id} value={p.id}>{p.name} — {p.priceMonthly.toLocaleString("ru-RU")} ₸/мес</option>
@@ -90,7 +90,7 @@ export function OrgEditForm({
         </select>
       </div>
       <div className="flex gap-4">
-        <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
           <input type="checkbox" name="isActive" defaultChecked={initial.isActive} className="rounded" />
           Активна
         </label>
@@ -119,7 +119,7 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Срок (месяцев)</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Срок (месяцев)</label>
           <input
             type="number"
             min={1}
@@ -130,16 +130,16 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
               setMonths(m)
               setPaid(m * planPrice)
             }}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Оплачено ₸</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Оплачено ₸</label>
           <input
             type="number"
             value={paid}
             onChange={(e) => setPaid(parseFloat(e.target.value) || 0)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
           />
         </div>
       </div>
@@ -191,12 +191,12 @@ export function DangerZone({
       </div>
 
       {/* Деактивация / Реактивация */}
-      <div className="flex items-center justify-between gap-3 bg-white rounded-xl border border-red-100 p-4">
+      <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 rounded-xl border border-red-100 p-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-900">
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
             {isActive ? "Деактивировать организацию" : "Активировать организацию"}
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             {isActive
               ? "Клиент не сможет войти. Данные сохранятся, можно восстановить."
               : "Клиент снова сможет войти и работать."}
@@ -228,11 +228,11 @@ export function DangerZone({
       </div>
 
       {/* Удаление */}
-      <div className="bg-white rounded-xl border border-red-200 p-4 space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-red-200 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-red-900">Удалить организацию навсегда</p>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
               Удалит {buildingsCount} зданий и каскадно все связанные данные (этажи, помещения,
               арендаторы, договора, платежи). Пользователи останутся в системе как
               неактивные. Действие необратимо.
@@ -259,7 +259,7 @@ export function DangerZone({
                 value={confirmInput}
                 onChange={(e) => setConfirmInput(e.target.value)}
                 placeholder={orgSlug}
-                className="flex-1 rounded-lg border border-red-300 px-3 py-2 text-xs font-mono bg-white"
+                className="flex-1 rounded-lg border border-red-300 px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900"
               />
               <button
                 onClick={() => {
@@ -289,7 +289,7 @@ export function DangerZone({
                   setShowDelete(false)
                   setConfirmInput("")
                 }}
-                className="rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700"
+                className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300"
               >
                 Отмена
               </button>
@@ -319,7 +319,7 @@ export function ChangeOwnerForm({
 
   if (owners.length === 0) {
     return (
-      <p className="text-xs text-slate-400 mt-3">
+      <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
         В организации нет активных OWNER/ADMIN. Войдите в /admin/users как клиент чтобы создать.
       </p>
     )
@@ -331,13 +331,13 @@ export function ChangeOwnerForm({
   })()
 
   return (
-    <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
-      <label className="block text-xs font-medium text-slate-500">Сменить владельца</label>
+    <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сменить владельца</label>
       <div className="flex gap-2">
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs bg-white"
+          className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs bg-white dark:bg-slate-900"
         >
           <option value="">— выбрать —</option>
           {owners.map((u) => (

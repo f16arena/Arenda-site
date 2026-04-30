@@ -143,14 +143,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       <div className="flex items-center gap-4">
         <Link
           href="/admin/tenants"
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Назад
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-slate-900">{tenant.companyName}</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{tenant.companyName}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             {LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType}
             {tenant.category ? ` · ${tenant.category}` : ""}
           </p>
@@ -163,7 +163,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       </div>
 
       {/* Quick stats + actions */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="grid grid-cols-3 divide-x divide-slate-100">
           <QuickStat
             icon={Wallet}
@@ -176,7 +176,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             icon={Building2}
             label="Помещение"
             value={tenant.space ? `Каб. ${tenant.space.number}` : myFullFloors[0] ? myFullFloors[0].name : "—"}
-            valueClass="text-slate-900"
+            valueClass="text-slate-900 dark:text-slate-100"
             sub={tenant.space ? `${tenant.space.area} м² · ${tenant.space.floor.name}` : myFullFloors.length > 0 ? "Целый этаж" : "Не назначено"}
           />
           <QuickStat
@@ -184,17 +184,17 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             label="До конца договора"
             value={daysToContractEnd === null ? "—" : daysToContractEnd < 0 ? "Истёк" : `${daysToContractEnd} дн.`}
             valueClass={
-              daysToContractEnd === null ? "text-slate-500"
+              daysToContractEnd === null ? "text-slate-500 dark:text-slate-400 dark:text-slate-500"
                 : daysToContractEnd < 0 ? "text-red-600"
                 : daysToContractEnd < 30 ? "text-amber-600"
-                : "text-slate-900"
+                : "text-slate-900 dark:text-slate-100"
             }
             sub={tenant.contractEnd ? formatDate(tenant.contractEnd) : "Договор не заключён"}
           />
         </div>
 
         {/* Action bar */}
-        <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50">
+        <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <Link
             href={`/admin/documents/templates/invoice?tenantId=${tenant.id}&period=${currentPeriod}`}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white"
@@ -211,21 +211,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </Link>
           <Link
             href={`/admin/documents/templates/reconciliation?tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
           >
             <TrendingDown className="h-3.5 w-3.5" />
             Акт сверки
           </Link>
           <Link
             href={`/admin/messages?to=${tenant.userId}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
           >
             <MessageSquare className="h-3.5 w-3.5" />
             Написать
           </Link>
           <Link
             href={`/admin/requests?tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
           >
             <ClipboardList className="h-3.5 w-3.5" />
             Заявки
@@ -237,10 +237,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         {/* Left column: forms */}
         <div className="col-span-2 space-y-5">
           {/* Contact info */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <User className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-slate-900">Контактное лицо</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <User className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Контактное лицо</h2>
             </div>
             <form
               action={async (formData: FormData) => {
@@ -250,29 +250,29 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               className="p-5 grid grid-cols-2 gap-4"
             >
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">ФИО</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО</label>
                 <input
                   name="name"
                   defaultValue={tenant.user.name}
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Телефон</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Телефон</label>
                 <input
                   name="phone"
                   defaultValue={tenant.user.phone ?? ""}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Email</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Email</label>
                 <input
                   name="email"
                   type="email"
                   defaultValue={tenant.user.email ?? ""}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="col-span-2 flex justify-end">
@@ -287,10 +287,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
 
           {/* Company info */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <Building2 className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-slate-900">Данные компании</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Данные компании</h2>
             </div>
             <form
               action={async (formData: FormData) => {
@@ -307,20 +307,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <input type="hidden" name="customRate" value={tenant.customRate ?? ""} />
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Название компании</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название компании</label>
                 <input
                   name="companyName"
                   defaultValue={tenant.companyName}
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Правовая форма</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Правовая форма</label>
                 <select
                   name="legalType"
                   defaultValue={tenant.legalType}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
                 >
                   <option value="IP">ИП</option>
                   <option value="TOO">ТОО</option>
@@ -329,83 +329,83 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">БИН (для ТОО/АО)</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИН (для ТОО/АО)</label>
                 <input
                   name="bin"
                   defaultValue={tenant.bin ?? ""}
                   placeholder="12 цифр"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">ИИН (для ИП/физлица)</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ИИН (для ИП/физлица)</label>
                 <input
                   name="iin"
                   defaultValue={tenant.iin ?? ""}
                   placeholder="12 цифр"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Вид деятельности</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>
                 <input
                   name="category"
                   defaultValue={tenant.category ?? ""}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Юридический адрес</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Юридический адрес</label>
                 <input
                   name="legalAddress"
                   defaultValue={tenant.legalAddress ?? ""}
                   placeholder="г. Усть-Каменогорск, ул..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Фактический адрес</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Фактический адрес</label>
                 <input
                   name="actualAddress"
                   defaultValue={tenant.actualAddress ?? ""}
                   placeholder="Если совпадает с юридическим — оставьте пустым"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">ФИО руководителя</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО руководителя</label>
                 <input
                   name="directorName"
                   defaultValue={tenant.directorName ?? ""}
                   placeholder="Иванов Иван Иванович"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Должность руководителя</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Должность руководителя</label>
                 <input
                   name="directorPosition"
                   defaultValue={tenant.directorPosition ?? ""}
                   placeholder="Директор / Учредитель"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Начало договора</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Начало договора</label>
                 <input
                   name="contractStart"
                   type="date"
                   defaultValue={tenant.contractStart?.toISOString().slice(0, 10) ?? ""}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Конец договора</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Конец договора</label>
                 <input
                   name="contractEnd"
                   type="date"
                   defaultValue={tenant.contractEnd?.toISOString().slice(0, 10) ?? ""}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="col-span-2 flex justify-end">
@@ -420,10 +420,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
 
           {/* Requisites */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <CreditCard className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-slate-900">Банковские реквизиты</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские реквизиты</h2>
             </div>
             <form
               action={async (formData: FormData) => {
@@ -433,38 +433,38 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               className="p-5 grid grid-cols-2 gap-4"
             >
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Название банка</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название банка</label>
                 <input
                   name="bankName"
                   defaultValue={tenant.bankName ?? ""}
                   placeholder="Kaspi Bank / Halyk / и т.д."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">ИИК (расчётный счёт)</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ИИК (расчётный счёт)</label>
                 <input
                   name="iik"
                   defaultValue={tenant.iik ?? ""}
                   placeholder="KZxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">БИК банка</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИК банка</label>
                 <input
                   name="bik"
                   defaultValue={tenant.bik ?? ""}
                   placeholder="CASPKZKA"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">БИН / ИИН</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИН / ИИН</label>
                 <input
                   name="bin"
                   defaultValue={tenant.bin ?? ""}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="col-span-2 flex justify-end">
@@ -479,10 +479,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
 
           {/* Rental terms */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-              <Receipt className="h-4 w-4 text-slate-400" />
-              <h2 className="text-sm font-semibold text-slate-900">Условия аренды</h2>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Условия аренды</h2>
             </div>
             <form
               action={async (formData: FormData) => {
@@ -492,28 +492,28 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               className="p-5 grid grid-cols-3 gap-4"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Индивид. ставка ₸/м²</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Индивид. ставка ₸/м²</label>
                 <input
                   name="customRate"
                   type="number"
                   step="0.01"
                   defaultValue={tenant.customRate ?? ""}
                   placeholder="Если отличается от этажной"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1.5">Уборка ₸/мес</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Уборка ₸/мес</label>
                 <input
                   name="cleaningFee"
                   type="number"
                   step="0.01"
                   defaultValue={tenant.cleaningFee}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="flex items-end pb-2">
-                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     name="needsCleaning"
                     type="checkbox"
@@ -561,36 +561,36 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           />
 
           {/* Space */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-xs font-medium text-slate-400 mb-2">ПОМЕЩЕНИЕ</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mb-2">ПОМЕЩЕНИЕ</p>
             {tenant.space ? (
               <div>
-                <p className="text-2xl font-bold text-slate-900">Каб. {tenant.space.number}</p>
-                <p className="text-sm text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
-                <p className="text-sm text-slate-600 mt-2">{tenant.space.area} м²</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">Каб. {tenant.space.number}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">{tenant.space.area} м²</p>
                 {tenant.customRate ? (
                   <p className="text-xs text-blue-600 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
                 ) : (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                     Ставка этажа: {formatMoney(tenant.space.floor.ratePerSqm)}/м²
                   </p>
                 )}
-                <p className="text-xs font-semibold text-slate-900 mt-2">
+                <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
                   Аренда: {formatMoney(
                     tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm)
                   )}/мес
                 </p>
                 <Link
                   href={`/admin/documents/templates/rental?tenantId=${tenant.id}`}
-                  className="mt-3 block text-center rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
                 >
                   Сформировать договор
                 </Link>
               </div>
             ) : (
               <div>
-                <p className="text-sm text-slate-400 mb-3">Помещение не назначено</p>
-                <p className="text-xs text-slate-500 mb-2 font-medium">Свободные помещения:</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">Свободные помещения:</p>
                 <div className="space-y-2">
                   {vacantSpaces.map((s) => (
                     <form
@@ -602,15 +602,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                     >
                       <button
                         type="submit"
-                        className="w-full text-left rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-700 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                        className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 transition-colors"
                       >
                         <span className="font-medium">Каб. {s.number}</span>
-                        <span className="text-slate-400 ml-1">· {s.floor.name} · {s.area} м²</span>
+                        <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
                       </button>
                     </form>
                   ))}
                   {vacantSpaces.length === 0 && (
-                    <p className="text-xs text-slate-400">Нет свободных помещений</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
                   )}
                 </div>
               </div>
@@ -618,17 +618,17 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
 
           {/* Contracts */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50">
-              <FileText className="h-4 w-4 text-slate-400" />
-              <p className="text-xs font-semibold text-slate-700">Договоры</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Договоры</p>
             </div>
             <div className="divide-y divide-slate-50">
               {tenant.contracts.map((c) => (
                 <div key={c.id} className="px-4 py-3">
-                  <p className="text-sm font-medium text-slate-900">№ {c.number}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">№ {c.number}</p>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       {c.startDate ? formatDate(c.startDate) : "—"} →{" "}
                       {c.endDate ? formatDate(c.endDate) : "—"}
                     </p>
@@ -645,35 +645,35 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </div>
               ))}
               {tenant.contracts.length === 0 && (
-                <p className="px-4 py-4 text-xs text-slate-400 text-center">Нет договоров</p>
+                <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Нет договоров</p>
               )}
             </div>
           </div>
 
           {/* Recent charges */}
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-semibold text-slate-700">Последние начисления</p>
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Последние начисления</p>
             </div>
             <div className="divide-y divide-slate-50">
               {tenant.charges.slice(0, 6).map((c) => (
                 <div key={c.id} className="px-4 py-2.5 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-slate-700">
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
                       {CHARGE_TYPES[c.type] ?? c.type}
                     </p>
-                    <p className="text-[10px] text-slate-400">{c.period}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.period}</p>
                   </div>
                   <div className="text-right">
                     <p className={`text-xs font-semibold ${c.isPaid ? "text-emerald-600" : "text-red-600"}`}>
                       {formatMoney(c.amount)}
                     </p>
-                    <p className="text-[10px] text-slate-400">{c.isPaid ? "Оплачено" : "Долг"}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.isPaid ? "Оплачено" : "Долг"}</p>
                   </div>
                 </div>
               ))}
               {tenant.charges.length === 0 && (
-                <p className="px-4 py-4 text-xs text-slate-400 text-center">Начислений нет</p>
+                <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Начислений нет</p>
               )}
             </div>
           </div>
@@ -694,12 +694,12 @@ function QuickStat({
 }) {
   return (
     <div className="px-5 py-4">
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-1">
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className={`text-lg font-bold ${valueClass ?? "text-slate-900"}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      <p className={`text-lg font-bold ${valueClass ?? "text-slate-900 dark:text-slate-100"}`}>{value}</p>
+      {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
     </div>
   )
 }

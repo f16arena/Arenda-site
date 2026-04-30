@@ -49,9 +49,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
       className="space-y-4"
     >
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Новый пароль</label>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Новый пароль</label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
           <input
             type={show ? "text" : "password"}
             name="newPassword"
@@ -59,16 +59,16 @@ export function ResetPasswordForm({ token }: { token: string }) {
             required
             placeholder="••••••••"
             autoComplete="new-password"
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
-        <p className="text-xs text-slate-500 mt-1">Минимум 8 символов</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Минимум 8 символов</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Повторите пароль</label>
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Повторите пароль</label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
           <input
             type={show ? "text" : "password"}
             name="confirmPassword"
@@ -76,12 +76,12 @@ export function ResetPasswordForm({ token }: { token: string }) {
             required
             placeholder="••••••••"
             autoComplete="new-password"
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 cursor-pointer">
         <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
         Показать пароль
       </label>

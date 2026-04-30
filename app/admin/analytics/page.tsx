@@ -18,7 +18,7 @@ export default async function AnalyticsPage() {
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   if (!buildingId) {
-    return <div className="p-12 bg-white rounded-xl border border-slate-200 text-center text-slate-500">Выберите здание</div>
+    return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Выберите здание</div>
   }
 
   const floorIds = (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
@@ -124,8 +124,8 @@ export default async function AnalyticsPage() {
           <Activity className="h-5 w-5 text-blue-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Аналитика</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Ключевые показатели за {thisYear} год</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Аналитика</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Ключевые показатели за {thisYear} год</p>
         </div>
       </div>
 
@@ -136,31 +136,31 @@ export default async function AnalyticsPage() {
         <Kpi label="Средний срок" value={`${avgMonths} мес.`} icon={Users} sub="по подписанным договорам" color="purple" />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-900">Топ-5 арендаторов по выручке за {thisYear}</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ-5 арендаторов по выручке за {thisYear}</h2>
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">№</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Арендатор</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Сумма</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">% от общей</th>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">№</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">% от общей</th>
             </tr>
           </thead>
           <tbody>
             {topPayers.length === 0 ? (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">Нет платежей за этот год</td></tr>
+              <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет платежей за этот год</td></tr>
             ) : topPayers.map((t, i) => {
               const amount = t._sum.amount ?? 0
               const percent = totalRevenue > 0 ? Math.round((amount / totalRevenue) * 100) : 0
               return (
                 <tr key={t.tenantId} className="border-b border-slate-50">
-                  <td className="px-5 py-2.5 text-slate-400">#{i + 1}</td>
-                  <td className="px-5 py-2.5 font-medium text-slate-900">{t.companyName}</td>
+                  <td className="px-5 py-2.5 text-slate-400 dark:text-slate-500">#{i + 1}</td>
+                  <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
                   <td className="px-5 py-2.5 text-right font-semibold text-emerald-600">{formatMoney(amount)}</td>
-                  <td className="px-5 py-2.5 text-right text-slate-500">{percent}%</td>
+                  <td className="px-5 py-2.5 text-right text-slate-500 dark:text-slate-400 dark:text-slate-500">{percent}%</td>
                 </tr>
               )
             })}
@@ -187,13 +187,13 @@ function Kpi({ label, value, icon: Icon, sub, color }: {
     purple: "bg-purple-50 text-purple-600",
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
       <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors[color]} mb-3`}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
   )
 }

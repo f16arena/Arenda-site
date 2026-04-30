@@ -41,8 +41,8 @@ export default async function UsersPage() {
             <Shield className="h-5 w-5 text-purple-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Управление пользователями</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Управление пользователями</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
               Все аккаунты системы · доступно только владельцу
             </p>
           </div>
@@ -58,23 +58,23 @@ export default async function UsersPage() {
           { role: "FACILITY_MANAGER", label: "Завхозы" },
           { role: "TENANT", label: "Арендаторы" },
         ].map((r) => (
-          <div key={r.role} className="bg-white rounded-xl border border-slate-200 p-4">
-            <p className="text-2xl font-bold text-slate-900">{byRole[r.role] ?? 0}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{r.label}</p>
+          <div key={r.role} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{byRole[r.role] ?? 0}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{r.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Пользователь</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Роль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Контакты</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Профиль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Создан</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Действия</th>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Пользователь</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Роль</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Контакты</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Профиль</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Создан</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -84,51 +84,51 @@ export default async function UsersPage() {
                 <tr
                   key={u.id}
                   className={cn(
-                    "border-b border-slate-50 hover:bg-slate-50 transition-colors",
+                    "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors",
                     !u.isActive && "opacity-50"
                   )}
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-slate-600">{u.name[0]?.toUpperCase()}</span>
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">{u.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 flex items-center gap-2">
+                        <p className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
                           {u.name}
                           {isSelf && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">ВЫ</span>
                           )}
                           {!u.isActive && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-semibold">НЕАКТИВЕН</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 font-semibold">НЕАКТИВЕН</span>
                           )}
                         </p>
-                        <p className="text-xs text-slate-400 font-mono">{u.id}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{u.id}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLORS[u.role] ?? "bg-slate-100 text-slate-500")}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLORS[u.role] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
                       {ROLES[u.role as keyof typeof ROLES] ?? u.role}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                     <div className="space-y-0.5">
                       {u.email && <p className="text-xs">{u.email}</p>}
                       {u.phone && <p className="text-xs font-mono">{u.phone}</p>}
-                      {!u.email && !u.phone && <span className="text-slate-400">—</span>}
+                      {!u.email && !u.phone && <span className="text-slate-400 dark:text-slate-500">—</span>}
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                     {u.tenant ? (
                       <span className="text-xs">Арендатор: {u.tenant.companyName}</span>
                     ) : u.staff ? (
                       <span className="text-xs">{u.staff.position}</span>
                     ) : (
-                      <span className="text-slate-400 text-xs">—</span>
+                      <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-400 text-xs">
+                  <td className="px-5 py-3.5 text-slate-400 dark:text-slate-500 text-xs">
                     {formatDate(u.createdAt)}
                   </td>
                   <td className="px-5 py-3.5">
@@ -154,7 +154,7 @@ export default async function UsersPage() {
               <tr>
                 <td colSpan={6} className="px-5 py-16 text-center">
                   <UsersIcon className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">Нет пользователей</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">Нет пользователей</p>
                 </td>
               </tr>
             )}

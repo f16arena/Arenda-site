@@ -103,28 +103,28 @@ export function CalendarView({
   return (
     <div className="space-y-4">
       {/* Header: navigation + filters */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigateMonth(-1)}
-              className="rounded-lg border border-slate-200 hover:bg-slate-50 p-2"
+              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 p-2"
             >
-              <ChevronLeft className="h-4 w-4 text-slate-600" />
+              <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
             </button>
-            <h2 className="text-lg font-semibold text-slate-900 min-w-[180px] text-center">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 min-w-[180px] text-center">
               {MONTHS[currentMonth - 1]} {currentYear}
             </h2>
             <button
               onClick={() => navigateMonth(1)}
-              className="rounded-lg border border-slate-200 hover:bg-slate-50 p-2"
+              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 p-2"
             >
-              <ChevronRight className="h-4 w-4 text-slate-600" />
+              <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
             </button>
           </div>
           <button
             onClick={() => router.push("?")}
-            className="rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-sm text-slate-700"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300"
           >
             Сегодня
           </button>
@@ -141,7 +141,7 @@ export function CalendarView({
                   className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
                     isActive
                       ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200"
                   }`}
                 >
                   <span className={`inline-block h-2 w-2 rounded-full ${meta.color}`} />
@@ -155,10 +155,10 @@ export function CalendarView({
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         {/* Calendar grid */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             {WEEKDAYS.map((d) => (
-              <div key={d} className="px-2 py-2 text-center text-xs font-medium text-slate-500">
+              <div key={d} className="px-2 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 {d}
               </div>
             ))}
@@ -166,7 +166,7 @@ export function CalendarView({
           <div className="grid grid-cols-7">
             {cells.map((cell, i) => {
               if (!cell) {
-                return <div key={i} className="aspect-square border-b border-r border-slate-50 bg-slate-50/30" />
+                return <div key={i} className="aspect-square border-b border-r border-slate-50 bg-slate-50 dark:bg-slate-800/50/30" />
               }
               const dateKey = `${cell.getFullYear()}-${String(cell.getMonth() + 1).padStart(2, "0")}-${String(cell.getDate()).padStart(2, "0")}`
               const dayEvents = eventsByDate.get(dateKey) ?? []
@@ -183,12 +183,12 @@ export function CalendarView({
                 <button
                   key={i}
                   onClick={() => setSelectedDate(isSelected ? null : dateKey)}
-                  className={`aspect-square border-b border-r border-slate-100 p-1.5 flex flex-col items-start hover:bg-slate-50 transition text-left relative ${
+                  className={`aspect-square border-b border-r border-slate-100 dark:border-slate-800 p-1.5 flex flex-col items-start hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition text-left relative ${
                     isSelected ? "bg-blue-50 ring-2 ring-blue-500 ring-inset" : ""
                   }`}
                 >
                   <div className={`text-xs font-medium mb-1 ${
-                    isToday ? "rounded-full bg-blue-600 text-white px-1.5 py-0.5" : "text-slate-700 px-1"
+                    isToday ? "rounded-full bg-blue-600 text-white px-1.5 py-0.5" : "text-slate-700 dark:text-slate-300 px-1"
                   }`}>
                     {cell.getDate()}
                   </div>
@@ -202,7 +202,7 @@ export function CalendarView({
                       </div>
                     ))}
                     {sorted.length > 3 && (
-                      <div className="text-[10px] text-slate-500 font-medium">
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">
                         +{sorted.length - 3} ещё
                       </div>
                     )}
@@ -214,37 +214,37 @@ export function CalendarView({
         </div>
 
         {/* Side panel: details for selected date */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 lg:max-h-[600px] lg:overflow-y-auto">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3 lg:max-h-[600px] lg:overflow-y-auto">
           {selectedDate ? (
             <>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-900">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {new Date(selectedDate).toLocaleDateString("ru-RU", {
                     weekday: "long", day: "numeric", month: "long",
                   })}
                 </h3>
                 <button
                   onClick={() => setSelectedDate(null)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
               {selectedEvents.length === 0 ? (
-                <p className="text-sm text-slate-400">Нет событий</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">Нет событий</p>
               ) : (
                 <ul className="space-y-2">
                   {selectedEvents.map((e) => {
                     const meta = EVENT_META[e.type]
                     const Icon = meta.icon
                     const inner = (
-                      <div className="flex items-start gap-2 rounded-lg border border-slate-100 p-2 hover:bg-slate-50 transition">
+                      <div className="flex items-start gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
                         <div className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded ${meta.color} text-white shrink-0`}>
                           <Icon className="h-3 w-3" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">{e.title}</p>
-                          <p className="text-xs text-slate-500">{e.subtitle}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{e.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{e.subtitle}</p>
                         </div>
                       </div>
                     )
@@ -260,14 +260,14 @@ export function CalendarView({
           ) : (
             <div className="text-center py-8">
               <CalendarIcon className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">Кликни на дату чтобы увидеть события</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500">Кликни на дату чтобы увидеть события</p>
             </div>
           )}
 
           {/* Upcoming events list */}
           {!selectedDate && filteredEvents.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-slate-700 mt-4 mb-2 uppercase tracking-wide">
+              <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-4 mb-2 uppercase tracking-wide">
                 Ближайшие события
               </h4>
               <ul className="space-y-2">
@@ -277,11 +277,11 @@ export function CalendarView({
                   .map((e) => {
                     const meta = EVENT_META[e.type]
                     const inner = (
-                      <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-50 transition">
+                      <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
                         <span className={`inline-block h-2 w-2 rounded-full ${meta.color}`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-900 truncate">{e.title}</p>
-                          <p className="text-[10px] text-slate-500">
+                          <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">{e.title}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
                             {new Date(e.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
                             {" · "}{e.subtitle}
                           </p>

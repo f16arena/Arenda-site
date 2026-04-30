@@ -93,12 +93,12 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
     <div className="space-y-5">
       <div className="flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <Link href="/admin/finances" className="text-slate-500 hover:text-slate-900">
+          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Акт оказанных услуг</h1>
-            <p className="text-sm text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Акт оказанных услуг</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -120,22 +120,22 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
       <CustomTemplateBlock documentType="ACT" active={activeTemplate} />
 
       {!tenant && (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
           <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-400">Выберите арендатора для формирования акта</p>
+          <p className="text-slate-400 dark:text-slate-500">Выберите арендатора для формирования акта</p>
         </div>
       )}
 
       {tenant && (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 print-area">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 print-area">
           <div className="text-center mb-6">
-            <h2 className="text-lg font-bold text-slate-900">АКТ ОКАЗАННЫХ УСЛУГ № {actNumber}</h2>
-            <p className="text-sm text-slate-600 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
-            {tenant.contracts[0] && <p className="text-sm text-slate-600 mt-1">к договору № {tenant.contracts[0].number}{tenant.contracts[0].startDate ? ` от ${new Date(tenant.contracts[0].startDate).toLocaleDateString("ru-RU")}` : ""}</p>}
-            <p className="text-sm text-slate-700 mt-1">Период: с {periodStart.toLocaleDateString("ru-RU")} по {periodEnd.toLocaleDateString("ru-RU")}</p>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">АКТ ОКАЗАННЫХ УСЛУГ № {actNumber}</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
+            {tenant.contracts[0] && <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">к договору № {tenant.contracts[0].number}{tenant.contracts[0].startDate ? ` от ${new Date(tenant.contracts[0].startDate).toLocaleDateString("ru-RU")}` : ""}</p>}
+            <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">Период: с {periodStart.toLocaleDateString("ru-RU")} по {periodEnd.toLocaleDateString("ru-RU")}</p>
           </div>
 
-          <p className="text-sm text-slate-700 mb-4 text-justify">
+          <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 text-justify">
             Мы, нижеподписавшиеся, <b>{LANDLORD.fullName}</b> (далее — Исполнитель), в лице руководителя {LANDLORD.directorShort},
             с одной стороны, и <b>{tenant.companyName}</b> (далее — Заказчик), в лице {tenant.directorName ?? tenant.user.name},
             с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки,
@@ -144,7 +144,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
 
           <table className="w-full text-sm border-collapse mb-4">
             <thead>
-              <tr className="border border-slate-300 bg-slate-50">
+              <tr className="border border-slate-300 bg-slate-50 dark:bg-slate-800/50">
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">№</th>
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">Наименование услуги</th>
                 <th className="border border-slate-300 px-3 py-2 text-center text-xs">Период</th>
@@ -170,33 +170,33 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
                   <td className="border border-slate-300 px-3 py-2 text-right text-xs">{formatMoney(vatAmount)}</td>
                 </tr>
               )}
-              <tr className="bg-slate-50 font-semibold">
+              <tr className="bg-slate-50 dark:bg-slate-800/50 font-semibold">
                 <td colSpan={3} className="border border-slate-300 px-3 py-2 text-right text-xs">Всего:</td>
                 <td className="border border-slate-300 px-3 py-2 text-right text-xs">{formatMoney(total)}</td>
               </tr>
             </tbody>
           </table>
 
-          <p className="text-sm text-slate-700 mb-2">
+          <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
             Всего на сумму: <b>{formatMoney(total)} тенге</b>{withVat ? `, в т.ч. НДС ${vatRate}% — ${formatMoney(vatAmount)} тенге` : " (без НДС, Исполнитель не плательщик НДС)"}.
           </p>
-          <p className="text-sm text-slate-700 mb-8">Услуги оказаны в полном объёме, в установленные сроки. Стороны претензий друг к другу не имеют.</p>
+          <p className="text-sm text-slate-700 dark:text-slate-300 mb-8">Услуги оказаны в полном объёме, в установленные сроки. Стороны претензий друг к другу не имеют.</p>
 
           <div className="grid grid-cols-2 gap-12 text-sm">
             <div>
               <p className="font-semibold mb-1">Исполнитель:</p>
               <p>{LANDLORD.fullName}</p>
-              <p className="text-xs text-slate-500">ИИН: {LANDLORD.iin}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИН: {LANDLORD.iin}</p>
               <p className="border-b border-slate-400 mt-12 pb-1 text-center">_____________ {LANDLORD.directorShort}</p>
-              <p className="text-xs text-slate-500 text-center mt-1">подпись · М.П.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
             </div>
             <div>
               <p className="font-semibold mb-1">Заказчик:</p>
               <p>{tenant.companyName}</p>
-              {tenant.bin && <p className="text-xs text-slate-500">БИН: {tenant.bin}</p>}
-              {tenant.iin && <p className="text-xs text-slate-500">ИИН: {tenant.iin}</p>}
+              {tenant.bin && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">БИН: {tenant.bin}</p>}
+              {tenant.iin && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИН: {tenant.iin}</p>}
               <p className="border-b border-slate-400 mt-12 pb-1 text-center">_____________ {tenant.directorName ?? tenant.user.name}</p>
-              <p className="text-xs text-slate-500 text-center mt-1">подпись · М.П.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
             </div>
           </div>
         </div>

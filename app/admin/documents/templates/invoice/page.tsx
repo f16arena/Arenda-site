@@ -100,12 +100,12 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
     <div className="space-y-5">
       <div className="flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <Link href="/admin/finances" className="text-slate-500 hover:text-slate-900">
+          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Счёт на оплату</h1>
-            <p className="text-sm text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счёт на оплату</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -127,45 +127,45 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
       <CustomTemplateBlock documentType="INVOICE" active={activeTemplate} />
 
       {!tenant && (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
           <FileText className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-400">Выберите арендатора для формирования счёта</p>
+          <p className="text-slate-400 dark:text-slate-500">Выберите арендатора для формирования счёта</p>
         </div>
       )}
 
       {tenant && (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 print-area">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 print-area">
           <div className="text-center mb-6">
-            <h2 className="text-lg font-bold text-slate-900">СЧЁТ НА ОПЛАТУ № {invoiceNumber}</h2>
-            <p className="text-sm text-slate-600 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
-            {tenant.contracts[0] && <p className="text-sm text-slate-600 mt-1">по договору № {tenant.contracts[0].number}</p>}
-            {dueDate && <p className="text-sm text-slate-700 font-medium mt-2">Срок оплаты: до {dueDate.toLocaleDateString("ru-RU")}</p>}
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">СЧЁТ НА ОПЛАТУ № {invoiceNumber}</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
+            {tenant.contracts[0] && <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">по договору № {tenant.contracts[0].number}</p>}
+            {dueDate && <p className="text-sm text-slate-700 dark:text-slate-300 font-medium mt-2">Срок оплаты: до {dueDate.toLocaleDateString("ru-RU")}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-8 mb-6 text-sm">
             <div>
-              <p className="font-semibold text-slate-900 mb-1">Поставщик:</p>
-              <p className="text-slate-700">{LANDLORD.fullName}</p>
-              <p className="text-slate-500">{LANDLORD.legalAddress}</p>
-              <p className="text-slate-500">ИИН: {LANDLORD.iin}</p>
-              <p className="text-slate-500">Банк: {LANDLORD.bank}</p>
-              <p className="text-slate-500">ИИК: {LANDLORD.iik}</p>
-              <p className="text-slate-500">БИК: {LANDLORD.bik}</p>
+              <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Поставщик:</p>
+              <p className="text-slate-700 dark:text-slate-300">{LANDLORD.fullName}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{LANDLORD.legalAddress}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИН: {LANDLORD.iin}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {LANDLORD.bank}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {LANDLORD.iik}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {LANDLORD.bik}</p>
             </div>
             <div>
-              <p className="font-semibold text-slate-900 mb-1">Получатель:</p>
-              <p className="text-slate-700">{tenant.companyName}</p>
-              {tenant.legalAddress && <p className="text-slate-500">{tenant.legalAddress}</p>}
-              {tenant.bin && <p className="text-slate-500">БИН: {tenant.bin}</p>}
-              {tenant.bankName && <p className="text-slate-500">Банк: {tenant.bankName}</p>}
-              {tenant.iik && <p className="text-slate-500">ИИК: {tenant.iik}</p>}
-              {tenant.bik && <p className="text-slate-500">БИК: {tenant.bik}</p>}
+              <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Получатель:</p>
+              <p className="text-slate-700 dark:text-slate-300">{tenant.companyName}</p>
+              {tenant.legalAddress && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{tenant.legalAddress}</p>}
+              {tenant.bin && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИН: {tenant.bin}</p>}
+              {tenant.bankName && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {tenant.bankName}</p>}
+              {tenant.iik && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {tenant.iik}</p>}
+              {tenant.bik && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {tenant.bik}</p>}
             </div>
           </div>
 
           <table className="w-full text-sm border-collapse mb-4">
             <thead>
-              <tr className="border border-slate-300 bg-slate-50">
+              <tr className="border border-slate-300 bg-slate-50 dark:bg-slate-800/50">
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">№</th>
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">Наименование</th>
                 <th className="border border-slate-300 px-3 py-2 text-right text-xs">Кол-во</th>
@@ -193,22 +193,22 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
                   <td className="border border-slate-300 px-3 py-2 text-right text-xs">{formatMoney(vatAmount)}</td>
                 </tr>
               )}
-              <tr className="bg-slate-50 font-semibold">
+              <tr className="bg-slate-50 dark:bg-slate-800/50 font-semibold">
                 <td colSpan={4} className="border border-slate-300 px-3 py-2 text-right text-xs">Всего к оплате:</td>
                 <td className="border border-slate-300 px-3 py-2 text-right text-xs">{formatMoney(total)}</td>
               </tr>
             </tbody>
           </table>
 
-          {!withVat && <p className="text-xs text-slate-500 mb-4">Без НДС (поставщик не плательщик НДС).</p>}
+          {!withVat && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Без НДС (поставщик не плательщик НДС).</p>}
 
-          <p className="text-sm text-slate-700 mb-2"><b>Назначение платежа:</b> «Оплата за аренду по счёту № {invoiceNumber} от {today.toLocaleDateString("ru-RU")}{tenant.contracts[0] ? `, договор № ${tenant.contracts[0].number}` : ""}»</p>
+          <p className="text-sm text-slate-700 dark:text-slate-300 mb-2"><b>Назначение платежа:</b> «Оплата за аренду по счёту № {invoiceNumber} от {today.toLocaleDateString("ru-RU")}{tenant.contracts[0] ? `, договор № ${tenant.contracts[0].number}` : ""}»</p>
 
           <div className="grid grid-cols-2 gap-12 mt-12 text-sm">
             <div>
               <p className="font-semibold mb-8">Поставщик:</p>
               <p className="border-b border-slate-400 pb-1 text-center">_____________ {LANDLORD.directorShort}</p>
-              <p className="text-xs text-slate-500 text-center mt-1">подпись · М.П.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
             </div>
           </div>
         </div>

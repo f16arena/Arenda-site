@@ -30,14 +30,14 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <Link href="/" className="inline-flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center">
               <Building className="h-4 w-4 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900">Commrent</span>
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Commrent</span>
           </Link>
         </div>
         {children}
@@ -60,7 +60,7 @@ function Status({ type, title, message }: { type: "ok" | "error"; title: string;
             <Link href="/login" className="rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white">
               Войти
             </Link>
-            <Link href="/" className="rounded-lg border border-slate-200 hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
+            <Link href="/" className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300">
               На главную
             </Link>
           </div>

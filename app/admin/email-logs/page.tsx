@@ -75,11 +75,11 @@ export default async function EmailLogsPage({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-          <Mail className="h-6 w-6 text-slate-400" />
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Mail className="h-6 w-6 text-slate-400 dark:text-slate-500" />
           Журнал email-отправок
         </h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           {logs.length} писем · {sentCount} доставлено · {openedCount} открыто
           {failedCount > 0 && <span className="text-red-600"> · {failedCount} с ошибкой</span>}
         </p>
@@ -91,32 +91,32 @@ export default async function EmailLogsPage({
         <FilterChip label="Доставлено" href="/admin/email-logs?status=SENT" active={status === "SENT"} />
         <FilterChip label="С ошибкой" href="/admin/email-logs?status=FAILED" active={status === "FAILED"} />
         <FilterChip label="Открыто" href="/admin/email-logs?status=opened" active={status === "opened"} />
-        <span className="border-l border-slate-200 mx-2" />
+        <span className="border-l border-slate-200 dark:border-slate-800 mx-2" />
         {Object.entries(TYPE_LABELS).map(([key, label]) => (
           <FilterChip key={key} label={label} href={`/admin/email-logs?type=${key}`} active={type === key} />
         ))}
       </div>
 
       {/* Список */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {logs.length === 0 ? (
           <div className="px-5 py-16 text-center">
             <Mail className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm text-slate-500">Пока нет отправок</p>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Пока нет отправок</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Отправленные письма (счета, акты, уведомления) будут логироваться здесь
             </p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Дата</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Получатель</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Тема</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Тип</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Статус</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Открытий</th>
+              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Получатель</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тема</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тип</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Открытий</th>
               </tr>
             </thead>
             <tbody>
@@ -124,14 +124,14 @@ export default async function EmailLogsPage({
                 const meta = STATUS_META[log.status] ?? STATUS_META.SENT
                 const StatusIcon = meta.icon
                 return (
-                  <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                    <td className="px-5 py-2.5 text-xs text-slate-500 whitespace-nowrap">
+                  <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition">
+                    <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">
                       {new Date(log.sentAt).toLocaleString("ru-RU", {
                         day: "2-digit", month: "2-digit",
                         hour: "2-digit", minute: "2-digit",
                       })}
                     </td>
-                    <td className="px-5 py-2.5 text-slate-700 truncate max-w-[200px]">
+                    <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
                       {log.tenantId ? (
                         <Link href={`/admin/tenants/${log.tenantId}`} className="hover:text-blue-600 hover:underline">
                           {log.recipient}
@@ -140,8 +140,8 @@ export default async function EmailLogsPage({
                         log.recipient
                       )}
                     </td>
-                    <td className="px-5 py-2.5 text-slate-700 truncate max-w-[300px]">{log.subject}</td>
-                    <td className="px-5 py-2.5 text-xs text-slate-500">
+                    <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300 truncate max-w-[300px]">{log.subject}</td>
+                    <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {TYPE_LABELS[log.type] ?? log.type}
                     </td>
                     <td className="px-5 py-2.5">
@@ -157,12 +157,12 @@ export default async function EmailLogsPage({
                     </td>
                     <td className="px-5 py-2.5">
                       {log.openedAt ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-slate-600" title={`Открыто ${log.openCount} раз(а)`}>
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500" title={`Открыто ${log.openCount} раз(а)`}>
                           <Eye className="h-3 w-3" />
                           {log.openCount}
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-400">—</span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">—</span>
                       )}
                     </td>
                   </tr>
@@ -183,7 +183,7 @@ function FilterChip({ label, href, active }: { label: string; href: string; acti
       className={`rounded-full px-3 py-1 text-xs font-medium transition ${
         active
           ? "bg-slate-900 text-white"
-          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
       }`}
     >
       {label}

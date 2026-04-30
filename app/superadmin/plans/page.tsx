@@ -15,8 +15,8 @@ export default async function PlansPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Тарифы</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Настройка лимитов и фич для каждого плана</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Тарифы</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Настройка лимитов и фич для каждого плана</p>
       </div>
 
       <PlansClient plans={plans} />

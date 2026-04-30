@@ -19,10 +19,10 @@ export default async function AdminDashboard() {
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   if (!buildingId) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
         <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-700 font-semibold mb-1">Здание не выбрано</p>
-        <p className="text-sm text-slate-500 mb-4">Создайте здание чтобы начать работу</p>
+        <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">Здание не выбрано</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Создайте здание чтобы начать работу</p>
         <Link href="/admin/buildings" className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
           К списку зданий
         </Link>
@@ -211,14 +211,14 @@ export default async function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Дашборд</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Обзор состояния здания</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Дашборд</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Обзор состояния здания</p>
       </div>
 
       {/* Сегодня */}
       <div>
-        <h2 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-          <Clock className="h-4 w-4 text-slate-400" />
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+          <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
           Сегодня
         </h2>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -294,10 +294,10 @@ export default async function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Активные заявки
             </h2>
             <Link href="/admin/requests" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
@@ -305,12 +305,12 @@ export default async function AdminDashboard() {
             </Link>
           </div>
           {recentRequests.length === 0 ? (
-            <p className="text-sm text-slate-400">Нет активных заявок</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Нет активных заявок</p>
           ) : (
             <ul className="space-y-2">
               {recentRequests.map((r) => (
                 <li key={r.id} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700 truncate">{r.title}</span>
+                  <span className="text-slate-700 dark:text-slate-300 truncate">{r.title}</span>
                   <StatusBadge status={r.status} />
                 </li>
               ))}
@@ -318,10 +318,10 @@ export default async function AdminDashboard() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <CheckSquare className="h-4 w-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Задачи
             </h2>
             <Link href="/admin/tasks" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
@@ -329,12 +329,12 @@ export default async function AdminDashboard() {
             </Link>
           </div>
           {recentTasks.length === 0 ? (
-            <p className="text-sm text-slate-400">Нет активных задач</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Нет активных задач</p>
           ) : (
             <ul className="space-y-2">
               {recentTasks.map((t) => (
                 <li key={t.id} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700 truncate">{t.title}</span>
+                  <span className="text-slate-700 dark:text-slate-300 truncate">{t.title}</span>
                   <StatusBadge status={t.status} />
                 </li>
               ))}
@@ -343,28 +343,28 @@ export default async function AdminDashboard() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-900">Арендаторы</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Арендаторы</h2>
           <Link href="/admin/tenants" className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
             Все <ArrowUpRight className="h-3 w-3" />
           </Link>
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Компания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Помещение</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Долг</th>
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Компания</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Помещение</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Долг</th>
             </tr>
           </thead>
           <tbody>
             {topTenants.map((t) => {
               const debt = debtMap.get(t.id) ?? 0
               return (
-                <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-slate-900">{t.companyName}</td>
-                  <td className="px-5 py-3 text-slate-500">
+                <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
+                  <td className="px-5 py-3 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
+                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     {t.space ? `Каб. ${t.space.number}` : "—"}
                   </td>
                   <td className="px-5 py-3 text-right">
@@ -404,7 +404,7 @@ function TodayCard({
   return (
     <Link
       href={href}
-      className={`block bg-white rounded-xl border p-4 transition hover:shadow-sm ${urgent ? "border-red-200 ring-1 ring-red-100" : "border-slate-200"}`}
+      className={`block bg-white dark:bg-slate-900 rounded-xl border p-4 transition hover:shadow-sm ${urgent ? "border-red-200 ring-1 ring-red-100" : "border-slate-200 dark:border-slate-800"}`}
     >
       <div className="flex items-start justify-between mb-2">
         <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${colors[color]}`}>
@@ -412,9 +412,9 @@ function TodayCard({
         </div>
         <ArrowUpRight className="h-3.5 w-3.5 text-slate-300" />
       </div>
-      <p className="text-lg font-bold text-slate-900 truncate">{value}</p>
-      <p className="text-xs font-medium text-slate-700 mt-0.5">{label}</p>
-      <p className="text-[11px] text-slate-400 mt-0.5 truncate">{sub}</p>
+      <p className="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{value}</p>
+      <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">{label}</p>
+      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{sub}</p>
     </Link>
   )
 }
@@ -435,13 +435,13 @@ function StatCard({
     red: "bg-red-50 text-red-600",
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
       <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors[color]} mb-3`}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
   )
 }
@@ -458,7 +458,7 @@ function StatusBadge({ status }: { status: string }) {
     DONE: "Готово",
   }
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? "bg-slate-100 text-slate-500"}`}>
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500"}`}>
       {label[status] ?? status}
     </span>
   )

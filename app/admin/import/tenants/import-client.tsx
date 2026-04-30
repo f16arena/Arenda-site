@@ -66,7 +66,7 @@ export function ImportTenantsClient() {
   // ── 1. Выбор файла ────────────────────────────────────────────
   if (stage === "select") {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-8">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
         <label
           className={`block border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${
             pending ? "border-blue-400 bg-blue-50" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50/30"
@@ -87,9 +87,9 @@ export function ImportTenantsClient() {
               </>
             ) : (
               <>
-                <Upload className="h-10 w-10 text-slate-400" />
-                <p className="text-sm font-medium text-slate-700">Перетащите файл сюда или нажмите чтобы выбрать</p>
-                <p className="text-xs text-slate-500">Поддерживаются .xlsx, .xls, .csv до 10 МБ</p>
+                <Upload className="h-10 w-10 text-slate-400 dark:text-slate-500" />
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Перетащите файл сюда или нажмите чтобы выбрать</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Поддерживаются .xlsx, .xls, .csv до 10 МБ</p>
               </>
             )}
           </div>
@@ -121,12 +121,12 @@ export function ImportTenantsClient() {
     return (
       <div className="space-y-4">
         {/* Сводка */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm">
-              <FileSpreadsheet className="h-4 w-4 text-slate-400" />
-              <span className="font-medium text-slate-900">{fileName}</span>
-              <button onClick={reset} className="text-slate-400 hover:text-red-500"><X className="h-4 w-4" /></button>
+              <FileSpreadsheet className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <span className="font-medium text-slate-900 dark:text-slate-100">{fileName}</span>
+              <button onClick={reset} className="text-slate-400 dark:text-slate-500 hover:text-red-500"><X className="h-4 w-4" /></button>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -138,15 +138,15 @@ export function ImportTenantsClient() {
 
         {/* Превью таблицы */}
         {preview.validRows.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-              <p className="text-xs font-semibold text-slate-700">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Превью (первые 10 строк из {preview.validRows.length})
               </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
-                <thead className="bg-slate-50">
+                <thead className="bg-slate-50 dark:bg-slate-800/50">
                   <tr>
                     <Th>Стр.</Th>
                     <Th>Компания</Th>
@@ -161,17 +161,17 @@ export function ImportTenantsClient() {
                 <tbody>
                   {preview.validRows.slice(0, 10).map((r) => (
                     <tr key={r.rowIndex} className="border-t border-slate-50">
-                      <td className="px-3 py-2 text-slate-400">{r.rowIndex}</td>
-                      <td className="px-3 py-2 font-medium text-slate-900">{r.data.companyName}</td>
-                      <td className="px-3 py-2 text-slate-600">{r.data.legalType}</td>
-                      <td className="px-3 py-2 font-mono text-slate-600">{r.data.bin || "—"}</td>
-                      <td className="px-3 py-2 text-slate-600">
+                      <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{r.rowIndex}</td>
+                      <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{r.data.companyName}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.legalType}</td>
+                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.bin || "—"}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                         {r.data.contactName}
-                        {r.data.phone && <div className="text-[10px] text-slate-400">{r.data.phone}</div>}
-                        {r.data.email && <div className="text-[10px] text-slate-400">{r.data.email}</div>}
+                        {r.data.phone && <div className="text-[10px] text-slate-400 dark:text-slate-500">{r.data.phone}</div>}
+                        {r.data.email && <div className="text-[10px] text-slate-400 dark:text-slate-500">{r.data.email}</div>}
                       </td>
-                      <td className="px-3 py-2 text-slate-600">{r.data.spaceNumber || "—"}</td>
-                      <td className="px-3 py-2 text-slate-600">{r.data.rate ? `${r.data.rate} ₸` : "—"}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.spaceNumber || "—"}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.rate ? `${r.data.rate} ₸` : "—"}</td>
                       <td className="px-3 py-2 text-amber-600">
                         {r.warnings.length > 0 && (
                           <span title={r.warnings.join("\n")}>
@@ -205,7 +205,7 @@ export function ImportTenantsClient() {
 
         {/* Действия */}
         <div className="flex justify-end gap-2">
-          <button onClick={reset} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <button onClick={reset} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
             Отмена
           </button>
           <button
@@ -224,10 +224,10 @@ export function ImportTenantsClient() {
   // ── 3. Применяем ──────────────────────────────────────────────
   if (stage === "applying") {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
         <Loader2 className="h-10 w-10 text-blue-600 mx-auto mb-3 animate-spin" />
-        <p className="text-sm font-medium text-slate-900">Сохраняем в БД...</p>
-        <p className="text-xs text-slate-500 mt-1">Не закрывайте страницу</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Сохраняем в БД...</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Не закрывайте страницу</p>
       </div>
     )
   }
@@ -264,7 +264,7 @@ export function ImportTenantsClient() {
         )}
 
         <div className="flex gap-2 justify-end">
-          <button onClick={reset} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+          <button onClick={reset} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
             Загрузить ещё файл
           </button>
           <button
@@ -282,15 +282,15 @@ export function ImportTenantsClient() {
 }
 
 function Stat({ label, value, color }: { label: string; value: number; color?: "emerald" | "red" | "slate" }) {
-  const tone = color === "emerald" ? "text-emerald-700" : color === "red" ? "text-red-700" : "text-slate-700"
+  const tone = color === "emerald" ? "text-emerald-700" : color === "red" ? "text-red-700" : "text-slate-700 dark:text-slate-300"
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-widest text-slate-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</p>
       <p className={`text-2xl font-bold ${tone}`}>{value}</p>
     </div>
   )
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-3 py-2 text-left text-[10px] font-medium text-slate-500 uppercase tracking-widest">{children}</th>
+  return <th className="px-3 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">{children}</th>
 }

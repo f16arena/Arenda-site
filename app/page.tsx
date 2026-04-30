@@ -14,26 +14,26 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
       {/* ─── Header ──────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-100">
+      <header className="sticky top-0 z-20 bg-white dark:bg-slate-900/90 backdrop-blur border-b border-slate-100 dark:border-slate-800">
         <div className="mx-auto max-w-6xl px-6 flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center">
               <Building className="h-4 w-4 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900">Commrent</span>
+            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Commrent</span>
           </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600">
-            <a href="#features" className="hover:text-slate-900 transition-colors">Возможности</a>
-            <a href="#pricing" className="hover:text-slate-900 transition-colors">Тарифы</a>
-            <a href="#how" className="hover:text-slate-900 transition-colors">Как работает</a>
-            <a href="#faq" className="hover:text-slate-900 transition-colors">FAQ</a>
+          <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            <a href="#features" className="hover:text-slate-900 dark:text-slate-100 transition-colors">Возможности</a>
+            <a href="#pricing" className="hover:text-slate-900 dark:text-slate-100 transition-colors">Тарифы</a>
+            <a href="#how" className="hover:text-slate-900 dark:text-slate-100 transition-colors">Как работает</a>
+            <a href="#faq" className="hover:text-slate-900 dark:text-slate-100 transition-colors">FAQ</a>
           </nav>
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="hidden sm:inline-flex rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+              className="hidden sm:inline-flex rounded-lg px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 transition-colors"
             >
               Войти
             </Link>
@@ -55,11 +55,11 @@ export default async function Home() {
             <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
             SaaS для коммерческой аренды · Казахстан
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 leading-tight max-w-4xl mx-auto tracking-tight">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-slate-100 leading-tight max-w-4xl mx-auto tracking-tight">
             Управляйте арендой&nbsp;БЦ <br className="hidden sm:block" />
             в&nbsp;одной системе
           </h1>
-          <p className="text-lg sm:text-xl text-slate-500 mt-6 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-6 max-w-2xl mx-auto leading-relaxed">
             Учёт арендаторов, автоматические начисления, счета-фактуры и&nbsp;акты сверки, личный кабинет
             для арендатора. Меньше Excel — больше контроля.
           </p>
@@ -73,29 +73,29 @@ export default async function Home() {
             </Link>
             <a
               href="#features"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-6 py-3 text-base font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-3 text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
             >
               Что внутри
             </a>
           </div>
-          <p className="text-xs text-slate-400 mt-4">Без карты, без обязательств. Тариф Бизнес на 14&nbsp;дней.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-4">Без карты, без обязательств. Тариф Бизнес на 14&nbsp;дней.</p>
         </div>
 
         {/* Mockup placeholder */}
         <div className="mx-auto max-w-5xl px-6 pb-16">
-          <div className="relative rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white shadow-xl overflow-hidden">
-            <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-br from-slate-50 to-white shadow-xl overflow-hidden">
+            <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
-              <span className="ml-3 text-xs text-slate-400 font-mono">bcf16.commrent.kz/admin</span>
+              <span className="ml-3 text-xs text-slate-400 dark:text-slate-500 font-mono">bcf16.commrent.kz/admin</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-6 sm:p-8">
               <StatTile label="Арендаторов" value="42" icon={Users} accent="blue" />
               <StatTile label="Заполняемость" value="94%" icon={Building2} accent="emerald" />
               <StatTile label="Поступления, мес." value="3.8 млн ₸" icon={Wallet} accent="violet" />
-              <div className="sm:col-span-3 rounded-xl border border-slate-100 bg-white p-5">
-                <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">Последние операции</p>
+              <div className="sm:col-span-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+                <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Последние операции</p>
                 <ul className="space-y-2 text-sm">
                   <RowItem name='ТОО "АлмаПлюс"' meta="Каб. 201 · Платёж" amount="180 000 ₸" tone="emerald" />
                   <RowItem name="ИП Бекова" meta="Каб. 301 · Начисление" amount="200 000 ₸" tone="slate" />
@@ -108,10 +108,10 @@ export default async function Home() {
       </section>
 
       {/* ─── Trust bar ───────────────────────────────────────── */}
-      <section className="border-y border-slate-100 bg-slate-50/60">
-        <div className="mx-auto max-w-6xl px-6 py-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-slate-500">
+      <section className="border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/60">
+        <div className="mx-auto max-w-6xl px-6 py-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
           <span>Используют собственники БЦ в Алматы и Астане</span>
-          <span className="font-semibold text-slate-700">БЦ F16</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-300">БЦ F16</span>
           <span className="text-slate-300">·</span>
           <span>Поддомен на каждого клиента</span>
           <span className="text-slate-300">·</span>
@@ -123,10 +123,10 @@ export default async function Home() {
       <section id="features" className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-sm font-semibold text-blue-600 mb-3">Возможности</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Всё для управления коммерческой арендой
           </h2>
-          <p className="text-base text-slate-500 mt-3">
+          <p className="text-base text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-3">
             Не нужно собирать систему из 5 разных программ. Commrent закрывает весь цикл — от заселения до отчётности.
           </p>
         </div>
@@ -180,11 +180,11 @@ export default async function Home() {
       </section>
 
       {/* ─── How it works ────────────────────────────────────── */}
-      <section id="how" className="bg-slate-50 border-y border-slate-100">
+      <section id="how" className="bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-800">
         <div className="mx-auto max-w-6xl px-6 py-24">
           <div className="text-center max-w-2xl mx-auto mb-14">
             <p className="text-sm font-semibold text-blue-600 mb-3">Как это работает</p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
               Запуск за 15 минут
             </h2>
           </div>
@@ -212,10 +212,10 @@ export default async function Home() {
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-sm font-semibold text-blue-600 mb-3">Тарифы</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Прозрачные цены без скрытых платежей
           </h2>
-          <p className="text-base text-slate-500 mt-3">
+          <p className="text-base text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-3">
             14 дней пробного периода на любом тарифе. Оплата ежемесячно или со скидкой&nbsp;20% при оплате за&nbsp;год.
           </p>
         </div>
@@ -268,7 +268,7 @@ export default async function Home() {
           />
         </div>
 
-        <p className="text-center text-sm text-slate-500 mt-8">
+        <p className="text-center text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-8">
           Цены указаны в тенге за месяц. {" "}
           <a href="/offer" className="text-blue-600 hover:underline">Условия — в публичной оферте</a>.
         </p>
@@ -296,7 +296,7 @@ export default async function Home() {
       <section id="faq" className="mx-auto max-w-3xl px-6 py-24">
         <div className="text-center mb-12">
           <p className="text-sm font-semibold text-blue-600 mb-3">FAQ</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Частые вопросы</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Частые вопросы</h2>
         </div>
         <div className="space-y-3">
           <FaqItem
@@ -327,12 +327,12 @@ export default async function Home() {
       </section>
 
       {/* ─── Final CTA ───────────────────────────────────────── */}
-      <section className="border-y border-slate-100 bg-slate-50">
+      <section className="border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
         <div className="mx-auto max-w-3xl px-6 py-20 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
             Готовы перенести аренду в порядок?
           </h2>
-          <p className="text-base text-slate-500 mt-3">
+          <p className="text-base text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-3">
             Регистрация — 1&nbsp;минута. Первое начисление — через&nbsp;15.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-7">
@@ -345,7 +345,7 @@ export default async function Home() {
             </Link>
             <a
               href={`mailto:${LEGAL_ENTITY.email.support}`}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-6 py-3 text-base font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-3 text-base font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 transition-colors"
             >
               Написать в поддержку
             </a>
@@ -354,7 +354,7 @@ export default async function Home() {
       </section>
 
       {/* ─── Footer ──────────────────────────────────────────── */}
-      <footer className="border-t border-slate-100">
+      <footer className="border-t border-slate-100 dark:border-slate-800">
         <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             <div className="sm:col-span-2 md:col-span-1">
@@ -362,48 +362,48 @@ export default async function Home() {
                 <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center">
                   <Building className="h-4 w-4 text-white" />
                 </div>
-                <span className="text-lg font-bold text-slate-900">Commrent</span>
+                <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Commrent</span>
               </div>
-              <p className="text-sm text-slate-500 leading-relaxed">
+              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-relaxed">
                 SaaS для собственников коммерческой недвижимости в Казахстане.
               </p>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">Продукт</p>
+              <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Продукт</p>
               <ul className="space-y-2 text-sm">
-                <li><a href="#features" className="text-slate-700 hover:text-blue-600 transition-colors">Возможности</a></li>
-                <li><a href="#pricing" className="text-slate-700 hover:text-blue-600 transition-colors">Тарифы</a></li>
-                <li><a href="#faq" className="text-slate-700 hover:text-blue-600 transition-colors">FAQ</a></li>
-                <li><Link href="/login" className="text-slate-700 hover:text-blue-600 transition-colors">Войти</Link></li>
+                <li><a href="#features" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Возможности</a></li>
+                <li><a href="#pricing" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Тарифы</a></li>
+                <li><a href="#faq" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">FAQ</a></li>
+                <li><Link href="/login" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Войти</Link></li>
               </ul>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">Документы</p>
+              <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Документы</p>
               <ul className="space-y-2 text-sm">
-                <li><Link href="/offer" className="text-slate-700 hover:text-blue-600 transition-colors">Публичная оферта</Link></li>
-                <li><Link href="/privacy" className="text-slate-700 hover:text-blue-600 transition-colors">Политика конфиденциальности</Link></li>
-                <li><Link href="/terms" className="text-slate-700 hover:text-blue-600 transition-colors">Пользовательское соглашение</Link></li>
-                <li><Link href="/sla" className="text-slate-700 hover:text-blue-600 transition-colors">SLA</Link></li>
+                <li><Link href="/offer" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Публичная оферта</Link></li>
+                <li><Link href="/privacy" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Политика конфиденциальности</Link></li>
+                <li><Link href="/terms" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">Пользовательское соглашение</Link></li>
+                <li><Link href="/sla" className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">SLA</Link></li>
               </ul>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">Контакты</p>
+              <p className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3">Контакты</p>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-slate-700 hover:text-blue-600 transition-colors">
+                  <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors">
                     {LEGAL_ENTITY.email.support}
                   </a>
                 </li>
-                <li className="text-slate-500">{LEGAL_ENTITY.phone}</li>
-                <li className="text-slate-500">{LEGAL_ENTITY.fullName}</li>
+                <li className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{LEGAL_ENTITY.phone}</li>
+                <li className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{LEGAL_ENTITY.fullName}</li>
               </ul>
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400">
+          <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400 dark:text-slate-500">
             <p>© {new Date().getFullYear()} {LEGAL_ENTITY.fullName}. Все права защищены.</p>
             <p>commrent.kz</p>
           </div>
@@ -424,14 +424,14 @@ function StatTile({
     violet: "bg-violet-50 text-violet-600",
   }
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-5">
+    <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs uppercase tracking-widest text-slate-400">{label}</span>
+        <span className="text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</span>
         <span className={`h-8 w-8 rounded-lg flex items-center justify-center ${accents[accent]}`}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{value}</p>
     </div>
   )
 }
@@ -441,14 +441,14 @@ function RowItem({
 }: { name: string; meta: string; amount: string; tone: "emerald" | "slate" | "amber" }) {
   const tones = {
     emerald: "text-emerald-600 bg-emerald-50",
-    slate: "text-slate-600 bg-slate-100",
+    slate: "text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800",
     amber: "text-amber-700 bg-amber-50",
   }
   return (
     <li className="flex items-center justify-between gap-3 py-1.5">
       <div className="min-w-0">
-        <p className="font-medium text-slate-900 truncate">{name}</p>
-        <p className="text-xs text-slate-500">{meta}</p>
+        <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{name}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{meta}</p>
       </div>
       <span className={`text-xs font-medium px-2 py-1 rounded-md ${tones[tone]}`}>{amount}</span>
     </li>
@@ -459,24 +459,24 @@ function Feature({
   icon: Icon, title, text,
 }: { icon: React.ElementType; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-6 hover:border-slate-200 hover:shadow-sm transition-all">
+    <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-slate-200 hover:shadow-sm transition-all">
       <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center mb-4">
         <Icon className="h-5 w-5 text-blue-600" />
       </div>
-      <h3 className="text-base font-semibold text-slate-900 mb-2">{title}</h3>
-      <p className="text-sm text-slate-500 leading-relaxed">{text}</p>
+      <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-relaxed">{text}</p>
     </div>
   )
 }
 
 function Step({ n, title, text }: { n: string; title: string; text: string }) {
   return (
-    <div className="rounded-xl bg-white border border-slate-100 p-6">
+    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6">
       <div className="h-9 w-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-semibold text-sm mb-4">
         {n}
       </div>
-      <h3 className="text-base font-semibold text-slate-900 mb-2">{title}</h3>
-      <p className="text-sm text-slate-500 leading-relaxed">{text}</p>
+      <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-relaxed">{text}</p>
     </div>
   )
 }
@@ -495,8 +495,8 @@ function PricingCard({
     <div
       className={`relative rounded-2xl border p-7 flex flex-col ${
         popular
-          ? "border-blue-500 bg-white shadow-lg shadow-blue-500/10 ring-1 ring-blue-500/20"
-          : "border-slate-200 bg-white"
+          ? "border-blue-500 bg-white dark:bg-slate-900 shadow-lg shadow-blue-500/10 ring-1 ring-blue-500/20"
+          : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
       }`}
     >
       {popular && (
@@ -506,14 +506,14 @@ function PricingCard({
           </span>
         </div>
       )}
-      <h3 className="text-lg font-semibold text-slate-900">{name}</h3>
-      <p className="text-sm text-slate-500 mt-1 min-h-10">{description}</p>
+      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{name}</h3>
+      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 min-h-10">{description}</p>
       <div className="mt-5">
         <div className="flex items-baseline gap-1">
-          <span className="text-4xl font-bold text-slate-900 tracking-tight">{price}</span>
-          <span className="text-base text-slate-500">₸ / мес</span>
+          <span className="text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">{price}</span>
+          <span className="text-base text-slate-500 dark:text-slate-400 dark:text-slate-500">₸ / мес</span>
         </div>
-        <p className="text-xs text-slate-400 mt-1">или {yearly} ₸ при оплате за&nbsp;год (−20%)</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">или {yearly} ₸ при оплате за&nbsp;год (−20%)</p>
       </div>
       <Link
         href="/signup"
@@ -529,7 +529,7 @@ function PricingCard({
         {features.map((f) => (
           <li key={f} className="flex items-start gap-2.5">
             <Check className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-            <span className="text-slate-700">{f}</span>
+            <span className="text-slate-700 dark:text-slate-300">{f}</span>
           </li>
         ))}
       </ul>
@@ -541,19 +541,19 @@ function CaseStat({ value, label }: { value: string; label: string }) {
   return (
     <div>
       <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
-      <p className="text-sm text-slate-400 mt-1">{label}</p>
+      <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">{label}</p>
     </div>
   )
 }
 
 function FaqItem({ q, a }: { q: string; a: string }) {
   return (
-    <details className="group rounded-xl border border-slate-200 bg-white p-5 [&[open]]:shadow-sm">
+    <details className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 [&[open]]:shadow-sm">
       <summary className="flex items-center justify-between gap-4 cursor-pointer list-none">
-        <span className="font-medium text-slate-900">{q}</span>
-        <span className="text-slate-400 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+        <span className="font-medium text-slate-900 dark:text-slate-100">{q}</span>
+        <span className="text-slate-400 dark:text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
       </summary>
-      <p className="mt-3 text-sm text-slate-600 leading-relaxed">{a}</p>
+      <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 leading-relaxed">{a}</p>
     </details>
   )
 }

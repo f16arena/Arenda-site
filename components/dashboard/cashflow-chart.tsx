@@ -20,14 +20,14 @@ export function CashflowChart({ months }: { months: MonthData[] }) {
   const fmt = (n: number) => Math.round(n).toLocaleString("ru-RU")
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-slate-400" />
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             Cashflow за {months.length} месяцев
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             <span className="text-emerald-600 font-medium">+{fmt(totalIncome)} ₸</span>
             {" / "}
             <span className="text-red-500 font-medium">−{fmt(totalExpense)} ₸</span>
@@ -68,7 +68,7 @@ export function CashflowChart({ months }: { months: MonthData[] }) {
                 </div>
                 <p className={cn(
                   "text-[10px] font-medium",
-                  m.forecast ? "text-slate-400" : "text-slate-500"
+                  m.forecast ? "text-slate-400 dark:text-slate-500" : "text-slate-500 dark:text-slate-400 dark:text-slate-500"
                 )}>
                   {monthLabel}
                 </p>
@@ -76,7 +76,7 @@ export function CashflowChart({ months }: { months: MonthData[] }) {
             )
           })}
         </div>
-        <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500">
+        <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
           <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500" /> Доход</div>
           <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-400" /> Расход</div>
           <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-200 border border-emerald-300 border-dashed" /> Прогноз</div>

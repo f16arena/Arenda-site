@@ -53,8 +53,8 @@ export default async function SpacesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Помещения</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{building?.name} · {building?.address}</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
         <AddSpaceDialog floors={floorOptions} />
       </div>
@@ -62,15 +62,15 @@ export default async function SpacesPage() {
       {/* Summary */}
       <div className="grid grid-cols-5 gap-4">
         {[
-          { label: "Всего", value: String(total), color: "text-slate-900" },
+          { label: "Всего", value: String(total), color: "text-slate-900 dark:text-slate-100" },
           { label: "Занято", value: String(occupied), color: "text-blue-600" },
           { label: "Свободно", value: String(vacant), color: "text-emerald-600" },
-          { label: "Заполняемость", value: `${total ? Math.round((occupied / total) * 100) : 0}%`, color: "text-slate-900" },
-          { label: "Общая площадь", value: `${totalArea} м²`, color: "text-slate-900" },
+          { label: "Заполняемость", value: `${total ? Math.round((occupied / total) * 100) : 0}%`, color: "text-slate-900 dark:text-slate-100" },
+          { label: "Общая площадь", value: `${totalArea} м²`, color: "text-slate-900 dark:text-slate-100" },
         ].map((s) => (
-          <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4">
+          <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
@@ -105,15 +105,15 @@ export default async function SpacesPage() {
         }))
 
         return (
-          <div key={floor.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+          <div key={floor.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <div className="flex items-center gap-3">
-                <Building2 className="h-4 w-4 text-slate-400" />
-                <h2 className="text-sm font-semibold text-slate-900">{floor.name}</h2>
-                <span className="text-xs text-slate-400">Ставка: {formatMoney(floor.ratePerSqm)}/м²</span>
-                {floor.totalArea && <span className="text-xs text-slate-400">· {floor.totalArea} м²</span>}
+                <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{floor.name}</h2>
+                <span className="text-xs text-slate-400 dark:text-slate-500">Ставка: {formatMoney(floor.ratePerSqm)}/м²</span>
+                {floor.totalArea && <span className="text-xs text-slate-400 dark:text-slate-500">· {floor.totalArea} м²</span>}
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500">
+              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 <span><span className="font-medium text-blue-600">{floorOccupied}</span> / {floor.spaces.length} занято</span>
                 <span>{floorArea} м²</span>
                 <Link href={`/admin/floors/${floor.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
@@ -124,15 +124,15 @@ export default async function SpacesPage() {
 
             <div className="p-5">
               {floor.spaces.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-6">Нет помещений на этом этаже</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Нет помещений на этом этаже</p>
               ) : (
                 <div className="space-y-3">
                   {/* Visual map — SVG план если задан, иначе fallback */}
                   {layout ? (
                     <FloorView layout={layout} spaces={spaceInfos} floorId={floor.id} />
                   ) : (
-                    <div className="relative border-2 border-dashed border-slate-200 rounded-lg p-6 bg-slate-50 text-center">
-                      <p className="text-sm text-slate-500 mb-2">План этажа не нарисован</p>
+                    <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-lg p-6 bg-slate-50 dark:bg-slate-800/50 text-center">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">План этажа не нарисован</p>
                       <Link
                         href={`/admin/floors/${floor.id}`}
                         className="inline-flex items-center gap-2 text-xs text-blue-600 hover:underline"
@@ -143,37 +143,37 @@ export default async function SpacesPage() {
                   )}
 
                   {/* Table */}
-                  <table className="w-full text-xs border border-slate-100 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
                     <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Кабинет</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Площадь</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Аренда/мес</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Арендатор</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Статус</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Описание</th>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Кабинет</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Площадь</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Аренда/мес</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Описание</th>
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
                     <tbody>
                       {floor.spaces.map((space) => (
-                        <tr key={space.id} className="border-b border-slate-50 hover:bg-slate-50">
-                          <td className="px-3 py-2 font-medium text-slate-800">Каб. {space.number}</td>
-                          <td className="px-3 py-2 text-slate-600">{space.area} м²</td>
-                          <td className="px-3 py-2 text-slate-600">{formatMoney(space.area * floor.ratePerSqm)}</td>
-                          <td className="px-3 py-2 text-slate-600">
+                        <tr key={space.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
+                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{space.area} м²</td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{formatMoney(space.area * floor.ratePerSqm)}</td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                             {space.tenant ? (
                               <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 hover:underline">
                                 {space.tenant.companyName}
                               </Link>
-                            ) : <span className="text-slate-400">—</span>}
+                            ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
                           </td>
                           <td className="px-3 py-2">
                             <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", STATUS_COLORS[space.status])}>
                               {STATUS_LABELS[space.status] ?? space.status}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-slate-400">{space.description ?? "—"}</td>
+                          <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{space.description ?? "—"}</td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <EditSpaceDialog

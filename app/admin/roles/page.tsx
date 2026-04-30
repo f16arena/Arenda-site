@@ -42,8 +42,8 @@ export default async function RolesPage() {
           <Shield className="h-5 w-5 text-purple-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Роли и доступ</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Роли и доступ</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             {isOwner ? "Кликайте по ячейкам чтобы изменить права. OWNER всегда имеет полный доступ." : "Просмотр прав доступа (только OWNER может изменять)."}
           </p>
         </div>
@@ -60,7 +60,7 @@ export default async function RolesPage() {
               </p>
               <details className="text-xs text-amber-700">
                 <summary className="cursor-pointer hover:underline">Показать SQL для запуска</summary>
-                <pre className="mt-2 bg-white border border-amber-200 rounded p-3 overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
+                <pre className="mt-2 bg-white dark:bg-slate-900 border border-amber-200 rounded p-3 overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
               </details>
             </div>
           </div>

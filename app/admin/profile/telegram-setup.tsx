@@ -41,20 +41,20 @@ export function TelegramSetup({ currentChatId }: { currentChatId: string | null 
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
         Получайте уведомления о просрочках, новых заявках и истечении договоров прямо в Telegram. Это бесплатно и быстрее SMS.
       </p>
 
-      <div className="space-y-2 rounded-lg bg-slate-50 border border-slate-200 p-4">
-        <p className="text-sm font-semibold text-slate-900">Как подключить:</p>
-        <ol className="text-sm text-slate-600 space-y-2 list-decimal list-inside">
+      <div className="space-y-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 p-4">
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Как подключить:</p>
+        <ol className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 space-y-2 list-decimal list-inside">
           <li>
             Откройте бота:{" "}
             <a href={`https://t.me/${botName}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-mono">
               @{botName}
             </a>
           </li>
-          <li>Нажмите <span className="font-mono bg-white px-1.5 py-0.5 rounded border">Start</span></li>
+          <li>Нажмите <span className="font-mono bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border">Start</span></li>
           <li>Бот пришлёт ваш <span className="font-semibold">Chat ID</span> — скопируйте его</li>
           <li>Вставьте в поле ниже и сохраните</li>
         </ol>
@@ -80,7 +80,7 @@ export function TelegramSetup({ currentChatId }: { currentChatId: string | null 
           value={chatId}
           onChange={(e) => setChatId(e.target.value)}
           placeholder="123456789"
-          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
+          className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
         />
         <button
           type="submit"
@@ -92,7 +92,7 @@ export function TelegramSetup({ currentChatId }: { currentChatId: string | null 
         </button>
       </form>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-400 dark:text-slate-500">
         💡 Если бот ещё не создан администратором — напишите ему. Без бота уведомления приходят только в самом приложении (колокольчик в шапке).
       </p>
     </div>

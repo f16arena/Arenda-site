@@ -16,8 +16,8 @@ export default async function NewOrgPage() {
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Новая организация</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Создайте проект для нового клиента</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Новая организация</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Создайте проект для нового клиента</p>
       </div>
 
       <CreateOrgForm plans={plans} />

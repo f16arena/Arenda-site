@@ -47,12 +47,12 @@ export function OrgsListClient({ items, rootHost }: { items: Item[]; rootHost: s
       {/* Поиск + фильтры */}
       <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="relative flex-1">
-          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="h-4 w-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Поиск по названию или slug…"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
           />
         </div>
         <div className="flex gap-1.5 flex-wrap">
@@ -65,21 +65,21 @@ export function OrgsListClient({ items, rootHost }: { items: Item[]; rootHost: s
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
-          <p className="text-sm text-slate-500">Ничего не найдено</p>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Ничего не найдено</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/70">
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Организация</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Тариф</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Подписка</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Зданий</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Юзеров</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Статус</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Действия</th>
+              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/70">
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Организация</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Подписка</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Зданий</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Юзеров</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -101,19 +101,19 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
 
   return (
     <tr className={cn(
-      "border-b border-slate-50 hover:bg-slate-50/50 transition",
+      "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition",
       o.isSuspended && "bg-red-50/30",
       !o.isActive && "opacity-60",
     )}>
       <td className="px-5 py-3.5">
         <Link href={`/superadmin/orgs/${o.id}`} className="block">
-          <p className="font-medium text-slate-900 hover:text-purple-600 transition">{o.name}</p>
+          <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 transition">{o.name}</p>
           <a
             href={orgUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-slate-500 hover:text-blue-600 font-mono mt-0.5 inline-flex items-center gap-0.5"
+            className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-blue-600 font-mono mt-0.5 inline-flex items-center gap-0.5"
             title="Открыть поддомен в новой вкладке"
           >
             {o.slug}.{rootHost}
@@ -121,30 +121,30 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
           </a>
         </Link>
       </td>
-      <td className="px-5 py-3.5 text-slate-600">
+      <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
         {o.planName ? (
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700">{o.planName}</span>
-        ) : <span className="text-slate-400">—</span>}
+          <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{o.planName}</span>
+        ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
       </td>
       <td className="px-5 py-3.5 text-xs">
         {o.planExpiresAt ? (
           <div>
             <p className={cn(
               o.expired ? "text-red-600 font-medium" :
-              o.expiringSoon ? "text-amber-600 font-medium" : "text-slate-600"
+              o.expiringSoon ? "text-amber-600 font-medium" : "text-slate-600 dark:text-slate-400 dark:text-slate-500"
             )}>
               {new Date(o.planExpiresAt).toLocaleDateString("ru-RU")}
             </p>
             {o.daysLeft !== null && (
-              <p className="text-[10px] text-slate-400 mt-0.5">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                 {o.expired ? `просрочен ${-o.daysLeft} дн.` : `${o.daysLeft} дн.`}
               </p>
             )}
           </div>
-        ) : <span className="text-slate-400">—</span>}
+        ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
       </td>
-      <td className="px-5 py-3.5 text-right text-slate-600">{o.buildingsCount}</td>
-      <td className="px-5 py-3.5 text-right text-slate-600">{o.usersCount}</td>
+      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.buildingsCount}</td>
+      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.usersCount}</td>
       <td className="px-5 py-3.5">
         {o.isSuspended ? (
           <Badge color="red" icon={AlertTriangle}>Приостановлен</Badge>
@@ -185,7 +185,7 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
           )}
           <Link
             href={`/superadmin/orgs/${o.id}`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition"
+            className="flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition"
           >
             <ExternalLink className="h-3 w-3" />
             Открыть
@@ -209,12 +209,12 @@ function FilterChip({ label, active, onClick, count }: {
         "px-3 py-1.5 rounded-lg text-xs font-medium transition",
         active
           ? "bg-purple-600 text-white shadow-sm"
-          : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
       )}
     >
       {label}
       {count !== undefined && (
-        <span className={cn("ml-1.5 text-[10px]", active ? "text-purple-100" : "text-slate-400")}>
+        <span className={cn("ml-1.5 text-[10px]", active ? "text-purple-100" : "text-slate-400 dark:text-slate-500")}>
           {count}
         </span>
       )}
@@ -233,7 +233,7 @@ function Badge({
     emerald: "bg-emerald-100 text-emerald-700",
     amber: "bg-amber-100 text-amber-700",
     red: "bg-red-100 text-red-700",
-    slate: "bg-slate-100 text-slate-600",
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
   }
   return (
     <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium", colors[color])}>

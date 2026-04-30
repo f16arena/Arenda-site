@@ -65,7 +65,7 @@ export function ThemeToggle() {
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Тема оформления</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           Сохраняется в браузере
         </p>
       </div>
@@ -80,10 +80,10 @@ export function ThemeToggle() {
               className={`flex flex-col items-center gap-2 rounded-lg border-2 px-3 py-3 transition ${
                 active
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-500/10"
-                  : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                  : "border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
               }`}
             >
-              <Icon className={`h-5 w-5 ${active ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"}`} />
+              <Icon className={`h-5 w-5 ${active ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 dark:text-slate-500"}`} />
               <span className={`text-xs font-medium ${active ? "text-blue-900 dark:text-blue-100" : "text-slate-700 dark:text-slate-300"}`}>
                 {item.label}
               </span>

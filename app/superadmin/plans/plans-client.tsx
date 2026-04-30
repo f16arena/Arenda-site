@@ -59,18 +59,18 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
           const features = parseFeatures(p.features)
           const enabledCount = Object.values(features).filter(Boolean).length
           return (
-            <div key={p.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div key={p.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-900">{p.name}</h2>
-                    <span className="text-xs px-2 py-0.5 rounded font-mono bg-slate-100 text-slate-500">{p.code}</span>
-                    {!p.isActive && <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-500">Неактивен</span>}
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{p.name}</h2>
+                    <span className="text-xs px-2 py-0.5 rounded font-mono bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">{p.code}</span>
+                    {!p.isActive && <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">Неактивен</span>}
                   </div>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">
-                    {p.priceMonthly.toLocaleString("ru-RU")} <span className="text-sm font-normal text-slate-500">₸/мес</span>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                    {p.priceMonthly.toLocaleString("ru-RU")} <span className="text-sm font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">₸/мес</span>
                   </p>
-                  {p.description && <p className="text-xs text-slate-500 mt-1">{p.description}</p>}
+                  {p.description && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{p.description}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setEditing(p)} className="text-blue-600 hover:text-blue-800" title="Редактировать">
@@ -87,8 +87,8 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
                 <Limit label="Лидов" value={p.maxLeads} />
               </div>
 
-              <div className="border-t border-slate-100 px-4 py-3 bg-slate-50">
-                <p className="text-[10px] text-slate-500 mb-2">
+              <div className="border-t border-slate-100 dark:border-slate-800 px-4 py-3 bg-slate-50 dark:bg-slate-800/50">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">
                   Фич включено: {enabledCount} из {FEATURE_KEYS.length}
                 </p>
                 <div className="flex flex-wrap gap-1">
@@ -100,7 +100,7 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
                 </div>
               </div>
 
-              <div className="px-4 py-2 border-t border-slate-100 text-xs text-slate-500">
+              <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 Используют: <b>{p._count.organizations}</b> организаций
               </div>
             </div>
@@ -124,8 +124,8 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
 function Limit({ label, value }: { label: string; value: number | null }) {
   return (
     <div className="flex justify-between">
-      <span className="text-slate-500">{label}:</span>
-      <span className="font-medium text-slate-900">
+      <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}:</span>
+      <span className="font-medium text-slate-900 dark:text-slate-100">
         {value === null ? "∞" : value}
       </span>
     </div>
@@ -171,10 +171,10 @@ function PlanForm({ plan, onClose }: { plan: Plan | null; onClose: () => void })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
           <h2 className="text-base font-semibold">{isEdit ? "Редактировать тариф" : "Новый тариф"}</h2>
-          <button onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button>
+          <button onClick={onClose}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
         </div>
         <form
           action={(fd) => {
@@ -227,7 +227,7 @@ function PlanForm({ plan, onClose }: { plan: Plan | null; onClose: () => void })
           <Section title="Фичи">
             <div className="grid grid-cols-2 gap-2">
               {FEATURE_KEYS.map((f) => (
-                <label key={f.key} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <label key={f.key} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
                     name={`feature_${f.key}`}
@@ -243,7 +243,7 @@ function PlanForm({ plan, onClose }: { plan: Plan | null; onClose: () => void })
           <Section title="Прочее">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Порядок отображения" name="sortOrder" type="number" defaultValue={plan?.sortOrder ?? 0} />
-              <label className="flex items-center gap-2 text-sm text-slate-700 mt-6 cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 mt-6 cursor-pointer">
                 <input type="checkbox" name="isActive" defaultChecked={plan?.isActive ?? true} className="rounded" />
                 Активен
               </label>
@@ -251,7 +251,7 @@ function PlanForm({ plan, onClose }: { plan: Plan | null; onClose: () => void })
           </Section>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm">
               Отмена
             </button>
             <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-purple-600 hover:bg-purple-700 py-2 text-sm text-white disabled:opacity-60">
@@ -267,7 +267,7 @@ function PlanForm({ plan, onClose }: { plan: Plan | null; onClose: () => void })
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{title}</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">{title}</p>
       {children}
     </div>
   )
@@ -287,7 +287,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">{label}</label>
       <input
         name={name}
         type={type}
@@ -295,9 +295,9 @@ function Field({
         required={required}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none disabled:bg-slate-50 dark:bg-slate-800/50 disabled:text-slate-400 dark:text-slate-500"
       />
-      {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{hint}</p>}
     </div>
   )
 }

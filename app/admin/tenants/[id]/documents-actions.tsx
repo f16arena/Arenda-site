@@ -8,7 +8,7 @@ import { sendDocumentToTenant, type DocumentType } from "@/app/actions/send-docu
 const DOCS: { type: DocumentType; label: string; icon: typeof FileText; color: string }[] = [
   { type: "INVOICE", label: "Счёт-фактура", icon: Receipt, color: "bg-blue-50 text-blue-700 border-blue-200" },
   { type: "ACT", label: "Акт оказанных услуг", icon: FileCheck, color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  { type: "CONTRACT", label: "Договор аренды", icon: FileText, color: "bg-slate-50 text-slate-700 border-slate-200" },
+  { type: "CONTRACT", label: "Договор аренды", icon: FileText, color: "bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800" },
   { type: "HANDOVER", label: "Акт приёма-передачи", icon: Box, color: "bg-amber-50 text-amber-700 border-amber-200" },
 ]
 
@@ -51,10 +51,10 @@ export function DocumentsActions({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-        <h2 className="text-sm font-semibold text-slate-900">Документы для арендатора</h2>
-        <p className="text-xs text-slate-500 mt-0.5">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы для арендатора</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           {tenantHasEmail ? "Скачать или отправить на email" : "Email не указан — только скачивание"}
         </p>
       </div>
@@ -67,12 +67,12 @@ export function DocumentsActions({
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-slate-900">{d.label}</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{d.label}</p>
               </div>
               <a
                 href={urlFor(d.type)}
                 download
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
                 title="Скачать DOCX"
               >
                 <Download className="h-3.5 w-3.5" />

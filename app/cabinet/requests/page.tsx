@@ -24,19 +24,19 @@ export default async function CabinetRequests() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Мои заявки</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{tenant.requests.length} заявок</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мои заявки</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.requests.length} заявок</p>
         </div>
         <RequestDialog />
       </div>
 
       <div className="space-y-3">
         {tenant.requests.map((r) => (
-          <div key={r.id} className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-sm transition-shadow">
+          <div key={r.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:shadow-sm transition-shadow">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-semibold text-slate-900">{r.title}</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.title}</h3>
                   <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[r.status])}>
                     {STATUS_LABELS[r.status] ?? r.status}
                   </span>
@@ -44,8 +44,8 @@ export default async function CabinetRequests() {
                     {PRIORITY_LABELS[r.priority] ?? r.priority}
                   </span>
                 </div>
-                <p className="text-sm text-slate-500 mt-1">{r.description}</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{r.description}</p>
+                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 dark:text-slate-500">
                   <span>{REQUEST_TYPE_LABELS[r.type] ?? r.type}</span>
                   <span>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>
                   {r.comments.length > 0 && (
@@ -58,10 +58,10 @@ export default async function CabinetRequests() {
         ))}
 
         {tenant.requests.length === 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
             <ClipboardList className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-600">Заявок нет</p>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500">Заявок нет</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Создайте заявку на замену лампочки, подключение интернета или любой другой вопрос
             </p>
           </div>

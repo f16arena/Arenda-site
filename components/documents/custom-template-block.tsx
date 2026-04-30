@@ -63,11 +63,11 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
   const placeholders = PLACEHOLDER_DOCS[documentType]
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 print:hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 print:hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-slate-400" />
-          <h3 className="text-sm font-semibold text-slate-900">Свой шаблон документа</h3>
+          <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Свой шаблон документа</h3>
         </div>
         {active && (
           <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
@@ -79,18 +79,18 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
 
       <div className="p-5 space-y-3">
         {active ? (
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center gap-3">
-            <FileText className="h-5 w-5 text-slate-400 shrink-0" />
+          <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex items-center gap-3">
+            <FileText className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 truncate">{active.fileName}</p>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{active.fileName}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 {active.format} · {Math.round(active.fileSize / 1024)} КБ · загружен {new Date(active.uploadedAt).toLocaleDateString("ru-RU")}
               </p>
             </div>
             <a
               href={`/api/templates/${documentType.toLowerCase()}`}
               download
-              className="rounded-md border border-slate-200 hover:bg-white px-2.5 py-1 text-xs font-medium text-slate-700 inline-flex items-center gap-1"
+              className="rounded-md border border-slate-200 dark:border-slate-800 hover:bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1"
               title="Скачать оригинал шаблона"
             >
               <Download className="h-3 w-3" />
@@ -101,8 +101,8 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             </button>
           </div>
         ) : (
-          <p className="text-sm text-slate-600">
-            Сейчас используется <b>стандартный шаблон</b>. Загрузите свой <b>DOCX</b> или <b>XLSX</b> с метками вида <code className="px-1 rounded bg-slate-100 text-[11px] font-mono">{`{tenant_name}`}</code> — и все документы будут формироваться по нему. PDF принимается как образец-превью.
+          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+            Сейчас используется <b>стандартный шаблон</b>. Загрузите свой <b>DOCX</b> или <b>XLSX</b> с метками вида <code className="px-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-mono">{`{tenant_name}`}</code> — и все документы будут формироваться по нему. PDF принимается как образец-превью.
           </p>
         )}
 
@@ -123,11 +123,11 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-1">
-              <Upload className="h-6 w-6 text-slate-400" />
-              <p className="text-sm font-medium text-slate-700">
+              <Upload className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 {active ? "Заменить новой версией" : "Перетащите файл или нажмите чтобы выбрать"}
               </p>
-              <p className="text-[11px] text-slate-500">DOCX, XLSX или PDF · до 10 МБ</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">DOCX, XLSX или PDF · до 10 МБ</p>
             </div>
           )}
         </label>
@@ -167,7 +167,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
               {placeholders.map((p) => (
                 <div key={p.key} className="flex items-baseline gap-2">
-                  <code className="text-[10px] font-mono bg-white border border-blue-200 px-1.5 py-0.5 rounded text-blue-700">
+                  <code className="text-[10px] font-mono bg-white dark:bg-slate-900 border border-blue-200 px-1.5 py-0.5 rounded text-blue-700">
                     {`{${p.key}}`}
                   </code>
                   <span className="text-blue-900">— {p.label}</span>
@@ -176,12 +176,12 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             </div>
             <p className="text-blue-800 mt-3">
               <b>Пример:</b> в шаблоне договора напишите{" "}
-              <code className="bg-white border border-blue-200 px-1 rounded">«Арендатор: {`{tenant_name}`} (БИН {`{tenant_bin}`})»</code>
+              <code className="bg-white dark:bg-slate-900 border border-blue-200 px-1 rounded">«Арендатор: {`{tenant_name}`} (БИН {`{tenant_bin}`})»</code>
               — система при генерации подставит реальные данные конкретного арендатора.
             </p>
             <p className="text-blue-800">
               Для повторяющихся данных (списки услуг) используйте конструкцию{" "}
-              <code className="bg-white border border-blue-200 px-1 rounded text-[10px]">{`{#items}{name} — {amount}{/items}`}</code>.
+              <code className="bg-white dark:bg-slate-900 border border-blue-200 px-1 rounded text-[10px]">{`{#items}{name} — {amount}{/items}`}</code>.
             </p>
           </div>
         )}

@@ -60,8 +60,8 @@ export default async function ContractsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Договоры</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Договоры</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             {tenants.length} арендаторов · {buckets.expiringSoon.length} истекают в ближайшие 20 дней
           </p>
         </div>
@@ -103,15 +103,15 @@ function StatCard({
     emerald: "text-emerald-600 bg-emerald-50",
     amber: "text-amber-600 bg-amber-50",
     red: "text-red-600 bg-red-50",
-    slate: "text-slate-600 bg-slate-50",
+    slate: "text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50",
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
       <div className={cn("inline-flex h-9 w-9 items-center justify-center rounded-lg mb-3", colors[color])}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
     </div>
   )
 }
@@ -139,18 +139,18 @@ function Section({
   highlight?: "amber" | "red"
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
       </div>
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-100 bg-slate-50/50">
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Арендатор</th>
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Помещение</th>
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Срок договора</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Аренда/мес</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Долг</th>
+          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Помещение</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Срок договора</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Аренда/мес</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Долг</th>
             <th className="px-5 py-2" />
           </tr>
         </thead>
@@ -166,16 +166,16 @@ function Section({
               ?? (t.space ? `Каб. ${t.space.number} · ${t.space.floor.name}` : "—")
             return (
               <tr key={t.id} className={cn(
-                "border-b border-slate-50 hover:bg-slate-50",
+                "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50",
                 highlight === "amber" && "bg-amber-50/30",
                 highlight === "red" && "bg-red-50/30"
               )}>
                 <td className="px-5 py-3">
-                  <p className="font-medium text-slate-900">{t.companyName}</p>
-                  <p className="text-xs text-slate-400">{t.legalType}</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">{t.legalType}</p>
                 </td>
-                <td className="px-5 py-3 text-slate-600">{placement}</td>
-                <td className="px-5 py-3 text-slate-600 text-xs">
+                <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{placement}</td>
+                <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">
                   {t.contractStart && t.contractEnd ? (
                     <>
                       <p>{t.contractStart.toLocaleDateString("ru-RU")} — {t.contractEnd.toLocaleDateString("ru-RU")}</p>
@@ -184,14 +184,14 @@ function Section({
                           "mt-0.5",
                           daysLeft < 0 && "text-red-600 font-medium",
                           daysLeft >= 0 && daysLeft <= 20 && "text-amber-600 font-medium",
-                          daysLeft > 20 && "text-slate-400"
+                          daysLeft > 20 && "text-slate-400 dark:text-slate-500"
                         )}>
                           {daysLeft < 0 ? `Просрочен ${Math.abs(daysLeft)} дн.` : `Осталось ${daysLeft} дн.`}
                         </p>
                       )}
                     </>
                   ) : (
-                    <span className="text-slate-400">Не указан</span>
+                    <span className="text-slate-400 dark:text-slate-500">Не указан</span>
                   )}
                 </td>
                 <td className="px-5 py-3 text-right">

@@ -34,19 +34,19 @@ export default async function CabinetDocuments() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Документы</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Договоры и ваши документы</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Договоры и ваши документы</p>
       </div>
 
       {/* Contracts */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-900">Договоры и акты</h2>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Договоры и акты</h2>
         </div>
         {tenant.contracts.length === 0 ? (
           <div className="py-12 text-center">
             <FileText className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Нет документов</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Нет документов</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
@@ -57,10 +57,10 @@ export default async function CabinetDocuments() {
                     <FileText className="h-4 w-4 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                       {typeLabel[c.type] ?? c.type} №{c.number}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
                       {c.startDate && c.endDate
                         ? `${new Date(c.startDate).toLocaleDateString("ru-RU")} — ${new Date(c.endDate).toLocaleDateString("ru-RU")}`
                         : "Период не указан"}
@@ -87,10 +87,10 @@ export default async function CabinetDocuments() {
       </div>
 
       {/* My documents */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-900">Мои документы</h2>
-          <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Мои документы</h2>
+          <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
             <Upload className="h-3 w-3" />
             Загрузить
           </button>
@@ -98,8 +98,8 @@ export default async function CabinetDocuments() {
         {tenant.documents.length === 0 ? (
           <div className="py-12 text-center">
             <Upload className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Документы не загружены</p>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 dark:text-slate-500">Документы не загружены</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Загрузите ИИН, устав, свидетельство ИП и другие документы
             </p>
           </div>
@@ -108,10 +108,10 @@ export default async function CabinetDocuments() {
             {tenant.documents.map((d) => (
               <div key={d.id} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                  <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{d.name}</p>
-                    <p className="text-xs text-slate-400">{docTypeLabel[d.type] ?? d.type}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{d.name}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{docTypeLabel[d.type] ?? d.type}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

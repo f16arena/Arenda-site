@@ -15,8 +15,8 @@ export default function Error({
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
           <AlertCircle className="h-6 w-6 text-red-600" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-slate-900">Что-то пошло не так</h2>
-        <p className="mt-2 text-sm text-slate-500">
+        <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Что-то пошло не так</h2>
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
           {error.message || "Не удалось загрузить страницу"}
         </p>
         <button

@@ -108,7 +108,7 @@ export default async function AdminLayout({
   ])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
       <CommandPalette />
       <AdminSidebar
         buildingName={building?.name}
@@ -136,13 +136,13 @@ export default async function AdminLayout({
             canCreate={session.user.role === "OWNER"}
           />
           <div className="flex items-center gap-4">
-            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
+            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
               Ctrl+K — поиск
             </kbd>
             <NotificationBell items={notifications} />
             <Link
               href="/admin/profile"
-              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
               title="Открыть профиль"
             >
               <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
@@ -150,7 +150,7 @@ export default async function AdminLayout({
                   {session.user.name?.[0]?.toUpperCase()}
                 </span>
               </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
                 {session.user.name}
               </span>
             </Link>

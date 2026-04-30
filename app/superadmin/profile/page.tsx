@@ -26,8 +26,8 @@ export default async function SuperadminProfilePage() {
           <Shield className="h-5 w-5 text-purple-700" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Мой профиль</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{user.name} · Платформенный администратор</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{user.name} · Платформенный администратор</p>
         </div>
       </div>
 

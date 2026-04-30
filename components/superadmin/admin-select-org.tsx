@@ -25,12 +25,12 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-purple-50">
       {/* Хедер */}
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur sticky top-0 z-10">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-purple-600" />
-            <span className="text-sm font-semibold text-slate-900">Платформенный режим</span>
-            <span className="text-xs text-slate-500">· {userName}</span>
+            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Платформенный режим</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">· {userName}</span>
           </div>
           <Link href="/superadmin" className="text-xs font-medium text-purple-600 hover:text-purple-700">
             ← Вернуться в супер-админ
@@ -44,17 +44,17 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 mb-4">
             <Sparkles className="h-6 w-6 text-purple-600" />
           </div>
-          <h1 className="text-2xl font-semibold text-slate-900">Выберите организацию</h1>
-          <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto">
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Выберите организацию</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1.5 max-w-md mx-auto">
             Вы вошли как платформенный администратор. Чтобы открыть админку клиента —
             выберите организацию ниже.
           </p>
         </div>
 
         {orgs.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center">
             <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-500">Пока нет организаций.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Пока нет организаций.</p>
             <Link href="/superadmin/orgs/new" className="inline-block mt-4 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm font-medium text-white">
               Создать первую
             </Link>
@@ -82,7 +82,7 @@ function OrgCard({ org }: { org: Org }) {
     : null
 
   const status: { label: string; className: string } = !org.isActive
-    ? { label: "Деактивирована", className: "bg-slate-200 text-slate-600" }
+    ? { label: "Деактивирована", className: "bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500" }
     : org.isSuspended
     ? { label: "Приостановлена", className: "bg-red-100 text-red-700" }
     : isExpired
@@ -92,12 +92,12 @@ function OrgCard({ org }: { org: Org }) {
     : { label: "Активна", className: "bg-emerald-100 text-emerald-700" }
 
   return (
-    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-purple-300 hover:shadow-lg transition overflow-hidden">
+    <div className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-purple-300 hover:shadow-lg transition overflow-hidden">
       <div className="p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-slate-900 truncate">{org.name}</h3>
-            <p className="text-[11px] text-slate-500 font-mono mt-0.5">{org.slug}</p>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 truncate">{org.name}</h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono mt-0.5">{org.slug}</p>
           </div>
           <span className={cn("shrink-0 text-[10px] font-medium px-2 py-1 rounded-full", status.className)}>
             {status.label}
@@ -105,17 +105,17 @@ function OrgCard({ org }: { org: Org }) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-          <div className="rounded-lg bg-slate-50 py-2">
-            <p className="text-[10px] text-slate-500">Тариф</p>
-            <p className="text-xs font-semibold text-slate-900 mt-0.5">{org.planName ?? "—"}</p>
+          <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</p>
+            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{org.planName ?? "—"}</p>
           </div>
-          <div className="rounded-lg bg-slate-50 py-2">
-            <p className="text-[10px] text-slate-500">Зданий</p>
-            <p className="text-xs font-semibold text-slate-900 mt-0.5">{org.buildingsCount}</p>
+          <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Зданий</p>
+            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{org.buildingsCount}</p>
           </div>
-          <div className="rounded-lg bg-slate-50 py-2">
-            <p className="text-[10px] text-slate-500">Юзеров</p>
-            <p className="text-xs font-semibold text-slate-900 mt-0.5">{org.usersCount}</p>
+          <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 py-2">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Юзеров</p>
+            <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{org.usersCount}</p>
           </div>
         </div>
 
@@ -158,13 +158,13 @@ function OrgCard({ org }: { org: Org }) {
             }}
             disabled={pending || !org.isActive}
             title="Просмотр от вашего имени (без impersonate)"
-            className="rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 px-3 py-2 text-xs font-medium text-slate-700 transition"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 disabled:opacity-50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
           >
             <Eye className="h-3.5 w-3.5" />
           </button>
           <Link
             href={`/superadmin/orgs/${org.id}`}
-            className="rounded-lg border border-slate-200 hover:bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700 transition"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
             title="Открыть карточку в супер-админе"
           >
             ⋯

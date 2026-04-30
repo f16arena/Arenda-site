@@ -44,7 +44,7 @@ const STATUS_COLORS: Record<string, string> = {
   SHOWN: "bg-amber-50 border-amber-200",
   NEGOTIATION: "bg-purple-50 border-purple-200",
   SIGNED: "bg-emerald-50 border-emerald-200",
-  LOST: "bg-slate-50 border-slate-200",
+  LOST: "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800",
 }
 const SOURCE_LABELS: Record<string, string> = {
   SITE: "Сайт", KRISHA: "Krisha", OLX: "OLX",
@@ -60,8 +60,8 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Воронка лидов</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{leads.length} потенциальных арендаторов</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Воронка лидов</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{leads.length} потенциальных арендаторов</p>
         </div>
         <button
           onClick={() => setOpen(true)}
@@ -78,9 +78,9 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
           const total = items.reduce((s, l) => s + (l.budget ?? 0), 0)
           return (
             <div key={status} className={cn("rounded-xl border-2 overflow-hidden", STATUS_COLORS[status])}>
-              <div className="px-3 py-2.5 border-b border-slate-200 bg-white/60 backdrop-blur-sm">
-                <p className="text-xs font-semibold text-slate-700">{STATUS_LABELS[status]}</p>
-                <p className="text-[10px] text-slate-500">{items.length} лидов · {total.toLocaleString("ru-RU")} ₸</p>
+              <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{STATUS_LABELS[status]}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{items.length} лидов · {total.toLocaleString("ru-RU")} ₸</p>
               </div>
               <div className="p-2 space-y-2 min-h-[200px]">
                 {items.map((l) => (
@@ -117,7 +117,7 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
                   />
                 ))}
                 {items.length === 0 && (
-                  <p className="text-center text-xs text-slate-400 py-4">Нет лидов</p>
+                  <p className="text-center text-xs text-slate-400 dark:text-slate-500 py-4">Нет лидов</p>
                 )}
               </div>
             </div>
@@ -150,20 +150,20 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
   onDelete: () => void
 }) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm hover:shadow-md transition-shadow group">
+    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-2.5 shadow-sm hover:shadow-md transition-shadow group">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-900 truncate">{lead.name}</p>
-          {lead.companyName && <p className="text-[10px] text-slate-500 truncate">{lead.companyName}</p>}
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{lead.name}</p>
+          {lead.companyName && <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{lead.companyName}</p>}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-          <button onClick={onDelete} className="text-slate-400 hover:text-red-600">
+          <button onClick={onDelete} className="text-slate-400 dark:text-slate-500 hover:text-red-600">
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
       </div>
 
-      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500">
+      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
         {lead.contactType === "EMAIL" ? <Mail className="h-3 w-3" /> : <Phone className="h-3 w-3" />}
         <span className="truncate">{lead.contact}</span>
       </div>
@@ -171,7 +171,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       {(lead.desiredArea || lead.budget) && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {lead.desiredArea && (
-            <span className="text-[10px] bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">{lead.desiredArea} м²</span>
+            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 rounded px-1.5 py-0.5">{lead.desiredArea} м²</span>
           )}
           {lead.budget && (
             <span className="text-[10px] bg-emerald-100 text-emerald-700 rounded px-1.5 py-0.5">
@@ -182,7 +182,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       )}
 
       <div className="mt-1.5 flex items-center justify-between">
-        <span className="text-[10px] text-slate-400">{SOURCE_LABELS[lead.source] ?? lead.source}</span>
+        <span className="text-[10px] text-slate-400 dark:text-slate-500">{SOURCE_LABELS[lead.source] ?? lead.source}</span>
         {lead.spaceId && lead.bookedUntil && (
           <span className="text-[10px] text-purple-600 inline-flex items-center gap-0.5">
             <Calendar className="h-2.5 w-2.5" />
@@ -192,7 +192,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       </div>
 
       <div className="mt-2 flex items-center gap-1">
-        <button onClick={() => onMove(-1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 text-slate-500">
+        <button onClick={() => onMove(-1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">
           <ArrowLeft className="h-3 w-3 inline" />
         </button>
         {!lead.spaceId && lead.status !== "LOST" && lead.status !== "SIGNED" && (
@@ -201,11 +201,11 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           </button>
         )}
         {lead.spaceId && (
-          <button onClick={onUnbook} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 text-slate-500">
+          <button onClick={onUnbook} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">
             Снять
           </button>
         )}
-        <button onClick={() => onMove(1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 text-slate-500">
+        <button onClick={() => onMove(1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">
           <ArrowRight className="h-3 w-3 inline" />
         </button>
       </div>
@@ -220,10 +220,10 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-base font-semibold">Новый лид</h2>
-          <button onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button>
+          <button onClick={onClose}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
         </div>
         <form
           action={(fd) => {
@@ -244,8 +244,8 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Компания" name="companyName" />
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1.5">Тип</label>
-              <select name="legalType" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тип</label>
+              <select name="legalType" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                 <option value="">—</option>
                 <option value="IP">ИП</option>
                 <option value="TOO">ТОО</option>
@@ -259,19 +259,19 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
             <Field label="Бюджет ₸/мес" name="budget" type="number" step="100" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Источник</label>
-            <select name="source" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white">
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Источник</label>
+            <select name="source" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
               {LEAD_SOURCES.map((s) => (
                 <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Заметки</label>
-            <textarea name="notes" rows={2} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Заметки</label>
+            <textarea name="notes" rows={2} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm">Отмена</button>
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm">Отмена</button>
             <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
               {pending ? "..." : "Создать"}
             </button>
@@ -294,18 +294,18 @@ function BookSpaceDialog({ lead, vacantSpaces, onClose, startTransition }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-base font-semibold">Бронь для {lead.name}</h2>
-          <button onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button>
+          <button onClick={onClose}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Помещение</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Помещение</label>
             <select
               value={spaceId}
               onChange={(e) => setSpaceId(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
             >
               <option value="">— выберите —</option>
               {vacantSpaces.map((s) => (
@@ -316,18 +316,18 @@ function BookSpaceDialog({ lead, vacantSpaces, onClose, startTransition }: {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Срок брони (дни)</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Срок брони (дни)</label>
             <input
               type="number"
               value={days}
               onChange={(e) => setDays(parseInt(e.target.value) || 7)}
               min={1}
               max={30}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
             />
           </div>
           <div className="flex gap-3 pt-2">
-            <button onClick={onClose} className="flex-1 rounded-lg border border-slate-200 py-2 text-sm">Отмена</button>
+            <button onClick={onClose} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm">Отмена</button>
             <button
               disabled={!spaceId}
               onClick={() => {
@@ -357,14 +357,14 @@ function Field({ label, name, type = "text", placeholder, required, step }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}
         step={step}
         placeholder={placeholder}
         required={required}
-        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
       />
     </div>
   )

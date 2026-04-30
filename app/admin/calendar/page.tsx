@@ -144,11 +144,11 @@ export default async function CalendarPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-            <CalendarIcon className="h-6 w-6 text-slate-400" />
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <CalendarIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
             Календарь
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             Платежи, договоры, задачи · {events.length} событий в этом месяце
           </p>
         </div>

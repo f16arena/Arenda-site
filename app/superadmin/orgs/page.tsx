@@ -58,8 +58,8 @@ export default async function OrgsListPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Организации</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{stats.total} клиентов на платформе</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Организации</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{stats.total} клиентов на платформе</p>
         </div>
         <Link
           href="/superadmin/orgs/new"
@@ -79,10 +79,10 @@ export default async function OrgsListPage() {
       </div>
 
       {items.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center">
           <Building2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-700">Пока нет организаций</p>
-          <p className="text-xs text-slate-500 mt-1">Создайте первую через кнопку выше</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Пока нет организаций</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Создайте первую через кнопку выше</p>
         </div>
       ) : (
         <OrgsListClient items={items} rootHost={ROOT_HOST} />
@@ -98,20 +98,20 @@ function KpiCard({ label, value, icon: Icon, color }: {
   color: "slate" | "emerald" | "amber" | "red"
 }) {
   const colors = {
-    slate: "bg-slate-100 text-slate-600",
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
     emerald: "bg-emerald-100 text-emerald-600",
     amber: "bg-amber-100 text-amber-600",
     red: "bg-red-100 text-red-600",
   }
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
       <div className="flex items-center gap-3">
         <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${colors[color]}`}>
           <Icon className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-xs text-slate-500">{label}</p>
-          <p className="text-xl font-bold text-slate-900">{value}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
         </div>
       </div>
     </div>

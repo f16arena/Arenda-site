@@ -16,8 +16,8 @@ export default async function LeadsPage() {
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-        <p className="text-slate-500">Сначала выберите здание</p>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+        <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Сначала выберите здание</p>
       </div>
     )
   }

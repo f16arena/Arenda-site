@@ -79,8 +79,8 @@ export default async function BuildingsPage() {
             <Building2 className="h-5 w-5 text-blue-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Здания</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Здания</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
               {active.length} активных
               {inactive.length > 0 && ` · ${inactive.length} неактивных`}
             </p>
@@ -90,10 +90,10 @@ export default async function BuildingsPage() {
       </div>
 
       {buildings.length === 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
           <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Нет зданий</p>
-          {isOwner && <p className="text-xs text-slate-400 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Нет зданий</p>
+          {isOwner && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
         </div>
       )}
 
@@ -105,15 +105,15 @@ export default async function BuildingsPage() {
             <div
               key={b.id}
               className={cn(
-                "bg-white rounded-xl border-2 overflow-hidden",
-                isCurrent ? "border-blue-500" : "border-slate-200",
+                "bg-white dark:bg-slate-900 rounded-xl border-2 overflow-hidden",
+                isCurrent ? "border-blue-500" : "border-slate-200 dark:border-slate-800",
                 !b.isActive && "opacity-60"
               )}
             >
-              <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100">
+              <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-900">{b.name}</h2>
+                    <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{b.name}</h2>
                     {isCurrent && (
                       <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
                         <Check className="h-3 w-3" />
@@ -121,17 +121,17 @@ export default async function BuildingsPage() {
                       </span>
                     )}
                     {!b.isActive && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">
                         Неактивно
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5">
+                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" />
                     {b.address}
                   </p>
                   {b.description && (
-                    <p className="text-xs text-slate-400 mt-1">{b.description}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{b.description}</p>
                   )}
                 </div>
                 <BuildingActions
@@ -152,7 +152,7 @@ export default async function BuildingsPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-5 border-b border-slate-100">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
                 <Stat label="Этажей" value={b._count.floors} icon={Layers} />
                 <Stat label="Помещений" value={s.spacesCount} icon={Building2} />
                 <Stat label="Занято" value={s.occupiedCount} accent="text-blue-600" />
@@ -190,11 +190,11 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-0.5">
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-0.5">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {label}
       </div>
-      <p className={cn("text-xl font-bold", accent ?? "text-slate-900")}>{value}</p>
+      <p className={cn("text-xl font-bold", accent ?? "text-slate-900 dark:text-slate-100")}>{value}</p>
     </div>
   )
 }

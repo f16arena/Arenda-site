@@ -64,23 +64,23 @@ export default function SlaPage() {
         <Clause num="2.1">
           Исполнитель гарантирует следующие уровни доступности Сервиса в зависимости от Тарифа Заказчика:
         </Clause>
-        <div className="overflow-x-auto rounded-lg border border-slate-200 mt-3">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 mt-3">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-left">
               <tr>
-                <th className="px-3 py-2 font-medium text-slate-700">Тариф</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Доступность</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Допустимый простой/мес</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Время реакции</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Тариф</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Доступность</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Допустимый простой/мес</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Время реакции</th>
               </tr>
             </thead>
             <tbody>
               {slaTiers.map((t) => (
-                <tr key={t.plan} className="border-t border-slate-100">
+                <tr key={t.plan} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 font-medium">{t.plan}</td>
                   <td className="px-3 py-2 font-mono">{t.uptime}</td>
-                  <td className="px-3 py-2 text-slate-600">{t.maxDowntime}</td>
-                  <td className="px-3 py-2 text-slate-600">{t.reaction}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{t.maxDowntime}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{t.reaction}</td>
                 </tr>
               ))}
             </tbody>
@@ -116,23 +116,23 @@ export default function SlaPage() {
       </Section>
 
       <Section number="4" title="Классификация инцидентов и время решения">
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-left">
               <tr>
-                <th className="px-3 py-2 font-medium text-slate-700">Уровень</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Описание</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Реакция</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Решение</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Уровень</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Описание</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Реакция</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Решение</th>
               </tr>
             </thead>
             <tbody>
               {incidentLevels.map((i) => (
-                <tr key={i.level} className="border-t border-slate-100">
+                <tr key={i.level} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 font-medium whitespace-nowrap">{i.level}</td>
-                  <td className="px-3 py-2 text-slate-600">{i.desc}</td>
-                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{i.reaction}</td>
-                  <td className="px-3 py-2 text-slate-600 whitespace-nowrap">{i.resolve}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{i.desc}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{i.reaction}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{i.resolve}</td>
                 </tr>
               ))}
             </tbody>
@@ -145,18 +145,18 @@ export default function SlaPage() {
           При недостижении гарантированного уровня доступности в течение Учётного периода Заказчик вправе
           требовать компенсации в следующем порядке:
         </Clause>
-        <div className="overflow-x-auto rounded-lg border border-slate-200 mt-3">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 mt-3">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-left">
               <tr>
-                <th className="px-3 py-2 font-medium text-slate-700">Фактическая доступность</th>
-                <th className="px-3 py-2 font-medium text-slate-700">Размер компенсации</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Фактическая доступность</th>
+                <th className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">Размер компенсации</th>
               </tr>
             </thead>
             <tbody>
               {compensation.map((c) => (
-                <tr key={c.actual} className="border-t border-slate-100">
-                  <td className="px-3 py-2 text-slate-600">{c.actual}</td>
+                <tr key={c.actual} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{c.actual}</td>
                   <td className="px-3 py-2 font-medium">{c.percent} стоимости месячной подписки</td>
                 </tr>
               ))}

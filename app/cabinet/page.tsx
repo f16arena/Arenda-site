@@ -36,8 +36,8 @@ export default async function CabinetDashboard() {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600">Данные арендатора не найдены.</p>
-          <p className="text-sm text-slate-400 mt-1">Обратитесь к администратору.</p>
+          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Данные арендатора не найдены.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Обратитесь к администратору.</p>
         </div>
       </div>
     )
@@ -98,10 +98,10 @@ export default async function CabinetDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
           Здравствуйте, {session?.user.name?.split(" ")[0] ?? session?.user.name}
         </h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           {tenant.companyName}{building?.name ? ` · ${building.name}` : ""}
         </p>
       </div>
@@ -116,7 +116,7 @@ export default async function CabinetDashboard() {
       }`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
               {overdueTotal > 0 ? "Просрочка платежа" : totalDebt > 0 ? "К оплате" : "Состояние счёта"}
             </p>
             <p className={`text-3xl md:text-4xl font-bold mt-2 ${
@@ -125,7 +125,7 @@ export default async function CabinetDashboard() {
               {totalDebt > 0 ? formatMoney(totalDebt) : "Задолженности нет"}
             </p>
             {nextCharge && nextCharge.dueDate && (
-              <p className="text-sm text-slate-700 mt-2">
+              <p className="text-sm text-slate-700 dark:text-slate-300 mt-2">
                 {overdueTotal > 0
                   ? <span><b>Просрочено:</b> {formatMoney(overdueTotal)} · оплатите как можно скорее</span>
                   : <span><b>Срок оплаты:</b> до {new Date(nextCharge.dueDate).toLocaleDateString("ru-RU")}</span>}
@@ -144,7 +144,7 @@ export default async function CabinetDashboard() {
                   <a
                     href={`/api/documents/archive/${recentDocs.find((d) => d.documentType === "INVOICE")?.id}`}
                     download
-                    className="inline-flex items-center gap-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
                   >
                     <Download className="h-4 w-4" />
                     Скачать счёт
@@ -204,10 +204,10 @@ export default async function CabinetDashboard() {
       {/* Двухколоночный блок */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Документы (новые от арендодателя) */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-400" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Документы
             </h2>
             <Link href="/cabinet/documents" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
@@ -216,21 +216,21 @@ export default async function CabinetDashboard() {
           </div>
           <div className="divide-y divide-slate-50">
             {recentDocs.length === 0 ? (
-              <p className="px-5 py-10 text-sm text-slate-400 text-center">
+              <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
                 Документы появятся здесь после генерации арендодателем
               </p>
             ) : (
               recentDocs.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition">
+                <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 shrink-0">
                     <Receipt className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                       {docTypeLabels[d.documentType] ?? d.documentType}
                       {d.number && ` № ${d.number}`}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {d.period && <>{d.period} · </>}
                       {d.totalAmount && <b>{formatMoney(d.totalAmount)}</b>}
                       {!d.totalAmount && <>{new Date(d.generatedAt).toLocaleDateString("ru-RU")}</>}
@@ -239,7 +239,7 @@ export default async function CabinetDashboard() {
                   <a
                     href={`/api/documents/archive/${d.id}`}
                     download={d.fileName}
-                    className="text-slate-400 hover:text-blue-600 shrink-0"
+                    className="text-slate-400 dark:text-slate-500 hover:text-blue-600 shrink-0"
                     title="Скачать"
                   >
                     <Download className="h-4 w-4" />
@@ -251,10 +251,10 @@ export default async function CabinetDashboard() {
         </div>
 
         {/* Сообщения */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-slate-400" />
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               Сообщения
               {unreadMessages > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
@@ -268,7 +268,7 @@ export default async function CabinetDashboard() {
           </div>
           <div className="divide-y divide-slate-50">
             {recentMessages.length === 0 ? (
-              <p className="px-5 py-10 text-sm text-slate-400 text-center">
+              <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
                 Здесь будут сообщения от арендодателя
               </p>
             ) : (
@@ -276,22 +276,22 @@ export default async function CabinetDashboard() {
                 <Link
                   key={m.id}
                   href="/cabinet/messages"
-                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 transition ${!m.isRead ? "bg-blue-50/30" : ""}`}
+                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50/30" : ""}`}
                 >
                   {!m.isRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-slate-900 truncate">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
                         {m.from.name}
                       </p>
-                      <p className="text-[10px] text-slate-400 shrink-0 ml-2">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 ml-2">
                         {new Date(m.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}
                       </p>
                     </div>
                     {m.subject && (
-                      <p className="text-xs font-medium text-slate-700 truncate">{m.subject}</p>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{m.subject}</p>
                     )}
-                    <p className="text-xs text-slate-500 line-clamp-1">{m.body}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 line-clamp-1">{m.body}</p>
                   </div>
                 </Link>
               ))
@@ -302,9 +302,9 @@ export default async function CabinetDashboard() {
 
       {/* Платежи и задолженности */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-900">Неоплаченные начисления</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Неоплаченные начисления</h2>
             <Link href="/cabinet/finances" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
@@ -315,10 +315,10 @@ export default async function CabinetDashboard() {
               return (
                 <div key={c.id} className="flex items-center justify-between px-5 py-3">
                   <div>
-                    <p className="text-sm text-slate-900 font-medium">
+                    <p className="text-sm text-slate-900 dark:text-slate-100 font-medium">
                       {CHARGE_TYPES[c.type] ?? c.type}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                       {c.period}
                       {c.dueDate && (
                         <span className={isOverdue ? "text-red-600 font-medium ml-1" : "ml-1"}>
@@ -327,7 +327,7 @@ export default async function CabinetDashboard() {
                       )}
                     </p>
                   </div>
-                  <p className={`text-sm font-semibold ${isOverdue ? "text-red-600" : "text-slate-900"}`}>
+                  <p className={`text-sm font-semibold ${isOverdue ? "text-red-600" : "text-slate-900 dark:text-slate-100"}`}>
                     {formatMoney(c.amount)}
                   </p>
                 </div>
@@ -341,9 +341,9 @@ export default async function CabinetDashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-900">Последние оплаты</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние оплаты</h2>
             <Link href="/cabinet/finances" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
               История <ArrowRight className="h-3 w-3" />
             </Link>
@@ -352,8 +352,8 @@ export default async function CabinetDashboard() {
             {tenant.payments.map((p) => (
               <div key={p.id} className="flex items-center justify-between px-5 py-3">
                 <div>
-                  <p className="text-sm text-slate-900 font-medium">{p.method}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm text-slate-900 dark:text-slate-100 font-medium">{p.method}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     {new Date(p.paymentDate).toLocaleDateString("ru-RU")}
                   </p>
                 </div>
@@ -361,7 +361,7 @@ export default async function CabinetDashboard() {
               </div>
             ))}
             {tenant.payments.length === 0 && (
-              <p className="px-5 py-8 text-sm text-slate-400 text-center">Нет оплат</p>
+              <p className="px-5 py-8 text-sm text-slate-400 dark:text-slate-500 text-center">Нет оплат</p>
             )}
           </div>
         </div>
@@ -381,11 +381,11 @@ function InfoCard({
   href?: string
 }) {
   const inner = (
-    <div className={`bg-white rounded-xl border p-4 transition ${highlight ? "border-amber-200 ring-1 ring-amber-100" : "border-slate-200"} ${href ? "hover:shadow-sm" : ""}`}>
-      <Icon className="h-4 w-4 text-slate-400 mb-2" />
-      <p className="text-base font-semibold text-slate-900">{value}</p>
-      <p className="text-[11px] text-slate-500 mt-0.5 font-medium">{label}</p>
-      {sub && <p className={`text-[11px] mt-0.5 ${highlight ? "text-amber-600 font-medium" : "text-slate-400"}`}>{sub}</p>}
+    <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 transition ${highlight ? "border-amber-200 ring-1 ring-amber-100" : "border-slate-200 dark:border-slate-800"} ${href ? "hover:shadow-sm" : ""}`}>
+      <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 mb-2" />
+      <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5 font-medium">{label}</p>
+      {sub && <p className={`text-[11px] mt-0.5 ${highlight ? "text-amber-600 font-medium" : "text-slate-400 dark:text-slate-500"}`}>{sub}</p>}
     </div>
   )
   return href ? <Link href={href}>{inner}</Link> : inner

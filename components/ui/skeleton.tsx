@@ -17,15 +17,15 @@ export function PageSkeleton() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-slate-200 p-4">
+          <div key={i} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
             <Skeleton className="h-7 w-16" />
             <Skeleton className="mt-2 h-3 w-20" />
           </div>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200">
-        <div className="p-4 border-b border-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800">
           <Skeleton className="h-5 w-40" />
         </div>
         <div className="p-4 space-y-3">

@@ -9,7 +9,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
   if (!session.user.isPlatformOwner) redirect("/admin")
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50">
       <aside className="flex h-full w-64 flex-col bg-gradient-to-b from-purple-900 to-slate-900">
         <div className="flex items-center gap-3 px-5 py-5 border-b border-purple-800">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-600">
@@ -55,13 +55,13 @@ export default async function SuperadminLayout({ children }: { children: React.R
       </aside>
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
           <div>
             <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-semibold">PLATFORM_OWNER</span>
           </div>
           <Link
             href="/superadmin/profile"
-            className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 transition"
+            className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 transition"
             title="Открыть профиль"
           >
             <div className="h-7 w-7 rounded-full bg-purple-600 flex items-center justify-center">
@@ -69,7 +69,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
                 {session.user.name?.[0]?.toUpperCase()}
               </span>
             </div>
-            <span className="text-sm font-medium text-slate-700">{session.user.name}</span>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{session.user.name}</span>
           </Link>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

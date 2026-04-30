@@ -92,21 +92,21 @@ export default async function ContractTemplatePage({
       <div className="flex items-center gap-4">
         <Link
           href="/admin/documents"
-          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Назад
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-slate-900">Шаблон договора аренды</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Коммерческая аренда нежилого помещения</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Шаблон договора аренды</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Коммерческая аренда нежилого помещения</p>
         </div>
       </div>
 
       {/* Tenant selector + print button */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 no-print flex items-end gap-4">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 no-print flex items-end gap-4">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-slate-500 mb-2">Выбрать арендатора</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">Выбрать арендатора</label>
           <TenantSelector
             selectedId={tenantId}
             tenants={tenants.map((t) => ({
@@ -121,7 +121,7 @@ export default async function ContractTemplatePage({
       </div>
 
       {/* Contract document */}
-      <div className="bg-white rounded-xl border border-slate-200 p-10 font-serif text-sm leading-relaxed text-slate-900 contract-paper">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 font-serif text-sm leading-relaxed text-slate-900 dark:text-slate-100 contract-paper">
         <style>{`
           @media print {
             .no-print { display: none !important; }

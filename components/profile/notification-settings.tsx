@@ -45,10 +45,10 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
   return (
     <div className="space-y-5">
       {/* Каналы */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-          <h2 className="text-sm font-semibold text-slate-900">Каналы доставки</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Где получать уведомления</p>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Каналы доставки</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Где получать уведомления</p>
         </div>
         <div className="divide-y divide-slate-50">
           <ChannelRow
@@ -82,10 +82,10 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
       </div>
 
       {/* Типы событий */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50">
-          <h2 className="text-sm font-semibold text-slate-900">События</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">События</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
             Снимите галочку чтобы отключить уведомления о выбранных событиях
           </p>
         </div>
@@ -98,18 +98,18 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
                 type="button"
                 onClick={() => toggleType(t.type)}
                 disabled={pending}
-                className="w-full px-5 py-3 flex items-center gap-3 hover:bg-slate-50 transition text-left disabled:opacity-60"
+                className="w-full px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition text-left disabled:opacity-60"
               >
                 <div className={`flex h-5 w-5 items-center justify-center rounded border-2 shrink-0 ${
                   isEnabled
                     ? "bg-slate-900 border-slate-900"
-                    : "bg-white border-slate-300"
+                    : "bg-white dark:bg-slate-900 border-slate-300"
                 }`}>
                   {isEnabled && <Check className="h-3 w-3 text-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900">{t.label}</p>
-                  <p className="text-xs text-slate-500">{t.description}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t.label}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{t.description}</p>
                 </div>
               </button>
             )
@@ -117,7 +117,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
         </div>
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-slate-400 dark:text-slate-500">
         Изменения сохраняются автоматически.
       </p>
     </div>
@@ -141,8 +141,8 @@ function ChannelRow({
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-900">{label}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{label}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{description}</p>
       </div>
       <button
         type="button"
@@ -153,7 +153,7 @@ function ChannelRow({
         } disabled:opacity-60`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+          className={`inline-block h-4 w-4 transform rounded-full bg-white dark:bg-slate-900 transition ${
             enabled ? "translate-x-6" : "translate-x-1"
           }`}
         />
