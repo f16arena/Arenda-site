@@ -77,8 +77,10 @@ export default auth((req) => {
         // /login доступен только на корне
         return NextResponse.redirect(`https://${rootHost}/login`)
       }
-      // Юр. документы и любые другие статические — на корень
-      return NextResponse.redirect(`https://${rootHost}${path}`)
+      // Юр. документы, /verify-email и любые другие — на корень.
+      // ВАЖНО: сохраняем query-параметры (например ?token=xxx для verify-email).
+      const query = nextUrl.search // включает "?" если есть параметры
+      return NextResponse.redirect(`https://${rootHost}${path}${query}`)
     }
   }
 
