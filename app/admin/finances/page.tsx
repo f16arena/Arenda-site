@@ -14,6 +14,13 @@ export default async function FinancesPage() {
   const { orgId } = await requireOrgAccess()
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
 
+  // Активные cash-аккаунты для выпадашки в диалогах
+  const cashAccounts = await db.cashAccount.findMany({
+    where: { organizationId: orgId, isActive: true },
+    select: { id: true, name: true, type: true },
+    orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+  }).catch(() => [])
+
   const [charges, payments, expenses] = await Promise.all([
     db.charge.findMany({
       where: { AND: [chargeScope(orgId), { period: currentPeriod }] },
@@ -93,10 +100,11 @@ export default async function FinancesPage() {
           </a>
           <PenaltyButton />
           <GenerateChargesButton />
-          <ExpenseDialog />
+          <ExpenseDialog cashAccounts={cashAccounts} />
           <PaymentDialog
             tenants={charges.map((c) => c.tenant).filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).map((t) => ({ id: t.id, companyName: t.companyName }))}
             unpaidCharges={charges.filter((c) => !c.isPaid).map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
+            cashAccounts={cashAccounts}
           />
         </div>
       </div>

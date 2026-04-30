@@ -7,8 +7,13 @@ import { calculatePenalties } from "@/app/actions/penalties"
 
 type Tenant = { id: string; companyName: string }
 type Charge = { id: string; tenantId: string; type: string; amount: number; description: string | null; period: string; isPaid: boolean }
+type CashAccount = { id: string; name: string; type: string }
 
-export function PaymentDialog({ tenants, unpaidCharges }: { tenants: Tenant[]; unpaidCharges: Charge[] }) {
+export function PaymentDialog({ tenants, unpaidCharges, cashAccounts }: {
+  tenants: Tenant[]
+  unpaidCharges: Charge[]
+  cashAccounts?: CashAccount[]
+}) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [selectedTenant, setSelectedTenant] = useState("")
@@ -58,6 +63,23 @@ export function PaymentDialog({ tenants, unpaidCharges }: { tenants: Tenant[]; u
                   <option value="CARD">Карта</option>
                 </select>
               </div>
+              {cashAccounts && cashAccounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    На счёт <span className="text-slate-400 dark:text-slate-500">(автоматически зачислится)</span>
+                  </label>
+                  <select
+                    name="cashAccountId"
+                    defaultValue=""
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none"
+                  >
+                    <option value="">Не зачислять (просто фиксировать платёж)</option>
+                    {cashAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.type === "BANK" ? "Банк" : a.type === "CASH" ? "Касса" : "Карта"})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {tenantCharges.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Отметить долги как оплаченные</label>
@@ -89,7 +111,7 @@ export function PaymentDialog({ tenants, unpaidCharges }: { tenants: Tenant[]; u
   )
 }
 
-export function ExpenseDialog() {
+export function ExpenseDialog({ cashAccounts }: { cashAccounts?: CashAccount[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
@@ -141,6 +163,23 @@ export function ExpenseDialog() {
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
                 <input name="description" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
               </div>
+              {cashAccounts && cashAccounts.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    Со счёта <span className="text-slate-400 dark:text-slate-500">(автоматически спишется)</span>
+                  </label>
+                  <select
+                    name="cashAccountId"
+                    defaultValue=""
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
+                  >
+                    <option value="">Не списывать (просто фиксировать расход)</option>
+                    {cashAccounts.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.type === "BANK" ? "Банк" : a.type === "CASH" ? "Касса" : "Карта"})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex gap-3">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">

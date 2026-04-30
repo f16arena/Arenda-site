@@ -23,26 +23,74 @@ export async function recordPayment(formData: FormData) {
   const note = formData.get("note") as string
   const dateStr = formData.get("paymentDate") as string
   const chargeIds = formData.getAll("chargeIds") as string[]
+  // Опционально: на какой счёт пришли деньги (банк/касса/карта).
+  // Если указан — автоматически создаём транзакцию и увеличиваем баланс.
+  const cashAccountId = (formData.get("cashAccountId") as string)?.trim() || null
 
-  const payment = await db.payment.create({
-    data: {
-      tenantId,
-      amount: parseFloat(amountStr),
-      method: method || "TRANSFER",
-      note: note || null,
-      paymentDate: dateStr ? new Date(dateStr) : new Date(),
-    },
-  })
+  const amount = parseFloat(amountStr)
 
-  // Mark selected charges as paid (фильтруем по tenantId — он уже scoped)
-  if (chargeIds.length > 0) {
-    await db.charge.updateMany({
-      where: { id: { in: chargeIds }, tenantId },
-      data: { isPaid: true },
+  // Если указан счёт — проверяем что он принадлежит нашей организации
+  if (cashAccountId) {
+    const acc = await db.cashAccount.findUnique({
+      where: { id: cashAccountId },
+      select: { organizationId: true },
     })
+    if (!acc || acc.organizationId !== orgId) {
+      throw new Error("Указан недействительный счёт")
+    }
   }
 
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { companyName: true },
+  })
+
+  // Атомарно: создаём платёж + (опционально) транзакция + обновление баланса +
+  // отметка charges как paid.
+  const operations: unknown[] = [
+    db.payment.create({
+      data: {
+        tenantId,
+        amount,
+        method: method || "TRANSFER",
+        note: note || null,
+        paymentDate: dateStr ? new Date(dateStr) : new Date(),
+      },
+    }),
+  ]
+
+  if (cashAccountId) {
+    operations.push(
+      db.cashTransaction.create({
+        data: {
+          accountId: cashAccountId,
+          amount,
+          type: "DEPOSIT",
+          description: `Платёж от ${tenant?.companyName ?? "арендатора"}${note ? ` · ${note}` : ""}`,
+        },
+      }),
+      db.cashAccount.update({
+        where: { id: cashAccountId },
+        data: { balance: { increment: amount } },
+      }),
+    )
+  }
+
+  if (chargeIds.length > 0) {
+    operations.push(
+      db.charge.updateMany({
+        where: { id: { in: chargeIds }, tenantId },
+        data: { isPaid: true },
+      }),
+    )
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const results = await db.$transaction(operations as any)
+  const payment = results[0] as { id: string }
+
   revalidatePath("/admin/finances")
+  revalidatePath("/admin/finances/balance")
   revalidatePath(`/admin/tenants/${tenantId}`)
   return { success: true, paymentId: payment.id }
 }
@@ -185,18 +233,55 @@ export async function addExpense(formData: FormData) {
   const description = formData.get("description") as string
   const period = formData.get("period") as string
   const dateStr = formData.get("date") as string
+  // Опционально: с какого счёта списать (банк/касса/карта).
+  const cashAccountId = (formData.get("cashAccountId") as string)?.trim() || null
 
-  await db.expense.create({
-    data: {
-      buildingId,
-      category,
-      amount: parseFloat(amountStr),
-      description: description || null,
-      period,
-      date: dateStr ? new Date(dateStr) : new Date(),
-    },
-  })
+  const amount = parseFloat(amountStr)
+
+  if (cashAccountId) {
+    const acc = await db.cashAccount.findUnique({
+      where: { id: cashAccountId },
+      select: { organizationId: true },
+    })
+    if (!acc || acc.organizationId !== orgId) {
+      return { error: "Указан недействительный счёт" }
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const operations: any[] = [
+    db.expense.create({
+      data: {
+        buildingId,
+        category,
+        amount,
+        description: description || null,
+        period,
+        date: dateStr ? new Date(dateStr) : new Date(),
+      },
+    }),
+  ]
+
+  if (cashAccountId) {
+    operations.push(
+      db.cashTransaction.create({
+        data: {
+          accountId: cashAccountId,
+          amount: -amount,
+          type: "WITHDRAW",
+          description: `Расход${description ? ` · ${description}` : ` · ${category}`}`,
+        },
+      }),
+      db.cashAccount.update({
+        where: { id: cashAccountId },
+        data: { balance: { decrement: amount } },
+      }),
+    )
+  }
+
+  await db.$transaction(operations)
 
   revalidatePath("/admin/finances")
+  revalidatePath("/admin/finances/balance")
   return { success: true }
 }
