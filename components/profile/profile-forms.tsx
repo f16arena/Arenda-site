@@ -26,6 +26,9 @@ export function ProfileForms({ currentName, currentEmail, emailVerified }: Props
   )
 }
 
+// Экспортируем отдельные блоки для использования в табах
+export { NameBlock, EmailBlock, PasswordBlock }
+
 function NameBlock({ currentName }: { currentName: string }) {
   const [name, setName] = useState(currentName)
   const [pending, startTransition] = useTransition()

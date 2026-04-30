@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { Shield } from "lucide-react"
-import { ProfileForms } from "@/components/profile/profile-forms"
+import { ProfileTabs } from "@/components/profile/profile-tabs"
 
 export default async function SuperadminProfilePage() {
   const session = await auth()
@@ -13,13 +13,13 @@ export default async function SuperadminProfilePage() {
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, name: true, email: true, role: true, emailVerifiedAt: true },
+    select: { id: true, name: true, email: true, phone: true, role: true, emailVerifiedAt: true },
   })
 
   if (!user) redirect("/login")
 
   return (
-    <div className="space-y-5 max-w-2xl">
+    <div className="space-y-5 max-w-3xl">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100">
           <Shield className="h-5 w-5 text-purple-700" />
@@ -30,10 +30,11 @@ export default async function SuperadminProfilePage() {
         </div>
       </div>
 
-      <ProfileForms
+      <ProfileTabs
         currentName={user.name}
         currentEmail={user.email}
         emailVerified={!!user.emailVerifiedAt}
+        phone={user.phone}
       />
     </div>
   )
