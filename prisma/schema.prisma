@@ -66,8 +66,50 @@ model Organization {
   buildings     Building[]
   users         User[]
   subscriptions Subscription[]
+  cashAccounts  CashAccount[]
 
   @@map("organizations")
+}
+
+// Денежные счета организации (банковские счета, касса, карты).
+// Используются для отслеживания баланса (сколько денег где).
+model CashAccount {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String   // "Каспи Банк", "Касса", "Halyk Business"
+  type           String   // BANK | CASH | CARD
+  balance        Float    @default(0)
+  currency       String   @default("KZT")
+  notes          String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt      @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions CashTransaction[]
+
+  @@index([organizationId])
+  @@map("cash_accounts")
+}
+
+// Транзакции по денежным счетам (приход/расход/корректировка).
+model CashTransaction {
+  id          String   @id @default(cuid())
+  accountId   String   @map("account_id")
+  amount      Float    // Положительное = приход, отрицательное = расход
+  type        String   // DEPOSIT | WITHDRAW | ADJUSTMENT | TRANSFER_OUT | TRANSFER_IN
+  description String?
+  date        DateTime @default(now())
+  createdById String?  @map("created_by_id")
+  // Опциональная связь с другими сущностями
+  paymentId   String?  @map("payment_id")
+  expenseId   String?  @map("expense_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  account CashAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, date])
+  @@map("cash_transactions")
 }
 
 model Plan {

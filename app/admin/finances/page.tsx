@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { Download, Plus, FileSpreadsheet, Upload } from "lucide-react"
+import { Download, Plus, FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { DeleteAction } from "@/components/ui/delete-action"
@@ -61,8 +61,15 @@ export default async function FinancesPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
+            href="/admin/finances/balance"
+            className="flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
+          >
+            <Wallet className="h-4 w-4" />
+            Баланс счетов
+          </Link>
+          <Link
             href="/admin/finances/import"
-            className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 dark:bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300"
+            className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300"
           >
             <Upload className="h-4 w-4" />
             Импорт банка
