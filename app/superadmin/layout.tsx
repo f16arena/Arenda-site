@@ -58,7 +58,18 @@ export default async function SuperadminLayout({ children }: { children: React.R
           <div>
             <span className="text-xs text-purple-700 bg-purple-100 px-2 py-0.5 rounded font-semibold">PLATFORM_OWNER</span>
           </div>
-          <span className="text-sm font-medium text-slate-700">{session.user.name}</span>
+          <Link
+            href="/superadmin/profile"
+            className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 transition"
+            title="Открыть профиль"
+          >
+            <div className="h-7 w-7 rounded-full bg-purple-600 flex items-center justify-center">
+              <span className="text-[11px] font-semibold text-white">
+                {session.user.name?.[0]?.toUpperCase()}
+              </span>
+            </div>
+            <span className="text-sm font-medium text-slate-700">{session.user.name}</span>
+          </Link>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>

@@ -4,10 +4,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
-  FileText, ClipboardList, CheckSquare, UserCog,
+  FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
-  LogOut, Building, Settings, Shield, ShieldCheck,
-  TrendingUp, History, Package, Upload, CalendarDays,
+  LogOut, Building, ShieldCheck,
+  TrendingUp, History, Package, CalendarDays,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -57,12 +57,6 @@ const nav: NavSection[] = [
       { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks" },
       { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages" },
       { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints" },
-    ],
-  },
-  {
-    title: "ПЕРСОНАЛ",
-    items: [
-      { href: "/admin/staff", label: "Сотрудники", icon: UserCog, section: "staff" },
       { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
     ],
   },
@@ -72,16 +66,10 @@ const nav: NavSection[] = [
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
     ],
   },
-  {
-    title: "НАСТРОЙКИ",
-    items: [
-      { href: "/admin/settings", label: "Организация", icon: Settings, section: "settings" },
-      { href: "/admin/roles", label: "Роли и доступ", icon: Shield, section: "roles" },
-      { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "tenants" },
-      { href: "/admin/subscription", label: "Подписка", icon: Package, section: "profile" },
-      { href: "/admin/profile", label: "Мой профиль", icon: UserCog, section: "profile" },
-    ],
-  },
+  // Сотрудники / Подписка / Роли / Настройки организации / Импорт / Тарифы
+  // вынесены в "Управление" внутри /admin/profile (видимо только OWNER-у).
+  // Это упрощает sidebar, оставляя там только повседневные операционные разделы.
+  // Доступ к профилю — через клик по имени в правом верхнем углу.
   {
     title: "СУПЕР-АДМИН",
     ownerOnly: true,

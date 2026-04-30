@@ -1,5 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import { TenantSidebar } from "@/components/layout/tenant-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
@@ -44,7 +45,11 @@ export default async function CabinetLayout({
           <div />
           <div className="flex items-center gap-4">
             <NotificationBell items={notifications} />
-            <div className="flex items-center gap-2">
+            <Link
+              href="/cabinet/profile"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 transition"
+              title="Открыть профиль"
+            >
               <div className="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center">
                 <span className="text-[11px] font-semibold text-white">
                   {session.user.name?.[0]?.toUpperCase()}
@@ -53,7 +58,7 @@ export default async function CabinetLayout({
               <span className="text-sm font-medium text-slate-700">
                 {session.user.name}
               </span>
-            </div>
+            </Link>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
