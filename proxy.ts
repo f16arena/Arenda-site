@@ -152,6 +152,9 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json).*)",
+    // /api/logout исключён, чтобы middleware (auth() wrapper) не рефрешил
+    // session cookie в момент логаута — иначе наша очистка cookie конфликтует
+    // с обновлённым cookie от middleware и пользователь "не выходит".
+    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json).*)",
   ],
 }
