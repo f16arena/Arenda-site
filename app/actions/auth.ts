@@ -3,7 +3,7 @@
 import { signIn, signOut } from "@/auth"
 import { AuthError } from "next-auth"
 import { redirect } from "next/navigation"
-import { headers } from "next/headers"
+import { headers, cookies } from "next/headers"
 import { db } from "@/lib/db"
 import { parseHost, ROOT_HOST } from "@/lib/host"
 
@@ -127,5 +127,36 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
 }
 
 export async function logout() {
-  await signOut({ redirectTo: "/login" })
+  await signOut({ redirect: false })
+
+  // Явно вычищаем session cookie на ВСЕХ возможных скоупах:
+  // 1) текущий host (bcf16.commrent.kz),
+  // 2) родительский .commrent.kz (используется в production).
+  // NextAuth signOut иногда оставляет один из вариантов, что приводит к
+  // мнимому "залогинен" после редиректа.
+  const isProduction = process.env.NODE_ENV === "production"
+  const cookieName = isProduction
+    ? "__Secure-commrent.session-token"
+    : "commrent.session-token"
+
+  const cookieStore = await cookies()
+  cookieStore.set({ name: cookieName, value: "", path: "/", maxAge: 0 })
+  if (isProduction && ROOT_HOST) {
+    cookieStore.set({
+      name: cookieName,
+      value: "",
+      path: "/",
+      maxAge: 0,
+      domain: `.${ROOT_HOST}`,
+      secure: true,
+      sameSite: "lax",
+    })
+  }
+
+  // Редирект всегда на корневой /login (на slug-поддомене /login недоступен —
+  // proxy.ts всё равно бы перенаправил, но мы экономим прыжок).
+  const h = await headers()
+  const proto = h.get("x-forwarded-proto") ?? "https"
+  const rootHost = ROOT_HOST || "commrent.kz"
+  redirect(`${proto}://${rootHost}/login`)
 }
