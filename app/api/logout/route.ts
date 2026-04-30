@@ -33,14 +33,23 @@ function buildLogoutResponse(req: Request): NextResponse {
   const rootHost = ROOT_HOST || "commrent.kz"
   const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "") ?? "https"
 
-  // 303 See Other → браузер переключится с POST на GET.
-  const res = NextResponse.redirect(`${proto}://${rootHost}/login`, 303)
+  // Если мы на slug-поддомене — сначала чистим cookie для bcf16,
+  // потом редиректим на commrent.kz/api/logout — там почистится для root.
+  // Если уже на root — редиректим на /login (финал).
+  const isOnRoot = currentHost === rootHost || currentHost === `www.${rootHost}`
+  const target = isOnRoot
+    ? `${proto}://${rootHost}/login`
+    : `${proto}://${rootHost}/api/logout`
+
+  const res = NextResponse.redirect(target, 303)
+  // Гарантируем, что ответ нигде не закешируется.
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 
   // Все возможные домены, на которых cookie мог быть выставлен.
   // Каждый — отдельный Set-Cookie заголовок (через append).
   const domains: (string | undefined)[] = [
     undefined,         // host-scoped (без атрибута Domain)
-    currentHost,       // bcf16.commrent.kz
+    currentHost,       // текущий хост
     `.${rootHost}`,    // .commrent.kz (это то, что выставляет наш auth.ts)
     rootHost,          // commrent.kz без точки
   ]
