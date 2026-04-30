@@ -2,9 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
 import {
   LayoutDashboard, CreditCard, FileText,
   ClipboardList, MessageSquare, LogOut, Building, Gauge, User,
+  Menu, X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -34,6 +36,11 @@ const nav = [
 
 export function TenantSidebar({ companyName }: { companyName?: string }) {
   const pathname = usePathname()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href
@@ -41,7 +48,35 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
   }
 
   return (
-    <div className="flex h-full w-60 flex-col bg-slate-900">
+    <>
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white shadow-lg"
+        aria-label="Открыть меню"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/50"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <div className={cn(
+        "flex h-full flex-col bg-slate-900 z-50 transition-transform",
+        "lg:relative lg:w-60 lg:translate-x-0",
+        "fixed top-0 left-0 w-64 -translate-x-full",
+        mobileOpen && "translate-x-0"
+      )}>
+      <button
+        onClick={() => setMobileOpen(false)}
+        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800"
+        aria-label="Закрыть меню"
+      >
+        <X className="h-5 w-5" />
+      </button>
       <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
           <Building className="h-4 w-4 text-white" />
@@ -95,6 +130,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
           </button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

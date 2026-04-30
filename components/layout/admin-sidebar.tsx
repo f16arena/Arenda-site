@@ -2,12 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
 import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
   LogOut, Building, ShieldCheck,
   TrendingUp, History, Package, CalendarDays,
+  Menu, X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -90,6 +92,12 @@ export function AdminSidebar({
   const pathname = usePathname()
   const isOwner = userRole === "OWNER"
   const allowed = new Set(allowedSections ?? [])
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Закрываем drawer при смене URL
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href
@@ -111,7 +119,41 @@ export function AdminSidebar({
     .filter((s) => s.items.length > 0)
 
   return (
-    <div className="flex h-full w-60 flex-col bg-slate-900">
+    <>
+      {/* Кнопка-гамбургер на мобиле — фиксирована в шапке */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white shadow-lg"
+        aria-label="Открыть меню"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Затемнение фона на мобиле */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/50"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <div className={cn(
+        "flex h-full flex-col bg-slate-900 z-50 transition-transform",
+        // Десктоп: всегда виден слева 60w
+        "lg:relative lg:w-60 lg:translate-x-0",
+        // Мобиль: фиксированный drawer
+        "fixed top-0 left-0 w-64 -translate-x-full",
+        mobileOpen && "translate-x-0"
+      )}>
+      {/* Кнопка закрыть на мобиле */}
+      <button
+        onClick={() => setMobileOpen(false)}
+        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800"
+        aria-label="Закрыть меню"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
@@ -171,6 +213,7 @@ export function AdminSidebar({
           </button>
         </form>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

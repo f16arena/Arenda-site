@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { Shield } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export default async function SuperadminProfilePage() {
   const session = await auth()
@@ -35,6 +36,7 @@ export default async function SuperadminProfilePage() {
         currentEmail={user.email}
         emailVerified={!!user.emailVerifiedAt}
         phone={user.phone}
+        notificationsSlot={<ThemeToggle />}
       />
     </div>
   )

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import { Toaster } from "sonner"
+import { themeInitScript } from "@/components/theme-toggle"
 import "./globals.css"
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] })
@@ -27,7 +28,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ru" className={`${geist.variable} h-full`}>
+    <html lang="ru" className={`${geist.variable} h-full`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="h-full font-sans antialiased">
         {children}
         <Toaster richColors position="top-right" closeButton />
