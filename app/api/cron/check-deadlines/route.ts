@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { sendTelegram } from "@/lib/telegram"
+import { notifyUser } from "@/lib/notify"
 
 export const dynamic = "force-dynamic"
 
@@ -102,28 +102,34 @@ export async function GET(req: Request) {
       const message = `Арендатор «${t.companyName}» (id:${t.id}). Окончание договора: ${t.contractEnd.toLocaleDateString("ru-RU")}. Необходимо подготовить продление.`
       const link = `/admin/tenants/${t.id}`
 
-      await db.notification.create({
-        data: { userId: t.user.id, type: "CONTRACT_EXPIRING", title, message, link: `/cabinet` },
+      // Арендатору — in-app + Telegram + email
+      await notifyUser({
+        userId: t.user.id,
+        type: "CONTRACT_EXPIRING",
+        title: `Ваш договор истекает через ${daysLeft} дн.`,
+        message: `Договор аренды истекает ${t.contractEnd.toLocaleDateString("ru-RU")}. Свяжитесь с администрацией для продления.`,
+        link: "/cabinet",
+        emailButtonText: "Открыть кабинет",
       })
       results.notificationsCreated++
-      if (t.user.telegramChatId) {
-        const sent = await sendTelegram(t.user.telegramChatId, `<b>⏰ ${title}</b>\n\nВаш договор аренды истекает через <b>${daysLeft} дн.</b> — ${t.contractEnd.toLocaleDateString("ru-RU")}.\n\nПожалуйста, свяжитесь с администрацией для продления.`)
-        if (sent) results.telegramSent++
-      }
+      if (t.user.telegramChatId) results.telegramSent++
 
-      // Уведомления только сотрудникам ИЗ ТОЙ ЖЕ организации
+      // Сотрудникам — in-app + Telegram (без email, чтобы не спамить инбокс
+      // ежедневными напоминаниями про каждого арендатора).
       const orgId = await tenantOrgId(t.id)
       if (!orgId) continue
       const staff = await getStaffForOrg(staffCache, orgId)
       for (const s of staff) {
-        await db.notification.create({
-          data: { userId: s.id, type: "CONTRACT_EXPIRING", title, message, link },
+        await notifyUser({
+          userId: s.id,
+          type: "CONTRACT_EXPIRING",
+          title,
+          message,
+          link,
+          sendEmail: false,
         })
         results.notificationsCreated++
-        if (s.telegramChatId) {
-          const sent = await sendTelegram(s.telegramChatId, `<b>⏰ ${title}</b>\n\n${message}`)
-          if (sent) results.telegramSent++
-        }
+        if (s.telegramChatId) results.telegramSent++
       }
 
       results.contractsWarned++
@@ -170,36 +176,36 @@ export async function GET(req: Request) {
         ? `У вас просроченная задолженность ${totalDebt.toLocaleString("ru-RU")} ₸. Начисляется пеня ${t.penaltyPercent}% в день.`
         : `Не забудьте оплатить аренду до ${earliestDue.toLocaleDateString("ru-RU")}. Сумма к оплате: ${totalDebt.toLocaleString("ru-RU")} ₸.`
 
-      await db.notification.create({
-        data: { userId: t.user.id, type: "PAYMENT_DUE", title, message, link: "/cabinet/finances" },
+      // Арендатору — in-app + Telegram + email (важно для оплаты)
+      await notifyUser({
+        userId: t.user.id,
+        type: "PAYMENT_DUE",
+        title,
+        message,
+        link: "/cabinet/finances",
+        emailButtonText: overdue ? "Оплатить срочно" : "Перейти к оплате",
       })
       results.notificationsCreated++
-      if (t.user.telegramChatId) {
-        const sent = await sendTelegram(t.user.telegramChatId, `<b>${overdue ? "🚨" : "💳"} ${title}</b>\n\n${message}`)
-        if (sent) results.telegramSent++
-      }
+      if (t.user.telegramChatId) results.telegramSent++
       results.paymentsWarned++
 
-      // Уведомления админам — только из той же организации
+      // Сотрудникам организации — при просрочке > 5 дней.
+      // С email — это серьёзное событие (много долгов = риск).
       if (overdue && Math.abs(daysToDue) > 5) {
         const orgId = await tenantOrgId(t.id)
         if (!orgId) continue
         const staff = await getStaffForOrg(staffCache, orgId)
         for (const s of staff) {
-          await db.notification.create({
-            data: {
-              userId: s.id,
-              type: "PAYMENT_DUE",
-              title: `Просрочка: ${t.companyName}`,
-              message: `Арендатор «${t.companyName}» не оплатил ${totalDebt.toLocaleString("ru-RU")} ₸ (${Math.abs(daysToDue)} дн. просрочки).`,
-              link: `/admin/tenants/${t.id}`,
-            },
+          await notifyUser({
+            userId: s.id,
+            type: "PAYMENT_DUE",
+            title: `Просрочка: ${t.companyName}`,
+            message: `Арендатор «${t.companyName}» не оплатил ${totalDebt.toLocaleString("ru-RU")} ₸ (${Math.abs(daysToDue)} дн. просрочки).`,
+            link: `/admin/tenants/${t.id}`,
+            emailButtonText: "Открыть карточку арендатора",
           })
           results.notificationsCreated++
-          if (s.telegramChatId) {
-            const sent = await sendTelegram(s.telegramChatId, `<b>🚨 Просрочка: ${t.companyName}</b>\n\nДолг: ${totalDebt.toLocaleString("ru-RU")} ₸ (${Math.abs(daysToDue)} дн.)`)
-            if (sent) results.telegramSent++
-          }
+          if (s.telegramChatId) results.telegramSent++
         }
       }
     }
