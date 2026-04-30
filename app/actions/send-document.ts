@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
+import { notifyUser } from "@/lib/notify"
 
 export type DocumentType = "INVOICE" | "ACT" | "CONTRACT" | "HANDOVER"
 
@@ -152,6 +153,21 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
   }
 
   if (result.ok) {
+    // Уведомляем арендатора: in-app + Telegram (email не дублируем — уже выслали с вложением).
+    const docTitle = params.type === "INVOICE" ? "Новый счёт на оплату"
+      : params.type === "ACT" ? "Акт оказанных услуг ожидает подписания"
+      : params.type === "CONTRACT" ? "Новый договор ожидает подписания"
+      : "Акт приёма-передачи ожидает подписания"
+
+    await notifyUser({
+      userId: tenant.user.id,
+      type: `DOCUMENT_${params.type}`,
+      title: docTitle,
+      message: `${subject}. Документ отправлен на ваш email — проверьте почту.`,
+      link: "/cabinet/documents",
+      sendEmail: false,
+    })
+
     revalidatePath(`/admin/tenants/${tenant.id}`)
   }
   return result

@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
+import { notifyUser } from "@/lib/notify"
 
 const BROADCAST_ID = "BROADCAST_ALL"
 
@@ -20,6 +21,9 @@ export async function sendMessage(formData: FormData) {
   if (!toId) throw new Error("Не указан получатель")
   if (!body) throw new Error("Сообщение не может быть пустым")
 
+  const senderName = session.user.name ?? "Сотрудник"
+  const preview = body.length > 80 ? body.slice(0, 77) + "..." : body
+
   // Общий чат — рассылка только пользователям своей организации
   if (toId === BROADCAST_ID) {
     const recipients = await db.user.findMany({
@@ -28,7 +32,7 @@ export async function sendMessage(formData: FormData) {
         id: { not: session.user.id },
         organizationId: orgId,
       },
-      select: { id: true },
+      select: { id: true, role: true },
     })
 
     if (recipients.length === 0) throw new Error("Нет получателей")
@@ -41,6 +45,19 @@ export async function sendMessage(formData: FormData) {
         body,
       })),
     })
+
+    // Рассылка: in-app + telegram, без email (массовая рассылка
+    // на email = spam-флаг от провайдеров).
+    for (const r of recipients) {
+      await notifyUser({
+        userId: r.id,
+        type: "MESSAGE_RECEIVED",
+        title: subject ? `Объявление: ${subject}` : "Новое объявление",
+        message: `${senderName}: ${preview}`,
+        link: r.role === "TENANT" ? "/cabinet/messages" : "/admin/messages",
+        sendEmail: false,
+      })
+    }
   } else {
     // Адресное сообщение — получатель должен быть в той же организации
     await assertUserInOrg(toId, orgId)
@@ -51,6 +68,19 @@ export async function sendMessage(formData: FormData) {
         subject,
         body,
       },
+    })
+
+    // Личное сообщение — все каналы (in-app + telegram + email)
+    const recipient = await db.user.findUnique({
+      where: { id: toId },
+      select: { role: true },
+    })
+    await notifyUser({
+      userId: toId,
+      type: "MESSAGE_RECEIVED",
+      title: subject ? `Сообщение: ${subject}` : `Сообщение от ${senderName}`,
+      message: `${senderName}: ${preview}`,
+      link: recipient?.role === "TENANT" ? "/cabinet/messages" : "/admin/messages",
     })
   }
 
