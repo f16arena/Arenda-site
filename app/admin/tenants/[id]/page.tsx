@@ -136,6 +136,33 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     orderBy: { number: "asc" },
   }).catch(() => [] as Array<{ id: string; name: string; totalArea: number | null; ratePerSqm: number; fullFloorTenantId: string | null; fixedMonthlyRent: number | null }>)
 
+  // История изменений по этому tenant.
+  // details — это String (JSON), Prisma не позволяет path-запросы.
+  // Поэтому фильтруем по entity=tenant с конкретным id + любые действия
+  // самого пользователя (tenant.userId).
+  // Связанные charge/payment/contract можно подтянуть через contains в details.
+  const auditLogs = await db.auditLog.findMany({
+    where: {
+      OR: [
+        { entity: "tenant", entityId: tenant.id },
+        { userId: tenant.userId },
+        // Прочие связанные сущности с tenantId в details (как substring)
+        {
+          AND: [
+            { entity: { in: ["charge", "payment", "contract", "request"] } },
+            { details: { contains: tenant.id } },
+          ],
+        },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: {
+      id: true, action: true, entity: true, entityId: true,
+      userName: true, userRole: true, details: true, createdAt: true,
+    },
+  }).catch(() => [])
+
   const myFullFloors = allFloors
     .filter((f) => f.fullFloorTenantId === tenant.id)
     .map((f) => ({ id: f.id, name: f.name, fixedMonthlyRent: f.fixedMonthlyRent }))
@@ -598,6 +625,60 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             legalType={tenant.legalType}
             documents={tenant.documents}
           />
+
+          {/* История изменений */}
+          {auditLogs.length > 0 && (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <ClipboardList className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  История изменений
+                  <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">{auditLogs.length}</span>
+                </h2>
+              </div>
+              <ul className="divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
+                {auditLogs.map((log) => {
+                  const actionLabels: Record<string, string> = {
+                    CREATE: "Создание",
+                    UPDATE: "Изменение",
+                    DELETE: "Удаление",
+                    LOGIN: "Вход",
+                    LOGOUT: "Выход",
+                  }
+                  const entityLabels: Record<string, string> = {
+                    tenant: "арендатор",
+                    charge: "начисление",
+                    payment: "платёж",
+                    contract: "договор",
+                    request: "заявка",
+                    user: "пользователь",
+                  }
+                  return (
+                    <li key={log.id} className="px-5 py-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-700 dark:text-slate-300">
+                          <b>{actionLabels[log.action] ?? log.action}</b>
+                          {" "}
+                          {entityLabels[log.entity] ?? log.entity}
+                        </span>
+                        <span className="text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                          {new Date(log.createdAt).toLocaleString("ru-RU", {
+                            day: "2-digit", month: "2-digit", year: "2-digit",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {log.userName && (
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          {log.userName} · {log.userRole}
+                        </p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
         </div>
 
         {/* Right column: info cards */}

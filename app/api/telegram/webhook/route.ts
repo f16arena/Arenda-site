@@ -44,25 +44,79 @@ export async function POST(req: Request) {
   const text = (msg.text ?? "").trim()
   const userName = msg.from?.first_name ?? msg.chat.first_name ?? "Пользователь"
 
-  // /start — приветствие + отправить chat_id
+  // /start <token> — авто-привязка через одноразовый токен из профиля
+  // /start без токена — приветствие
   if (text.startsWith("/start")) {
+    const parts = text.split(/\s+/)
+    const startToken = parts[1]?.trim() ?? null
+
+    if (startToken) {
+      try {
+        const tok = await db.verificationToken.findUnique({
+          where: { token: startToken },
+          select: { id: true, userId: true, type: true, usedAt: true, expiresAt: true },
+        })
+
+        if (!tok || tok.type !== "TELEGRAM_CONNECT") {
+          await sendTelegram(chatId, `❌ Ссылка недействительна. Сгенерируйте новую в /admin/profile → Уведомления.`)
+          return NextResponse.json({ ok: true })
+        }
+        if (tok.usedAt) {
+          await sendTelegram(chatId, `❌ Эта ссылка уже использована.`)
+          return NextResponse.json({ ok: true })
+        }
+        if (tok.expiresAt < new Date()) {
+          await sendTelegram(chatId, `❌ Срок действия ссылки истёк. Сгенерируйте новую в кабинете.`)
+          return NextResponse.json({ ok: true })
+        }
+        if (!tok.userId) {
+          await sendTelegram(chatId, `❌ Ошибка: токен без пользователя.`)
+          return NextResponse.json({ ok: true })
+        }
+
+        const user = await db.user.findUnique({
+          where: { id: tok.userId },
+          select: { name: true, role: true },
+        })
+
+        await db.$transaction([
+          db.user.update({
+            where: { id: tok.userId },
+            data: { telegramChatId: chatId },
+          }),
+          db.verificationToken.update({
+            where: { id: tok.id },
+            data: { usedAt: new Date() },
+          }),
+        ])
+
+        await sendTelegram(chatId,
+          `✅ Telegram подключён к аккаунту <b>${user?.name ?? "—"}</b>!\n\n` +
+          `Теперь вы будете получать уведомления:\n` +
+          `• ⏰ Истечение договора\n` +
+          `• 💳 Платежи и просрочки\n` +
+          `• 📩 Сообщения и заявки\n\n` +
+          `Команды: /help · /status · /myid`
+        )
+      } catch (e) {
+        await sendTelegram(chatId, `⚠️ Ошибка привязки: ${e instanceof Error ? e.message : "неизвестная"}`)
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     await sendTelegram(chatId,
       `👋 Привет, <b>${userName}</b>!\n\n` +
       `Это бот <b>Commrent</b> — платформа управления коммерческой арендой.\n\n` +
       `🆔 Ваш Chat ID: <code>${chatId}</code>\n\n` +
-      `<b>Что делать дальше:</b>\n` +
-      `1. Скопируйте Chat ID выше\n` +
-      `2. Откройте https://commrent.kz/login\n` +
-      `3. Войдите → Мой профиль → вставьте Chat ID\n\n` +
-      `После этого вы будете получать уведомления:\n` +
-      `• ⏰ За 20 дней до окончания договора\n` +
-      `• 💳 За 10 дней до даты оплаты\n` +
-      `• 🚨 При просрочках\n` +
-      `• 📩 Объявления от администрации\n\n` +
-      `Команды:\n` +
-      `/help — справка\n` +
-      `/myid — показать Chat ID\n` +
-      `/status — мой текущий статус`
+      `<b>Подключиться автоматически:</b>\n` +
+      `1. Откройте https://commrent.kz/admin/profile (таб Уведомления)\n` +
+      `2. Нажмите «Подключить Telegram» — получите ссылку\n` +
+      `3. Откройте её — Telegram свяжется автоматически\n\n` +
+      `<b>Или вручную:</b>\n` +
+      `Скопируйте Chat ID выше, вставьте в профиле.\n\n` +
+      `После подключения вы будете получать уведомления:\n` +
+      `• ⏰ Истечение договора · 💳 Платежи · 🚨 Просрочки · 📩 Объявления\n\n` +
+      `Команды: /help · /status · /myid`
     )
     return NextResponse.json({ ok: true })
   }

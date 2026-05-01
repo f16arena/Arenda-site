@@ -9,6 +9,7 @@ import {
   Wallet,
 } from "lucide-react"
 import Link from "next/link"
+import { PaymentsMiniCalendar } from "./payments-mini-calendar"
 
 export default async function CabinetDashboard() {
   const session = await auth()
@@ -30,6 +31,34 @@ export default async function CabinetDashboard() {
       },
     },
   })
+
+  // Для календаря — все charges и payments за последние 12 месяцев + следующие 3
+  const calendarStart = new Date()
+  calendarStart.setMonth(calendarStart.getMonth() - 12)
+  const calendarEnd = new Date()
+  calendarEnd.setMonth(calendarEnd.getMonth() + 3)
+  const allCharges = tenant ? await db.charge.findMany({
+    where: {
+      tenantId: tenant.id,
+      OR: [
+        { dueDate: { gte: calendarStart, lt: calendarEnd } },
+        { dueDate: null, createdAt: { gte: calendarStart } },
+      ],
+    },
+    select: {
+      id: true, amount: true, type: true, period: true,
+      isPaid: true, dueDate: true,
+    },
+    take: 200,
+  }).catch(() => []) : []
+  const allPayments = tenant ? await db.payment.findMany({
+    where: {
+      tenantId: tenant.id,
+      paymentDate: { gte: calendarStart, lt: calendarEnd },
+    },
+    select: { id: true, amount: true, paymentDate: true },
+    take: 200,
+  }).catch(() => []) : []
 
   if (!tenant) {
     return (
@@ -200,6 +229,24 @@ export default async function CabinetDashboard() {
           href="/cabinet/requests"
         />
       </div>
+
+      {/* Календарь оплат */}
+      <PaymentsMiniCalendar
+        charges={allCharges.map((c) => ({
+          id: c.id,
+          amount: c.amount,
+          type: c.type,
+          period: c.period,
+          isPaid: c.isPaid,
+          dueDate: c.dueDate ? c.dueDate.toISOString() : null,
+        }))}
+        payments={allPayments.map((p) => ({
+          id: p.id,
+          amount: p.amount,
+          paymentDate: p.paymentDate.toISOString(),
+        }))}
+        paymentDueDay={tenant.paymentDueDay ?? 10}
+      />
 
       {/* Двухколоночный блок */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
