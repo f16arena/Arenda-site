@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import { headers, cookies } from "next/headers"
 import { db } from "@/lib/db"
 import { parseHost, ROOT_HOST } from "@/lib/host"
+import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 
 export interface LoginState {
   error?: string
@@ -23,6 +24,16 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
 
   if (!loginValue || !password) {
     return { error: "Введите телефон/email и пароль", details }
+  }
+
+  // ── 0. Rate limiting: max 10 попыток за 15 минут с одного IP ─
+  const h = await headers()
+  const rl = checkRateLimit(getClientKey(h, "login"), { max: 10, window: 15 * 60_000 })
+  if (!rl.ok) {
+    return {
+      error: `Слишком много попыток входа. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      details,
+    }
   }
 
   // ── 1. Sanity-check БД через простой запрос ────────────────────
@@ -114,7 +125,6 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   }
 
   // Если уже на нужном поддомене — относительный редирект.
-  const h = await headers()
   const host = parseHost(h.get("host"))
   if (host.kind === "subdomain" && host.slug === user.organization.slug) {
     redirect(target)

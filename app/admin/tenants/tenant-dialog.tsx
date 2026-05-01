@@ -52,14 +52,35 @@ export function TenantDialog({ vacantSpaces }: { vacantSpaces: Space[] }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Телефон *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон *</label>
                   <input name="phone" required placeholder="+7..." className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Пароль для входа</label>
-                  <input name="password" type="password" placeholder="tenant123" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
+                  <input name="email" type="email" placeholder="tenant@example.com" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                  Пароль для входа <span className="text-slate-400">(если пусто — сгенерируем)</span>
+                </label>
+                <input name="password" type="text" placeholder="tenant123 или оставьте пустым" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+              </div>
+              <label className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                <input
+                  name="sendWelcome"
+                  type="checkbox"
+                  defaultChecked
+                  className="mt-0.5 rounded border-slate-300"
+                />
+                <div>
+                  <span className="font-medium">Отправить welcome-письмо</span>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    На указанный email уйдёт письмо с логином, паролем и ссылкой на кабинет.
+                    Только если email задан.
+                  </p>
+                </div>
+              </label>
 
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Компания</p>
               <div>

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import type { Result } from "./my-account"
@@ -17,6 +18,16 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
   const email = String(formData.get("email") ?? "").trim().toLowerCase()
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "Введите корректный email" }
+  }
+
+  // Rate limit: 5 запросов сброса за 15 минут с одного IP
+  const reqHeaders = await headers()
+  const rl = checkRateLimit(getClientKey(reqHeaders, "pwd-reset"), { max: 5, window: 15 * 60_000 })
+  if (!rl.ok) {
+    return {
+      ok: false,
+      error: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+    }
   }
 
   const user = await db.user.findUnique({
@@ -43,7 +54,7 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
     },
   })
 
-  const h = await headers()
+  const h = reqHeaders
   const host = h.get("host") ?? "commrent.kz"
   const proto = h.get("x-forwarded-proto") ?? "https"
   // Всегда отправляем на root-домен — на slug-поддомене /reset-password недоступен.

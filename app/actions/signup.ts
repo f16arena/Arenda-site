@@ -9,6 +9,7 @@ import { slugify, suggestSlugs } from "@/lib/slugify"
 import { ROOT_HOST } from "@/lib/host"
 import { audit } from "@/lib/audit"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 
@@ -29,6 +30,17 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   const details: NonNullable<SignupResult["details"]> = []
   const step = (label: string, t0: number, ok: boolean, note?: string) => {
     details.push({ step: label, ms: Date.now() - t0, ok, note })
+  }
+
+  // Rate limit: 5 регистраций за час с одного IP — защита от спам-регистраций
+  const reqHeaders = await headers()
+  const rl = checkRateLimit(getClientKey(reqHeaders, "signup"), { max: 5, window: 60 * 60_000 })
+  if (!rl.ok) {
+    return {
+      ok: false,
+      error: `Слишком много попыток регистрации. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      details,
+    }
   }
 
   const companyName = String(formData.get("companyName") ?? "").trim()

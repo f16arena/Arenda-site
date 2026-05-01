@@ -126,13 +126,31 @@ export default async function BuildingsPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1.5">
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" />
                     {b.address}
                   </p>
                   {b.description && (
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{b.description}</p>
                   )}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {b.responsible && (
+                      <span>👤 {b.responsible}</span>
+                    )}
+                    {b.phone && (
+                      <a href={`tel:${b.phone}`} className="hover:text-blue-600 dark:hover:text-blue-400">
+                        📞 {b.phone}
+                      </a>
+                    )}
+                    {b.email && (
+                      <a href={`mailto:${b.email}`} className="hover:text-blue-600 dark:hover:text-blue-400">
+                        ✉ {b.email}
+                      </a>
+                    )}
+                    {b.totalArea && (
+                      <span>📐 {b.totalArea} м²</span>
+                    )}
+                  </div>
                 </div>
                 <BuildingActions
                   buildingId={b.id}

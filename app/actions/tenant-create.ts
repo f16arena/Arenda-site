@@ -2,9 +2,12 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { headers } from "next/headers"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertSpaceInOrg } from "@/lib/scope-guards"
+import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { ROOT_HOST } from "@/lib/host"
 
 export async function createTenant(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -13,6 +16,7 @@ export async function createTenant(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = String(formData.get("phone") ?? "").trim()
+  const email = String(formData.get("email") ?? "").trim().toLowerCase()
   const password = String(formData.get("password") ?? "")
   const companyName = String(formData.get("companyName") ?? "").trim()
   const legalType = String(formData.get("legalType") ?? "IP")
@@ -21,11 +25,15 @@ export async function createTenant(formData: FormData) {
   const spaceId = String(formData.get("spaceId") ?? "").trim()
   const contractStart = String(formData.get("contractStart") ?? "")
   const contractEnd = String(formData.get("contractEnd") ?? "")
+  // Если флажок включён — отправить welcome-письмо с логином/паролем на email
+  const sendWelcome = formData.get("sendWelcome") === "on"
 
   if (!name) throw new Error("Введите ФИО контактного лица")
   if (!companyName) throw new Error("Введите название компании")
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Некорректный email")
+  }
 
-  // Если задан spaceId — он должен принадлежать текущей организации
   if (spaceId) {
     await assertSpaceInOrg(spaceId, orgId)
   }
@@ -34,8 +42,15 @@ export async function createTenant(formData: FormData) {
     const existing = await db.user.findUnique({ where: { phone }, select: { id: true } })
     if (existing) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
   }
+  if (email) {
+    const existing = await db.user.findUnique({ where: { email }, select: { id: true } })
+    if (existing) throw new Error(`Email ${email} уже используется другим пользователем`)
+  }
 
-  const hash = await bcrypt.hash(password || "tenant123", 10)
+  // Сохраняем plain-password для отправки в email (если sendWelcome=true)
+  // Если password не задан — генерируем temporary
+  const plainPassword = password || `tenant${Math.random().toString(36).slice(2, 10)}`
+  const hash = await bcrypt.hash(plainPassword, 10)
 
   let userId: string
   try {
@@ -43,6 +58,7 @@ export async function createTenant(formData: FormData) {
       data: {
         name,
         phone: phone || null,
+        email: email || null,
         password: hash,
         role: "TENANT",
         organizationId: orgId,
@@ -88,6 +104,65 @@ export async function createTenant(formData: FormData) {
       where: { id: spaceId },
       data: { status: "OCCUPIED" },
     })
+  }
+
+  // ── Welcome-письмо арендатору (если есть email и флажок) ─────────
+  if (sendWelcome && email) {
+    try {
+      const org = await db.organization.findUnique({
+        where: { id: orgId },
+        select: { name: true, slug: true },
+      })
+      const h = await headers()
+      const proto = h.get("x-forwarded-proto") ?? "https"
+      const cabinetLink = org?.slug
+        ? `${proto}://${org.slug}.${ROOT_HOST}/cabinet`
+        : `${proto}://${ROOT_HOST}/login`
+
+      const html = basicEmailTemplate({
+        title: `Добро пожаловать в Commrent · ${org?.name ?? "Кабинет арендатора"}`,
+        body: `<p>Здравствуйте, ${name}!</p>
+<p>Для вас создан личный кабинет арендатора в <b>${org?.name ?? "Commrent"}</b>.</p>
+<p>В кабинете вы можете:</p>
+<ul>
+<li>Просматривать счета и оплачивать их</li>
+<li>Скачивать договоры, акты и другие документы</li>
+<li>Отправлять заявки на обслуживание помещения</li>
+<li>Общаться с администрацией</li>
+</ul>
+<p><b>Логин:</b> ${email}<br/>
+<b>Временный пароль:</b> ${plainPassword}</p>
+<p style="font-size:12px;color:#64748b;">⚠ Рекомендуем сменить пароль при первом входе (Профиль → Безопасность).</p>`,
+        buttonText: "Открыть кабинет",
+        buttonUrl: cabinetLink,
+        footer: "Если возникнут вопросы — свяжитесь с администрацией здания.",
+      })
+
+      const result = await sendEmail({
+        to: email,
+        subject: `Доступ к кабинету арендатора · ${org?.name ?? "Commrent"}`,
+        html,
+        text: `Здравствуйте, ${name}! Ваш кабинет: ${cabinetLink}\nЛогин: ${email}\nПароль: ${plainPassword}`,
+      })
+
+      // Лог в email_logs
+      try {
+        await db.emailLog.create({
+          data: {
+            recipient: email,
+            subject: `Доступ к кабинету арендатора`,
+            type: "WELCOME",
+            tenantId,
+            userId,
+            externalId: result.id,
+            status: result.ok ? "SENT" : "FAILED",
+            error: result.error,
+          },
+        })
+      } catch {}
+    } catch (e) {
+      console.warn("[tenant-create] welcome email failed:", e instanceof Error ? e.message : e)
+    }
   }
 
   revalidatePath("/admin/tenants")
