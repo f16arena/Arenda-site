@@ -6,7 +6,13 @@ import { toast } from "sonner"
 import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
 import { DeleteAction } from "@/components/ui/delete-action"
 
-type Floor = { id: string; name: string; number: number }
+type Floor = {
+  id: string
+  name: string
+  number: number
+  totalArea?: number | null  // общая площадь этажа (если задана)
+  usedArea?: number          // Σ Space.area на этом этаже (без редактируемого)
+}
 type Space = { id: string; number: string; area: number; status: string; description: string | null; kind?: string }
 
 const STATUSES = [
@@ -18,6 +24,15 @@ const STATUSES = [
 export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [floorId, setFloorId] = useState(floors[0]?.id ?? "")
+  const [areaStr, setAreaStr] = useState("")
+
+  const selectedFloor = floors.find((f) => f.id === floorId)
+  const total = selectedFloor?.totalArea ?? null
+  const used = selectedFloor?.usedArea ?? 0
+  const available = total ? Math.max(0, total - used) : null
+  const areaNum = parseFloat(areaStr.replace(",", ".")) || 0
+  const exceeds = available !== null && areaNum > available + 0.01
 
   return (
     <>
@@ -43,6 +58,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                     await createSpace(fd)
                     toast.success("Помещение создано")
                     setOpen(false)
+                    setAreaStr("")
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Не удалось создать")
                   }
@@ -52,11 +68,30 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
             >
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Этаж *</label>
-                <select name="floorId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none">
+                <select
+                  name="floorId"
+                  required
+                  value={floorId}
+                  onChange={(e) => setFloorId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none"
+                >
                   {floors.map((f) => (
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
+                {selectedFloor && total !== null && (
+                  <p className={`text-[11px] mt-1 ${exceeds ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+                    Этаж: {total} м² · занято {used.toFixed(1)} м² ·{" "}
+                    <b className={exceeds ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-400"}>
+                      доступно {(available ?? 0).toFixed(1)} м²
+                    </b>
+                  </p>
+                )}
+                {selectedFloor && total === null && (
+                  <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400">
+                    На этаже не задана общая площадь — лимит не контролируется.
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -65,7 +100,26 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Площадь, м² *</label>
-                  <input name="area" type="number" step="0.1" required placeholder="30" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <input
+                    name="area"
+                    type="number"
+                    step="0.1"
+                    required
+                    placeholder="30"
+                    value={areaStr}
+                    onChange={(e) => setAreaStr(e.target.value)}
+                    max={available ?? undefined}
+                    className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${
+                      exceeds
+                        ? "border-red-300 dark:border-red-500/40 focus:border-red-500"
+                        : "border-slate-200 dark:border-slate-800 focus:border-blue-500"
+                    }`}
+                  />
+                  {exceeds && (
+                    <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                      Превышение на {(areaNum - (available ?? 0)).toFixed(1)} м²
+                    </p>
+                  )}
                 </div>
               </div>
               <div>
@@ -96,7 +150,12 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <button
+                  type="submit"
+                  disabled={pending || exceeds}
+                  className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60"
+                  title={exceeds ? "Площадь превышает доступную на этаже" : undefined}
+                >
                   {pending ? "Создание..." : "Создать"}
                 </button>
               </div>

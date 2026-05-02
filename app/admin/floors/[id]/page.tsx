@@ -182,7 +182,13 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
               Помещения ({floor.spaces.length})
             </h2>
           </div>
-          <AddSpaceDialog floors={[{ id: floor.id, number: floor.number, name: floor.name }]} />
+          <AddSpaceDialog floors={[{
+            id: floor.id,
+            number: floor.number,
+            name: floor.name,
+            totalArea: floor.totalArea,
+            usedArea: totalArea,
+          }]} />
         </div>
         {floor.spaces.length === 0 ? (
           <div className="p-8 text-center">

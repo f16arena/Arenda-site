@@ -112,7 +112,13 @@ export default async function SpacesPage() {
   const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
 
   const floors = building?.floors ?? []
-  const floorOptions = floors.map((f) => ({ id: f.id, name: f.name, number: f.number }))
+  const floorOptions = floors.map((f) => ({
+    id: f.id,
+    name: f.name,
+    number: f.number,
+    totalArea: f.totalArea,
+    usedArea: f.spaces.reduce((s, sp) => s + sp.area, 0),
+  }))
 
   return (
     <div className="space-y-5">

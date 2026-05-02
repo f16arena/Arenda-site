@@ -24,6 +24,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
+  // Освобождаем старое помещение арендатора, если было
   if (tenant.spaceId) {
     await db.space.update({
       where: { id: tenant.spaceId },
@@ -43,21 +44,61 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
     },
   })
 
+  // Помечаем все существующие RENTABLE помещения этажа как занятые
   await db.space.updateMany({
-    where: { floorId },
+    where: { floorId, kind: "RENTABLE" },
     data: { status: "OCCUPIED" },
   })
+
+  // Если на этаже нет арендуемых помещений — автоматически создаём одно
+  // «Весь этаж» с площадью = Floor.totalArea и привязываем к нему арендатора.
+  // Это нужно чтобы счета/договоры/долги работали через стандартный Space-механизм.
+  const rentableCount = await db.space.count({
+    where: { floorId, kind: "RENTABLE" },
+  })
+  if (rentableCount === 0) {
+    const floor = await db.floor.findUnique({
+      where: { id: floorId },
+      select: { totalArea: true, name: true },
+    })
+    const area = floor?.totalArea ?? 0
+    if (area > 0) {
+      const space = await db.space.create({
+        data: {
+          floorId,
+          number: "all",
+          area,
+          status: "OCCUPIED",
+          kind: "RENTABLE",
+          description: `Весь этаж «${floor?.name ?? ""}» — авто-создано при сдаче целиком`,
+        },
+        select: { id: true },
+      })
+      await db.tenant.update({
+        where: { id: tenantId },
+        data: { spaceId: space.id },
+      })
+    }
+  }
 
   revalidatePath(`/admin/tenants/${tenantId}`)
   revalidatePath("/admin/tenants")
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/settings")
+  revalidatePath(`/admin/floors/${floorId}`)
 }
 
 export async function unassignFullFloor(floorId: string) {
   await requireAdmin()
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
+
+  // Найдём арендатора, чтобы потом отвязать от auto-space
+  const floor = await db.floor.findUnique({
+    where: { id: floorId },
+    select: { fullFloorTenantId: true },
+  })
+  const tenantId = floor?.fullFloorTenantId
 
   await db.floor.update({
     where: { id: floorId },
@@ -66,6 +107,28 @@ export async function unassignFullFloor(floorId: string) {
       fixedMonthlyRent: null,
     },
   })
+
+  // Если был tenant.spaceId на «авто-этаж» (number="all"), отвязываем
+  if (tenantId) {
+    const tenant = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { spaceId: true },
+    })
+    if (tenant?.spaceId) {
+      const sp = await db.space.findUnique({
+        where: { id: tenant.spaceId },
+        select: { number: true, floorId: true },
+      })
+      if (sp?.number === "all" && sp.floorId === floorId) {
+        // Это авто-созданное «весь этаж» — просто удалим, чтобы вернуть этаж в чистое состояние
+        await db.tenant.update({
+          where: { id: tenantId },
+          data: { spaceId: null },
+        })
+        await db.space.delete({ where: { id: tenant.spaceId } })
+      }
+    }
+  }
 
   const spaces = await db.space.findMany({
     where: { floorId },
@@ -82,4 +145,5 @@ export async function unassignFullFloor(floorId: string) {
   revalidatePath("/admin/tenants")
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/settings")
+  revalidatePath(`/admin/floors/${floorId}`)
 }
