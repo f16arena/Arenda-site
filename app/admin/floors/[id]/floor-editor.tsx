@@ -679,8 +679,9 @@ export function FloorEditor({
       const text = await res.text()
       let data: {
         error?: string
-        rooms?: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number }>
+        rooms?: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number; area?: number | null }>
         buildingWidthMeters?: number | null
+        ceilingHeightMeters?: number | null
       }
       try {
         data = JSON.parse(text)
@@ -698,7 +699,7 @@ export function FloorEditor({
         toast.error(data.error ?? `HTTP ${res.status}`)
         return
       }
-      const recognized: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number }> = data.rooms ?? []
+      const recognized: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number; area?: number | null }> = data.rooms ?? []
       if (recognized.length === 0) {
         toast.error("AI не нашёл помещений. Попробуйте подложку лучшего качества.")
         return
@@ -719,26 +720,53 @@ export function FloorEditor({
         requestAnimationFrame(() => fitToView({ width: W, height: H }))
       }
 
-      // Конвертируем доли [0..1] в метры через (возможно обновлённый) размер холста
-      const newElements: FloorElement[] = recognized.map((r) => ({
-        type: "rect",
-        id: uid(),
-        kind: r.kind,
-        x: snap(r.x * W),
-        y: snap(r.y * H),
-        width: snap(Math.max(0.5, r.width * W)),
-        height: snap(Math.max(0.5, r.height * H)),
-        label: r.name,
-        spaceId: null,
-      }))
+      // Конвертируем доли [0..1] в метры через (возможно обновлённый) размер холста.
+      // Если у комнаты есть подписанная площадь — масштабируем W×H к ней
+      // (сохраняем аспект и центр), иначе оставляем геометрию AI.
+      const newElements: FloorElement[] = recognized.map((r) => {
+        let w = Math.max(0.5, r.width * W)
+        let h = Math.max(0.5, r.height * H)
+        let cx = r.x * W + w / 2
+        let cy = r.y * H + h / 2
+        if (r.area && r.area > 0.5 && r.area < 100000) {
+          const computed = w * h
+          if (computed > 0.01) {
+            const k = Math.sqrt(r.area / computed)
+            w = w * k
+            h = h * k
+          }
+        }
+        const x = cx - w / 2
+        const y = cy - h / 2
+        return {
+          type: "rect",
+          id: uid(),
+          kind: r.kind,
+          x: snap(x),
+          y: snap(y),
+          width: snap(w),
+          height: snap(h),
+          label: r.name,
+          spaceId: null,
+        }
+      })
 
-      // Суммарная площадь распознанных помещений → автоматически в Floor.totalArea.
-      // Округляем вверх с запасом 5% на стены.
-      const sumNew = newElements.reduce((s, el) => {
+      // Сохраняем высоту потолка из плана для будущего 3D-вида
+      if (data.ceilingHeightMeters && data.ceilingHeightMeters >= 2.0 && data.ceilingHeightMeters <= 6.0) {
+        setLayout((prev) => ({ ...prev, ceilingHeight: data.ceilingHeightMeters ?? null }))
+      }
+
+      // Площадь этажа: предпочитаем сумму подписанных площадей (надёжнее),
+      // иначе считаем по геометрии.
+      const labeledSum = recognized.reduce((s, r) => s + (r.area && r.area > 0 ? r.area : 0), 0)
+      const haveLabels = labeledSum > 0
+      const sumGeom = newElements.reduce((s, el) => {
         if (el.type === "rect") return s + el.width * el.height
         return s
       }, 0)
-      const proposedTotal = Math.ceil(sumNew * 1.05 * 10) / 10
+      const baseSum = haveLabels ? labeledSum : sumGeom
+      // С запасом 5% на стены — реальная площадь этажа всегда чуть больше суммы помещений.
+      const proposedTotal = Math.ceil(baseSum * 1.05 * 10) / 10
 
       setLayout((prev) => ({ ...prev, elements: [...prev.elements, ...newElements] }))
       setTotalArea(proposedTotal)
@@ -746,14 +774,19 @@ export function FloorEditor({
 
       const rentableCount = recognized.filter((r) => r.kind === "rentable").length
       const commonCount = recognized.length - rentableCount
+      const labeledCount = recognized.filter((r) => r.area && r.area > 0).length
       const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
-      const widthNote = detectedW
-        ? ` · Ширина по AI: ${detectedW.toFixed(1)} м`
+      const widthNote = detectedW ? ` · Ширина: ${detectedW.toFixed(1)} м` : ""
+      const ceilingNote = data.ceilingHeightMeters
+        ? ` · Потолок: ${data.ceilingHeightMeters} м`
+        : ""
+      const labeledNote = labeledCount > 0
+        ? ` · Площади со штампа: ${labeledCount}/${recognized.length}`
         : ""
       toast.success(
-        `AI распознал ${recognized.length} помещений за ${elapsed}с · ${rentableCount} аренд. + ${commonCount} общ.${widthNote} · ` +
-          `Площадь этажа: ${proposedTotal} м² (с 5% запасом на стены)`,
-        { duration: 7000 },
+        `AI распознал ${recognized.length} помещений за ${elapsed}с · ${rentableCount} аренд. + ${commonCount} общ.${labeledNote}${widthNote}${ceilingNote} · ` +
+          `Σ этажа: ${proposedTotal} м²`,
+        { duration: 8000 },
       )
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Сбой запроса к AI")
@@ -2362,6 +2395,30 @@ function AreasPanel({
             Σ
           </button>
         </div>
+      </div>
+
+      {/* Высота потолка — из метки H=X,XX на плане, для будущего 3D-вида */}
+      <div>
+        <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+          Высота потолка (м)
+          <span className="ml-1 text-[10px] text-slate-300 dark:text-slate-600">метка H=X,XX</span>
+        </label>
+        <input
+          type="number"
+          min="2"
+          max="6"
+          step="0.05"
+          placeholder="напр. 3.5"
+          value={layout.ceilingHeight ?? ""}
+          onChange={(e) => {
+            const v = e.target.value
+            setLayout((prev) => ({
+              ...prev,
+              ceilingHeight: v === "" ? null : Math.max(0, parseFloat(v) || 0),
+            }))
+          }}
+          className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-sm bg-white dark:bg-slate-900"
+        />
       </div>
 
       {/* Stacked breakdown */}

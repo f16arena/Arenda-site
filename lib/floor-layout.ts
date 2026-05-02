@@ -7,6 +7,7 @@ export type FloorLayoutV2 = {
   version: 2
   width: number  // ширина холста в метрах
   height: number // высота холста в метрах
+  ceilingHeight?: number | null  // высота потолка (м), для будущего 3D-вида
   underlayUrl?: string | null
   elements: FloorElement[]
 }
