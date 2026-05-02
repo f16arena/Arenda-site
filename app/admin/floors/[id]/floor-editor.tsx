@@ -39,6 +39,46 @@ function snap(v: number, step = SNAP_M): number {
   return Math.round(v / step) * step
 }
 
+const SNAP_VERTEX_M = 0.4 // допуск магнита к точкам стен/полигонов (40 см)
+
+/**
+ * Найти ближайшую вершину существующей стены / полигона / прямоугольника
+ * к точке pt. Если в пределах SNAP_VERTEX_M — возвращает её координаты.
+ * excludeId исключает указанный элемент (например, тот, что сейчас рисуем).
+ */
+function findNearestVertex(
+  layout: FloorLayoutV2,
+  pt: Point,
+  excludeId?: string,
+): Point | null {
+  let best: Point | null = null
+  let bestDist = SNAP_VERTEX_M
+  for (const el of layout.elements) {
+    if (el.id === excludeId) continue
+    const candidates: Point[] = []
+    if (el.type === "wall") {
+      candidates.push({ x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 })
+    } else if (el.type === "polygon") {
+      candidates.push(...el.points)
+    } else if (el.type === "rect") {
+      candidates.push(
+        { x: el.x, y: el.y },
+        { x: el.x + el.width, y: el.y },
+        { x: el.x + el.width, y: el.y + el.height },
+        { x: el.x, y: el.y + el.height },
+      )
+    }
+    for (const v of candidates) {
+      const d = Math.hypot(v.x - pt.x, v.y - pt.y)
+      if (d < bestDist) {
+        bestDist = d
+        best = { x: v.x, y: v.y }
+      }
+    }
+  }
+  return best
+}
+
 const STATUS_FILL: Record<string, string> = {
   VACANT: "#dcfce7",      // emerald-100
   OCCUPIED: "#dbeafe",    // blue-100
@@ -84,6 +124,8 @@ export function FloorEditor({
   const [clipboard, setClipboardRaw] = useState<FloorElement | null>(null)
   const [showGrid, setShowGrid] = useState(true)
   const [polygonInProgress, setPolygonInProgress] = useState<Point[] | null>(null)
+  // Точка магнита (показывается жёлтым кружком когда курсор близко к концу стены/угла)
+  const [snapTarget, setSnapTarget] = useState<Point | null>(null)
   const [saving, setSaving] = useState(false)
   const [underlayOpacity, setUnderlayOpacity] = useState(0.5)
   const [displayMode, setDisplayMode] = useState<"full" | "outline" | "underlay-only">("full")
@@ -356,26 +398,23 @@ export function FloorEditor({
 
     if (tool === "door") {
       addDoor(pt.x, pt.y)
-      setTool("select")
+      // Инструмент остаётся выбранным — можно ставить ещё двери. Esc или V → select.
       return
     }
 
     if (tool === "window") {
       addWindow(pt.x, pt.y)
-      setTool("select")
       return
     }
 
     if (tool === "stairs" || tool === "elevator" || tool === "toilet") {
       addIcon(pt.x, pt.y, tool)
-      setTool("select")
       return
     }
 
     if (tool === "label") {
       const text = window.prompt("Текст подписи:", "Подпись") ?? ""
       if (text.trim()) addLabel(pt.x, pt.y, text)
-      setTool("select")
       return
     }
 
@@ -392,8 +431,11 @@ export function FloorEditor({
     }
 
     if (tool === "polygon") {
-      // Click — добавить вершину
-      setPolygonInProgress((prev) => (prev ? [...prev, pt] : [pt]))
+      // Click — добавить вершину; если близко к существующей точке — магнитим
+      const snapPoint = findNearestVertex(layout, pt)
+      const vertex = snapPoint ?? { x: snap(pt.x), y: snap(pt.y) }
+      setPolygonInProgress((prev) => (prev ? [...prev, vertex] : [vertex]))
+      setSnapTarget(null)
       return
     }
 
@@ -403,6 +445,13 @@ export function FloorEditor({
 
   const onSvgMouseMove = (e: ReactMouseEvent) => {
     const ds = dragStateRef.current
+    // Hover-магнит: показываем точку магнита когда в polygon-режиме без drag
+    if (!ds && tool === "polygon") {
+      const pt = screenToSvg(e.clientX, e.clientY)
+      setSnapTarget(findNearestVertex(layout, pt))
+    } else if (!ds && snapTarget) {
+      setSnapTarget(null)
+    }
     if (!ds) return
 
     if (ds.type === "pan" && ds.startSvg && ds.startPan) {
@@ -425,7 +474,12 @@ export function FloorEditor({
     }
 
     if (ds.type === "wall" && ds.elId && ds.startSvg) {
-      updateElement(ds.elId, { x2: snap(pt.x), y2: snap(pt.y) } as Partial<FloorElement>)
+      // Магнит: если конец стены близко к существующей точке (стены/угла) — притягиваем
+      const snapPoint = findNearestVertex(layout, pt, ds.elId)
+      const endX = snapPoint ? snapPoint.x : snap(pt.x)
+      const endY = snapPoint ? snapPoint.y : snap(pt.y)
+      setSnapTarget(snapPoint)
+      updateElement(ds.elId, { x2: endX, y2: endY } as Partial<FloorElement>)
       return
     }
 
@@ -486,19 +540,19 @@ export function FloorEditor({
       const el = layout.elements.find((e) => e.id === dragStateRef.current!.elId)
       if (el && el.type === "rect" && (el.width < 0.5 || el.height < 0.5)) {
         deleteElement(el.id)
-      } else {
-        setTool("select")
       }
+      // Инструмент остаётся, можно рисовать ещё прямоугольники
     }
-    if (dragStateRef.current?.type === "wall") setTool("select")
+    // wall, draw-rect: тоже не сбрасываем — рисуем ещё одну стену/прямоугольник
     dragStateRef.current = null
+    setSnapTarget(null)
   }
 
   const onSvgDoubleClick = () => {
     if (tool === "polygon" && polygonInProgress && polygonInProgress.length >= 3) {
       addPolygon(polygonInProgress, drawKind)
       setPolygonInProgress(null)
-      setTool("select")
+      // Инструмент polygon остаётся — можно рисовать следующий контур
     }
   }
 
@@ -895,6 +949,31 @@ export function FloorEditor({
         setSelectedId(null)
         setPolygonInProgress(null)
         setTool("select")
+        return
+      }
+      // Стрелки → панорама (с зажатым Shift — крупный шаг)
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault()
+        const step = e.shiftKey ? 80 : 20
+        if (e.key === "ArrowUp") setPan((p) => ({ ...p, y: p.y + step }))
+        if (e.key === "ArrowDown") setPan((p) => ({ ...p, y: p.y - step }))
+        if (e.key === "ArrowLeft") setPan((p) => ({ ...p, x: p.x + step }))
+        if (e.key === "ArrowRight") setPan((p) => ({ ...p, x: p.x - step }))
+        return
+      }
+      // +/- для зума с клавиатуры
+      if (e.key === "+" || e.key === "=") {
+        setZoom((z) => Math.min(MAX_ZOOM, z * 1.15))
+        return
+      }
+      if (e.key === "-" || e.key === "_") {
+        setZoom((z) => Math.max(MIN_ZOOM, z / 1.15))
+        return
+      }
+      // F → fit-to-view
+      if (e.key === "f" || e.key === "F") {
+        fitToView()
+        return
       }
       // Quick tools
       if (e.key === "v") setTool("select")
@@ -1286,6 +1365,26 @@ export function FloorEditor({
                   {polygonInProgress.map((p, i) => (
                     <circle key={i} cx={p.x * PX_PER_METER} cy={p.y * PX_PER_METER} r={4 / zoom} fill="#3b82f6" />
                   ))}
+                </g>
+              )}
+
+              {/* Snap target: жёлтый круг когда курсор близко к точке стены/угла */}
+              {snapTarget && (
+                <g pointerEvents="none">
+                  <circle
+                    cx={snapTarget.x * PX_PER_METER}
+                    cy={snapTarget.y * PX_PER_METER}
+                    r={10 / zoom}
+                    fill="none"
+                    stroke="#facc15"
+                    strokeWidth={2.5 / zoom}
+                  />
+                  <circle
+                    cx={snapTarget.x * PX_PER_METER}
+                    cy={snapTarget.y * PX_PER_METER}
+                    r={3 / zoom}
+                    fill="#facc15"
+                  />
                 </g>
               )}
             </g>
