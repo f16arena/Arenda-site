@@ -3,6 +3,8 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
+import { headers } from "next/headers"
+import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
@@ -15,6 +17,19 @@ export async function GET(req: Request) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  // Rate-limit генерации (CPU-тяжёлая операция, может использоваться для DoS)
+  const reqHeaders = await headers()
+  const rl = checkRateLimit(getClientKey(reqHeaders, `contract:${session.user.id}`), {
+    max: 30,
+    window: 60 * 60_000,
+  })
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` },
+      { status: 429 },
+    )
   }
 
   const { searchParams } = new URL(req.url)

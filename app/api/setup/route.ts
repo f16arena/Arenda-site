@@ -1,14 +1,40 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import bcrypt from "bcryptjs"
+import { headers } from "next/headers"
+import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 
 // POST /api/setup — одноразовая инициализация БД
 // Защищён секретом: /api/setup?secret=SETUP_SECRET
 export async function POST(request: Request) {
+  // Rate limit: 5 попыток за час с одного IP — защита от brute-force перебора SETUP_SECRET
+  const reqHeaders = await headers()
+  const rl = checkRateLimit(getClientKey(reqHeaders, "setup"), { max: 5, window: 60 * 60_000 })
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Слишком много попыток. Попробуйте позже." },
+      { status: 429 },
+    )
+  }
+
+  // Защита от CSRF: только запросы с того же домена
+  const origin = reqHeaders.get("origin") ?? ""
+  const host = reqHeaders.get("host") ?? ""
+  if (origin && host && !origin.includes(host) && !origin.endsWith("commrent.kz")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  const expectedSecret = process.env.SETUP_SECRET
+  if (!expectedSecret || expectedSecret.length < 32) {
+    return NextResponse.json(
+      { error: "SETUP_SECRET не настроен либо слишком короткий (нужно минимум 32 символа)" },
+      { status: 503 },
+    )
+  }
   const { searchParams } = new URL(request.url)
   const secret = searchParams.get("secret")
 
-  if (secret !== process.env.SETUP_SECRET) {
+  if (secret !== expectedSecret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -18,6 +44,13 @@ export async function POST(request: Request) {
   }
 
   const hash = (pw: string) => bcrypt.hash(pw, 10)
+  // Генерируем стойкие случайные пароли (12 символов, base64url)
+  const { randomBytes } = await import("crypto")
+  const randomPassword = () => randomBytes(9).toString("base64url")
+  const ownerPw = randomPassword()
+  const adminPw = randomPassword()
+  const accountantPw = randomPassword()
+  const managerPw = randomPassword()
 
   // ── Здание ──────────────────────────────────────────────────
   // Сначала создадим организацию (или возьмём существующую)
@@ -60,7 +93,7 @@ export async function POST(request: Request) {
       data: {
         name: "Арыстан",
         email: "f16arena@gmail.com",
-        password: await hash("F16arena2024!"),
+        password: await hash(ownerPw),
         role: "OWNER",
       },
     }),
@@ -69,7 +102,7 @@ export async function POST(request: Request) {
         name: "Администратор",
         phone: "+77000000002",
         email: "admin@f16arena.kz",
-        password: await hash("admin2024!"),
+        password: await hash(adminPw),
         role: "ADMIN",
       },
     }),
@@ -78,7 +111,7 @@ export async function POST(request: Request) {
         name: "Бухгалтер",
         phone: "+77000000003",
         email: "buh@f16arena.kz",
-        password: await hash("buh2024!"),
+        password: await hash(accountantPw),
         role: "ACCOUNTANT",
       },
     }),
@@ -86,7 +119,7 @@ export async function POST(request: Request) {
       data: {
         name: "Завхоз",
         phone: "+77000000004",
-        password: await hash("manager2024!"),
+        password: await hash(managerPw),
         role: "FACILITY_MANAGER",
       },
     }),
@@ -111,15 +144,23 @@ export async function POST(request: Request) {
     ],
   })
 
+  // Пароли НЕ возвращаются в JSON — отправляем по email/Telegram владельцу.
+  // Для первого setup'а выводим один раз в server-log с привязкой к timestamp.
+  console.warn(
+    `[setup] Создан владелец ${owner.email}. Стартовый пароль: ${ownerPw}\n` +
+      `Передайте этот пароль владельцу безопасным каналом и попросите немедленно сменить в /admin/profile.\n` +
+      `Дополнительно создано: admin=${adminPw} accountant=${accountantPw} manager=${managerPw}`,
+  )
+
   return NextResponse.json({
     success: true,
-    message: "База данных инициализирована",
-    credentials: {
-      owner:      { email: "f16arena@gmail.com",  password: "F16arena2024!" },
-      admin:      { email: "admin@f16arena.kz",   password: "admin2024!" },
-      accountant: { email: "buh@f16arena.kz",     password: "buh2024!" },
-      manager:    { phone: "+77000000004",         password: "manager2024!" },
-    },
+    message: "База данных инициализирована. Пароли в server-log (Vercel → Logs).",
+    accounts: [
+      { role: "OWNER", login: "f16arena@gmail.com" },
+      { role: "ADMIN", login: "admin@f16arena.kz" },
+      { role: "ACCOUNTANT", login: "buh@f16arena.kz" },
+      { role: "FACILITY_MANAGER", login: "+77000000004" },
+    ],
     building: building.id,
     floors: [floor0.id, floor1.id, floor2.id, floor3.id],
   })

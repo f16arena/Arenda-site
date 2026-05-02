@@ -108,9 +108,22 @@ export async function markConversationRead(otherUserId: string) {
 export async function deleteMessage(messageId: string) {
   const session = await auth()
   if (!session?.user) throw new Error("Не авторизован")
+  const { requireOrgAccess } = await import("@/lib/org")
+  const { orgId } = await requireOrgAccess()
 
-  const msg = await db.message.findUnique({ where: { id: messageId }, select: { fromId: true } })
-  if (!msg) throw new Error("Сообщение не найдено")
+  // Сообщение должно быть либо от/к пользователю текущей организации.
+  // Это защищает OWNER одной орг от удаления чужой переписки.
+  const msg = await db.message.findFirst({
+    where: {
+      id: messageId,
+      OR: [
+        { from: { organizationId: orgId } },
+        { to: { organizationId: orgId } },
+      ],
+    },
+    select: { fromId: true },
+  })
+  if (!msg) throw new Error("Сообщение не найдено или нет доступа")
   if (msg.fromId !== session.user.id && session.user.role !== "OWNER") {
     throw new Error("Нет прав на удаление")
   }

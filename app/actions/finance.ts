@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
-import { tenantScope, chargeScope } from "@/lib/tenant-scope"
+import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
 import {
   assertTenantInOrg,
   assertChargeInOrg,
@@ -218,20 +218,29 @@ export async function deleteCharge(chargeId: string) {
   const { orgId } = await requireOrgAccess()
   await assertChargeInOrg(chargeId, orgId)
 
-  const charge = await db.charge.findUnique({ where: { id: chargeId }, select: { tenantId: true } })
+  // findFirst со scope защищает от гонки между assert и delete
+  const charge = await db.charge.findFirst({
+    where: { id: chargeId, ...chargeScope(orgId) },
+    select: { tenantId: true },
+  })
+  if (!charge) throw new Error("Начисление не найдено или нет доступа")
   await db.charge.delete({ where: { id: chargeId } })
   revalidatePath("/admin/finances")
-  if (charge?.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
+  if (charge.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
 }
 
 export async function deletePayment(paymentId: string) {
   const { orgId } = await requireOrgAccess()
   await assertPaymentInOrg(paymentId, orgId)
 
-  const payment = await db.payment.findUnique({ where: { id: paymentId }, select: { tenantId: true } })
+  const payment = await db.payment.findFirst({
+    where: { id: paymentId, ...paymentScope(orgId) },
+    select: { tenantId: true },
+  })
+  if (!payment) throw new Error("Платёж не найден или нет доступа")
   await db.payment.delete({ where: { id: paymentId } })
   revalidatePath("/admin/finances")
-  if (payment?.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
+  if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
 }
 
 export async function deleteExpense(expenseId: string) {

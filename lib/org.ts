@@ -79,8 +79,9 @@ export async function setSuperadminOrgCookie(orgId: string | null) {
     store.set(SUPERADMIN_ORG_COOKIE, orgId, {
       maxAge: 60 * 60 * 24,
       path: "/",
-      httpOnly: false,
+      httpOnly: true,
       sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
     })
   } else {
     store.delete(SUPERADMIN_ORG_COOKIE)
