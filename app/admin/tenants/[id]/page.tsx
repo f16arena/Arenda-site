@@ -21,6 +21,7 @@ import { DocumentsChecklist } from "./documents-checklist"
 import { FullFloorAssign } from "./full-floor-assign"
 import { DocumentsActions } from "./documents-actions"
 import { EmailLog } from "./email-log"
+import { RequisitesForm } from "./requisites-form"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -455,57 +456,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские реквизиты</h2>
             </div>
-            <form
-              action={async (formData: FormData) => {
-                "use server"
-                await updateTenantRequisites(tenant.id, formData)
+            <RequisitesForm
+              tenantId={tenant.id}
+              isIin={tenant.legalType === "IP" || tenant.legalType === "PHYSICAL"}
+              initial={{
+                bankName: tenant.bankName,
+                iik: tenant.iik,
+                bik: tenant.bik,
+                bin: tenant.bin,
               }}
-              className="p-5 grid grid-cols-2 gap-4"
-            >
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название банка</label>
-                <input
-                  name="bankName"
-                  defaultValue={tenant.bankName ?? ""}
-                  placeholder="Kaspi Bank / Halyk / и т.д."
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ИИК (расчётный счёт)</label>
-                <input
-                  name="iik"
-                  defaultValue={tenant.iik ?? ""}
-                  placeholder="KZxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИК банка</label>
-                <input
-                  name="bik"
-                  defaultValue={tenant.bik ?? ""}
-                  placeholder="CASPKZKA"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИН / ИИН</label>
-                <input
-                  name="bin"
-                  defaultValue={tenant.bin ?? ""}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div className="col-span-2 flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
-                >
-                  Сохранить реквизиты
-                </button>
-              </div>
-            </form>
+            />
           </div>
 
           {/* Rental terms */}
