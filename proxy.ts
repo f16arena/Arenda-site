@@ -23,7 +23,8 @@ const PUBLIC_ROOT_PATHS = new Set([
 // API-роуты разрешены на root-домене: они сами проверяют сессию через auth().
 // Без этого fetch('/api/...') из /admin/* на корневом домене редиректился бы
 // на '/' и клиент получал бы HTML вместо JSON.
-const PUBLIC_ROOT_PREFIXES = ["/api/", "/_next", "/favicon", "/icon", "/manifest"]
+// /booking — публичная витрина свободных площадей.
+const PUBLIC_ROOT_PREFIXES = ["/api/", "/_next", "/favicon", "/icon", "/manifest", "/booking"]
 
 function isPublicRootPath(path: string): boolean {
   if (PUBLIC_ROOT_PATHS.has(path)) return true
