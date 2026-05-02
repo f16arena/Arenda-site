@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
 import { WipeAllSpacesButton } from "./wipe-all-button"
+import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
 import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
 import { isLayoutV2 } from "@/lib/floor-layout"
@@ -316,9 +317,14 @@ export default async function SpacesPage() {
                     )}
                   </p>
                   <p className="text-violet-700 dark:text-violet-400 mt-0.5">
-                    Помещения этажа недоступны для индивидуальной сдачи. Чтобы освободить — снимите арендатора с этажа в его карточке.
+                    Помещения этажа недоступны для индивидуальной сдачи.
                   </p>
                 </div>
+                <UnassignFloorButton
+                  floorId={floor.id}
+                  floorName={floor.name}
+                  tenantName={fullFloorTenant.companyName}
+                />
               </div>
             )}
 

@@ -14,6 +14,8 @@ export interface TenantRow {
   category: string | null
   user: { name: string; phone: string | null; email: string | null }
   space: { number: string; area: number; floor: { name: string; ratePerSqm: number } } | null
+  // Этажи где арендатор сдан целиком — может быть несколько
+  fullFloors: Array<{ id: string; name: string; totalArea: number | null; fixedMonthlyRent: number | null }>
   debt: number
 }
 
@@ -94,9 +96,15 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         t.user.name,
         t.user.phone ?? "",
         t.user.email ?? "",
-        t.space?.number ?? "",
-        t.space?.floor.name ?? "",
-        String(t.space?.area ?? ""),
+        t.fullFloors.length > 0
+          ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
+          : t.space?.number ?? "",
+        t.fullFloors[0]?.name ?? t.space?.floor.name ?? "",
+        String(
+          t.fullFloors.length > 0
+            ? t.fullFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0)
+            : t.space?.area ?? "",
+        ),
         String(t.debt),
       ]),
     ]
@@ -128,8 +136,16 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         <td>${LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}</td>
         <td>${t.bin ?? ""}</td>
         <td>${t.user.phone ?? t.user.email ?? ""}</td>
-        <td>${t.space ? `Каб. ${t.space.number} · ${t.space.floor.name}` : "—"}</td>
-        <td style="text-align:right">${t.space?.area ?? "—"} м²</td>
+        <td>${
+          t.fullFloors.length > 0
+            ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
+            : t.space ? `Каб. ${t.space.number} · ${t.space.floor.name}` : "—"
+        }</td>
+        <td style="text-align:right">${
+          t.fullFloors.length > 0
+            ? t.fullFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0).toFixed(0)
+            : t.space?.area ?? "—"
+        } м²</td>
         <td style="text-align:right">${t.debt > 0 ? formatMoney(t.debt) : "—"}</td>
       </tr>
     `).join("")
@@ -257,7 +273,17 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
                   </span>
                 </td>
                 <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
-                  {t.space ? (
+                  {t.fullFloors.length > 0 ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300">
+                        Этаж
+                      </span>
+                      <span className="font-medium text-violet-900 dark:text-violet-200">
+                        {t.fullFloors.map((f) => f.name).join(", ")}
+                      </span>
+                      <span className="text-slate-400 dark:text-slate-500">· целиком</span>
+                    </span>
+                  ) : t.space ? (
                     <span>
                       Каб. {t.space.number}
                       <span className="text-slate-400 dark:text-slate-500 ml-1">· {t.space.floor.name}</span>
@@ -267,7 +293,9 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
                   )}
                 </td>
                 <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">
-                  {t.space ? `${t.space.area} м²` : "—"}
+                  {t.fullFloors.length > 0
+                    ? `${t.fullFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0).toFixed(0)} м²`
+                    : t.space ? `${t.space.area} м²` : "—"}
                 </td>
                 <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 font-mono text-xs">
                   {t.user.phone ?? t.user.email ?? "—"}

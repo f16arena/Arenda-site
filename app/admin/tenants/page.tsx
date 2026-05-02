@@ -33,6 +33,15 @@ export default async function TenantsPage() {
           floor: { select: { name: true, ratePerSqm: true } },
         },
       },
+      // Этажи, где этот арендатор сдан целиком — обратное отношение через Floor.fullFloorTenantId
+      fullFloors: {
+        select: {
+          id: true,
+          name: true,
+          totalArea: true,
+          fixedMonthlyRent: true,
+        },
+      },
       charges: { where: { isPaid: false }, select: { amount: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -59,6 +68,12 @@ export default async function TenantsPage() {
     category: t.category,
     user: { name: t.user.name, phone: t.user.phone, email: t.user.email },
     space: t.space,
+    fullFloors: t.fullFloors.map((f) => ({
+      id: f.id,
+      name: f.name,
+      totalArea: f.totalArea,
+      fixedMonthlyRent: f.fixedMonthlyRent,
+    })),
     debt: t.charges.reduce((s, c) => s + c.amount, 0),
   }))
 
