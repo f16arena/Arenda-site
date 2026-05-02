@@ -104,8 +104,10 @@ export async function compressDataUrl(
   dataUrl: string,
   opts: { maxDim?: number; quality?: number } = {},
 ): Promise<string> {
-  const maxDim = opts.maxDim ?? 1800
-  const initialQuality = opts.quality ?? 0.85
+  // Чем больше maxDim — тем больше деталей видит AI (важно для геометрии).
+  // 2400px по большей стороне даёт ~3.3 МБ JPEG q=0.9, что укладывается в Vercel 4.5 МБ.
+  const maxDim = opts.maxDim ?? 2400
+  const initialQuality = opts.quality ?? 0.9
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new window.Image()
@@ -131,8 +133,9 @@ export async function compressDataUrl(
 
   let q = initialQuality
   let out = canvas.toDataURL("image/jpeg", q)
-  // Целимся в ~2.7 МБ base64 (= ~2 МБ бинаря) с запасом на структуру JSON
-  while (out.length > 2_700_000 && q > 0.6) {
+  // Vercel ограничивает body ~4.5 МБ; целимся в ~3.8 МБ base64 (= ~2.85 МБ бинаря)
+  // с запасом на JSON-обёртку.
+  while (out.length > 3_800_000 && q > 0.6) {
     q = Math.round((q - 0.1) * 100) / 100
     out = canvas.toDataURL("image/jpeg", q)
   }

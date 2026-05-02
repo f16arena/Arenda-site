@@ -671,7 +671,11 @@ export function FloorEditor({
       })
       // Vercel/прокси при ошибке (413, 504) могут вернуть HTML вместо JSON
       const text = await res.text()
-      let data: { error?: string; rooms?: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number }> }
+      let data: {
+        error?: string
+        rooms?: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number }>
+        buildingWidthMeters?: number | null
+      }
       try {
         data = JSON.parse(text)
       } catch {
@@ -694,9 +698,22 @@ export function FloorEditor({
         return
       }
 
-      // Конвертируем доли [0..1] в метры через текущий размер холста
-      const W = layout.width
-      const H = layout.height
+      // Если AI определил реальную ширину здания по dimension labels —
+      // подгоняем размер холста чтобы 1м холста = 1м в реальности.
+      // Аспект сохраняем (height пропорционально).
+      let W = layout.width
+      let H = layout.height
+      const detectedW = data.buildingWidthMeters
+      if (detectedW && detectedW > 0.5 && Math.abs(detectedW - W) > 0.5) {
+        const aspect = layout.height / layout.width
+        W = Math.round(detectedW * 10) / 10
+        H = Math.round(detectedW * aspect * 10) / 10
+        setLayout((prev) => ({ ...prev, width: W, height: H }))
+        // подгоняем зум под новые размеры
+        requestAnimationFrame(() => fitToView({ width: W, height: H }))
+      }
+
+      // Конвертируем доли [0..1] в метры через (возможно обновлённый) размер холста
       const newElements: FloorElement[] = recognized.map((r) => ({
         type: "rect",
         id: uid(),
@@ -724,10 +741,13 @@ export function FloorEditor({
       const rentableCount = recognized.filter((r) => r.kind === "rentable").length
       const commonCount = recognized.length - rentableCount
       const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
+      const widthNote = detectedW
+        ? ` · Ширина по AI: ${detectedW.toFixed(1)} м`
+        : ""
       toast.success(
-        `AI распознал ${recognized.length} помещений за ${elapsed}с · ${rentableCount} аренд. + ${commonCount} общ. · ` +
+        `AI распознал ${recognized.length} помещений за ${elapsed}с · ${rentableCount} аренд. + ${commonCount} общ.${widthNote} · ` +
           `Площадь этажа: ${proposedTotal} м² (с 5% запасом на стены)`,
-        { duration: 6000 },
+        { duration: 7000 },
       )
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Сбой запроса к AI")
