@@ -330,10 +330,22 @@ model Contract {
   number    String
   type      String    @default("STANDARD")
   content   String
+  // Workflow статусы:
+  // DRAFT → SENT → VIEWED → SIGNED_BY_TENANT → SIGNED (обе стороны)
+  // или альтернативные: REJECTED, EXPIRED
   status    String    @default("DRAFT")
   signedAt  DateTime? @map("signed_at")
   startDate DateTime? @map("start_date")
   endDate   DateTime? @map("end_date")
+  // Workflow подписания:
+  signToken          String?   @unique @map("sign_token")  // токен для уникальной ссылки tenant'у
+  sentAt             DateTime? @map("sent_at")             // когда отправлено арендатору
+  viewedAt           DateTime? @map("viewed_at")           // когда арендатор открыл ссылку
+  signedByTenantAt   DateTime? @map("signed_by_tenant_at")
+  signedByTenantName String?   @map("signed_by_tenant_name") // ФИО подписавшего
+  signedByLandlordAt DateTime? @map("signed_by_landlord_at")
+  rejectedAt         DateTime? @map("rejected_at")
+  rejectionReason    String?   @map("rejection_reason")
   createdAt DateTime  @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])

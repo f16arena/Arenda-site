@@ -24,7 +24,8 @@ const PUBLIC_ROOT_PATHS = new Set([
 // Без этого fetch('/api/...') из /admin/* на корневом домене редиректился бы
 // на '/' и клиент получал бы HTML вместо JSON.
 // /booking — публичная витрина свободных площадей.
-const PUBLIC_ROOT_PREFIXES = ["/api/", "/_next", "/favicon", "/icon", "/manifest", "/booking"]
+// /sign — публичная страница подписи договора по уникальному токену.
+const PUBLIC_ROOT_PREFIXES = ["/api/", "/_next", "/favicon", "/icon", "/manifest", "/booking", "/sign"]
 
 function isPublicRootPath(path: string): boolean {
   if (PUBLIC_ROOT_PATHS.has(path)) return true
