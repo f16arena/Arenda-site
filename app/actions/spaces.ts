@@ -3,7 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
-import { assertFloorInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
+import { assertFloorInOrg, assertSpaceInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { assertSpaceFitsFloor } from "@/lib/area-validation"
 
 export async function createSpace(formData: FormData) {
@@ -100,6 +100,51 @@ export async function deleteSpace(id: string) {
   await db.space.delete({ where: { id } })
   revalidatePath("/admin/spaces")
   return { success: true }
+}
+
+/**
+ * Удалить ВСЕ помещения во ВСЕХ этажах здания. Применяется как «начать с нуля»
+ * для всего здания. Блокируется если хоть одно помещение занято арендатором,
+ * либо если хоть один этаж сдан целиком.
+ */
+export async function deleteAllSpacesInBuilding(buildingId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+
+  const floors = await db.floor.findMany({
+    where: { buildingId },
+    select: { id: true, name: true, fullFloorTenantId: true, fullFloorTenant: { select: { companyName: true } } },
+  })
+  const fullFloor = floors.find((f) => f.fullFloorTenantId)
+  if (fullFloor) {
+    throw new Error(
+      `Нельзя удалить помещения — этаж «${fullFloor.name}» сдан целиком арендатору «${fullFloor.fullFloorTenant?.companyName ?? "—"}». Сначала снимите его с этажа.`,
+    )
+  }
+  const floorIds = floors.map((f) => f.id)
+  if (floorIds.length === 0) return { success: true, count: 0 }
+
+  const occupied = await db.space.findFirst({
+    where: { floorId: { in: floorIds }, tenant: { isNot: null } },
+    select: {
+      number: true,
+      floor: { select: { name: true } },
+      tenant: { select: { companyName: true } },
+    },
+  })
+  if (occupied) {
+    throw new Error(
+      `Нельзя удалить — кабинет ${occupied.number} (${occupied.floor.name}) занят арендатором «${occupied.tenant?.companyName ?? "—"}». Сначала выселите.`,
+    )
+  }
+
+  const result = await db.space.deleteMany({
+    where: { floorId: { in: floorIds } },
+  })
+
+  revalidatePath("/admin/spaces")
+  revalidatePath("/admin/buildings")
+  return { success: true, count: result.count }
 }
 
 /**

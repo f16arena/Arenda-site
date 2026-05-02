@@ -6,6 +6,7 @@ import { Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
+import { WipeAllSpacesButton } from "./wipe-all-button"
 import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -113,7 +114,16 @@ export default async function SpacesPage() {
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
-        <AddSpaceDialog floors={floorOptions} />
+        <div className="flex items-center gap-2">
+          {building && total > 0 && (
+            <WipeAllSpacesButton
+              buildingId={building.id}
+              buildingName={building.name}
+              spacesCount={total}
+            />
+          )}
+          <AddSpaceDialog floors={floorOptions} />
+        </div>
       </div>
 
       {/* Counts */}

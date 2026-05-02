@@ -1016,7 +1016,7 @@ export function FloorEditor({
                 stroke="#cbd5e1"
                 strokeWidth={2 / zoom}
               />
-              {/* Underlay image — растягиваем точно под холст, аспект задаётся при загрузке */}
+              {/* Underlay image — сохраняем пропорции картинки, чтобы план не растягивался и ничего не обрезалось */}
               {layout.underlayUrl && (
                 <image
                   href={layout.underlayUrl}
@@ -1025,7 +1025,7 @@ export function FloorEditor({
                   width={layout.width * PX_PER_METER}
                   height={layout.height * PX_PER_METER}
                   opacity={underlayOpacity}
-                  preserveAspectRatio="none"
+                  preserveAspectRatio="xMidYMid meet"
                 />
               )}
               {/* Grid */}
