@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, X, Edit2, Power, Building2, Layers } from "lucide-react"
+import { Plus, X, Edit2, Power, Building2, Layers, ArrowRight } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import {
   createBuilding,
@@ -258,12 +259,25 @@ export function FloorsList({
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {floors.map((f) => (
-            <div key={f.id} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 group relative">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{f.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} помещ.</p>
-              {f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
+            <div key={f.id} className="rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500/40 hover:bg-blue-50/40 dark:hover:bg-blue-500/5 transition-colors group relative">
+              <Link
+                href={`/admin/spaces#floor-${f.id}`}
+                className="block p-3"
+                title="Открыть помещения этого этажа"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{f.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} помещ.
+                    </p>
+                    {f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+                </div>
+              </Link>
               {isOwner && (
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100">
+                <div className="absolute top-2 right-7 opacity-0 group-hover:opacity-100 z-10">
                   <DeleteAction
                     action={() => deleteFloor(f.id, { cascade: f.spacesCount > 0 })}
                     entity={f.spacesCount > 0

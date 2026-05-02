@@ -276,7 +276,8 @@ export default async function SpacesPage() {
 
         const fullFloorTenant = floor.fullFloorTenant
         return (
-          <div key={floor.id} className={cn(
+          <div key={floor.id} id={`floor-${floor.id}`} className={cn(
+            "scroll-mt-20",
             "bg-white dark:bg-slate-900 rounded-xl border overflow-hidden",
             fullFloorTenant
               ? "border-violet-300 dark:border-violet-500/40"
