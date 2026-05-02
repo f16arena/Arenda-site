@@ -102,7 +102,7 @@ export async function GET(req: Request) {
       const message = `Арендатор «${t.companyName}» (id:${t.id}). Окончание договора: ${t.contractEnd.toLocaleDateString("ru-RU")}. Необходимо подготовить продление.`
       const link = `/admin/tenants/${t.id}`
 
-      // Арендатору — in-app + Telegram + email
+      // Арендатору — in-app + Telegram + email + SMS (если контракт истекает <= 7 дней)
       await notifyUser({
         userId: t.user.id,
         type: "CONTRACT_EXPIRING",
@@ -110,6 +110,7 @@ export async function GET(req: Request) {
         message: `Договор аренды истекает ${t.contractEnd.toLocaleDateString("ru-RU")}. Свяжитесь с администрацией для продления.`,
         link: "/cabinet",
         emailButtonText: "Открыть кабинет",
+        sendSms: daysLeft <= 7,
       })
       results.notificationsCreated++
       if (t.user.telegramChatId) results.telegramSent++
@@ -176,7 +177,7 @@ export async function GET(req: Request) {
         ? `У вас просроченная задолженность ${totalDebt.toLocaleString("ru-RU")} ₸. Начисляется пеня ${t.penaltyPercent}% в день.`
         : `Не забудьте оплатить аренду до ${earliestDue.toLocaleDateString("ru-RU")}. Сумма к оплате: ${totalDebt.toLocaleString("ru-RU")} ₸.`
 
-      // Арендатору — in-app + Telegram + email (важно для оплаты)
+      // Арендатору — in-app + Telegram + email + SMS (если просрочка)
       await notifyUser({
         userId: t.user.id,
         type: "PAYMENT_DUE",
@@ -184,6 +185,7 @@ export async function GET(req: Request) {
         message,
         link: "/cabinet/finances",
         emailButtonText: overdue ? "Оплатить срочно" : "Перейти к оплате",
+        sendSms: overdue,  // SMS только при реальной просрочке (платное)
       })
       results.notificationsCreated++
       if (t.user.telegramChatId) results.telegramSent++

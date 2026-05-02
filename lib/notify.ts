@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { sendTelegram } from "@/lib/telegram"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { sendSms } from "@/lib/sms"
 
 export interface NotifyOpts {
   userId: string
@@ -13,6 +14,8 @@ export interface NotifyOpts {
   sendTelegram?: boolean
   /** По умолчанию true */
   sendEmail?: boolean
+  /** По умолчанию false (SMS платное) — true только для критичных уведомлений */
+  sendSms?: boolean
   /** Опционально — кастомный HTML письма (иначе генерируем basicEmailTemplate) */
   emailHtml?: string
   /** Текст кнопки в письме (по умолчанию "Открыть в кабинете") */
@@ -44,13 +47,13 @@ export async function notifyUser(opts: NotifyOpts) {
     console.warn("[notify] in-app create failed:", e instanceof Error ? e.message : e)
   }
 
-  if (opts.sendTelegram === false && opts.sendEmail === false) return
+  if (opts.sendTelegram === false && opts.sendEmail === false && !opts.sendSms) return
 
   const user = await db.user.findUnique({
     where: { id: opts.userId },
     select: {
-      telegramChatId: true, email: true, name: true,
-      notifyEmail: true, notifyTelegram: true,
+      telegramChatId: true, email: true, phone: true, name: true,
+      notifyEmail: true, notifyTelegram: true, notifySms: true,
       notifyMutedTypes: true,
     },
   }).catch(() => null)
@@ -111,6 +114,19 @@ export async function notifyUser(opts: NotifyOpts) {
       } catch {}
     } catch (e) {
       console.warn("[notify] email failed:", e instanceof Error ? e.message : e)
+    }
+  }
+
+  // 4. SMS (только если явно запрошено и пользователь его включил)
+  if (opts.sendSms && user.phone && (user.notifySms ?? false) && !isMuted) {
+    try {
+      const rootHost = process.env.ROOT_HOST || "commrent.kz"
+      const linkPart = opts.link ? ` https://${rootHost}${opts.link}` : ""
+      // SMS дороже за длину: укорачиваем до 160 (1 сегмент латиницей или 70 кириллицей)
+      const text = `${opts.title}: ${opts.message}${linkPart}`.replace(/\s+/g, " ").slice(0, 320)
+      await sendSms(user.phone, text)
+    } catch (e) {
+      console.warn("[notify] sms failed:", e instanceof Error ? e.message : e)
     }
   }
 }
