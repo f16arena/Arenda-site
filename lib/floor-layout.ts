@@ -15,10 +15,14 @@ export type Point = { x: number; y: number }
 
 export type FloorElement = RectRoom | PolygonRoom | Door | Window | Label | Wall | Icon
 
+// Тип помещения: "rentable" — арендопригодное (привязывается к Space), "common" — общая зона (коридор, тех)
+export type RoomKind = "rentable" | "common"
+
 export type RectRoom = {
   type: "rect"
   id: string
   spaceId?: string | null
+  kind?: RoomKind  // default: rentable
   x: number      // м
   y: number      // м
   width: number  // м
@@ -30,6 +34,7 @@ export type PolygonRoom = {
   type: "polygon"
   id: string
   spaceId?: string | null
+  kind?: RoomKind  // default: rentable
   points: Point[]  // вершины в метрах
   label?: string
 }
@@ -108,6 +113,32 @@ export function polygonArea(points: Point[]): number {
     sum += points[i].x * points[j].y - points[j].x * points[i].y
   }
   return Math.abs(sum) / 2
+}
+
+// Разбивка по типам: rentable / common
+// Иконки stairs/elevator/toilet считаем общей зоной (size×size).
+export function summarizeAreas(layout: FloorLayoutV2): {
+  rentable: number  // м² помещений, которые сдаются
+  common: number    // м² коридоров, туалетов, лестниц, лифтов, кухонь
+  total: number     // rentable + common
+} {
+  let rentable = 0
+  let common = 0
+  for (const el of layout.elements) {
+    if (el.type === "rect") {
+      const a = el.width * el.height
+      if ((el.kind ?? "rentable") === "common") common += a
+      else rentable += a
+    } else if (el.type === "polygon") {
+      const a = polygonArea(el.points)
+      if ((el.kind ?? "rentable") === "common") common += a
+      else rentable += a
+    } else if (el.type === "icon") {
+      // stairs/elevator/toilet/kitchen/parking — общая зона
+      common += el.size * el.size
+    }
+  }
+  return { rentable, common, total: rentable + common }
 }
 
 // Центр прямоугольника или полигона для размещения подписи

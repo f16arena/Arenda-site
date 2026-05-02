@@ -8,6 +8,11 @@ import {
   assertFloorInOrg,
 } from "@/lib/scope-guards"
 import { emergencyContactScope } from "@/lib/tenant-scope"
+import {
+  assertBuildingFitsFloors,
+  assertFloorFitsBuilding,
+  assertFloorFitsSpaces,
+} from "@/lib/area-validation"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -21,6 +26,10 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   const responsible = formData.get("responsible") as string
   const totalAreaStr = formData.get("totalArea") as string
 
+  const newTotalArea = totalAreaStr ? parseFloat(totalAreaStr) : null
+  // Нельзя задать площадь здания меньше суммы площадей этажей
+  await assertBuildingFitsFloors({ buildingId, newTotalArea })
+
   await db.building.update({
     where: { id: buildingId },
     data: {
@@ -30,7 +39,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
       phone: phone || null,
       email: email || null,
       responsible: responsible || null,
-      totalArea: totalAreaStr ? parseFloat(totalAreaStr) : null,
+      totalArea: newTotalArea,
     },
   })
 
@@ -47,12 +56,30 @@ export async function updateFloor(floorId: string, formData: FormData) {
   const rateStr = formData.get("ratePerSqm") as string
   const areaStr = formData.get("totalArea") as string
 
+  const newTotalArea = areaStr ? parseFloat(areaStr) : null
+
+  // Найти buildingId для проверки вверх + проверка вниз
+  const floor = await db.floor.findUnique({
+    where: { id: floorId },
+    select: { buildingId: true },
+  })
+  if (!floor) throw new Error("Этаж не найден")
+
+  // Σ Floor.totalArea (исключая текущий) + new ≤ Building.totalArea
+  await assertFloorFitsBuilding({
+    buildingId: floor.buildingId,
+    newTotalArea,
+    excludeFloorId: floorId,
+  })
+  // Floor.totalArea не может быть меньше Σ Space.area
+  await assertFloorFitsSpaces({ floorId, newTotalArea })
+
   await db.floor.update({
     where: { id: floorId },
     data: {
       name,
       ratePerSqm: rateStr ? parseFloat(rateStr) : 0,
-      totalArea: areaStr ? parseFloat(areaStr) : null,
+      totalArea: newTotalArea,
     },
   })
 

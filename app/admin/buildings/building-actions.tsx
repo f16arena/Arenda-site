@@ -262,12 +262,16 @@ export function FloorsList({
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{f.name}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} помещ.</p>
               {f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
-              {isOwner && f.spacesCount === 0 && (
+              {isOwner && (
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100">
                   <DeleteAction
-                    action={() => deleteFloor(f.id)}
-                    entity="этаж"
-                    successMessage="Этаж удалён"
+                    action={() => deleteFloor(f.id, { cascade: f.spacesCount > 0 })}
+                    entity={f.spacesCount > 0
+                      ? `этаж и ${f.spacesCount} помещ.`
+                      : "этаж"}
+                    successMessage={f.spacesCount > 0
+                      ? `Этаж и ${f.spacesCount} помещ. удалены`
+                      : "Этаж удалён"}
                   />
                 </div>
               )}

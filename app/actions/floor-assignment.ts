@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/permissions"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertTenantInOrg } from "@/lib/scope-guards"
+import { assertFloorAssignableToOneTenant } from "@/lib/full-floor-guards"
 
 export async function assignFullFloor(floorId: string, tenantId: string, fixedRent: number) {
   await requireAdmin()
@@ -13,6 +14,9 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
   await assertTenantInOrg(tenantId, orgId)
 
   if (fixedRent <= 0) throw new Error("Сумма аренды должна быть больше 0")
+
+  // Этаж должен быть свободен: ни одно помещение не занято и нет другого full-floor арендатора
+  await assertFloorAssignableToOneTenant(floorId)
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },

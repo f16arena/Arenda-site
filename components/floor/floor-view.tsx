@@ -237,10 +237,14 @@ function ViewElement({
   onClick: () => void
 }) {
   const space = "spaceId" in el && el.spaceId ? spaces.find((s) => s.id === el.spaceId) : undefined
+  const isCommon = (el.type === "rect" || el.type === "polygon") && el.kind === "common"
   const status = detectStatus(space)
-  const fill = STATUS_FILL[status]
-  const stroke = selected ? "#3b82f6" : STATUS_STROKE[status]
+  const COMMON_FILL = "#f1f5f9"
+  const COMMON_STROKE = "#94a3b8"
+  const fill = isCommon ? COMMON_FILL : STATUS_FILL[status]
+  const stroke = selected ? "#3b82f6" : isCommon ? COMMON_STROKE : STATUS_STROKE[status]
   const strokeWidth = selected ? 3 / zoom : 1.5 / zoom
+  const strokeDasharray = isCommon && !selected ? `${4 / zoom} ${3 / zoom}` : undefined
   const clickable = !!space
 
   if (el.type === "rect") {
@@ -255,6 +259,7 @@ function ViewElement({
           fill={fill}
           stroke={stroke}
           strokeWidth={strokeWidth}
+          strokeDasharray={strokeDasharray}
         />
         <text
           x={center.x * PX_PER_METER}
@@ -262,12 +267,12 @@ function ViewElement({
           textAnchor="middle"
           dominantBaseline="middle"
           fontSize={14 / zoom}
-          fill="#0f172a"
+          fill={isCommon ? "#475569" : "#0f172a"}
           fontWeight={600}
           pointerEvents="none"
           style={{ userSelect: "none" }}
         >
-          {space ? `Каб. ${space.number}` : (el.label || "")}
+          {space ? `Каб. ${space.number}` : (el.label || (isCommon ? "Общая зона" : ""))}
         </text>
         {space && (
           <text
@@ -291,7 +296,7 @@ function ViewElement({
     const points = el.points.map((p) => `${p.x * PX_PER_METER},${p.y * PX_PER_METER}`).join(" ")
     return (
       <g onClick={onClick} style={{ cursor: clickable ? "pointer" : "default" }}>
-        <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+        <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
         <text
           x={center.x * PX_PER_METER}
           y={center.y * PX_PER_METER}

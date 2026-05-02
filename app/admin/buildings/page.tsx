@@ -7,6 +7,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { Building2, MapPin, Layers, Users, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
+import { ApplyAreaButton } from "./apply-area-button"
 import { requireOrgAccess } from "@/lib/org"
 
 export default async function BuildingsPage() {
@@ -177,6 +178,82 @@ export default async function BuildingsPage() {
                 <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} accent="text-emerald-600 dark:text-emerald-400" />
                 <Stat label="Арендаторов" value={s.tenantsCount} icon={Users} />
               </div>
+
+              {/* Area consistency: Σ floor.totalArea vs Building.totalArea */}
+              {(() => {
+                const sumFloorArea = b.floors.reduce((acc, f) => acc + (f.totalArea ?? 0), 0)
+                if (!b.totalArea && sumFloorArea === 0) return null
+                const diff = b.totalArea ? sumFloorArea - b.totalArea : 0
+                const pct = b.totalArea ? (sumFloorArea / b.totalArea) * 100 : 0
+                const coverage = b.totalArea ? Math.min(100, pct) : 0
+                const overflow = b.totalArea && sumFloorArea > b.totalArea + 0.5
+                const allFloorsHaveArea = b.floors.every((f) => f.totalArea && f.totalArea > 0)
+                return (
+                  <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20">
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        Площадь:{" "}
+                        <b className="text-slate-700 dark:text-slate-300 tabular-nums">
+                          {sumFloorArea.toFixed(1)} м²
+                        </b>{" "}
+                        нарисовано по этажам
+                        {b.totalArea ? (
+                          <>
+                            {" / "}
+                            <b className="text-slate-700 dark:text-slate-300 tabular-nums">
+                              {b.totalArea} м²
+                            </b>{" "}
+                            заявлено
+                          </>
+                        ) : null}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {b.totalArea ? (
+                          <span
+                            className={`tabular-nums font-medium ${
+                              overflow
+                                ? "text-red-600 dark:text-red-400"
+                                : pct >= 95
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-amber-600 dark:text-amber-400"
+                            }`}
+                          >
+                            {pct.toFixed(0)}%{" "}
+                            {overflow ? `(+${diff.toFixed(1)})` : diff < 0 ? `(${diff.toFixed(1)})` : ""}
+                          </span>
+                        ) : null}
+                        {/* Кнопка применения Σ этажей → здание (показываем когда есть смысл) */}
+                        {sumFloorArea > 0 &&
+                          (!b.totalArea || sumFloorArea > (b.totalArea ?? 0) + 0.05) && (
+                            <ApplyAreaButton
+                              buildingId={b.id}
+                              proposed={sumFloorArea}
+                              current={b.totalArea}
+                            />
+                          )}
+                      </div>
+                    </div>
+                    {b.totalArea ? (
+                      <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div
+                          className={`h-full transition-all ${overflow ? "bg-red-500" : pct >= 95 ? "bg-emerald-500" : "bg-amber-500"}`}
+                          style={{ width: `${overflow ? 100 : coverage}%` }}
+                        />
+                      </div>
+                    ) : null}
+                    {!allFloorsHaveArea && (
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                        Не у всех этажей задана общая площадь — откройте этаж и заполните «Площади этажа».
+                      </p>
+                    )}
+                    {overflow && (
+                      <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                        ⚠ Сумма по этажам превышает заявленную площадь здания. Сверьте тех. паспорт.
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
 
               <FloorsList
                 buildingId={b.id}

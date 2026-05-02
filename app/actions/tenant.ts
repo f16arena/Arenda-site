@@ -184,6 +184,22 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
 
   const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
 
+  if (spaceId) {
+    // Помещение должно быть на не-полностью-арендованном этаже
+    const { assertSpaceAssignable } = await import("@/lib/full-floor-guards")
+    await assertSpaceAssignable(spaceId)
+    // И не должно быть уже занято другим
+    const target = await db.space.findUnique({
+      where: { id: spaceId },
+      select: { number: true, tenant: { select: { companyName: true, id: true } } },
+    })
+    if (target?.tenant && target.tenant.id !== tenantId) {
+      throw new Error(
+        `Кабинет ${target.number} уже занят арендатором «${target.tenant.companyName}». Сначала выселите.`,
+      )
+    }
+  }
+
   if (tenant?.spaceId) {
     await db.space.update({
       where: { id: tenant.spaceId },

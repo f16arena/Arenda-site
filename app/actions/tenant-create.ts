@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertSpaceInOrg } from "@/lib/scope-guards"
+import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 
@@ -36,6 +37,24 @@ export async function createTenant(formData: FormData) {
 
   if (spaceId) {
     await assertSpaceInOrg(spaceId, orgId)
+    // Помещение не должно быть на полностью арендованном этаже
+    await assertSpaceAssignable(spaceId)
+    // И само помещение не должно быть уже занято
+    const existing = await db.space.findUnique({
+      where: { id: spaceId },
+      select: {
+        number: true,
+        tenant: { select: { companyName: true, contractEnd: true } },
+      },
+    })
+    if (existing?.tenant) {
+      const until = existing.tenant.contractEnd
+        ? ` (договор до ${existing.tenant.contractEnd.toLocaleDateString("ru-RU")})`
+        : ""
+      throw new Error(
+        `Кабинет ${existing.number} уже занят арендатором «${existing.tenant.companyName}»${until}. Сначала выселите.`,
+      )
+    }
   }
 
   if (phone) {

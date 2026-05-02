@@ -6,6 +6,7 @@ import { requireOwner, requireAdmin } from "@/lib/permissions"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
 import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
+import { assertFloorFitsBuilding, assertBuildingFitsFloors } from "@/lib/area-validation"
 
 export async function createBuilding(formData: FormData) {
   await requireOwner()
@@ -59,6 +60,10 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const totalAreaStr = String(formData.get("totalArea") ?? "")
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
+  const newTotalArea = totalAreaStr ? parseFloat(totalAreaStr) : null
+  // Нельзя задать площадь здания меньше суммы площадей этажей
+  await assertBuildingFitsFloors({ buildingId, newTotalArea })
+
   await db.building.update({
     where: { id: buildingId },
     data: {
@@ -68,7 +73,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
       phone: phone || null,
       email: email || null,
       responsible: responsible || null,
-      totalArea: totalAreaStr ? parseFloat(totalAreaStr) : null,
+      totalArea: newTotalArea,
       contractPrefix: contractPrefix || null,
     },
   })
@@ -129,13 +134,17 @@ export async function createFloor(buildingId: string, formData: FormData) {
   const number = parseInt(numberStr)
   if (Number.isNaN(number)) throw new Error("Номер этажа должен быть числом")
 
+  const newTotalArea = totalAreaStr ? parseFloat(totalAreaStr) : null
+  // Σ Floor.totalArea не может превысить Building.totalArea
+  await assertFloorFitsBuilding({ buildingId, newTotalArea })
+
   await db.floor.create({
     data: {
       buildingId,
       number,
       name,
       ratePerSqm: ratePerSqmStr ? parseFloat(ratePerSqmStr) : 0,
-      totalArea: totalAreaStr ? parseFloat(totalAreaStr) : null,
+      totalArea: newTotalArea,
     },
   })
 
@@ -144,14 +153,34 @@ export async function createFloor(buildingId: string, formData: FormData) {
   revalidatePath("/admin/spaces")
 }
 
-export async function deleteFloor(floorId: string) {
+/**
+ * Удалить этаж. По умолчанию запрещает удаление при наличии помещений.
+ * Если cascade=true — также удаляет все помещения, но только если ни одно не занято арендатором.
+ */
+export async function deleteFloor(floorId: string, opts?: { cascade?: boolean }) {
   await requireOwner()
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 
   const spaceCount = await db.space.count({ where: { floorId } })
   if (spaceCount > 0) {
-    throw new Error("Нельзя удалить — на этаже есть помещения. Сначала удалите их.")
+    if (!opts?.cascade) {
+      throw new Error(
+        `Нельзя удалить — на этаже ${spaceCount} помещени${spaceCount === 1 ? "е" : spaceCount < 5 ? "я" : "й"}. ` +
+          `Удалите помещения вручную или используйте каскадное удаление.`,
+      )
+    }
+    // cascade: проверяем что нет занятых
+    const occupied = await db.space.findFirst({
+      where: { floorId, tenant: { isNot: null } },
+      select: { number: true, tenant: { select: { companyName: true } } },
+    })
+    if (occupied) {
+      throw new Error(
+        `Нельзя удалить — кабинет ${occupied.number} занят арендатором «${occupied.tenant?.companyName ?? "—"}». Сначала выселите.`,
+      )
+    }
+    await db.space.deleteMany({ where: { floorId } })
   }
 
   await db.floor.delete({ where: { id: floorId } })

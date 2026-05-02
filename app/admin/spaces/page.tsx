@@ -74,6 +74,9 @@ export default async function SpacesPage() {
       floors: {
         orderBy: { number: "asc" },
         include: {
+          fullFloorTenant: {
+            select: { id: true, companyName: true, contractEnd: true },
+          },
           spaces: {
             include: {
               tenant: {
@@ -96,7 +99,9 @@ export default async function SpacesPage() {
   const total = allSpaces.length
   const occupied = allSpaces.filter((s) => s.status === "OCCUPIED").length
   const vacant = allSpaces.filter((s) => s.status === "VACANT").length
-  const totalArea = allSpaces.reduce((s, sp) => s + sp.area, 0)
+  const rentableArea = allSpaces.reduce((s, sp) => s + sp.area, 0) // Σ Space.area — арендопригодная
+  const buildingTotalArea = building?.totalArea ?? 0
+  const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
 
   const floors = building?.floors ?? []
   const floorOptions = floors.map((f) => ({ id: f.id, name: f.name, number: f.number }))
@@ -111,14 +116,13 @@ export default async function SpacesPage() {
         <AddSpaceDialog floors={floorOptions} />
       </div>
 
-      {/* Summary */}
-      <div className="grid grid-cols-5 gap-4">
+      {/* Counts */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Всего", value: String(total), color: "text-slate-900 dark:text-slate-100" },
+          { label: "Всего помещений", value: String(total), color: "text-slate-900 dark:text-slate-100" },
           { label: "Занято", value: String(occupied), color: "text-blue-600 dark:text-blue-400" },
           { label: "Свободно", value: String(vacant), color: "text-emerald-600 dark:text-emerald-400" },
           { label: "Заполняемость", value: `${total ? Math.round((occupied / total) * 100) : 0}%`, color: "text-slate-900 dark:text-slate-100" },
-          { label: "Общая площадь", value: `${totalArea} м²`, color: "text-slate-900 dark:text-slate-100" },
         ].map((s) => (
           <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -126,6 +130,103 @@ export default async function SpacesPage() {
           </div>
         ))}
       </div>
+
+      {/* Area hierarchy: Σ Space.area ≤ Σ Floor.totalArea ≤ Building.totalArea */}
+      {(() => {
+        // На сервере вычисляем флаги для более чистого JSX
+        const hasFloorAreas = sumFloorArea > 0
+        const hasBuildingArea = buildingTotalArea > 0
+        const overFloors = hasFloorAreas && rentableArea > sumFloorArea + 0.05
+        const overBuilding = hasBuildingArea && sumFloorArea > buildingTotalArea + 0.05
+        const utilizationVsFloors = hasFloorAreas ? (rentableArea / sumFloorArea) * 100 : 0
+        const coverageVsBuilding = hasBuildingArea ? (sumFloorArea / buildingTotalArea) * 100 : 0
+        return (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Площади</h3>
+              <span className={`text-xs font-medium ${overFloors || overBuilding ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {overFloors || overBuilding ? "⚠ Расхождения" : "✓ Согласовано"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Арендопригодная */}
+              <div className="rounded-lg border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5 p-3">
+                <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Арендопригодная</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">{rentableArea.toFixed(1)} м²</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Σ помещений (Space.area)</p>
+              </div>
+
+              {/* Σ этажей */}
+              <div className={`rounded-lg border p-3 ${overFloors ? "border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30"}`}>
+                <p className={`text-xs font-medium ${overFloors ? "text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-400"}`}>Σ площадь этажей</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">
+                  {hasFloorAreas ? `${sumFloorArea.toFixed(1)} м²` : "— не задана"}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {hasFloorAreas
+                    ? `Загруженность: ${utilizationVsFloors.toFixed(0)}%`
+                    : "Заполните Floor.totalArea на каждом этаже"}
+                </p>
+              </div>
+
+              {/* Здание */}
+              <div className={`rounded-lg border p-3 ${overBuilding ? "border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30"}`}>
+                <p className={`text-xs font-medium ${overBuilding ? "text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-400"}`}>Площадь здания</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">
+                  {hasBuildingArea ? `${buildingTotalArea} м²` : "— не задана"}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {hasBuildingArea
+                    ? `Этажи покрывают ${coverageVsBuilding.toFixed(0)}%`
+                    : "Заполните в карточке здания"}
+                </p>
+              </div>
+            </div>
+
+            {/* Stacked progress bar */}
+            {hasBuildingArea && (
+              <div className="mt-4">
+                <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
+                  {/* арендопригодная */}
+                  <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (rentableArea / buildingTotalArea) * 100)}%` }} />
+                  {/* остальные этажи (общие зоны/стены) */}
+                  {sumFloorArea > rentableArea && (
+                    <div className="h-full bg-slate-400" style={{ width: `${Math.min(100, ((sumFloorArea - rentableArea) / buildingTotalArea) * 100)}%` }} />
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                  <span>0</span>
+                  <span>{buildingTotalArea} м² (здание)</span>
+                </div>
+              </div>
+            )}
+
+            {/* Validation messages */}
+            {(overFloors || overBuilding) && (
+              <div className="mt-3 space-y-1">
+                {overFloors && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    ⚠ Сумма помещений ({rentableArea.toFixed(1)} м²) больше суммы площадей этажей ({sumFloorArea.toFixed(1)} м²).
+                    Откройте этаж и увеличьте «Общую площадь этажа» или уменьшите площадь конкретных помещений.
+                  </p>
+                )}
+                {overBuilding && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    ⚠ Сумма этажей ({sumFloorArea.toFixed(1)} м²) больше площади здания ({buildingTotalArea} м²).
+                    Исправьте «Общую площадь здания» в карточке здания.
+                  </p>
+                )}
+              </div>
+            )}
+            {!overFloors && !overBuilding && (!hasFloorAreas || !hasBuildingArea) && (
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                💡 Заполните общие площади всех этажей и здания, чтобы система могла защищать вас от ввода помещений сверх лимита.
+              </p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Floors */}
       {floors.map((floor) => {
@@ -156,8 +257,14 @@ export default async function SpacesPage() {
           } : null,
         }))
 
+        const fullFloorTenant = floor.fullFloorTenant
         return (
-          <div key={floor.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div key={floor.id} className={cn(
+            "bg-white dark:bg-slate-900 rounded-xl border overflow-hidden",
+            fullFloorTenant
+              ? "border-violet-300 dark:border-violet-500/40"
+              : "border-slate-200 dark:border-slate-800",
+          )}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <div className="flex items-center gap-3">
                 <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -173,6 +280,24 @@ export default async function SpacesPage() {
                 </Link>
               </div>
             </div>
+            {fullFloorTenant && (
+              <div className="px-5 py-3 bg-violet-50 dark:bg-violet-500/5 border-b border-violet-100 dark:border-violet-500/20 flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 text-xs font-bold">⚿</span>
+                <div className="flex-1 text-xs">
+                  <p className="font-medium text-violet-900 dark:text-violet-200">
+                    Этаж сдан целиком: <Link href={`/admin/tenants/${fullFloorTenant.id}`} className="underline hover:no-underline">{fullFloorTenant.companyName}</Link>
+                    {fullFloorTenant.contractEnd && (
+                      <span className="ml-2 text-violet-600 dark:text-violet-400">
+                        (договор до {new Date(fullFloorTenant.contractEnd).toLocaleDateString("ru-RU")})
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-violet-700 dark:text-violet-400 mt-0.5">
+                    Помещения этажа недоступны для индивидуальной сдачи. Чтобы освободить — снимите арендатора с этажа в его карточке.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="p-5">
               {floor.spaces.length === 0 ? (

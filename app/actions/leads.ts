@@ -59,6 +59,10 @@ export async function bookSpaceForLead(leadId: string, spaceId: string, days = 7
   await assertLeadInOrg(leadId, orgId)
   await assertSpaceInOrg(spaceId, orgId)
 
+  // Нельзя забронировать помещение на полностью арендованном этаже
+  const { assertSpaceAssignable } = await import("@/lib/full-floor-guards")
+  await assertSpaceAssignable(spaceId)
+
   const bookedUntil = new Date(Date.now() + days * 24 * 3600 * 1000)
   await db.lead.update({ where: { id: leadId }, data: { spaceId, bookedUntil } })
   await db.space.update({ where: { id: spaceId }, data: { status: "MAINTENANCE" } })
