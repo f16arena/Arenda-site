@@ -293,16 +293,13 @@ export default async function SpacesPage() {
               <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 <span><span className="font-medium text-blue-600 dark:text-blue-400">{floorOccupied}</span> / {floor.spaces.length} занято</span>
                 <span>{floorArea} м²</span>
-                {hasFloorEditor && (
-                  <Link
-                    href={`/admin/floors/${floor.id}`}
-                    className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-800 font-medium"
-                    title="Визуализация помещения — BETA"
-                  >
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">BETA</span>
-                    Визуализация →
-                  </Link>
-                )}
+                <Link
+                  href={`/admin/floors/${floor.id}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  title="Настройки этажа"
+                >
+                  Настройки этажа →
+                </Link>
               </div>
             </div>
             {fullFloorTenant && (
@@ -345,7 +342,7 @@ export default async function SpacesPage() {
                       </div>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Визуализация помещения не настроена</p>
                       <Link
-                        href={`/admin/floors/${floor.id}`}
+                        href={`/admin/floors/${floor.id}/visualization`}
                         className="inline-flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 hover:underline"
                       >
                         Загрузить PDF плана →

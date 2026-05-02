@@ -4,7 +4,8 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
-import { assertFloorFitsBuilding, assertFloorFitsSpaces } from "@/lib/area-validation"
+import { assertFloorFitsSpaces } from "@/lib/area-validation"
+import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 
 export type SaveFloorLayoutResult = {
   success: true
@@ -29,13 +30,8 @@ export async function saveFloorLayout(
   })
   if (!floor) throw new Error("Этаж не найден")
 
-  // Если меняется totalArea — валидируем инварианты
+  // Если меняется totalArea — валидируем что не меньше Σ Space.area
   if (totalArea !== undefined) {
-    await assertFloorFitsBuilding({
-      buildingId: floor.buildingId,
-      newTotalArea: totalArea ?? null,
-      excludeFloorId: floorId,
-    })
     await assertFloorFitsSpaces({ floorId, newTotalArea: totalArea ?? null })
   }
 
@@ -47,21 +43,11 @@ export async function saveFloorLayout(
     },
   })
 
-  // Подсчитаем актуальное состояние здания после апдейта
-  const [floors, building] = await Promise.all([
-    db.floor.findMany({
-      where: { buildingId: floor.buildingId },
-      select: { totalArea: true },
-    }),
-    db.building.findUnique({
-      where: { id: floor.buildingId },
-      select: { totalArea: true },
-    }),
-  ])
-  const sumFloorArea = floors.reduce((s, f) => s + (f.totalArea ?? 0), 0)
-  const buildingTotalArea = building?.totalArea ?? null
-  const buildingNeedsUpdate =
-    sumFloorArea > 0 && (buildingTotalArea === null || sumFloorArea > buildingTotalArea + 0.05)
+  // Если изменилась totalArea — пересчитываем Building.totalArea
+  let buildingTotalArea: number | null = null
+  if (totalArea !== undefined) {
+    buildingTotalArea = await recomputeBuildingArea(floor.buildingId)
+  }
 
   revalidatePath("/admin/spaces")
   revalidatePath(`/admin/buildings`)
@@ -69,9 +55,9 @@ export async function saveFloorLayout(
   return {
     success: true,
     buildingId: floor.buildingId,
-    sumFloorArea,
+    sumFloorArea: buildingTotalArea ?? 0,
     buildingTotalArea,
-    buildingNeedsUpdate,
+    buildingNeedsUpdate: false,
   }
 }
 
@@ -84,10 +70,17 @@ export async function clearFloorPlan(floorId: string) {
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 
+  const floor = await db.floor.findUnique({
+    where: { id: floorId },
+    select: { buildingId: true },
+  })
+
   await db.floor.update({
     where: { id: floorId },
     data: { layoutJson: null, totalArea: null },
   })
+
+  if (floor) await recomputeBuildingArea(floor.buildingId)
 
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/buildings")

@@ -62,9 +62,8 @@ export function CreateBuildingButton() {
                 <Field label="Телефон" name="phone" placeholder="+7..." />
                 <Field label="Email" name="email" type="email" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <Field label="Ответственный" name="responsible" />
-                <Field label="Общая площадь, м²" name="totalArea" type="number" step="0.1" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Префикс договоров</label>
@@ -204,9 +203,12 @@ export function BuildingActions({
                 <Field label="Телефон" name="phone" defaultValue={building.phone ?? ""} />
                 <Field label="Email" name="email" type="email" defaultValue={building.email ?? ""} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <Field label="Ответственный" name="responsible" defaultValue={building.responsible ?? ""} />
-                <Field label="Общая площадь, м²" name="totalArea" type="number" step="0.1" defaultValue={building.totalArea ?? ""} />
+              </div>
+              <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
+                Общая площадь здания пересчитывается автоматически = сумма «общих площадей этажей».
+                Текущее значение: <b className="text-slate-900 dark:text-slate-100 tabular-nums">{building.totalArea ? `${building.totalArea} м²` : "не задана"}</b>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Префикс договоров</label>
@@ -261,9 +263,9 @@ export function FloorsList({
           {floors.map((f) => (
             <div key={f.id} className="rounded-lg border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500/40 hover:bg-blue-50/40 dark:hover:bg-blue-500/5 transition-colors group relative">
               <Link
-                href={`/admin/spaces#floor-${f.id}`}
+                href={`/admin/floors/${f.id}`}
                 className="block p-3"
-                title="Открыть помещения этого этажа"
+                title="Открыть настройки этажа: помещения, площадь, ставка, визуализация"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">

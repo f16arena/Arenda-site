@@ -22,6 +22,7 @@ import { FullFloorAssign } from "./full-floor-assign"
 import { DocumentsActions } from "./documents-actions"
 import { EmailLog } from "./email-log"
 import { RequisitesForm } from "./requisites-form"
+import { IndexationHint } from "./indexation-hint"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -439,6 +440,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
+              <IndexationHint
+                initialContractEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
+                initialRate={tenant.customRate ?? tenant.space?.floor.ratePerSqm ?? null}
+                monthlyRent={
+                  tenant.space
+                    ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm)
+                    : 0
+                }
+              />
               <div className="col-span-2 flex justify-end">
                 <button
                   type="submit"

@@ -6,7 +6,7 @@ import { requireOwner, requireAdmin } from "@/lib/permissions"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
 import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
-import { assertFloorFitsBuilding, assertBuildingFitsFloors } from "@/lib/area-validation"
+import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 
 export async function createBuilding(formData: FormData) {
   await requireOwner()
@@ -19,7 +19,6 @@ export async function createBuilding(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim()
   const email = String(formData.get("email") ?? "").trim()
   const responsible = String(formData.get("responsible") ?? "").trim()
-  const totalAreaStr = String(formData.get("totalArea") ?? "")
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
   if (!name) throw new Error("Название обязательно")
@@ -34,7 +33,7 @@ export async function createBuilding(formData: FormData) {
       phone: phone || null,
       email: email || null,
       responsible: responsible || null,
-      totalArea: totalAreaStr ? parseFloat(totalAreaStr) : null,
+      // totalArea не задаётся при создании — будет пересчитана из этажей
       contractPrefix: contractPrefix || null,
     },
   })
@@ -57,13 +56,10 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const phone = String(formData.get("phone") ?? "").trim()
   const email = String(formData.get("email") ?? "").trim()
   const responsible = String(formData.get("responsible") ?? "").trim()
-  const totalAreaStr = String(formData.get("totalArea") ?? "")
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
-  const newTotalArea = totalAreaStr ? parseFloat(totalAreaStr) : null
-  // Нельзя задать площадь здания меньше суммы площадей этажей
-  await assertBuildingFitsFloors({ buildingId, newTotalArea })
-
+  // totalArea больше не редактируется вручную — она рассчитывается автоматически
+  // из суммы Floor.totalArea (см. recomputeBuildingArea в floor-actions).
   await db.building.update({
     where: { id: buildingId },
     data: {
@@ -73,7 +69,6 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
       phone: phone || null,
       email: email || null,
       responsible: responsible || null,
-      totalArea: newTotalArea,
       contractPrefix: contractPrefix || null,
     },
   })
@@ -135,8 +130,6 @@ export async function createFloor(buildingId: string, formData: FormData) {
   if (Number.isNaN(number)) throw new Error("Номер этажа должен быть числом")
 
   const newTotalArea = totalAreaStr ? parseFloat(totalAreaStr) : null
-  // Σ Floor.totalArea не может превысить Building.totalArea
-  await assertFloorFitsBuilding({ buildingId, newTotalArea })
 
   await db.floor.create({
     data: {
@@ -147,6 +140,9 @@ export async function createFloor(buildingId: string, formData: FormData) {
       totalArea: newTotalArea,
     },
   })
+
+  // Building.totalArea = Σ Floor.totalArea
+  await recomputeBuildingArea(buildingId)
 
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
@@ -183,7 +179,15 @@ export async function deleteFloor(floorId: string, opts?: { cascade?: boolean })
     await db.space.deleteMany({ where: { floorId } })
   }
 
+  // Сохраним buildingId до удаления для пересчёта площади
+  const floor = await db.floor.findUnique({
+    where: { id: floorId },
+    select: { buildingId: true },
+  })
+
   await db.floor.delete({ where: { id: floorId } })
+
+  if (floor) await recomputeBuildingArea(floor.buildingId)
 
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
