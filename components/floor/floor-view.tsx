@@ -103,7 +103,7 @@ export function FloorView({
     : null
 
   return (
-    <div className="relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-[500px]">
+    <div className="relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-[260px]">
       <svg
         ref={svgRef}
         className="w-full h-full"
