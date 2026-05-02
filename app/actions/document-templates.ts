@@ -9,6 +9,7 @@ import {
   detectFormat,
   extractDocxPlaceholders,
   extractXlsxPlaceholders,
+  PLACEHOLDER_DOCS,
   type DocumentType,
 } from "@/lib/template-engine"
 
@@ -20,6 +21,12 @@ export interface UploadTemplateResult {
   templateId?: string
   format?: string
   detectedPlaceholders?: string[]
+  /** Метки, которые система знает и заполнит при генерации */
+  recognizedPlaceholders?: { key: string; label: string }[]
+  /** Метки в шаблоне, которые система не знает — останутся пустыми */
+  unknownPlaceholders?: string[]
+  /** Важные метки, которые НЕ использованы в шаблоне (рекомендуем добавить) */
+  missingRecommended?: { key: string; label: string }[]
   warning?: string
 }
 
@@ -58,6 +65,33 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
     warning = "PDF используется только как образец-превью. Для автоматической генерации данных загрузите DOCX или XLSX."
   }
 
+  // Сверяем найденные метки со списком известных системе плейсхолдеров
+  const known = PLACEHOLDER_DOCS[documentType]
+  const knownKeys = new Map(known.map((p) => [p.key, p.label]))
+  const recognizedPlaceholders: { key: string; label: string }[] = []
+  const unknownPlaceholders: string[] = []
+  for (const p of detectedPlaceholders) {
+    // Поддержка вложенных вроде items.amount — берём корень
+    const root = p.split(".")[0]
+    const label = knownKeys.get(p) ?? knownKeys.get(root)
+    if (label) {
+      recognizedPlaceholders.push({ key: p, label })
+    } else {
+      unknownPlaceholders.push(p)
+    }
+  }
+  // Важные ключевые метки, без которых документ обычно теряет смысл
+  const RECOMMENDED_KEYS: Record<DocumentType, string[]> = {
+    CONTRACT: ["tenant_name", "monthly_rent", "space_number", "start_date", "end_date"],
+    INVOICE: ["tenant_name", "total", "period", "invoice_number"],
+    ACT: ["tenant_name", "total", "act_number", "period_start", "period_end"],
+    RECONCILIATION: ["tenant_name", "balance", "period_start", "period_end"],
+  }
+  const usedKeys = new Set(detectedPlaceholders)
+  const missingRecommended = RECOMMENDED_KEYS[documentType]
+    .filter((k) => !usedKeys.has(k))
+    .map((k) => ({ key: k, label: knownKeys.get(k) ?? k }))
+
   // Деактивируем предыдущий шаблон того же типа
   await db.documentTemplate.updateMany({
     where: { organizationId: orgId, documentType, isActive: true },
@@ -85,6 +119,9 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
     templateId: tpl.id,
     format,
     detectedPlaceholders,
+    recognizedPlaceholders,
+    unknownPlaceholders,
+    missingRecommended,
     warning,
   }
 }

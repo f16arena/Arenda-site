@@ -133,11 +133,52 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
         </label>
 
         {uploadResult?.ok && uploadResult.detectedPlaceholders && uploadResult.detectedPlaceholders.length > 0 && (
-          <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-lg p-3 text-xs">
-            <p className="font-semibold text-emerald-900 dark:text-emerald-200 mb-1">Найдено {uploadResult.detectedPlaceholders.length} меток для подстановки:</p>
-            <p className="text-emerald-800 dark:text-emerald-200 font-mono break-all">
-              {uploadResult.detectedPlaceholders.map((p) => `{${p}}`).join(", ")}
-            </p>
+          <div className="space-y-2">
+            {uploadResult.recognizedPlaceholders && uploadResult.recognizedPlaceholders.length > 0 && (
+              <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-lg p-3 text-xs">
+                <p className="font-semibold text-emerald-900 dark:text-emerald-200 mb-1.5">
+                  ✓ {uploadResult.recognizedPlaceholders.length} меток будут заполнены автоматически из данных арендатора:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-0.5">
+                  {uploadResult.recognizedPlaceholders.map((p) => (
+                    <div key={p.key} className="flex items-baseline gap-1.5">
+                      <code className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300">{`{${p.key}}`}</code>
+                      <span className="text-emerald-800 dark:text-emerald-200">→ {p.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {uploadResult.unknownPlaceholders && uploadResult.unknownPlaceholders.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-3 text-xs">
+                <p className="font-semibold text-red-900 dark:text-red-200 mb-1">
+                  ⚠ {uploadResult.unknownPlaceholders.length} меток система не распознала — они останутся пустыми в документе:
+                </p>
+                <p className="text-red-800 dark:text-red-200 font-mono break-all">
+                  {uploadResult.unknownPlaceholders.map((p) => `{${p}}`).join("  ·  ")}
+                </p>
+                <p className="text-red-700 dark:text-red-300 mt-1.5 text-[11px]">
+                  Проверьте написание — список доступных меток ниже («Показать доступные метки»). Например, нужно <code className="bg-white dark:bg-slate-900 px-1 rounded font-mono">{`{tenant_name}`}</code>, а не <code className="bg-white dark:bg-slate-900 px-1 rounded font-mono">{`{арендатор}`}</code>.
+                </p>
+              </div>
+            )}
+
+            {uploadResult.missingRecommended && uploadResult.missingRecommended.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-3 text-xs">
+                <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+                  💡 Рекомендуем добавить эти метки в шаблон:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-0.5">
+                  {uploadResult.missingRecommended.map((p) => (
+                    <div key={p.key} className="flex items-baseline gap-1.5">
+                      <code className="text-[10px] font-mono text-amber-700 dark:text-amber-300">{`{${p.key}}`}</code>
+                      <span className="text-amber-800 dark:text-amber-200">— {p.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
