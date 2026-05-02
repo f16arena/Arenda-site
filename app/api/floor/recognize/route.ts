@@ -168,7 +168,7 @@ export async function POST(req: Request) {
       // Sonnet 4.6 — заметно точнее в распознавании геометрии чертежей,
       // ~$0.01 за PDF (всё ещё дёшево).
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -181,6 +181,9 @@ export async function POST(req: Request) {
             { type: "text", text: userText },
           ],
         },
+        // Prefill ответа с открывающей скобки — техника Anthropic чтобы
+        // заставить модель строго вернуть JSON без вступительного текста.
+        { role: "assistant", content: "{" },
       ],
     })
   } catch (e) {
@@ -193,19 +196,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "AI не вернул текст" }, { status: 502 })
   }
 
-  // Подчищаем возможные markdown-обёртки
-  const cleaned = textBlock.text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim()
+  // Восстанавливаем JSON: модель отвечала после prefill-а "{",
+  // поэтому возвращённый текст — это содержимое после открывающей скобки.
+  // На всякий случай подчищаем markdown-обёртки и прочий мусор.
+  let raw = textBlock.text
+  // Если модель вернула markdown — снимаем
+  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()
+  // Если в ответе нет ведущей "{", добавляем (prefill съел её)
+  if (!raw.startsWith("{")) raw = "{" + raw
+  // Если перед JSON есть вступительный текст — найдём первую {
+  const firstBrace = raw.indexOf("{")
+  if (firstBrace > 0) raw = raw.slice(firstBrace)
+  // Если после JSON есть хвост — обрежем по последней корректной }
+  const lastBrace = raw.lastIndexOf("}")
+  if (lastBrace > 0 && lastBrace < raw.length - 1) raw = raw.slice(0, lastBrace + 1)
 
   let parsed: { rooms?: unknown }
   try {
-    parsed = JSON.parse(cleaned)
-  } catch {
+    parsed = JSON.parse(raw)
+  } catch (parseErr) {
     return NextResponse.json(
-      { error: "AI вернул не валидный JSON", raw: textBlock.text.slice(0, 300) },
+      {
+        error: "AI вернул не валидный JSON",
+        raw: textBlock.text.slice(0, 500),
+        parseError: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      },
       { status: 502 },
     )
   }

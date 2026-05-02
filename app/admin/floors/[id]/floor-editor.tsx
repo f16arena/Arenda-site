@@ -696,6 +696,16 @@ export function FloorEditor({
         return
       }
       if (!res.ok) {
+        // При ошибке парсинга AI выводим raw в консоль для диагностики
+        const dataWithDebug = data as { error?: string; raw?: string; parseError?: string }
+        if (dataWithDebug.raw) {
+          // eslint-disable-next-line no-console
+          console.warn("[AI recognize] raw response:", dataWithDebug.raw)
+        }
+        if (dataWithDebug.parseError) {
+          // eslint-disable-next-line no-console
+          console.warn("[AI recognize] parse error:", dataWithDebug.parseError)
+        }
         toast.error(data.error ?? `HTTP ${res.status}`)
         return
       }
