@@ -61,7 +61,10 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
           tenantId: r.matchedTenantId!,
           description: r.description,
         })))
-        toast.success(`Импортировано: ${result.created} платежей`)
+        const chargesNote = result.chargesPaid > 0
+          ? ` · автоматически закрыто ${result.chargesPaid} начислени${result.chargesPaid === 1 ? "е" : "й"}`
+          : ""
+        toast.success(`Импортировано: ${result.created} платежей${chargesNote}`)
         router.push("/admin/finances")
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Ошибка")

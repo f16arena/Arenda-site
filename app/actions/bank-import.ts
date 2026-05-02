@@ -15,7 +15,7 @@ export type ParsedRow = {
   // Прогноз — куда матчится
   matchedTenantId?: string
   matchedTenantName?: string
-  matchType?: "BIN" | "IIN" | "NAME" | "MANUAL" | null
+  matchType?: "BIN" | "IIN" | "IIK" | "NAME" | "MANUAL" | null
 }
 
 // Парсит CSV из Kaspi Business / Halyk Online
@@ -48,7 +48,7 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
   const { orgId } = await requireOrgAccess()
   const tenants = await db.tenant.findMany({
     where: tenantScope(orgId),
-    select: { id: true, companyName: true, bin: true, iin: true },
+    select: { id: true, companyName: true, bin: true, iin: true, iik: true },
   })
 
   const rows: ParsedRow[] = []
@@ -63,14 +63,22 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
 
     const desc = descIdx >= 0 ? cells[descIdx] : ""
 
-    // Матчинг арендатора по БИН/ИИН (12 цифр) или имени компании
-    let matched: { id: string; companyName: string; type: "BIN" | "IIN" | "NAME" } | null = null
+    // Матчинг арендатора по БИН/ИИН (12 цифр), ИИК (KZ + 18 символов) или имени
+    let matched: { id: string; companyName: string; type: "BIN" | "IIN" | "IIK" | "NAME" } | null = null
     const ids = desc.match(/\b\d{12}\b/g) ?? []
     for (const id of ids) {
       const byBin = tenants.find((t) => t.bin === id)
       if (byBin) { matched = { id: byBin.id, companyName: byBin.companyName, type: "BIN" }; break }
       const byIin = tenants.find((t) => t.iin === id)
       if (byIin) { matched = { id: byIin.id, companyName: byIin.companyName, type: "IIN" }; break }
+    }
+    if (!matched) {
+      // Поиск по ИИК (KZxx + 18 алфанумерических)
+      const iikMatches = desc.toUpperCase().match(/\bKZ\d{2}[A-Z0-9]{16}\b/g) ?? []
+      for (const iik of iikMatches) {
+        const byIik = tenants.find((t) => t.iik === iik)
+        if (byIik) { matched = { id: byIik.id, companyName: byIik.companyName, type: "IIK" }; break }
+      }
     }
     if (!matched) {
       // Поиск по названию (substring case-insensitive)
@@ -96,14 +104,16 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
   return { rows, errors }
 }
 
-export async function applyBankImport(rows: { date: string; amount: number; tenantId: string; description: string }[]) {
+export async function applyBankImport(
+  rows: { date: string; amount: number; tenantId: string; description: string }[],
+) {
   await requireAdmin()
   const { orgId } = await requireOrgAccess()
 
   let created = 0
+  let chargesPaid = 0
   for (const r of rows) {
     if (!r.tenantId) continue
-    // Подмена tenantId на чужой → отвергаем строку, не падаем целиком
     try {
       await assertTenantInOrg(r.tenantId, orgId)
     } catch {
@@ -121,14 +131,44 @@ export async function applyBankImport(rows: { date: string; amount: number; tena
         },
       })
       created++
-      await audit({ action: "CREATE", entity: "payment", entityId: r.tenantId, details: { amount: r.amount, source: "bank-import" } })
+
+      // Авто-погашение начислений: ищем неоплаченные charges того же tenant'а.
+      // 1. Точное совпадение суммы → один charge помечается isPaid=true
+      // 2. Если сумма больше → закрываем самые старые charges по очереди пока хватит
+      const unpaid = await db.charge.findMany({
+        where: { tenantId: r.tenantId, isPaid: false },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, amount: true },
+      })
+      const exact = unpaid.find((c) => Math.abs(c.amount - r.amount) < 0.01)
+      if (exact) {
+        await db.charge.update({ where: { id: exact.id }, data: { isPaid: true } })
+        chargesPaid++
+      } else {
+        // greedy: закрываем самые старые charges пока сумма позволяет
+        let remaining = r.amount
+        for (const c of unpaid) {
+          if (remaining + 0.01 < c.amount) break
+          await db.charge.update({ where: { id: c.id }, data: { isPaid: true } })
+          chargesPaid++
+          remaining -= c.amount
+          if (remaining < 0.01) break
+        }
+      }
+
+      await audit({
+        action: "CREATE",
+        entity: "payment",
+        entityId: r.tenantId,
+        details: { amount: r.amount, source: "bank-import" },
+      })
     } catch {
-      // Skip
+      // Skip — не валим весь импорт
     }
   }
 
   revalidatePath("/admin/finances")
-  return { created }
+  return { created, chargesPaid }
 }
 
 function parseDate(s: string): Date | null {
