@@ -9,6 +9,7 @@ import { hasFeature } from "@/lib/plan-features"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { FloorSettingsForm } from "./settings-form"
+import { AddSpaceDialog } from "@/app/admin/spaces/space-actions"
 
 export default async function FloorSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -174,11 +175,14 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
 
       {/* Spaces list */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Помещения ({floor.spaces.length})
-          </h2>
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Помещения ({floor.spaces.length})
+            </h2>
+          </div>
+          <AddSpaceDialog floors={[{ id: floor.id, number: floor.number, name: floor.name }]} />
         </div>
         {floor.spaces.length === 0 ? (
           <div className="p-8 text-center">
