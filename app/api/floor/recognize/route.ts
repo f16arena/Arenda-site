@@ -158,7 +158,16 @@ export async function POST(req: Request) {
 
   const userText = `На картинке план этажа${body.floorName ? ` «${body.floorName}»` : ""}${
     body.floorNumber !== undefined ? ` (этаж ${body.floorNumber})` : ""
-  }. Верни JSON со всеми помещениями строго по системной инструкции.`
+  }.
+
+ВАЖНО: Твой ответ должен быть СТРОГО ОДНИМ JSON-объектом, и ничем больше:
+- Никакого вступительного текста ("Вот результат...", "Я распознал...").
+- Никаких markdown-обёрток (\`\`\`json и \`\`\`).
+- Никаких объяснений или комментариев.
+- Никакого финального текста после JSON.
+- ПЕРВЫЙ символ ответа должен быть {. ПОСЛЕДНИЙ символ — }.
+
+Внутри JSON допустимо использовать только структуру из системной инструкции.`
 
   const client = new Anthropic({ apiKey })
 
@@ -181,9 +190,6 @@ export async function POST(req: Request) {
             { type: "text", text: userText },
           ],
         },
-        // Prefill ответа с открывающей скобки — техника Anthropic чтобы
-        // заставить модель строго вернуть JSON без вступительного текста.
-        { role: "assistant", content: "{" },
       ],
     })
   } catch (e) {
@@ -196,24 +202,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "AI не вернул текст" }, { status: 502 })
   }
 
-  // Восстанавливаем JSON: модель отвечала после prefill-а "{",
-  // поэтому возвращённый текст — это содержимое после открывающей скобки.
-  // На всякий случай подчищаем markdown-обёртки и прочий мусор.
-  let raw = textBlock.text
-  // Если модель вернула markdown — снимаем
-  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim()
-  // Если в ответе нет ведущей "{", добавляем (prefill съел её)
-  if (!raw.startsWith("{")) raw = "{" + raw
-  // Если перед JSON есть вступительный текст — найдём первую {
-  const firstBrace = raw.indexOf("{")
-  if (firstBrace > 0) raw = raw.slice(firstBrace)
-  // Если после JSON есть хвост — обрежем по последней корректной }
-  const lastBrace = raw.lastIndexOf("}")
-  if (lastBrace > 0 && lastBrace < raw.length - 1) raw = raw.slice(0, lastBrace + 1)
+  // Извлекаем первый сбалансированный JSON-объект из ответа модели.
+  // Учитываем строки и эскейпы чтобы не сбиться на { внутри строк.
+  function extractJsonObject(text: string): string | null {
+    const trimmed = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "")
+    const start = trimmed.indexOf("{")
+    if (start < 0) return null
+    let depth = 0
+    let inString = false
+    let escape = false
+    for (let i = start; i < trimmed.length; i++) {
+      const ch = trimmed[i]
+      if (escape) { escape = false; continue }
+      if (ch === "\\") { escape = true; continue }
+      if (ch === '"') { inString = !inString; continue }
+      if (inString) continue
+      if (ch === "{") depth++
+      else if (ch === "}") {
+        depth--
+        if (depth === 0) return trimmed.slice(start, i + 1)
+      }
+    }
+    return null
+  }
 
+  const jsonText = extractJsonObject(textBlock.text)
   let parsed: { rooms?: unknown }
+  if (!jsonText) {
+    return NextResponse.json(
+      {
+        error: "AI не вернул JSON-объект",
+        raw: textBlock.text.slice(0, 500),
+      },
+      { status: 502 },
+    )
+  }
   try {
-    parsed = JSON.parse(raw)
+    parsed = JSON.parse(jsonText)
   } catch (parseErr) {
     return NextResponse.json(
       {
