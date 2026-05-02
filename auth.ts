@@ -24,6 +24,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         login: { label: "Телефон / Email" },
         password: { label: "Пароль", type: "password" },
+        // Опциональный 6-значный код TOTP или резервный код XXXX-XXXX
+        totp: { label: "Код 2FA", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.login || !credentials?.password) return null
@@ -47,6 +49,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           )
           if (!isValid) return null
 
+          // Если у пользователя включена 2FA — требуем код
+          if (user.totpEnabledAt && user.totpSecret) {
+            const totpCode = String(credentials.totp ?? "").trim()
+            if (!totpCode) {
+              // Сигнал клиенту: «нужен код 2FA» через специальную ошибку.
+              // NextAuth превратит это в результат с error "TOTP_REQUIRED".
+              throw new Error("TOTP_REQUIRED")
+            }
+            const { verifyTotpForLogin } = await import("@/app/actions/two-factor")
+            const ok = await verifyTotpForLogin(user.id, totpCode)
+            if (!ok) {
+              throw new Error("TOTP_INVALID")
+            }
+          }
+
           return {
             id: user.id,
             name: user.name,
@@ -56,8 +73,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             isPlatformOwner: user.isPlatformOwner ?? false,
           } as { id: string; name: string; email: string | undefined; role: string; organizationId: string | null; isPlatformOwner: boolean }
         } catch (e) {
-          console.error("[authorize error]", e)
-          throw e
+          // TOTP_REQUIRED / TOTP_INVALID должны пробрасываться, остальные обезличиваем
+          if (e instanceof Error && (e.message === "TOTP_REQUIRED" || e.message === "TOTP_INVALID")) {
+            throw e
+          }
+          if (process.env.NODE_ENV !== "production") {
+            console.error("[authorize error]", e)
+          }
+          return null
         }
       },
     }),

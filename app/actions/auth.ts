@@ -10,12 +10,15 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 
 export interface LoginState {
   error?: string
+  /** Когда пользователю нужно ввести 6-значный код 2FA */
+  needTotp?: boolean
   details?: { step: string; ms: number; ok: boolean; note?: string }[]
 }
 
 export async function login(_prevState: LoginState | undefined, formData: FormData): Promise<LoginState> {
   const loginValue = String(formData.get("login") ?? "").trim()
   const password = String(formData.get("password") ?? "")
+  const totp = String(formData.get("totp") ?? "").trim()
   const details: NonNullable<LoginState["details"]> = []
 
   function step(label: string, t0: number, ok: boolean, note?: string) {
@@ -92,6 +95,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     await signIn("credentials", {
       login: loginValue,
       password,
+      totp,
       redirect: false,
     })
     step("auth.signIn", t0, true)
@@ -99,6 +103,15 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     if (error instanceof AuthError) {
       const cause = (error as { cause?: { err?: { message?: string } } }).cause?.err?.message
       step("auth.signIn", t0, false, `AuthError: ${cause ?? error.message}`)
+
+      // 2FA flow
+      if (cause === "TOTP_REQUIRED") {
+        return { error: "", needTotp: true, details }
+      }
+      if (cause === "TOTP_INVALID") {
+        return { error: "Код 2FA неверный или просрочен", needTotp: true, details }
+      }
+
       return {
         error: cause?.includes("password") || error.type === "CredentialsSignin"
           ? "Неверный пароль"

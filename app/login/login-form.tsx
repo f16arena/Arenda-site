@@ -3,7 +3,7 @@
 import { useActionState } from "react"
 import Link from "next/link"
 import { login } from "@/app/actions/auth"
-import { Building, Loader2, AlertCircle, CheckCircle2, XCircle } from "lucide-react"
+import { Building, Loader2, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
 
 export function LoginForm() {
   const [state, action, isPending] = useActionState(login, undefined)
@@ -52,6 +52,28 @@ export function LoginForm() {
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             />
           </div>
+
+          {state?.needTotp && (
+            <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 p-4">
+              <div className="flex items-start gap-2 mb-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Двухфакторная аутентификация</p>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                    Введите 6-значный код из приложения или резервный код XXXX-XXXX.
+                  </p>
+                </div>
+              </div>
+              <input
+                name="totp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="000000 или XXXX-XXXX"
+                autoFocus
+                className="w-full rounded-lg border border-emerald-300 dark:border-emerald-500/40 px-3.5 py-2.5 text-base font-mono tracking-widest text-center bg-white dark:bg-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+            </div>
+          )}
 
           {state?.error && (
             <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300">
