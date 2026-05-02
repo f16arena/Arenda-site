@@ -66,6 +66,32 @@ export async function createTenant(formData: FormData) {
     if (existing) throw new Error(`Email ${email} уже используется другим пользователем`)
   }
 
+  // Проверка чёрного списка по БИН/ИИН — предупреждаем не блокируя.
+  // Решение принимает Owner: для этого передаём поле formData "ignoreBlacklist".
+  if (bin || (legalType === "IP" || legalType === "PHYSICAL")) {
+    const where: { bin?: string; iin?: string }[] = []
+    if (bin) where.push({ bin })
+    // ИИН в форме был передан? legacy: bin поле может содержать ИИН для ИП
+    if (where.length > 0) {
+      const blocked = await db.tenant.findFirst({
+        where: {
+          blacklistedAt: { not: null },
+          user: { organizationId: orgId },
+          OR: where,
+        },
+        select: { id: true, companyName: true, blacklistReason: true, blacklistedAt: true },
+      })
+      if (blocked && formData.get("ignoreBlacklist") !== "on") {
+        const dt = blocked.blacklistedAt?.toLocaleDateString("ru-RU") ?? "—"
+        throw new Error(
+          `⛔ Этот БИН/ИИН в чёрном списке (компания «${blocked.companyName}», добавлен ${dt}). ` +
+            `Причина: ${blocked.blacklistReason ?? "—"}. ` +
+            `Если уверены — отметьте «Игнорировать чёрный список» и попробуйте снова.`,
+        )
+      }
+    }
+  }
+
   // Сохраняем plain-password для отправки в email (если sendWelcome=true)
   // Если password не задан — генерируем temporary
   const plainPassword = password || `tenant${Math.random().toString(36).slice(2, 10)}`

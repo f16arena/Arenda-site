@@ -10,6 +10,62 @@ import {
   assertUserInOrg,
 } from "@/lib/scope-guards"
 
+/**
+ * Добавить арендатора в чёрный список (или снять).
+ * Записываем дату и причину. Не удаляет арендатора, не разрывает договор —
+ * только пометка для будущих проверок.
+ */
+export async function setTenantBlacklist(
+  tenantId: string,
+  payload: { reason: string | null } | null,
+) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
+  if (payload === null) {
+    await db.tenant.update({
+      where: { id: tenantId },
+      data: { blacklistedAt: null, blacklistReason: null },
+    })
+  } else {
+    const reason = (payload.reason ?? "").trim().slice(0, 500) || "Без причины"
+    await db.tenant.update({
+      where: { id: tenantId },
+      data: { blacklistedAt: new Date(), blacklistReason: reason },
+    })
+  }
+
+  revalidatePath(`/admin/tenants/${tenantId}`)
+  revalidatePath("/admin/tenants")
+  return { success: true }
+}
+
+/**
+ * Проверить — есть ли арендатор с таким БИН/ИИН в чёрном списке.
+ * Возвращает имя компании и причину, либо null.
+ */
+export async function checkBlacklist(opts: { bin?: string; iin?: string }) {
+  if (!opts.bin && !opts.iin) return null
+  const { orgId } = await requireOrgAccess()
+  const found = await db.tenant.findFirst({
+    where: {
+      blacklistedAt: { not: null },
+      user: { organizationId: orgId },
+      OR: [
+        opts.bin ? { bin: opts.bin } : {},
+        opts.iin ? { iin: opts.iin } : {},
+      ].filter((x) => Object.keys(x).length > 0),
+    },
+    select: {
+      id: true,
+      companyName: true,
+      blacklistedAt: true,
+      blacklistReason: true,
+    },
+  })
+  return found
+}
+
 export async function updateTenant(tenantId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)

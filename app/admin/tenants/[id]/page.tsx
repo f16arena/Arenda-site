@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
+import { BlacklistButton } from "./blacklist-button"
 import { DocumentsChecklist } from "./documents-checklist"
 import { FullFloorAssign } from "./full-floor-assign"
 import { DocumentsActions } from "./documents-actions"
@@ -48,6 +49,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       bankName: true,
       iik: true,
       bik: true,
+      blacklistedAt: true,
+      blacklistReason: true,
       category: true,
       legalAddress: true,
       actualAddress: true,
@@ -187,11 +190,19 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             {tenant.category ? ` · ${tenant.category}` : ""}
           </p>
         </div>
-        <DeleteTenantButton
-          tenantId={tenant.id}
-          companyName={tenant.companyName}
-          redirectAfter
-        />
+        <div className="flex items-center gap-2">
+          <BlacklistButton
+            tenantId={tenant.id}
+            companyName={tenant.companyName}
+            blacklistedAt={tenant.blacklistedAt}
+            blacklistReason={tenant.blacklistReason}
+          />
+          <DeleteTenantButton
+            tenantId={tenant.id}
+            companyName={tenant.companyName}
+            redirectAfter
+          />
+        </div>
       </div>
 
       {/* Quick stats + actions */}

@@ -27,6 +27,11 @@ model User {
   // Какие типы событий присылать (JSON-объект с булевыми полями)
   // Если null — все типы включены. Иначе ключ с false выключает уведомления этого типа.
   notifyMutedTypes Json?    @map("notify_muted_types")
+  // 2FA (TOTP) — base32 secret для Google Authenticator. enabledAt = когда включена.
+  totpSecret      String?  @map("totp_secret")
+  totpEnabledAt   DateTime? @map("totp_enabled_at")
+  // Резервные коды для входа без приложения (хешированные)
+  totpBackupCodes Json?    @map("totp_backup_codes")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt      @map("updated_at")
 
@@ -288,6 +293,10 @@ model Tenant {
   penaltyPercent   Float     @default(1) @map("penalty_percent")
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
+  // Чёрный список: причина и время попадания. Если != null — нельзя завести
+  // нового арендатора с таким БИН/ИИН (предупреждение администратору).
+  blacklistedAt    DateTime? @map("blacklisted_at")
+  blacklistReason  String?   @map("blacklist_reason")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   user        User             @relation(fields: [userId], references: [id])
