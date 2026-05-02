@@ -63,7 +63,7 @@ export async function updateSpace(id: string, formData: FormData) {
       floorId: true,
       status: true,
       kind: true,
-      tenant: { select: { companyName: true } },
+      tenant: { select: { id: true, companyName: true } },
       floor: {
         select: {
           fullFloorTenantId: true,
@@ -101,13 +101,25 @@ export async function updateSpace(id: string, formData: FormData) {
     finalKind = kindIn
   }
 
-  await db.space.update({
-    where: { id },
-    data: { number, area, description: description || null, status: finalStatus, kind: finalKind },
-  })
+  // Если переводим в VACANT/MAINTENANCE и есть привязанный арендатор —
+  // автоматически отвязываем его (пользователь уже принял такое решение,
+  // меняя статус на «Свободно»).
+  const willUnlinkTenant =
+    !!existing.tenant && (finalStatus === "VACANT" || finalStatus === "MAINTENANCE")
+
+  await db.$transaction([
+    db.space.update({
+      where: { id },
+      data: { number, area, description: description || null, status: finalStatus, kind: finalKind },
+    }),
+    ...(willUnlinkTenant && existing.tenant
+      ? [db.tenant.update({ where: { id: existing.tenant.id }, data: { spaceId: null } })]
+      : []),
+  ])
 
   revalidatePath("/admin/spaces")
-  return { success: true }
+  revalidatePath("/admin/tenants")
+  return { success: true, tenantUnlinked: willUnlinkTenant }
 }
 
 export async function deleteSpace(id: string) {
