@@ -40,7 +40,7 @@ export default async function TenantsPage() {
 
   const vacantSpaces = await db.space.findMany({
     where: {
-      AND: [spaceScope(orgId), { status: "VACANT" }],
+      AND: [spaceScope(orgId), { status: "VACANT", kind: "RENTABLE" }],
     },
     select: {
       id: true,

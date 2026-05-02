@@ -24,6 +24,7 @@ export async function assertSpaceAssignable(spaceId: string): Promise<void> {
     where: { id: spaceId },
     select: {
       number: true,
+      kind: true,
       floor: {
         select: {
           name: true,
@@ -34,6 +35,13 @@ export async function assertSpaceAssignable(spaceId: string): Promise<void> {
     },
   })
   if (!space) throw new FullFloorConflictError("Помещение не найдено")
+  // Общие зоны (коридор, лестница, WC, тех) не сдаются в принципе
+  if (space.kind === "COMMON") {
+    throw new FullFloorConflictError(
+      `Кабинет ${space.number} — общая зона (коридор/лестница/санузел/тех. помещение). ` +
+        `Эти помещения не сдаются в аренду. Если ошибка — измените тип помещения на «Арендуемое».`,
+    )
+  }
   if (space.floor.fullFloorTenantId) {
     const co = space.floor.fullFloorTenant?.companyName ?? "—"
     const until = space.floor.fullFloorTenant?.contractEnd
@@ -52,8 +60,10 @@ export async function assertSpaceAssignable(spaceId: string): Promise<void> {
  * Если хоть одно помещение занято — кидает ошибку с указанием конфликтующего арендатора.
  */
 export async function assertFloorAssignableToOneTenant(floorId: string): Promise<void> {
+  // Игнорируем COMMON помещения — они не могут быть «заняты» арендатором.
+  // Проверяем только RENTABLE.
   const occupied = await db.space.findFirst({
-    where: { floorId, tenant: { isNot: null } },
+    where: { floorId, kind: "RENTABLE", tenant: { isNot: null } },
     select: {
       number: true,
       tenant: { select: { companyName: true, contractEnd: true } },

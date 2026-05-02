@@ -8,6 +8,7 @@ import { Building2, MapPin, Layers, Users, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { ApplyAreaButton } from "./apply-area-button"
+import { BuildingAdminAssign } from "./admin-assign"
 import { requireOrgAccess } from "@/lib/org"
 
 export default async function BuildingsPage() {
@@ -30,6 +31,8 @@ export default async function BuildingsPage() {
       responsible: true,
       totalArea: true,
       isActive: true,
+      administratorUserId: true,
+      administrator: { select: { id: true, name: true, email: true, phone: true } },
       floors: {
         select: {
           id: true,
@@ -52,6 +55,13 @@ export default async function BuildingsPage() {
     const withPrefix = await db.building.findMany({ select: { id: true, contractPrefix: true } })
     prefixMap = new Map(withPrefix.map((b) => [b.id, b.contractPrefix]))
   } catch { /* migration 007 not applied yet */ }
+
+  // Кандидаты в администраторы здания: ADMIN и OWNER из этой организации
+  const adminCandidates = await db.user.findMany({
+    where: { organizationId: orgId, isActive: true, role: { in: ["ADMIN", "OWNER"] } },
+    select: { id: true, name: true, email: true, phone: true, role: true },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+  })
 
   // Считаем арендаторов и помещения по каждому зданию
   const stats = await Promise.all(
@@ -134,6 +144,13 @@ export default async function BuildingsPage() {
                   {b.description && (
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{b.description}</p>
                   )}
+                  <div className="mt-2">
+                    <BuildingAdminAssign
+                      buildingId={b.id}
+                      current={b.administrator}
+                      candidates={adminCandidates}
+                    />
+                  </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
                     {b.responsible && (
                       <span>👤 {b.responsible}</span>

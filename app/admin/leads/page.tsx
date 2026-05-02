@@ -35,7 +35,7 @@ export default async function LeadsPage() {
   }).catch(() => [])
 
   const vacantSpaces = await db.space.findMany({
-    where: { status: { in: ["VACANT", "MAINTENANCE"] }, floor: { buildingId } },
+    where: { status: { in: ["VACANT", "MAINTENANCE"] }, kind: "RENTABLE", floor: { buildingId } },
     select: {
       id: true, number: true, area: true, status: true,
       floor: { select: { name: true } },

@@ -41,6 +41,7 @@ model User {
   requestComments  RequestComment[]
   complaints       Complaint[]
   notifications    Notification[]
+  administeredBuildings Building[]  @relation("BuildingAdmin")
 
   @@index([organizationId])
   @@map("users")
@@ -178,6 +179,9 @@ model Building {
   phone           String?
   email           String?
   responsible     String?
+  // Администратор здания — User с ролью ADMIN, к которому идут все вопросы по аренде.
+  // Иерархия: Owner → Administrator → Tenants.
+  administratorUserId String? @map("administrator_user_id")
   totalArea       Float?   @map("total_area")
   // Per-building нумерация документов: префикс — настраиваемый (например, F16),
   // счётчик инкрементируется при подтверждении номера. Уникальность контролируется
@@ -194,6 +198,7 @@ model Building {
   createdAt       DateTime @default(now()) @map("created_at")
 
   organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  administrator     User?             @relation("BuildingAdmin", fields: [administratorUserId], references: [id], onDelete: SetNull)
   floors            Floor[]
   emergencyContacts EmergencyContact[]
   expenses          Expense[]
@@ -245,6 +250,10 @@ model Space {
   number      String
   area        Float
   status      String  @default("VACANT")
+  // RENTABLE = арендопригодное помещение (можно сдать)
+  // COMMON = общая зона: коридор, лестница, санузел, тех. помещение —
+  // не сдаётся, не считается в заполняемости, не появляется в списке свободных.
+  kind        String  @default("RENTABLE")
   description String?
 
   floor  Floor   @relation(fields: [floorId], references: [id])

@@ -14,6 +14,9 @@ export async function createSpace(formData: FormData) {
   const number = formData.get("number") as string
   const area = parseFloat(formData.get("area") as string)
   const description = formData.get("description") as string
+  // RENTABLE = можно сдать, COMMON = коридор/WC/лестница (не сдаётся)
+  const kindRaw = String(formData.get("kind") ?? "RENTABLE").toUpperCase()
+  const kind = kindRaw === "COMMON" ? "COMMON" : "RENTABLE"
 
   if (!Number.isFinite(area) || area <= 0) {
     throw new Error("Введите корректную площадь (м²)")
@@ -22,15 +25,17 @@ export async function createSpace(formData: FormData) {
   // Σ Space.area не может превысить Floor.totalArea
   await assertSpaceFitsFloor({ floorId, newArea: area })
 
-  // Если этаж сдан целиком — новое помещение сразу занято (оно тоже под full-floor арендатором)
+  // Если этаж сдан целиком — новое помещение сразу занято (оно тоже под full-floor арендатором).
+  // Для COMMON помещений всегда VACANT (они вообще не "сдаваемые").
   const floor = await db.floor.findUnique({
     where: { id: floorId },
     select: { fullFloorTenantId: true },
   })
-  const initialStatus = floor?.fullFloorTenantId ? "OCCUPIED" : "VACANT"
+  const initialStatus =
+    kind === "COMMON" ? "VACANT" : floor?.fullFloorTenantId ? "OCCUPIED" : "VACANT"
 
   await db.space.create({
-    data: { floorId, number, area, description: description || null, status: initialStatus },
+    data: { floorId, number, area, description: description || null, status: initialStatus, kind },
   })
 
   revalidatePath("/admin/spaces")
@@ -45,6 +50,8 @@ export async function updateSpace(id: string, formData: FormData) {
   const area = parseFloat(formData.get("area") as string)
   const description = formData.get("description") as string
   const status = formData.get("status") as string
+  const kindRaw = String(formData.get("kind") ?? "").toUpperCase()
+  const kindIn = kindRaw === "COMMON" ? "COMMON" : kindRaw === "RENTABLE" ? "RENTABLE" : null
 
   if (!Number.isFinite(area) || area <= 0) {
     throw new Error("Введите корректную площадь (м²)")
@@ -55,6 +62,8 @@ export async function updateSpace(id: string, formData: FormData) {
     select: {
       floorId: true,
       status: true,
+      kind: true,
+      tenant: { select: { companyName: true } },
       floor: {
         select: {
           fullFloorTenantId: true,
@@ -81,9 +90,20 @@ export async function updateSpace(id: string, formData: FormData) {
     finalStatus = "OCCUPIED"
   }
 
+  // Если хотят сделать помещение COMMON — нельзя если оно уже занято арендатором
+  let finalKind = existing.kind
+  if (kindIn && kindIn !== existing.kind) {
+    if (kindIn === "COMMON" && existing.tenant) {
+      throw new Error(
+        `Нельзя сделать помещение общей зоной — оно занято арендатором «${existing.tenant.companyName}». Сначала выселите.`,
+      )
+    }
+    finalKind = kindIn
+  }
+
   await db.space.update({
     where: { id },
-    data: { number, area, description: description || null, status: finalStatus },
+    data: { number, area, description: description || null, status: finalStatus, kind: finalKind },
   })
 
   revalidatePath("/admin/spaces")

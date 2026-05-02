@@ -7,7 +7,7 @@ import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
 import { DeleteAction } from "@/components/ui/delete-action"
 
 type Floor = { id: string; name: string; number: number }
-type Space = { id: string; number: string; area: number; status: string; description: string | null }
+type Space = { id: string; number: string; area: number; status: string; description: string | null; kind?: string }
 
 const STATUSES = [
   { value: "VACANT", label: "Свободно" },
@@ -67,6 +67,28 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Площадь, м² *</label>
                   <input name="area" type="number" step="0.1" required placeholder="30" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тип помещения *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="cursor-pointer">
+                    <input type="radio" name="kind" value="RENTABLE" defaultChecked className="peer sr-only" />
+                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:dark:bg-emerald-500/10">
+                      <p className="font-medium text-slate-900 dark:text-slate-100">Арендуемое</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Кабинет / офис / магазин</p>
+                    </div>
+                  </label>
+                  <label className="cursor-pointer">
+                    <input type="radio" name="kind" value="COMMON" className="peer sr-only" />
+                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-slate-500 peer-checked:bg-slate-50 peer-checked:dark:bg-slate-800">
+                      <p className="font-medium text-slate-900 dark:text-slate-100">Общая зона</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Коридор / WC / лестница / тех</p>
+                    </div>
+                  </label>
+                </div>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  Общие зоны не сдаются в аренду и не попадают в список свободных.
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>

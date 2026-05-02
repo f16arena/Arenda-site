@@ -88,6 +88,44 @@ export async function updateFloor(floorId: string, formData: FormData) {
   return { success: true }
 }
 
+/**
+ * Привязать администратора к зданию. Должен быть User с ролью ADMIN или OWNER
+ * из той же организации.
+ */
+export async function setBuildingAdministrator(buildingId: string, adminUserId: string | null) {
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+
+  if (adminUserId) {
+    const user = await db.user.findUnique({
+      where: { id: adminUserId },
+      select: { id: true, organizationId: true, role: true, isActive: true },
+    })
+    if (!user) throw new Error("Пользователь не найден")
+    if (user.organizationId !== orgId) {
+      throw new Error("Пользователь не из вашей организации")
+    }
+    if (!user.isActive) {
+      throw new Error("Пользователь деактивирован — не может быть администратором")
+    }
+    if (user.role !== "ADMIN" && user.role !== "OWNER") {
+      throw new Error(
+        `Администратором здания может быть только пользователь с ролью «Админ» или «Владелец». ` +
+          `У выбранного пользователя роль: ${user.role}.`,
+      )
+    }
+  }
+
+  await db.building.update({
+    where: { id: buildingId },
+    data: { administratorUserId: adminUserId },
+  })
+
+  revalidatePath("/admin/buildings")
+  revalidatePath("/cabinet")
+  return { success: true }
+}
+
 async function assertEmergencyContactInOrg(id: string, orgId: string) {
   const found = await db.emergencyContact.findFirst({
     where: { id, ...emergencyContactScope(orgId) },

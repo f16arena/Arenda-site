@@ -97,10 +97,14 @@ export default async function SpacesPage() {
   }) : null
 
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
-  const total = allSpaces.length
-  const occupied = allSpaces.filter((s) => s.status === "OCCUPIED").length
-  const vacant = allSpaces.filter((s) => s.status === "VACANT").length
-  const rentableArea = allSpaces.reduce((s, sp) => s + sp.area, 0) // Σ Space.area — арендопригодная
+  // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
+  const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
+  const commonSpaces = allSpaces.filter((s) => s.kind === "COMMON")
+  const total = rentableSpaces.length
+  const occupied = rentableSpaces.filter((s) => s.status === "OCCUPIED").length
+  const vacant = rentableSpaces.filter((s) => s.status === "VACANT").length
+  const rentableArea = rentableSpaces.reduce((s, sp) => s + sp.area, 0)
+  const commonArea = commonSpaces.reduce((s, sp) => s + sp.area, 0)
   const buildingTotalArea = building?.totalArea ?? 0
   const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
 

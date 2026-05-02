@@ -109,7 +109,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const currentPeriod = today.toISOString().slice(0, 7)
 
   const vacantSpaces = await db.space.findMany({
-    where: { status: "VACANT" },
+    where: { status: "VACANT", kind: "RENTABLE" },
     select: {
       id: true, number: true, area: true,
       floor: { select: { id: true, name: true, number: true } },
