@@ -1223,6 +1223,13 @@ export function FloorEditor({
           floorId={floorId}
           floorName={floorName}
           spacesCount={spaces.length}
+          elementsCount={layout.elements.length}
+          onClearElements={() => {
+            setLayout((prev) => ({ ...prev, elements: [] }))
+            setSelectedId(null)
+            setPolygonInProgress(null)
+            toast.success("Все элементы стёрты. Не забудьте сохранить.")
+          }}
           onPlanCleared={() => {
             setLayoutRaw(DEFAULT_LAYOUT)
             setTotalArea(null)
@@ -2013,18 +2020,35 @@ function InsertRoomPanel({ onInsert }: { onInsert: (name: string, width: number,
 }
 
 // ── Areas breakdown panel: rentable + common = drawn, vs Floor.totalArea ─
-// ── Danger zone: clear plan / delete spaces / delete floor ─────
+// ── Danger zone: clear elements / clear plan / delete spaces / delete floor ─
 function DangerZone({
-  floorId, floorName, spacesCount, onPlanCleared, onFloorDeleted,
+  floorId, floorName, spacesCount, elementsCount,
+  onClearElements, onPlanCleared, onFloorDeleted,
 }: {
   floorId: string
   floorName: string
   spacesCount: number
+  elementsCount: number
+  onClearElements: () => void
   onPlanCleared: () => void
   onFloorDeleted: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+
+  const handleClearElements = () => {
+    if (elementsCount === 0) {
+      toast.message("На плане нет элементов")
+      return
+    }
+    if (!window.confirm(
+      `Удалить все ${elementsCount} элемент${elementsCount === 1 ? "" : "ов"} с плана?\n\n` +
+      `Подложка, общая площадь и сетка останутся.\n` +
+      `Помещения (Space) тоже не затрагиваются — стираются только нарисованные прямоугольники, двери, иконки и подписи.\n\n` +
+      `Можно отменить через Ctrl+Z до сохранения.`,
+    )) return
+    onClearElements()
+  }
 
   const handleClearPlan = async () => {
     if (!window.confirm(
@@ -2097,6 +2121,19 @@ function DangerZone({
         Опасная зона
       </summary>
       <div className="px-4 py-3 space-y-2 border-t border-red-100 dark:border-red-500/20">
+        <button
+          onClick={handleClearElements}
+          disabled={elementsCount === 0}
+          className="w-full text-left px-3 py-2 rounded-lg border border-yellow-200 dark:border-yellow-500/30 bg-yellow-50/50 dark:bg-yellow-500/5 hover:bg-yellow-100 dark:hover:bg-yellow-500/10 disabled:opacity-50"
+        >
+          <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300">
+            Очистить элементы ({elementsCount})
+          </p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Стирает все нарисованные комнаты/двери/иконки. Подложка и площадь остаются. Можно отменить Ctrl+Z.
+          </p>
+        </button>
+
         <button
           onClick={handleClearPlan}
           disabled={!!busy}
