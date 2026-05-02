@@ -200,24 +200,20 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
     }
   }
 
-  if (tenant?.spaceId) {
-    await db.space.update({
-      where: { id: tenant.spaceId },
-      data: { status: "VACANT" },
-    })
-  }
-
-  if (spaceId) {
-    await db.space.update({
-      where: { id: spaceId },
-      data: { status: "OCCUPIED" },
-    })
-  }
-
-  await db.tenant.update({
-    where: { id: tenantId },
-    data: { spaceId: spaceId || null },
-  })
+  // Атомарно: освобождаем старое помещение, занимаем новое, переключаем привязку.
+  // Если что-то упадёт — БД останется в консистентном состоянии.
+  await db.$transaction([
+    ...(tenant?.spaceId
+      ? [db.space.update({ where: { id: tenant.spaceId }, data: { status: "VACANT" } })]
+      : []),
+    ...(spaceId
+      ? [db.space.update({ where: { id: spaceId }, data: { status: "OCCUPIED" } })]
+      : []),
+    db.tenant.update({
+      where: { id: tenantId },
+      data: { spaceId: spaceId || null },
+    }),
+  ])
 
   revalidatePath(`/admin/tenants/${tenantId}`)
   revalidatePath("/admin/tenants")

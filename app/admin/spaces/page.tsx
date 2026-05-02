@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
 import { WipeAllSpacesButton } from "./wipe-all-button"
+import { hasFeature } from "@/lib/plan-features"
 import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -96,6 +97,7 @@ export default async function SpacesPage() {
     },
   }) : null
 
+  const hasFloorEditor = await hasFeature(orgId, "floorEditor")
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
   // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
   const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
@@ -289,9 +291,16 @@ export default async function SpacesPage() {
               <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                 <span><span className="font-medium text-blue-600 dark:text-blue-400">{floorOccupied}</span> / {floor.spaces.length} занято</span>
                 <span>{floorArea} м²</span>
-                <Link href={`/admin/floors/${floor.id}`} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200 font-medium">
-                  Редактировать план →
-                </Link>
+                {hasFloorEditor && (
+                  <Link
+                    href={`/admin/floors/${floor.id}`}
+                    className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 hover:text-purple-800 font-medium"
+                    title="Визуализация помещения — BETA"
+                  >
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">BETA</span>
+                    Визуализация →
+                  </Link>
+                )}
               </div>
             </div>
             {fullFloorTenant && (
@@ -318,17 +327,21 @@ export default async function SpacesPage() {
                 <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Нет помещений на этом этаже</p>
               ) : (
                 <div className="space-y-3">
-                  {/* Visual map — SVG план если задан, иначе fallback */}
-                  {layout ? (
+                  {/* Visual map — показываем только если фича включена и план задан */}
+                  {hasFloorEditor && layout && (
                     <FloorView layout={layout} spaces={spaceInfos} floorId={floor.id} />
-                  ) : (
-                    <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-lg p-6 bg-slate-50 dark:bg-slate-800/50 text-center">
-                      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">План этажа не нарисован</p>
+                  )}
+                  {hasFloorEditor && !layout && (
+                    <div className="relative border-2 border-dashed border-purple-200 dark:border-purple-500/30 rounded-lg p-4 bg-purple-50/30 dark:bg-purple-500/5 text-center">
+                      <div className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[9px] font-bold uppercase tracking-wider mb-1">
+                        BETA
+                      </div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Визуализация помещения не настроена</p>
                       <Link
                         href={`/admin/floors/${floor.id}`}
-                        className="inline-flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        className="inline-flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 hover:underline"
                       >
-                        Открыть редактор плана →
+                        Загрузить PDF плана →
                       </Link>
                     </div>
                   )}
