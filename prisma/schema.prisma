@@ -24,6 +24,7 @@ model User {
   notifyEmail     Boolean   @default(true) @map("notify_email")
   notifyTelegram  Boolean   @default(true) @map("notify_telegram")
   notifyInApp     Boolean   @default(true) @map("notify_in_app")
+  notifySms       Boolean   @default(false) @map("notify_sms")  // SMS дороже — выключено по умолчанию
   // Какие типы событий присылать (JSON-объект с булевыми полями)
   // Если null — все типы включены. Иначе ключ с false выключает уведомления этого типа.
   notifyMutedTypes Json?    @map("notify_muted_types")

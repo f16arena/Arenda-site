@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
-import { Mail, Send, Bell, Check } from "lucide-react"
+import { Mail, Send, Bell, Check, MessageCircle } from "lucide-react"
 import {
   updateMyNotificationSettings,
   type NotificationSettings,
@@ -30,7 +30,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
     })
   }
 
-  function toggleChannel(channel: "notifyEmail" | "notifyTelegram" | "notifyInApp") {
+  function toggleChannel(channel: "notifyEmail" | "notifyTelegram" | "notifyInApp" | "notifySms") {
     save({ [channel]: !settings[channel] })
   }
 
@@ -76,6 +76,15 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
             description="В привязанный аккаунт Telegram"
             enabled={settings.notifyTelegram}
             onToggle={() => toggleChannel("notifyTelegram")}
+            disabled={pending}
+          />
+          <ChannelRow
+            icon={MessageCircle}
+            color="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"
+            label="SMS"
+            description="Только для критичных уведомлений (платежи, договоры). Платно."
+            enabled={settings.notifySms}
+            onToggle={() => toggleChannel("notifySms")}
             disabled={pending}
           />
         </div>

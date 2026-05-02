@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { sendTelegram } from "@/lib/telegram"
+import { sendSms } from "@/lib/sms"
 import { requireOrgAccess } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
 
@@ -14,6 +15,7 @@ export async function createNotification(opts: {
   message: string
   link?: string
   sendTelegram?: boolean
+  sendSms?: boolean   // явный triple для срочных уведомлений (платёж, расторжение)
 }) {
   // Уведомления может создавать как server-action (вызов от admin)
   // так и серверный код (cron). Если есть сессия — проверяем org-scope.
@@ -33,13 +35,34 @@ export async function createNotification(opts: {
     },
   })
 
-  if (opts.sendTelegram !== false) {
-    const user = await db.user.findUnique({
-      where: { id: opts.userId },
-      select: { telegramChatId: true },
-    })
-    if (user?.telegramChatId) {
-      await sendTelegram(user.telegramChatId, `<b>${opts.title}</b>\n\n${opts.message}`)
+  // Загрузим каналы пользователя один раз
+  const user = await db.user.findUnique({
+    where: { id: opts.userId },
+    select: {
+      telegramChatId: true,
+      phone: true,
+      notifyTelegram: true,
+      notifySms: true,
+      notifyMutedTypes: true,
+    },
+  })
+  if (!user) return created
+
+  // Если тип уведомления заглушён — пропускаем все каналы кроме in-app
+  const muted = user.notifyMutedTypes as Record<string, boolean> | null
+  const isMuted = muted && muted[opts.type] === false
+
+  if (!isMuted) {
+    if (opts.sendTelegram !== false && user.notifyTelegram && user.telegramChatId) {
+      await sendTelegram(user.telegramChatId, `<b>${opts.title}</b>\n\n${opts.message}`).catch(() => {})
+    }
+    if (opts.sendSms && user.notifySms && user.phone) {
+      // SMS — короткий формат: "Title: message ссылка"
+      const linkPart = opts.link
+        ? ` ${process.env.ROOT_HOST ? `https://${process.env.ROOT_HOST}` : ""}${opts.link}`
+        : ""
+      const text = `${opts.title}: ${opts.message}${linkPart}`.slice(0, 320)
+      await sendSms(user.phone, text).catch(() => {})
     }
   }
 
