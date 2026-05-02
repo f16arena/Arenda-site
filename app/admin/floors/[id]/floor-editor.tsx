@@ -77,6 +77,9 @@ export function FloorEditor({
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 })
   const [tool, setTool] = useState<Tool>("select")
+  // Тип следующей фигуры (rect/polygon, нарисованных через тулбокс).
+  // Для прямоугольника-через-перетягивание и многоугольника — это применяется при создании.
+  const [drawKind, setDrawKind] = useState<RoomKind>("rentable")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [clipboard, setClipboardRaw] = useState<FloorElement | null>(null)
   const [showGrid, setShowGrid] = useState(true)
@@ -215,12 +218,15 @@ export function FloorEditor({
     return id
   }
 
-  const addPolygon = (points: Point[]): string | null => {
+  const addPolygon = (points: Point[], kind: RoomKind = "rentable"): string | null => {
     if (points.length < 3) return null
     const id = uid()
     setLayout((prev) => ({
       ...prev,
-      elements: [...prev.elements, { type: "polygon", id, points: points.map((p) => ({ x: snap(p.x), y: snap(p.y) })), label: "" } as FloorElement],
+      elements: [
+        ...prev.elements,
+        { type: "polygon", id, kind, points: points.map((p) => ({ x: snap(p.x), y: snap(p.y) })), label: "" } as FloorElement,
+      ],
     }))
     setSelectedId(id)
     return id
@@ -338,7 +344,7 @@ export function FloorEditor({
     }
 
     if (tool === "rect") {
-      const id = addRect(pt.x, pt.y, 0.5, 0.5)
+      const id = addRect(pt.x, pt.y, 0.5, 0.5, "", drawKind)
       dragStateRef.current = {
         type: "draw-rect",
         elId: id,
@@ -490,7 +496,7 @@ export function FloorEditor({
 
   const onSvgDoubleClick = () => {
     if (tool === "polygon" && polygonInProgress && polygonInProgress.length >= 3) {
-      addPolygon(polygonInProgress)
+      addPolygon(polygonInProgress, drawKind)
       setPolygonInProgress(null)
       setTool("select")
     }
@@ -918,12 +924,39 @@ export function FloorEditor({
             <span className="font-medium text-slate-700 dark:text-slate-300">{floorName}</span>
             {" · "}
             {tool === "rect" && "Растяните прямоугольник"}
-            {tool === "polygon" && (polygonInProgress ? `Кликайте вершины (${polygonInProgress.length}). Двойной клик — завершить.` : "Кликайте вершины. Двойной клик — завершить")}
+            {tool === "polygon" && (polygonInProgress ? `Кликайте вершины (${polygonInProgress.length}). Двойной клик — завершить.` : "Кликайте вершины контура. Двойной клик — завершить. Подходит для непрямоугольных коридоров.")}
             {tool === "door" && "Кликните чтобы поставить дверь"}
             {tool === "wall" && "Растяните линию"}
             {tool === "label" && "Кликните чтобы добавить подпись"}
             {tool === "select" && "Shift+drag — панорама. Ctrl+wheel — зум. Del — удалить"}
           </p>
+          {(tool === "rect" || tool === "polygon") && (
+            <div className="flex items-center gap-1.5 ml-3">
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">Тип:</span>
+              <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
+                <button
+                  onClick={() => setDrawKind("rentable")}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                    drawKind === "rentable"
+                      ? "bg-emerald-600 text-white"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  Арендуемое
+                </button>
+                <button
+                  onClick={() => setDrawKind("common")}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                    drawKind === "common"
+                      ? "bg-slate-600 text-white"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  Общая зона
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             {/* Режимы отображения */}
             <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
