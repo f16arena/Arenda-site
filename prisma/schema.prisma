@@ -53,6 +53,27 @@ model User {
   @@map("users")
 }
 
+// API-ключи для внешних интеграций (1С, Excel-скрипты, мониторинги).
+// Каждый ключ scoped к организации, имеет права read/write и срок действия.
+model ApiKey {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  name           String                            // как создатель назвал ключ
+  keyHash        String    @unique @map("key_hash") // bcrypt хеш токена
+  keyPrefix      String    @map("key_prefix")       // первые 8 символов для отображения
+  scope          String    @default("READ")        // READ | WRITE
+  expiresAt      DateTime? @map("expires_at")
+  lastUsedAt     DateTime? @map("last_used_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
 model Organization {
   id              String    @id @default(cuid())
   name            String
@@ -74,6 +95,7 @@ model Organization {
   users         User[]
   subscriptions Subscription[]
   cashAccounts  CashAccount[]
+  apiKeys       ApiKey[]
 
   @@map("organizations")
 }
