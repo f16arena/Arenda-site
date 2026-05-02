@@ -10,6 +10,8 @@ import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { FloorSettingsForm } from "./settings-form"
 import { AddSpaceDialog } from "@/app/admin/spaces/space-actions"
+import { AssignTenantButton } from "./assign-tenant-button"
+import { tenantScope } from "@/lib/tenant-scope"
 
 export default async function FloorSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -47,6 +49,32 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   if (!floor) notFound()
 
   const hasFloorEditor = await hasFeature(orgId, "floorEditor")
+
+  // Кандидаты для привязки: все арендаторы организации, кроме full-floor
+  const tenantCandidates = await db.tenant.findMany({
+    where: tenantScope(orgId),
+    select: {
+      id: true,
+      companyName: true,
+      space: {
+        select: {
+          number: true,
+          floor: { select: { name: true } },
+        },
+      },
+      fullFloors: { select: { id: true } },
+    },
+    orderBy: { companyName: "asc" },
+  })
+  const candidates = tenantCandidates
+    .filter((t) => t.fullFloors.length === 0) // не предлагаем тех кто сдан целиком
+    .map((t) => ({
+      id: t.id,
+      companyName: t.companyName,
+      currentSpace: t.space
+        ? { number: t.space.number, floorName: t.space.floor.name }
+        : null,
+    }))
 
   // Стат: разделим RENTABLE и COMMON
   const rentable = floor.spaces.filter((s) => s.kind !== "COMMON")
@@ -231,8 +259,16 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                     <td className="px-5 py-2.5 text-slate-600 dark:text-slate-400">
                       {sp.tenant ? (
                         <Link href={`/admin/tenants/${sp.tenant.id}`} className="hover:underline">{sp.tenant.companyName}</Link>
+                      ) : sp.kind === "COMMON" ? (
+                        <span className="text-slate-400 dark:text-slate-600 text-[11px]">не сдаётся</span>
+                      ) : fullFloorTenant ? (
+                        <span className="text-slate-400 dark:text-slate-600 text-[11px]">этаж сдан</span>
                       ) : (
-                        <span className="text-slate-400 dark:text-slate-600">—</span>
+                        <AssignTenantButton
+                          spaceId={sp.id}
+                          spaceNumber={sp.number}
+                          candidates={candidates}
+                        />
                       )}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums">
