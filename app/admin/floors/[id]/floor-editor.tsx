@@ -10,7 +10,7 @@ import {
   Save, Trash2, Square, Pentagon, DoorOpen, Type, Minus,
   MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move, Sparkles,
   Image as ImageIcon, X as XIcon, Undo2, Redo2, Copy, MoreHorizontal,
-  Eye, Layers as LayersIcon, Ruler, Box,
+  Eye, Layers as LayersIcon, Ruler, Box, Maximize2, Eraser,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -543,6 +543,50 @@ export function FloorEditor({
     }
   }
 
+  // ── Авто-подгонка при первом открытии редактора (когда DOM готов) ──
+  const initialFitDone = useRef(false)
+  useEffect(() => {
+    if (initialFitDone.current) return
+    const id = requestAnimationFrame(() => {
+      const svg = svgRef.current
+      if (!svg) return
+      const rect = svg.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      const w = layout.width * PX_PER_METER
+      const h = layout.height * PX_PER_METER
+      const padding = 20
+      const sx = (rect.width - padding * 2) / w
+      const sy = (rect.height - padding * 2) / h
+      const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(sx, sy)))
+      setZoom(next)
+      setPan({
+        x: (rect.width - w * next) / 2,
+        y: (rect.height - h * next) / 2,
+      })
+      initialFitDone.current = true
+    })
+    return () => cancelAnimationFrame(id)
+  }, [layout.width, layout.height])
+
+  // ── Подгонка вида: зум и пан так чтобы весь холст помещался в SVG ──
+  const fitToView = useCallback((target?: { width: number; height: number }) => {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+    const w = (target?.width ?? layout.width) * PX_PER_METER
+    const h = (target?.height ?? layout.height) * PX_PER_METER
+    const padding = 20
+    const sx = (rect.width - padding * 2) / w
+    const sy = (rect.height - padding * 2) / h
+    const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(sx, sy)))
+    setZoom(next)
+    setPan({
+      x: (rect.width - w * next) / 2,
+      y: (rect.height - h * next) / 2,
+    })
+  }, [layout.width, layout.height])
+
   // ── Загрузка плана (PDF / картинка) с авто-подгонкой холста ──
   const [loadingPlan, setLoadingPlan] = useState(false)
   const handlePlanUpload = async (file: File) => {
@@ -573,15 +617,17 @@ export function FloorEditor({
         return
       }
       const realHeight = (realWidth * result.heightPx) / result.widthPx
+      const newW = Math.round(realWidth * 10) / 10
+      const newH = Math.round(realHeight * 10) / 10
       setLayout((p) => ({
         ...p,
         underlayUrl: result.dataUrl,
-        width: Math.round(realWidth * 10) / 10,
-        height: Math.round(realHeight * 10) / 10,
+        width: newW,
+        height: newH,
       }))
-      // Сбрасываем зум/панораму чтобы план целиком был виден
-      setZoom(1)
-      setPan({ x: 0, y: 0 })
+      // Авто-подгонка зума под новый холст с небольшой задержкой,
+      // чтобы React успел применить новые размеры.
+      requestAnimationFrame(() => fitToView({ width: newW, height: newH }))
       toast.success(`План загружен · ${realWidth.toFixed(1)} × ${realHeight.toFixed(1)} м · сетка 1 м`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Не удалось загрузить план")
@@ -837,11 +883,11 @@ export function FloorEditor({
           <ZoomOut className="h-4 w-4" />
         </button>
         <button
-          onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
-          title="Сброс"
+          onClick={() => fitToView()}
+          title="Подогнать (вместить весь план в экран)"
           className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
-          <Move className="h-4 w-4" />
+          <Maximize2 className="h-4 w-4" />
         </button>
       </div>
 
@@ -927,6 +973,35 @@ export function FloorEditor({
               className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Copy className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => fitToView()}
+              title="Подогнать вид (вместить весь план в экран)"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => {
+                if (layout.elements.length === 0) {
+                  toast.message("На плане нет элементов")
+                  return
+                }
+                if (!window.confirm(
+                  `Удалить все ${layout.elements.length} элемент${layout.elements.length === 1 ? "" : "ов"} с плана?\n\n` +
+                  `Подложка, общая площадь и сетка останутся.\n` +
+                  `Можно отменить через Ctrl+Z до сохранения.`,
+                )) return
+                setLayout((p) => ({ ...p, elements: [] }))
+                setSelectedId(null)
+                setPolygonInProgress(null)
+                toast.success("Все элементы стёрты. Не забудьте сохранить.")
+              }}
+              disabled={layout.elements.length === 0}
+              title="Очистить все нарисованные элементы"
+              className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <Eraser className="h-4 w-4" />
             </button>
             <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{Math.round(zoom * 100)}%</span>
             {f16Template && (
