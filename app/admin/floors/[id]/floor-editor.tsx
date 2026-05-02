@@ -730,36 +730,22 @@ export function FloorEditor({
         requestAnimationFrame(() => fitToView({ width: W, height: H }))
       }
 
-      // Конвертируем доли [0..1] в метры через (возможно обновлённый) размер холста.
-      // Если у комнаты есть подписанная площадь — масштабируем W×H к ней
-      // (сохраняем аспект и центр), иначе оставляем геометрию AI.
-      const newElements: FloorElement[] = recognized.map((r) => {
-        let w = Math.max(0.5, r.width * W)
-        let h = Math.max(0.5, r.height * H)
-        let cx = r.x * W + w / 2
-        let cy = r.y * H + h / 2
-        if (r.area && r.area > 0.5 && r.area < 100000) {
-          const computed = w * h
-          if (computed > 0.01) {
-            const k = Math.sqrt(r.area / computed)
-            w = w * k
-            h = h * k
-          }
-        }
-        const x = cx - w / 2
-        const y = cy - h / 2
-        return {
-          type: "rect",
-          id: uid(),
-          kind: r.kind,
-          x: snap(x),
-          y: snap(y),
-          width: snap(w),
-          height: snap(h),
-          label: r.name,
-          spaceId: null,
-        }
-      })
+      // Используем геометрию AI как есть — каждый прямоугольник ставится точно
+      // там, где AI его распознал на подложке.
+      // Подписанная площадь (если есть) НЕ меняет размеры — иначе прямоугольник
+      // вылезет за реальные стены помещения. Площадь применяется отдельно
+      // когда rect привязывается к Space.
+      const newElements: FloorElement[] = recognized.map((r) => ({
+        type: "rect",
+        id: uid(),
+        kind: r.kind,
+        x: snap(r.x * W),
+        y: snap(r.y * H),
+        width: snap(Math.max(0.5, r.width * W)),
+        height: snap(Math.max(0.5, r.height * H)),
+        label: r.name,
+        spaceId: null,
+      }))
 
       // Сохраняем высоту потолка из плана для будущего 3D-вида
       if (data.ceilingHeightMeters && data.ceilingHeightMeters >= 2.0 && data.ceilingHeightMeters <= 6.0) {
