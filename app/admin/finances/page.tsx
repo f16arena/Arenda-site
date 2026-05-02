@@ -5,6 +5,7 @@ import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
 import { Download, Plus, FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
+import { BatchBillingButton } from "./batch-billing-button"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
@@ -100,6 +101,7 @@ export default async function FinancesPage() {
           </a>
           <PenaltyButton />
           <GenerateChargesButton />
+          <BatchBillingButton defaultPeriod={currentPeriod} />
           <ExpenseDialog cashAccounts={cashAccounts} />
           <PaymentDialog
             tenants={charges.map((c) => c.tenant).filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).map((t) => ({ id: t.id, companyName: t.companyName }))}
