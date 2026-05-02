@@ -339,7 +339,7 @@ export default async function SpacesPage() {
                 <div className="space-y-3">
                   {/* Visual map — показываем только если фича включена и план задан */}
                   {hasFloorEditor && layout && (
-                    <FloorView layout={layout} spaces={spaceInfos} floorId={floor.id} />
+                    <FloorView layout={layout} spaces={spaceInfos} />
                   )}
                   {hasFloorEditor && !layout && (
                     <div className="relative border-2 border-dashed border-purple-200 dark:border-purple-500/30 rounded-lg p-4 bg-purple-50/30 dark:bg-purple-500/5 text-center">

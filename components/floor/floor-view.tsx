@@ -57,11 +57,9 @@ function detectStatus(space: SpaceInfo | undefined): string {
 export function FloorView({
   layout,
   spaces,
-  floorId,
 }: {
   layout: FloorLayoutV2
   spaces: SpaceInfo[]
-  floorId: string
 }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -164,14 +162,6 @@ export function FloorView({
         <div className="flex items-center gap-2"><span className="w-3 h-3 rounded" style={{ background: STATUS_FILL.DEBT, border: `1px solid ${STATUS_STROKE.DEBT}` }} /> Долг</div>
         <div className="flex items-center gap-2"><span className="w-3 h-3 rounded" style={{ background: STATUS_FILL.OVERDUE, border: `1px solid ${STATUS_STROKE.OVERDUE}` }} /> Просрочка</div>
       </div>
-
-      {/* Edit link */}
-      <Link
-        href={`/admin/floors/${floorId}`}
-        className="absolute top-3 left-3 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white"
-      >
-        Редактировать план
-      </Link>
 
       {/* Popup */}
       {selectedSpace && selectedEl && (
