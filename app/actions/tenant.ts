@@ -145,7 +145,47 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
   return { success: true }
 }
 
-export async function deleteTenant(tenantId: string, options?: { redirectAfter?: boolean }) {
+/**
+ * Подсчитать связи арендатора, которые мешают удалению.
+ * Возвращает {ok: true} если можно удалять чисто, либо подробную раскладку.
+ */
+export async function getTenantDeleteBlockers(tenantId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
+  const [
+    chargesCount,
+    paymentsCount,
+    contractsCount,
+    documentsCount,
+    requestsCount,
+    fullFloorsCount,
+    spaceLink,
+  ] = await Promise.all([
+    db.charge.count({ where: { tenantId } }),
+    db.payment.count({ where: { tenantId } }),
+    db.contract.count({ where: { tenantId } }),
+    db.tenantDocument.count({ where: { tenantId } }),
+    db.request.count({ where: { tenantId } }),
+    db.floor.count({ where: { fullFloorTenantId: tenantId } }),
+    db.tenant.findUnique({ where: { id: tenantId }, select: { spaceId: true } }),
+  ])
+
+  return {
+    charges: chargesCount,
+    payments: paymentsCount,
+    contracts: contractsCount,
+    documents: documentsCount,
+    requests: requestsCount,
+    fullFloors: fullFloorsCount,
+    hasSpace: !!spaceLink?.spaceId,
+  }
+}
+
+export async function deleteTenant(
+  tenantId: string,
+  options?: { redirectAfter?: boolean; force?: boolean },
+) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 
@@ -155,21 +195,51 @@ export async function deleteTenant(tenantId: string, options?: { redirectAfter?:
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
-  if (tenant.spaceId) {
-    await db.space.update({
-      where: { id: tenant.spaceId },
-      data: { status: "VACANT" },
-    })
+  // Без force — проверяем связи и кидаем структурированную ошибку
+  if (!options?.force) {
+    const b = await getTenantDeleteBlockers(tenantId)
+    const reasons: string[] = []
+    if (b.charges > 0) reasons.push(`${b.charges} начислени${b.charges === 1 ? "е" : "й"}`)
+    if (b.payments > 0) reasons.push(`${b.payments} платеж${b.payments === 1 ? "" : "ей"}`)
+    if (b.contracts > 0) reasons.push(`${b.contracts} договор${b.contracts === 1 ? "" : "ов"}`)
+    if (b.documents > 0) reasons.push(`${b.documents} документ${b.documents === 1 ? "" : "ов"}`)
+    if (b.requests > 0) reasons.push(`${b.requests} заявок`)
+    if (b.fullFloors > 0) reasons.push(`${b.fullFloors} этаж${b.fullFloors === 1 ? "" : "ей"} сданы целиком`)
+
+    if (reasons.length > 0) {
+      throw new Error(
+        `Нельзя удалить «${tenant.companyName}» — связан с: ${reasons.join(", ")}. ` +
+          `Используйте каскадное удаление чтобы стереть всё вместе.`,
+      )
+    }
   }
 
-  // Каскад в БД удалит charges, payments, contracts, documents, requests
-  await db.tenant.delete({ where: { id: tenantId } })
-
-  // Деактивируем пользователя (не удаляем — сохраняем историю в комментариях/задачах)
-  await db.user.update({
-    where: { id: tenant.userId },
-    data: { isActive: false },
-  })
+  // Force-удаление: чистим все зависимости в транзакции
+  await db.$transaction([
+    // Освобождаем помещение
+    ...(tenant.spaceId
+      ? [db.space.update({ where: { id: tenant.spaceId }, data: { status: "VACANT" } })]
+      : []),
+    // Снимаем full-floor привязки
+    db.floor.updateMany({
+      where: { fullFloorTenantId: tenantId },
+      data: { fullFloorTenantId: null, fixedMonthlyRent: null },
+    }),
+    // Документы помещений
+    db.tenantDocument.deleteMany({ where: { tenantId } }),
+    // Заявки и комментарии к ним
+    db.requestComment.deleteMany({ where: { request: { tenantId } } }),
+    db.request.deleteMany({ where: { tenantId } }),
+    // Договоры
+    db.contract.deleteMany({ where: { tenantId } }),
+    // Финансы
+    db.payment.deleteMany({ where: { tenantId } }),
+    db.charge.deleteMany({ where: { tenantId } }),
+    // Сам арендатор
+    db.tenant.delete({ where: { id: tenantId } }),
+    // Деактивируем пользователя — историю не теряем
+    db.user.update({ where: { id: tenant.userId }, data: { isActive: false } }),
+  ])
 
   revalidatePath("/admin/tenants")
   revalidatePath("/admin/spaces")
