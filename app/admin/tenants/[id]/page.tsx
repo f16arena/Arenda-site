@@ -24,6 +24,7 @@ import { DocumentsActions } from "./documents-actions"
 import { EmailLog } from "./email-log"
 import { RequisitesForm } from "./requisites-form"
 import { IndexationHint } from "./indexation-hint"
+import { ContractWorkflowActions } from "./contract-actions"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -84,7 +85,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       contracts: {
         orderBy: { createdAt: "desc" },
         take: 5,
-        select: { id: true, number: true, status: true, startDate: true, endDate: true, signedAt: true },
+        select: {
+          id: true, number: true, status: true,
+          startDate: true, endDate: true, signedAt: true,
+          sentAt: true, viewedAt: true, signedByTenantAt: true, signedByLandlordAt: true,
+          rejectedAt: true, rejectionReason: true, signToken: true,
+        },
       },
       requests: {
         orderBy: { createdAt: "desc" },
@@ -735,26 +741,33 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Договоры</p>
             </div>
             <div className="divide-y divide-slate-50">
-              {tenant.contracts.map((c) => (
-                <div key={c.id} className="px-4 py-3">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">№ {c.number}</p>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      {c.startDate ? formatDate(c.startDate) : "—"} →{" "}
-                      {c.endDate ? formatDate(c.endDate) : "—"}
+              {tenant.contracts.map((c) => {
+                const statusLabels: Record<string, { label: string; cls: string }> = {
+                  DRAFT:               { label: "Черновик",           cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
+                  SENT:                { label: "Отправлен",          cls: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" },
+                  VIEWED:              { label: "Открыт арендатором", cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300" },
+                  SIGNED_BY_TENANT:    { label: "Ждёт нашей подписи", cls: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
+                  SIGNED:              { label: "Подписан",           cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" },
+                  REJECTED:            { label: "Отклонён",           cls: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" },
+                }
+                const st = statusLabels[c.status] ?? { label: c.status, cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" }
+                return (
+                  <div key={c.id} className="px-4 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">№ {c.number}</p>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${st.cls}`}>
+                        {st.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                      {c.startDate ? formatDate(c.startDate) : "—"} → {c.endDate ? formatDate(c.endDate) : "—"}
                     </p>
-                    <span
-                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-                        c.status === "SIGNED"
-                          ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
-                          : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
-                      }`}
-                    >
-                      {c.status === "SIGNED" ? "Подписан" : "Черновик"}
-                    </span>
+                    <div className="mt-2">
+                      <ContractWorkflowActions contract={c} />
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {tenant.contracts.length === 0 && (
                 <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Нет договоров</p>
               )}
