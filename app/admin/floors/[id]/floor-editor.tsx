@@ -24,7 +24,7 @@ import {
   summarizeAreas,
 } from "@/lib/floor-layout"
 import { getF16TemplateByFloorNumber } from "@/lib/f16-templates"
-import { loadPlanFile } from "@/lib/pdf-render"
+import { loadPlanFile, compressDataUrl } from "@/lib/pdf-render"
 
 type Tool = "select" | "rect" | "polygon" | "door" | "window" | "label" | "wall" | "stairs" | "elevator" | "toilet"
 
@@ -611,18 +611,35 @@ export function FloorEditor({
     setRecognizing(true)
     const t0 = Date.now()
     try {
+      // Сжимаем картинку перед отправкой: Vercel ограничивает тело запроса ~4.5 МБ.
+      // PDF, отрендеренный в PNG, легко превышает лимит.
+      const compressed = await compressDataUrl(layout.underlayUrl)
       const res = await fetch("/api/floor/recognize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageDataUrl: layout.underlayUrl,
+          imageDataUrl: compressed,
           floorName,
           floorNumber,
         }),
       })
-      const data = await res.json()
+      // Vercel/прокси при ошибке (413, 504) могут вернуть HTML вместо JSON
+      const text = await res.text()
+      let data: { error?: string; rooms?: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number }> }
+      try {
+        data = JSON.parse(text)
+      } catch {
+        if (res.status === 413 || text.includes("Request Entity Too Large")) {
+          toast.error("Картинка слишком большая. Загрузите PDF меньшего разрешения.")
+        } else if (res.status === 504) {
+          toast.error("AI не успел ответить за 60 сек. Попробуйте картинку поменьше.")
+        } else {
+          toast.error(`Сервер вернул не-JSON (HTTP ${res.status}). Возможно, AI ещё не настроен.`)
+        }
+        return
+      }
       if (!res.ok) {
-        toast.error(data.error ?? "Не удалось распознать")
+        toast.error(data.error ?? `HTTP ${res.status}`)
         return
       }
       const recognized: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number }> = data.rooms ?? []

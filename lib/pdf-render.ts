@@ -89,3 +89,52 @@ export async function loadPlanFile(file: File): Promise<RenderedPlan> {
   if (file.type.startsWith("image/")) return loadImageWithDimensions(file)
   throw new Error("Поддерживаются PDF и изображения (PNG / JPG / SVG)")
 }
+
+/**
+ * Сжать data-URL картинки до приемлемого размера для отправки в API.
+ * Vercel ограничивает тело запроса ~4.5 МБ; base64 даёт +33% оверхеда,
+ * поэтому целимся в ~2 МБ исходного бинаря (≈ 2.7 МБ base64).
+ *
+ * Стратегия:
+ *   1. Уменьшаем большую сторону до maxDim
+ *   2. Перекодируем в JPEG с заданным quality
+ *   3. Если всё равно >2 МБ — снижаем quality до 0.6 шагами по 0.1
+ */
+export async function compressDataUrl(
+  dataUrl: string,
+  opts: { maxDim?: number; quality?: number } = {},
+): Promise<string> {
+  const maxDim = opts.maxDim ?? 1800
+  const initialQuality = opts.quality ?? 0.85
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new window.Image()
+    i.onload = () => resolve(i)
+    i.onerror = () => reject(new Error("Не удалось декодировать картинку для сжатия"))
+    i.src = dataUrl
+  })
+
+  const longest = Math.max(img.naturalWidth, img.naturalHeight)
+  const ratio = longest > maxDim ? maxDim / longest : 1
+  const w = Math.round(img.naturalWidth * ratio)
+  const h = Math.round(img.naturalHeight * ratio)
+
+  const canvas = document.createElement("canvas")
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext("2d")
+  if (!ctx) throw new Error("Canvas 2D недоступен")
+  // Белая подложка чтобы PNG с прозрачностью не стал чёрным после JPEG
+  ctx.fillStyle = "#ffffff"
+  ctx.fillRect(0, 0, w, h)
+  ctx.drawImage(img, 0, 0, w, h)
+
+  let q = initialQuality
+  let out = canvas.toDataURL("image/jpeg", q)
+  // Целимся в ~2.7 МБ base64 (= ~2 МБ бинаря) с запасом на структуру JSON
+  while (out.length > 2_700_000 && q > 0.6) {
+    q = Math.round((q - 0.1) * 100) / 100
+    out = canvas.toDataURL("image/jpeg", q)
+  }
+  return out
+}
