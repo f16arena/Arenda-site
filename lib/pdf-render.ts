@@ -25,9 +25,10 @@ export type RenderedPlan = {
 
 /**
  * Отрендерить первую страницу PDF в PNG data-URL с разрешением, пригодным для подложки.
- * scale=2 — даёт примерно 2× относительно оригинальных point'ов PDF (≈ 144 DPI).
+ * scale=3 — даёт примерно 3× относительно оригинальных point'ов PDF (≈ 216 DPI).
+ * Чем выше scale, тем чётче подложка и точнее распознавание AI.
  */
-export async function renderPdfFirstPage(file: File, scale = 2): Promise<RenderedPlan> {
+export async function renderPdfFirstPage(file: File, scale = 3): Promise<RenderedPlan> {
   const pdfjs = await getPdfjs()
   const buffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: buffer }).promise
@@ -105,9 +106,10 @@ export async function compressDataUrl(
   opts: { maxDim?: number; quality?: number } = {},
 ): Promise<string> {
   // Чем больше maxDim — тем больше деталей видит AI (важно для геометрии).
-  // 2400px по большей стороне даёт ~3.3 МБ JPEG q=0.9, что укладывается в Vercel 4.5 МБ.
-  const maxDim = opts.maxDim ?? 2400
-  const initialQuality = opts.quality ?? 0.9
+  // 3000px по большей стороне даёт ~4 МБ JPEG q=0.92, что укладывается в Vercel 4.5 МБ.
+  // Выше — рискованно из-за лимита тела запроса.
+  const maxDim = opts.maxDim ?? 3000
+  const initialQuality = opts.quality ?? 0.92
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new window.Image()

@@ -675,11 +675,29 @@ export function FloorEditor({
           floorNumber,
         }),
       })
+      type AIRoom =
+        | {
+            shape: "rect"
+            name: string
+            kind: "rentable" | "common"
+            x: number
+            y: number
+            width: number
+            height: number
+            area?: number | null
+          }
+        | {
+            shape: "polygon"
+            name: string
+            kind: "rentable" | "common"
+            points: Array<{ x: number; y: number }>
+            area?: number | null
+          }
       // Vercel/прокси при ошибке (413, 504) могут вернуть HTML вместо JSON
       const text = await res.text()
       let data: {
         error?: string
-        rooms?: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number; area?: number | null }>
+        rooms?: AIRoom[]
         buildingWidthMeters?: number | null
         ceilingHeightMeters?: number | null
       }
@@ -709,7 +727,7 @@ export function FloorEditor({
         toast.error(data.error ?? `HTTP ${res.status}`)
         return
       }
-      const recognized: Array<{ name: string; kind: "rentable" | "common"; x: number; y: number; width: number; height: number; area?: number | null }> = data.rooms ?? []
+      const recognized: AIRoom[] = data.rooms ?? []
       if (recognized.length === 0) {
         toast.error("AI не нашёл помещений. Попробуйте подложку лучшего качества.")
         return
@@ -730,22 +748,33 @@ export function FloorEditor({
         requestAnimationFrame(() => fitToView({ width: W, height: H }))
       }
 
-      // Используем геометрию AI как есть — каждый прямоугольник ставится точно
+      // Используем геометрию AI как есть — каждое помещение ставится точно
       // там, где AI его распознал на подложке.
-      // Подписанная площадь (если есть) НЕ меняет размеры — иначе прямоугольник
-      // вылезет за реальные стены помещения. Площадь применяется отдельно
-      // когда rect привязывается к Space.
-      const newElements: FloorElement[] = recognized.map((r) => ({
-        type: "rect",
-        id: uid(),
-        kind: r.kind,
-        x: snap(r.x * W),
-        y: snap(r.y * H),
-        width: snap(Math.max(0.5, r.width * W)),
-        height: snap(Math.max(0.5, r.height * H)),
-        label: r.name,
-        spaceId: null,
-      }))
+      // Если форма полигональная (Г-образная, со скосом, кривой коридор) —
+      // создаём polygon вместо rect.
+      const newElements: FloorElement[] = recognized.map((r) => {
+        if (r.shape === "polygon") {
+          return {
+            type: "polygon",
+            id: uid(),
+            kind: r.kind,
+            points: r.points.map((p) => ({ x: snap(p.x * W), y: snap(p.y * H) })),
+            label: r.name,
+            spaceId: null,
+          } as FloorElement
+        }
+        return {
+          type: "rect",
+          id: uid(),
+          kind: r.kind,
+          x: snap(r.x * W),
+          y: snap(r.y * H),
+          width: snap(Math.max(0.5, r.width * W)),
+          height: snap(Math.max(0.5, r.height * H)),
+          label: r.name,
+          spaceId: null,
+        } as FloorElement
+      })
 
       // Сохраняем высоту потолка из плана для будущего 3D-вида
       if (data.ceilingHeightMeters && data.ceilingHeightMeters >= 2.0 && data.ceilingHeightMeters <= 6.0) {

@@ -8,17 +8,35 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-type Room = {
+type RectRoom = {
+  shape: "rect"
   name: string
   kind: "rentable" | "common"
   x: number
   y: number
   width: number
   height: number
-  area: number | null  // площадь из синей метки на плане (м²), если читается
+  area: number | null
 }
 
-const SYSTEM_PROMPT = `Ты разбираешь архитектурный план этажа из проектной документации СНГ-стандарта (ГОСТ 21.501).
+type PolyRoom = {
+  shape: "polygon"
+  name: string
+  kind: "rentable" | "common"
+  points: Array<{ x: number; y: number }>
+  area: number | null
+}
+
+type Room = RectRoom | PolyRoom
+
+const SYSTEM_PROMPT = `Ты эксперт по архитектурным чертежам, обученный на проектной документации Республики Казахстан и СНГ.
+
+ИСХОДНЫЕ СТАНДАРТЫ:
+- ГОСТ 21.501-2018 «СПДС. Правила выполнения архитектурно-строительных рабочих чертежей»
+- ГОСТ 21.508-2020 «СПДС. Правила выполнения чертежей зданий и сооружений»
+- СН РК 1.02-03-2011 «Состав и оформление проектной документации»
+- СН РК 3.02-25-2004 «Жилые здания»
+- СН РК 3.02-08-2003 «Общественные здания и сооружения»
 
 ═══ УСЛОВНЫЕ ОБОЗНАЧЕНИЯ ═══
 
@@ -56,13 +74,28 @@ const SYSTEM_PROMPT = `Ты разбираешь архитектурный пл
 2. Определить высоту потолка этажа (ceilingHeightMeters) по красной метке H=X,XX.
 3. Определить общую ширину здания (buildingWidthMeters) — из периметральных размеров.
 
-═══ ТОЧНОСТЬ ПРЯМОУГОЛЬНИКОВ ═══
+═══ ТОЧНОСТЬ ГРАНИЦ ═══
 
-- Прямоугольник = bounding box помещения по внутренним поверхностям стен.
-- Левый край = внутренняя поверхность левой стены, правый = правой, и т.д.
-- НЕ оставляй большие зазоры. НЕ выходи в соседние помещения или коридор.
-- Если помещение Г-образное / со скосом → bounding box, но лучше чуть меньше чем больше.
-- Если ты НЕ ВИДИШЬ чёткой стены в каком-то месте — лучше пропусти помещение, чем рисуй наугад.
+КРИТИЧЕСКИ ВАЖНО — каждая нарисованная фигура ДОЛЖНА совпадать с РЕАЛЬНЫМИ стенами на плане:
+- Все 4 края прямоугольника проходят ТОЧНО по внутренней поверхности соответствующей стены.
+- НЕ ВЫХОДИ за стены в соседнее помещение или в коридор.
+- НЕ оставляй зазоров между фигурой и стенами комнаты.
+- Если посчитанная площадь (W × H × масштаб) отличается от подписанной в синей метке более чем на 15% — твоя геометрия неточна, проверь стены ещё раз.
+
+ВЫБОР ФИГУРЫ — RECT vs POLYGON:
+- "shape":"rect" — для ИДЕАЛЬНО прямоугольных помещений, у которых все стены ортогональны (горизонтально/вертикально) и углы строго 90°.
+- "shape":"polygon" — для ВСЕХ остальных случаев:
+   * Г-образные комнаты (с выступом)
+   * Комнаты со скошенной стеной (диагональ)
+   * Длинные коридоры с поворотами
+   * Любая форма, не вписывающаяся точно в прямоугольник
+- Полигон — массив вершин по часовой или против часовой стрелки, с вершинами на углах стен.
+- ПРАВИЛО: если bounding box больше реальной площади подписанной метки на 15%+ — это polygon, не rect.
+
+ПРИМЕР коридора (room 9 на типовом плане): длинный, с одним выступом справа сверху →
+"shape":"polygon", "points":[{"x":0.30,"y":0.30},{"x":0.40,"y":0.30},{"x":0.40,"y":0.36},{"x":0.45,"y":0.36},{"x":0.45,"y":0.70},{"x":0.30,"y":0.70}]
+
+Если ты НЕ ВИДИШЬ чётко стены — лучше пропусти помещение, чем рисуй наугад.
 
 ═══ ЧТО НЕ ВКЛЮЧАТЬ ═══
 
@@ -85,20 +118,31 @@ const SYSTEM_PROMPT = `Ты разбираешь архитектурный пл
 
 ═══ ФОРМАТ ОТВЕТА (СТРОГО только JSON, без markdown) ═══
 
+Каждая комната — объект с полем "shape": "rect" или "polygon".
+
+Для прямоугольных:
+{"shape":"rect","name":"6","area":43.5,"kind":"rentable","x":0.45,"y":0.07,"width":0.18,"height":0.13}
+
+Для произвольных форм:
+{"shape":"polygon","name":"9","area":109.0,"kind":"common","points":[
+  {"x":0.30,"y":0.30},{"x":0.40,"y":0.30},{"x":0.40,"y":0.36},
+  {"x":0.45,"y":0.36},{"x":0.45,"y":0.70},{"x":0.30,"y":0.70}
+]}
+
+ОБЩИЙ ОТВЕТ:
 {
   "buildingWidthMeters": 36.55,
   "ceilingHeightMeters": 3.5,
-  "rooms": [
-    {"name":"5","area":14.5,"kind":"common","x":0.16,"y":0.11,"width":0.07,"height":0.06},
-    {"name":"6","area":43.5,"kind":"rentable","x":0.45,"y":0.07,"width":0.18,"height":0.13},
-    {"name":"9","area":109.0,"kind":"common","x":0.30,"y":0.30,"width":0.10,"height":0.40}
-  ]
+  "rooms": [<rect или polygon объекты>]
 }
 
-ВАЖНО:
-- "area" — ВСЕГДА число из синей метки на плане (м²), не считай сам W×H.
-- Если синей метки с площадью у комнаты нет → "area": null, и я посчитаю по координатам.
-- Если высоты потолка не нашёл → "ceilingHeightMeters": null.`
+КРИТИЧЕСКИЕ ПРАВИЛА:
+- "area" ВСЕГДА = число из синей метки на плане (м²). Не считай сам.
+- Если у комнаты нет метки площади → "area": null.
+- Высоты потолка нет → "ceilingHeightMeters": null.
+- Координаты ВСЕГДА в долях [0..1] относительно всей картинки.
+- Полигон должен быть простым (без самопересечений) и иметь минимум 3 вершины.
+- Перед каждой комнатой подумай: реально ли её стены ортогональны? Если есть скос, выступ или поворот — используй polygon.`
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -256,30 +300,51 @@ export async function POST(req: Request) {
 
   // Валидация и нормализация
   const rooms: Room[] = []
+  const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
   for (const r of parsed.rooms) {
     if (!r || typeof r !== "object") continue
     const obj = r as Record<string, unknown>
     const name = typeof obj.name === "string" ? obj.name.trim().slice(0, 40) : ""
     const kind = obj.kind === "common" ? "common" : "rentable"
-    const x = typeof obj.x === "number" ? obj.x : NaN
-    const y = typeof obj.y === "number" ? obj.y : NaN
-    const w = typeof obj.width === "number" ? obj.width : NaN
-    const h = typeof obj.height === "number" ? obj.height : NaN
-    if ([x, y, w, h].some((v) => !Number.isFinite(v))) continue
-    if (w <= 0 || h <= 0) continue
-    // Зажимаем в [0..1] и режем выходящие части
-    const cx = Math.max(0, Math.min(1, x))
-    const cy = Math.max(0, Math.min(1, y))
-    const cw = Math.max(0, Math.min(1 - cx, w))
-    const ch = Math.max(0, Math.min(1 - cy, h))
-    if (cw < 0.01 || ch < 0.01) continue
+
     // Площадь из синей метки на плане
     const rawArea = obj.area
     const area =
       typeof rawArea === "number" && Number.isFinite(rawArea) && rawArea > 0 && rawArea < 100000
         ? Math.round(rawArea * 10) / 10
         : null
-    rooms.push({ name, kind, x: cx, y: cy, width: cw, height: ch, area })
+
+    const shapeField = obj.shape
+    const isPolygon = shapeField === "polygon" || Array.isArray(obj.points)
+
+    if (isPolygon) {
+      const rawPoints = obj.points
+      if (!Array.isArray(rawPoints) || rawPoints.length < 3) continue
+      const points: Array<{ x: number; y: number }> = []
+      for (const p of rawPoints) {
+        if (!p || typeof p !== "object") continue
+        const pp = p as Record<string, unknown>
+        const px = typeof pp.x === "number" ? pp.x : NaN
+        const py = typeof pp.y === "number" ? pp.y : NaN
+        if (!Number.isFinite(px) || !Number.isFinite(py)) continue
+        points.push({ x: clamp01(px), y: clamp01(py) })
+      }
+      if (points.length < 3) continue
+      rooms.push({ shape: "polygon", name, kind, points, area })
+    } else {
+      const x = typeof obj.x === "number" ? obj.x : NaN
+      const y = typeof obj.y === "number" ? obj.y : NaN
+      const w = typeof obj.width === "number" ? obj.width : NaN
+      const h = typeof obj.height === "number" ? obj.height : NaN
+      if ([x, y, w, h].some((v) => !Number.isFinite(v))) continue
+      if (w <= 0 || h <= 0) continue
+      const cx = clamp01(x)
+      const cy = clamp01(y)
+      const cw = Math.max(0, Math.min(1 - cx, w))
+      const ch = Math.max(0, Math.min(1 - cy, h))
+      if (cw < 0.01 || ch < 0.01) continue
+      rooms.push({ shape: "rect", name, kind, x: cx, y: cy, width: cw, height: ch, area })
+    }
   }
 
   // Парсим определённую AI ширину здания
