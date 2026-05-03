@@ -31,7 +31,15 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
   if (!meter) return { error: "Счётчик не найден" }
 
   const value = parseFloat(valueStr)
+  if (!Number.isFinite(value) || value < 0) {
+    return { error: "Введите корректное неотрицательное показание счётчика" }
+  }
+
   const previous = meter.readings[0]?.value ?? 0
+  if (value < previous) {
+    return { error: `Текущее показание не может быть меньше предыдущего (${previous})` }
+  }
+
   const consumption = Math.max(0, value - previous)
 
   await db.meterReading.create({
@@ -126,13 +134,20 @@ export async function createMeter(formData: FormData) {
   await assertBuildingAccess(space.floor.buildingId, orgId)
 
   const type = formData.get("type") as string
-  const number = formData.get("number") as string
+  const number = String(formData.get("number") ?? "").trim()
   const initialValueStr = formData.get("initialValue") as string
+  const allowedTypes = new Set(["ELECTRICITY", "WATER", "HEAT"])
+
+  if (!allowedTypes.has(type)) throw new Error("Выберите корректный тип счётчика")
+  if (!number) throw new Error("Укажите номер счётчика")
 
   const meter = await db.meter.create({ data: { spaceId, type, number } })
 
   if (initialValueStr) {
     const initialValue = parseFloat(initialValueStr)
+    if (!Number.isFinite(initialValue) || initialValue < 0) {
+      throw new Error("Начальное показание должно быть неотрицательным числом")
+    }
     if (!Number.isNaN(initialValue)) {
       const period = new Date().toISOString().slice(0, 7)
       await db.meterReading.create({

@@ -64,11 +64,18 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
   const [pending, startTransition] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
   const period = new Date().toISOString().slice(0, 7)
+  const hasMeters = meters.length > 0
 
   return (
     <>
-      <button onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+      <button
+        onClick={() => {
+          if (hasMeters) setOpen(true)
+        }}
+        disabled={!hasMeters}
+        title={hasMeters ? "Внести показания" : "Сначала добавьте счётчик"}
+        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700"
+      >
         <Gauge className="h-4 w-4" />
         Внести показания
       </button>
@@ -123,11 +130,18 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
 export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const hasSpaces = spaces.length > 0
 
   return (
     <>
-      <button onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
+      <button
+        onClick={() => {
+          if (hasSpaces) setOpen(true)
+        }}
+        disabled={!hasSpaces}
+        title={hasSpaces ? "Добавить счётчик" : "Сначала добавьте помещение"}
+        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+      >
         <Plus className="h-4 w-4" />
         Добавить счётчик
       </button>

@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { Gauge } from "lucide-react"
 import { MeterReadingDialog, AddMeterDialog, InlineReadingButton } from "./meter-actions"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { EmptyState } from "@/components/ui/empty-state"
 import { deleteMeter } from "@/app/actions/meters"
 import { requireOrgAccess } from "@/lib/org"
 import { meterScope, spaceScope, tariffScope } from "@/lib/tenant-scope"
@@ -184,9 +185,22 @@ export default async function MetersPage() {
             })}
             {meters.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-5 py-16 text-center">
-                  <Gauge className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">Счётчики не добавлены</p>
+                <td colSpan={9} className="px-5 py-8">
+                  <EmptyState
+                    icon={<Gauge className="h-5 w-5" />}
+                    title="Счётчики не добавлены"
+                    description={
+                      spaces.length === 0
+                        ? "Сначала добавьте помещения в здании. После этого можно привязать счетчики света, воды или тепла к конкретному кабинету."
+                        : "Добавьте счетчик к помещению, чтобы вести показания, считать расход и автоматически формировать коммунальные начисления."
+                    }
+                    actions={[
+                      spaces.length === 0
+                        ? { href: "/admin/spaces", label: "Добавить помещения" }
+                        : { href: "/admin/settings", label: "Проверить тарифы" },
+                      { href: "/admin/faq", label: "Как вести счетчики", variant: "secondary" },
+                    ]}
+                  />
                 </td>
               </tr>
             )}
