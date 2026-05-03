@@ -7,7 +7,7 @@ import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
   Clock, Calendar as CalendarIcon, Mail, Wallet,
-  ClipboardCheck,
+  ClipboardCheck, ShieldCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
@@ -198,6 +198,8 @@ export default async function AdminDashboard() {
 
   const [
     overdueCharges,
+    pendingPaymentReports,
+    dataQualityIssues,
     expiringContracts,
     todayRequests,
     yesterdayPayments,
@@ -211,6 +213,81 @@ export default async function AdminDashboard() {
       _sum: { amount: true },
       _count: { _all: true },
     }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    db.paymentReport.aggregate({
+      where: {
+        status: "PENDING",
+        tenant: tenantWhereInBuilding,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    (async () => {
+      const [
+        doubleRentCount,
+        missingContactCount,
+        noSignedContractCount,
+        chargeMissingDueDateCount,
+        occupiedWithoutTenantCount,
+        vacantWithTenantCount,
+      ] = await Promise.all([
+        db.tenant.count({
+          where: {
+            AND: [
+              tenantWhereInBuilding,
+              { customRate: { gt: 0 }, fixedMonthlyRent: { gt: 0 } },
+            ],
+          },
+        }),
+        db.tenant.count({
+          where: {
+            AND: [
+              tenantWhereInBuilding,
+              { OR: [{ user: { email: null } }, { user: { email: "" } }] },
+              { OR: [{ user: { phone: null } }, { user: { phone: "" } }] },
+            ],
+          },
+        }),
+        db.tenant.count({
+          where: {
+            AND: [
+              tenantWhereInBuilding,
+              { OR: [{ spaceId: { not: null } }, { fullFloors: { some: {} } }] },
+              { contracts: { none: { status: "SIGNED" } } },
+            ],
+          },
+        }),
+        db.charge.count({
+          where: {
+            isPaid: false,
+            dueDate: null,
+            tenant: tenantWhereInBuilding,
+          },
+        }),
+        db.space.count({
+          where: {
+            kind: "RENTABLE",
+            status: "OCCUPIED",
+            tenant: { is: null },
+            floor: { buildingId: { in: visibleBuildingIds }, fullFloorTenantId: null },
+          },
+        }),
+        db.space.count({
+          where: {
+            kind: "RENTABLE",
+            status: "VACANT",
+            tenant: { isNot: null },
+            floorId: { in: floorIds },
+          },
+        }),
+      ])
+
+      return doubleRentCount
+        + missingContactCount
+        + noSignedContractCount
+        + chargeMissingDueDateCount
+        + occupiedWithoutTenantCount
+        + vacantWithTenantCount
+    })().catch(() => 0),
     db.tenant.count({
       where: {
         ...tenantWhereInBuilding,
@@ -348,7 +425,7 @@ export default async function AdminDashboard() {
           <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
           Сегодня
         </h2>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
           <TodayCard
             href="/admin/finances?filter=overdue"
             icon={AlertTriangle}
@@ -357,6 +434,24 @@ export default async function AdminDashboard() {
             value={(overdueCharges._count._all ?? 0) > 0 ? `${overdueCharges._count._all} шт` : "Нет"}
             sub={(overdueCharges._sum.amount ?? 0) > 0 ? formatMoney(overdueCharges._sum.amount ?? 0) : "—"}
             urgent={(overdueCharges._count._all ?? 0) > 0}
+          />
+          <TodayCard
+            href="/admin/finances"
+            icon={Wallet}
+            color="emerald"
+            label="Оплаты на проверке"
+            value={(pendingPaymentReports._count._all ?? 0) > 0 ? `${pendingPaymentReports._count._all} шт` : "Нет"}
+            sub={(pendingPaymentReports._sum.amount ?? 0) > 0 ? formatMoney(pendingPaymentReports._sum.amount ?? 0) : "—"}
+            urgent={(pendingPaymentReports._count._all ?? 0) > 0}
+          />
+          <TodayCard
+            href="/admin/data-quality"
+            icon={ShieldCheck}
+            color="amber"
+            label="Ошибки в данных"
+            value={dataQualityIssues > 0 ? `${dataQualityIssues} шт` : "Нет"}
+            sub="проверка аренды, контактов и договоров"
+            urgent={dataQualityIssues > 0}
           />
           <TodayCard
             href="/admin/tenants?filter=expiring"
@@ -376,7 +471,7 @@ export default async function AdminDashboard() {
             sub="за сегодня"
           />
           <TodayCard
-            href="/admin/finances/payments"
+            href="/admin/finances"
             icon={Wallet}
             color="emerald"
             label="Поступления"
