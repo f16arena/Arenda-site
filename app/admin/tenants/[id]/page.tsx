@@ -11,7 +11,7 @@ import {
 import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/utils"
 import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
-  Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare,
+  Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
 } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
@@ -24,7 +24,9 @@ import { RequisitesForm } from "./requisites-form"
 import { IndexationHint } from "./indexation-hint"
 import { ContractWorkflowActions } from "./contract-actions"
 import { RentalTermsForm } from "./rental-terms-form"
+import { ServiceChargesForm } from "./service-charges-form"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
+import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -119,6 +121,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   // Период = текущий месяц для генератора счёта
   const currentPeriod = today.toISOString().slice(0, 7)
+  const serviceDueDay = Math.min(tenant.paymentDueDay ?? 10, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate())
+  const defaultServiceDueDate = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(serviceDueDay).padStart(2, "0"),
+  ].join("-")
 
   const vacantSpaces = await db.space.findMany({
     where: { status: "VACANT", kind: "RENTABLE" },
@@ -142,6 +150,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     id: string; recipient: string; subject: string; type: string; status: string;
     externalId: string | null; error: string | null; openedAt: Date | null; openCount: number; sentAt: Date
   }>)
+
+  const currentServiceCharges = await db.charge.findMany({
+    where: {
+      tenantId: tenant.id,
+      period: currentPeriod,
+      type: { in: [...SERVICE_CHARGE_TYPE_VALUES] },
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, type: true, amount: true, description: true },
+  })
 
   const allFloors = await db.floor.findMany({
     select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },
@@ -529,6 +547,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 penaltyPercent: tenant.penaltyPercent ?? 1,
                 isVatPayer: tenant.isVatPayer,
               }}
+            />
+          </div>
+
+          {/* Service charges */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+              <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h2>
+            </div>
+            <ServiceChargesForm
+              tenantId={tenant.id}
+              period={currentPeriod}
+              defaultDueDate={defaultServiceDueDate}
+              existingCharges={currentServiceCharges}
             />
           </div>
 

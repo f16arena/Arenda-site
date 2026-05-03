@@ -11,7 +11,8 @@ import { getActiveTemplate } from "@/app/actions/document-templates"
 
 const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода",
-  HEATING: "Отопление", CLEANING: "Уборка", PENALTY: "Пеня", OTHER: "Прочее",
+  HEATING: "Отопление", GARBAGE: "Вывоз мусора", SECURITY: "Охрана",
+  INTERNET: "Интернет", GAS: "Газ", CLEANING: "Уборка", PENALTY: "Пеня", OTHER: "Прочее",
 }
 
 export default async function ReconciliationPage({

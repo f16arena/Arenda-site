@@ -8,12 +8,36 @@ import { requireSection } from "@/lib/acl"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import {
+  getServiceChargeDescription,
+  isServiceChargeType,
+  SERVICE_CHARGE_TYPE_VALUES,
+} from "@/lib/service-charges"
+import {
   assertTenantInOrg,
   assertChargeInOrg,
   assertPaymentInOrg,
   assertExpenseInOrg,
   assertBuildingInOrg,
 } from "@/lib/scope-guards"
+
+function parseChargeAmount(value: FormDataEntryValue | null) {
+  const amount = Number(String(value ?? "").trim().replace(",", "."))
+  if (!Number.isFinite(amount) || amount <= 0) return null
+  return Math.round(amount * 100) / 100
+}
+
+function parsePeriod(value: FormDataEntryValue | null) {
+  const period = String(value ?? "").trim()
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(period) ? period : null
+}
+
+function parseDateOrNull(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim()
+  if (!raw) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
+  const date = new Date(`${raw}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
 
 export async function recordPayment(formData: FormData) {
   await requireSection("finances", "edit")
@@ -220,6 +244,101 @@ export async function addCharge(formData: FormData) {
   revalidatePath("/admin/finances")
   revalidatePath(`/admin/tenants/${tenantId}`)
   return { success: true }
+}
+
+export async function saveTenantServiceCharges(tenantId: string, formData: FormData) {
+  await requireSection("finances", "edit")
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+
+  const period = parsePeriod(formData.get("period"))
+  if (!period) throw new Error("Укажите период в формате YYYY-MM")
+
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { paymentDueDay: true },
+  })
+  if (!tenant) throw new Error("Арендатор не найден")
+
+  const [year, month] = period.split("-").map(Number)
+  const lastDayOfMonth = new Date(year, month, 0).getDate()
+  const dueDay = Math.min(tenant.paymentDueDay, lastDayOfMonth)
+  const dueDate = parseDateOrNull(formData.get("dueDate")) ?? new Date(year, month - 1, dueDay)
+  const selectedTypes = formData
+    .getAll("services")
+    .map((value) => String(value))
+    .filter(isServiceChargeType)
+
+  if (selectedTypes.length === 0) {
+    throw new Error("Выберите хотя бы одну услугу")
+  }
+
+  const uniqueTypes = [...new Set(selectedTypes)]
+  const operations: Array<{
+    type: (typeof SERVICE_CHARGE_TYPE_VALUES)[number]
+    amount: number
+    description: string
+  }> = []
+
+  for (const type of uniqueTypes) {
+    const amount = parseChargeAmount(formData.get(`amount_${type}`))
+    if (amount === null) {
+      throw new Error(`Укажите сумму для услуги «${getServiceChargeDescription(type)}»`)
+    }
+    const customDescription = String(formData.get(`description_${type}`) ?? "").trim()
+    operations.push({
+      type,
+      amount,
+      description: customDescription || `${getServiceChargeDescription(type)} за ${period}`,
+    })
+  }
+
+  let created = 0
+  let updated = 0
+
+  await db.$transaction(async (tx) => {
+    for (const item of operations) {
+      const existing = await tx.charge.findFirst({
+        where: { tenantId, period, type: item.type },
+        select: { id: true, isPaid: true },
+      })
+
+      if (existing?.isPaid) {
+        throw new Error(`Начисление «${getServiceChargeDescription(item.type)}» за ${period} уже оплачено`)
+      }
+
+      if (existing) {
+        await tx.charge.update({
+          where: { id: existing.id },
+          data: {
+            amount: item.amount,
+            description: item.description,
+            dueDate,
+          },
+        })
+        updated++
+      } else {
+        await tx.charge.create({
+          data: {
+            tenantId,
+            period,
+            type: item.type,
+            amount: item.amount,
+            description: item.description,
+            dueDate,
+          },
+        })
+        created++
+      }
+    }
+  })
+
+  revalidatePath("/admin/finances")
+  revalidatePath(`/admin/tenants/${tenantId}`)
+  revalidatePath("/admin/documents/templates/invoice")
+  revalidatePath("/admin/documents/templates/act")
+
+  return { success: true, created, updated }
 }
 
 export async function deleteCharge(chargeId: string) {
