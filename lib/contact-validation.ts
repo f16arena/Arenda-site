@@ -1,3 +1,5 @@
+import { resolve4, resolve6, resolveMx } from "node:dns/promises"
+
 const EMAIL_RE =
   /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i
 
@@ -32,6 +34,23 @@ export function normalizeEmail(value: FormDataEntryValue | string | null | undef
   return email
 }
 
+export async function normalizeEmailWithDns(value: FormDataEntryValue | string | null | undefined, options: NormalizeOptions & { required: true }): Promise<string>
+export async function normalizeEmailWithDns(value: FormDataEntryValue | string | null | undefined, options?: NormalizeOptions): Promise<string | null>
+export async function normalizeEmailWithDns(value: FormDataEntryValue | string | null | undefined, options: NormalizeOptions = {}) {
+  const email = normalizeEmail(value, options)
+  if (!email) return null
+
+  const domain = email.split("@")[1]
+  if (!domain) throw new Error(`${options.fieldName ?? "Email"}: укажите домен после @`)
+
+  const exists = await emailDomainExists(domain)
+  if (!exists) {
+    throw new Error(`${options.fieldName ?? "Email"}: домен ${domain} не найден или не принимает почту`)
+  }
+
+  return email
+}
+
 export function normalizeKzPhone(value: FormDataEntryValue | string | null | undefined, options: PhoneOptions & { required: true }): string
 export function normalizeKzPhone(value: FormDataEntryValue | string | null | undefined, options?: PhoneOptions): string | null
 export function normalizeKzPhone(value: FormDataEntryValue | string | null | undefined, options: PhoneOptions = {}) {
@@ -61,6 +80,43 @@ export function normalizeKzPhone(value: FormDataEntryValue | string | null | und
   }
 
   return `+7${national}`
+}
+
+async function emailDomainExists(domain: string) {
+  try {
+    const mx = await resolveMx(domain)
+    if (mx.length > 0) return true
+  } catch (error) {
+    if (isTransientDnsError(error)) return true
+    if (!isMissingDnsRecord(error)) throw error
+  }
+
+  try {
+    const addresses = await resolve4(domain)
+    if (addresses.length > 0) return true
+  } catch (error) {
+    if (isTransientDnsError(error)) return true
+    if (!isMissingDnsRecord(error)) throw error
+  }
+
+  try {
+    const addresses = await resolve6(domain)
+    return addresses.length > 0
+  } catch (error) {
+    if (isTransientDnsError(error)) return true
+    if (!isMissingDnsRecord(error)) throw error
+    return false
+  }
+}
+
+function isMissingDnsRecord(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : ""
+  return ["ENOTFOUND", "ENODATA", "ENODOMAIN", "NOTFOUND"].includes(code)
+}
+
+function isTransientDnsError(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : ""
+  return ["EAI_AGAIN", "ECONNREFUSED", "ETIMEOUT", "SERVFAIL"].includes(code)
 }
 
 export function getLoginIdentifiers(value: FormDataEntryValue | string | null | undefined) {

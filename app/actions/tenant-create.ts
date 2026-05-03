@@ -10,7 +10,7 @@ import { assertBuildingAccess } from "@/lib/building-access"
 import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
-import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function createTenant(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -18,8 +18,8 @@ export async function createTenant(formData: FormData) {
   await checkLimit(orgId, "tenants")
 
   const name = String(formData.get("name") ?? "").trim()
-  const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const phone = normalizeKzPhone(formData.get("phone"), { required: true })
+  const email = await normalizeEmailWithDns(formData.get("email"))
   const password = String(formData.get("password") ?? "")
   const companyName = String(formData.get("companyName") ?? "").trim()
   const legalType = String(formData.get("legalType") ?? "IP")

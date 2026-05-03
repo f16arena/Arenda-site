@@ -11,7 +11,7 @@ import {
   assertSpaceInOrg,
   assertUserInOrg,
 } from "@/lib/scope-guards"
-import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import { normalizeTenantRentChoice } from "@/lib/rent"
 
@@ -431,9 +431,27 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
   await assertTenantBuildingAccess(tenantId, orgId)
   await assertUserInOrg(userId, orgId)
 
-  const name = formData.get("name") as string
+  const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = await normalizeEmailWithDns(formData.get("email"))
+
+  if (!name) throw new Error("Введите ФИО контактного лица")
+
+  if (phone) {
+    const existing = await db.user.findFirst({
+      where: { phone, id: { not: userId } },
+      select: { id: true },
+    })
+    if (existing) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
+  }
+
+  if (email) {
+    const existing = await db.user.findFirst({
+      where: { email, id: { not: userId } },
+      select: { id: true },
+    })
+    if (existing) throw new Error(`Email ${email} уже используется другим пользователем`)
+  }
 
   await db.user.update({
     where: { id: userId },

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { createTenant } from "@/app/actions/tenant-create"
+import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 
 type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number }
 
@@ -54,11 +55,11 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон *</label>
-                  <input name="phone" type="tel" inputMode="tel" required placeholder="+7 700 000 00 00" title="Введите номер Казахстана в формате +7 7XX XXX XX XX" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <KzPhoneInput name="phone" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
-                  <input name="email" type="email" placeholder="tenant@example.com" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <AsciiEmailInput name="email" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
               <div>

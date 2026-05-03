@@ -13,7 +13,7 @@ import {
   normalizeLegalType,
   extractBinIin,
 } from "@/lib/excel-import"
-import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { normalizeTenantRentChoice } from "@/lib/rent"
 
 function isPositiveAmount(value: number | null | undefined) {
@@ -114,7 +114,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     let email = ""
     try {
       phone = normalizeKzPhone(getField(row, mapping, "phone")) ?? ""
-      email = normalizeEmail(getField(row, mapping, "email")) ?? ""
+      email = await normalizeEmailWithDns(getField(row, mapping, "email")) ?? ""
     } catch (error) {
       invalidRows.push({
         rowIndex: i + 2,
