@@ -7,7 +7,7 @@ import { createTenant } from "@/app/actions/tenant-create"
 
 type Space = { id: string; number: string; floorName: string; area: number }
 
-export function TenantDialog({ vacantSpaces }: { vacantSpaces: Space[] }) {
+export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space[]; buildingId?: string | null }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -45,6 +45,7 @@ export function TenantDialog({ vacantSpaces }: { vacantSpaces: Space[] }) {
               }}
               className="p-6 space-y-4"
             >
+              {buildingId && <input type="hidden" name="buildingId" value={buildingId} />}
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Контактное лицо</p>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО *</label>

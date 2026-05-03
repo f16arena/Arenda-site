@@ -551,7 +551,32 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
   await assertTenantInOrg(tenantId, orgId)
   if (spaceId) await assertSpaceInOrg(spaceId, orgId)
 
-  const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      id: true,
+      spaceId: true,
+      companyName: true,
+      space: {
+        select: {
+          floor: {
+            select: {
+              buildingId: true,
+              building: { select: { name: true } },
+            },
+          },
+        },
+      },
+      fullFloors: {
+        select: {
+          buildingId: true,
+          building: { select: { name: true } },
+        },
+        take: 1,
+      },
+    },
+  })
+  if (!tenant) throw new Error("Арендатор не найден")
 
   if (spaceId) {
     // Помещение должно быть на не-полностью-арендованном этаже
@@ -560,8 +585,25 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
     // И не должно быть уже занято другим
     const target = await db.space.findUnique({
       where: { id: spaceId },
-      select: { number: true, tenant: { select: { companyName: true, id: true } } },
+      select: {
+        number: true,
+        floor: {
+          select: {
+            buildingId: true,
+            building: { select: { name: true } },
+          },
+        },
+        tenant: { select: { companyName: true, id: true } },
+      },
     })
+    const tenantBuilding = tenant.space?.floor ?? tenant.fullFloors[0] ?? null
+    if (target && tenantBuilding && target.floor.buildingId !== tenantBuilding.buildingId) {
+      throw new Error(
+        `Арендатор «${tenant.companyName}» относится к зданию «${tenantBuilding.building.name}», ` +
+          `а Каб. ${target.number} находится в здании «${target.floor.building.name}». ` +
+          "Переключитесь на нужное здание или выберите помещение в том же здании.",
+      )
+    }
     if (target?.tenant && target.tenant.id !== tenantId) {
       throw new Error(
         `Кабинет ${target.number} уже занят арендатором «${target.tenant.companyName}». Сначала выселите.`,

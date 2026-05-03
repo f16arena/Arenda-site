@@ -50,9 +50,20 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
 
   const hasFloorEditor = await hasFeature(orgId, "floorEditor")
 
-  // Кандидаты для привязки: все арендаторы организации, кроме full-floor
+  // Кандидаты для привязки: арендаторы этого здания и ещё не назначенные арендаторы организации.
   const tenantCandidates = await db.tenant.findMany({
-    where: tenantScope(orgId),
+    where: {
+      AND: [
+        tenantScope(orgId),
+        {
+          OR: [
+            { space: { floor: { buildingId: floor.buildingId } } },
+            { fullFloors: { some: { buildingId: floor.buildingId } } },
+            { spaceId: null, fullFloors: { none: {} }, user: { organizationId: orgId } },
+          ],
+        },
+      ],
+    },
     select: {
       id: true,
       companyName: true,

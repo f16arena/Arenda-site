@@ -2,7 +2,9 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
-import { assertTenantInOrg } from "@/lib/scope-guards"
+import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { floorScope, spaceScope } from "@/lib/tenant-scope"
 import {
   updateTenant,
   updateTenantUser,
@@ -72,7 +74,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       space: {
         select: {
           id: true, number: true, area: true, status: true, description: true,
-          floor: { select: { id: true, name: true, ratePerSqm: true } },
+          floor: { select: { id: true, name: true, ratePerSqm: true, buildingId: true } },
+        },
+      },
+      fullFloors: {
+        select: {
+          id: true,
+          name: true,
+          totalArea: true,
+          fixedMonthlyRent: true,
+          buildingId: true,
         },
       },
       charges: {
@@ -108,6 +119,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   })
 
   if (!tenant) notFound()
+  const currentBuildingId = await getCurrentBuildingId().catch(() => null)
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const tenantBuildingId = tenant.space?.floor.buildingId ?? tenant.fullFloors[0]?.buildingId ?? null
+  const buildingId = currentBuildingId ?? tenantBuildingId
 
   const totalDebt = tenant.charges
     .filter((c) => !c.isPaid)
@@ -129,7 +144,13 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   ].join("-")
 
   const vacantSpaces = await db.space.findMany({
-    where: { status: "VACANT", kind: "RENTABLE" },
+    where: {
+      AND: [
+        spaceScope(orgId),
+        { status: "VACANT", kind: "RENTABLE" },
+        ...(buildingId ? [{ floor: { buildingId } }] : []),
+      ],
+    },
     select: {
       id: true, number: true, area: true,
       floor: { select: { id: true, name: true, number: true } },
@@ -162,6 +183,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   })
 
   const allFloors = await db.floor.findMany({
+    where: {
+      AND: [
+        floorScope(orgId),
+        ...(buildingId ? [{ buildingId }] : []),
+      ],
+    },
     select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },
     orderBy: { number: "asc" },
   }).catch(() => [] as Array<{ id: string; name: string; totalArea: number | null; ratePerSqm: number; fullFloorTenantId: string | null; fixedMonthlyRent: number | null }>)
@@ -193,9 +220,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     },
   }).catch(() => [])
 
-  const myFullFloors = allFloors
-    .filter((f) => f.fullFloorTenantId === tenant.id)
-    .map((f) => ({ id: f.id, name: f.name, fixedMonthlyRent: f.fixedMonthlyRent }))
+  const myFullFloors = tenant.fullFloors.map((f) => ({
+    id: f.id,
+    name: f.name,
+    fixedMonthlyRent: f.fixedMonthlyRent,
+  }))
   const rentInput = { ...tenant, fullFloors: myFullFloors }
   const monthlyRent = calculateTenantMonthlyRent(rentInput)
   const ratePerSqm = calculateTenantRatePerSqm(tenant)

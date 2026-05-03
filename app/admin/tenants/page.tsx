@@ -5,19 +5,33 @@ import { TenantDialog } from "./tenant-dialog"
 import { TenantsTable, type TenantRow } from "./tenants-table"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope, spaceScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
 
 export default async function TenantsPage() {
   const { orgId } = await requireOrgAccess()
+  const buildingId = await getCurrentBuildingId()
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
+
+  const tenantWhere = buildingId
+    ? {
+        OR: [
+          { space: { floor: { buildingId } } },
+          { fullFloors: { some: { buildingId } } },
+          { spaceId: null, user: { organizationId: orgId } },
+        ],
+      }
+    : {
+        OR: [
+          tenantScope(orgId),
+          { spaceId: null, user: { organizationId: orgId } },
+        ],
+      }
 
   // Все арендаторы текущей организации — включая ещё не назначенных на помещение,
   // но привязанных через user.organizationId (если spaceId = null).
   const tenants = await db.tenant.findMany({
-    where: {
-      OR: [
-        tenantScope(orgId),
-        { spaceId: null, user: { organizationId: orgId } },
-      ],
-    },
+    where: tenantWhere,
     select: {
       id: true,
       companyName: true,
@@ -49,7 +63,11 @@ export default async function TenantsPage() {
 
   const vacantSpaces = await db.space.findMany({
     where: {
-      AND: [spaceScope(orgId), { status: "VACANT", kind: "RENTABLE" }],
+      AND: [
+        spaceScope(orgId),
+        { status: "VACANT", kind: "RENTABLE" },
+        ...(buildingId ? [{ floor: { buildingId } }] : []),
+      ],
     },
     select: {
       id: true,
@@ -86,12 +104,15 @@ export default async function TenantsPage() {
             {tenants.length} зарегистрировано
           </p>
         </div>
-        <TenantDialog vacantSpaces={vacantSpaces.map((s) => ({
-          id: s.id,
-          number: s.number,
-          floorName: s.floor.name,
-          area: s.area,
-        }))} />
+        <TenantDialog
+          buildingId={buildingId}
+          vacantSpaces={vacantSpaces.map((s) => ({
+            id: s.id,
+            number: s.number,
+            floorName: s.floor.name,
+            area: s.area,
+          }))}
+        />
       </div>
 
       <TenantsTable tenants={rows} />

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
-import { assertSpaceInOrg } from "@/lib/scope-guards"
+import { assertBuildingInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
@@ -25,6 +25,7 @@ export async function createTenant(formData: FormData) {
   const bin = String(formData.get("bin") ?? "").trim()
   const category = String(formData.get("category") ?? "").trim()
   const spaceId = String(formData.get("spaceId") ?? "").trim()
+  const buildingId = String(formData.get("buildingId") ?? "").trim()
   const contractStart = String(formData.get("contractStart") ?? "")
   const contractEnd = String(formData.get("contractEnd") ?? "")
   // Если флажок включён — отправить welcome-письмо с логином/паролем на email
@@ -32,6 +33,7 @@ export async function createTenant(formData: FormData) {
 
   if (!name) throw new Error("Введите ФИО контактного лица")
   if (!companyName) throw new Error("Введите название компании")
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
 
   if (spaceId) {
     await assertSpaceInOrg(spaceId, orgId)
@@ -42,9 +44,21 @@ export async function createTenant(formData: FormData) {
       where: { id: spaceId },
       select: {
         number: true,
+        floor: {
+          select: {
+            buildingId: true,
+            building: { select: { name: true } },
+          },
+        },
         tenant: { select: { companyName: true, contractEnd: true } },
       },
     })
+    if (buildingId && existing?.floor.buildingId !== buildingId) {
+      throw new Error(
+        `Помещение «Каб. ${existing?.number ?? "—"}» относится к зданию «${existing?.floor.building.name ?? "другое здание"}». ` +
+          "Переключитесь на это здание или выберите помещение из текущего здания.",
+      )
+    }
     if (existing?.tenant) {
       const until = existing.tenant.contractEnd
         ? ` (договор до ${existing.tenant.contractEnd.toLocaleDateString("ru-RU")})`
