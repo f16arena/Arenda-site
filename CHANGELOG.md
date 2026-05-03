@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.3 - 2026-05-04
+
+- Включен RLS для sensitive public tables `api_keys` и `user_building_access`, которые подсветил Supabase Security Advisor.
+- Убраны grants для `anon` и `authenticated` на эти server-only таблицы.
+- Добавлены явные deny-all policies для клиентских Supabase ролей, чтобы таблицы не открылись через Data API.
+- В `/admin/system-health` добавлена проверка Supabase RLS/grants для sensitive tables.
+- Добавлена rollback-точка `rollback/pre-rls-sensitive-tables-1.3.3`.
+
 ## 1.3.2 - 2026-05-03
 
 - Визуальный редактор этажа теперь загружается отдельным client-chunk только при открытии `/admin/floors/[id]/visualization`.

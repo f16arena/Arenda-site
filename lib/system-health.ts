@@ -64,6 +64,7 @@ export async function runSystemHealthChecks(): Promise<SystemCheck[]> {
     withTiming("env", "Переменные окружения", checkEnvironment),
     withTiming("database", "База данных", checkDatabase),
     withTiming("schema", "Prisma-схема и таблицы", checkSchemaTables),
+    withTiming("rls", "Supabase RLS", checkSensitiveRls),
     withTiming("migrations", "Миграции", checkMigrations),
     withTiming("cron", "Cron-задачи", checkCron),
     withTiming("email", "Email-канал", checkEmail),
@@ -214,6 +215,70 @@ async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "
     status: "ok",
     message: "Ключевые таблицы актуальной Prisma-схемы найдены.",
     details: [`Проверено таблиц: ${REQUIRED_TABLES.length}.`],
+  }
+}
+
+async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  const rows = await db.$queryRaw<Array<{
+    table_name: string
+    rls_enabled: boolean
+    client_grants: number
+    deny_policy_exists: boolean
+  }>>`
+    SELECT
+      c.relname AS table_name,
+      c.relrowsecurity AS rls_enabled,
+      (
+        SELECT COUNT(*)::int
+        FROM information_schema.role_table_grants g
+        WHERE g.table_schema = n.nspname
+          AND g.table_name = c.relname
+          AND g.grantee IN ('anon', 'authenticated')
+      ) AS client_grants,
+      EXISTS (
+        SELECT 1
+        FROM pg_policies p
+        WHERE p.schemaname = n.nspname
+          AND p.tablename = c.relname
+          AND p.policyname IN ('api_keys_no_client_access', 'user_building_access_no_client_access')
+      ) AS deny_policy_exists
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname IN ('api_keys', 'user_building_access')
+    ORDER BY c.relname
+  `
+
+  const missingTables = ["api_keys", "user_building_access"]
+    .filter((tableName) => !rows.some((row) => row.table_name === tableName))
+  const rlsDisabled = rows.filter((row) => !row.rls_enabled)
+  const exposedGrants = rows.filter((row) => row.client_grants > 0)
+  const missingDenyPolicies = rows.filter((row) => !row.deny_policy_exists)
+
+  if (missingTables.length > 0 || rlsDisabled.length > 0 || exposedGrants.length > 0) {
+    return {
+      status: "error",
+      message: "Sensitive public tables are not fully protected from Supabase Data API.",
+      details: [
+        missingTables.length > 0 ? `Таблицы не найдены: ${missingTables.join(", ")}.` : null,
+        rlsDisabled.length > 0 ? `RLS выключен: ${rlsDisabled.map((row) => row.table_name).join(", ")}.` : null,
+        exposedGrants.length > 0 ? `Есть grants для anon/authenticated: ${exposedGrants.map((row) => row.table_name).join(", ")}.` : null,
+      ].filter(Boolean) as string[],
+    }
+  }
+
+  if (missingDenyPolicies.length > 0) {
+    return {
+      status: "warning",
+      message: "RLS включен, но явные deny policies найдены не для всех sensitive tables.",
+      details: missingDenyPolicies.map((row) => `Нет deny policy: ${row.table_name}.`),
+    }
+  }
+
+  return {
+    status: "ok",
+    message: "Sensitive tables закрыты RLS и не имеют client grants.",
+    details: rows.map((row) => `${row.table_name}: RLS on, client grants 0.`),
   }
 }
 
