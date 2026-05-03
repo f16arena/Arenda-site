@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Search, Building2, Users, ClipboardList, TrendingUp, Loader2,
   FileText, UserCog, Wallet, CalendarDays, Plus, LayoutDashboard,
-  Receipt, ShieldCheck, Activity,
+  Receipt, ShieldCheck, Activity, Rocket,
 } from "lucide-react"
 
 type Item = {
@@ -30,6 +30,7 @@ const TYPE_META: Record<string, { icon: React.ElementType; label: string }> = {
 // Быстрые действия — всегда доступны без поиска
 const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; keywords: string }[] = [
   { label: "Дашборд", href: "/admin", icon: LayoutDashboard, keywords: "главная dashboard" },
+  { label: "Запуск платформы", href: "/admin/onboarding", icon: Rocket, keywords: "onboarding запуск настройка чеклист старт" },
   { label: "Календарь", href: "/admin/calendar", icon: CalendarDays, keywords: "calendar события" },
   { label: "Арендаторы", href: "/admin/tenants", icon: Users, keywords: "tenants клиенты" },
   { label: "Лиды (CRM)", href: "/admin/leads", icon: TrendingUp, keywords: "leads crm" },

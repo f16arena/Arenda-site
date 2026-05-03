@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   LogOut, Building, Activity,
   Package, CalendarDays,
-  Menu, X,
+  Menu, X, Rocket,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -22,6 +22,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, section: "dashboard" },
       { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
+      { href: "/admin/onboarding", label: "Запуск", icon: Rocket, section: "dashboard" },
     ],
   },
   {

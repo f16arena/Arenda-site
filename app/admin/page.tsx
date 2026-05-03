@@ -7,6 +7,7 @@ import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
   Clock, Calendar as CalendarIcon, Mail, Wallet,
+  ClipboardCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
@@ -14,6 +15,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { getOnboardingState } from "@/lib/onboarding"
 
 export default async function AdminDashboard() {
   const { orgId } = await requireOrgAccess()
@@ -56,6 +58,7 @@ export default async function AdminDashboard() {
     recentTasks,
     debtsByTenant,
     topTenants,
+    onboarding,
   ] = await Promise.all([
     db.tenant.count({ where: tenantWhereInBuilding }).catch(() => 0),
     db.tenant.findMany({
@@ -126,6 +129,7 @@ export default async function AdminDashboard() {
       take: 6,
       orderBy: { createdAt: "desc" },
     }).catch(() => [] as Array<{ id: string; companyName: string; space: { number: string } | null }>),
+    getOnboardingState(orgId),
   ])
 
   const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
@@ -307,6 +311,36 @@ export default async function AdminDashboard() {
           {buildingId ? "Обзор выбранного здания" : `Обзор всех доступных зданий · ${visibleBuildingIds.length}`}
         </p>
       </div>
+
+      {!onboarding.allDone && onboarding.nextStep && (
+        <Link
+          href="/admin/onboarding"
+          className="block rounded-xl border border-blue-200 bg-blue-50 p-4 transition hover:border-blue-300 hover:bg-blue-100/70 dark:border-blue-500/30 dark:bg-blue-500/10 dark:hover:bg-blue-500/15"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 dark:bg-slate-900 dark:text-blue-300">
+                <ClipboardCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-blue-950 dark:text-blue-100">Запуск платформы: {onboarding.percent}%</p>
+                <p className="mt-0.5 text-sm text-blue-700 dark:text-blue-200">
+                  Следующий шаг: {onboarding.nextStep.title.toLowerCase()}.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-36 overflow-hidden rounded-full bg-white/80 dark:bg-slate-800">
+                <div className="h-full rounded-full bg-blue-600" style={{ width: `${onboarding.percent}%` }} />
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 dark:text-blue-200">
+                Открыть чеклист
+                <ArrowUpRight className="h-4 w-4" />
+              </span>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Сегодня */}
       <div>
