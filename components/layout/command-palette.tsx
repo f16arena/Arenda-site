@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Search, Building2, Users, ClipboardList, TrendingUp, Loader2,
   FileText, UserCog, Wallet, CalendarDays, Plus, LayoutDashboard,
-  Receipt, ShieldCheck, Activity, Rocket,
+  Receipt, ShieldCheck, Activity, Rocket, CircleHelp,
 } from "lucide-react"
 
 type Item = {
@@ -38,6 +38,7 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
   { label: "Документы", href: "/admin/documents", icon: FileText, keywords: "documents" },
   { label: "Качество данных", href: "/admin/data-quality", icon: ShieldCheck, keywords: "data quality ошибки проверка" },
   { label: "Проверка системы", href: "/admin/system-health", icon: Activity, keywords: "health система production env cron sitemap ошибки" },
+  { label: "FAQ и инструкции", href: "/admin/faq", icon: CircleHelp, keywords: "faq помощь инструкция как сделать подписать пароль счет заявка" },
   { label: "Заявки", href: "/admin/requests", icon: ClipboardList, keywords: "requests" },
   { label: "Сотрудники", href: "/admin/staff", icon: UserCog, keywords: "staff" },
 ]

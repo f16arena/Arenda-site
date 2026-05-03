@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import {
   LayoutDashboard, CreditCard, FileText,
   ClipboardList, MessageSquare, LogOut, Building, Gauge, User,
-  Menu, X,
+  Menu, X, CircleHelp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -30,6 +30,7 @@ const nav = [
       { href: "/cabinet/requests", label: "Заявки", icon: ClipboardList },
       { href: "/cabinet/messages", label: "Сообщения", icon: MessageSquare },
       { href: "/cabinet/profile", label: "Мой профиль", icon: User },
+      { href: "/cabinet/faq", label: "FAQ", icon: CircleHelp },
     ],
   },
 ]
