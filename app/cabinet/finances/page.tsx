@@ -1,16 +1,10 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { Copy } from "lucide-react"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
-
-const REQUISITES = {
-  bank: "Народный Банк Казахстана",
-  bik: "HSBKKZKX",
-  iin: "123456789012",
-  account: "KZ00 000X XXXX XXXX XXXX",
-  recipient: 'ТОО "Управляющая компания"',
-}
+import { LANDLORD } from "@/lib/landlord"
+import { PaymentPanel } from "./payment-panel"
+import QRCode from "qrcode"
 
 export default async function CabinetFinances() {
   const session = await auth()
@@ -32,6 +26,26 @@ export default async function CabinetFinances() {
   const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
   const rate = calculateTenantRatePerSqm(tenant) ?? 0
   const monthlyRent = calculateTenantMonthlyRent(tenant)
+  const currentPeriod = new Date().toISOString().slice(0, 7)
+  const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}` : "помещение по договору")
+  const paymentPurpose = `Аренда ${placement}, ${tenant.companyName}, период ${currentPeriod}`
+  const requisites = {
+    recipient: LANDLORD.fullName,
+    iin: LANDLORD.iin,
+    bank: LANDLORD.bank,
+    bik: LANDLORD.bik,
+    account: LANDLORD.iik,
+  }
+  const qrText = [
+    `Получатель: ${requisites.recipient}`,
+    `ИИН/БИН: ${requisites.iin}`,
+    `Банк: ${requisites.bank}`,
+    `БИК: ${requisites.bik}`,
+    `ИИК: ${requisites.account}`,
+    `Назначение: ${paymentPurpose}`,
+    `Сумма к оплате: ${formatMoney(totalDebt > 0 ? totalDebt : monthlyRent)}`,
+  ].join("\n")
+  const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1, width: 180 }).catch(() => null)
 
   const byPeriod = tenant.charges.reduce<Record<string, typeof tenant.charges>>((acc, c) => {
     acc[c.period] = acc[c.period] ?? []
@@ -66,26 +80,37 @@ export default async function CabinetFinances() {
         </div>
       </div>
 
-      {/* Requisites */}
-      <div className="bg-slate-900 rounded-xl p-5 text-white">
-        <h2 className="text-sm font-semibold mb-3">Реквизиты для оплаты</h2>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          {Object.entries({
-            Получатель: REQUISITES.recipient,
-            Банк: REQUISITES.bank,
-            "БИК": REQUISITES.bik,
-            "Счёт": REQUISITES.account,
-          }).map(([k, v]) => (
-            <div key={k}>
-              <p className="text-xs text-slate-400 dark:text-slate-500">{k}</p>
-              <p className="text-slate-200 mt-0.5">{v}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
-          Назначение платежа: Аренда помещения №{tenant.space?.number ?? "—"}, {tenant.companyName}
-        </p>
-      </div>
+      <PaymentPanel
+        requisites={requisites}
+        totalDebt={totalDebt}
+        monthlyRent={monthlyRent}
+        paymentPurpose={paymentPurpose}
+        qrDataUrl={qrDataUrl}
+      />
+
+      {tenant.payments.length > 0 && (
+        <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">История оплат</h2>
+          </div>
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
+            {tenant.payments.slice(0, 8).map((payment) => (
+              <div key={payment.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(payment.amount)}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {new Date(payment.paymentDate).toLocaleDateString("ru-RU")} · {payment.method}
+                  </p>
+                  {payment.note && <p className="text-xs text-slate-400 dark:text-slate-500">{payment.note}</p>}
+                </div>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                  Проведено
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Charges by period */}
       <div className="space-y-3">
