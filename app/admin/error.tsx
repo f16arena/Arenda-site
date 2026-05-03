@@ -2,8 +2,10 @@
 
 import { AlertCircle, RotateCcw, Home } from "lucide-react"
 import { usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import Link from "next/link"
+import { reportClientError } from "@/lib/client-error-report"
+import { formatErrorId } from "@/lib/error-id"
 
 export default function Error({
   error,
@@ -13,15 +15,12 @@ export default function Error({
   reset: () => void
 }) {
   const pathname = usePathname()
+  const errorId = useMemo(() => formatErrorId(error.digest), [error.digest])
+  const isDev = process.env.NODE_ENV !== "production"
 
   useEffect(() => {
-    console.error("[admin/error]", {
-      pathname,
-      message: error.message,
-      digest: error.digest,
-      stack: error.stack,
-    })
-  }, [error, pathname])
+    reportClientError({ errorId, source: "admin/error", pathname, error })
+  }, [error, errorId, pathname])
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
@@ -31,12 +30,13 @@ export default function Error({
         </div>
         <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Что-то пошло не так</h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
-          {error.message || "Не удалось загрузить страницу"}
+          Мы записали ошибку. Сообщите код поддержке или разработчику.
         </p>
         <div className="mt-3 space-y-1">
           <p className="text-xs text-slate-400 dark:text-slate-500">Страница: <span className="font-mono">{pathname}</span></p>
-          {error.digest && (
-            <p className="text-xs text-slate-400 dark:text-slate-500">Код: <span className="font-mono">{error.digest}</span></p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Ошибка: <span className="font-mono">#{errorId}</span></p>
+          {isDev && error.message && (
+            <p className="break-words text-xs text-slate-400 dark:text-slate-500">{error.message}</p>
           )}
         </div>
         <div className="mt-5 flex gap-2 justify-center">

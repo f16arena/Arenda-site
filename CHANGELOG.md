@@ -2,6 +2,16 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.1 - 2026-05-03
+
+- Добавлена страница `/admin/system-health` для production-проверки: env, база, таблицы, миграции, cron, email, документы, домен, sitemap/robots и журнал ошибок.
+- `/api/health` переведен на общий актуальный health-check вместо старых SQL-migration проверок.
+- Error boundaries теперь показывают пользователю короткий код `Ошибка #...`, а детали отправляют во внутренний endpoint `/api/errors/report`.
+- Ошибки клиентского рендера пишутся в server log и `audit_logs`, чтобы разработчику было проще найти stack trace и контекст.
+- Добавлен GitHub Actions CI: `npm ci`, `npx prisma validate`, `npm run lint`, `npm run build`.
+- `.env.example` дополнен production-переменными `ROOT_HOST`, `RESEND_API_KEY`, `EMAIL_FROM`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`.
+- Добавлена rollback-точка `rollback/pre-production-reliability-1.3.1`.
+
 ## 1.3.0 - 2026-05-03
 
 - Добавлен режим владельца `Все здания`: дашборд, помещения, арендаторы, финансы, документы, календарь, аналитика и операционные страницы работают по всем доступным зданиям.

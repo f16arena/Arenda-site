@@ -8,7 +8,7 @@ import {
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
   ShieldCheck,
-  LogOut, Building,
+  LogOut, Building, Activity,
   Package, CalendarDays,
   Menu, X,
 } from "lucide-react"
@@ -66,6 +66,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
       { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
+      { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics" },
     ],
   },
   // Сотрудники / Подписка / Роли / Настройки организации / Импорт / Тарифы

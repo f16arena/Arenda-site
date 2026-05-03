@@ -1,8 +1,11 @@
 "use client"
 
 import { AlertCircle, RotateCcw, Home } from "lucide-react"
-import { useEffect } from "react"
+import { usePathname } from "next/navigation"
+import { useEffect, useMemo } from "react"
 import Link from "next/link"
+import { reportClientError } from "@/lib/client-error-report"
+import { formatErrorId } from "@/lib/error-id"
 
 export default function GlobalError({
   error,
@@ -11,12 +14,13 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const pathname = usePathname()
+  const errorId = useMemo(() => formatErrorId(error.digest), [error.digest])
+  const isDev = process.env.NODE_ENV !== "production"
+
   useEffect(() => {
-    console.error("[global/error]", {
-      message: error.message,
-      digest: error.digest,
-    })
-  }, [error])
+    reportClientError({ errorId, source: "global/error", pathname, error })
+  }, [error, errorId, pathname])
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
@@ -28,11 +32,14 @@ export default function GlobalError({
           Что-то пошло не так
         </h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          {error.message || "Произошла непредвиденная ошибка"}
+          Мы записали ошибку. Сообщите поддержке код ниже, чтобы быстрее найти причину.
         </p>
-        {error.digest && (
-          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-            Код: <span className="font-mono">{error.digest}</span>
+        <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+          Ошибка <span className="font-mono">#{errorId}</span>
+        </p>
+        {isDev && error.message && (
+          <p className="mt-2 break-words text-xs text-slate-400 dark:text-slate-500">
+            {error.message}
           </p>
         )}
         <div className="mt-6 flex gap-2 justify-center">
