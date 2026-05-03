@@ -83,7 +83,7 @@ export default async function AdminLayout({
       }).catch(() => null)
     : null
 
-  const [building, allBuildings, notifications, allowedSections] = await Promise.all([
+  const [building, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
     currentBuildingId
       ? db.building.findUnique({
           where: { id: currentBuildingId },
@@ -94,13 +94,9 @@ export default async function AdminLayout({
       if (!currentOrgId) return [] as Array<{ id: string; name: string; address: string }>
       return getAccessibleBuildingsForSession(currentOrgId).catch(() => [] as Array<{ id: string; name: string; address: string }>)
     })(),
-    // Может упасть если миграция 005 не применена
-    db.notification.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      select: { id: true, type: true, title: true, message: true, link: true, isRead: true, createdAt: true },
-    }).catch(() => [] as Array<{ id: string; type: string; title: string; message: string; link: string | null; isRead: boolean; createdAt: Date }>),
+    db.notification.count({
+      where: { userId: session.user.id, isRead: false },
+    }).catch(() => 0),
     getAllowedSections(session.user.role),
   ])
   const aggregateLabel = isOwnerLike(session.user.role, session.user.isPlatformOwner) ? "Все здания" : "Мои здания"
@@ -143,7 +139,7 @@ export default async function AdminLayout({
               Ctrl+K — поиск
             </kbd>
             <ThemeIconToggle />
-            <NotificationBell items={notifications} />
+            <NotificationBell unreadCount={unreadNotifications} />
             <Link
               href="/admin/profile"
               className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"

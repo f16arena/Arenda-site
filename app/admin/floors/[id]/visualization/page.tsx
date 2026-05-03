@@ -1,7 +1,7 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
-import { FloorEditor } from "../floor-editor"
+import { FloorEditorLoader } from "../floor-editor-loader"
 import { ArrowLeft, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
@@ -89,7 +89,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Визуализация · {floor.name}</h1>
       </div>
 
-      <FloorEditor
+      <FloorEditorLoader
         floorId={floor.id}
         floorName={floor.name}
         floorNumber={floor.number}

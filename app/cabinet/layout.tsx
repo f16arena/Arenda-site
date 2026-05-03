@@ -19,16 +19,14 @@ export default async function CabinetLayout({
   if (session.user.isPlatformOwner) redirect("/superadmin")
   if (session.user.role !== "TENANT") redirect("/admin")
 
-  const [tenant, notifications, userMail] = await Promise.all([
+  const [tenant, unreadNotifications, userMail] = await Promise.all([
     db.tenant.findUnique({
       where: { userId: session.user.id },
       select: { companyName: true },
     }),
-    db.notification.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
+    db.notification.count({
+      where: { userId: session.user.id, isRead: false },
+    }).catch(() => 0),
     db.user.findUnique({
       where: { id: session.user.id },
       select: { email: true, emailVerifiedAt: true },
@@ -46,7 +44,7 @@ export default async function CabinetLayout({
           <div />
           <div className="flex items-center gap-4">
             <ThemeIconToggle />
-            <NotificationBell items={notifications} />
+            <NotificationBell unreadCount={unreadNotifications} />
             <Link
               href="/cabinet/profile"
               className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
