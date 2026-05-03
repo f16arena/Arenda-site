@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export const dynamic = "force-dynamic"
 
@@ -20,6 +21,7 @@ export async function GET(req: Request) {
       OR: [
         { spaceId: { not: null } },
         { fullFloors: { some: {} } },
+        { fixedMonthlyRent: { gt: 0 } },
       ],
     },
     include: {
@@ -46,12 +48,11 @@ export async function GET(req: Request) {
       }
 
       const fullFloor = tenant.fullFloors[0]
-      const monthlyRent = fullFloor?.fixedMonthlyRent
-        ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
+      const monthlyRent = calculateTenantMonthlyRent(tenant)
 
       if (monthlyRent <= 0) continue
 
-      const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "")
+      const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
       const dueDate = new Date(now.getFullYear(), now.getMonth(), tenant.paymentDueDay)
 
       await db.charge.create({

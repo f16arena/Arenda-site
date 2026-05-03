@@ -27,6 +27,7 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
   spaceNumber: ["Помещение", "Кабинет", "Кaбинет", "Каб", "№ помещения", "Номер помещения", "Офис"],
   area: ["Площадь", "м2", "м²", "Кв м", "Sqm"],
   rate: ["Ставка", "Цена за м2", "Тариф", "Rate", "Ставка ₸/м²"],
+  fixedMonthlyRent: ["Фикс. аренда", "Аренда в месяц", "Аренда ₸/мес", "Сумма аренды", "Fixed rent"],
   contractStart: ["Дата начала", "Начало", "С", "Старт", "Start"],
   contractEnd: ["Дата окончания", "Окончание", "По", "End", "Конец"],
   cleaningFee: ["Уборка", "Клининг", "Cleaning"],
@@ -47,6 +48,7 @@ export interface ParsedTenantRow {
     category: string
     spaceNumber: string
     rate: number | null
+    fixedMonthlyRent: number | null
     contractStart: Date | null
     contractEnd: Date | null
     cleaningFee: number | null
@@ -110,6 +112,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     const category = getField(row, mapping, "category")
     const spaceNumber = getField(row, mapping, "spaceNumber")
     const rate = parseFlexibleNumber(getField(row, mapping, "rate"))
+    const fixedMonthlyRent = parseFlexibleNumber(getField(row, mapping, "fixedMonthlyRent"))
     const contractStart = parseFlexibleDate(getField(row, mapping, "contractStart"))
     const contractEnd = parseFlexibleDate(getField(row, mapping, "contractEnd"))
     const cleaningFee = parseFlexibleNumber(getField(row, mapping, "cleaningFee"))
@@ -132,6 +135,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
         category,
         spaceNumber,
         rate,
+        fixedMonthlyRent,
         contractStart,
         contractEnd,
         cleaningFee,
@@ -279,6 +283,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
           legalAddress: d.legalAddress || null,
           directorName: d.directorName || null,
           customRate: d.rate || null,
+          fixedMonthlyRent: d.fixedMonthlyRent && d.fixedMonthlyRent > 0 ? d.fixedMonthlyRent : null,
           cleaningFee: d.cleaningFee ?? 0,
           needsCleaning: (d.cleaningFee ?? 0) > 0,
           contractStart: d.contractStart,

@@ -8,6 +8,7 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
+import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 
 export const dynamic = "force-dynamic"
 
@@ -71,12 +72,11 @@ export async function GET(req: Request) {
     // Подготовим данные для подстановки. Все плейсхолдеры в шаблоне вида {key}
     const today = new Date()
     const fullFloor = tenant.fullFloors?.[0]
-    const monthlyRent = fullFloor?.fixedMonthlyRent
-      ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
+    const monthlyRent = calculateTenantMonthlyRent(tenant)
     const start = tenant.contractStart ?? today
     const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
     const placement = fullFloor?.name
-      ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "")
+      ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "по договору")
     const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
 
     const data: Record<string, string | number> = {
@@ -114,7 +114,7 @@ export async function GET(req: Request) {
       // Финансы
       monthly_rent: monthlyRent.toLocaleString("ru-RU"),
       monthly_rent_num: monthlyRent,
-      rate_per_sqm: (tenant.customRate ?? tenant.space?.floor.ratePerSqm ?? 0).toLocaleString("ru-RU"),
+      rate_per_sqm: (calculateTenantRatePerSqm(tenant) ?? 0).toLocaleString("ru-RU"),
       payment_due_day: tenant.paymentDueDay ?? 10,
       penalty_percent: tenant.penaltyPercent ?? 1,
       // Здание
@@ -173,11 +173,10 @@ export async function GET(req: Request) {
   // Расчёт суммы аренды
   const fullFloor = tenant.fullFloors?.[0]
   const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
-  const monthlyRent = fullFloor?.fixedMonthlyRent
-    ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
+  const monthlyRent = calculateTenantMonthlyRent(tenant)
   const objectAddress = building?.address ?? BUILDING_DEFAULT.address
   const placement = fullFloor?.name
-    ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "")
+    ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "по договору")
 
   const today = new Date()
   const start = tenant.contractStart ?? today

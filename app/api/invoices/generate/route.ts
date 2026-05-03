@@ -11,6 +11,7 @@ import {
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export const dynamic = "force-dynamic"
 
@@ -78,9 +79,8 @@ export async function GET(req: Request) {
   } else {
     // Генерируем строки на лету (если ещё нет начислений)
     const fullFloor = tenant.fullFloors?.[0]
-    const monthlyRent = fullFloor?.fixedMonthlyRent
-      ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
-    const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "")
+    const monthlyRent = calculateTenantMonthlyRent(tenant)
+    const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
     items.push({
       name: `Аренда нежилого помещения (${placement}) за ${periodLabel(period)}`,
       qty: 1,

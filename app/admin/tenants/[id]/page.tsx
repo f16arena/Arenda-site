@@ -25,6 +25,7 @@ import { EmailLog } from "./email-log"
 import { RequisitesForm } from "./requisites-form"
 import { IndexationHint } from "./indexation-hint"
 import { ContractWorkflowActions } from "./contract-actions"
+import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -60,6 +61,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       cleaningFee: true,
       needsCleaning: true,
       customRate: true,
+      fixedMonthlyRent: true,
       paymentDueDay: true,
       penaltyPercent: true,
       isVatPayer: true,
@@ -177,6 +179,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const myFullFloors = allFloors
     .filter((f) => f.fullFloorTenantId === tenant.id)
     .map((f) => ({ id: f.id, name: f.name, fixedMonthlyRent: f.fixedMonthlyRent }))
+  const rentInput = { ...tenant, fullFloors: myFullFloors }
+  const monthlyRent = calculateTenantMonthlyRent(rentInput)
+  const ratePerSqm = calculateTenantRatePerSqm(tenant)
+  const hasTenantFixedRent = hasFixedTenantRent(tenant.fixedMonthlyRent)
 
   return (
     <div className="space-y-6">
@@ -354,6 +360,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <input type="hidden" name="cleaningFee" value={tenant.cleaningFee} />
               <input type="hidden" name="needsCleaning" value={tenant.needsCleaning ? "on" : ""} />
               <input type="hidden" name="customRate" value={tenant.customRate ?? ""} />
+              <input type="hidden" name="fixedMonthlyRent" value={tenant.fixedMonthlyRent ?? ""} />
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название компании</label>
@@ -459,12 +466,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               <IndexationHint
                 initialContractEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
-                initialRate={tenant.customRate ?? tenant.space?.floor.ratePerSqm ?? null}
-                monthlyRent={
-                  tenant.space
-                    ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm)
-                    : 0
-                }
+                initialRate={ratePerSqm}
+                monthlyRent={monthlyRent}
               />
               <div className="col-span-2 flex justify-end">
                 <button
@@ -518,6 +521,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   placeholder="Если отличается от этажной"
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Индивид. аренда ₸/мес</label>
+                <input
+                  name="fixedMonthlyRent"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  defaultValue={tenant.fixedMonthlyRent ?? ""}
+                  placeholder="Если договор на сумму"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                  Если заполнено, заменяет расчет по м²
+                </p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Уборка ₸/мес</label>
@@ -685,7 +703,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">Каб. {tenant.space.number}</p>
                 <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">{tenant.space.area} м²</p>
-                {tenant.customRate ? (
+                {hasTenantFixedRent ? (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
+                ) : tenant.customRate ? (
                   <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
                 ) : (
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
@@ -693,9 +713,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   </p>
                 )}
                 <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
-                  Аренда: {formatMoney(
-                    tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm)
-                  )}/мес
+                  Аренда: {formatMoney(monthlyRent)}/мес
                 </p>
                 <Link
                   href={`/admin/documents/templates/rental?tenantId=${tenant.id}`}

@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
 import { Copy } from "lucide-react"
+import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 
 const REQUISITES = {
   bank: "Народный Банк Казахстана",
@@ -20,14 +21,17 @@ export default async function CabinetFinances() {
       charges: { orderBy: { createdAt: "desc" } },
       payments: { orderBy: { paymentDate: "desc" } },
       space: { include: { floor: true } },
+      fullFloors: true,
     },
   })
 
   if (!tenant) return null
 
   const totalDebt = tenant.charges.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
-  const area = tenant.space?.area ?? 0
-  const rate = tenant.customRate ?? tenant.space?.floor.ratePerSqm ?? 0
+  const fullFloor = tenant.fullFloors[0]
+  const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
+  const rate = calculateTenantRatePerSqm(tenant) ?? 0
+  const monthlyRent = calculateTenantMonthlyRent(tenant)
 
   const byPeriod = tenant.charges.reduce<Record<string, typeof tenant.charges>>((acc, c) => {
     acc[c.period] = acc[c.period] ?? []
@@ -52,10 +56,12 @@ export default async function CabinetFinances() {
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{area} м²</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Площадь</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Ставка: {formatMoney(rate)}/м²</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+            {hasFixedTenantRent(tenant.fixedMonthlyRent) ? "Фикс. сумма" : `Ставка: ${formatMoney(rate)}/м²`}
+          </p>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatMoney(area * rate)}</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatMoney(monthlyRent)}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Аренда в месяц</p>
         </div>
       </div>

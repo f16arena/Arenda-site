@@ -310,6 +310,7 @@ model Tenant {
   needsCleaning    Boolean   @default(false) @map("needs_cleaning")
   cleaningFee      Float     @default(0)     @map("cleaning_fee")
   customRate       Float?    @map("custom_rate")
+  fixedMonthlyRent Float?    @map("fixed_monthly_rent")
   contractStart    DateTime? @map("contract_start")
   contractEnd      DateTime? @map("contract_end")
   paymentDueDay    Int       @default(10) @map("payment_due_day")

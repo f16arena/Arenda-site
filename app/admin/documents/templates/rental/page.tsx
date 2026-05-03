@@ -14,6 +14,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { getActiveTemplate } from "@/app/actions/document-templates"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 interface PageProps {
   searchParams: Promise<{ tenantId?: string }>
@@ -79,8 +80,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
   // Площадь и сумма аренды
   const fullFloor = tenant?.fullFloors?.[0]
   const area = fullFloor?.totalArea ?? tenant?.space?.area ?? 0
-  const monthlyRent = fullFloor?.fixedMonthlyRent
-    ?? (tenant?.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
+  const monthlyRent = tenant ? calculateTenantMonthlyRent(tenant) : 0
 
   const moneyWords = (n: number) => n.toLocaleString("ru-RU")
   const objectAddress = building?.address ?? BUILDING_DEFAULT.address

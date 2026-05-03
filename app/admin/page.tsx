@@ -12,6 +12,7 @@ import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export default async function AdminDashboard() {
   const { orgId } = await requireOrgAccess()
@@ -54,8 +55,20 @@ export default async function AdminDashboard() {
     db.tenant.count({ where: tenantWhereInBuilding }).catch(() => 0),
     db.tenant.findMany({
       where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
-      select: { id: true, customRate: true, space: { select: { area: true } } },
-    }).catch(() => [] as Array<{ id: string; customRate: number | null; space: { area: number } | null }>),
+      select: {
+        id: true,
+        customRate: true,
+        fixedMonthlyRent: true,
+        space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+        fullFloors: { select: { fixedMonthlyRent: true } },
+      },
+    }).catch(() => [] as Array<{
+      id: string
+      customRate: number | null
+      fixedMonthlyRent: number | null
+      space: { area: number; floor: { ratePerSqm: number } } | null
+      fullFloors: { fixedMonthlyRent: number | null }[]
+    }>),
     db.space.groupBy({
       by: ["status"],
       where: { floorId: { in: floorIds } },
@@ -112,7 +125,7 @@ export default async function AdminDashboard() {
   const totalDebt = chargesAgg._sum.amount ?? 0
   const debtCount = chargesAgg._count._all
   const monthlyRevenue = activeTenants.reduce((sum, t) => {
-    return sum + (t.space?.area ?? 0) * (t.customRate ?? 0)
+    return sum + calculateTenantMonthlyRent(t)
   }, 0)
   const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
 

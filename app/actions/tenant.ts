@@ -10,6 +10,19 @@ import {
   assertUserInOrg,
 } from "@/lib/scope-guards"
 
+function parseNumberOrNull(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim().replace(",", ".")
+  if (!raw) return null
+
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parsePositiveNumberOrNull(value: FormDataEntryValue | null) {
+  const parsed = parseNumberOrNull(value)
+  return parsed !== null && parsed > 0 ? parsed : null
+}
+
 /**
  * Добавить арендатора в чёрный список (или снять).
  * Записываем дату и причину. Не удаляет арендатора, не разрывает договор —
@@ -83,6 +96,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   const directorName = formData.get("directorName") as string
   const directorPosition = formData.get("directorPosition") as string
   const customRateStr = formData.get("customRate") as string
+  const fixedMonthlyRent = parsePositiveNumberOrNull(formData.get("fixedMonthlyRent"))
   const cleaningFeeStr = formData.get("cleaningFee") as string
   const needsCleaning = formData.get("needsCleaning") === "on"
   const contractStart = formData.get("contractStart") as string
@@ -103,7 +117,8 @@ export async function updateTenant(tenantId: string, formData: FormData) {
       actualAddress: actualAddress || null,
       directorName: directorName || null,
       directorPosition: directorPosition || null,
-      customRate: customRateStr ? parseFloat(customRateStr) : null,
+      customRate: parseNumberOrNull(customRateStr),
+      fixedMonthlyRent,
       cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
       needsCleaning,
       contractStart: contractStart ? new Date(contractStart) : null,
@@ -144,6 +159,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   await assertTenantInOrg(tenantId, orgId)
 
   const customRateStr = formData.get("customRate") as string
+  const fixedMonthlyRent = parsePositiveNumberOrNull(formData.get("fixedMonthlyRent"))
   const cleaningFeeStr = formData.get("cleaningFee") as string
   const needsCleaning = formData.get("needsCleaning") === "on"
   const paymentDueDayStr = formData.get("paymentDueDay") as string
@@ -165,7 +181,8 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   await db.tenant.update({
     where: { id: tenantId },
     data: {
-      customRate: customRateStr ? parseFloat(customRateStr) : null,
+      customRate: parseNumberOrNull(customRateStr),
+      fixedMonthlyRent,
       cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
       needsCleaning,
       paymentDueDay,

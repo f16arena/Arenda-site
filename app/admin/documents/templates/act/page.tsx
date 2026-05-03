@@ -16,6 +16,7 @@ import { CustomTemplateBlock } from "@/components/documents/custom-template-bloc
 import { PeriodPicker } from "@/components/documents/period-picker"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { getActiveTemplate } from "@/app/actions/document-templates"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 const MONTHS = [
   "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -72,9 +73,8 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
       for (const c of tenant.charges) items.push({ name: c.description ?? c.type, amount: c.amount })
     } else {
       const fullFloor = tenant.fullFloors?.[0]
-      const monthlyRent = fullFloor?.fixedMonthlyRent
-        ?? (tenant.space ? tenant.space.area * (tenant.customRate ?? tenant.space.floor.ratePerSqm) : 0)
-      const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "")
+      const monthlyRent = calculateTenantMonthlyRent(tenant)
+      const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
       items.push({ name: `Аренда нежилого помещения${placement ? ` (${placement})` : ""} за ${periodLabel}`, amount: monthlyRent })
       if (tenant.needsCleaning && tenant.cleaningFee > 0) items.push({ name: `Уборка за ${periodLabel}`, amount: tenant.cleaningFee })
     }

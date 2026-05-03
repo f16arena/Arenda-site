@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { requireSection } from "@/lib/acl"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export type BatchBillingResult = {
   ok: true
@@ -37,6 +38,7 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
       OR: [
         { spaceId: { not: null } },
         { fullFloors: { some: {} } },
+        { fixedMonthlyRent: { gt: 0 } },
       ],
     },
     include: {
@@ -67,12 +69,11 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
       }
 
       const ff = t.fullFloors[0]
-      const monthlyRent = ff?.fixedMonthlyRent
-        ?? (t.space ? t.space.area * (t.customRate ?? t.space.floor.ratePerSqm) : 0)
+      const monthlyRent = calculateTenantMonthlyRent(t)
       if (monthlyRent <= 0) continue
 
       const placement = ff?.name
-        ?? (t.space ? `Каб. ${t.space.number}, ${t.space.floor.name}` : "")
+        ?? (t.space ? `Каб. ${t.space.number}, ${t.space.floor.name}` : "по договору")
       const dueDate = new Date(year, month - 1, t.paymentDueDay)
 
       await db.charge.create({

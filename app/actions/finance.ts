@@ -6,6 +6,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { requireSection } from "@/lib/acl"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 import {
   assertTenantInOrg,
   assertChargeInOrg,
@@ -126,17 +127,19 @@ export async function generateMonthlyCharges(period: string) {
     where: tenantScope(orgId),
     include: {
       space: { include: { floor: true } },
+      fullFloors: true,
       charges: { where: { period, type: "RENT" } },
     },
   })
 
   let created = 0
   for (const tenant of tenants) {
-    if (!tenant.space) continue
     if (tenant.charges.length > 0) continue // already has rent for this period
 
-    const rate = tenant.customRate ?? tenant.space.floor.ratePerSqm
-    const rentAmount = tenant.space.area * rate
+    const rentAmount = calculateTenantMonthlyRent(tenant)
+    if (rentAmount <= 0) continue
+    const fullFloor = tenant.fullFloors[0]
+    const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}` : "по договору")
 
     await db.charge.create({
       data: {
@@ -144,7 +147,7 @@ export async function generateMonthlyCharges(period: string) {
         period,
         type: "RENT",
         amount: rentAmount,
-        description: `Аренда каб. ${tenant.space.number} за ${period}`,
+        description: `Аренда ${placement} за ${period}`,
         dueDate: new Date(parseInt(period.split("-")[0]), parseInt(period.split("-")[1]) - 1, 10),
       },
     })

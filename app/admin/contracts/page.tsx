@@ -9,6 +9,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export default async function ContractsPage() {
   const session = await auth()
@@ -29,6 +30,8 @@ export default async function ContractsPage() {
       paymentDueDay: true,
       penaltyPercent: true,
       legalType: true,
+      customRate: true,
+      fixedMonthlyRent: true,
       space: { select: { number: true, area: true, floor: { select: { name: true, ratePerSqm: true } } } },
       fullFloors: { select: { id: true, name: true, fixedMonthlyRent: true } },
       contracts: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -124,6 +127,8 @@ type TenantRow = {
   paymentDueDay: number
   penaltyPercent: number
   legalType: string
+  customRate: number | null
+  fixedMonthlyRent: number | null
   space: { number: string; area: number; floor: { name: string; ratePerSqm: number } } | null
   fullFloors: { id: string; name: string; fixedMonthlyRent: number | null }[]
   contracts: { id: string; number: string; status: string }[]
@@ -157,8 +162,7 @@ function Section({
         <tbody>
           {tenants.map((t) => {
             const debt = t.charges.reduce((s, c) => s + c.amount, 0)
-            const monthly = t.fullFloors[0]?.fixedMonthlyRent
-              ?? (t.space ? t.space.area * t.space.floor.ratePerSqm : null)
+            const monthly = calculateTenantMonthlyRent(t)
             const daysLeft = t.contractEnd
               ? Math.ceil((t.contractEnd.getTime() - now.getTime()) / 86_400_000)
               : null
