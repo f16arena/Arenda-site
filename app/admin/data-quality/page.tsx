@@ -17,6 +17,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { formatDate, formatMoney } from "@/lib/utils"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 type Severity = "critical" | "warning" | "info"
 
@@ -72,6 +73,33 @@ function tenantPlace(tenant: {
 
 function tenantHref(id: string) {
   return `/admin/tenants/${id}`
+}
+
+function invalidContactReasons(tenant: {
+  user: {
+    email: string | null
+    phone: string | null
+  }
+}) {
+  const reasons: string[] = []
+
+  if (tenant.user.phone) {
+    try {
+      normalizeKzPhone(tenant.user.phone)
+    } catch {
+      reasons.push(`телефон: ${tenant.user.phone}`)
+    }
+  }
+
+  if (tenant.user.email) {
+    try {
+      normalizeEmail(tenant.user.email)
+    } catch {
+      reasons.push(`email: ${tenant.user.email}`)
+    }
+  }
+
+  return reasons
 }
 
 export default async function DataQualityPage() {
@@ -168,6 +196,7 @@ export default async function DataQualityPage() {
   const [
     doubleRentCount,
     doubleRentItems,
+    contactCheckCandidates,
     missingContactCount,
     missingContactItems,
     missingPlaceCount,
@@ -186,6 +215,7 @@ export default async function DataQualityPage() {
   ] = await Promise.all([
     db.tenant.count({ where: doubleRentWhere }),
     db.tenant.findMany({ where: doubleRentWhere, select: tenantSelect, take: SAMPLE_LIMIT, orderBy: { createdAt: "desc" } }),
+    db.tenant.findMany({ where: tenantScope, select: tenantSelect, orderBy: { createdAt: "desc" } }),
     db.tenant.count({ where: missingContactWhere }),
     db.tenant.findMany({ where: missingContactWhere, select: tenantSelect, take: SAMPLE_LIMIT, orderBy: { createdAt: "desc" } }),
     db.tenant.count({ where: missingPlaceWhere }),
@@ -240,6 +270,13 @@ export default async function DataQualityPage() {
     db.cashAccount.count({ where: { organizationId: orgId, isActive: true } }),
   ])
 
+  const invalidContactItemsAll = contactCheckCandidates
+    .map((tenant) => ({
+      tenant,
+      reasons: invalidContactReasons(tenant),
+    }))
+    .filter((item) => item.reasons.length > 0)
+
   const issues: QualityIssue[] = [
     {
       key: "double-rent",
@@ -268,6 +305,21 @@ export default async function DataQualityPage() {
         id: tenant.id,
         label: tenant.companyName,
         meta: `${tenantPlace(tenant)} · нет телефона и email`,
+        href: tenantHref(tenant.id),
+      })),
+    },
+    {
+      key: "invalid-contact",
+      title: "Некорректный телефон или email",
+      description: "Контакты должны быть рабочими: телефон только Казахстан +7, email латиницей с @ и доменом. Иначе вход, счета и уведомления могут не дойти.",
+      severity: "critical",
+      count: invalidContactItemsAll.length,
+      actionLabel: "Исправить контакт",
+      href: "/admin/tenants",
+      items: invalidContactItemsAll.slice(0, SAMPLE_LIMIT).map(({ tenant, reasons }) => ({
+        id: tenant.id,
+        label: tenant.companyName,
+        meta: `${tenantPlace(tenant)} · ${reasons.join(" · ")}`,
         href: tenantHref(tenant.id),
       })),
     },
