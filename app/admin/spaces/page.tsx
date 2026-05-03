@@ -14,6 +14,7 @@ import { isLayoutV2 } from "@/lib/floor-layout"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export default async function SpacesPage() {
   const { orgId } = await requireOrgAccess()
@@ -87,6 +88,9 @@ export default async function SpacesPage() {
                   id: true,
                   companyName: true,
                   contractEnd: true,
+                  customRate: true,
+                  fixedMonthlyRent: true,
+                  fullFloors: { select: { fixedMonthlyRent: true } },
                   charges: { where: { isPaid: false }, select: { amount: true } },
                 },
               },
@@ -370,35 +374,48 @@ export default async function SpacesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {floor.spaces.map((space) => (
-                        <tr key={space.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
-                          <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{space.area} м²</td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{formatMoney(space.area * floor.ratePerSqm)}</td>
-                          <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                            {space.tenant ? (
-                              <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                {space.tenant.companyName}
-                              </Link>
-                            ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", STATUS_COLORS[space.status])}>
-                              {STATUS_LABELS[space.status] ?? space.status}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{space.description ?? "—"}</td>
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <EditSpaceDialog
-                                space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description }}
-                                floors={floorOptions}
-                              />
-                              <DeleteSpaceButton spaceId={space.id} hasТenant={!!space.tenant} />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {floor.spaces.map((space) => {
+                        const rentAmount = space.tenant
+                          ? calculateTenantMonthlyRent({
+                              customRate: space.tenant.customRate,
+                              fixedMonthlyRent: space.tenant.fixedMonthlyRent,
+                              fullFloors: space.tenant.fullFloors,
+                              space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
+                            })
+                          : space.area * floor.ratePerSqm
+
+                        return (
+                          <tr key={space.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
+                            <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{space.area} м²</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                              {space.tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                              {space.tenant ? (
+                                <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                  {space.tenant.companyName}
+                                </Link>
+                              ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", STATUS_COLORS[space.status])}>
+                                {STATUS_LABELS[space.status] ?? space.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{space.description ?? "—"}</td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <EditSpaceDialog
+                                  space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description }}
+                                  floors={floorOptions}
+                                />
+                                <DeleteSpaceButton spaceId={space.id} hasТenant={!!space.tenant} />
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
