@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { ClipboardList } from "lucide-react"
 import Link from "next/link"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { EmptyState } from "@/components/ui/empty-state"
 import { deleteRequest } from "@/app/actions/requests"
 import { requireOrgAccess } from "@/lib/org"
 import { requestScope } from "@/lib/tenant-scope"
@@ -108,9 +109,16 @@ export default async function RequestsPage() {
             ))}
             {requests.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-16 text-center">
-                  <ClipboardList className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">Нет заявок</p>
+                <td colSpan={7} className="px-5 py-8">
+                  <EmptyState
+                    icon={<ClipboardList className="h-5 w-5" />}
+                    title="Заявок пока нет"
+                    description="Заявки появятся здесь, когда арендатор отправит обращение из кабинета. Проверьте, что у арендаторов есть доступ и они знают, где создать заявку."
+                    actions={[
+                      { href: "/admin/tenants", label: "Открыть арендаторов" },
+                      { href: "/admin/faq", label: "FAQ для инструкции", variant: "secondary" },
+                    ]}
+                  />
                 </td>
               </tr>
             )}

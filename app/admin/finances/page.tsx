@@ -2,12 +2,13 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { Plus, FileSpreadsheet, Upload, Wallet } from "lucide-react"
+import { FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { EmptyState } from "@/components/ui/empty-state"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
@@ -217,7 +218,15 @@ export default async function FinancesPage() {
               </div>
             ))}
             {charges.length === 0 && (
-              <p className="px-5 py-8 text-sm text-slate-400 dark:text-slate-500 text-center">Нет начислений</p>
+              <EmptyState
+                icon={<FileSpreadsheet className="h-5 w-5" />}
+                title="Начислений за месяц нет"
+                description="Сформируйте начисления за период после проверки арендаторов, ставок и сроков оплаты. Если арендаторов нет, начните с карточек аренды."
+                actions={[
+                  { href: "/admin/tenants", label: "Проверить арендаторов" },
+                  { href: "/admin/data-quality", label: "Качество данных", variant: "secondary" },
+                ]}
+              />
             )}
           </div>
         </div>
@@ -247,7 +256,15 @@ export default async function FinancesPage() {
               </div>
             ))}
             {payments.length === 0 && (
-              <p className="px-5 py-8 text-sm text-slate-400 dark:text-slate-500 text-center">Нет оплат</p>
+              <EmptyState
+                icon={<Wallet className="h-5 w-5" />}
+                title="Оплат пока нет"
+                description="Оплата появится после ручного внесения администратором или после подтверждения сообщения арендатора “Я оплатил”."
+                actions={[
+                  { href: "/admin/finances/balance", label: "Проверить счета" },
+                  { href: "/admin/faq", label: "Инструкция арендатора", variant: "secondary" },
+                ]}
+              />
             )}
           </div>
         </div>
@@ -257,10 +274,7 @@ export default async function FinancesPage() {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Расходы</h2>
-          <button className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-            <Plus className="h-3 w-3" />
-            Добавить
-          </button>
+          <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -294,8 +308,16 @@ export default async function FinancesPage() {
             ))}
             {expenses.length === 0 && (
               <tr>
-                <td colSpan={currentBuildingId ? 5 : 6} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
-                  Расходы не добавлены
+                <td colSpan={currentBuildingId ? 5 : 6} className="px-5 py-6">
+                  <EmptyState
+                    icon={<Wallet className="h-5 w-5" />}
+                    title="Расходы не добавлены"
+                    description="Фиксируйте коммунальные платежи, ремонт, зарплаты и другие расходы по конкретному зданию, чтобы видеть прибыль по каждой точке."
+                    actions={[
+                      { href: "/admin/analytics", label: "Открыть аналитику" },
+                      { href: "/admin/finances/balance", label: "Баланс счетов", variant: "secondary" },
+                    ]}
+                  />
                 </td>
               </tr>
             )}

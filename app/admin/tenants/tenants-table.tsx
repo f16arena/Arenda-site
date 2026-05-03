@@ -2,9 +2,10 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText } from "lucide-react"
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText, UsersRound } from "lucide-react"
 import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { DeleteTenantButton } from "./delete-tenant-button"
+import { EmptyState } from "@/components/ui/empty-state"
 
 export interface TenantRow {
   id: string
@@ -317,8 +318,24 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
-                  {tenants.length === 0 ? "Арендаторы не добавлены" : "По фильтрам ничего не найдено"}
+                <td colSpan={7} className="px-5 py-6">
+                  {tenants.length === 0 ? (
+                    <EmptyState
+                      icon={<UsersRound className="h-5 w-5" />}
+                      title="Арендаторы еще не добавлены"
+                      description="Начните с первого арендатора или загрузите список из Excel. Перед созданием проверьте, что свободные помещения уже заведены по нужному зданию."
+                      actions={[
+                        { href: "/admin/import/tenants", label: "Импорт Excel" },
+                        { href: "/admin/spaces", label: "Проверить помещения", variant: "secondary" },
+                      ]}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={<Search className="h-5 w-5" />}
+                      title="По фильтрам ничего не найдено"
+                      description="Измените поиск, тип арендатора или фильтр долга, чтобы снова увидеть список."
+                    />
+                  )}
                 </td>
               </tr>
             )}
