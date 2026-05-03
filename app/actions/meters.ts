@@ -135,10 +135,24 @@ export async function createMeter(formData: FormData) {
 export async function deleteMeter(meterId: string) {
   await requireSection("meters", "edit")
   const { orgId } = await requireOrgAccess()
-  await assertMeterInOrg(meterId, orgId)
 
-  await db.meter.delete({ where: { id: meterId } })
+  const meter = await db.meter.findFirst({
+    where: {
+      id: meterId,
+      space: { floor: { building: { organizationId: orgId } } },
+    },
+    select: { id: true },
+  })
+  if (!meter) return { error: "Счётчик не найден или нет доступа" }
+
+  const [readings] = await db.$transaction([
+    db.meterReading.deleteMany({ where: { meterId } }),
+    db.meter.delete({ where: { id: meterId } }),
+  ])
+
   revalidatePath("/admin/meters")
+  revalidatePath("/cabinet/meters")
+  return { success: true, readingsDeleted: readings.count }
 }
 
 export async function deleteMeterReading(readingId: string) {

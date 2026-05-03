@@ -51,7 +51,11 @@ export function DeleteAction({
         new Promise<void>((resolve) => {
           startTransition(async () => {
             try {
-              await action()
+              const result = await action()
+              if (isActionError(result)) {
+                toast.error(result.error)
+                return
+              }
               toast.success(successMessage ?? `${capitalize(entity)} удалён`)
             } catch (e) {
               toast.error(e instanceof Error ? e.message : "Не удалось удалить")
@@ -68,4 +72,14 @@ export function DeleteAction({
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function isActionError(value: unknown): value is { error: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "error" in value &&
+    typeof (value as { error?: unknown }).error === "string" &&
+    (value as { error: string }).error.length > 0
+  )
 }
