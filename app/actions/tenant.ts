@@ -12,6 +12,7 @@ import {
 } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
+import { normalizeTenantRentChoice } from "@/lib/rent"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -205,8 +206,11 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   const actualAddress = formData.get("actualAddress") as string
   const directorName = formData.get("directorName") as string
   const directorPosition = formData.get("directorPosition") as string
-  const customRateStr = formData.get("customRate") as string
-  const fixedMonthlyRent = parsePositiveNumberOrNull(formData.get("fixedMonthlyRent"))
+  const rentChoice = normalizeTenantRentChoice({
+    rentMode: String(formData.get("rentMode") ?? "").trim() || null,
+    customRate: parsePositiveNumberOrNull(formData.get("customRate")),
+    fixedMonthlyRent: parsePositiveNumberOrNull(formData.get("fixedMonthlyRent")),
+  })
   const cleaningFeeStr = formData.get("cleaningFee") as string
   const needsCleaning = formData.get("needsCleaning") === "on"
   const contractStart = formData.get("contractStart") as string
@@ -227,8 +231,8 @@ export async function updateTenant(tenantId: string, formData: FormData) {
       actualAddress: actualAddress || null,
       directorName: directorName || null,
       directorPosition: directorPosition || null,
-      customRate: parseNumberOrNull(customRateStr),
-      fixedMonthlyRent,
+      customRate: rentChoice.customRate,
+      fixedMonthlyRent: rentChoice.fixedMonthlyRent,
       cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
       needsCleaning,
       contractStart: contractStart ? new Date(contractStart) : null,
@@ -289,8 +293,12 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
-  const customRateStr = formData.get("customRate")
-  const fixedMonthlyRent = parsePositiveNumberOrNull(formData.get("fixedMonthlyRent"))
+  const rentChoice = normalizeTenantRentChoice({
+    rentMode: String(formData.get("rentMode") ?? "").trim() || null,
+    customRate: parsePositiveNumberOrNull(formData.get("customRate")),
+    fixedMonthlyRent: parsePositiveNumberOrNull(formData.get("fixedMonthlyRent")),
+    requireValueForMode: !!formData.get("rentMode"),
+  })
   const cleaningFee = parseNumberOrNull(formData.get("cleaningFee")) ?? tenant.cleaningFee ?? 0
   const needsCleaning = formData.get("needsCleaning") === "on"
   const paymentDueDayStr = String(formData.get("paymentDueDay") ?? "")
@@ -320,8 +328,8 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   }
 
   const after: RentalTermsSnapshot = {
-    customRate: normalizeMoney(parseNumberOrNull(customRateStr)),
-    fixedMonthlyRent: normalizeMoney(fixedMonthlyRent),
+    customRate: normalizeMoney(rentChoice.customRate),
+    fixedMonthlyRent: normalizeMoney(rentChoice.fixedMonthlyRent),
     cleaningFee: normalizeMoney(cleaningFee) ?? 0,
     needsCleaning,
     paymentDueDay,

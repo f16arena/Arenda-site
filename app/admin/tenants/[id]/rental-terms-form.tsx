@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { FileText, LockKeyhole, PencilLine } from "lucide-react"
 import { toast } from "sonner"
 import { updateTenantRentalTerms } from "@/app/actions/tenant"
+import type { RentMode } from "@/lib/rent"
 
 type RentalTermsInitial = {
   customRate: number | null
@@ -30,12 +31,31 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Не удалось сохранить условия аренды"
 }
 
+function hasPositiveAmount(value: number | null) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+}
+
+function initialRentMode(initial: RentalTermsInitial): RentMode {
+  if (hasPositiveAmount(initial.fixedMonthlyRent)) return "FIXED"
+  if (hasPositiveAmount(initial.customRate)) return "RATE"
+  return "FLOOR"
+}
+
 export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Props) {
   const router = useRouter()
   const [addendumMode, setAddendumMode] = useState(false)
+  const [rentMode, setRentMode] = useState<RentMode>(() => initialRentMode(initial))
+  const [customRate, setCustomRate] = useState(() => initialRentMode(initial) === "RATE" ? String(initial.customRate ?? "") : "")
+  const [fixedMonthlyRent, setFixedMonthlyRent] = useState(() => initialRentMode(initial) === "FIXED" ? String(initial.fixedMonthlyRent ?? "") : "")
   const [pending, startTransition] = useTransition()
   const termsDisabled = locked && !addendumMode
   const today = new Date().toISOString().slice(0, 10)
+
+  const changeRentMode = (nextMode: RentMode) => {
+    setRentMode(nextMode)
+    if (nextMode !== "RATE") setCustomRate("")
+    if (nextMode !== "FIXED") setFixedMonthlyRent("")
+  }
 
   const submit = (formData: FormData) => {
     startTransition(async () => {
@@ -54,6 +74,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
 
   return (
     <form action={submit} className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <input type="hidden" name="rentMode" value={rentMode} />
       {locked && (
         <div className="md:col-span-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -78,15 +99,51 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
         </div>
       )}
 
+      <fieldset className="md:col-span-3" disabled={termsDisabled || pending}>
+        <legend className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          Способ расчета аренды
+        </legend>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {[
+            ["FLOOR", "По ставке этажа"],
+            ["RATE", "Ставка за м²"],
+            ["FIXED", "Сумма в месяц"],
+          ].map(([mode, label]) => (
+            <label
+              key={mode}
+              className={`flex cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+                rentMode === mode
+                  ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-200"
+                  : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
+              } ${termsDisabled || pending ? "cursor-not-allowed opacity-60" : ""}`}
+            >
+              <input
+                type="radio"
+                name="rentModeChoice"
+                value={mode}
+                checked={rentMode === mode}
+                onChange={() => changeRentMode(mode as RentMode)}
+                disabled={termsDisabled || pending}
+                className="sr-only"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Индивид. ставка ₸/м²</label>
         <input
           name="customRate"
           type="number"
           step="0.01"
-          defaultValue={initial.customRate ?? ""}
+          min={0}
+          value={customRate}
+          onChange={(event) => setCustomRate(event.target.value)}
           placeholder="Если отличается от этажной"
-          disabled={termsDisabled || pending}
+          disabled={termsDisabled || pending || rentMode !== "RATE"}
+          required={rentMode === "RATE"}
           className={inputClass}
         />
       </div>
@@ -97,13 +154,15 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           type="number"
           step="0.01"
           min={0}
-          defaultValue={initial.fixedMonthlyRent ?? ""}
+          value={fixedMonthlyRent}
+          onChange={(event) => setFixedMonthlyRent(event.target.value)}
           placeholder="Если договор на сумму"
-          disabled={termsDisabled || pending}
+          disabled={termsDisabled || pending || rentMode !== "FIXED"}
+          required={rentMode === "FIXED"}
           className={inputClass}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Если заполнено, заменяет расчет по м²
+          Нельзя указать одновременно со ставкой за м²
         </p>
       </div>
       <div>

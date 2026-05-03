@@ -14,6 +14,11 @@ import {
   extractBinIin,
 } from "@/lib/excel-import"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeTenantRentChoice } from "@/lib/rent"
+
+function isPositiveAmount(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+}
 
 // Синонимы заголовков (auto-mapping)
 const FIELD_SYNONYMS: Record<string, string[]> = {
@@ -132,6 +137,15 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     if (!phone && !email) warnings.push("Нет ни телефона, ни email — пользователь не сможет войти")
     if (bin && bin.length !== 12) warnings.push(`БИН/ИИН должен быть 12 цифр (получено: ${bin})`)
     if (contractEnd && contractStart && contractEnd < contractStart) warnings.push("Дата окончания раньше даты начала")
+    try {
+      normalizeTenantRentChoice({ customRate: rate, fixedMonthlyRent })
+    } catch (error) {
+      invalidRows.push({
+        rowIndex: i + 2,
+        error: error instanceof Error ? error.message : "Ставка за м² и фиксированная аренда взаимоисключающие",
+      })
+      continue
+    }
 
     validRows.push({
       rowIndex: i + 2,
@@ -206,6 +220,19 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
       }
 
       const d = row.data
+      let rentChoice: { customRate: number | null; fixedMonthlyRent: number | null }
+      try {
+        rentChoice = normalizeTenantRentChoice({
+          customRate: d.rate,
+          fixedMonthlyRent: d.fixedMonthlyRent,
+        })
+      } catch (error) {
+        result.errors.push({
+          rowIndex: row.rowIndex,
+          error: error instanceof Error ? error.message : "Ставка за м² и фиксированная аренда взаимоисключающие",
+        })
+        continue
+      }
 
       // Дублирование по БИН/email/phone
       const dupBy: Array<{ bin?: string }> = []
@@ -292,8 +319,8 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
           category: d.category || null,
           legalAddress: d.legalAddress || null,
           directorName: d.directorName || null,
-          customRate: d.rate || null,
-          fixedMonthlyRent: d.fixedMonthlyRent && d.fixedMonthlyRent > 0 ? d.fixedMonthlyRent : null,
+          customRate: isPositiveAmount(rentChoice.customRate) ? rentChoice.customRate : null,
+          fixedMonthlyRent: isPositiveAmount(rentChoice.fixedMonthlyRent) ? rentChoice.fixedMonthlyRent : null,
           cleaningFee: d.cleaningFee ?? 0,
           needsCleaning: (d.cleaningFee ?? 0) > 0,
           contractStart: d.contractStart,
