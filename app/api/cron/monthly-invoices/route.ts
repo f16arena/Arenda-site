@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { authorizeCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 
 // Запускается 1-го числа каждого месяца в 9:00 Алматы
 // Создаёт начисления RENT для всех активных арендаторов
 
-function authorize(req: Request): boolean {
-  const auth = req.headers.get("authorization")
-  if (auth === `Bearer ${process.env.CRON_SECRET}`) return true
-
-  const url = new URL(req.url)
-  if (url.searchParams.get("secret") === process.env.CRON_SECRET) return true
-
-  if (req.headers.get("user-agent")?.includes("vercel-cron")) return true
-
-  return false
-}
-
 export async function GET(req: Request) {
-  if (!authorize(req)) {
+  if (!authorizeCronRequest(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

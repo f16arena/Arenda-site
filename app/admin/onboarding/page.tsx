@@ -27,8 +27,9 @@ export default async function OnboardingPage() {
   ])
 
   const isTrial = org?.plan?.code === "TRIAL"
+  const now = new Date()
   const daysLeft = org?.planExpiresAt
-    ? Math.max(0, Math.ceil((org.planExpiresAt.getTime() - Date.now()) / 86_400_000))
+    ? Math.max(0, Math.ceil((org.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
 
   // Считаем прогресс

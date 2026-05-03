@@ -2,9 +2,23 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { cookies, headers } from "next/headers"
 import { db } from "./db"
+import { createHmac, timingSafeEqual } from "crypto"
 
 const SUPERADMIN_ORG_COOKIE = "superadmin_currentOrgId"
 const IMPERSONATE_COOKIE = "impersonating"
+const IMPERSONATE_MAX_AGE_SECONDS = 60 * 60 * 8
+
+type ImpersonateData = {
+  actAsUserId: string
+  realUserId: string
+  orgId: string
+  startedAt: number
+}
+
+type SessionUserForImpersonate = {
+  id: string
+  isPlatformOwner?: boolean | null
+}
 
 export type OrgContext = {
   orgId: string
@@ -59,8 +73,8 @@ export async function getCurrentOrgId(): Promise<string | null> {
   // Платформа-админ — может быть в impersonate-режиме (если сам его запустил).
   // Проверяем что realUserId в cookie совпадает с текущим session user —
   // иначе игнорируем cookie.
-  const imp = await getImpersonateData()
-  if (imp && imp.realUserId === session.user.id) {
+  const imp = await getValidatedImpersonateForUser(session.user)
+  if (imp) {
     const user = await db.user.findUnique({
       where: { id: imp.actAsUserId },
       select: { organizationId: true },
@@ -131,7 +145,7 @@ export async function requireOrgAccess(): Promise<OrgContext> {
     redirect("/login")
   }
 
-  const imp = await getImpersonateData()
+  const imp = await getValidatedImpersonateForUser(session.user)
 
   return {
     orgId: orgId!,
@@ -150,24 +164,94 @@ export async function requirePlatformOwner() {
 }
 
 // Impersonate cookie helpers
-export async function getImpersonateData(): Promise<{ actAsUserId: string; realUserId: string; orgId: string; startedAt: number } | null> {
+export async function getImpersonateData(): Promise<ImpersonateData | null> {
   const store = await cookies()
   const raw = store.get(IMPERSONATE_COOKIE)?.value
   if (!raw) return null
+  return decodeImpersonateCookie(raw)
+}
+
+export async function getValidatedImpersonateData(): Promise<ImpersonateData | null> {
+  const session = await auth()
+  if (!session?.user) return null
+  return getValidatedImpersonateForUser(session.user)
+}
+
+async function getValidatedImpersonateForUser(user: SessionUserForImpersonate): Promise<ImpersonateData | null> {
+  if (!user.isPlatformOwner) return null
+
+  const imp = await getImpersonateData()
+  if (!imp || imp.realUserId !== user.id) return null
+
+  const startedAt = Number(imp.startedAt)
+  if (!Number.isFinite(startedAt) || Date.now() - startedAt > IMPERSONATE_MAX_AGE_SECONDS * 1000) {
+    return null
+  }
+
+  const actAsUser = await db.user.findUnique({
+    where: { id: imp.actAsUserId },
+    select: { organizationId: true, isActive: true },
+  })
+  if (!actAsUser?.isActive || actAsUser.organizationId !== imp.orgId) return null
+
+  return imp
+}
+
+function decodeImpersonateCookie(raw: string): ImpersonateData | null {
+  const [payload, signature] = raw.split(".")
+  if (!payload || !signature) return null
+
+  let expected: string
   try {
-    return JSON.parse(raw)
+    expected = signImpersonatePayload(payload)
+  } catch {
+    return null
+  }
+  if (!safeEqual(signature, expected)) return null
+
+  try {
+    const decoded = Buffer.from(payload, "base64url").toString("utf8")
+    const data = JSON.parse(decoded) as Partial<ImpersonateData>
+    if (
+      typeof data.actAsUserId !== "string"
+      || typeof data.realUserId !== "string"
+      || typeof data.orgId !== "string"
+      || typeof data.startedAt !== "number"
+    ) {
+      return null
+    }
+    return data as ImpersonateData
   } catch {
     return null
   }
 }
 
-export async function setImpersonateData(data: { actAsUserId: string; realUserId: string; orgId: string; startedAt: number }) {
+function encodeImpersonateCookie(data: ImpersonateData): string {
+  const payload = Buffer.from(JSON.stringify(data), "utf8").toString("base64url")
+  return `${payload}.${signImpersonatePayload(payload)}`
+}
+
+function signImpersonatePayload(payload: string): string {
+  const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
+  if (!secret) throw new Error("AUTH_SECRET is required for impersonation")
+  return createHmac("sha256", secret).update(payload).digest("base64url")
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  if (left.length !== right.length) return false
+  return timingSafeEqual(left, right)
+}
+
+export async function setImpersonateData(data: ImpersonateData) {
   const store = await cookies()
-  store.set(IMPERSONATE_COOKIE, JSON.stringify(data), {
-    maxAge: 60 * 60 * 8, // 8 часов
+  store.set(IMPERSONATE_COOKIE, encodeImpersonateCookie(data), {
+    maxAge: IMPERSONATE_MAX_AGE_SECONDS,
     path: "/",
-    httpOnly: false,
+    httpOnly: true,
     sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
   })
 }
 

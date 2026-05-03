@@ -45,10 +45,10 @@ export default async function AuditPage() {
   const { orgId } = await requireOrgAccess()
 
   const logs = await db.auditLog.findMany({
-    where: auditLogScope(orgId),
+    where: await auditLogScope(orgId),
     orderBy: { createdAt: "desc" },
     take: 200,
-  }).catch(() => [])
+  })
 
   return (
     <div className="space-y-5">

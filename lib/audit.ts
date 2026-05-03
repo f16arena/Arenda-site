@@ -2,7 +2,8 @@
 
 import { db } from "./db"
 import { auth } from "@/auth"
-import { headers, cookies } from "next/headers"
+import { headers } from "next/headers"
+import { getValidatedImpersonateData } from "./org"
 
 export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT"
 export type AuditEntity = "tenant" | "building" | "floor" | "space" | "charge" | "payment" | "expense" | "user" | "contract" | "lead" | "tariff" | "meter" | "request" | "task"
@@ -21,10 +22,8 @@ export async function audit(opts: {
     // Если активен impersonate — добавляем метку в details
     let details = opts.details ?? null
     try {
-      const store = await cookies()
-      const raw = store.get("impersonating")?.value
-      if (raw) {
-        const imp = JSON.parse(raw) as { actAsUserId: string; realUserId: string; orgId: string }
+      const imp = await getValidatedImpersonateData()
+      if (imp) {
         details = {
           ...(details ?? {}),
           _impersonate: { realUserId: imp.realUserId, asUserId: imp.actAsUserId, orgId: imp.orgId },

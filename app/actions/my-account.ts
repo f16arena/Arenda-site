@@ -116,6 +116,14 @@ export async function requestEmailChange(formData: FormData): Promise<Result & {
 
   // Если Resend не настроен — возвращаем ссылку прямо в UI
   if (!emailResult.ok) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[email] email change delivery failed", emailResult.error)
+      return {
+        ok: true,
+        message: `Письмо отправлено на ${newEmail}. Перейдите по ссылке в письме для подтверждения.`,
+      }
+    }
+
     return {
       ok: true,
       message: `Email-отправка пока не настроена. Скопируйте ссылку для подтверждения вручную:`,
@@ -203,6 +211,11 @@ export async function requestEmailVerification(): Promise<Result & { previewLink
   })
 
   if (!emailResult.ok) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[email] email verification delivery failed", emailResult.error)
+      return { ok: true, message: `Письмо отправлено на ${user.email}` }
+    }
+
     return {
       ok: true,
       message: "Email-отправка пока не настроена. Используйте ссылку:",

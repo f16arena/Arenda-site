@@ -1,3 +1,5 @@
+import { db } from "./db"
+
 /**
  * Org-scoped where-фабрики для Prisma.
  *
@@ -177,14 +179,33 @@ export function requestCommentScope(orgId: string | null) {
 
 // AuditLog — должен быть scoped по userId, но AuditLog хранит userId напрямую.
 // Если потребуется — добавим в AuditLog поле organizationId.
-export function auditLogScope(orgId: string | null) {
+export async function auditLogScope(orgId: string | null) {
   if (!orgId) return NEVER
   // Через user — медленно, но безопасно. Лучше — добавить organizationId в AuditLog.
-  return { OR: [{ userId: null }, { user: { organizationId: orgId } }] as never[] }
+  const userIds = (await db.user.findMany({
+    where: userScope(orgId),
+    select: { id: true },
+  })).map((u) => u.id)
+  if (userIds.length === 0) return NEVER
+  return { userId: { in: userIds } }
 }
 
 // EmailLog
-export function emailLogScope(orgId: string | null) {
+export async function emailLogScope(orgId: string | null) {
   if (!orgId) return NEVER
-  return { OR: [{ tenant: tenantScope(orgId) }, { user: { organizationId: orgId } }] }
+  const [tenantIds, userIds] = await Promise.all([
+    db.tenant.findMany({ where: tenantScope(orgId), select: { id: true } }),
+    db.user.findMany({ where: userScope(orgId), select: { id: true } }),
+  ])
+
+  const tenantIdList = tenantIds.map((t) => t.id)
+  const userIdList = userIds.map((u) => u.id)
+  if (tenantIdList.length === 0 && userIdList.length === 0) return NEVER
+
+  return {
+    OR: [
+      ...(tenantIdList.length > 0 ? [{ tenantId: { in: tenantIdList } }] : []),
+      ...(userIdList.length > 0 ? [{ userId: { in: userIdList } }] : []),
+    ],
+  }
 }

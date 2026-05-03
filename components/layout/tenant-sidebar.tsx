@@ -39,7 +39,8 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
-    setMobileOpen(false)
+    const id = window.setTimeout(() => setMobileOpen(false), 0)
+    return () => window.clearTimeout(id)
   }, [pathname])
 
   function isActive(href: string, exact?: boolean) {

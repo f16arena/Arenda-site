@@ -42,9 +42,12 @@ export function ThemeIconToggle() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const stored = (typeof localStorage !== "undefined" && localStorage.getItem("theme")) as Theme | null
-    setTheme(stored ?? "system")
-    setMounted(true)
+    const id = window.setTimeout(() => {
+      const stored = (typeof localStorage !== "undefined" && localStorage.getItem("theme")) as Theme | null
+      setTheme(stored ?? "system")
+      setMounted(true)
+    }, 0)
+    return () => window.clearTimeout(id)
   }, [])
 
   useEffect(() => {

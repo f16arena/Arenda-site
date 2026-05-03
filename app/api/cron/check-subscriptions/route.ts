@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { notifyUser } from "@/lib/notify"
+import { authorizeCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
-
-function authorize(req: Request): boolean {
-  const auth = req.headers.get("authorization")
-  if (auth === `Bearer ${process.env.CRON_SECRET}`) return true
-  const url = new URL(req.url)
-  if (url.searchParams.get("secret") === process.env.CRON_SECRET) return true
-  if (req.headers.get("user-agent")?.includes("vercel-cron")) return true
-  return false
-}
 
 // Запускается каждый день в 02:00 UTC = 08:00 Алматы
 // Проверяет: организации с истёкшей подпиской → suspended
 //            организации за 7-3-1 день до истечения → уведомление
 export async function GET(req: Request) {
-  if (!authorize(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!authorizeCronRequest(req)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const now = new Date()
   const result = {

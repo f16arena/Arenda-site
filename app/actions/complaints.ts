@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { complaintScope } from "@/lib/tenant-scope"
+import { requireSection } from "@/lib/acl"
 
 async function assertComplaintInOrg(id: string, orgId: string) {
   const found = await db.complaint.findFirst({
@@ -14,6 +15,7 @@ async function assertComplaintInOrg(id: string, orgId: string) {
 }
 
 export async function respondToComplaint(id: string, formData: FormData) {
+  await requireSection("complaints", "edit")
   const { orgId } = await requireOrgAccess()
   await assertComplaintInOrg(id, orgId)
 
@@ -27,6 +29,7 @@ export async function respondToComplaint(id: string, formData: FormData) {
 }
 
 export async function resolveComplaint(id: string) {
+  await requireSection("complaints", "edit")
   const { orgId } = await requireOrgAccess()
   await assertComplaintInOrg(id, orgId)
 

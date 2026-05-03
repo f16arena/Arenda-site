@@ -45,6 +45,13 @@ const DEFAULT_PERMS: Record<string, Set<Section>> = {
   TENANT: new Set<Section>(["profile"]),
 }
 
+const DEFAULT_EDIT_PERMS: Record<string, Set<Section>> = {
+  ADMIN: DEFAULT_PERMS.ADMIN,
+  ACCOUNTANT: new Set<Section>(["finances", "documents", "messages", "profile"]),
+  FACILITY_MANAGER: new Set<Section>(["meters", "requests", "tasks", "complaints", "messages", "profile"]),
+  TENANT: new Set<Section>(),
+}
+
 // Кеш на запрос — права меняются редко
 let cache: { permissions: Record<string, Record<string, { canView: boolean; canEdit: boolean }>>; ts: number } | null = null
 const CACHE_TTL_MS = 30_000
@@ -91,8 +98,7 @@ export async function canEdit(role: string, section: Section): Promise<boolean> 
   const fromDb = all[role]?.[section]?.canEdit
   if (fromDb !== undefined) return fromDb
   // Fallback: ADMIN может редактировать всё что видит, остальные только в своих секциях
-  if (role === "ADMIN") return DEFAULT_PERMS.ADMIN.has(section)
-  return false
+  return DEFAULT_EDIT_PERMS[role]?.has(section) ?? false
 }
 
 export async function requireSection(section: Section, action: "view" | "edit" = "view") {

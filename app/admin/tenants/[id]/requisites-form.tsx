@@ -19,6 +19,19 @@ type Props = {
   isIin?: boolean
 }
 
+function StatusIcon({ ok }: { ok: boolean | null }) {
+  if (ok === null) return null
+  return ok ? (
+    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+      <Check className="h-3 w-3" /> РћРљ
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 font-medium">
+      <AlertTriangle className="h-3 w-3" /> РћС€РёР±РєР°
+    </span>
+  )
+}
+
 export function RequisitesForm({ tenantId, initial, isIin }: Props) {
   const [bankName, setBankName] = useState(initial.bankName ?? "")
   const [iik, setIik] = useState(initial.iik ?? "")
@@ -60,19 +73,6 @@ export function RequisitesForm({ tenantId, initial, isIin }: Props) {
         toast.error(e instanceof Error ? e.message : "Не удалось сохранить")
       }
     })
-  }
-
-  const StatusIcon = ({ ok }: { ok: boolean | null }) => {
-    if (ok === null) return null
-    return ok ? (
-      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-        <Check className="h-3 w-3" /> ОК
-      </span>
-    ) : (
-      <span className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 font-medium">
-        <AlertTriangle className="h-3 w-3" /> Ошибка
-      </span>
-    )
   }
 
   return (

@@ -4,8 +4,10 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg, assertTenantDocumentInOrg } from "@/lib/scope-guards"
+import { requireSection } from "@/lib/acl"
 
 export async function addTenantDocument(tenantId: string, formData: FormData) {
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 
@@ -24,6 +26,7 @@ export async function addTenantDocument(tenantId: string, formData: FormData) {
 }
 
 export async function deleteTenantDocument(documentId: string) {
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTenantDocumentInOrg(documentId, orgId)
 

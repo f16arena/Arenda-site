@@ -5,8 +5,10 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { staffScope, salaryPaymentScope } from "@/lib/tenant-scope"
 import { assertStaffInOrg } from "@/lib/scope-guards"
+import { requireSection } from "@/lib/acl"
 
 export async function generateSalaryPayments(period: string) {
+  await requireSection("staff", "edit")
   const { orgId } = await requireOrgAccess()
 
   const staff = await db.staff.findMany({
@@ -32,6 +34,7 @@ export async function generateSalaryPayments(period: string) {
 }
 
 export async function markSalaryPaid(salaryPaymentId: string) {
+  await requireSection("staff", "edit")
   const { orgId } = await requireOrgAccess()
   const sp = await db.salaryPayment.findFirst({
     where: { id: salaryPaymentId, ...salaryPaymentScope(orgId) },
@@ -48,6 +51,7 @@ export async function markSalaryPaid(salaryPaymentId: string) {
 }
 
 export async function recordSalaryPayment(formData: FormData) {
+  await requireSection("staff", "edit")
   const { orgId } = await requireOrgAccess()
   const staffId = formData.get("staffId") as string
   await assertStaffInOrg(staffId, orgId)

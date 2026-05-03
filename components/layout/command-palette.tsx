@@ -47,8 +47,12 @@ const QUICK_CREATE: { label: string; href: string; icon: React.ElementType; keyw
   { label: "Добавить лида", href: "/admin/leads?new=1", icon: Plus, keywords: "лид lead" },
 ]
 
-export function CommandPalette() {
-  const [open, setOpen] = useState(false)
+interface CommandPaletteProps {
+  openSignal?: number
+}
+
+export function CommandPalette({ openSignal = 0 }: CommandPaletteProps) {
+  const [open, setOpen] = useState(() => openSignal > 0)
   const [query, setQuery] = useState("")
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
@@ -66,19 +70,20 @@ export function CommandPalette() {
   }, [])
 
   useEffect(() => {
-    if (!query || query.length < 2) {
-      setItems([])
-      return
-    }
-    setLoading(true)
     const ctrl = new AbortController()
     const debounce = setTimeout(() => {
+      if (!query || query.length < 2) {
+        setItems([])
+        setLoading(false)
+        return
+      }
+      setLoading(true)
       fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: ctrl.signal })
         .then((r) => r.json())
         .then((d) => setItems(d.items ?? []))
         .catch(() => {})
         .finally(() => setLoading(false))
-    }, 200)
+    }, query.length < 2 ? 0 : 200)
     return () => {
       ctrl.abort()
       clearTimeout(debounce)

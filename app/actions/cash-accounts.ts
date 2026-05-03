@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
+import { requireSection } from "@/lib/acl"
 
 export interface Result {
   ok: boolean
@@ -24,6 +25,7 @@ async function assertAccountInOrg(accountId: string, orgId: string) {
  * Создать новый денежный счёт.
  */
 export async function createCashAccount(formData: FormData): Promise<Result> {
+  await requireSection("finances", "edit")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -62,6 +64,7 @@ export async function createCashAccount(formData: FormData): Promise<Result> {
  * Внести деньги (DEPOSIT).
  */
 export async function depositToAccount(formData: FormData): Promise<Result> {
+  await requireSection("finances", "edit")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -99,6 +102,7 @@ export async function depositToAccount(formData: FormData): Promise<Result> {
  * Снять деньги (WITHDRAW).
  */
 export async function withdrawFromAccount(formData: FormData): Promise<Result> {
+  await requireSection("finances", "edit")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -136,6 +140,7 @@ export async function withdrawFromAccount(formData: FormData): Promise<Result> {
  * Перевод между счетами организации.
  */
 export async function transferBetweenAccounts(formData: FormData): Promise<Result> {
+  await requireSection("finances", "edit")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -189,6 +194,7 @@ export async function transferBetweenAccounts(formData: FormData): Promise<Resul
  * Корректировка баланса (на случай расхождения с реальностью).
  */
 export async function adjustAccountBalance(formData: FormData): Promise<Result> {
+  await requireSection("finances", "edit")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -233,6 +239,7 @@ export async function adjustAccountBalance(formData: FormData): Promise<Result> 
  * Транзакции остаются для истории.
  */
 export async function deactivateAccount(accountId: string): Promise<Result> {
+  await requireSection("finances", "edit")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()

@@ -40,19 +40,19 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
   // Debounced check at slug change
   useEffect(() => {
-    if (!slug) {
-      setSlugCheck({ status: "idle" })
-      return
-    }
-    setSlugCheck({ status: "checking" })
     const t = setTimeout(async () => {
+      if (!slug) {
+        setSlugCheck({ status: "idle" })
+        return
+      }
+      setSlugCheck({ status: "checking" })
       try {
         const result = await checkSlugAvailable(slug)
         setSlugCheck({ status: "result", result })
       } catch {
         setSlugCheck({ status: "idle" })
       }
-    }, 400)
+    }, slug ? 400 : 0)
     return () => clearTimeout(t)
   }, [slug])
 

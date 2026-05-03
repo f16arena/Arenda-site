@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { assertMeterInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
+import { requireSection } from "@/lib/acl"
 
 const TARIFF_TYPE_BY_METER: Record<string, string> = {
   ELECTRICITY: "ELECTRICITY",
@@ -18,14 +19,7 @@ const CHARGE_TYPE_BY_METER: Record<string, string> = {
   HEAT: "HEATING",
 }
 
-export async function saveMeterReading(formData: FormData) {
-  const { orgId } = await requireOrgAccess()
-  const meterId = formData.get("meterId") as string
-  await assertMeterInOrg(meterId, orgId)
-
-  const valueStr = formData.get("value") as string
-  const period = formData.get("period") as string
-
+async function saveMeterReadingForMeter(meterId: string, valueStr: string, period: string) {
   const meter = await db.meter.findUnique({
     where: { id: meterId },
     include: {
@@ -81,6 +75,17 @@ export async function saveMeterReading(formData: FormData) {
   return { success: true, consumption }
 }
 
+export async function saveMeterReading(formData: FormData) {
+  await requireSection("meters", "edit")
+  const { orgId } = await requireOrgAccess()
+  const meterId = formData.get("meterId") as string
+  await assertMeterInOrg(meterId, orgId)
+
+  const valueStr = formData.get("value") as string
+  const period = formData.get("period") as string
+  return saveMeterReadingForMeter(meterId, valueStr, period)
+}
+
 // Tenant-side: показания от арендатора. Проверяем, что счётчик
 // действительно принадлежит арендатору-в-сессии.
 export async function submitTenantMeterReading(formData: FormData) {
@@ -98,14 +103,11 @@ export async function submitTenantMeterReading(formData: FormData) {
   })
   if (!owns) throw new Error("Счётчик не принадлежит вам")
 
-  const fd = new FormData()
-  fd.set("meterId", meterId)
-  fd.set("value", valueStr)
-  fd.set("period", period)
-  return saveMeterReading(fd)
+  return saveMeterReadingForMeter(meterId, valueStr, period)
 }
 
 export async function createMeter(formData: FormData) {
+  await requireSection("meters", "edit")
   const { orgId } = await requireOrgAccess()
   const spaceId = formData.get("spaceId") as string
   await assertSpaceInOrg(spaceId, orgId)
@@ -131,6 +133,7 @@ export async function createMeter(formData: FormData) {
 }
 
 export async function deleteMeter(meterId: string) {
+  await requireSection("meters", "edit")
   const { orgId } = await requireOrgAccess()
   await assertMeterInOrg(meterId, orgId)
 
@@ -139,6 +142,7 @@ export async function deleteMeter(meterId: string) {
 }
 
 export async function deleteMeterReading(readingId: string) {
+  await requireSection("meters", "edit")
   const { orgId } = await requireOrgAccess()
   // Проверка через scope: meter → space → floor → building → org
   const reading = await db.meterReading.findFirst({

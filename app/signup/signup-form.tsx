@@ -21,12 +21,12 @@ export function SignupForm() {
   }
 
   useEffect(() => {
-    if (!slug) {
-      setSlugCheck({ status: "idle" })
-      return
-    }
-    setSlugCheck({ status: "checking" })
     const t = setTimeout(async () => {
+      if (!slug) {
+        setSlugCheck({ status: "idle" })
+        return
+      }
+      setSlugCheck({ status: "checking" })
       // Используем тот же checkSlugAvailable что и для платформ-админа,
       // но он требует isPlatformOwner — для signup сделаем без серверной
       // проверки (валидация всё равно произойдёт на submit), а для UI хватит
@@ -38,7 +38,7 @@ export function SignupForm() {
       } catch {
         setSlugCheck({ status: "idle" })
       }
-    }, 400)
+    }, slug ? 400 : 0)
     return () => clearTimeout(t)
   }, [slug])
 

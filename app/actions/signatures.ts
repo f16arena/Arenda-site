@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { audit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
+import { assertContractInOrg } from "@/lib/scope-guards"
 
 export interface SaveSignatureInput {
   documentType: "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
@@ -72,6 +73,7 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
 
     // Если это договор и status DRAFT → подписание переводит в SIGNED
     if (input.documentType === "CONTRACT" && input.documentId) {
+      await assertContractInOrg(input.documentId, orgId)
       await db.contract.update({
         where: { id: input.documentId },
         data: { status: "SIGNED", signedAt: new Date() },

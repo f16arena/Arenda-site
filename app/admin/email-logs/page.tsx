@@ -53,7 +53,7 @@ export default async function EmailLogsPage({
 
   const where: Prisma.EmailLogWhereInput = {
     AND: [
-      emailLogScope(orgId) as Prisma.EmailLogWhereInput,
+      await emailLogScope(orgId) as Prisma.EmailLogWhereInput,
       ...(statusFilter ? [statusFilter] : []),
       ...(type ? [{ type }] : []),
       ...(q ? [{
@@ -73,7 +73,7 @@ export default async function EmailLogsPage({
       externalId: true, error: true, openedAt: true, openCount: true, sentAt: true,
       tenantId: true,
     },
-  }).catch(() => [])
+  })
 
   // Сводка по статусам
   const sentCount = logs.filter((l) => l.status === "SENT").length

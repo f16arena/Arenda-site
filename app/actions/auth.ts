@@ -20,8 +20,11 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   const password = String(formData.get("password") ?? "")
   const totp = String(formData.get("totp") ?? "").trim()
   const details: NonNullable<LoginState["details"]> = []
+  const showLoginDiagnostics = process.env.NODE_ENV !== "production"
+  const genericAuthError = "Неверный телефон/email или пароль"
 
   function step(label: string, t0: number, ok: boolean, note?: string) {
+    if (!showLoginDiagnostics) return
     details.push({ step: label, ms: Date.now() - t0, ok, note })
   }
 
@@ -48,7 +51,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     const msg = e instanceof Error ? e.message : String(e)
     step("db.ping", t0, false, msg)
     return {
-      error: `Сервер БД недоступен. ${msg}`,
+      error: showLoginDiagnostics ? `Сервер БД недоступен. ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
       details,
     }
   }
@@ -79,14 +82,17 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     step("db.findUser", t0, false, msg)
-    return { error: `Ошибка поиска пользователя: ${msg}`, details }
+    return {
+      error: showLoginDiagnostics ? `Ошибка поиска пользователя: ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
+      details,
+    }
   }
 
   if (!user) {
-    return { error: "Пользователь не найден. Проверьте телефон/email.", details }
+    return { error: genericAuthError, details }
   }
   if (!user.isActive) {
-    return { error: "Аккаунт деактивирован. Обратитесь к администратору.", details }
+    return { error: genericAuthError, details }
   }
 
   // ── 3. signIn ──────────────────────────────────────────────────
@@ -113,7 +119,9 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
       }
 
       return {
-        error: cause?.includes("password") || error.type === "CredentialsSignin"
+        error: !showLoginDiagnostics
+          ? genericAuthError
+          : cause?.includes("password") || error.type === "CredentialsSignin"
           ? "Неверный пароль"
           : `Ошибка авторизации: ${cause ?? error.message}`,
         details,
@@ -121,7 +129,10 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     }
     const msg = error instanceof Error ? error.message : String(error)
     step("auth.signIn", t0, false, msg)
-    return { error: `Ошибка входа: ${msg}`, details }
+    return {
+      error: showLoginDiagnostics ? `Ошибка входа: ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
+      details,
+    }
   }
 
   // ── 4. Редирект ────────────────────────────────────────────────

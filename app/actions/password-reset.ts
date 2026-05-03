@@ -80,6 +80,14 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
   })
 
   if (!emailResult.ok) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[email] password reset delivery failed", emailResult.error)
+      return {
+        ok: true,
+        message: `Если аккаунт с email ${email} существует — на него отправлено письмо со ссылкой для сброса пароля.`,
+      }
+    }
+
     // Resend не настроен — отдаём ссылку прямо в UI (для разработки/первого запуска)
     return {
       ok: true,

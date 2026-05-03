@@ -8,7 +8,7 @@ import {
   removeDocumentTemplate,
   type UploadTemplateResult,
 } from "@/app/actions/document-templates"
-import { PLACEHOLDER_DOCS, type DocumentType } from "@/lib/template-engine"
+import { PLACEHOLDER_DOCS, type DocumentType } from "@/lib/template-placeholders"
 
 interface ActiveTemplate {
   id: string

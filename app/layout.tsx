@@ -17,6 +17,16 @@ export const metadata: Metadata = {
   title: "Commrent — управление коммерческой арендой",
   description: "SaaS-платформа для собственников бизнес-центров и коммерческой недвижимости в Казахстане",
   manifest: "/manifest.json",
+  verification: {
+    google: "djKedxtoy91w6VUuWG5o8cT1f57Ps14K2mcMRsAQAaM",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

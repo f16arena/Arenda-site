@@ -4,7 +4,7 @@ import Link from "next/link"
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { BuildingSwitcher } from "@/components/layout/building-switcher"
-import { CommandPalette } from "@/components/layout/command-palette"
+import { CommandPaletteLoader } from "@/components/layout/command-palette-loader"
 import { ImpersonateBanner } from "@/components/layout/impersonate-banner"
 import { PlatformViewBanner } from "@/components/layout/platform-view-banner"
 import { SubscriptionBanner } from "@/components/layout/subscription-banner"
@@ -14,7 +14,7 @@ import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getAllowedSections } from "@/lib/acl"
-import { getImpersonateData, getCurrentOrgId } from "@/lib/org"
+import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -30,7 +30,7 @@ export default async function AdminLayout({
   if (!isPlatformOwner && !ALLOWED_ROLES.includes(session.user.role)) {
     redirect("/cabinet")
   }
-  const impersonate = await getImpersonateData().catch(() => null)
+  const impersonate = await getValidatedImpersonateData().catch(() => null)
   const currentOrgId = await getCurrentOrgId().catch(() => null)
 
   // Платформенный админ без выбранной организации — показываем экран выбора
@@ -110,7 +110,7 @@ export default async function AdminLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
-      <CommandPalette />
+      <CommandPaletteLoader />
       <AdminSidebar
         buildingName={building?.name}
         userRole={session.user.role}
