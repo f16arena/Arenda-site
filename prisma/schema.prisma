@@ -99,12 +99,37 @@ model Organization {
   subscriptions Subscription[]
   cashAccounts  CashAccount[]
   apiKeys       ApiKey[]
+  faqArticles   FaqArticle[]
 
   @@map("organizations")
 }
 
 // Денежные счета организации (банковские счета, касса, карты).
 // Используются для отслеживания баланса (сколько денег где).
+model FaqArticle {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  slug           String
+  audience       String
+  category       String
+  question       String
+  answer         String
+  steps          String?
+  tags           String?
+  href           String?
+  hrefLabel      String?  @map("href_label")
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, audience, isActive, sortOrder])
+  @@map("faq_articles")
+}
+
 model CashAccount {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")
