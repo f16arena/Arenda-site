@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
+import { getTenantAdminContactIdsForUser } from "@/lib/tenant-admin-contact"
 
 const BROADCAST_ID = "BROADCAST_ALL"
 
@@ -23,6 +24,10 @@ export async function sendMessage(formData: FormData) {
 
   const senderName = session.user.name ?? "Сотрудник"
   const preview = body.length > 80 ? body.slice(0, 77) + "..." : body
+
+  if (session.user.role === "TENANT" && toId === BROADCAST_ID) {
+    throw new Error("Арендаторы могут писать только администратору здания")
+  }
 
   // Общий чат — рассылка только пользователям своей организации
   if (toId === BROADCAST_ID) {
@@ -59,6 +64,13 @@ export async function sendMessage(formData: FormData) {
       })
     }
   } else {
+    if (session.user.role === "TENANT") {
+      const allowedAdminIds = await getTenantAdminContactIdsForUser(session.user.id)
+      if (!allowedAdminIds.includes(toId)) {
+        throw new Error("Арендаторы могут писать только администратору здания")
+      }
+    }
+
     // Адресное сообщение — получатель должен быть в той же организации
     await assertUserInOrg(toId, orgId)
     await db.message.create({

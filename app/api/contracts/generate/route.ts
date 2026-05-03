@@ -282,8 +282,6 @@ export async function GET(req: Request) {
           `ИИК: ${LANDLORD.iik}`,
           `БИК: ${LANDLORD.bik}`,
           `Банк: ${LANDLORD.bank}`,
-          `Тел: ${LANDLORD.phone}`,
-          `Email: ${LANDLORD.email}`,
         ],
         signature: LANDLORD.directorShort,
       },

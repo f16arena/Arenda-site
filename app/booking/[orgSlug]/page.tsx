@@ -5,6 +5,7 @@ import { notFound } from "next/navigation"
 import { Building2, MapPin, Phone, Mail, Calendar } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
 import { BookingForm } from "./booking-form"
+import { getBuildingTenantAdminContacts } from "@/lib/tenant-admin-contact"
 
 export default async function PublicBookingPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
@@ -20,8 +21,6 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           id: true,
           name: true,
           address: true,
-          phone: true,
-          email: true,
           totalArea: true,
           floors: {
             select: {
@@ -52,6 +51,10 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
   })
 
   if (!org) notFound()
+  const publicAdminContacts = org.buildings[0]
+    ? await getBuildingTenantAdminContacts(org.id, org.buildings[0].id)
+    : []
+  const publicContact = publicAdminContacts[0] ?? null
 
   const allVacantSpaces = org.buildings.flatMap((b) =>
     b.floors.flatMap((f) =>
@@ -180,20 +183,21 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
               </div>
 
               {/* Контакты */}
-              {(org.buildings[0]?.phone || org.buildings[0]?.email) && (
+              {(publicContact?.phone || publicContact?.email) && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-5">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-2">Связаться напрямую</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-2">Связаться с администратором</h3>
+                  <p className="text-xs text-slate-500 mb-3">{publicContact.name}</p>
                   <div className="space-y-2 text-sm">
-                    {org.buildings[0]?.phone && (
-                      <a href={`tel:${org.buildings[0].phone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
+                    {publicContact?.phone && (
+                      <a href={`tel:${publicContact.phone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
                         <Phone className="h-3.5 w-3.5" />
-                        {org.buildings[0].phone}
+                        {publicContact.phone}
                       </a>
                     )}
-                    {org.buildings[0]?.email && (
-                      <a href={`mailto:${org.buildings[0].email}`} className="flex items-center gap-2 text-blue-600 hover:underline">
+                    {publicContact?.email && (
+                      <a href={`mailto:${publicContact.email}`} className="flex items-center gap-2 text-blue-600 hover:underline">
                         <Mail className="h-3.5 w-3.5" />
-                        {org.buildings[0].email}
+                        {publicContact.email}
                       </a>
                     )}
                   </div>

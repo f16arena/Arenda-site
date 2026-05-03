@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg, assertRequestInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
 import { requireSection } from "@/lib/acl"
+import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 
 export async function createRequestAdmin(formData: FormData) {
   await requireSection("requests", "edit")
@@ -146,18 +147,9 @@ export async function createRequestTenant(formData: FormData) {
     },
   })
 
-  // Уведомляем всех ответственных в организации арендатора
-  const orgId = tenant.space?.floor.building.organizationId
-    ?? tenant.fullFloors[0]?.building.organizationId
-  if (orgId) {
-    const staff = await db.user.findMany({
-      where: {
-        organizationId: orgId,
-        isActive: true,
-        role: { in: ["OWNER", "ADMIN", "FACILITY_MANAGER"] },
-      },
-      select: { id: true },
-    })
+  // Уведомляем только администратора здания/организации. OWNER не получает tenant-facing заявки напрямую.
+  {
+    const staff = await getTenantAdminContactsForUser(session.user.id)
     const isUrgent = priority === "HIGH" || priority === "URGENT"
     for (const s of staff) {
       await notifyUser({

@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { ChatView, type ChatUser, type ChatMessage } from "@/components/messages/chat-view"
+import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 
 export default async function CabinetMessages() {
   const session = await auth()
@@ -11,20 +12,20 @@ export default async function CabinetMessages() {
 
   const me = session.user.id
 
-  // Для арендатора — только сотрудники здания (не другие арендаторы)
-  const staff = await db.user.findMany({
-    where: {
-      isActive: true,
-      role: { in: ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER"] },
-    },
-    select: { id: true, name: true, role: true },
-    orderBy: { role: "asc" },
-  })
+  // Для арендатора — только администратор здания или ADMIN'ы организации.
+  // OWNER намеренно не попадает в контакты арендатора.
+  const staff = await getTenantAdminContactsForUser(me)
+  const staffIds = staff.map((user) => user.id)
 
   const allMessages = await db.message.findMany({
-    where: {
-      OR: [{ fromId: me }, { toId: me }],
-    },
+    where: staffIds.length > 0
+      ? {
+          OR: [
+            { fromId: me, toId: { in: staffIds } },
+            { toId: me, fromId: { in: staffIds } },
+          ],
+        }
+      : { id: "__no_admin_contacts__" },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,

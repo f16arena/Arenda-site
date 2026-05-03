@@ -4,6 +4,14 @@ import { notFound } from "next/navigation"
 import { Building2, FileSignature, Check, X, Clock } from "lucide-react"
 import { getContractByToken } from "@/app/actions/contract-workflow"
 import { SignActions } from "./sign-actions"
+import { LANDLORD } from "@/lib/landlord"
+
+function redactOwnerContact(content: string) {
+  return [LANDLORD.phone, LANDLORD.email].reduce((text, value) => {
+    if (!value) return text
+    return text.split(value).join("скрыто, связь через администратора")
+  }, content)
+}
 
 export default async function SignContractPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -15,6 +23,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   const landlordSigned = !!contract.signedByLandlordAt
   const documentTitle = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
   const documentTextTitle = contract.type === "ADDENDUM" ? "Текст доп. соглашения" : "Текст договора"
+  const publicContractContent = redactOwnerContact(contract.content)
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -127,7 +136,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
         <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{documentTextTitle}</p>
           <div className="prose prose-sm max-w-none text-slate-800 whitespace-pre-wrap font-serif">
-            {contract.content}
+            {publicContractContent}
           </div>
         </div>
 
