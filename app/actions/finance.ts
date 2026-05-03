@@ -17,8 +17,8 @@ import {
   assertChargeInOrg,
   assertPaymentInOrg,
   assertExpenseInOrg,
-  assertBuildingInOrg,
 } from "@/lib/scope-guards"
+import { assertBuildingAccess, assertTenantBuildingAccess, getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 function parseChargeAmount(value: FormDataEntryValue | null) {
   const amount = Number(String(value ?? "").trim().replace(",", "."))
@@ -44,6 +44,7 @@ export async function recordPayment(formData: FormData) {
   const { orgId } = await requireOrgAccess()
   const tenantId = formData.get("tenantId") as string
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const amountStr = formData.get("amount") as string
   const method = formData.get("method") as string
@@ -145,10 +146,23 @@ export async function recordPayment(formData: FormData) {
 export async function generateMonthlyCharges(period: string) {
   await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
+  const buildingId = await getCurrentBuildingId()
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
   // Только арендаторы текущей организации
   const tenants = await db.tenant.findMany({
-    where: tenantScope(orgId),
+    where: {
+      AND: [
+        tenantScope(orgId),
+        {
+          OR: [
+            { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+            { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+          ],
+        },
+      ],
+    },
     include: {
       space: { include: { floor: true } },
       fullFloors: true,
@@ -198,6 +212,7 @@ export async function addPenalty(tenantId: string, formData: FormData) {
   await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const amountStr = formData.get("amount") as string
   const description = formData.get("description") as string
@@ -223,6 +238,7 @@ export async function addCharge(formData: FormData) {
   const { orgId } = await requireOrgAccess()
   const tenantId = formData.get("tenantId") as string
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const type = formData.get("type") as string
   const amountStr = formData.get("amount") as string
@@ -250,6 +266,7 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
   await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const period = parsePeriod(formData.get("period"))
   if (!period) throw new Error("Укажите период в формате YYYY-MM")
@@ -384,9 +401,10 @@ export async function deleteExpense(expenseId: string) {
 export async function addExpense(formData: FormData) {
   await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
-  const buildingId = await getCurrentBuildingId()
+  const selectedBuildingId = String(formData.get("buildingId") ?? "").trim()
+  const buildingId = (await getCurrentBuildingId()) ?? selectedBuildingId
   if (!buildingId) return { error: "Здание не выбрано" }
-  await assertBuildingInOrg(buildingId, orgId)
+  await assertBuildingAccess(buildingId, orgId)
 
   const category = formData.get("category") as string
   const amountStr = formData.get("amount") as string

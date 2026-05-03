@@ -5,6 +5,9 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import Link from "next/link"
 import { DocumentTypeFilter } from "./document-type-filter"
 import { DocumentsTable, type DocRow } from "./documents-table"
@@ -27,15 +30,31 @@ export default async function DocumentsPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const currentBuildingId = await getCurrentBuildingId()
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
 
   const { type, q, period } = await searchParams
   const filterType = (type ?? "ALL").toUpperCase() as DocType
   const search = q?.trim() ?? ""
+  const tenantWhere = {
+    OR: [
+      { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
+  const visibleTenantIds = visibleBuildingIds.length > 0
+    ? await db.tenant.findMany({
+        where: tenantWhere,
+        select: { id: true },
+      }).then((rows) => rows.map((t) => t.id)).catch(() => [] as string[])
+    : []
 
   const [contracts, generated] = await Promise.all([
     filterType === "ALL" || filterType === "CONTRACT"
       ? db.contract.findMany({
-          where: contractScope(orgId),
+          where: { AND: [contractScope(orgId), { tenant: tenantWhere }] },
           select: {
             id: true,
             number: true,
@@ -61,6 +80,14 @@ export default async function DocumentsPage({
       ? db.generatedDocument.findMany({
           where: {
             organizationId: orgId,
+            ...(currentBuildingId
+              ? { tenantId: { in: visibleTenantIds } }
+              : {
+                  OR: [
+                    { tenantId: { in: visibleTenantIds } },
+                    { tenantId: null },
+                  ],
+                }),
             ...(filterType !== "ALL" ? { documentType: filterType } : {}),
             ...(period ? { period } : {}),
           },

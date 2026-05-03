@@ -9,11 +9,24 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteRequest } from "@/app/actions/requests"
 import { requireOrgAccess } from "@/lib/org"
 import { requestScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function RequestsPage() {
   const { orgId } = await requireOrgAccess()
+  const currentBuildingId = await getCurrentBuildingId()
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
+  const tenantBuildingWhere = {
+    OR: [
+      { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
   const requests = await db.request.findMany({
-    where: requestScope(orgId),
+    where: { AND: [requestScope(orgId), { tenant: tenantBuildingWhere }] },
     select: {
       id: true, title: true, description: true, type: true,
       priority: true, status: true, createdAt: true,

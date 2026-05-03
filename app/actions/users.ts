@@ -7,6 +7,19 @@ import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { replaceUserBuildingAccess } from "@/lib/building-access"
+
+const BUILDING_SCOPED_ROLES = new Set(["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"])
+
+function parseBuildingIds(formData: FormData) {
+  return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
+}
+
+function assertBuildingSelection(role: string, buildingIds: string[]) {
+  if (BUILDING_SCOPED_ROLES.has(role) && buildingIds.length === 0) {
+    throw new Error("Назначьте сотруднику хотя бы одно здание")
+  }
+}
 
 export async function createUserAdmin(formData: FormData) {
   await requireOwner()
@@ -21,10 +34,12 @@ export async function createUserAdmin(formData: FormData) {
   const password = String(formData.get("password") ?? "")
   const position = String(formData.get("position") ?? "").trim()
   const salaryStr = String(formData.get("salary") ?? "")
+  const buildingIds = parseBuildingIds(formData)
 
   if (!name) throw new Error("Имя обязательно")
   if (!phone && !email) throw new Error("Укажите телефон или email")
   if (password.length < 6) throw new Error("Пароль минимум 6 символов")
+  assertBuildingSelection(role, buildingIds)
 
   const hash = await bcrypt.hash(password, 10)
 
@@ -48,6 +63,7 @@ export async function createUserAdmin(formData: FormData) {
       },
     })
   }
+  await replaceUserBuildingAccess(user.id, BUILDING_SCOPED_ROLES.has(role) ? buildingIds : [], orgId)
 
   revalidatePath("/admin/users")
   revalidatePath("/admin/staff")
@@ -63,8 +79,10 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
   const email = normalizeEmail(formData.get("email"))
   const role = String(formData.get("role") ?? "")
   const newPassword = String(formData.get("newPassword") ?? "")
+  const buildingIds = parseBuildingIds(formData)
 
   if (!name) throw new Error("Имя обязательно")
+  if (role) assertBuildingSelection(role, buildingIds)
 
   await db.user.update({
     where: { id: userId },
@@ -76,8 +94,12 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
       ...(newPassword ? { password: await bcrypt.hash(newPassword, 10) } : {}),
     },
   })
+  if (role) {
+    await replaceUserBuildingAccess(userId, BUILDING_SCOPED_ROLES.has(role) ? buildingIds : [], orgId)
+  }
 
   revalidatePath("/admin/users")
+  revalidatePath("/admin/staff")
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean) {

@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { floorScope, spaceScope } from "@/lib/tenant-scope"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import {
   updateTenant,
   updateTenantUser,
@@ -121,8 +122,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   if (!tenant) notFound()
   const currentBuildingId = await getCurrentBuildingId().catch(() => null)
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const tenantBuildingId = tenant.space?.floor.buildingId ?? tenant.fullFloors[0]?.buildingId ?? null
   const buildingId = currentBuildingId ?? tenantBuildingId
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
   const totalDebt = tenant.charges
     .filter((c) => !c.isPaid)
@@ -148,7 +151,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       AND: [
         spaceScope(orgId),
         { status: "VACANT", kind: "RENTABLE" },
-        ...(buildingId ? [{ floor: { buildingId } }] : []),
+        { floor: { buildingId: { in: visibleBuildingIds } } },
       ],
     },
     select: {
@@ -186,7 +189,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     where: {
       AND: [
         floorScope(orgId),
-        ...(buildingId ? [{ buildingId }] : []),
+        { buildingId: { in: visibleBuildingIds } },
       ],
     },
     select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },

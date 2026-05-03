@@ -21,12 +21,18 @@ const ROLE_OPTIONS = [
   { value: "TENANT", label: "Арендатор" },
 ]
 
-export function CreateUserDialog() {
+type BuildingOption = { id: string; name: string }
+
+function isBuildingScopedRole(role: string) {
+  return ["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"].includes(role)
+}
+
+export function CreateUserDialog({ buildings }: { buildings: BuildingOption[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [role, setRole] = useState("ADMIN")
 
-  const isStaff = ["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER"].includes(role)
+  const isStaff = isBuildingScopedRole(role)
 
   return (
     <>
@@ -83,6 +89,7 @@ export function CreateUserDialog() {
                   <Field label="Оклад, ₸" name="salary" type="number" />
                 </div>
               )}
+              {isStaff && <BuildingAccessField buildings={buildings} />}
               <Field label="Пароль *" name="password" type="password" required minLength={6} />
 
               <div className="flex gap-3 pt-2">
@@ -101,11 +108,14 @@ export function CreateUserDialog() {
 
 export function EditUserDialog({
   user,
+  buildings,
 }: {
-  user: { id: string; name: string; email: string | null; phone: string | null; role: string }
+  user: { id: string; name: string; email: string | null; phone: string | null; role: string; buildingIds: string[] }
+  buildings: BuildingOption[]
 }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [role, setRole] = useState(user.role)
 
   return (
     <>
@@ -146,12 +156,15 @@ export function EditUserDialog({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Роль</label>
-                <select name="role" defaultValue={user.role} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
+                <select name="role" value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                   {ROLE_OPTIONS.map((r) => (
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>
               </div>
+              {isBuildingScopedRole(role) && (
+                <BuildingAccessField buildings={buildings} selectedIds={user.buildingIds} />
+              )}
               <Field label="Новый пароль (оставьте пустым чтобы не менять)" name="newPassword" type="password" />
 
               <div className="flex gap-3 pt-2">
@@ -277,6 +290,47 @@ export function DeleteUserButton({ userId, userName, disabled }: { userId: strin
       successMessage="Пользователь удалён"
       disabled={disabled}
     />
+  )
+}
+
+function BuildingAccessField({
+  buildings,
+  selectedIds = [],
+}: {
+  buildings: BuildingOption[]
+  selectedIds?: string[]
+}) {
+  const selected = new Set(selectedIds)
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+        Здания *
+      </label>
+      {buildings.length === 0 ? (
+        <p className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          Сначала создайте здание, затем назначьте сотрудника.
+        </p>
+      ) : (
+        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 p-2 space-y-1.5">
+          {buildings.map((building) => (
+            <label key={building.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <input
+                type="checkbox"
+                name="buildingIds"
+                value={building.id}
+                defaultChecked={selected.size > 0 ? selected.has(building.id) : buildings.length === 1}
+                className="rounded border-slate-300"
+              />
+              <span className="text-slate-700 dark:text-slate-300">{building.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+        Владелец видит все здания, администратор и сотрудники - только назначенные.
+      </p>
+    </div>
   )
 }
 

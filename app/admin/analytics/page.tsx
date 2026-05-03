@@ -9,6 +9,7 @@ import { TrendingUp, Users, Building2, Award, Activity } from "lucide-react"
 import { OccupancyHeatmap } from "./occupancy-heatmap"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function AnalyticsPage() {
   const session = await auth()
@@ -17,11 +18,13 @@ export default async function AnalyticsPage() {
 
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
-  if (!buildingId) {
-    return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Выберите здание</div>
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+  if (visibleBuildingIds.length === 0) {
+    return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Нет доступных зданий</div>
   }
 
-  const floorIds = (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
+  const floorIds = (await db.floor.findMany({ where: { buildingId: { in: visibleBuildingIds } }, select: { id: true } })).map((f) => f.id)
   const tenantWhere = { space: { floorId: { in: floorIds } } }
 
   const now = new Date()
@@ -54,7 +57,7 @@ export default async function AnalyticsPage() {
       _sum: { amount: true },
     }).catch(() => ({ _sum: { amount: 0 } })),
     db.expense.aggregate({
-      where: { date: { gte: yearStart }, buildingId },
+      where: { date: { gte: yearStart }, buildingId: { in: visibleBuildingIds } },
       _sum: { amount: true },
     }).catch(() => ({ _sum: { amount: 0 } })),
     db.payment.groupBy({

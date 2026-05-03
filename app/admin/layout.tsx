@@ -13,6 +13,7 @@ import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { getAccessibleBuildingsForSession, isOwnerLike } from "@/lib/building-access"
 import { getAllowedSections } from "@/lib/acl"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 
@@ -90,13 +91,8 @@ export default async function AdminLayout({
         }).catch(() => null)
       : Promise.resolve(null),
     (async () => {
-      const { getCurrentOrgId } = await import("@/lib/org")
-      const orgId = await getCurrentOrgId()
-      return db.building.findMany({
-        where: orgId ? { isActive: true, organizationId: orgId } : { isActive: true },
-        select: { id: true, name: true, address: true },
-        orderBy: { createdAt: "asc" },
-      }).catch(() => [] as Array<{ id: string; name: string; address: string }>)
+      if (!currentOrgId) return [] as Array<{ id: string; name: string; address: string }>
+      return getAccessibleBuildingsForSession(currentOrgId).catch(() => [] as Array<{ id: string; name: string; address: string }>)
     })(),
     // Может упасть если миграция 005 не применена
     db.notification.findMany({
@@ -107,12 +103,16 @@ export default async function AdminLayout({
     }).catch(() => [] as Array<{ id: string; type: string; title: string; message: string; link: string | null; isRead: boolean; createdAt: Date }>),
     getAllowedSections(session.user.role),
   ])
+  const aggregateLabel = isOwnerLike(session.user.role, session.user.isPlatformOwner) ? "Все здания" : "Мои здания"
+  const aggregateSubtitle = isOwnerLike(session.user.role, session.user.isPlatformOwner)
+    ? "Общая картина по всем зданиям"
+    : "Обзор назначенных зданий"
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
       <CommandPaletteLoader />
       <AdminSidebar
-        buildingName={building?.name}
+        buildingName={building?.name ?? aggregateLabel}
         userRole={session.user.role}
         allowedSections={Array.from(allowedSections)}
       />
@@ -135,6 +135,8 @@ export default async function AdminLayout({
             current={building ? { id: building.id, name: building.name, address: building.address } : null}
             options={allBuildings}
             canCreate={session.user.role === "OWNER"}
+            aggregateLabel={allBuildings.length > 1 || !building ? aggregateLabel : undefined}
+            aggregateSubtitle={aggregateSubtitle}
           />
           <div className="flex items-center gap-4">
             <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">

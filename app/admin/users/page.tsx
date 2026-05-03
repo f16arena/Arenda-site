@@ -24,8 +24,17 @@ export default async function UsersPage() {
       createdAt: true,
       tenant: { select: { id: true, companyName: true } },
       staff: { select: { id: true, position: true, salary: true } },
+      buildingAccess: {
+        select: { buildingId: true, building: { select: { name: true } } },
+        orderBy: { building: { createdAt: "asc" } },
+      },
     },
     orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
+  })
+  const buildings = await db.building.findMany({
+    where: { organizationId: orgId, isActive: true },
+    select: { id: true, name: true },
+    orderBy: { createdAt: "asc" },
   })
 
   const byRole = users.reduce<Record<string, number>>((acc, u) => {
@@ -47,7 +56,7 @@ export default async function UsersPage() {
             </p>
           </div>
         </div>
-        <CreateUserDialog />
+        <CreateUserDialog buildings={buildings} />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -72,6 +81,7 @@ export default async function UsersPage() {
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Пользователь</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Роль</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Контакты</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Здания</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Профиль</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Создан</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действия</th>
@@ -120,6 +130,19 @@ export default async function UsersPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                    {u.role === "OWNER" ? (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400">Все здания</span>
+                    ) : ["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"].includes(u.role) ? (
+                      u.buildingAccess.length > 0 ? (
+                        <span className="text-xs">{u.buildingAccess.map((a) => a.building.name).join(", ")}</span>
+                      ) : (
+                        <span className="text-xs text-amber-600 dark:text-amber-400">Не назначено</span>
+                      )
+                    ) : (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">По профилю</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
                     {u.tenant ? (
                       <span className="text-xs">Арендатор: {u.tenant.companyName}</span>
                     ) : u.staff ? (
@@ -140,7 +163,9 @@ export default async function UsersPage() {
                           email: u.email,
                           phone: u.phone,
                           role: u.role,
+                          buildingIds: u.buildingAccess.map((a) => a.buildingId),
                         }}
+                        buildings={buildings}
                       />
                       <ResetPasswordDialog userId={u.id} userName={u.name} />
                       <ToggleActiveButton userId={u.id} isActive={u.isActive} disabled={isSelf} />
@@ -152,7 +177,7 @@ export default async function UsersPage() {
             })}
             {users.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-16 text-center">
+                <td colSpan={7} className="px-5 py-16 text-center">
                   <UsersIcon className="h-8 w-8 text-slate-200 mx-auto mb-2" />
                   <p className="text-sm text-slate-400 dark:text-slate-500">Нет пользователей</p>
                 </td>

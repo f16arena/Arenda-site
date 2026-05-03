@@ -48,6 +48,7 @@ model User {
   complaints       Complaint[]
   notifications    Notification[]
   administeredBuildings Building[]  @relation("BuildingAdmin")
+  buildingAccess   UserBuildingAccess[]
 
   @@index([organizationId])
   @@map("users")
@@ -232,9 +233,24 @@ model Building {
   expenses          Expense[]
   tariffs           Tariff[]
   leads             Lead[]
+  userAccess        UserBuildingAccess[]
 
   @@index([organizationId])
   @@map("buildings")
+}
+
+model UserBuildingAccess {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  buildingId String   @map("building_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, buildingId])
+  @@index([buildingId])
+  @@map("user_building_access")
 }
 
 model Tariff {

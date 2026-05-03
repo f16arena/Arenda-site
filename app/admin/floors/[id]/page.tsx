@@ -12,6 +12,7 @@ import { FloorSettingsForm } from "./settings-form"
 import { AddSpaceDialog } from "@/app/admin/spaces/space-actions"
 import { AssignTenantButton } from "./assign-tenant-button"
 import { tenantScope } from "@/lib/tenant-scope"
+import { assertBuildingAccess } from "@/lib/building-access"
 
 export default async function FloorSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -47,6 +48,7 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   })
 
   if (!floor) notFound()
+  await assertBuildingAccess(floor.buildingId, orgId)
 
   const hasFloorEditor = await hasFeature(orgId, "floorEditor")
 

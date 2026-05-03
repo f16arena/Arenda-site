@@ -5,8 +5,17 @@ import { Plus, X } from "lucide-react"
 import { createTask } from "@/app/actions/tasks"
 
 type StaffUser = { id: string; name: string }
+type BuildingOption = { id: string; name: string }
 
-export function TaskDialog({ staffUsers }: { staffUsers: StaffUser[] }) {
+export function TaskDialog({
+  staffUsers,
+  buildings = [],
+  currentBuildingId,
+}: {
+  staffUsers: StaffUser[]
+  buildings?: BuildingOption[]
+  currentBuildingId?: string | null
+}) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -38,6 +47,21 @@ export function TaskDialog({ staffUsers }: { staffUsers: StaffUser[] }) {
             </div>
 
             <form action={handleSubmit} className="p-6 space-y-4">
+              {currentBuildingId ? (
+                <input type="hidden" name="buildingId" value={currentBuildingId} />
+              ) : buildings.length === 1 ? (
+                <input type="hidden" name="buildingId" value={buildings[0].id} />
+              ) : buildings.length > 1 ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Здание *</label>
+                  <select name="buildingId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
+                    <option value="">Выберите здание</option>
+                    {buildings.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название *</label>
                 <input

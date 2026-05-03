@@ -8,6 +8,7 @@ import { calculatePenalties } from "@/app/actions/penalties"
 type Tenant = { id: string; companyName: string }
 type Charge = { id: string; tenantId: string; type: string; amount: number; description: string | null; period: string; isPaid: boolean }
 type CashAccount = { id: string; name: string; type: string }
+type BuildingOption = { id: string; name: string }
 
 export function PaymentDialog({ tenants, unpaidCharges, cashAccounts }: {
   tenants: Tenant[]
@@ -111,11 +112,20 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts }: {
   )
 }
 
-export function ExpenseDialog({ cashAccounts }: { cashAccounts?: CashAccount[] }) {
+export function ExpenseDialog({
+  cashAccounts,
+  buildings = [],
+  currentBuildingId,
+}: {
+  cashAccounts?: CashAccount[]
+  buildings?: BuildingOption[]
+  currentBuildingId?: string | null
+}) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const today = new Date().toISOString().slice(0, 10)
   const period = new Date().toISOString().slice(0, 7)
+  const shouldChooseBuilding = !currentBuildingId && buildings.length > 1
 
   return (
     <>
@@ -132,6 +142,21 @@ export function ExpenseDialog({ cashAccounts }: { cashAccounts?: CashAccount[] }
               <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form action={(fd) => startTransition(async () => { await addExpense(fd); setOpen(false) })} className="p-6 space-y-4">
+              {currentBuildingId ? (
+                <input type="hidden" name="buildingId" value={currentBuildingId} />
+              ) : buildings.length === 1 ? (
+                <input type="hidden" name="buildingId" value={buildings[0].id} />
+              ) : shouldChooseBuilding ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Здание *</label>
+                  <select name="buildingId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
+                    <option value="">Выберите здание</option>
+                    {buildings.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Категория</label>
                 <select name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">

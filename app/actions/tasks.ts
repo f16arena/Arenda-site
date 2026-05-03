@@ -7,8 +7,9 @@ import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertTaskInOrg, assertUserInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireSection } from "@/lib/acl"
+import { assertBuildingAccess } from "@/lib/building-access"
 
-const ALLOWED_CATEGORIES = ["MAINTENANCE", "REPAIR", "INSPECTION", "CLEANING", "ADMIN", "OTHER"]
+const ALLOWED_CATEGORIES = ["MAINTENANCE", "REPAIR", "INSPECTION", "CLEANING", "ADMIN", "PLUMBING", "ELECTRICAL", "SECURITY", "OTHER"]
 const ALLOWED_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
 export async function createTask(formData: FormData) {
@@ -19,9 +20,11 @@ export async function createTask(formData: FormData) {
 
   // Привязываем задачу к текущему зданию (если выбрано) — это даёт нам
   // org-scope для задачи. Если здания нет — задача создаётся без привязки.
-  const buildingId = await getCurrentBuildingId().catch(() => null)
+  const selectedBuildingId = String(formData.get("buildingId") ?? "").trim()
+  const buildingId = (await getCurrentBuildingId().catch(() => null)) ?? selectedBuildingId
   if (buildingId) {
     await assertBuildingInOrg(buildingId, orgId)
+    await assertBuildingAccess(buildingId, orgId)
   }
 
   const title = String(formData.get("title") ?? "").trim()

@@ -2,6 +2,10 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { Phone, Plus } from "lucide-react"
+import { requireOrgAccess } from "@/lib/org"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 const categoryLabel: Record<string, string> = {
   WATER: "Водоканал",
@@ -24,9 +28,16 @@ const categoryColor: Record<string, string> = {
 }
 
 export default async function EmergencyPage() {
-  const building = await db.building.findFirst({ where: { isActive: true } })
-  const contacts = building
-    ? await db.emergencyContact.findMany({ where: { buildingId: building.id } })
+  const { orgId } = await requireOrgAccess()
+  const currentBuildingId = await getCurrentBuildingId()
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
+  const contacts = visibleBuildingIds.length > 0
+    ? await db.emergencyContact.findMany({
+        where: { buildingId: { in: visibleBuildingIds } },
+        orderBy: { name: "asc" },
+      })
     : []
 
   return (

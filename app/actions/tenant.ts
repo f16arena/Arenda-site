@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingAccess, assertTenantBuildingAccess } from "@/lib/building-access"
 import { requireSection } from "@/lib/acl"
 import {
   assertTenantInOrg,
@@ -193,6 +194,7 @@ export async function checkBlacklist(opts: { bin?: string; iin?: string }) {
 export async function updateTenant(tenantId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const companyName = formData.get("companyName") as string
   const bin = formData.get("bin") as string
@@ -248,6 +250,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 export async function updateTenantRequisites(tenantId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const bankName = formData.get("bankName") as string
   const iik = formData.get("iik") as string
@@ -272,6 +275,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
@@ -424,6 +428,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
 export async function updateTenantUser(userId: string, tenantId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
   await assertUserInOrg(userId, orgId)
 
   const name = formData.get("name") as string
@@ -549,6 +554,7 @@ export async function deleteTenant(
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
   if (spaceId) await assertSpaceInOrg(spaceId, orgId)
 
   const tenant = await db.tenant.findUnique({
@@ -596,6 +602,7 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
         tenant: { select: { companyName: true, id: true } },
       },
     })
+    if (target?.floor.buildingId) await assertBuildingAccess(target.floor.buildingId, orgId)
     const tenantBuilding = tenant.space?.floor ?? tenant.fullFloors[0] ?? null
     if (target && tenantBuilding && target.floor.buildingId !== tenantBuilding.buildingId) {
       throw new Error(

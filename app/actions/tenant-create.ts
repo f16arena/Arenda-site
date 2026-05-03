@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertBuildingInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
@@ -59,6 +60,7 @@ export async function createTenant(formData: FormData) {
           "Переключитесь на это здание или выберите помещение из текущего здания.",
       )
     }
+    if (existing?.floor.buildingId) await assertBuildingAccess(existing.floor.buildingId, orgId)
     if (existing?.tenant) {
       const until = existing.tenant.contractEnd
         ? ` (договор до ${existing.tenant.contractEnd.toLocaleDateString("ru-RU")})`

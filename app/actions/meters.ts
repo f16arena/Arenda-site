@@ -6,6 +6,7 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { assertMeterInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 import { requireSection } from "@/lib/acl"
+import { assertBuildingAccess } from "@/lib/building-access"
 
 const TARIFF_TYPE_BY_METER: Record<string, string> = {
   ELECTRICITY: "ELECTRICITY",
@@ -80,6 +81,12 @@ export async function saveMeterReading(formData: FormData) {
   const { orgId } = await requireOrgAccess()
   const meterId = formData.get("meterId") as string
   await assertMeterInOrg(meterId, orgId)
+  const meter = await db.meter.findUnique({
+    where: { id: meterId },
+    select: { space: { select: { floor: { select: { buildingId: true } } } } },
+  })
+  if (!meter) throw new Error("Счётчик не найден")
+  await assertBuildingAccess(meter.space.floor.buildingId, orgId)
 
   const valueStr = formData.get("value") as string
   const period = formData.get("period") as string
@@ -111,6 +118,12 @@ export async function createMeter(formData: FormData) {
   const { orgId } = await requireOrgAccess()
   const spaceId = formData.get("spaceId") as string
   await assertSpaceInOrg(spaceId, orgId)
+  const space = await db.space.findUnique({
+    where: { id: spaceId },
+    select: { floor: { select: { buildingId: true } } },
+  })
+  if (!space) throw new Error("Помещение не найдено")
+  await assertBuildingAccess(space.floor.buildingId, orgId)
 
   const type = formData.get("type") as string
   const number = formData.get("number") as string
@@ -141,9 +154,10 @@ export async function deleteMeter(meterId: string) {
       id: meterId,
       space: { floor: { building: { organizationId: orgId } } },
     },
-    select: { id: true },
+    select: { id: true, space: { select: { floor: { select: { buildingId: true } } } } },
   })
   if (!meter) return { error: "Счётчик не найден или нет доступа" }
+  await assertBuildingAccess(meter.space.floor.buildingId, orgId)
 
   const [readings] = await db.$transaction([
     db.meterReading.deleteMany({ where: { meterId } }),

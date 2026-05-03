@@ -6,6 +6,15 @@ import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertStaffInOrg, assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { replaceUserBuildingAccess } from "@/lib/building-access"
+
+function parseBuildingIds(formData: FormData) {
+  return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
+}
+
+function requireBuildingIds(buildingIds: string[]) {
+  if (buildingIds.length === 0) throw new Error("Назначьте сотруднику хотя бы одно здание")
+}
 
 export async function createStaff(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -19,6 +28,8 @@ export async function createStaff(formData: FormData) {
   const position = formData.get("position") as string
   const salaryStr = formData.get("salary") as string
   const password = formData.get("password") as string
+  const buildingIds = parseBuildingIds(formData)
+  requireBuildingIds(buildingIds)
 
   const hash = await bcrypt.hash(password || "change123", 10)
 
@@ -40,8 +51,10 @@ export async function createStaff(formData: FormData) {
       salary: salaryStr ? parseFloat(salaryStr) : 0,
     },
   })
+  await replaceUserBuildingAccess(user.id, buildingIds, orgId)
 
   revalidatePath("/admin/staff")
+  revalidatePath("/admin/users")
   return { success: true }
 }
 
@@ -57,6 +70,8 @@ export async function updateStaff(staffId: string, userId: string, formData: For
   const position = formData.get("position") as string
   const salaryStr = formData.get("salary") as string
   const newPassword = formData.get("newPassword") as string
+  const buildingIds = parseBuildingIds(formData)
+  requireBuildingIds(buildingIds)
 
   await db.user.update({
     where: { id: userId },
@@ -76,8 +91,10 @@ export async function updateStaff(staffId: string, userId: string, formData: For
       salary: salaryStr ? parseFloat(salaryStr) : 0,
     },
   })
+  await replaceUserBuildingAccess(userId, buildingIds, orgId)
 
   revalidatePath("/admin/staff")
+  revalidatePath("/admin/users")
   return { success: true }
 }
 

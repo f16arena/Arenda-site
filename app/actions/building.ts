@@ -11,6 +11,7 @@ import { emergencyContactScope } from "@/lib/tenant-scope"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { isStaffScopedRole } from "@/lib/building-access"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -110,6 +111,19 @@ export async function setBuildingAdministrator(buildingId: string, adminUserId: 
     where: { id: buildingId },
     data: { administratorUserId: adminUserId },
   })
+  if (adminUserId) {
+    const user = await db.user.findUnique({
+      where: { id: adminUserId },
+      select: { role: true },
+    })
+    if (user && isStaffScopedRole(user.role)) {
+      await db.userBuildingAccess.upsert({
+        where: { userId_buildingId: { userId: adminUserId, buildingId } },
+        create: { userId: adminUserId, buildingId },
+        update: {},
+      })
+    }
+  }
 
   revalidatePath("/admin/buildings")
   revalidatePath("/cabinet")

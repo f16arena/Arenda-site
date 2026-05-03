@@ -16,6 +16,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { formatDate, formatMoney } from "@/lib/utils"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 type Severity = "critical" | "warning" | "info"
 
@@ -79,6 +80,8 @@ export default async function DataQualityPage() {
 
   const buildingId = await getCurrentBuildingId().catch(() => null)
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
   const building = buildingId
     ? await db.building.findUnique({
@@ -89,17 +92,15 @@ export default async function DataQualityPage() {
 
   const floorScope: Prisma.FloorWhereInput = buildingId
     ? { buildingId }
-    : { building: { organizationId: orgId } }
+    : { buildingId: { in: visibleBuildingIds } }
 
-  const tenantScope: Prisma.TenantWhereInput = buildingId
-    ? {
-        user: { organizationId: orgId },
-        OR: [
-          { space: { floor: { buildingId } } },
-          { fullFloors: { some: { buildingId } } },
-        ],
-      }
-    : { user: { organizationId: orgId } }
+  const tenantScope: Prisma.TenantWhereInput = {
+    user: { organizationId: orgId },
+    OR: [
+      { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
 
   const tenantSelect = {
     id: true,

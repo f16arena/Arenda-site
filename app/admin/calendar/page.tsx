@@ -7,6 +7,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { CalendarView, type CalendarEvent } from "./calendar-view"
 import { Calendar as CalendarIcon } from "lucide-react"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function CalendarPage({
   searchParams,
@@ -17,6 +19,9 @@ export default async function CalendarPage({
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
   const { month } = await searchParams
   const today = new Date()
@@ -31,10 +36,12 @@ export default async function CalendarPage({
   const rangeStart = new Date(monthStart.getTime() - 7 * 24 * 3600 * 1000)
   const rangeEnd = new Date(monthEnd.getTime() + 7 * 24 * 3600 * 1000)
 
-  // Tenant scope: помещения в выбранном здании (или во всех зданиях орги)
-  const buildingFilter = buildingId
-    ? { space: { floor: { buildingId } } }
-    : { space: { floor: { building: { organizationId: orgId } } } }
+  const buildingFilter = {
+    OR: [
+      { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
 
   const [
     upcomingCharges,
@@ -81,7 +88,10 @@ export default async function CalendarPage({
     db.task.findMany({
       where: {
         dueDate: { gte: rangeStart, lt: rangeEnd },
-        ...(buildingId ? { buildingId } : {}),
+        OR: [
+          { buildingId: { in: visibleBuildingIds } },
+          { buildingId: null, createdBy: { organizationId: orgId } },
+        ],
       },
       select: {
         id: true, title: true, dueDate: true, status: true, priority: true,

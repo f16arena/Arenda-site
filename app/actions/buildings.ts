@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOwner, requireAdmin } from "@/lib/permissions"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
+import { ALL_BUILDINGS_COOKIE, assertBuildingAccess } from "@/lib/building-access"
 import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
@@ -109,7 +110,13 @@ export async function deleteBuilding(buildingId: string) {
 export async function switchBuilding(buildingId: string) {
   // Переключаться можно только на здание из своей организации
   const { orgId } = await requireOrgAccess()
+  if (!buildingId || buildingId === ALL_BUILDINGS_COOKIE) {
+    await setCurrentBuildingCookie(ALL_BUILDINGS_COOKIE)
+    revalidatePath("/admin", "layout")
+    return
+  }
   await assertBuildingInOrg(buildingId, orgId)
+  await assertBuildingAccess(buildingId, orgId)
 
   await setCurrentBuildingCookie(buildingId)
 

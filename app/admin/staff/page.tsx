@@ -13,7 +13,18 @@ export default async function StaffPage() {
 
   const users = await db.user.findMany({
     where: { role: { not: "TENANT" }, organizationId: orgId },
-    include: { staff: { include: { salaryPayments: { where: { period: currentPeriod }, orderBy: { createdAt: "desc" }, take: 1 } } } },
+    include: {
+      staff: { include: { salaryPayments: { where: { period: currentPeriod }, orderBy: { createdAt: "desc" }, take: 1 } } },
+      buildingAccess: {
+        select: { buildingId: true, building: { select: { name: true } } },
+        orderBy: { building: { createdAt: "asc" } },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  })
+  const buildings = await db.building.findMany({
+    where: { organizationId: orgId, isActive: true },
+    select: { id: true, name: true },
     orderBy: { createdAt: "asc" },
   })
 
@@ -29,7 +40,7 @@ export default async function StaffPage() {
         </div>
         <div className="flex gap-2">
           <GenerateSalaryButton period={currentPeriod} />
-          <CreateStaffDialog />
+          <CreateStaffDialog buildings={buildings} />
         </div>
       </div>
 
@@ -44,6 +55,7 @@ export default async function StaffPage() {
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сотрудник</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Роль</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Должность</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Здания</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Телефон</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Оклад</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Зарплата</th>
@@ -72,6 +84,15 @@ export default async function StaffPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">{u.staff?.position ?? "—"}</td>
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                    {u.role === "OWNER" ? (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400">Все здания</span>
+                    ) : u.buildingAccess.length > 0 ? (
+                      <span className="text-xs">{u.buildingAccess.map((a) => a.building.name).join(", ")}</span>
+                    ) : (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">Не назначено</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">{u.phone ?? "—"}</td>
                   <td className="px-5 py-3.5 text-right font-medium text-slate-900 dark:text-slate-100">
                     {u.staff ? formatMoney(u.staff.salary) : "—"}
@@ -100,7 +121,8 @@ export default async function StaffPage() {
                         role: u.role,
                         isActive: u.isActive,
                         staff: u.staff ? { id: u.staff.id, position: u.staff.position, salary: u.staff.salary } : null,
-                      }} />
+                        buildingIds: u.buildingAccess.map((a) => a.buildingId),
+                      }} buildings={buildings} />
                       <DeactivateButton userId={u.id} isActive={u.isActive} />
                     </div>
                   </td>
@@ -109,7 +131,7 @@ export default async function StaffPage() {
             })}
             {active.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет активных сотрудников</td>
+                <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет активных сотрудников</td>
               </tr>
             )}
           </tbody>

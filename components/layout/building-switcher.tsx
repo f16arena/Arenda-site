@@ -7,6 +7,8 @@ import { switchBuilding } from "@/app/actions/buildings"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
+const ALL_BUILDINGS_COOKIE = "__all__"
+
 export type BuildingOption = {
   id: string
   name: string
@@ -17,10 +19,14 @@ export function BuildingSwitcher({
   current,
   options,
   canCreate,
+  aggregateLabel,
+  aggregateSubtitle,
 }: {
   current: BuildingOption | null
   options: BuildingOption[]
   canCreate: boolean
+  aggregateLabel?: string
+  aggregateSubtitle?: string
 }) {
   const [open, setOpen] = useState(false)
   const [, startTransition] = useTransition()
@@ -48,8 +54,10 @@ export function BuildingSwitcher({
       >
         <Building2 className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
         <div className="text-left">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-tight">{current?.name ?? "Выберите здание"}</p>
-          {current && <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">{current.address}</p>}
+          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-tight">{current?.name ?? aggregateLabel ?? "Выберите здание"}</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">
+            {current?.address ?? aggregateSubtitle ?? ""}
+          </p>
         </div>
         <ChevronDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
       </button>
@@ -62,6 +70,41 @@ export function BuildingSwitcher({
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Здания</p>
             </div>
             <div className="max-h-80 overflow-y-auto">
+              {aggregateLabel && (
+                <button
+                  onClick={() => {
+                    if (!current) {
+                      setOpen(false)
+                      return
+                    }
+                    startTransition(async () => {
+                      try {
+                        await switchBuilding(ALL_BUILDINGS_COOKIE)
+                        toast.success(`Переключено: ${aggregateLabel}`)
+                        setOpen(false)
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Ошибка")
+                      }
+                    })
+                  }}
+                  className={cn(
+                    "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
+                    !current && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10",
+                  )}
+                >
+                  <div className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-lg shrink-0",
+                    !current ? "bg-blue-600" : "bg-slate-100 dark:bg-slate-800"
+                  )}>
+                    <Building2 className={cn("h-4 w-4", !current ? "text-white" : "text-slate-500 dark:text-slate-400 dark:text-slate-500")} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{aggregateLabel}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{aggregateSubtitle}</p>
+                  </div>
+                  {!current && <Check className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />}
+                </button>
+              )}
               {options.map((b) => {
                 const isCurrent = current?.id === b.id
                 return (

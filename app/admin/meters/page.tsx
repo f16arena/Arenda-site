@@ -7,6 +7,9 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteMeter } from "@/app/actions/meters"
 import { requireOrgAccess } from "@/lib/org"
 import { meterScope, spaceScope, tariffScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 const typeLabel: Record<string, string> = {
   ELECTRICITY: "Электричество",
@@ -28,6 +31,10 @@ const TARIFF_TYPE_BY_METER: Record<string, string> = {
 
 export default async function MetersPage() {
   const { orgId } = await requireOrgAccess()
+  const currentBuildingId = await getCurrentBuildingId()
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
   const currentPeriod = new Date().toISOString().slice(0, 7)
   const prevDate = new Date()
   prevDate.setMonth(prevDate.getMonth() - 1)
@@ -35,7 +42,12 @@ export default async function MetersPage() {
 
   const [meters, spaces, tariffs] = await Promise.all([
     db.meter.findMany({
-      where: meterScope(orgId),
+      where: {
+        AND: [
+          meterScope(orgId),
+          { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+        ],
+      },
       select: {
         id: true, type: true, number: true, spaceId: true,
         space: {
@@ -53,7 +65,12 @@ export default async function MetersPage() {
       },
     }).catch(() => []),
     db.space.findMany({
-      where: spaceScope(orgId),
+      where: {
+        AND: [
+          spaceScope(orgId),
+          { floor: { buildingId: { in: visibleBuildingIds } } },
+        ],
+      },
       select: {
         id: true, number: true, area: true, status: true,
         floor: { select: { id: true, name: true, number: true } },
@@ -61,7 +78,7 @@ export default async function MetersPage() {
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
     }).catch(() => []),
     db.tariff.findMany({
-      where: { AND: [tariffScope(orgId), { isActive: true }] },
+      where: { AND: [tariffScope(orgId), { isActive: true }, { buildingId: { in: visibleBuildingIds } }] },
       select: { id: true, type: true, name: true, rate: true, unit: true },
     }).catch(() => []),
   ])

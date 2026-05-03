@@ -1,5 +1,7 @@
 import { cookies } from "next/headers"
+import { auth } from "@/auth"
 import { db } from "./db"
+import { ALL_BUILDINGS_COOKIE, getAccessibleBuildingsForUser, isOwnerLike } from "./building-access"
 
 const COOKIE_NAME = "currentBuildingId"
 
@@ -17,24 +19,28 @@ export async function getCurrentBuildingId(): Promise<string | null> {
   // КРИТИЧНО: без orgId не возвращаем здание. Никаких fallback на "любое".
   if (!orgId) return null
 
+  const session = await auth()
+  if (!session?.user) return null
+
+  const accessible = await getAccessibleBuildingsForUser({
+    userId: session.user.id,
+    orgId,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+  })
+  const accessibleIds = new Set(accessible.map((b) => b.id))
+
   const store = await cookies()
   const fromCookie = store.get(COOKIE_NAME)?.value
+  if (fromCookie === ALL_BUILDINGS_COOKIE) return null
   if (fromCookie) {
-    const exists = await db.building.findUnique({
-      where: { id: fromCookie },
-      select: { id: true, isActive: true, organizationId: true },
-    })
-    // Cookie действителен ТОЛЬКО если здание из текущей орги
-    if (exists?.isActive && exists.organizationId === orgId) return fromCookie
+    if (accessibleIds.has(fromCookie)) return fromCookie
   }
 
-  // Fallback: первое активное здание ТОЛЬКО в текущей орге
-  const first = await db.building.findFirst({
-    where: { isActive: true, organizationId: orgId },
-    select: { id: true },
-    orderBy: { createdAt: "asc" },
-  })
-  return first?.id ?? null
+  // OWNER по умолчанию видит агрегат "Все здания"; ADMIN с несколькими зданиями — "Мои здания".
+  if (isOwnerLike(session.user.role, session.user.isPlatformOwner)) return null
+  if (accessible.length === 1) return accessible[0].id
+  return null
 }
 
 export async function getCurrentBuilding() {
@@ -45,7 +51,7 @@ export async function getCurrentBuilding() {
 
 export async function setCurrentBuildingCookie(buildingId: string) {
   const store = await cookies()
-  store.set(COOKIE_NAME, buildingId, {
+  store.set(COOKIE_NAME, buildingId || ALL_BUILDINGS_COOKIE, {
     maxAge: 60 * 60 * 24 * 365, // 1 год
     path: "/",
     httpOnly: false, // нужно читать в client-side для switcher

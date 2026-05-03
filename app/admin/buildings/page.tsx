@@ -9,17 +9,22 @@ import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
 import { requireOrgAccess } from "@/lib/org"
+import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-access"
 
 export default async function BuildingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
-  const isOwner = session.user.role === "OWNER"
+  const isOwner = isOwnerLike(session.user.role, session.user.isPlatformOwner)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
 
   const currentBuildingId = await getCurrentBuildingId()
 
   const buildings = await db.building.findMany({
-    where: { organizationId: orgId },
+    where: {
+      organizationId: orgId,
+      ...(isOwner ? {} : { id: { in: accessibleBuildingIds }, isActive: true }),
+    },
     select: {
       id: true,
       name: true,
@@ -51,7 +56,10 @@ export default async function BuildingsPage() {
   // contractPrefix отдельным запросом — может не быть в БД до миграции 007
   let prefixMap = new Map<string, string | null>()
   try {
-    const withPrefix = await db.building.findMany({ select: { id: true, contractPrefix: true } })
+    const withPrefix = await db.building.findMany({
+      where: { id: { in: buildings.map((b) => b.id) } },
+      select: { id: true, contractPrefix: true },
+    })
     prefixMap = new Map(withPrefix.map((b) => [b.id, b.contractPrefix]))
   } catch { /* migration 007 not applied yet */ }
 

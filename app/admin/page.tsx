@@ -13,33 +13,38 @@ import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-c
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function AdminDashboard() {
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
-  if (!buildingId) {
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+
+  if (visibleBuildingIds.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
         <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">Здание не выбрано</p>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Создайте здание чтобы начать работу</p>
+        <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">Нет доступных зданий</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Создайте здание или назначьте пользователя на нужные здания</p>
         <Link href="/admin/buildings" className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
           К списку зданий
         </Link>
       </div>
     )
   }
-  // Получим список этажей текущего здания для фильтра
+
   const floorIds = await db.floor.findMany({
-    where: { buildingId },
+    where: { buildingId: { in: visibleBuildingIds } },
     select: { id: true },
   }).then((floors) => floors.map((f) => f.id)).catch(() => [] as string[])
 
-  // Все запросы фильтруем по floorIds (помещения этого здания)
-  // Используем простой filter без fullFloors чтобы работало даже без миграции 004
   const tenantWhereInBuilding = {
-    space: { floorId: { in: floorIds } },
+    OR: [
+      { space: { floorId: { in: floorIds } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
   }
 
   const [
@@ -54,7 +59,7 @@ export default async function AdminDashboard() {
   ] = await Promise.all([
     db.tenant.count({ where: tenantWhereInBuilding }).catch(() => 0),
     db.tenant.findMany({
-      where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
+      where: tenantWhereInBuilding,
       select: {
         id: true,
         customRate: true,
@@ -94,7 +99,10 @@ export default async function AdminDashboard() {
     db.task.findMany({
       where: {
         status: { in: ["NEW", "IN_PROGRESS"] },
-        OR: [{ buildingId }, { buildingId: null }],
+        OR: [
+          { buildingId: { in: visibleBuildingIds } },
+          { buildingId: null, createdBy: { organizationId: orgId } },
+        ],
       },
       select: { id: true, title: true, status: true },
       take: 5,
@@ -109,7 +117,7 @@ export default async function AdminDashboard() {
       _sum: { amount: true },
     }).catch(() => [] as Array<{ tenantId: string; _sum: { amount: number | null } }>),
     db.tenant.findMany({
-      where: { spaceId: { not: null }, space: { floorId: { in: floorIds } } },
+      where: tenantWhereInBuilding,
       select: {
         id: true,
         companyName: true,
@@ -156,7 +164,7 @@ export default async function AdminDashboard() {
           _sum: { amount: true },
         }).catch(() => ({ _sum: { amount: 0 } })),
         db.expense.aggregate({
-          where: { date: { gte: m.start, lt: m.end }, buildingId },
+          where: { date: { gte: m.start, lt: m.end }, buildingId: { in: visibleBuildingIds } },
           _sum: { amount: true },
         }).catch(() => ({ _sum: { amount: 0 } })),
       ])
@@ -221,11 +229,83 @@ export default async function AdminDashboard() {
     }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
   ])
 
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const buildingBreakdown = await Promise.all(
+    visibleBuildingIds.map(async (id) => {
+      const building = await db.building.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          floors: {
+            select: {
+              id: true,
+              spaces: { select: { id: true, status: true, kind: true } },
+            },
+          },
+        },
+      })
+
+      if (!building) return null
+      const ids = building.floors.map((f) => f.id)
+      const buildingTenantWhere = {
+        OR: [
+          { space: { floorId: { in: ids } } },
+          { fullFloors: { some: { buildingId: id } } },
+        ],
+      }
+      const [incomeAgg, expenseAgg, tenantCount] = await Promise.all([
+        db.payment.aggregate({
+          where: {
+            paymentDate: { gte: currentMonthStart, lt: nextMonthStart },
+            tenant: buildingTenantWhere,
+          },
+          _sum: { amount: true },
+        }).catch(() => ({ _sum: { amount: 0 } })),
+        db.expense.aggregate({
+          where: { date: { gte: currentMonthStart, lt: nextMonthStart }, buildingId: id },
+          _sum: { amount: true },
+        }).catch(() => ({ _sum: { amount: 0 } })),
+        db.tenant.count({ where: buildingTenantWhere }).catch(() => 0),
+      ])
+      const rentable = building.floors.flatMap((f) => f.spaces).filter((s) => s.kind !== "COMMON")
+      const occupied = rentable.filter((s) => s.status === "OCCUPIED").length
+      const income = incomeAgg._sum.amount ?? 0
+      const expenses = expenseAgg._sum.amount ?? 0
+
+      return {
+        id: building.id,
+        name: building.name,
+        address: building.address,
+        income,
+        expenses,
+        profit: income - expenses,
+        tenantCount,
+        occupied,
+        totalSpaces: rentable.length,
+      }
+    }),
+  ).then((rows) => rows.filter(Boolean) as Array<{
+    id: string
+    name: string
+    address: string
+    income: number
+    expenses: number
+    profit: number
+    tenantCount: number
+    occupied: number
+    totalSpaces: number
+  }>)
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Дашборд</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Обзор состояния здания</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          {buildingId ? "Обзор выбранного здания" : `Обзор всех доступных зданий · ${visibleBuildingIds.length}`}
+        </p>
       </div>
 
       {/* Сегодня */}
@@ -274,6 +354,43 @@ export default async function AdminDashboard() {
 
       {/* Cashflow chart */}
       <CashflowChart months={months} />
+
+      {!buildingId && buildingBreakdown.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разрез по зданиям за текущий месяц</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Доход</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Расход</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Прибыль</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Заполняемость</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buildingBreakdown.map((b) => (
+                <tr key={b.id} className="border-b border-slate-50 dark:border-slate-800/70">
+                  <td className="px-5 py-3">
+                    <p className="font-medium text-slate-900 dark:text-slate-100">{b.name}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{b.address} · {b.tenantCount} арендаторов</p>
+                  </td>
+                  <td className="px-5 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{formatMoney(b.income)}</td>
+                  <td className="px-5 py-3 text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(b.expenses)}</td>
+                  <td className={`px-5 py-3 text-right font-semibold ${b.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                    {formatMoney(b.profit)}
+                  </td>
+                  <td className="px-5 py-3 text-right text-slate-600 dark:text-slate-400">
+                    {b.totalSpaces > 0 ? `${Math.round((b.occupied / b.totalSpaces) * 100)}%` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard

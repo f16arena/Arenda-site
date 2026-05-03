@@ -13,7 +13,9 @@ const ROLES = [
   { value: "EMPLOYEE", label: "Сотрудник" },
 ]
 
-export function CreateStaffDialog() {
+type BuildingOption = { id: string; name: string }
+
+export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -76,6 +78,7 @@ export function CreateStaffDialog() {
                   <input name="password" type="password" placeholder="change123" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
+              <BuildingAccessField buildings={buildings} />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60">
@@ -98,9 +101,10 @@ type StaffUser = {
   role: string
   isActive: boolean
   staff: { id: string; position: string; salary: number } | null
+  buildingIds: string[]
 }
 
-export function EditStaffDialog({ user }: { user: StaffUser }) {
+export function EditStaffDialog({ user, buildings }: { user: StaffUser; buildings: BuildingOption[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -163,6 +167,7 @@ export function EditStaffDialog({ user }: { user: StaffUser }) {
                   <input name="newPassword" type="password" placeholder="(не менять)" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
+              <BuildingAccessField buildings={buildings} selectedIds={user.buildingIds} />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60">
@@ -174,6 +179,44 @@ export function EditStaffDialog({ user }: { user: StaffUser }) {
         </div>
       )}
     </>
+  )
+}
+
+function BuildingAccessField({
+  buildings,
+  selectedIds = [],
+}: {
+  buildings: BuildingOption[]
+  selectedIds?: string[]
+}) {
+  const selected = new Set(selectedIds)
+
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+        Здания *
+      </label>
+      {buildings.length === 0 ? (
+        <p className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          Сначала создайте здание, затем назначьте сотрудника.
+        </p>
+      ) : (
+        <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 p-2 space-y-1.5">
+          {buildings.map((building) => (
+            <label key={building.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <input
+                type="checkbox"
+                name="buildingIds"
+                value={building.id}
+                defaultChecked={selected.size > 0 ? selected.has(building.id) : buildings.length === 1}
+                className="rounded border-slate-300"
+              />
+              <span className="text-slate-700 dark:text-slate-300">{building.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 

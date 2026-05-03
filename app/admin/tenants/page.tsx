@@ -4,14 +4,17 @@ import { db } from "@/lib/db"
 import { TenantDialog } from "./tenant-dialog"
 import { TenantsTable, type TenantRow } from "./tenants-table"
 import { requireOrgAccess } from "@/lib/org"
-import { tenantScope, spaceScope } from "@/lib/tenant-scope"
+import { spaceScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function TenantsPage() {
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
   const tenantWhere = buildingId
     ? {
@@ -23,7 +26,8 @@ export default async function TenantsPage() {
       }
     : {
         OR: [
-          tenantScope(orgId),
+          { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+          { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
           { spaceId: null, user: { organizationId: orgId } },
         ],
       }
@@ -44,7 +48,7 @@ export default async function TenantsPage() {
         select: {
           number: true,
           area: true,
-          floor: { select: { name: true, ratePerSqm: true } },
+          floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
         },
       },
       // Этажи, где этот арендатор сдан целиком — обратное отношение через Floor.fullFloorTenantId
@@ -66,14 +70,14 @@ export default async function TenantsPage() {
       AND: [
         spaceScope(orgId),
         { status: "VACANT", kind: "RENTABLE" },
-        ...(buildingId ? [{ floor: { buildingId } }] : []),
+        { floor: { buildingId: { in: visibleBuildingIds } } },
       ],
     },
     select: {
       id: true,
       number: true,
       area: true,
-      floor: { select: { name: true } },
+      floor: { select: { name: true, building: { select: { name: true } } } },
     },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
@@ -110,6 +114,7 @@ export default async function TenantsPage() {
             id: s.id,
             number: s.number,
             floorName: s.floor.name,
+            buildingName: s.floor.building.name,
             area: s.area,
           }))}
         />

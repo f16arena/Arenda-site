@@ -10,21 +10,41 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function FinancesPage() {
   const { orgId } = await requireOrgAccess()
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
+  const currentBuildingId = await getCurrentBuildingId()
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
+  const tenantBuildingWhere = {
+    OR: [
+      { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
 
   // Активные cash-аккаунты для выпадашки в диалогах
-  const cashAccounts = await db.cashAccount.findMany({
-    where: { organizationId: orgId, isActive: true },
-    select: { id: true, name: true, type: true },
-    orderBy: [{ type: "asc" }, { createdAt: "asc" }],
-  }).catch(() => [])
+  const [cashAccounts, buildingOptions] = await Promise.all([
+    db.cashAccount.findMany({
+      where: { organizationId: orgId, isActive: true },
+      select: { id: true, name: true, type: true },
+      orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+    }).catch(() => []),
+    db.building.findMany({
+      where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    }).catch(() => []),
+  ])
 
   const [charges, payments, expenses] = await Promise.all([
     db.charge.findMany({
-      where: { AND: [chargeScope(orgId), { period: currentPeriod }] },
+      where: { AND: [chargeScope(orgId), { period: currentPeriod }, { tenant: tenantBuildingWhere }] },
       select: {
         id: true, tenantId: true, period: true, type: true, amount: true,
         description: true, isPaid: true, dueDate: true, createdAt: true,
@@ -33,7 +53,7 @@ export default async function FinancesPage() {
       orderBy: { createdAt: "desc" },
     }).catch(() => []),
     db.payment.findMany({
-      where: paymentScope(orgId),
+      where: { AND: [paymentScope(orgId), { tenant: tenantBuildingWhere }] },
       orderBy: { paymentDate: "desc" },
       take: 20,
       select: {
@@ -43,10 +63,11 @@ export default async function FinancesPage() {
       },
     }).catch(() => []),
     db.expense.findMany({
-      where: { AND: [expenseScope(orgId), { period: currentPeriod }] },
+      where: { AND: [expenseScope(orgId), { period: currentPeriod }, { buildingId: { in: visibleBuildingIds } }] },
       select: {
         id: true, buildingId: true, category: true, amount: true,
         period: true, description: true, date: true,
+        building: { select: { name: true } },
       },
       orderBy: { date: "desc" },
     }).catch(() => []),
@@ -102,7 +123,7 @@ export default async function FinancesPage() {
           <PenaltyButton />
           <GenerateChargesButton />
           <BatchBillingButton defaultPeriod={currentPeriod} />
-          <ExpenseDialog cashAccounts={cashAccounts} />
+          <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
           <PaymentDialog
             tenants={charges.map((c) => c.tenant).filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).map((t) => ({ id: t.id, companyName: t.companyName }))}
             unpaidCharges={charges.filter((c) => !c.isPaid).map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
@@ -205,6 +226,7 @@ export default async function FinancesPage() {
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Категория</th>
+              {!currentBuildingId && <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Здание</th>}
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Описание</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
@@ -215,6 +237,9 @@ export default async function FinancesPage() {
             {expenses.map((e) => (
               <tr key={e.id} className="border-b border-slate-50">
                 <td className="px-5 py-3 text-slate-700 dark:text-slate-300">{e.category}</td>
+                {!currentBuildingId && (
+                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.building.name}</td>
+                )}
                 <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">{e.description ?? "—"}</td>
                 <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">{e.date.toLocaleDateString("ru-RU")}</td>
                 <td className="px-5 py-3 text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(e.amount)}</td>
@@ -229,7 +254,7 @@ export default async function FinancesPage() {
             ))}
             {expenses.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+                <td colSpan={currentBuildingId ? 5 : 6} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
                   Расходы не добавлены
                 </td>
               </tr>

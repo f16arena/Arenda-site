@@ -9,11 +9,28 @@ import { updateTaskStatus, deleteTask } from "@/app/actions/tasks"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { requireOrgAccess } from "@/lib/org"
 import { taskScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 export default async function TasksPage() {
   const { orgId } = await requireOrgAccess()
+  const currentBuildingId = await getCurrentBuildingId()
+  if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
   const tasks = await db.task.findMany({
-    where: taskScope(orgId),
+    where: {
+      AND: [
+        taskScope(orgId),
+        {
+          OR: [
+            { buildingId: { in: visibleBuildingIds } },
+            { buildingId: null, createdBy: { organizationId: orgId } },
+          ],
+        },
+      ],
+    },
     select: {
       id: true, title: true, description: true, category: true,
       priority: true, status: true, floorNumber: true, spaceNumber: true,
@@ -24,10 +41,17 @@ export default async function TasksPage() {
     orderBy: { createdAt: "desc" },
   }).catch(() => [])
 
-  const staffUsers = await db.user.findMany({
-    where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
-    select: { id: true, name: true },
-  }).catch(() => [])
+  const [staffUsers, buildingOptions] = await Promise.all([
+    db.user.findMany({
+      where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
+      select: { id: true, name: true },
+    }).catch(() => []),
+    db.building.findMany({
+      where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    }).catch(() => []),
+  ])
 
   const stats = {
     total: tasks.length,
@@ -52,7 +76,7 @@ export default async function TasksPage() {
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Задачи</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{stats.total} задач · {stats.inProgress} в работе</p>
         </div>
-        <TaskDialog staffUsers={staffUsers} />
+        <TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
       </div>
 
       {/* Status tabs */}

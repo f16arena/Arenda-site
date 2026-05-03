@@ -5,7 +5,7 @@ import { Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { createTenant } from "@/app/actions/tenant-create"
 
-type Space = { id: string; number: string; floorName: string; area: number }
+type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number }
 
 export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space[]; buildingId?: string | null }) {
   const [open, setOpen] = useState(false)
@@ -115,7 +115,7 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                   <option value="">— Назначить позже —</option>
                   {vacantSpaces.map((s) => (
                     <option key={s.id} value={s.id}>
-                      Каб. {s.number} · {s.floorName} · {s.area} м²
+                      {s.buildingName ? `${s.buildingName} · ` : ""}Каб. {s.number} · {s.floorName} · {s.area} м²
                     </option>
                   ))}
                 </select>
