@@ -40,6 +40,7 @@ export default async function AdminMessagesPage() {
       subject: true,
       body: true,
       isRead: true,
+      attachmentUrl: true,
       createdAt: true,
     },
   })

@@ -66,6 +66,12 @@ export function paymentScope(orgId: string | null) {
   return { tenant: tenantScope(orgId) }
 }
 
+// PaymentReport → tenant → ... → org
+export function paymentReportScope(orgId: string | null) {
+  if (!orgId) return NEVER
+  return { tenant: tenantScope(orgId) }
+}
+
 // Contract → tenant → ... → org
 export function contractScope(orgId: string | null) {
   if (!orgId) return NEVER

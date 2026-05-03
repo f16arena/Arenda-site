@@ -2,14 +2,15 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { Download, Plus, FileSpreadsheet, Upload, Wallet } from "lucide-react"
+import { Plus, FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
+import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
-import { chargeScope, paymentScope, expenseScope } from "@/lib/tenant-scope"
+import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
@@ -42,7 +43,7 @@ export default async function FinancesPage() {
     }).catch(() => []),
   ])
 
-  const [charges, payments, expenses] = await Promise.all([
+  const [charges, payments, expenses, paymentReports] = await Promise.all([
     db.charge.findMany({
       where: { AND: [chargeScope(orgId), { period: currentPeriod }, { tenant: tenantBuildingWhere }] },
       select: {
@@ -71,15 +72,52 @@ export default async function FinancesPage() {
       },
       orderBy: { date: "desc" },
     }).catch(() => []),
+    db.paymentReport.findMany({
+      where: {
+        AND: [
+          paymentReportScope(orgId),
+          { status: "PENDING" },
+          { tenant: tenantBuildingWhere },
+        ],
+      },
+      select: {
+        id: true,
+        amount: true,
+        paymentDate: true,
+        paymentPurpose: true,
+        note: true,
+        receiptName: true,
+        receiptMime: true,
+        receiptDataUrl: true,
+        createdAt: true,
+        tenant: {
+          select: {
+            id: true,
+            companyName: true,
+            charges: {
+              where: { isPaid: false },
+              select: {
+                id: true,
+                type: true,
+                amount: true,
+                period: true,
+                description: true,
+              },
+              orderBy: { createdAt: "desc" },
+              take: 6,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }).catch(() => []),
   ])
 
   const totalCharges = charges.reduce((s, c) => s + c.amount, 0)
   const paidCharges = charges.filter((c) => c.isPaid).reduce((s, c) => s + c.amount, 0)
   const unpaidCharges = charges.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
-  const totalPayments = payments
-    .filter((p) => p.paymentDate.toISOString().slice(0, 7) === currentPeriod)
-    .reduce((s, p) => s + p.amount, 0)
 
   return (
     <div className="space-y-5">
@@ -131,6 +169,8 @@ export default async function FinancesPage() {
           />
         </div>
       </div>
+
+      <PaymentReportsPanel reports={paymentReports} cashAccounts={cashAccounts} />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

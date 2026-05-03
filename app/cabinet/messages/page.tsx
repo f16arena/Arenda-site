@@ -34,6 +34,7 @@ export default async function CabinetMessages() {
       subject: true,
       body: true,
       isRead: true,
+      attachmentUrl: true,
       createdAt: true,
     },
   })

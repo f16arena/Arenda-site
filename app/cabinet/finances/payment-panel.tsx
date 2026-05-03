@@ -118,6 +118,7 @@ export function PaymentPanel({
                 else toast.error(result.error ?? "Не удалось отправить")
               })
             }
+            encType="multipart/form-data"
             className="grid gap-3 rounded-lg border border-slate-200 p-4 dark:border-slate-800"
           >
             <input type="hidden" name="paymentPurpose" value={paymentPurpose} />
@@ -151,6 +152,18 @@ export function PaymentPanel({
                 placeholder="Например: оплатил через Kaspi, чек №..."
                 className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/10"
               />
+            </label>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Фото или PDF чека</span>
+              <input
+                name="receipt"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                className="mt-1 block w-full cursor-pointer rounded-lg border border-slate-200 bg-white text-sm text-slate-500 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:file:bg-slate-800 dark:file:text-slate-200"
+              />
+              <span className="mt-1 block text-[11px] text-slate-400 dark:text-slate-500">
+                PDF, JPG, PNG или WebP до 1.5 МБ.
+              </span>
             </label>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-slate-500 dark:text-slate-400">

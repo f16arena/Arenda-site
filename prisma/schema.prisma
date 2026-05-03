@@ -49,6 +49,8 @@ model User {
   notifications    Notification[]
   administeredBuildings Building[]  @relation("BuildingAdmin")
   buildingAccess   UserBuildingAccess[]
+  sentPaymentReports PaymentReport[] @relation("PaymentReportUser")
+  reviewedPaymentReports PaymentReport[] @relation("PaymentReportReviewer")
 
   @@index([organizationId])
   @@map("users")
@@ -343,6 +345,7 @@ model Tenant {
   space       Space?           @relation(fields: [spaceId], references: [id])
   charges     Charge[]
   payments    Payment[]
+  paymentReports PaymentReport[]
   contracts   Contract[]
   documents   TenantDocument[]
   requests    Request[]
@@ -419,8 +422,38 @@ model Payment {
   createdAt   DateTime @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  reports PaymentReport[]
 
   @@map("payments")
+}
+
+model PaymentReport {
+  id             String    @id @default(cuid())
+  tenantId       String    @map("tenant_id")
+  userId         String    @map("user_id")
+  amount         Float
+  paymentDate    DateTime  @map("payment_date")
+  status         String    @default("PENDING")
+  paymentPurpose String?   @map("payment_purpose")
+  note           String?
+  receiptName    String?   @map("receipt_name")
+  receiptMime    String?   @map("receipt_mime")
+  receiptDataUrl String?   @map("receipt_data_url")
+  reviewedById   String?   @map("reviewed_by_id")
+  reviewedAt     DateTime? @map("reviewed_at")
+  paymentId      String?   @map("payment_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User     @relation("PaymentReportUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?    @relation("PaymentReportReviewer", fields: [reviewedById], references: [id])
+  payment  Payment? @relation(fields: [paymentId], references: [id])
+
+  @@index([tenantId, status, createdAt])
+  @@index([userId])
+  @@index([status, createdAt])
+  @@map("payment_reports")
 }
 
 model Meter {

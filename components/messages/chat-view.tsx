@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef, useEffect } from "react"
-import { Send, Megaphone, User, Trash2 } from "lucide-react"
+import { Send, Megaphone, Trash2, Paperclip } from "lucide-react"
 import { toast } from "sonner"
 import { sendMessage, markConversationRead, deleteMessage } from "@/app/actions/messages"
 import { cn } from "@/lib/utils"
@@ -22,6 +22,7 @@ export type ChatMessage = {
   subject: string | null
   body: string
   isRead: boolean
+  attachmentUrl?: string | null
   createdAt: Date
 }
 
@@ -201,6 +202,23 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                           </p>
                         )}
                         <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+                        {m.attachmentUrl && (
+                          <a
+                            href={m.attachmentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            download="attachment"
+                            className={cn(
+                              "mt-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium",
+                              isMine
+                                ? "bg-white/15 text-white hover:bg-white/20"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            )}
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            Вложение
+                          </a>
+                        )}
                         <div className={cn("text-[10px] mt-1 flex items-center gap-2", isMine ? "text-blue-100" : "text-slate-400 dark:text-slate-500")}>
                           <span>{new Date(m.createdAt).toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</span>
                           {isMine && (m.isRead ? <span>✓✓</span> : <span>✓</span>)}
