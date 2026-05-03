@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
+  ShieldCheck,
   LogOut, Building,
   Package, CalendarDays,
   Menu, X,
@@ -64,6 +65,7 @@ const nav: NavSection[] = [
     title: "АНАЛИТИКА",
     items: [
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
+      { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
     ],
   },
   // Сотрудники / Подписка / Роли / Настройки организации / Импорт / Тарифы

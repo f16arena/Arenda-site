@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Search, Building2, Users, ClipboardList, TrendingUp, Loader2,
   FileText, UserCog, Wallet, CalendarDays, Plus, LayoutDashboard,
-  Receipt,
+  Receipt, ShieldCheck,
 } from "lucide-react"
 
 type Item = {
@@ -35,6 +35,7 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
   { label: "Лиды (CRM)", href: "/admin/leads", icon: TrendingUp, keywords: "leads crm" },
   { label: "Финансы", href: "/admin/finances", icon: Wallet, keywords: "finance деньги" },
   { label: "Документы", href: "/admin/documents", icon: FileText, keywords: "documents" },
+  { label: "Качество данных", href: "/admin/data-quality", icon: ShieldCheck, keywords: "data quality ошибки проверка" },
   { label: "Заявки", href: "/admin/requests", icon: ClipboardList, keywords: "requests" },
   { label: "Сотрудники", href: "/admin/staff", icon: UserCog, keywords: "staff" },
 ]
