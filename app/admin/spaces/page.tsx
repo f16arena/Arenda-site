@@ -132,11 +132,11 @@ export default async function SpacesPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
         <div className="flex items-center gap-2">
-          {building && total > 0 && (
+          {building && allSpaces.length > 0 && (
             <WipeAllSpacesButton
               buildingId={building.id}
               buildingName={building.name}
-              spacesCount={total}
+              spacesCount={allSpaces.length}
             />
           )}
           <AddSpaceDialog floors={floorOptions} />

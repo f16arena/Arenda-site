@@ -139,9 +139,13 @@ export async function deleteSpace(id: string) {
  * для всего здания. Блокируется если хоть одно помещение занято арендатором,
  * либо если хоть один этаж сдан целиком.
  */
-export async function deleteAllSpacesInBuilding(buildingId: string) {
+export async function deleteAllSpacesInBuilding(buildingId: string, confirmation: string) {
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
+
+  if (confirmation.trim().toLowerCase() !== "удалить") {
+    throw new Error("Для очистки помещений нужно ввести слово «удалить»")
+  }
 
   const floors = await db.floor.findMany({
     where: { buildingId },
