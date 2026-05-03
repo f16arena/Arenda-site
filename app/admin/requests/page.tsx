@@ -14,8 +14,28 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
-export default async function RequestsPage() {
+const REQUEST_FILTERS = [
+  { key: "all", label: "Все", statuses: null },
+  { key: "new", label: "Новые", statuses: ["NEW"] },
+  { key: "active", label: "В работе", statuses: ["IN_PROGRESS", "POSTPONED"] },
+  { key: "done", label: "Выполнены", statuses: ["DONE", "CLOSED"] },
+] as const
+
+type RequestFilterKey = (typeof REQUEST_FILTERS)[number]["key"]
+
+function normalizeFilter(value: string | string[] | undefined): RequestFilterKey {
+  const raw = Array.isArray(value) ? value[0] : value
+  return REQUEST_FILTERS.some((filter) => filter.key === raw) ? raw as RequestFilterKey : "all"
+}
+
+export default async function RequestsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string | string[] }>
+}) {
   const { orgId } = await requireOrgAccess()
+  const selectedFilter = normalizeFilter((await searchParams)?.status)
+  const selectedFilterConfig = REQUEST_FILTERS.find((filter) => filter.key === selectedFilter) ?? REQUEST_FILTERS[0]
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -26,7 +46,7 @@ export default async function RequestsPage() {
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
     ],
   }
-  const requests = await db.request.findMany({
+  const allRequests = await db.request.findMany({
     where: { AND: [requestScope(orgId), { tenant: tenantBuildingWhere }] },
     select: {
       id: true, title: true, description: true, type: true,
@@ -37,25 +57,49 @@ export default async function RequestsPage() {
     orderBy: { createdAt: "desc" },
   }).catch(() => [])
 
+  const selectedStatuses = selectedFilterConfig.statuses as readonly string[] | null
+  const requests = selectedStatuses
+    ? allRequests.filter((request) => selectedStatuses.includes(request.status))
+    : allRequests
+
+  const filterCounts = REQUEST_FILTERS.reduce<Record<RequestFilterKey, number>>((acc, filter) => {
+    const statuses = filter.statuses as readonly string[] | null
+    acc[filter.key] = statuses
+      ? allRequests.filter((request) => statuses.includes(request.status)).length
+      : allRequests.length
+    return acc
+  }, { all: 0, new: 0, active: 0, done: 0 })
+
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Заявки арендаторов</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-          {requests.filter((r) => r.status === "NEW").length} новых
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Заявки арендаторов</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          {filterCounts.new} новых · {filterCounts.active} в работе
         </p>
       </div>
 
       {/* Filters */}
       <div className="flex gap-3">
-        {["Все", "Новые", "В работе", "Выполнены"].map((label) => (
-          <button
-            key={label}
-            className="rounded-lg px-4 py-2 text-sm font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+        {REQUEST_FILTERS.map((filter) => {
+          const active = selectedFilter === filter.key
+          return (
+          <Link
+            key={filter.key}
+            href={filter.key === "all" ? "/admin/requests" : `/admin/requests?status=${filter.key}`}
+            className={cn(
+              "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+              active
+                ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
+            )}
           >
-            {label}
-          </button>
-        ))}
+            {filter.label}
+            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              {filterCounts[filter.key]}
+            </span>
+          </Link>
+        )})}
       </div>
 
       {/* Table */}
@@ -110,15 +154,26 @@ export default async function RequestsPage() {
             {requests.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-5 py-8">
-                  <EmptyState
-                    icon={<ClipboardList className="h-5 w-5" />}
-                    title="Заявок пока нет"
-                    description="Заявки появятся здесь, когда арендатор отправит обращение из кабинета. Проверьте, что у арендаторов есть доступ и они знают, где создать заявку."
-                    actions={[
-                      { href: "/admin/tenants", label: "Открыть арендаторов" },
-                      { href: "/admin/faq", label: "FAQ для инструкции", variant: "secondary" },
-                    ]}
-                  />
+                  {allRequests.length === 0 ? (
+                    <EmptyState
+                      icon={<ClipboardList className="h-5 w-5" />}
+                      title="Заявок пока нет"
+                      description="Заявки появятся здесь, когда арендатор отправит обращение из кабинета. Проверьте, что у арендаторов есть доступ и они знают, где создать заявку."
+                      actions={[
+                        { href: "/admin/tenants", label: "Открыть арендаторов" },
+                        { href: "/admin/faq", label: "FAQ для инструкции", variant: "secondary" },
+                      ]}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={<ClipboardList className="h-5 w-5" />}
+                      title="В этом фильтре заявок нет"
+                      description="Выберите другой статус или вернитесь ко всем заявкам, чтобы увидеть полный список обращений."
+                      actions={[
+                        { href: "/admin/requests", label: "Показать все" },
+                      ]}
+                    />
+                  )}
                 </td>
               </tr>
             )}
