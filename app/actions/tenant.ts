@@ -9,6 +9,7 @@ import {
   assertSpaceInOrg,
   assertUserInOrg,
 } from "@/lib/scope-guards"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -201,15 +202,15 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
   await assertUserInOrg(userId, orgId)
 
   const name = formData.get("name") as string
-  const phone = formData.get("phone") as string
-  const email = formData.get("email") as string
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
 
   await db.user.update({
     where: { id: userId },
     data: {
       name,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
     },
   })
 

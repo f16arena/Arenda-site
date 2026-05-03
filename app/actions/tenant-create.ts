@@ -9,6 +9,7 @@ import { assertSpaceInOrg } from "@/lib/scope-guards"
 import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function createTenant(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -16,8 +17,8 @@ export async function createTenant(formData: FormData) {
   await checkLimit(orgId, "tenants")
 
   const name = String(formData.get("name") ?? "").trim()
-  const phone = String(formData.get("phone") ?? "").trim()
-  const email = String(formData.get("email") ?? "").trim().toLowerCase()
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const password = String(formData.get("password") ?? "")
   const companyName = String(formData.get("companyName") ?? "").trim()
   const legalType = String(formData.get("legalType") ?? "IP")
@@ -31,9 +32,6 @@ export async function createTenant(formData: FormData) {
 
   if (!name) throw new Error("Введите ФИО контактного лица")
   if (!companyName) throw new Error("Введите название компании")
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new Error("Некорректный email")
-  }
 
   if (spaceId) {
     await assertSpaceInOrg(spaceId, orgId)
@@ -102,8 +100,8 @@ export async function createTenant(formData: FormData) {
     const user = await db.user.create({
       data: {
         name,
-        phone: phone || null,
-        email: email || null,
+        phone,
+        email,
         password: hash,
         role: "TENANT",
         organizationId: orgId,

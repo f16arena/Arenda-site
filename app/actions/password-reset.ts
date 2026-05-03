@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { normalizeEmail } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import type { Result } from "./my-account"
@@ -15,9 +16,11 @@ import type { Result } from "./my-account"
  * чтобы по ответу нельзя было узнать, существует ли аккаунт.
  */
 export async function requestPasswordReset(formData: FormData): Promise<Result & { previewLink?: string }> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase()
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: "Введите корректный email" }
+  let email: string
+  try {
+    email = normalizeEmail(formData.get("email"), { required: true })!
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Введите корректный email" }
   }
 
   // Rate limit: 5 запросов сброса за 15 минут с одного IP

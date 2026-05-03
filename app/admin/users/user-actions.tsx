@@ -63,7 +63,7 @@ export function CreateUserDialog() {
               <Field label="Имя *" name="name" required />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Email" name="email" type="email" placeholder="user@example.com" />
-                <Field label="Телефон" name="phone" placeholder="+77000000000" />
+                <Field label="Телефон" name="phone" type="tel" placeholder="+7 700 000 00 00" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Роль *</label>

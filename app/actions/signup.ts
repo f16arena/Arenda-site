@@ -10,6 +10,7 @@ import { ROOT_HOST } from "@/lib/host"
 import { audit } from "@/lib/audit"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 
@@ -46,8 +47,14 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   const companyName = String(formData.get("companyName") ?? "").trim()
   const slug = slugify(String(formData.get("slug") ?? ""))
   const ownerName = String(formData.get("ownerName") ?? "").trim()
-  const ownerEmail = String(formData.get("ownerEmail") ?? "").trim().toLowerCase()
-  const ownerPhone = String(formData.get("ownerPhone") ?? "").trim()
+  let ownerEmail: string | null
+  let ownerPhone: string | null
+  try {
+    ownerEmail = normalizeEmail(formData.get("ownerEmail"), { fieldName: "Email владельца" })
+    ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), { fieldName: "Телефон владельца" })
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Некорректные контактные данные", details }
+  }
   const password = String(formData.get("password") ?? "")
   const agreed = formData.get("agreed") === "on"
 
@@ -140,8 +147,8 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     const user = await db.user.create({
       data: {
         name: ownerName,
-        email: ownerEmail || null,
-        phone: ownerPhone || null,
+        email: ownerEmail,
+        phone: ownerPhone,
         password: hash,
         role: "OWNER",
         organizationId: org.id,

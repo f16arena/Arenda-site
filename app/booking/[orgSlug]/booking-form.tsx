@@ -60,6 +60,7 @@ export function BookingForm({
           type="tel"
           required
           placeholder="+7 (___) ___-__-__"
+          title="Введите номер Казахстана в формате +7 7XX XXX XX XX"
           maxLength={30}
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />

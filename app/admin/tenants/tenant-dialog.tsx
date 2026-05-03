@@ -53,7 +53,7 @@ export function TenantDialog({ vacantSpaces }: { vacantSpaces: Space[] }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон *</label>
-                  <input name="phone" required placeholder="+7..." className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <input name="phone" type="tel" inputMode="tel" required placeholder="+7 700 000 00 00" title="Введите номер Казахстана в формате +7 7XX XXX XX XX" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>

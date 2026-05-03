@@ -116,7 +116,7 @@ export function SignupForm() {
         <Field label="ФИО *" name="ownerName" required placeholder="Иванов Иван Иванович" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Email" name="ownerEmail" type="email" placeholder="ivan@example.kz" />
-          <Field label="Телефон" name="ownerPhone" placeholder="+7 700 000 00 00" />
+          <Field label="Телефон" name="ownerPhone" type="tel" placeholder="+7 700 000 00 00" />
         </div>
         <Field
           label="Пароль *"

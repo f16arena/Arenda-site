@@ -10,6 +10,7 @@ import {
 import { emergencyContactScope } from "@/lib/tenant-scope"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -18,8 +19,8 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   const name = formData.get("name") as string
   const address = formData.get("address") as string
   const description = formData.get("description") as string
-  const phone = formData.get("phone") as string
-  const email = formData.get("email") as string
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const responsible = formData.get("responsible") as string
 
   // totalArea не редактируется вручную — пересчитывается из этажей
@@ -29,8 +30,8 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
       name,
       address,
       description: description || null,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       responsible: responsible || null,
     },
   })
@@ -128,7 +129,7 @@ export async function updateEmergencyContact(id: string, formData: FormData) {
   await assertEmergencyContactInOrg(id, orgId)
 
   const name = formData.get("name") as string
-  const phone = formData.get("phone") as string
+  const phone = normalizeKzPhone(formData.get("phone"), { required: true, allowShort: true })
 
   await db.emergencyContact.update({
     where: { id },
@@ -145,7 +146,7 @@ export async function addEmergencyContact(buildingId: string, formData: FormData
   await assertBuildingInOrg(buildingId, orgId)
 
   const name = formData.get("name") as string
-  const phone = formData.get("phone") as string
+  const phone = normalizeKzPhone(formData.get("phone"), { required: true, allowShort: true })
   const category = formData.get("category") as string
 
   await db.emergencyContact.create({

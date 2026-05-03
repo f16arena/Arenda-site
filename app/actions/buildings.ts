@@ -7,6 +7,7 @@ import { setCurrentBuildingCookie } from "@/lib/current-building"
 import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function createBuilding(formData: FormData) {
   await requireOwner()
@@ -16,8 +17,8 @@ export async function createBuilding(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim()
   const address = String(formData.get("address") ?? "").trim()
   const description = String(formData.get("description") ?? "").trim()
-  const phone = String(formData.get("phone") ?? "").trim()
-  const email = String(formData.get("email") ?? "").trim()
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
@@ -30,8 +31,8 @@ export async function createBuilding(formData: FormData) {
       name,
       address,
       description: description || null,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       responsible: responsible || null,
       // totalArea не задаётся при создании — будет пересчитана из этажей
       contractPrefix: contractPrefix || null,
@@ -53,8 +54,8 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const name = String(formData.get("name") ?? "").trim()
   const address = String(formData.get("address") ?? "").trim()
   const description = String(formData.get("description") ?? "").trim()
-  const phone = String(formData.get("phone") ?? "").trim()
-  const email = String(formData.get("email") ?? "").trim()
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
@@ -66,8 +67,8 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
       name,
       address,
       description: description || null,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       responsible: responsible || null,
       contractPrefix: contractPrefix || null,
     },

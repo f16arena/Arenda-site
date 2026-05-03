@@ -65,8 +65,10 @@ export function StaffEditForm({
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Телефон</label>
           <input
             name="phone"
+            type="tel"
+            inputMode="tel"
             defaultValue={initial.phone ?? ""}
-            placeholder="+7..."
+            placeholder="+7 700 000 00 00"
             className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
         </div>

@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { revalidatePath } from "next/cache"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 /**
  * Публичный server-action: создаёт Lead из формы публичной booking-витрины.
@@ -24,16 +25,18 @@ export async function createBookingLead(
   }
 
   const name = String(formData.get("name") ?? "").trim().slice(0, 100)
-  const phone = String(formData.get("phone") ?? "").trim().slice(0, 30)
-  const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 100)
+  let phone: string
+  let email: string | null
+  try {
+    phone = normalizeKzPhone(formData.get("phone"), { required: true })
+    email = normalizeEmail(formData.get("email"))
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Некорректные контактные данные" }
+  }
   const buildingIdRaw = String(formData.get("buildingId") ?? "").trim()
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 500)
 
   if (!name) return { ok: false, error: "Введите имя" }
-  if (!phone) return { ok: false, error: "Введите телефон" }
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { ok: false, error: "Некорректный email" }
-  }
 
   // Найти организацию
   const org = await db.organization.findUnique({

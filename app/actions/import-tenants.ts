@@ -10,10 +10,10 @@ import {
   getField,
   parseFlexibleDate,
   parseFlexibleNumber,
-  normalizePhone,
   normalizeLegalType,
   extractBinIin,
 } from "@/lib/excel-import"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 // Синонимы заголовков (auto-mapping)
 const FIELD_SYNONYMS: Record<string, string[]> = {
@@ -105,8 +105,18 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     }
 
     const contactName = getField(row, mapping, "contactName") || companyName
-    const phone = normalizePhone(getField(row, mapping, "phone"))
-    const email = getField(row, mapping, "email").toLowerCase()
+    let phone = ""
+    let email = ""
+    try {
+      phone = normalizeKzPhone(getField(row, mapping, "phone")) ?? ""
+      email = normalizeEmail(getField(row, mapping, "email")) ?? ""
+    } catch (error) {
+      invalidRows.push({
+        rowIndex: i + 2,
+        error: error instanceof Error ? error.message : "Некорректные контактные данные",
+      })
+      continue
+    }
     const legalType = normalizeLegalType(getField(row, mapping, "legalType"))
     const bin = extractBinIin(getField(row, mapping, "bin"))
     const category = getField(row, mapping, "category")

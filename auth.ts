@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
+import { getLoginIdentifiers } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 
 const isProduction = process.env.NODE_ENV === "production"
@@ -31,12 +32,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!credentials?.login || !credentials?.password) return null
 
         try {
+          const loginIdentifiers = getLoginIdentifiers(credentials.login as string)
+          if (loginIdentifiers.length === 0) return null
           const user = await db.user.findFirst({
             where: {
-              OR: [
-                { phone: String(credentials.login) },
-                { email: String(credentials.login) },
-              ],
+              OR: loginIdentifiers.flatMap((identifier) => [
+                { phone: identifier },
+                { email: identifier },
+              ]),
               isActive: true,
             },
           })

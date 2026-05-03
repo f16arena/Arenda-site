@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { normalizeEmail } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 
@@ -68,9 +69,11 @@ export async function requestEmailChange(formData: FormData): Promise<Result & {
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
 
-  const newEmail = String(formData.get("newEmail") ?? "").trim().toLowerCase()
-  if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
-    return { ok: false, error: "Введите корректный email" }
+  let newEmail: string
+  try {
+    newEmail = normalizeEmail(formData.get("newEmail"), { required: true })!
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Введите корректный email" }
   }
 
   const conflict = await db.user.findUnique({ where: { email: newEmail }, select: { id: true } })

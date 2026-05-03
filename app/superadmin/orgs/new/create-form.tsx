@@ -214,7 +214,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
         <Field label="ФИО *" name="ownerName" required placeholder="Иванов Иван Иванович" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Email" name="ownerEmail" type="email" placeholder="ivan@plaza.kz" />
-          <Field label="Телефон" name="ownerPhone" placeholder="+7..." />
+          <Field label="Телефон" name="ownerPhone" type="tel" placeholder="+7 700 000 00 00" />
         </div>
         <Field
           label="Временный пароль"

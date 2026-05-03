@@ -7,6 +7,7 @@ import { headers, cookies } from "next/headers"
 import { db } from "@/lib/db"
 import { parseHost, ROOT_HOST } from "@/lib/host"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { getLoginIdentifiers } from "@/lib/contact-validation"
 
 export interface LoginState {
   error?: string
@@ -17,6 +18,7 @@ export interface LoginState {
 
 export async function login(_prevState: LoginState | undefined, formData: FormData): Promise<LoginState> {
   const loginValue = String(formData.get("login") ?? "").trim()
+  const loginIdentifiers = getLoginIdentifiers(loginValue)
   const password = String(formData.get("password") ?? "")
   const totp = String(formData.get("totp") ?? "").trim()
   const details: NonNullable<LoginState["details"]> = []
@@ -68,7 +70,12 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   t0 = Date.now()
   try {
     user = await db.user.findFirst({
-      where: { OR: [{ phone: loginValue }, { email: loginValue }] },
+      where: {
+        OR: loginIdentifiers.flatMap((identifier) => [
+          { phone: identifier },
+          { email: identifier },
+        ]),
+      },
       select: {
         id: true,
         role: true,

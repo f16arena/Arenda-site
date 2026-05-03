@@ -6,6 +6,7 @@ import { requireOwner } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function createUserAdmin(formData: FormData) {
   await requireOwner()
@@ -14,8 +15,8 @@ export async function createUserAdmin(formData: FormData) {
   await checkLimit(orgId, "users")
 
   const name = String(formData.get("name") ?? "").trim()
-  const phone = String(formData.get("phone") ?? "").trim()
-  const email = String(formData.get("email") ?? "").trim()
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const role = String(formData.get("role") ?? "TENANT")
   const password = String(formData.get("password") ?? "")
   const position = String(formData.get("position") ?? "").trim()
@@ -30,8 +31,8 @@ export async function createUserAdmin(formData: FormData) {
   const user = await db.user.create({
     data: {
       name,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       password: hash,
       role,
       organizationId: orgId,
@@ -58,8 +59,8 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
   await assertUserInOrg(userId, orgId)
 
   const name = String(formData.get("name") ?? "").trim()
-  const phone = String(formData.get("phone") ?? "").trim()
-  const email = String(formData.get("email") ?? "").trim()
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const role = String(formData.get("role") ?? "")
   const newPassword = String(formData.get("newPassword") ?? "")
 
@@ -69,8 +70,8 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
     where: { id: userId },
     data: {
       name,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       ...(role ? { role } : {}),
       ...(newPassword ? { password: await bcrypt.hash(newPassword, 10) } : {}),
     },

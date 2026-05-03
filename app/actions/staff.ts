@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertStaffInOrg, assertUserInOrg } from "@/lib/scope-guards"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function createStaff(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -12,8 +13,8 @@ export async function createStaff(formData: FormData) {
   await checkLimit(orgId, "users")
 
   const name = formData.get("name") as string
-  const phone = formData.get("phone") as string
-  const email = formData.get("email") as string
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const role = formData.get("role") as string
   const position = formData.get("position") as string
   const salaryStr = formData.get("salary") as string
@@ -24,8 +25,8 @@ export async function createStaff(formData: FormData) {
   const user = await db.user.create({
     data: {
       name,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       password: hash,
       role,
       organizationId: orgId,
@@ -50,8 +51,8 @@ export async function updateStaff(staffId: string, userId: string, formData: For
   await assertUserInOrg(userId, orgId)
 
   const name = formData.get("name") as string
-  const phone = formData.get("phone") as string
-  const email = formData.get("email") as string
+  const phone = normalizeKzPhone(formData.get("phone"))
+  const email = normalizeEmail(formData.get("email"))
   const role = formData.get("role") as string
   const position = formData.get("position") as string
   const salaryStr = formData.get("salary") as string
@@ -61,8 +62,8 @@ export async function updateStaff(staffId: string, userId: string, formData: For
     where: { id: userId },
     data: {
       name,
-      phone: phone || null,
-      email: email || null,
+      phone,
+      email,
       role,
       ...(newPassword ? { password: await bcrypt.hash(newPassword, 10) } : {}),
     },

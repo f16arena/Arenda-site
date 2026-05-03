@@ -13,6 +13,7 @@ import { audit } from "@/lib/audit"
 import { validateSlug } from "@/lib/reserved-slugs"
 import { slugify, suggestSlugs } from "@/lib/slugify"
 import { ROOT_HOST } from "@/lib/host"
+import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 
 /**
@@ -58,8 +59,8 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   const planId = String(formData.get("planId") ?? "")
   const monthsStr = String(formData.get("months") ?? "1")
   const ownerName = String(formData.get("ownerName") ?? "").trim()
-  const ownerEmail = String(formData.get("ownerEmail") ?? "").trim()
-  const ownerPhone = String(formData.get("ownerPhone") ?? "").trim()
+  const ownerEmail = normalizeEmail(formData.get("ownerEmail"), { fieldName: "Email владельца" })
+  const ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), { fieldName: "Телефон владельца" })
   const ownerPassword = String(formData.get("ownerPassword") ?? "").trim() || generatePassword()
 
   if (!name) throw new Error("Название обязательно")
@@ -93,8 +94,8 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   const ownerUser = await db.user.create({
     data: {
       name: ownerName,
-      email: ownerEmail || null,
-      phone: ownerPhone || null,
+      email: ownerEmail,
+      phone: ownerPhone,
       password: hash,
       role: "OWNER",
       organizationId: org.id,
@@ -131,8 +132,8 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
 
   return {
     orgId: org.id,
-    ownerEmail: ownerEmail || null,
-    ownerPhone: ownerPhone || null,
+    ownerEmail,
+    ownerPhone,
     tempPassword: ownerPassword,
   }
 }
