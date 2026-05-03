@@ -13,6 +13,8 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   const isCompleted = contract.status === "SIGNED" || contract.status === "REJECTED"
   const tenantSigned = !!contract.signedByTenantAt
   const landlordSigned = !!contract.signedByLandlordAt
+  const documentTitle = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+  const documentTextTitle = contract.type === "ADDENDUM" ? "Текст доп. соглашения" : "Текст договора"
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -26,7 +28,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
               </div>
               <div>
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                  Договор № {contract.number}
+                  {documentTitle} № {contract.number}
                 </p>
                 <h1 className="text-xl font-bold text-slate-900 mt-0.5">
                   {contract.tenant.companyName}
@@ -123,7 +125,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
 
         {/* Содержимое */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Текст договора</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{documentTextTitle}</p>
           <div className="prose prose-sm max-w-none text-slate-800 whitespace-pre-wrap font-serif">
             {contract.content}
           </div>

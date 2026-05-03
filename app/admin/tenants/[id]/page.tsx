@@ -6,8 +6,6 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import {
   updateTenant,
   updateTenantUser,
-  updateTenantRequisites,
-  updateTenantRentalTerms,
   assignTenantSpace,
 } from "@/app/actions/tenant"
 import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/utils"
@@ -25,6 +23,7 @@ import { EmailLog } from "./email-log"
 import { RequisitesForm } from "./requisites-form"
 import { IndexationHint } from "./indexation-hint"
 import { ContractWorkflowActions } from "./contract-actions"
+import { RentalTermsForm } from "./rental-terms-form"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -88,7 +87,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         orderBy: { createdAt: "desc" },
         take: 5,
         select: {
-          id: true, number: true, status: true,
+          id: true, number: true, type: true, status: true,
           startDate: true, endDate: true, signedAt: true,
           sentAt: true, viewedAt: true, signedByTenantAt: true, signedByLandlordAt: true,
           rejectedAt: true, rejectionReason: true, signToken: true,
@@ -183,6 +182,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const monthlyRent = calculateTenantMonthlyRent(rentInput)
   const ratePerSqm = calculateTenantRatePerSqm(tenant)
   const hasTenantFixedRent = hasFixedTenantRent(tenant.fixedMonthlyRent)
+  const fullFloorWithFixedRent = myFullFloors.find((floor) => hasFixedTenantRent(floor.fixedMonthlyRent))
+  const hasTenantCustomRate = hasFixedTenantRent(tenant.customRate)
+  const rentalTermsLocked = !!fullFloorWithFixedRent || hasTenantFixedRent || hasTenantCustomRate
+  const rentalTermsLockReason = fullFloorWithFixedRent
+    ? `У арендатора указана стоимость за этаж ${fullFloorWithFixedRent.name}: ${formatMoney(fullFloorWithFixedRent.fixedMonthlyRent ?? 0)}/мес.`
+    : hasTenantFixedRent
+      ? `У арендатора указана индивидуальная сумма аренды: ${formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес.`
+      : hasTenantCustomRate
+        ? `У арендатора указана индивидуальная ставка аренды: ${formatMoney(tenant.customRate ?? 0)}/м².`
+        : null
 
   return (
     <div className="space-y-6">
@@ -507,115 +516,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Условия аренды</h2>
             </div>
-            <form
-              action={async (formData: FormData) => {
-                "use server"
-                await updateTenantRentalTerms(tenant.id, formData)
+            <RentalTermsForm
+              tenantId={tenant.id}
+              locked={rentalTermsLocked}
+              lockedReason={rentalTermsLockReason}
+              initial={{
+                customRate: tenant.customRate,
+                fixedMonthlyRent: tenant.fixedMonthlyRent,
+                cleaningFee: tenant.cleaningFee,
+                needsCleaning: tenant.needsCleaning,
+                paymentDueDay: tenant.paymentDueDay ?? 10,
+                penaltyPercent: tenant.penaltyPercent ?? 1,
+                isVatPayer: tenant.isVatPayer,
               }}
-              className="p-5 grid grid-cols-3 gap-4"
-            >
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Индивид. ставка ₸/м²</label>
-                <input
-                  name="customRate"
-                  type="number"
-                  step="0.01"
-                  defaultValue={tenant.customRate ?? ""}
-                  placeholder="Если отличается от этажной"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Индивид. аренда ₸/мес</label>
-                <input
-                  name="fixedMonthlyRent"
-                  type="number"
-                  step="0.01"
-                  min={0}
-                  defaultValue={tenant.fixedMonthlyRent ?? ""}
-                  placeholder="Если договор на сумму"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                  Если заполнено, заменяет расчет по м²
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Уборка ₸/мес</label>
-                <input
-                  name="cleaningFee"
-                  type="number"
-                  step="0.01"
-                  defaultValue={tenant.cleaningFee}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div className="flex items-end pb-2">
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                  <input
-                    name="needsCleaning"
-                    type="checkbox"
-                    defaultChecked={tenant.needsCleaning}
-                    className="rounded border-slate-300"
-                  />
-                  Требуется уборка
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                  День оплаты (1-31)
-                </label>
-                <input
-                  name="paymentDueDay"
-                  type="number"
-                  min={1}
-                  max={31}
-                  defaultValue={tenant.paymentDueDay ?? 10}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                  Срок оплаты счёта в каждом месяце
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                  Пеня % в день
-                </label>
-                <input
-                  name="penaltyPercent"
-                  type="number"
-                  step="0.1"
-                  min={0}
-                  max={100}
-                  defaultValue={tenant.penaltyPercent ?? 1}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                  При просрочке (0 = без пени)
-                </p>
-              </div>
-              <div className="flex items-end pb-2">
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                  <input
-                    name="isVatPayer"
-                    type="checkbox"
-                    defaultChecked={tenant.isVatPayer}
-                    className="rounded border-slate-300"
-                  />
-                  Плательщик НДС
-                </label>
-              </div>
-
-              <div className="col-span-3 flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
-                >
-                  Сохранить
-                </button>
-              </div>
-            </form>
+            />
           </div>
 
           {/* Documents actions: invoice, act, contract, handover */}
@@ -772,10 +686,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   REJECTED:            { label: "Отклонён",           cls: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" },
                 }
                 const st = statusLabels[c.status] ?? { label: c.status, cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" }
+                const docLabel = c.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
                 return (
                   <div key={c.id} className="px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">№ {c.number}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{docLabel} № {c.number}</p>
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${st.cls}`}>
                         {st.label}
                       </span>

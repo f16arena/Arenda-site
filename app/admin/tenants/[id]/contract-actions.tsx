@@ -11,6 +11,7 @@ import {
 type Contract = {
   id: string
   number: string
+  type?: string
   status: string
   signToken: string | null
   signedByTenantAt: Date | string | null
@@ -23,10 +24,15 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
   const [copied, setCopied] = useState(false)
 
   const isCompleted = contract.status === "SIGNED" || contract.status === "REJECTED"
+  const docName = contract.type === "ADDENDUM" ? "доп. соглашения" : "договора"
+  const docNameTitle = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+  const signedToast = contract.type === "ADDENDUM"
+    ? "Доп. соглашение подписано со стороны арендодателя"
+    : "Договор подписан со стороны арендодателя"
 
   const send = () => {
     if (contract.status === "SENT" || contract.status === "VIEWED") {
-      if (!window.confirm("Договор уже отправлялся. Сгенерировать новую ссылку (старая перестанет работать)?")) return
+      if (!window.confirm(`${docNameTitle} уже отправлялся. Сгенерировать новую ссылку (старая перестанет работать)?`)) return
     }
     startTransition(async () => {
       const r = await sendContractForSignature(contract.id)
@@ -40,11 +46,11 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
   }
 
   const markSigned = () => {
-    if (!window.confirm(`Подтвердите подпись договора № ${contract.number} со стороны арендодателя.\n\n` +
+    if (!window.confirm(`Подтвердите подпись ${docName} № ${contract.number} со стороны арендодателя.\n\n` +
       `Используйте если ЭЦП НУЦ РК уже поставлена в файле или подпись ручная.`)) return
     startTransition(async () => {
       const r = await markContractSignedByLandlord(contract.id)
-      if (r.ok) toast.success("Договор подписан со стороны арендодателя")
+      if (r.ok) toast.success(signedToast)
       else toast.error(r.error)
     })
   }

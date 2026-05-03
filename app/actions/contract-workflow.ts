@@ -27,6 +27,7 @@ export async function sendContractForSignature(
     select: {
       id: true,
       number: true,
+      type: true,
       status: true,
       signToken: true,
       tenant: {
@@ -42,6 +43,11 @@ export async function sendContractForSignature(
   if (contract.status === "SIGNED") {
     return { ok: false, error: "Договор уже подписан обеими сторонами" }
   }
+  const documentTitle = contract.type === "ADDENDUM" ? "Дополнительное соглашение" : "Договор"
+  const documentTitleLower = contract.type === "ADDENDUM" ? "дополнительное соглашение" : "договор аренды"
+  const documentSentPhrase = contract.type === "ADDENDUM"
+    ? "Вам направлено дополнительное соглашение"
+    : "Вам направлен договор аренды"
 
   // Регенерируем токен на каждой отправке (старая ссылка протухает)
   const token = crypto.randomBytes(24).toString("hex")
@@ -63,20 +69,20 @@ export async function sendContractForSignature(
   if (tenantEmail) {
     try {
       const html = basicEmailTemplate({
-        title: `Договор № ${contract.number} на подпись`,
+        title: `${documentTitle} № ${contract.number} на подпись`,
         body: `<p>Здравствуйте, ${htmlEscape(contract.tenant.user.name)}!</p>
-<p>Вам направлен договор аренды <b>№ ${htmlEscape(contract.number)}</b> для компании <b>${htmlEscape(contract.tenant.companyName)}</b>.</p>
-<p>Откройте ссылку, прочитайте текст и нажмите «Подписать», если согласны с условиями. Если есть вопросы — отклоните договор с пояснением, и мы свяжемся.</p>
+<p>${documentSentPhrase} <b>№ ${htmlEscape(contract.number)}</b> для компании <b>${htmlEscape(contract.tenant.companyName)}</b>.</p>
+<p>Откройте ссылку, прочитайте текст и нажмите «Подписать», если согласны с условиями. Если есть вопросы — отклоните документ с пояснением, и мы свяжемся.</p>
 <p>Ссылка действительна до момента следующей повторной отправки.</p>`,
-        buttonText: "Открыть договор",
+        buttonText: `Открыть ${documentTitleLower}`,
         buttonUrl: signUrl,
-        footer: "Это автоматическое письмо. Если вы не ожидали договор — проигнорируйте письмо.",
+        footer: "Это автоматическое письмо. Если вы не ожидали этот документ — проигнорируйте письмо.",
       })
       await sendEmail({
         to: tenantEmail,
-        subject: `Договор № ${contract.number} — подпишите онлайн`,
+        subject: `${documentTitle} № ${contract.number} — подпишите онлайн`,
         html,
-        text: `Договор ${contract.number} — откройте ссылку ${signUrl}`,
+        text: `${documentTitle} ${contract.number} — откройте ссылку ${signUrl}`,
       })
     } catch (e) {
       console.warn("[contract email] failed:", e instanceof Error ? e.message : e)

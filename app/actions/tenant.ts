@@ -4,12 +4,14 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
+import { requireSection } from "@/lib/acl"
 import {
   assertTenantInOrg,
   assertSpaceInOrg,
   assertUserInOrg,
 } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -22,6 +24,113 @@ function parseNumberOrNull(value: FormDataEntryValue | null) {
 function parsePositiveNumberOrNull(value: FormDataEntryValue | null) {
   const parsed = parseNumberOrNull(value)
   return parsed !== null && parsed > 0 ? parsed : null
+}
+
+function positiveAmount(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null
+}
+
+type RentalTermsSnapshot = {
+  customRate: number | null
+  fixedMonthlyRent: number | null
+  cleaningFee: number
+  needsCleaning: boolean
+  paymentDueDay: number
+  penaltyPercent: number
+  isVatPayer: boolean
+}
+
+const RENTAL_TERM_FIELDS: Array<keyof RentalTermsSnapshot> = [
+  "customRate",
+  "fixedMonthlyRent",
+  "cleaningFee",
+  "needsCleaning",
+  "paymentDueDay",
+  "penaltyPercent",
+  "isVatPayer",
+]
+
+const RENTAL_TERM_LABELS: Record<keyof RentalTermsSnapshot, string> = {
+  customRate: "Индивидуальная ставка",
+  fixedMonthlyRent: "Индивидуальная аренда",
+  cleaningFee: "Уборка",
+  needsCleaning: "Требуется уборка",
+  paymentDueDay: "День оплаты",
+  penaltyPercent: "Пеня",
+  isVatPayer: "Плательщик НДС",
+}
+
+function normalizeMoney(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null
+  return Math.round(value * 100) / 100
+}
+
+function normalizePercent(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0
+  return Math.round(value * 1000) / 1000
+}
+
+function formatAmount(value: number) {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 }).format(value)
+}
+
+function formatRentalTermValue(field: keyof RentalTermsSnapshot, value: RentalTermsSnapshot[keyof RentalTermsSnapshot]) {
+  if (field === "customRate") return value === null ? "не указана" : `${formatAmount(value as number)} ₸/м²`
+  if (field === "fixedMonthlyRent") return value === null ? "не указана" : `${formatAmount(value as number)} ₸/мес`
+  if (field === "cleaningFee") return `${formatAmount(value as number)} ₸/мес`
+  if (field === "needsCleaning" || field === "isVatPayer") return value ? "да" : "нет"
+  if (field === "paymentDueDay") return `${value} число`
+  if (field === "penaltyPercent") return `${formatAmount(value as number)}% в день`
+  return String(value ?? "")
+}
+
+function rentalTermsChanged(before: RentalTermsSnapshot, after: RentalTermsSnapshot) {
+  return RENTAL_TERM_FIELDS.some((field) => before[field] !== after[field])
+}
+
+function changedRentalTermLines(before: RentalTermsSnapshot, after: RentalTermsSnapshot) {
+  return RENTAL_TERM_FIELDS
+    .filter((field) => before[field] !== after[field])
+    .map((field) => {
+      const label = RENTAL_TERM_LABELS[field]
+      const oldValue = formatRentalTermValue(field, before[field])
+      const newValue = formatRentalTermValue(field, after[field])
+      return `- ${label}: было ${oldValue}; стало ${newValue}`
+    })
+}
+
+function parseDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = new Date(`${value}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function buildRentalTermsAddendumContent(args: {
+  number: string
+  date: Date
+  tenantName: string
+  changes: string
+  before: RentalTermsSnapshot
+  after: RentalTermsSnapshot
+  lockReason: string
+}) {
+  const changedLines = changedRentalTermLines(args.before, args.after)
+  return [
+    `Дополнительное соглашение № ${args.number}`,
+    `к договору аренды арендатора ${args.tenantName}`,
+    `Дата: ${args.date.toLocaleDateString("ru-RU")}`,
+    "",
+    "Основание блокировки условий:",
+    args.lockReason,
+    "",
+    "Согласованные изменения:",
+    args.changes,
+    "",
+    "Изменяемые условия:",
+    ...(changedLines.length > 0 ? changedLines : ["- Изменения не указаны"]),
+    "",
+    "Прочие условия договора аренды остаются без изменений.",
+  ].join("\n")
 }
 
 /**
@@ -156,44 +265,152 @@ export async function updateTenantRequisites(tenantId: string, formData: FormDat
 }
 
 export async function updateTenantRentalTerms(tenantId: string, formData: FormData) {
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 
-  const customRateStr = formData.get("customRate") as string
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      id: true,
+      companyName: true,
+      customRate: true,
+      fixedMonthlyRent: true,
+      cleaningFee: true,
+      needsCleaning: true,
+      paymentDueDay: true,
+      penaltyPercent: true,
+      isVatPayer: true,
+      space: { select: { floor: { select: { buildingId: true } } } },
+      fullFloors: {
+        select: { id: true, name: true, fixedMonthlyRent: true, buildingId: true },
+      },
+    },
+  })
+  if (!tenant) throw new Error("Арендатор не найден")
+
+  const customRateStr = formData.get("customRate")
   const fixedMonthlyRent = parsePositiveNumberOrNull(formData.get("fixedMonthlyRent"))
-  const cleaningFeeStr = formData.get("cleaningFee") as string
+  const cleaningFee = parseNumberOrNull(formData.get("cleaningFee")) ?? tenant.cleaningFee ?? 0
   const needsCleaning = formData.get("needsCleaning") === "on"
-  const paymentDueDayStr = formData.get("paymentDueDay") as string
-  const penaltyPercentStr = formData.get("penaltyPercent") as string
+  const paymentDueDayStr = String(formData.get("paymentDueDay") ?? "")
+  const penaltyPercentStr = String(formData.get("penaltyPercent") ?? "")
   const isVatPayer = formData.get("isVatPayer") === "on"
 
-  let paymentDueDay = 10
+  let paymentDueDay = tenant.paymentDueDay ?? 10
   if (paymentDueDayStr) {
     const n = parseInt(paymentDueDayStr, 10)
     if (isFinite(n) && n >= 1 && n <= 31) paymentDueDay = n
   }
 
-  let penaltyPercent = 1
+  let penaltyPercent = tenant.penaltyPercent ?? 1
   if (penaltyPercentStr) {
     const n = parseFloat(penaltyPercentStr.replace(",", "."))
     if (isFinite(n) && n >= 0 && n <= 100) penaltyPercent = n
   }
 
-  await db.tenant.update({
-    where: { id: tenantId },
-    data: {
-      customRate: parseNumberOrNull(customRateStr),
-      fixedMonthlyRent,
-      cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
-      needsCleaning,
-      paymentDueDay,
-      penaltyPercent,
-      isVatPayer,
-    },
+  const before: RentalTermsSnapshot = {
+    customRate: normalizeMoney(tenant.customRate),
+    fixedMonthlyRent: normalizeMoney(tenant.fixedMonthlyRent),
+    cleaningFee: normalizeMoney(tenant.cleaningFee) ?? 0,
+    needsCleaning: tenant.needsCleaning,
+    paymentDueDay: tenant.paymentDueDay ?? 10,
+    penaltyPercent: normalizePercent(tenant.penaltyPercent),
+    isVatPayer: tenant.isVatPayer,
+  }
+
+  const after: RentalTermsSnapshot = {
+    customRate: normalizeMoney(parseNumberOrNull(customRateStr)),
+    fixedMonthlyRent: normalizeMoney(fixedMonthlyRent),
+    cleaningFee: normalizeMoney(cleaningFee) ?? 0,
+    needsCleaning,
+    paymentDueDay,
+    penaltyPercent: normalizePercent(penaltyPercent),
+    isVatPayer,
+  }
+
+  const fullFloorWithFixedRent = tenant.fullFloors.find((floor) => positiveAmount(floor.fixedMonthlyRent) !== null)
+  const tenantFixedRent = positiveAmount(tenant.fixedMonthlyRent)
+  const tenantCustomRate = positiveAmount(tenant.customRate)
+  const rentalTermsLocked = !!fullFloorWithFixedRent || tenantFixedRent !== null || tenantCustomRate !== null
+  const lockReason = fullFloorWithFixedRent
+    ? `У арендатора указана стоимость за этаж ${fullFloorWithFixedRent.name}: ${formatAmount(fullFloorWithFixedRent.fixedMonthlyRent ?? 0)} ₸/мес.`
+    : tenantFixedRent !== null
+      ? `У арендатора указана индивидуальная сумма аренды: ${formatAmount(tenantFixedRent)} ₸/мес.`
+      : tenantCustomRate !== null
+        ? `У арендатора указана индивидуальная ставка аренды: ${formatAmount(tenantCustomRate)} ₸/м².`
+        : ""
+  const changed = rentalTermsChanged(before, after)
+
+  let addendum: { number: string; date: Date; changes: string; content: string } | null = null
+  if (rentalTermsLocked && changed) {
+    const addendumNumber = String(formData.get("addendumNumber") ?? "").trim()
+    const addendumDateRaw = String(formData.get("addendumDate") ?? "").trim()
+    const addendumDate = parseDateInput(addendumDateRaw)
+    const addendumChanges = String(formData.get("addendumChanges") ?? "").trim()
+
+    if (!addendumNumber) throw new Error("Укажите номер дополнительного соглашения")
+    if (addendumNumber.length > 80) throw new Error("Номер дополнительного соглашения должен быть до 80 символов")
+    if (!addendumDate) throw new Error("Укажите дату дополнительного соглашения")
+    if (addendumChanges.length < 10) throw new Error("Опишите изменения в дополнительном соглашении минимум в 10 символов")
+    if (addendumChanges.length > 2000) throw new Error("Описание изменений должно быть до 2000 символов")
+
+    const buildingId = tenant.space?.floor.buildingId ?? tenant.fullFloors[0]?.buildingId
+    if (!buildingId) throw new Error("Арендатор не привязан к помещению или этажу, поэтому нельзя оформить дополнительное соглашение")
+
+    const unique = await isContractNumberUnique(buildingId, addendumNumber)
+    if (!unique) {
+      const suggested = await suggestContractNumber(buildingId)
+      throw new Error(`Номер «${addendumNumber}» уже используется в этом здании. Можно взять следующий номер: ${suggested}`)
+    }
+
+    addendum = {
+      number: addendumNumber,
+      date: addendumDate,
+      changes: addendumChanges,
+      content: buildRentalTermsAddendumContent({
+        number: addendumNumber,
+        date: addendumDate,
+        tenantName: tenant.companyName,
+        changes: addendumChanges,
+        before,
+        after,
+        lockReason,
+      }),
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.tenant.update({
+      where: { id: tenantId },
+      data: {
+        customRate: after.customRate,
+        fixedMonthlyRent: after.fixedMonthlyRent,
+        cleaningFee: after.cleaningFee,
+        needsCleaning: after.needsCleaning,
+        paymentDueDay: after.paymentDueDay,
+        penaltyPercent: after.penaltyPercent,
+        isVatPayer: after.isVatPayer,
+      },
+    })
+
+    if (addendum) {
+      await tx.contract.create({
+        data: {
+          tenantId,
+          number: addendum.number,
+          type: "ADDENDUM",
+          content: addendum.content,
+          startDate: addendum.date,
+          status: "DRAFT",
+        },
+      })
+    }
   })
 
   revalidatePath(`/admin/tenants/${tenantId}`)
-  return { success: true }
+  revalidatePath("/admin/contracts")
+  return { success: true, addendumCreated: !!addendum }
 }
 
 export async function updateTenantUser(userId: string, tenantId: string, formData: FormData) {
