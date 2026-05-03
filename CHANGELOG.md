@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.5 - 2026-05-04
+
+- Добавлены явные deny-by-default RLS policies для public-таблиц, где RLS был включен, но policies отсутствовали.
+- Убраны grants для `anon` и `authenticated` на application tables в `public`, чтобы Supabase Data API не мог читать или менять tenant-данные напрямую.
+- Добавлен revoke default privileges для будущих public-таблиц, созданных текущей DB-ролью.
+- Проверка `/admin/system-health` теперь ловит public-таблицы с выключенным RLS, RLS-таблицы без policies и любые client grants для `anon/authenticated`.
+- Добавлена rollback-точка `rollback/pre-public-rls-deny-policies-1.3.5`.
+
 ## 1.3.4 - 2026-05-04
 
 - Обновлен onboarding: вместо простого списка добавлен чеклист запуска платформы по объекту, людям, документам и финансам.

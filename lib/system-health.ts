@@ -223,62 +223,49 @@ async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "
     table_name: string
     rls_enabled: boolean
     client_grants: number
-    deny_policy_exists: boolean
+    policy_count: number
   }>>`
     SELECT
       c.relname AS table_name,
       c.relrowsecurity AS rls_enabled,
-      (
-        SELECT COUNT(*)::int
-        FROM information_schema.role_table_grants g
-        WHERE g.table_schema = n.nspname
-          AND g.table_name = c.relname
-          AND g.grantee IN ('anon', 'authenticated')
-      ) AS client_grants,
-      EXISTS (
-        SELECT 1
-        FROM pg_policies p
-        WHERE p.schemaname = n.nspname
-          AND p.tablename = c.relname
-          AND p.policyname IN ('api_keys_no_client_access', 'user_building_access_no_client_access')
-      ) AS deny_policy_exists
+      COUNT(DISTINCT p.oid)::int AS policy_count,
+      COUNT(g.privilege_type)::int AS client_grants
     FROM pg_class c
     JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN pg_policy p ON p.polrelid = c.oid
+    LEFT JOIN information_schema.role_table_grants g
+      ON g.table_schema = n.nspname
+      AND g.table_name = c.relname
+      AND g.grantee IN ('anon', 'authenticated')
     WHERE n.nspname = 'public'
-      AND c.relname IN ('api_keys', 'user_building_access')
+      AND c.relkind = 'r'
+    GROUP BY c.relname, c.relrowsecurity
     ORDER BY c.relname
   `
 
-  const missingTables = ["api_keys", "user_building_access"]
-    .filter((tableName) => !rows.some((row) => row.table_name === tableName))
   const rlsDisabled = rows.filter((row) => !row.rls_enabled)
+  const noPolicies = rows.filter((row) => row.rls_enabled && row.policy_count === 0)
   const exposedGrants = rows.filter((row) => row.client_grants > 0)
-  const missingDenyPolicies = rows.filter((row) => !row.deny_policy_exists)
 
-  if (missingTables.length > 0 || rlsDisabled.length > 0 || exposedGrants.length > 0) {
+  if (rlsDisabled.length > 0 || noPolicies.length > 0 || exposedGrants.length > 0) {
     return {
       status: "error",
-      message: "Sensitive public tables are not fully protected from Supabase Data API.",
+      message: "Public RLS tables are not fully protected from Supabase Data API.",
       details: [
-        missingTables.length > 0 ? `Таблицы не найдены: ${missingTables.join(", ")}.` : null,
-        rlsDisabled.length > 0 ? `RLS выключен: ${rlsDisabled.map((row) => row.table_name).join(", ")}.` : null,
-        exposedGrants.length > 0 ? `Есть grants для anon/authenticated: ${exposedGrants.map((row) => row.table_name).join(", ")}.` : null,
+        rlsDisabled.length > 0 ? `RLS disabled: ${limitTableList(rlsDisabled.map((row) => row.table_name))}.` : null,
+        noPolicies.length > 0 ? `RLS enabled without policies: ${limitTableList(noPolicies.map((row) => row.table_name))}.` : null,
+        exposedGrants.length > 0 ? `Client grants for anon/authenticated: ${limitTableList(exposedGrants.map((row) => row.table_name))}.` : null,
       ].filter(Boolean) as string[],
-    }
-  }
-
-  if (missingDenyPolicies.length > 0) {
-    return {
-      status: "warning",
-      message: "RLS включен, но явные deny policies найдены не для всех sensitive tables.",
-      details: missingDenyPolicies.map((row) => `Нет deny policy: ${row.table_name}.`),
     }
   }
 
   return {
     status: "ok",
-    message: "Sensitive tables закрыты RLS и не имеют client grants.",
-    details: rows.map((row) => `${row.table_name}: RLS on, client grants 0.`),
+    message: "Public RLS tables have explicit policies and no client grants.",
+    details: [
+      `Checked public tables: ${rows.length}.`,
+      "Client access remains routed through Next.js server actions and Prisma.",
+    ],
   }
 }
 
@@ -520,6 +507,12 @@ function hostMatches(rootHost: string, nextAuthUrl: string): boolean {
   } catch {
     return false
   }
+}
+
+function limitTableList(tableNames: string[]): string {
+  const visible = tableNames.slice(0, 12)
+  const hidden = tableNames.length - visible.length
+  return hidden > 0 ? `${visible.join(", ")} and ${hidden} more` : visible.join(", ")
 }
 
 function maskEmail(value: string): string {
