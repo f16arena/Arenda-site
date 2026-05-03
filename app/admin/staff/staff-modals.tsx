@@ -262,7 +262,7 @@ export function DeactivateButton({ userId, isActive }: { userId: string; isActiv
   const [pending, startTransition] = useTransition()
 
   return (
-    <form action={(fd) => startTransition(async () => {
+    <form action={() => startTransition(async () => {
       if (isActive) await deactivateStaff(userId)
       else await reactivateStaff(userId)
     })}>

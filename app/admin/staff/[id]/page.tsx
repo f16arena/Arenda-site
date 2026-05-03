@@ -9,7 +9,7 @@ import { assertUserInOrg } from "@/lib/scope-guards"
 import { formatMoney, ROLES, ROLE_COLORS, cn } from "@/lib/utils"
 import {
   ArrowLeft, Mail, Phone, Briefcase, Wallet,
-  CheckCircle, AlertCircle, Calendar, Shield, History,
+  CheckCircle, AlertCircle, Calendar, History,
 } from "lucide-react"
 import { StaffEditForm } from "./staff-edit-form"
 

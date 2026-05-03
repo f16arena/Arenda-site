@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, Download, FileSpreadsheet, FileText } from "lucide-react"
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText } from "lucide-react"
 import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { DeleteTenantButton } from "./delete-tenant-button"
 
@@ -174,11 +174,6 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
       </body></html>
     `)
     w.document.close()
-  }
-
-  const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <ArrowUpDown className="h-3 w-3 opacity-40" />
-    return sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
   }
 
   return (

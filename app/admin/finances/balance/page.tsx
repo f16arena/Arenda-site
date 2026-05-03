@@ -6,8 +6,7 @@ import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { formatMoney } from "@/lib/utils"
 import {
-  Wallet, Banknote, CreditCard, ArrowLeft, ArrowDown, ArrowUp,
-  ArrowRightLeft, Settings,
+  Wallet, Banknote, CreditCard, ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
 import { BalanceClient } from "./balance-client"

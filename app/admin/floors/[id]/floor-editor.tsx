@@ -8,9 +8,9 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
   Save, Trash2, Square, Pentagon, DoorOpen, Type, Minus,
-  MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Move, Sparkles,
+  MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Sparkles,
   Image as ImageIcon, X as XIcon, Undo2, Redo2, Copy, MoreHorizontal,
-  Eye, Layers as LayersIcon, Ruler, Box, Maximize2, Eraser,
+  Ruler, Box, Maximize2, Eraser,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -771,11 +771,9 @@ export function FloorEditor({
         // При ошибке парсинга AI выводим raw в консоль для диагностики
         const dataWithDebug = data as { error?: string; raw?: string; parseError?: string }
         if (dataWithDebug.raw) {
-          // eslint-disable-next-line no-console
           console.warn("[AI recognize] raw response:", dataWithDebug.raw)
         }
         if (dataWithDebug.parseError) {
-          // eslint-disable-next-line no-console
           console.warn("[AI recognize] parse error:", dataWithDebug.parseError)
         }
         toast.error(data.error ?? `HTTP ${res.status}`)

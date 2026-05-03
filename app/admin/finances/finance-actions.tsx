@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Plus, X, DollarSign, TrendingDown, AlertTriangle } from "lucide-react"
-import { recordPayment, addExpense, generateMonthlyCharges, addCharge } from "@/app/actions/finance"
+import { recordPayment, addExpense, generateMonthlyCharges } from "@/app/actions/finance"
 import { calculatePenalties } from "@/app/actions/penalties"
 
 type Tenant = { id: string; companyName: string }

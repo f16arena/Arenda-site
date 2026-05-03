@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Eye, EyeOff, Edit2, X } from "lucide-react"
+import { Eye, EyeOff, Edit2 } from "lucide-react"
 import { toast } from "sonner"
 import { setPermission } from "@/app/actions/permissions"
 import { cn } from "@/lib/utils"

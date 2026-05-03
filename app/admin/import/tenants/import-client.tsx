@@ -8,7 +8,6 @@ import {
   previewTenantImport,
   applyTenantImport,
   type PreviewResult,
-  type ParsedTenantRow,
   type ImportResult,
 } from "@/app/actions/import-tenants"
 

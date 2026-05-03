@@ -167,7 +167,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
   )
 }
 
-export function EditSpaceDialog({ space, floors }: { space: Space; floors: Floor[] }) {
+export function EditSpaceDialog({ space }: { space: Space; floors: Floor[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 

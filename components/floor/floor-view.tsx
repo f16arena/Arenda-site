@@ -7,7 +7,6 @@ import {
   type FloorLayoutV2,
   type FloorElement,
   elementCenter,
-  polygonArea,
 } from "@/lib/floor-layout"
 
 const PX_PER_METER = 40

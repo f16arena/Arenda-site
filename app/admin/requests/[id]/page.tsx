@@ -1,5 +1,4 @@
 import { db } from "@/lib/db"
-import { auth } from "@/auth"
 import { notFound } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { assertRequestInOrg } from "@/lib/scope-guards"
@@ -13,7 +12,6 @@ import { addRequestComment, updateRequestStatus } from "@/app/actions/requests"
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await auth()
   const { orgId } = await requireOrgAccess()
   try {
     await assertRequestInOrg(id, orgId)

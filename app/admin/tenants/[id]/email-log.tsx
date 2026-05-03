@@ -1,4 +1,4 @@
-import { Mail, Eye, AlertCircle, Send } from "lucide-react"
+import { Eye, AlertCircle, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type EmailLogItem = {

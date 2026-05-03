@@ -13,9 +13,6 @@ export default async function SubscriptionsTimelinePage() {
   await requirePlatformOwner()
 
   const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 1)
   const in7Days = new Date(now.getTime() + 7 * 24 * 3600 * 1000)
   const in30Days = new Date(now.getTime() + 30 * 24 * 3600 * 1000)
 

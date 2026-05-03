@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, X, Phone, Mail, MapPin, ArrowRight, ArrowLeft, Calendar, Trash2 } from "lucide-react"
+import { Plus, X, Phone, Mail, ArrowRight, ArrowLeft, Calendar, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createLead, updateLeadStatus, bookSpaceForLead, unbookSpaceForLead, deleteLead } from "@/app/actions/leads"
 import { LEAD_STATUSES, LEAD_SOURCES } from "@/lib/lead-constants"

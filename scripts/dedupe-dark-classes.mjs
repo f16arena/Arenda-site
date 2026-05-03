@@ -51,7 +51,7 @@ function processFile(path) {
   // Регэксп для className="..." и className={`...`}
   const result = content.replace(
     /(className=)("([^"]*)"|`([^`]*)`|{`([^`]*)`}|{cn\([^)]*\)})/g,
-    (match, attr, _full, dq, btq, cnInner) => {
+    (match, attr, _full, dq, btq) => {
       // dq — обычные кавычки, btq — обратные кавычки. cn() пропускаем.
       const classes = dq ?? btq
       if (!classes) return match
@@ -59,7 +59,6 @@ function processFile(path) {
       if (!dedup.changed) return match
       changed = true
       count++
-      const wrapper = dq ? '"' : '`'
       // Восстанавливаем формат
       if (dq) return `${attr}"${dedup.result}"`
       if (btq) return `${attr}\`${dedup.result}\``

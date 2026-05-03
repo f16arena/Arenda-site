@@ -6,7 +6,7 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
-import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
+import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 
@@ -202,11 +202,6 @@ export async function GET(req: Request) {
     spacing: { after: 100 },
     children: [new TextRun({ text, bold: opts?.bold ?? true, size: opts?.size ?? 24 })],
   })
-  const right = (text: string) => new Paragraph({
-    alignment: AlignmentType.RIGHT,
-    children: [new TextRun({ text, size: 22 })],
-  })
-
   // Tenant data
   const tenantName = tenant.companyName
   const tenantDir = tenant.directorName ?? tenant.user.name

@@ -6,7 +6,7 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { LANDLORD } from "@/lib/landlord"
 import { Document, Packer } from "docx"
 import {
-  p, center, heading, row, fmtMoney, fmtDate, periodLabel, numberToWords, shortName,
+  p, center, row, fmtMoney, fmtDate, periodLabel, numberToWords, shortName,
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"

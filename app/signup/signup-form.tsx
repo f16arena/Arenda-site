@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useActionState } from "react"
-import { signup, type SignupResult } from "@/app/actions/signup"
+import { signup } from "@/app/actions/signup"
 import { checkSlugAvailable, type SlugCheckResult } from "@/app/actions/organizations"
 import { slugify } from "@/lib/slugify"
 import Link from "next/link"

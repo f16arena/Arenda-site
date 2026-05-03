@@ -11,7 +11,7 @@ async function main() {
   const hash = (pw: string) => bcrypt.hash(pw, 10)
 
   // ─── Staff users ───────────────────────────────────────────────
-  const [owner, admin, accountant, manager] = await Promise.all([
+  const [, admin, accountant, manager] = await Promise.all([
     db.user.upsert({
       where: { phone: "+77000000001" },
       update: {},

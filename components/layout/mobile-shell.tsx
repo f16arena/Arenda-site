@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, ReactNode } from "react"
-import { Menu, X } from "lucide-react"
+import { Menu } from "lucide-react"
 
 export function MobileShell({ sidebar, header, children }: {
   sidebar: ReactNode
