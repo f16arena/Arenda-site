@@ -25,7 +25,17 @@ const PUBLIC_ROOT_PATHS = new Set([
 // на '/' и клиент получал бы HTML вместо JSON.
 // /booking — публичная витрина свободных площадей.
 // /sign — публичная страница подписи договора по уникальному токену.
-const PUBLIC_ROOT_PREFIXES = ["/api/", "/_next", "/favicon", "/icon", "/manifest", "/booking", "/sign"]
+const PUBLIC_ROOT_PREFIXES = [
+  "/api/",
+  "/_next",
+  "/favicon",
+  "/icon",
+  "/manifest",
+  "/robots",
+  "/sitemap",
+  "/booking",
+  "/sign",
+]
 
 function isPublicRootPath(path: string): boolean {
   if (PUBLIC_ROOT_PATHS.has(path)) return true
@@ -160,6 +170,6 @@ export const config = {
     // /api/logout исключён, чтобы middleware (auth() wrapper) не рефрешил
     // session cookie в момент логаута — иначе наша очистка cookie конфликтует
     // с обновлённым cookie от middleware и пользователь "не выходит".
-    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json).*)",
+    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json|robots.txt|sitemap.xml).*)",
   ],
 }
