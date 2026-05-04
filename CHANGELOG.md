@@ -2,6 +2,19 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.47 - 2026-05-04
+
+- Vercel/production build теперь выполняет `prisma migrate deploy` перед `prisma generate` и `next build`, чтобы новая версия кода не запускалась поверх старой схемы БД.
+- Build использует `scripts/deploy-migrations.mjs`: если история Prisma уже есть, выполняется обычный `migrate deploy`; если история отсутствует после старого `db push`/ручных SQL, скрипт безопасно синхронизирует схему, включает deny-by-default RLS и baseline-ит текущие миграции.
+- Prisma CLI переведён на `DIRECT_URL` с fallback на `DATABASE_URL`: миграции должны идти через session/direct pooler Supabase, а приложение продолжает работать через runtime `DATABASE_URL`.
+- Если `DIRECT_URL` не задан, Prisma config пытается безопасно вывести Supabase session-pooler из transaction-pooler `DATABASE_URL` (`6543` → `5432`, без `pgbouncer=true`).
+- `prisma/migrations/migration_lock.toml` выровнен на `postgresql`, чтобы Prisma не блокировала миграции ошибкой provider switch.
+- Усилена диагностика схемы: health-check проверяет новые таблицы и критичные колонки после релизов с адресами, storage scope, payment reports и Web Vitals.
+- `/api/health/db` теперь показывает недостающие таблицы/колонки, если production-БД отстала от миграций.
+- Health-check больше не ищет `route.ts`, `app/sitemap.ts`, `app/robots.ts` и локальную папку `prisma/migrations` в production bundle: Vercel runtime не обязан хранить исходники как файлы, поэтому эти проверки выполняются локально/CI, а production проверяет runtime-секреты и историю БД.
+- Production Supabase baseline выровнен: схема синхронизирована с Prisma, свежие idempotent SQL для адресов/Web Vitals/RLS применены, `_prisma_migrations` заполнена как applied для текущей базы.
+- Добавлена rollback-точка `rollback/pre-auto-migrate-deploy-1.3.47`.
+
 ## 1.3.46 - 2026-05-04
 
 - Добавлена настоящая пагинация для `/admin/email-logs` и `/superadmin/audit`; крупные выборки `take: 200/500` заменены на ограниченные страницы или меньшие source-cap.

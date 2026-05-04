@@ -32,25 +32,126 @@ type MigrationRow = {
 
 const REQUIRED_ENV = [
   "DATABASE_URL",
+  "DIRECT_URL",
   "NEXTAUTH_URL",
   "ROOT_HOST",
   "CRON_SECRET",
 ] as const
 
 const REQUIRED_TABLES = [
+  "api_keys",
   "organizations",
+  "plans",
+  "subscriptions",
   "users",
   "buildings",
+  "user_building_access",
   "floors",
   "spaces",
+  "tenant_spaces",
   "tenants",
+  "cash_accounts",
+  "cash_transactions",
   "charges",
   "payments",
+  "payment_reports",
   "contracts",
+  "document_signatures",
+  "document_templates",
   "generated_documents",
+  "tenant_documents",
+  "stored_files",
+  "faq_articles",
+  "address_cache",
+  "web_vital_metrics",
+  "meters",
+  "meter_readings",
+  "requests",
+  "request_comments",
+  "tasks",
+  "messages",
+  "notifications",
   "audit_logs",
   "email_logs",
-  "user_building_access",
+  "role_permissions",
+] as const
+
+const REQUIRED_COLUMNS = [
+  {
+    table: "organizations",
+    columns: [
+      "legal_type",
+      "legal_name",
+      "director_name",
+      "basis",
+      "bank_name",
+      "second_bank_name",
+      "second_iik",
+      "second_bik",
+    ],
+  },
+  {
+    table: "buildings",
+    columns: [
+      "administrator_user_id",
+      "contract_prefix",
+      "invoice_prefix",
+      "address_country_code",
+      "address_city",
+      "address_street",
+      "address_source_id",
+    ],
+  },
+  {
+    table: "floors",
+    columns: ["fixed_monthly_rent", "full_floor_tenant_id"],
+  },
+  {
+    table: "tenants",
+    columns: ["space_id", "custom_rate", "fixed_monthly_rent", "legal_type", "iin"],
+  },
+  {
+    table: "tenant_spaces",
+    columns: ["tenant_id", "space_id", "is_primary"],
+  },
+  {
+    table: "payment_reports",
+    columns: ["method", "receipt_file_id", "reviewed_by_id", "payment_id"],
+  },
+  {
+    table: "stored_files",
+    columns: [
+      "organization_id",
+      "building_id",
+      "tenant_id",
+      "category",
+      "visibility",
+      "compressed_size",
+      "data",
+    ],
+  },
+  {
+    table: "address_cache",
+    columns: ["query_key", "display_name", "source_id", "country_code"],
+  },
+  {
+    table: "web_vital_metrics",
+    columns: ["organization_id", "name", "value", "path", "created_at"],
+  },
+] as const
+
+const RECENT_REQUIRED_MIGRATIONS = [
+  "20260504110000_payment_reports",
+  "20260504123000_faq_articles",
+  "20260504190000_db_storage_files",
+  "20260504203000_payment_report_method",
+  "20260504213000_tenant_spaces",
+  "20260504220000_organization_requisites",
+  "20260504230000_organization_second_bank_account",
+  "20260504233000_storage_saas_scope",
+  "20260505000000_kz_address_autocomplete",
+  "20260505003000_performance_indexes",
+  "20260505004000_web_vital_metrics",
 ] as const
 
 const EXPECTED_CRONS = [
@@ -201,6 +302,26 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
 async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const errors: string[] = []
   const details: string[] = []
+  const sourceAvailable = await sourceFileAvailable("lib", "cron-auth.ts")
+
+  if (!sourceAvailable && isProductionRuntime()) {
+    if (!process.env.CRON_SECRET) {
+      return {
+        status: "error",
+        message: "Cron-секрет не настроен.",
+        details: ["CRON_SECRET обязателен: cron endpoints должны требовать Authorization: Bearer <CRON_SECRET>."],
+      }
+    }
+
+    return {
+      status: "ok",
+      message: "Runtime guardrails проверены. Source-scan пропущен в production bundle.",
+      details: [
+        "CRON_SECRET задан, cron endpoints работают через Bearer-секрет.",
+        "Статический scan route.ts/lib/*.ts выполняется локально и в CI, потому что Vercel runtime не всегда содержит исходники app/ как файлы.",
+      ],
+    }
+  }
 
   const cronAuth = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "cron-auth.ts"), "utf8").catch(() => "")
   if (!cronAuth.includes("CRON_SECRET")) errors.push("lib/cron-auth.ts не проверяет CRON_SECRET.")
@@ -335,22 +456,58 @@ async function checkDatabase(): Promise<Omit<SystemCheck, "id" | "label" | "ms">
 }
 
 async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
-  const rows = await db.$queryRaw<Array<{ table_name: string }>>`
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-    ORDER BY table_name
-  `
-  const tables = rows.map((row) => row.table_name)
-  const missing = REQUIRED_TABLES.filter((table) => !tables.includes(table))
+  const [tableRows, columnRows] = await Promise.all([
+    db.$queryRaw<Array<{ table_name: string }>>`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `,
+    db.$queryRaw<Array<{ table_name: string; column_name: string }>>`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+      ORDER BY table_name, column_name
+    `,
+  ])
 
-  if (missing.length > 0) {
+  const tables = tableRows.map((row) => row.table_name)
+  const missing = REQUIRED_TABLES.filter((table) => !tables.includes(table))
+  const columnsByTable = new Map<string, Set<string>>()
+  for (const row of columnRows) {
+    const columns = columnsByTable.get(row.table_name) ?? new Set<string>()
+    columns.add(row.column_name)
+    columnsByTable.set(row.table_name, columns)
+  }
+  const missingColumns = REQUIRED_COLUMNS.flatMap(({ table, columns }) => {
+    const tableColumns = columnsByTable.get(table)
+    if (!tableColumns) return columns.map((column) => `${table}.${column}`)
+    return columns.filter((column) => !tableColumns.has(column)).map((column) => `${table}.${column}`)
+  })
+  const checkedColumns = REQUIRED_COLUMNS.reduce((sum, item) => sum + item.columns.length, 0)
+
+  if (missing.length > 0 || missingColumns.length > 0) {
     return {
       status: "error",
-      message: "В базе не найдены обязательные таблицы.",
+      message: "Production-БД отстала от кода приложения.",
       details: [
-        `Отсутствуют: ${missing.join(", ")}.`,
+        missing.length > 0 ? `Отсутствуют таблицы: ${missing.join(", ")}.` : null,
+        missingColumns.length > 0 ? `Отсутствуют колонки: ${missingColumns.join(", ")}.` : null,
+        "Запустите `prisma migrate deploy` или дождитесь Vercel build, который применяет миграции перед `next build`.",
         `Найдено таблиц: ${tables.length}.`,
+        `Проверено колонок: ${checkedColumns}.`,
+      ].filter(Boolean) as string[],
+    }
+  }
+
+  const missingRecentMigrations = await getMissingRecentMigrations()
+  if (missingRecentMigrations.length > 0) {
+    return {
+      status: "warning",
+      message: "Объекты схемы найдены, но в истории Prisma нет части свежих миграций.",
+      details: [
+        `Нет записей миграций: ${missingRecentMigrations.join(", ")}.`,
+        "Если БД меняли вручную, лучше выполнить `prisma migrate deploy` или выровнять историю миграций.",
       ],
     }
   }
@@ -358,7 +515,10 @@ async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "
   return {
     status: "ok",
     message: "Ключевые таблицы актуальной Prisma-схемы найдены.",
-    details: [`Проверено таблиц: ${REQUIRED_TABLES.length}.`],
+    details: [
+      `Проверено таблиц: ${REQUIRED_TABLES.length}.`,
+      `Проверено колонок: ${checkedColumns}.`,
+    ],
   }
 }
 
@@ -413,26 +573,56 @@ async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "
   }
 }
 
+async function getMissingRecentMigrations(): Promise<string[]> {
+  const rows = await db.$queryRaw<Array<{ migration_name: string; finished_at: Date | null; rolled_back_at: Date | null }>>`
+    SELECT migration_name, finished_at, rolled_back_at
+    FROM "_prisma_migrations"
+  `.catch(() => null)
+
+  if (!rows) return []
+
+  const applied = new Set(
+    rows
+      .filter((migration) => migration.finished_at && !migration.rolled_back_at)
+      .map((migration) => migration.migration_name)
+  )
+
+  return RECENT_REQUIRED_MIGRATIONS.filter((migration) => !applied.has(migration))
+}
+
 async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const localMigrations = await getLocalMigrations()
   if (localMigrations.length === 0) {
+    const dbMigrations = await getDbMigrations()
+    if (dbMigrations && dbMigrations.length > 0) {
+      const applied = dbMigrations.filter((migration) => migration.finished_at && !migration.rolled_back_at)
+      const latestApplied = applied.at(-1)?.migration_name
+      const missingRecent = RECENT_REQUIRED_MIGRATIONS.filter((migration) => !applied.some((row) => row.migration_name === migration))
+
+      return {
+        status: missingRecent.length > 0 ? "warning" : "ok",
+        message: missingRecent.length > 0
+          ? "В production недоступны локальные migration-файлы, но история БД найдена частично."
+          : "История Prisma-миграций в БД найдена.",
+        details: [
+          "Vercel runtime может не содержать папку prisma/migrations как обычные файлы, поэтому проверяем _prisma_migrations в БД.",
+          latestApplied ? `Последняя примененная: ${latestApplied}.` : "Примененные миграции не найдены.",
+          `Записей в истории БД: ${dbMigrations.length}.`,
+          missingRecent.length > 0 ? `Нет свежих миграций: ${missingRecent.join(", ")}.` : null,
+        ].filter(Boolean) as string[],
+      }
+    }
+
     return {
       status: "warning",
       message: "Локальные Prisma-миграции не найдены.",
+      details: [
+        "Если это production, проверьте наличие таблицы _prisma_migrations и переменной DIRECT_URL.",
+      ],
     }
   }
 
-  const dbMigrations = await db.$queryRaw<MigrationRow[]>`
-      SELECT migration_name, finished_at, rolled_back_at
-      FROM "_prisma_migrations"
-      ORDER BY migration_name ASC
-    `.catch((error) => {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes("_prisma_migrations") || message.includes("relation")) {
-        return null
-      }
-      throw error
-    })
+  const dbMigrations = await getDbMigrations()
 
   if (!dbMigrations) {
     return {
@@ -486,6 +676,17 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const vercelPath = path.join(/* turbopackIgnore: true */ process.cwd(), "vercel.json")
   const vercelRaw = await readFile(vercelPath, "utf8").catch(() => null)
   if (!vercelRaw) {
+    if (isProductionRuntime() && process.env.CRON_SECRET) {
+      return {
+        status: "ok",
+        message: "Cron-секрет настроен. Source-check vercel.json пропущен в production bundle.",
+        details: [
+          "Vercel runtime не всегда содержит vercel.json как файл.",
+          "Расписание cron проверяется локально/CI, runtime-защита проверена по CRON_SECRET.",
+        ],
+      }
+    }
+
     return {
       status: "warning",
       message: "vercel.json не найден, расписание cron не проверено.",
@@ -496,12 +697,16 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const vercel = JSON.parse(vercelRaw) as { crons?: Array<{ path?: string; schedule?: string }> }
   const configured = new Set((vercel.crons ?? []).map((cron) => cron.path).filter(Boolean))
   const missing = EXPECTED_CRONS.filter((cronPath) => !configured.has(cronPath))
-  const routeMissing = await missingCronRoutes()
+  const routeMissing = isProductionRuntime() ? [] : await missingCronRoutes()
 
   if (missing.length > 0) details.push(`Нет расписания для: ${missing.join(", ")}.`)
   if (routeMissing.length > 0) details.push(`Не найдены route.ts для: ${routeMissing.join(", ")}.`)
+  if (isProductionRuntime()) {
+    details.push("Проверка route.ts пропущена в production bundle: Vercel runtime не обязан хранить исходники app/ как файлы.")
+  }
 
-  if (details.length > 0) {
+  const blockingDetails = details.filter((detail) => !detail.includes("Проверка route.ts пропущена"))
+  if (blockingDetails.length > 0) {
     return {
       status: process.env.CRON_SECRET ? "warning" : "error",
       message: process.env.CRON_SECRET
@@ -514,7 +719,10 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   return {
     status: "ok",
     message: "Cron-секрет и расписания Vercel настроены.",
-    details: EXPECTED_CRONS.map((cronPath) => `Проверен ${cronPath}.`),
+    details: [
+      ...EXPECTED_CRONS.map((cronPath) => `Проверен ${cronPath}.`),
+      ...details,
+    ],
   }
 }
 
@@ -569,13 +777,18 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
     details.push("ROOT_HOST и NEXTAUTH_URL указывают на разные домены.")
   }
 
-  const sitemapExists = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "sitemap.ts"))
-  const robotsExists = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "robots.ts"))
+  if (isProductionRuntime()) {
+    details.push("Source-check app/sitemap.ts и app/robots.ts пропущен в production bundle; Next.js routes проверяются локально/CI.")
+  } else {
+    const sitemapExists = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "sitemap.ts"))
+    const robotsExists = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "robots.ts"))
 
-  if (!sitemapExists) details.push("app/sitemap.ts не найден.")
-  if (!robotsExists) details.push("app/robots.ts не найден.")
+    if (!sitemapExists) details.push("app/sitemap.ts не найден.")
+    if (!robotsExists) details.push("app/robots.ts не найден.")
+  }
 
-  if (details.length > 0) {
+  const blockingDetails = details.filter((detail) => !detail.includes("Source-check"))
+  if (blockingDetails.length > 0) {
     return {
       status: "warning",
       message: "SEO/домен требуют внимания.",
@@ -590,6 +803,7 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
       `ROOT_HOST: ${rootHost}.`,
       "Sitemap: /sitemap.xml.",
       "Robots: /robots.txt.",
+      ...details,
     ],
   }
 }
@@ -651,6 +865,20 @@ async function getLocalMigrations(): Promise<string[]> {
     .sort()
 }
 
+async function getDbMigrations(): Promise<MigrationRow[] | null> {
+  return db.$queryRaw<MigrationRow[]>`
+      SELECT migration_name, finished_at, rolled_back_at
+      FROM "_prisma_migrations"
+      ORDER BY migration_name ASC
+    `.catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes("_prisma_migrations") || message.includes("relation")) {
+        return null
+      }
+      throw error
+    })
+}
+
 async function missingCronRoutes(): Promise<string[]> {
   const results = await Promise.all(
     EXPECTED_CRONS.map(async (cronPath) => {
@@ -665,10 +893,18 @@ async function fileExists(filePath: string): Promise<boolean> {
   return stat(filePath).then((item) => item.isFile()).catch(() => false)
 }
 
+async function sourceFileAvailable(...segments: string[]): Promise<boolean> {
+  return fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), ...segments))
+}
+
 async function readJson<T>(relativePath: string): Promise<T | null> {
   return readFile(path.join(/* turbopackIgnore: true */ process.cwd(), relativePath), "utf8")
     .then((value) => JSON.parse(value) as T)
     .catch(() => null)
+}
+
+function isProductionRuntime(): boolean {
+  return process.env.VERCEL === "1" || process.env.NODE_ENV === "production"
 }
 
 function hostMatches(rootHost: string, nextAuthUrl: string): boolean {

@@ -3,6 +3,26 @@ import { db } from "@/lib/db"
 
 export const dynamic = "force-dynamic"
 
+const REQUIRED_HEALTH_SCHEMA = [
+  { kind: "table", table: "payment_reports" },
+  { kind: "table", table: "stored_files" },
+  { kind: "table", table: "tenant_spaces" },
+  { kind: "table", table: "address_cache" },
+  { kind: "table", table: "web_vital_metrics" },
+  { kind: "column", table: "buildings", column: "address_country_code" },
+  { kind: "column", table: "buildings", column: "address_source_id" },
+  { kind: "column", table: "organizations", column: "second_bank_name" },
+  { kind: "column", table: "payment_reports", column: "method" },
+  { kind: "column", table: "payment_reports", column: "receipt_file_id" },
+  { kind: "column", table: "stored_files", column: "building_id" },
+  { kind: "column", table: "stored_files", column: "tenant_id" },
+  { kind: "column", table: "stored_files", column: "visibility" },
+  { kind: "column", table: "floors", column: "full_floor_tenant_id" },
+  { kind: "column", table: "tenant_spaces", column: "space_id" },
+  { kind: "column", table: "address_cache", column: "query_key" },
+  { kind: "column", table: "web_vital_metrics", column: "name" },
+] as const
+
 // GET /api/health/db
 // Подробная диагностика подключения к БД, без авторизации.
 // Открывайте на Vercel https://your-app.vercel.app/api/health/db чтобы увидеть статус.
@@ -65,6 +85,29 @@ export async function GET() {
     })
   }
 
+  // 5. Быстрая проверка схемы после свежих релизов.
+  t0 = Date.now()
+  try {
+    const missing = await findMissingRequiredSchema()
+    checks.push({
+      name: "required_schema_1_3_47",
+      ok: missing.length === 0,
+      ms: Date.now() - t0,
+      result: {
+        checked: REQUIRED_HEALTH_SCHEMA.length,
+        missing,
+        fix: missing.length > 0 ? "Run `prisma migrate deploy` before serving the new build." : "schema_ok",
+      },
+    })
+  } catch (e) {
+    checks.push({
+      name: "required_schema_1_3_47",
+      ok: false,
+      ms: Date.now() - t0,
+      error: e instanceof Error ? e.message : String(e),
+    })
+  }
+
   const env = {
     NODE_ENV: process.env.NODE_ENV,
     VERCEL: process.env.VERCEL ?? null,
@@ -94,4 +137,33 @@ function parseHost(url: string | undefined): string | null {
   } catch {
     return "invalid"
   }
+}
+
+async function findMissingRequiredSchema(): Promise<string[]> {
+  const [tableRows, columnRows] = await Promise.all([
+    db.$queryRaw<Array<{ table_name: string }>>`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+    `,
+    db.$queryRaw<Array<{ table_name: string; column_name: string }>>`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+    `,
+  ])
+
+  const tables = new Set(tableRows.map((row) => row.table_name))
+  const columnsByTable = new Map<string, Set<string>>()
+  for (const row of columnRows) {
+    const columns = columnsByTable.get(row.table_name) ?? new Set<string>()
+    columns.add(row.column_name)
+    columnsByTable.set(row.table_name, columns)
+  }
+
+  return REQUIRED_HEALTH_SCHEMA.flatMap((item) => {
+    if (item.kind === "table") return tables.has(item.table) ? [] : [`table:${item.table}`]
+    const columns = columnsByTable.get(item.table)
+    return columns?.has(item.column) ? [] : [`column:${item.table}.${item.column}`]
+  })
 }

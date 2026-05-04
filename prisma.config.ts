@@ -3,6 +3,8 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+const datasourceUrl = getDatasourceUrl();
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -10,6 +12,29 @@ export default defineConfig({
     seed: "node node_modules/tsx/dist/cli.mjs prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Prisma CLI migrations must use the Supabase session/direct pooler.
+    // The Next.js runtime still uses DATABASE_URL through lib/db.ts.
+    url: datasourceUrl,
   },
 });
+
+function getDatasourceUrl(): string | undefined {
+  const directUrl = process.env["DIRECT_URL"];
+  if (directUrl) return directUrl;
+
+  const databaseUrl = process.env["DATABASE_URL"];
+  if (!databaseUrl) return undefined;
+
+  try {
+    const url = new URL(databaseUrl);
+    if (url.hostname.includes("pooler.supabase.com") && url.port === "6543") {
+      url.port = "5432";
+      url.searchParams.delete("pgbouncer");
+      return url.toString();
+    }
+  } catch {
+    return databaseUrl;
+  }
+
+  return databaseUrl;
+}
