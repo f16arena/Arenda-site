@@ -124,6 +124,31 @@ model Organization {
   @@map("organizations")
 }
 
+model AddressCache {
+  id           String   @id @default(cuid())
+  countryCode  String   @default("kz") @map("country_code")
+  queryKey     String   @map("query_key")
+  displayName  String   @map("display_name")
+  region       String?
+  city         String?
+  settlement   String?
+  street       String?
+  houseNumber  String?  @map("house_number")
+  postcode     String?
+  latitude     Float?
+  longitude    Float?
+  source       String   @default("PHOTON")
+  sourceId     String?  @map("source_id")
+  raw          Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([source, sourceId])
+  @@index([countryCode, queryKey])
+  @@index([countryCode, city])
+  @@map("address_cache")
+}
+
 // Денежные счета организации (банковские счета, касса, карты).
 // Используются для отслеживания баланса (сколько денег где).
 model FaqArticle {
@@ -251,6 +276,17 @@ model Building {
   organizationId        String   @map("organization_id")
   name                  String
   address               String
+  addressCountryCode    String?  @map("address_country_code")
+  addressRegion         String?  @map("address_region")
+  addressCity           String?  @map("address_city")
+  addressSettlement     String?  @map("address_settlement")
+  addressStreet         String?  @map("address_street")
+  addressHouseNumber    String?  @map("address_house_number")
+  addressPostcode       String?  @map("address_postcode")
+  addressLatitude       Float?   @map("address_latitude")
+  addressLongitude      Float?   @map("address_longitude")
+  addressSource         String?  @map("address_source")
+  addressSourceId       String?  @map("address_source_id")
   description           String?
   phone                 String?
   email                 String?
@@ -284,6 +320,8 @@ model Building {
   storedFiles       StoredFile[]
 
   @@index([organizationId])
+  @@index([organizationId, addressCity])
+  @@index([organizationId, addressStreet])
   @@map("buildings")
 }
 

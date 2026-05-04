@@ -17,6 +17,7 @@ export async function createBuilding(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim()
   const address = String(formData.get("address") ?? "").trim()
+  const addressFields = readAddressFields(formData)
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
@@ -31,6 +32,7 @@ export async function createBuilding(formData: FormData) {
       organizationId: orgId,
       name,
       address,
+      ...addressFields,
       description: description || null,
       phone,
       email,
@@ -54,6 +56,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
 
   const name = String(formData.get("name") ?? "").trim()
   const address = String(formData.get("address") ?? "").trim()
+  const addressFields = readAddressFields(formData)
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
@@ -70,6 +73,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
     data: {
       name,
       address,
+      ...addressFields,
       description: description || null,
       phone,
       email,
@@ -80,6 +84,34 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
 
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
+}
+
+function readAddressFields(formData: FormData) {
+  return {
+    addressCountryCode: readOptionalString(formData, "addressCountryCode") ?? "kz",
+    addressRegion: readOptionalString(formData, "addressRegion"),
+    addressCity: readOptionalString(formData, "addressCity"),
+    addressSettlement: readOptionalString(formData, "addressSettlement"),
+    addressStreet: readOptionalString(formData, "addressStreet"),
+    addressHouseNumber: readOptionalString(formData, "addressHouseNumber"),
+    addressPostcode: readOptionalString(formData, "addressPostcode"),
+    addressLatitude: readOptionalNumber(formData, "addressLatitude"),
+    addressLongitude: readOptionalNumber(formData, "addressLongitude"),
+    addressSource: readOptionalString(formData, "addressSource"),
+    addressSourceId: readOptionalString(formData, "addressSourceId"),
+  }
+}
+
+function readOptionalString(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim()
+  return value || null
+}
+
+function readOptionalNumber(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim()
+  if (!value) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
 
 export async function toggleBuildingActive(buildingId: string, isActive: boolean) {

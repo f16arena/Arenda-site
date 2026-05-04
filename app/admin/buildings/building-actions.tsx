@@ -16,6 +16,7 @@ import {
 } from "@/app/actions/buildings"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { formatMoney } from "@/lib/utils"
 
@@ -60,7 +61,9 @@ export function CreateBuildingButton() {
               className="p-6 space-y-4"
             >
               <Field label="Название *" name="name" required placeholder="F16 Plaza" />
-              <Field label="Адрес *" name="address" required placeholder="г. Алматы, ул..." />
+              <ContactField label="Адрес *">
+                <AddressAutocompleteInput name="address" required className={FIELD_CLASS} />
+              </ContactField>
               <Field label="Описание" name="description" placeholder="Бизнес-центр класса А" />
               <div className="grid grid-cols-2 gap-3">
                 <ContactField label="Телефон">
@@ -107,6 +110,17 @@ export function BuildingActions({
   building: {
     name: string
     address: string
+    addressCountryCode: string | null
+    addressRegion: string | null
+    addressCity: string | null
+    addressSettlement: string | null
+    addressStreet: string | null
+    addressHouseNumber: string | null
+    addressPostcode: string | null
+    addressLatitude: number | null
+    addressLongitude: number | null
+    addressSource: string | null
+    addressSourceId: string | null
     description: string | null
     phone: string | null
     email: string | null
@@ -205,7 +219,27 @@ export function BuildingActions({
               className="p-6 space-y-4"
             >
               <Field label="Название *" name="name" defaultValue={building.name} required />
-              <Field label="Адрес *" name="address" defaultValue={building.address} required />
+              <ContactField label="Адрес *">
+                <AddressAutocompleteInput
+                  name="address"
+                  defaultValue={building.address}
+                  defaultFields={{
+                    countryCode: building.addressCountryCode,
+                    region: building.addressRegion,
+                    city: building.addressCity,
+                    settlement: building.addressSettlement,
+                    street: building.addressStreet,
+                    houseNumber: building.addressHouseNumber,
+                    postcode: building.addressPostcode,
+                    latitude: building.addressLatitude,
+                    longitude: building.addressLongitude,
+                    source: building.addressSource,
+                    sourceId: building.addressSourceId,
+                  }}
+                  required
+                  className={FIELD_CLASS}
+                />
+              </ContactField>
               <Field label="Описание" name="description" defaultValue={building.description ?? ""} />
               <div className="grid grid-cols-2 gap-3">
                 <ContactField label="Телефон">
