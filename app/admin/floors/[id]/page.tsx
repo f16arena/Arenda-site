@@ -98,7 +98,6 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
     orderBy: { companyName: "asc" },
   })
   const candidates = tenantCandidates
-    .filter((t) => t.fullFloors.length === 0) // не предлагаем тех кто сдан целиком
     .map((t) => ({
       id: t.id,
       companyName: t.companyName,

@@ -24,12 +24,11 @@ export function FullFloorAssign({
   floors: Floor[]
   currentFloors: { id: string; name: string; fixedMonthlyRent: number | null }[]
 }) {
+  const availableFloors = floors.filter((f) => !f.fullFloorTenantId)
   const [open, setOpen] = useState(false)
-  const [floorId, setFloorId] = useState(floors[0]?.id ?? "")
+  const [floorId, setFloorId] = useState(availableFloors[0]?.id ?? "")
   const [rent, setRent] = useState("")
   const [pending, startTransition] = useTransition()
-
-  const availableFloors = floors.filter((f) => !f.fullFloorTenantId)
 
   return (
     <CollapsibleCard

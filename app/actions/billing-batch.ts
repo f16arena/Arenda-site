@@ -6,6 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { requireSection } from "@/lib/acl"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { formatTenantPlacement } from "@/lib/tenant-placement"
 
 export type BatchBillingResult = {
   ok: true
@@ -70,14 +71,10 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
         continue
       }
 
-      const ff = t.fullFloors[0]
       const monthlyRent = calculateTenantMonthlyRent(t)
       if (monthlyRent <= 0) continue
 
-      const placement = ff?.name
-        ?? (t.tenantSpaces.length > 0
-          ? t.tenantSpaces.map((item) => `Каб. ${item.space.number}, ${item.space.floor.name}`).join("; ")
-          : t.space ? `Каб. ${t.space.number}, ${t.space.floor.name}` : "по договору")
+      const placement = formatTenantPlacement(t)
       const dueDate = new Date(year, month - 1, t.paymentDueDay)
 
       await db.charge.create({

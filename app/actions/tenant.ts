@@ -14,6 +14,7 @@ import {
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import { normalizeTenantRentChoice } from "@/lib/rent"
+import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
@@ -355,12 +356,13 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     isVatPayer,
   }
 
-  const fullFloorWithFixedRent = tenant.fullFloors.find((floor) => positiveAmount(floor.fixedMonthlyRent) !== null)
+  const fullFloorsWithFixedRent = tenant.fullFloors.filter((floor) => positiveAmount(floor.fixedMonthlyRent) !== null)
+  const fullFloorRentTotal = fullFloorsWithFixedRent.reduce((sum, floor) => sum + (positiveAmount(floor.fixedMonthlyRent) ?? 0), 0)
   const tenantFixedRent = positiveAmount(tenant.fixedMonthlyRent)
   const tenantCustomRate = positiveAmount(tenant.customRate)
-  const rentalTermsLocked = !!fullFloorWithFixedRent || tenantFixedRent !== null || tenantCustomRate !== null
-  const lockReason = fullFloorWithFixedRent
-    ? `У арендатора указана стоимость за этаж ${fullFloorWithFixedRent.name}: ${formatAmount(fullFloorWithFixedRent.fixedMonthlyRent ?? 0)} ₸/мес.`
+  const rentalTermsLocked = fullFloorsWithFixedRent.length > 0 || tenantFixedRent !== null || tenantCustomRate !== null
+  const lockReason = fullFloorsWithFixedRent.length > 0
+    ? `У арендатора указана стоимость за этажи ${fullFloorsWithFixedRent.map((floor) => floor.name).join(", ")}: ${formatAmount(fullFloorRentTotal)} ₸/мес.`
     : tenantFixedRent !== null
       ? `У арендатора указана индивидуальная сумма аренды: ${formatAmount(tenantFixedRent)} ₸/мес.`
       : tenantCustomRate !== null
@@ -381,7 +383,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     if (addendumChanges.length < 10) throw new Error("Опишите изменения в дополнительном соглашении минимум в 10 символов")
     if (addendumChanges.length > 2000) throw new Error("Описание изменений должно быть до 2000 символов")
 
-    const buildingId = tenant.space?.floor.buildingId ?? tenant.fullFloors[0]?.buildingId
+    const buildingId = getTenantPrimaryBuildingId(tenant)
     if (!buildingId) throw new Error("Арендатор не привязан к помещению или этажу, поэтому нельзя оформить дополнительное соглашение")
 
     const unique = await isContractNumberUnique(buildingId, addendumNumber)
@@ -639,7 +641,6 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
           buildingId: true,
           building: { select: { name: true } },
         },
-        take: 1,
       },
     },
   })
@@ -669,12 +670,15 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
       },
     })
     if (target?.floor.buildingId) await assertBuildingAccess(target.floor.buildingId, orgId)
-    const tenantBuilding =
-      tenant.tenantSpaces[0]?.space.floor ??
-      tenant.space?.floor ??
-      tenant.fullFloors[0] ??
-      null
-    if (target && tenantBuilding && target.floor.buildingId !== tenantBuilding.buildingId) {
+    const tenantBuildings = [
+      ...tenant.tenantSpaces.map((item) => item.space.floor),
+      tenant.space?.floor,
+      ...tenant.fullFloors,
+    ].filter((building): building is NonNullable<typeof tenant.space>["floor"] => building !== null && building !== undefined)
+    const tenantBuilding = target
+      ? tenantBuildings.find((building) => building.buildingId !== target.floor.buildingId) ?? null
+      : null
+    if (target && tenantBuilding) {
       throw new Error(
         `Арендатор «${tenant.companyName}» относится к зданию «${tenantBuilding.building.name}», ` +
           `а Каб. ${target.number} находится в здании «${target.floor.building.name}». ` +

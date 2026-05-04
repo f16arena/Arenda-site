@@ -2,6 +2,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "@/lib/utils"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
+import { formatTenantPlacement, getTenantAreaTotal } from "@/lib/tenant-placement"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { PaymentPanel } from "./payment-panel"
 
@@ -26,18 +27,15 @@ export default async function CabinetFinances() {
   if (!tenant) return null
 
   const totalDebt = tenant.charges.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
-  const fullFloor = tenant.fullFloors[0]
-  const assignedSpaces = tenant.tenantSpaces.length > 0
-    ? tenant.tenantSpaces.map((item) => item.space)
-    : tenant.space ? [tenant.space] : []
-  const area = fullFloor?.totalArea ?? assignedSpaces.reduce((sum, space) => sum + space.area, 0)
+  const area = getTenantAreaTotal(tenant)
   const rate = calculateTenantRatePerSqm(tenant) ?? 0
   const monthlyRent = calculateTenantMonthlyRent(tenant)
+  const hasFullFloorFixedRent = tenant.fullFloors.some((floor) => hasFixedTenantRent(floor.fixedMonthlyRent))
   const currentPeriod = new Date().toISOString().slice(0, 7)
-  const placement = fullFloor?.name
-    ?? (assignedSpaces.length > 0
-      ? assignedSpaces.map((space) => `Каб. ${space.number}`).join(", ")
-      : "помещение по договору")
+  const placement = formatTenantPlacement(tenant, {
+    includeFloorName: false,
+    emptyLabel: "помещение по договору",
+  })
   const paymentPurpose = `Аренда ${placement}, ${tenant.companyName}, период ${currentPeriod}`
   const landlord = await getOrganizationRequisites(tenant.user.organizationId ?? session!.user.organizationId!)
   const requisites = {
@@ -89,7 +87,7 @@ export default async function CabinetFinances() {
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{area} м²</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Площадь</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-            {hasFixedTenantRent(tenant.fixedMonthlyRent) ? "Фикс. сумма" : `Ставка: ${formatMoney(rate)}/м²`}
+            {hasFixedTenantRent(tenant.fixedMonthlyRent) || hasFullFloorFixedRent ? "Фикс. сумма" : `Ставка: ${formatMoney(rate)}/м²`}
           </p>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">

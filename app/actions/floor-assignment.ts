@@ -18,27 +18,100 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
   // Этаж должен быть свободен: ни одно помещение не занято и нет другого full-floor арендатора
   await assertFloorAssignableToOneTenant(floorId)
 
+  const targetFloor = await db.floor.findUnique({
+    where: { id: floorId },
+    select: {
+      buildingId: true,
+      building: { select: { name: true } },
+    },
+  })
+  if (!targetFloor) throw new Error("Этаж не найден")
+
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, spaceId: true, tenantSpaces: { select: { spaceId: true } } },
+    select: {
+      id: true,
+      spaceId: true,
+      companyName: true,
+      space: {
+        select: {
+          id: true,
+          number: true,
+          floor: {
+            select: {
+              buildingId: true,
+              fullFloorTenantId: true,
+              building: { select: { name: true } },
+            },
+          },
+        },
+      },
+      tenantSpaces: {
+        select: {
+          spaceId: true,
+          space: {
+            select: {
+              id: true,
+              number: true,
+              floor: {
+                select: {
+                  buildingId: true,
+                  fullFloorTenantId: true,
+                  building: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+      fullFloors: {
+        select: {
+          id: true,
+          buildingId: true,
+          building: { select: { name: true } },
+        },
+      },
+    },
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
-  // Освобождаем старые помещения арендатора, если были
-  const oldSpaceIds = [...new Set([
-    tenant.spaceId,
-    ...tenant.tenantSpaces.map((item) => item.spaceId),
-  ].filter(Boolean) as string[])]
+  const currentBuildingIds = [
+    tenant.space?.floor.buildingId,
+    ...tenant.tenantSpaces.map((item) => item.space.floor.buildingId),
+    ...tenant.fullFloors.map((floor) => floor.buildingId),
+  ].filter(Boolean)
+  const otherBuildingId = currentBuildingIds.find((buildingId) => buildingId !== targetFloor.buildingId)
+  if (otherBuildingId) {
+    const otherBuildingName =
+      tenant.space?.floor.building.name ??
+      tenant.tenantSpaces.find((item) => item.space.floor.buildingId === otherBuildingId)?.space.floor.building.name ??
+      tenant.fullFloors.find((floor) => floor.buildingId === otherBuildingId)?.building.name ??
+      "другое здание"
+    throw new Error(
+      `Арендатор «${tenant.companyName}» уже привязан к зданию «${otherBuildingName}». ` +
+        `Нельзя смешивать этажи из разных зданий. Сначала снимите старую привязку или выберите этаж в том же здании.`,
+    )
+  }
+
+  const linkedSpaces = [
+    tenant.space,
+    ...tenant.tenantSpaces.map((item) => item.space),
+  ].filter((space): space is NonNullable<typeof tenant.space> => space !== null)
+  const oldSpaceIds = [...new Set(linkedSpaces
+    .filter((space) => !(space.number === "all" && space.floor.fullFloorTenantId === tenantId))
+    .map((space) => space.id))]
   if (oldSpaceIds.length > 0) {
     await db.space.updateMany({
       where: { id: { in: oldSpaceIds } },
       data: { status: "VACANT" },
     })
-    await db.tenantSpace.deleteMany({ where: { tenantId } })
-    await db.tenant.update({
-      where: { id: tenantId },
-      data: { spaceId: null },
-    })
+    await db.tenantSpace.deleteMany({ where: { tenantId, spaceId: { in: oldSpaceIds } } })
+    if (tenant.spaceId && oldSpaceIds.includes(tenant.spaceId)) {
+      await db.tenant.update({
+        where: { id: tenantId },
+        data: { spaceId: null },
+      })
+    }
   }
 
   await db.floor.update({
@@ -79,13 +152,23 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
         },
         select: { id: true },
       })
-      await db.tenant.update({
+      const currentTenant = await db.tenant.findUnique({
         where: { id: tenantId },
-        data: { spaceId: space.id },
+        select: {
+          spaceId: true,
+          tenantSpaces: { where: { isPrimary: true }, select: { id: true }, take: 1 },
+        },
       })
+      const hasPrimary = !!currentTenant?.spaceId || (currentTenant?.tenantSpaces.length ?? 0) > 0
       await db.tenantSpace.create({
-        data: { tenantId, spaceId: space.id, isPrimary: true },
+        data: { tenantId, spaceId: space.id, isPrimary: !hasPrimary },
       })
+      if (!currentTenant?.spaceId) {
+        await db.tenant.update({
+          where: { id: tenantId },
+          data: { spaceId: space.id },
+        })
+      }
     }
   }
 
@@ -118,24 +201,30 @@ export async function unassignFullFloor(floorId: string) {
 
   // Если был tenant.spaceId на «авто-этаж» (number="all"), отвязываем
   if (tenantId) {
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { spaceId: true },
-    })
-    if (tenant?.spaceId) {
-      const sp = await db.space.findUnique({
-        where: { id: tenant.spaceId },
-        select: { number: true, floorId: true },
-      })
-      if (sp?.number === "all" && sp.floorId === floorId) {
-        // Это авто-созданное «весь этаж» — просто удалим, чтобы вернуть этаж в чистое состояние
-        await db.tenantSpace.deleteMany({ where: { spaceId: tenant.spaceId } })
+    const [tenant, autoSpace] = await Promise.all([
+      db.tenant.findUnique({
+        where: { id: tenantId },
+        select: { spaceId: true },
+      }),
+      db.space.findFirst({
+        where: { floorId, number: "all" },
+        select: { id: true },
+      }),
+    ])
+    if (autoSpace) {
+      await db.tenantSpace.deleteMany({ where: { tenantId, spaceId: autoSpace.id } })
+      if (tenant?.spaceId === autoSpace.id) {
+        const nextSpace = await db.tenantSpace.findFirst({
+          where: { tenantId, spaceId: { not: autoSpace.id } },
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          select: { spaceId: true },
+        })
         await db.tenant.update({
           where: { id: tenantId },
-          data: { spaceId: null },
+          data: { spaceId: nextSpace?.spaceId ?? null },
         })
-        await db.space.delete({ where: { id: tenant.spaceId } })
       }
+      await db.space.delete({ where: { id: autoSpace.id } })
     }
   }
 
@@ -155,4 +244,5 @@ export async function unassignFullFloor(floorId: string) {
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/settings")
   revalidatePath(`/admin/floors/${floorId}`)
+  if (tenantId) revalidatePath(`/admin/tenants/${tenantId}`)
 }

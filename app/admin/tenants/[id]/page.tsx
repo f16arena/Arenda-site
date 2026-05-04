@@ -32,6 +32,7 @@ import {
   ServiceChargesFormLoader,
 } from "./client-section-loaders"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
+import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { TenantIdentityFields } from "../tenant-identity-fields"
@@ -146,11 +147,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const currentBuildingId = await getCurrentBuildingId().catch(() => null)
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
-  const tenantBuildingId =
-    tenant.tenantSpaces[0]?.space.floor.buildingId ??
-    tenant.space?.floor.buildingId ??
-    tenant.fullFloors[0]?.buildingId ??
-    null
+  const tenantBuildingId = getTenantPrimaryBuildingId(tenant)
   const buildingId = currentBuildingId ?? tenantBuildingId
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
@@ -259,6 +256,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const myFullFloors = tenant.fullFloors.map((f) => ({
     id: f.id,
     name: f.name,
+    totalArea: f.totalArea,
     fixedMonthlyRent: f.fixedMonthlyRent,
   }))
   const assignedSpaces = tenant.tenantSpaces.length > 0
@@ -267,12 +265,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const rentInput = { ...tenant, fullFloors: myFullFloors }
   const monthlyRent = calculateTenantMonthlyRent(rentInput)
   const ratePerSqm = calculateTenantRatePerSqm(tenant)
+  const fullFloorArea = getTenantAreaTotal({ fullFloors: myFullFloors })
   const hasTenantFixedRent = hasFixedTenantRent(tenant.fixedMonthlyRent)
-  const fullFloorWithFixedRent = myFullFloors.find((floor) => hasFixedTenantRent(floor.fixedMonthlyRent))
+  const fullFloorsWithFixedRent = myFullFloors.filter((floor) => hasFixedTenantRent(floor.fixedMonthlyRent))
+  const fullFloorRentTotal = fullFloorsWithFixedRent.reduce((sum, floor) => sum + (floor.fixedMonthlyRent ?? 0), 0)
   const hasTenantCustomRate = hasFixedTenantRent(tenant.customRate)
-  const rentalTermsLocked = !!fullFloorWithFixedRent || hasTenantFixedRent || hasTenantCustomRate
-  const rentalTermsLockReason = fullFloorWithFixedRent
-    ? `У арендатора указана стоимость за этаж ${fullFloorWithFixedRent.name}: ${formatMoney(fullFloorWithFixedRent.fixedMonthlyRent ?? 0)}/мес.`
+  const rentalTermsLocked = fullFloorsWithFixedRent.length > 0 || hasTenantFixedRent || hasTenantCustomRate
+  const rentalTermsLockReason = fullFloorsWithFixedRent.length > 0
+    ? `У арендатора указана стоимость за этажи ${fullFloorsWithFixedRent.map((floor) => floor.name).join(", ")}: ${formatMoney(fullFloorRentTotal)}/мес.`
     : hasTenantFixedRent
       ? `У арендатора указана индивидуальная сумма аренды: ${formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес.`
       : hasTenantCustomRate
@@ -325,9 +325,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <QuickStat
             icon={Building2}
             label="Помещение"
-            value={assignedSpaces.length > 1 ? `${assignedSpaces.length} помещ.` : assignedSpaces[0] ? `Каб. ${assignedSpaces[0].number}` : myFullFloors[0] ? myFullFloors[0].name : "—"}
+            value={assignedSpaces.length > 1 ? `${assignedSpaces.length} помещ.` : assignedSpaces[0] ? `Каб. ${assignedSpaces[0].number}` : myFullFloors.length > 1 ? `${myFullFloors.length} этажей` : myFullFloors[0] ? myFullFloors[0].name : "—"}
             valueClass="text-slate-900 dark:text-slate-100"
-            sub={assignedSpaces.length > 0 ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? "Целый этаж" : "Не назначено"}
+            sub={assignedSpaces.length > 0 ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${fullFloorArea} м²` : "Не назначено"}
           />
           <QuickStat
             icon={CalendarIcon}
@@ -684,7 +684,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <CollapsibleCard
             title="Помещения"
             icon={Building2}
-            meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? "целый этаж" : "не назначено"}
+            meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж. · ${fullFloorArea} м²` : "не назначено"}
           >
             <div className="p-4">
               {assignedSpaces.length > 0 ? (
@@ -737,6 +737,29 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   <Link
                     href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
                     className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
+                  >
+                    Сформировать договор
+                  </Link>
+                </div>
+              ) : myFullFloors.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    {myFullFloors.map((floor) => (
+                      <div key={floor.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{floor.name}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{floor.totalArea ?? 0} м²</p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          {formatMoney(floor.fixedMonthlyRent ?? 0)}/мес
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
+                    Аренда всего: {formatMoney(monthlyRent)}/мес
+                  </p>
+                  <Link
+                    href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
+                    className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                   >
                     Сформировать договор
                   </Link>

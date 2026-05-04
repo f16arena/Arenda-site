@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireSection } from "@/lib/acl"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { formatTenantPlacement } from "@/lib/tenant-placement"
 import {
   getServiceChargeDescription,
   isServiceChargeType,
@@ -178,11 +179,7 @@ export async function generateMonthlyCharges(period: string) {
 
     const rentAmount = calculateTenantMonthlyRent(tenant)
     if (rentAmount <= 0) continue
-    const fullFloor = tenant.fullFloors[0]
-    const placement = fullFloor?.name
-      ?? (tenant.tenantSpaces.length > 0
-        ? tenant.tenantSpaces.map((item) => `Каб. ${item.space.number}`).join(", ")
-        : tenant.space ? `Каб. ${tenant.space.number}` : "по договору")
+    const placement = formatTenantPlacement(tenant, { includeFloorName: false })
 
     await db.charge.create({
       data: {

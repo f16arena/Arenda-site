@@ -110,7 +110,9 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         t.fullFloors.length > 0
           ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
           : tenantSpaceLabel(t),
-        t.fullFloors[0]?.name ?? t.tenantSpaces[0]?.space.floor.name ?? t.space?.floor.name ?? "",
+        t.fullFloors.length > 0
+          ? t.fullFloors.map((f) => f.name).join(", ")
+          : t.tenantSpaces[0]?.space.floor.name ?? t.space?.floor.name ?? "",
         String(tenantArea(t) || ""),
         String(t.debt),
       ]),
@@ -349,6 +351,7 @@ function tenantSpaces(tenant: TenantRow) {
 }
 
 function tenantSpaceLabel(tenant: TenantRow) {
+  if (tenant.fullFloors.length > 0) return tenant.fullFloors.map((floor) => floor.name).join(", ")
   const spaces = tenantSpaces(tenant)
   return spaces.map((space) => `Каб. ${space.number} · ${space.floor.name}`).join(", ")
 }
@@ -361,6 +364,22 @@ function tenantArea(tenant: TenantRow) {
 }
 
 function SpaceCell({ tenant }: { tenant: TenantRow }) {
+  if (tenant.fullFloors.length > 0) {
+    return (
+      <span>
+        {tenant.fullFloors.slice(0, 2).map((floor, index) => (
+          <span key={floor.id}>
+            {index > 0 && <span className="text-slate-400 dark:text-slate-500">, </span>}
+            {floor.name}
+          </span>
+        ))}
+        {tenant.fullFloors.length > 2 && (
+          <span className="ml-1 text-slate-400 dark:text-slate-500">+{tenant.fullFloors.length - 2}</span>
+        )}
+      </span>
+    )
+  }
+
   const spaces = tenantSpaces(tenant)
   if (spaces.length === 0) {
     return <span className="text-slate-400 dark:text-slate-500">Не назначено</span>

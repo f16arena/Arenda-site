@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { formatTenantPlacement } from "@/lib/tenant-placement"
 
 export default async function ContractsPage() {
   const session = await auth()
@@ -166,8 +167,7 @@ function Section({
             const daysLeft = t.contractEnd
               ? Math.ceil((t.contractEnd.getTime() - now.getTime()) / 86_400_000)
               : null
-            const placement = t.fullFloors[0]?.name
-              ?? (t.space ? `Каб. ${t.space.number} · ${t.space.floor.name}` : "—")
+            const placement = formatTenantPlacement(t, { emptyLabel: "—" })
             return (
               <tr key={t.id} className={cn(
                 "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50",

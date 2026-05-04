@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import type { DocumentKind } from "@/lib/document-numbering"
+import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 
 const KIND_TO_FIELD: Record<DocumentKind, "contractPrefix" | "invoicePrefix" | "actPrefix" | "reconciliationPrefix"> = {
   contract: "contractPrefix",
@@ -61,12 +62,17 @@ export async function createContract(formData: FormData) {
     where: { id: tenantId },
     include: {
       space: { include: { floor: { select: { buildingId: true } } } },
-      fullFloors: { select: { buildingId: true }, take: 1 },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: { space: { select: { number: true, area: true, floor: { select: { name: true, buildingId: true } } } } },
+        take: 1,
+      },
+      fullFloors: { select: { buildingId: true } },
     },
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
-  const buildingId = tenant.space?.floor.buildingId ?? tenant.fullFloors[0]?.buildingId
+  const buildingId = getTenantPrimaryBuildingId(tenant)
   if (!buildingId) throw new Error("Арендатор не привязан ни к помещению ни к этажу")
 
   const unique = await isContractNumberUnique(buildingId, number)

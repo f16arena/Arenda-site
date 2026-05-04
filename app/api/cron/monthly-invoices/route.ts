@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { formatTenantPlacement } from "@/lib/tenant-placement"
 
 export const dynamic = "force-dynamic"
 
@@ -49,15 +50,11 @@ export async function GET(req: Request) {
         continue
       }
 
-      const fullFloor = tenant.fullFloors[0]
       const monthlyRent = calculateTenantMonthlyRent(tenant)
 
       if (monthlyRent <= 0) continue
 
-      const placement = fullFloor?.name
-        ?? (tenant.tenantSpaces.length > 0
-          ? tenant.tenantSpaces.map((item) => `Каб. ${item.space.number}, ${item.space.floor.name}`).join("; ")
-          : tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
+      const placement = formatTenantPlacement(tenant)
       const dueDate = new Date(now.getFullYear(), now.getMonth(), tenant.paymentDueDay)
 
       await db.charge.create({

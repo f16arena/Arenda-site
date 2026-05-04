@@ -36,8 +36,10 @@ export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
   const tenantFixedRent = positiveAmount(tenant.fixedMonthlyRent)
   if (tenantFixedRent !== null) return tenantFixedRent
 
-  const fullFloorFixedRent = positiveAmount(tenant.fullFloors?.[0]?.fixedMonthlyRent)
-  if (fullFloorFixedRent !== null) return fullFloorFixedRent
+  const fullFloorFixedRent = (tenant.fullFloors ?? []).reduce((sum, floor) => {
+    return sum + (positiveAmount(floor.fixedMonthlyRent) ?? 0)
+  }, 0)
+  if (fullFloorFixedRent > 0) return fullFloorFixedRent
 
   const spaces = rentableSpaces(tenant)
   if (spaces.length === 0) return 0

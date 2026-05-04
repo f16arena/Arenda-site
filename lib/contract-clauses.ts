@@ -51,10 +51,13 @@ export function buildLeaseRentClause({
   const actualArea = positive(area) ?? calculateTenantArea(tenant)
   const areaText = actualArea > 0 ? ` общей площадью ${formatAreaRu(actualArea)} кв.м.` : ""
   const rentWithWords = `${formatMoneyRu(rent)} (${numberToWordsRu(rent)})`
-  const floorRent = hasFixedTenantRent(tenant.fullFloors?.[0]?.fixedMonthlyRent)
+  const floorRent = (tenant.fullFloors ?? []).some((floor) => hasFixedTenantRent(floor.fixedMonthlyRent))
 
   if (floorRent) {
-    const floorLabel = fullFloorName ? `этажа "${fullFloorName}"` : "этажа"
+    const hasManyFloors = (tenant.fullFloors?.length ?? 0) > 1
+    const floorLabel = fullFloorName
+      ? hasManyFloors ? `этажей (${fullFloorName})` : `этажа "${fullFloorName}"`
+      : "этажа"
     return `${clauseNumber} Размер арендной платы за аренду ${floorLabel}${areaText} по соглашению Сторон составляет ${rentWithWords} тенге в месяц.`
   }
 
@@ -71,7 +74,7 @@ export function buildLeaseRentClause({
 }
 
 export function getLeaseRentBasisLabel(tenant: LeaseRentTenant) {
-  if (hasFixedTenantRent(tenant.fullFloors?.[0]?.fixedMonthlyRent)) return "аренда целого этажа"
+  if ((tenant.fullFloors ?? []).some((floor) => hasFixedTenantRent(floor.fixedMonthlyRent))) return "аренда целого этажа"
   if (hasFixedTenantRent(tenant.fixedMonthlyRent)) return "фиксированная сумма в месяц"
   if (hasFixedTenantRent(tenant.customRate)) return "индивидуальная ставка за 1 кв.м."
   return "ставка этажа за 1 кв.м."
@@ -116,8 +119,8 @@ export function numberToWordsRu(value: number) {
 }
 
 function calculateTenantArea(tenant: LeaseRentTenant) {
-  const fullFloorArea = positive(tenant.fullFloors?.[0]?.totalArea)
-  if (fullFloorArea !== null) return fullFloorArea
+  const fullFloorArea = (tenant.fullFloors ?? []).reduce((sum, floor) => sum + (positive(floor.totalArea) ?? 0), 0)
+  if (fullFloorArea > 0) return fullFloorArea
 
   const tenantSpaces = tenant.tenantSpaces?.map((item) => item.space).filter(Boolean) ?? []
   if (tenantSpaces.length > 0) {
