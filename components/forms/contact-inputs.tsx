@@ -18,7 +18,7 @@ export function KzPhoneInput({ name, defaultValue, required, className }: BaseIn
   return (
     <input
       name={name}
-      type="tel"
+      type="text"
       inputMode="numeric"
       autoComplete="tel"
       required={required}
@@ -26,12 +26,23 @@ export function KzPhoneInput({ name, defaultValue, required, className }: BaseIn
       onFocus={() => {
         if (!value) setValue("+7 ")
       }}
+      onKeyDown={(event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return
+        if (PHONE_CONTROL_KEYS.has(event.key)) return
+        if (event.key.length === 1 && !/\d/.test(event.key)) event.preventDefault()
+      }}
+      onPaste={(event) => {
+        event.preventDefault()
+        setValue(formatKzPhoneInput(event.clipboardData.getData("text")))
+      }}
       onChange={(event) => setValue(formatKzPhoneInput(event.target.value))}
       onBlur={() => {
         if (value === "+7 ") setValue("")
       }}
       placeholder="+7 700 000 00 00"
       pattern="^\+7\s[67]\d{2}\s\d{3}\s\d{2}\s\d{2}$"
+      minLength={16}
+      maxLength={16}
       title="Введите казахстанский номер: +7 7XX XXX XX XX или +7 6XX XXX XX XX"
       className={className}
     />
@@ -50,13 +61,31 @@ export function AsciiEmailInput({ name, defaultValue, required, className }: Bas
       required={required}
       value={value}
       onChange={(event) => setValue(cleanEmail(event.target.value))}
+      onPaste={(event) => {
+        event.preventDefault()
+        setValue(cleanEmail(event.clipboardData.getData("text")))
+      }}
       placeholder="tenant@example.com"
       pattern={EMAIL_PATTERN}
+      maxLength={254}
       title="Введите email латиницей, обязательно с @ и доменом, например name@gmail.com"
       className={className}
     />
   )
 }
+
+const PHONE_CONTROL_KEYS = new Set([
+  "Backspace",
+  "Delete",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "Tab",
+  "Enter",
+])
 
 function formatKzPhoneInput(raw: string) {
   const digits = raw.replace(/\D/g, "")
