@@ -34,6 +34,7 @@ import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRe
 import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { TenantIdentityFields } from "../tenant-identity-fields"
+import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -360,11 +361,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         {/* Left column: forms */}
         <div className="col-span-2 space-y-5">
           {/* Contact info */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <User className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Контактное лицо</h2>
-            </div>
+          <CollapsibleCard
+            title="Контактное лицо"
+            icon={User}
+            meta={tenant.user.phone ?? tenant.user.email ?? "контакты не заполнены"}
+          >
             <form
               action={async (formData: FormData) => {
                 "use server"
@@ -406,14 +407,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </button>
               </div>
             </form>
-          </div>
+          </CollapsibleCard>
 
           {/* Company info */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Данные компании</h2>
-            </div>
+          <CollapsibleCard
+            title="Данные компании"
+            icon={Building2}
+            meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"}`}
+          >
             <form
               action={async (formData: FormData) => {
                 "use server"
@@ -519,14 +520,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </button>
               </div>
             </form>
-          </div>
+          </CollapsibleCard>
 
           {/* Requisites */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские реквизиты</h2>
-            </div>
+          <CollapsibleCard
+            title="Банковские реквизиты"
+            icon={CreditCard}
+            meta={tenant.bankName ?? tenant.iik ?? "не заполнены"}
+          >
             <RequisitesFormLoader
               tenantId={tenant.id}
               isIin={tenant.legalType === "IP" || tenant.legalType === "PHYSICAL"}
@@ -538,14 +539,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   iin: tenant.iin,
                 }}
               />
-          </div>
+          </CollapsibleCard>
 
           {/* Rental terms */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Условия аренды</h2>
-            </div>
+          <CollapsibleCard
+            title="Условия аренды"
+            icon={Receipt}
+            meta={`${formatMoney(monthlyRent)}/мес`}
+          >
             <RentalTermsFormLoader
               tenantId={tenant.id}
               locked={rentalTermsLocked}
@@ -560,21 +561,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 isVatPayer: tenant.isVatPayer,
               }}
             />
-          </div>
+          </CollapsibleCard>
 
           {/* Service charges */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h2>
-            </div>
+          <CollapsibleCard
+            title="Дополнительные начисления"
+            icon={Zap}
+            meta={`${currentServiceCharges.length} за ${currentPeriod}`}
+          >
             <ServiceChargesFormLoader
               tenantId={tenant.id}
               period={currentPeriod}
               defaultDueDate={defaultServiceDueDate}
               existingCharges={currentServiceCharges}
             />
-          </div>
+          </CollapsibleCard>
 
           {/* Documents actions: invoice, act, contract, handover */}
           <DocumentsActionsLoader
@@ -594,14 +595,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
           {/* История изменений */}
           {auditLogs.length > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <ClipboardList className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  История изменений
-                  <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">{auditLogs.length}</span>
-                </h2>
-              </div>
+            <CollapsibleCard
+              title="История изменений"
+              icon={ClipboardList}
+              meta={`${auditLogs.length} событий`}
+            >
               <ul className="divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
                 {auditLogs.map((log) => {
                   const actionLabels: Record<string, string> = {
@@ -643,7 +641,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   )
                 })}
               </ul>
-            </div>
+            </CollapsibleCard>
           )}
         </div>
 
@@ -657,73 +655,74 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           />
 
           {/* Space */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-            <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mb-2">ПОМЕЩЕНИЕ</p>
-            {tenant.space ? (
-              <div>
-                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">Каб. {tenant.space.number}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
-                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">{tenant.space.area} м²</p>
-                {hasTenantFixedRent ? (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
-                ) : tenant.customRate ? (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
-                ) : (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                    Ставка этажа: {formatMoney(tenant.space.floor.ratePerSqm)}/м²
-                  </p>
-                )}
-                <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
-                  Аренда: {formatMoney(monthlyRent)}/мес
-                </p>
-                <Link
-                  href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
-                  className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
-                >
-                  Сформировать договор
-                </Link>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">Свободные помещения:</p>
-                <div className="space-y-2">
-                  {vacantSpaces.map((s) => (
-                    <form
-                      key={s.id}
-                      action={async () => {
-                        "use server"
-                        await assignTenantSpace(tenant.id, s.id)
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10 transition-colors"
-                      >
-                        <span className="font-medium">Каб. {s.number}</span>
-                        <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
-                      </button>
-                    </form>
-                  ))}
-                  {vacantSpaces.length === 0 && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
-                  )}
-                  {vacantSpacesCount > vacantSpaces.length && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Показаны первые {vacantSpaces.length} из {vacantSpacesCount}. Для точного выбора откройте страницу помещений выбранного здания.
+          <CollapsibleCard
+            title="Помещение"
+            icon={Building2}
+            meta={tenant.space ? `Каб. ${tenant.space.number}` : myFullFloors.length > 0 ? "целый этаж" : "не назначено"}
+          >
+            <div className="p-4">
+              {tenant.space ? (
+                <div>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">Каб. {tenant.space.number}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">{tenant.space.area} м²</p>
+                  {hasTenantFixedRent ? (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
+                  ) : tenant.customRate ? (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
+                  ) : (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Ставка этажа: {formatMoney(tenant.space.floor.ratePerSqm)}/м²
                     </p>
                   )}
+                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
+                    Аренда: {formatMoney(monthlyRent)}/мес
+                  </p>
+                  <Link
+                    href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
+                    className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
+                  >
+                    Сформировать договор
+                  </Link>
                 </div>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">Свободные помещения:</p>
+                  <div className="space-y-2">
+                    {vacantSpaces.map((s) => (
+                      <form
+                        key={s.id}
+                        action={async () => {
+                          "use server"
+                          await assignTenantSpace(tenant.id, s.id)
+                        }}
+                      >
+                        <button
+                          type="submit"
+                          className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10 transition-colors"
+                        >
+                          <span className="font-medium">Каб. {s.number}</span>
+                          <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
+                        </button>
+                      </form>
+                    ))}
+                    {vacantSpaces.length === 0 && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
+                    )}
+                    {vacantSpacesCount > vacantSpaces.length && (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        Показаны первые {vacantSpaces.length} из {vacantSpacesCount}. Для точного выбора откройте страницу помещений выбранного здания.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CollapsibleCard>
 
           {/* Contracts */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Договоры</p>
-            </div>
+          <CollapsibleCard title="Договоры" icon={FileText} meta={`${tenant.contracts.length} шт.`}>
             <div className="divide-y divide-slate-50">
               {tenant.contracts.map((c) => {
                 const statusLabels: Record<string, { label: string; cls: string }> = {
@@ -757,13 +756,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Нет договоров</p>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
           {/* Recent charges */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Последние начисления</p>
-            </div>
+          <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${tenant.charges.length} записей`}>
             <div className="divide-y divide-slate-50">
               {tenant.charges.slice(0, 6).map((c) => (
                 <div key={c.id} className="px-4 py-2.5 flex items-center justify-between">
@@ -785,7 +781,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Начислений нет</p>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
         </div>
       </div>
     </div>
