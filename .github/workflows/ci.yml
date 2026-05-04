@@ -40,5 +40,13 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Performance gate
+        run: npm run perf:audit
+        env:
+          PERF_AUDIT_STRICT: "1"
+          PERF_AUDIT_CLIENT_KB: "140"
+          PERF_AUDIT_SERVER_KB: "80"
+          PERF_AUDIT_TAKE_LIMIT: "150"
+
       - name: Build
         run: npm run build

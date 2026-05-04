@@ -19,8 +19,9 @@ const HEAVY_IMPORTS = [
   "@anthropic-ai/sdk",
   "cmdk",
 ]
-const CLIENT_FILE_BUDGET = 140 * 1024
-const SERVER_FILE_BUDGET = 80 * 1024
+const CLIENT_FILE_BUDGET = readKbEnv("PERF_AUDIT_CLIENT_KB", 140) * 1024
+const SERVER_FILE_BUDGET = readKbEnv("PERF_AUDIT_SERVER_KB", 80) * 1024
+const PRISMA_TAKE_LIMIT = readNumberEnv("PERF_AUDIT_TAKE_LIMIT", 150)
 const STRICT = process.env.PERF_AUDIT_STRICT !== "0"
 
 const files = []
@@ -42,22 +43,32 @@ const enriched = await Promise.all(files.map(async (file) => {
 
 const budgetViolations = enriched.flatMap((file) => {
   if (file.isClient && file.size > CLIENT_FILE_BUDGET) {
-    return [`${formatFile(file)} exceeds client budget ${formatKb(CLIENT_FILE_BUDGET)}`]
+    return [{
+      file: file.rel,
+      message: `${formatFile(file)} exceeds client budget ${formatKb(CLIENT_FILE_BUDGET)}`,
+    }]
   }
   if (!file.isClient && file.size > SERVER_FILE_BUDGET) {
-    return [`${formatFile(file)} exceeds server budget ${formatKb(SERVER_FILE_BUDGET)}`]
+    return [{
+      file: file.rel,
+      message: `${formatFile(file)} exceeds server budget ${formatKb(SERVER_FILE_BUDGET)}`,
+    }]
   }
   return []
 })
 
 const takeViolations = enriched.flatMap((file) =>
-  file.largeTakes.map((take) => `${file.rel}:${take.line} uses take: ${take.value}; paginate or lower the source cap below 150`),
+  file.largeTakes.map((take) => ({
+    file: file.rel,
+    line: take.line,
+    message: `${file.rel}:${take.line} uses take: ${take.value}; paginate or lower the source cap below ${PRISMA_TAKE_LIMIT}`,
+  })),
 )
 
 printSection(
   "Performance budget",
   budgetViolations.length > 0
-    ? budgetViolations
+    ? budgetViolations.map((violation) => violation.message)
     : [`OK: client <= ${formatKb(CLIENT_FILE_BUDGET)}, server <= ${formatKb(SERVER_FILE_BUDGET)}`],
 )
 
@@ -88,10 +99,15 @@ printSection(
 
 printSection(
   "Large Prisma takes",
-  takeViolations.length > 0 ? takeViolations : ["OK: no take >= 150 in app/components/lib"],
+  takeViolations.length > 0
+    ? takeViolations.map((violation) => violation.message)
+    : [`OK: no take >= ${PRISMA_TAKE_LIMIT} in app/components/lib`],
 )
 
 if (STRICT && (budgetViolations.length > 0 || takeViolations.length > 0)) {
+  for (const violation of [...budgetViolations, ...takeViolations]) {
+    emitGithubError(violation)
+  }
   process.exitCode = 1
 }
 
@@ -137,7 +153,7 @@ function findLargePrismaTakes(content) {
     const match = lines[index].match(/\btake:\s*(\d+)/)
     if (!match) continue
     const value = Number.parseInt(match[1], 10)
-    if (Number.isFinite(value) && value >= 150) {
+    if (Number.isFinite(value) && value >= PRISMA_TAKE_LIMIT) {
       results.push({ line: index + 1, value })
     }
   }
@@ -152,4 +168,20 @@ function printSection(title, rows) {
     return
   }
   for (const row of rows) console.log(row)
+}
+
+function readKbEnv(name, fallback) {
+  return readNumberEnv(name, fallback)
+}
+
+function readNumberEnv(name, fallback) {
+  const parsed = Number.parseInt(process.env[name] ?? "", 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function emitGithubError({ file, line, message }) {
+  if (!process.env.GITHUB_ACTIONS) return
+  const location = [`file=${file.replaceAll(path.sep, "/")}`]
+  if (line) location.push(`line=${line}`)
+  console.log(`::error ${location.join(",")}::${message}`)
 }

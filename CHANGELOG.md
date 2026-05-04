@@ -2,6 +2,13 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.58 - 2026-05-04
+
+- В GitHub Actions добавлен отдельный CI-step `Performance gate`, который запускает `npm run perf:audit` перед build.
+- `scripts/performance-audit.mjs` получил настраиваемые бюджеты через env: `PERF_AUDIT_CLIENT_KB`, `PERF_AUDIT_SERVER_KB`, `PERF_AUDIT_TAKE_LIMIT`.
+- При нарушениях в GitHub Actions теперь выводятся `::error` annotations с файлом и строкой, чтобы PR сразу показывал, где появился тяжёлый код или опасный `take`.
+- Добавлена rollback-точка `rollback/pre-ci-performance-gate-1.3.58`.
+
 ## 1.3.57 - 2026-05-04
 
 - Добавлен `Server-Timing` в `proxy.ts`: ответы теперь получают метрику `proxy;dur=...` и диагностический заголовок `x-commrent-proxy-ms`.
