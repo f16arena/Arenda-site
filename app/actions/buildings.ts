@@ -8,7 +8,7 @@ import { ALL_BUILDINGS_COOKIE, assertBuildingAccess } from "@/lib/building-acces
 import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
-import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 
 export async function createBuilding(formData: FormData) {
   await requireOwner()
@@ -19,7 +19,7 @@ export async function createBuilding(formData: FormData) {
   const address = String(formData.get("address") ?? "").trim()
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
@@ -56,9 +56,12 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const address = String(formData.get("address") ?? "").trim()
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
+
+  if (!name) throw new Error("Название обязательно")
+  if (!address) throw new Error("Адрес обязателен")
 
   // totalArea больше не редактируется вручную — она рассчитывается автоматически
   // из суммы Floor.totalArea (см. recomputeBuildingArea в floor-actions).

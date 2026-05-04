@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import type { ReactNode } from "react"
 import { Plus, X, Edit2, Power, Building2, Layers, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -15,7 +16,10 @@ import {
 } from "@/app/actions/buildings"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { formatMoney } from "@/lib/utils"
+
+const FIELD_CLASS = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
 
 export function CreateBuildingButton() {
   const [open, setOpen] = useState(false)
@@ -59,8 +63,12 @@ export function CreateBuildingButton() {
               <Field label="Адрес *" name="address" required placeholder="г. Алматы, ул..." />
               <Field label="Описание" name="description" placeholder="Бизнес-центр класса А" />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Телефон" name="phone" placeholder="+7..." />
-                <Field label="Email" name="email" type="email" />
+                <ContactField label="Телефон">
+                  <KzPhoneInput name="phone" className={FIELD_CLASS} />
+                </ContactField>
+                <ContactField label="Email">
+                  <AsciiEmailInput name="email" className={FIELD_CLASS} />
+                </ContactField>
               </div>
               <div>
                 <Field label="Ответственный" name="responsible" />
@@ -200,8 +208,12 @@ export function BuildingActions({
               <Field label="Адрес *" name="address" defaultValue={building.address} required />
               <Field label="Описание" name="description" defaultValue={building.description ?? ""} />
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Телефон" name="phone" defaultValue={building.phone ?? ""} />
-                <Field label="Email" name="email" type="email" defaultValue={building.email ?? ""} />
+                <ContactField label="Телефон">
+                  <KzPhoneInput name="phone" defaultValue={building.phone} className={FIELD_CLASS} />
+                </ContactField>
+                <ContactField label="Email">
+                  <AsciiEmailInput name="email" defaultValue={building.email} className={FIELD_CLASS} />
+                </ContactField>
               </div>
               <div>
                 <Field label="Ответственный" name="responsible" defaultValue={building.responsible ?? ""} />
@@ -362,6 +374,15 @@ function Field({
         step={step}
         className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
       />
+    </div>
+  )
+}
+
+function ContactField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
+      {children}
     </div>
   )
 }
