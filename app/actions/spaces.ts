@@ -6,6 +6,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertSpaceInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { assertSpaceFitsFloor } from "@/lib/area-validation"
 
+const SPACE_STATUSES = new Set(["VACANT", "OCCUPIED", "MAINTENANCE"])
+
 export async function createSpace(formData: FormData) {
   const { orgId } = await requireOrgAccess()
   const floorId = formData.get("floorId") as string
@@ -49,7 +51,9 @@ export async function updateSpace(id: string, formData: FormData) {
   const number = formData.get("number") as string
   const area = parseFloat(formData.get("area") as string)
   const description = formData.get("description") as string
-  const status = formData.get("status") as string
+  const statusRaw = String(formData.get("status") ?? "VACANT").toUpperCase()
+  const status = SPACE_STATUSES.has(statusRaw) ? statusRaw : "VACANT"
+  const tenantId = String(formData.get("tenantId") ?? "").trim()
   const kindRaw = String(formData.get("kind") ?? "").toUpperCase()
   const kindIn = kindRaw === "COMMON" ? "COMMON" : kindRaw === "RENTABLE" ? "RENTABLE" : null
 
@@ -67,6 +71,7 @@ export async function updateSpace(id: string, formData: FormData) {
       tenantSpaces: { select: { tenant: { select: { id: true, companyName: true } } } },
       floor: {
         select: {
+          buildingId: true,
           fullFloorTenantId: true,
           fullFloorTenant: { select: { companyName: true } },
         },
@@ -102,29 +107,102 @@ export async function updateSpace(id: string, formData: FormData) {
     }
     finalKind = kindIn
   }
+  if (finalKind === "COMMON") {
+    if (status === "OCCUPIED") {
+      throw new Error("Общую зону нельзя отметить как занятую арендатором. Сначала сделайте помещение арендопригодным.")
+    }
+    finalStatus = "VACANT"
+  }
 
-  // Если переводим в VACANT/MAINTENANCE и есть привязанный арендатор —
-  // автоматически отвязываем его (пользователь уже принял такое решение,
-  // меняя статус на «Свободно»).
-  const willUnlinkTenant =
-    !!occupiedTenant && (finalStatus === "VACANT" || finalStatus === "MAINTENANCE")
+  if (occupiedTenant && finalStatus !== "OCCUPIED") {
+    throw new Error(
+      `Нельзя просто поставить статус «Свободно» — помещение занято арендатором «${occupiedTenant.companyName}». ` +
+        "Сначала откройте карточку арендатора и снимите это помещение или завершите договор.",
+    )
+  }
 
-  await db.$transaction([
-    db.space.update({
+  let tenantToAssign: {
+    id: string
+    companyName: string
+    spaceId: string | null
+    tenantSpaces: { space: { id: string; floor: { buildingId: string } } }[]
+  } | null = null
+
+  if (finalStatus === "OCCUPIED" && !existing.floor.fullFloorTenantId) {
+    if (occupiedTenant) {
+      if (tenantId && tenantId !== occupiedTenant.id) {
+        throw new Error(
+          `Помещение уже занято арендатором «${occupiedTenant.companyName}». ` +
+            "Чтобы передать его другому арендатору, сначала снимите текущую привязку в карточке арендатора.",
+        )
+      }
+    } else {
+      if (!tenantId) {
+        throw new Error("Выберите арендатора, который занимает помещение")
+      }
+      tenantToAssign = await db.tenant.findFirst({
+        where: {
+          id: tenantId,
+          user: { organizationId: orgId },
+        },
+        select: {
+          id: true,
+          companyName: true,
+          spaceId: true,
+          space: { select: { floor: { select: { buildingId: true } } } },
+          tenantSpaces: { select: { space: { select: { id: true, floor: { select: { buildingId: true } } } } } },
+          fullFloors: { select: { buildingId: true } },
+        },
+      }).then((tenant) => {
+        if (!tenant) return null
+        const buildingIds = new Set<string>()
+        if (tenant.space?.floor.buildingId) buildingIds.add(tenant.space.floor.buildingId)
+        for (const item of tenant.tenantSpaces) buildingIds.add(item.space.floor.buildingId)
+        for (const floor of tenant.fullFloors) buildingIds.add(floor.buildingId)
+
+        if (tenant.fullFloors.length > 0) {
+          throw new Error(`Арендатор «${tenant.companyName}» уже занимает этаж целиком. Индивидуальное помещение ему не назначается.`)
+        }
+        if (buildingIds.size > 0 && !buildingIds.has(existing.floor.buildingId)) {
+          throw new Error(
+            `Арендатор «${tenant.companyName}» привязан к другому зданию. ` +
+              "Выберите арендатора этого здания или сначала перенесите арендатора.",
+          )
+        }
+        return {
+          id: tenant.id,
+          companyName: tenant.companyName,
+          spaceId: tenant.spaceId,
+          tenantSpaces: tenant.tenantSpaces,
+        }
+      })
+      if (!tenantToAssign) throw new Error("Арендатор не найден")
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.space.update({
       where: { id },
       data: { number, area, description: description || null, status: finalStatus, kind: finalKind },
-    }),
-    ...(willUnlinkTenant
-      ? [
-          db.tenantSpace.deleteMany({ where: { spaceId: id } }),
-          db.tenant.updateMany({ where: { spaceId: id }, data: { spaceId: null } }),
-        ]
-      : []),
-  ])
+    })
+
+    if (tenantToAssign) {
+      await tx.tenantSpace.create({
+        data: {
+          tenantId: tenantToAssign.id,
+          spaceId: id,
+          isPrimary: tenantToAssign.tenantSpaces.length === 0 && !tenantToAssign.spaceId,
+        },
+      })
+      if (!tenantToAssign.spaceId) {
+        await tx.tenant.update({ where: { id: tenantToAssign.id }, data: { spaceId: id } })
+      }
+    }
+  })
 
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/tenants")
-  return { success: true, tenantUnlinked: willUnlinkTenant }
+  return { success: true, tenantAssigned: !!tenantToAssign }
 }
 
 export async function deleteSpace(id: string) {
@@ -133,9 +211,13 @@ export async function deleteSpace(id: string) {
 
   const space = await db.space.findUnique({
     where: { id },
-    include: { tenant: true, tenantSpaces: { include: { tenant: true } } },
+    include: {
+      tenant: true,
+      tenantSpaces: { include: { tenant: true } },
+      floor: { select: { fullFloorTenant: { select: { companyName: true } } } },
+    },
   })
-  const occupiedTenant = space?.tenant ?? space?.tenantSpaces[0]?.tenant ?? null
+  const occupiedTenant = space?.tenant ?? space?.tenantSpaces[0]?.tenant ?? space?.floor.fullFloorTenant ?? null
   if (occupiedTenant) return { error: "Нельзя удалить — есть арендатор" }
 
   await db.space.delete({ where: { id } })
@@ -209,15 +291,23 @@ export async function deleteAllSpacesOnFloor(floorId: string) {
   await assertFloorInOrg(floorId, orgId)
 
   const occupied = await db.space.findFirst({
-    where: { floorId, tenant: { isNot: null } },
+    where: {
+      floorId,
+      OR: [
+        { tenant: { isNot: null } },
+        { tenantSpaces: { some: {} } },
+      ],
+    },
     select: {
       number: true,
       tenant: { select: { companyName: true } },
+      tenantSpaces: { select: { tenant: { select: { companyName: true } } }, take: 1 },
     },
   })
   if (occupied) {
+    const tenantName = occupied.tenant?.companyName ?? occupied.tenantSpaces[0]?.tenant.companyName ?? "—"
     throw new Error(
-      `Нельзя удалить все помещения — кабинет ${occupied.number} занят арендатором «${occupied.tenant?.companyName ?? "—"}». Сначала выселите арендатора.`,
+      `Нельзя удалить все помещения — кабинет ${occupied.number} занят арендатором «${tenantName}». Сначала выселите арендатора.`,
     )
   }
 

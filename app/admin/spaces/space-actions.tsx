@@ -14,6 +14,14 @@ type Floor = {
   usedArea?: number          // Σ Space.area на этом этаже (без редактируемого)
 }
 type Space = { id: string; number: string; area: number; status: string; description: string | null; kind?: string }
+type TenantOption = {
+  id: string
+  companyName: string
+  placement: string | null
+}
+type EditableSpace = Space & {
+  tenant?: { id: string; companyName: string } | null
+}
 
 const STATUSES = [
   { value: "VACANT", label: "Свободно" },
@@ -167,9 +175,15 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
   )
 }
 
-export function EditSpaceDialog({ space }: { space: Space; floors: Floor[] }) {
+export function EditSpaceDialog({ space, tenants }: { space: EditableSpace; floors: Floor[]; tenants: TenantOption[] }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
+  const [status, setStatus] = useState(space.status)
+  const [tenantId, setTenantId] = useState(space.tenant?.id ?? "")
+  const occupiedTenant = space.tenant ?? null
+  const requiresTenant = status === "OCCUPIED" && !occupiedTenant
+  const cannotRelease = !!occupiedTenant && status !== "OCCUPIED"
+  const cannotSave = cannotRelease || (requiresTenant && !tenantId)
 
   return (
     <>
@@ -211,17 +225,69 @@ export function EditSpaceDialog({ space }: { space: Space; floors: Floor[] }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Статус</label>
-                <select name="status" defaultValue={space.status} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none">
+                <select
+                  name="status"
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none"
+                >
                   {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
+              {status === "OCCUPIED" && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs dark:border-blue-500/30 dark:bg-blue-500/10">
+                  {occupiedTenant ? (
+                    <>
+                      <p className="font-medium text-blue-900 dark:text-blue-200">Помещение уже занято</p>
+                      <p className="mt-1 text-blue-700 dark:text-blue-300">
+                        Арендатор: <a href={`/admin/tenants/${occupiedTenant.id}`} className="underline hover:no-underline">{occupiedTenant.companyName}</a>
+                      </p>
+                      <input type="hidden" name="tenantId" value={occupiedTenant.id} />
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-xs font-medium text-blue-900 dark:text-blue-200 mb-1.5">
+                        Кем занято *
+                      </label>
+                      <select
+                        name="tenantId"
+                        required
+                        value={tenantId}
+                        onChange={(event) => setTenantId(event.target.value)}
+                        className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-blue-500/30 dark:bg-slate-950 dark:text-slate-100"
+                      >
+                        <option value="">Выберите арендатора</option>
+                        {tenants.map((tenant) => (
+                          <option key={tenant.id} value={tenant.id}>
+                            {tenant.companyName}{tenant.placement ? ` · ${tenant.placement}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
+                        Статус “занято” сохраняется только вместе с привязкой арендатора.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+              {cannotRelease && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                  Нельзя освободить помещение простой сменой статуса. Сначала откройте карточку арендатора
+                  «{occupiedTenant.companyName}» и снимите помещение или завершите договор.
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
                 <input name="description" defaultValue={space.description ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <button
+                  type="submit"
+                  disabled={pending || cannotSave}
+                  title={cannotSave ? "Проверьте правило занятости помещения" : undefined}
+                  className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60"
+                >
                   {pending ? "Сохранение..." : "Сохранить"}
                 </button>
               </div>

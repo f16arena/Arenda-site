@@ -18,6 +18,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { switchBuilding } from "@/app/actions/buildings"
+import { tenantScope } from "@/lib/tenant-scope"
 
 export default async function SpacesPage() {
   const { orgId } = await requireOrgAccess()
@@ -298,6 +299,57 @@ export default async function SpacesPage() {
     totalArea: f.totalArea,
     usedArea: f.spaces.reduce((s, sp) => s + sp.area, 0),
   }))
+  const tenantOptionsRaw = building
+    ? await db.tenant.findMany({
+        where: tenantScope(orgId),
+        orderBy: { companyName: "asc" },
+        select: {
+          id: true,
+          companyName: true,
+          space: {
+            select: {
+              number: true,
+              floor: { select: { buildingId: true, name: true } },
+            },
+          },
+          tenantSpaces: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            select: {
+              space: {
+                select: {
+                  number: true,
+                  floor: { select: { buildingId: true, name: true } },
+                },
+              },
+            },
+          },
+          fullFloors: { select: { buildingId: true, name: true } },
+        },
+      })
+    : []
+  const assignableTenants = tenantOptionsRaw.flatMap((tenant) => {
+    const buildingIds = new Set<string>()
+    const placements = new Set<string>()
+
+    if (tenant.space?.floor.buildingId) {
+      buildingIds.add(tenant.space.floor.buildingId)
+      if (tenant.space.floor.buildingId === building?.id) placements.add(`Каб. ${tenant.space.number}`)
+    }
+    for (const item of tenant.tenantSpaces) {
+      buildingIds.add(item.space.floor.buildingId)
+      if (item.space.floor.buildingId === building?.id) placements.add(`Каб. ${item.space.number}`)
+    }
+    for (const floor of tenant.fullFloors) buildingIds.add(floor.buildingId)
+
+    const assignedToOtherBuilding = buildingIds.size > 0 && !!building && !buildingIds.has(building.id)
+    if (assignedToOtherBuilding || tenant.fullFloors.length > 0) return []
+
+    return [{
+      id: tenant.id,
+      companyName: tenant.companyName,
+      placement: placements.size > 0 ? Array.from(placements).join(", ") : null,
+    }]
+  })
 
   return (
     <div className="space-y-5">
@@ -554,6 +606,12 @@ export default async function SpacesPage() {
                     <tbody>
                       {floor.spaces.map((space) => {
                         const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
+                        const displayTenant = tenant ?? fullFloorTenant
+                        const occupancyTenant = tenant
+                          ? { id: tenant.id, companyName: tenant.companyName }
+                          : fullFloorTenant
+                            ? { id: fullFloorTenant.id, companyName: `${fullFloorTenant.companyName} (этаж целиком)` }
+                            : null
                         const rentAmount = tenant
                           ? calculateTenantMonthlyRent({
                               customRate: tenant.customRate,
@@ -572,9 +630,9 @@ export default async function SpacesPage() {
                               {tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
                             </td>
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                              {tenant ? (
-                                <Link href={`/admin/tenants/${tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                  {tenant.companyName}
+                              {displayTenant ? (
+                                <Link href={`/admin/tenants/${displayTenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                  {displayTenant.companyName}{!tenant && fullFloorTenant ? " · этаж целиком" : ""}
                                 </Link>
                               ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
                             </td>
@@ -587,10 +645,18 @@ export default async function SpacesPage() {
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
                                 <EditSpaceDialog
-                                  space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description }}
+                                  space={{
+                                    id: space.id,
+                                    number: space.number,
+                                    area: space.area,
+                                    status: space.status,
+                                    description: space.description,
+                                    tenant: occupancyTenant,
+                                  }}
                                   floors={floorOptions}
+                                  tenants={assignableTenants}
                                 />
-                                <DeleteSpaceButton spaceId={space.id} hasTenant={!!tenant} />
+                                <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />
                               </div>
                             </td>
                           </tr>
