@@ -1,3 +1,5 @@
+import { assertKazakhstanIin } from "@/lib/kz-iin"
+
 export type TenantLegalType = "IP" | "TOO" | "AO" | "PHYSICAL"
 
 const LEGAL_TYPES = new Set<TenantLegalType>(["IP", "TOO", "AO", "PHYSICAL"])
@@ -42,6 +44,10 @@ function normalizeTaxId(value: FormDataEntryValue | string | null | undefined, l
   return compact
 }
 
+function normalizeIin(value: FormDataEntryValue | string | null | undefined) {
+  return assertKazakhstanIin(value)
+}
+
 export function normalizeTenantTaxIds(args: {
   legalType: unknown
   bin?: FormDataEntryValue | string | null
@@ -61,6 +67,6 @@ export function normalizeTenantTaxIds(args: {
   return {
     legalType,
     bin: null,
-    iin: normalizeTaxId(args.iin ?? args.bin, "ИИН"),
+    iin: normalizeIin(args.iin ?? args.bin),
   }
 }

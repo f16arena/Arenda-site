@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { formatKzIinBirthDate, validateKazakhstanIin } from "@/lib/kz-iin"
 import {
   normalizeTenantLegalType,
   tenantLegalTypeUsesBin,
@@ -22,6 +23,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
   )
   const usesBin = tenantLegalTypeUsesBin(legalType)
   const taxIdLabel = tenantTaxIdLabel(legalType)
+  const iinValidation = !usesBin && taxId.length === 12 ? validateKazakhstanIin(taxId) : null
 
   return (
     <>
@@ -56,8 +58,25 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
           placeholder={usesBin ? "БИН для ТОО/АО" : "ИИН для ИП/физлица"}
           inputMode="numeric"
           maxLength={12}
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className={[
+            "w-full rounded-lg border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2",
+            iinValidation && !iinValidation.ok
+              ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
+              : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20",
+          ].join(" ")}
         />
+        {iinValidation && (
+          <p className={[
+            "mt-1 text-[11px]",
+            iinValidation.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
+          ].join(" ")}>
+            {iinValidation.ok
+              ? iinValidation.birthDate
+                ? `Контрольная цифра верна · ${formatKzIinBirthDate(iinValidation.birthDate)} · ${iinValidation.genderLabel ?? "пол не определён"}`
+                : "Контрольная цифра верна · дата/пол не расшифрованы по классическому формату"
+              : iinValidation.errors[0]}
+          </p>
+        )}
         <input type="hidden" name={usesBin ? "iin" : "bin"} value="" />
       </div>
     </>
