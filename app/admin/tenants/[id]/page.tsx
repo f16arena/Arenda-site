@@ -120,7 +120,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       },
       documents: {
         orderBy: { createdAt: "desc" },
-        select: { id: true, type: true, name: true, fileUrl: true, createdAt: true },
+        select: { id: true, type: true, name: true, fileUrl: true, storageFileId: true, createdAt: true },
       },
     },
   })

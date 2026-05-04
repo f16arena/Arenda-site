@@ -29,6 +29,7 @@ type PaymentReport = {
   receiptName: string | null
   receiptMime: string | null
   receiptDataUrl: string | null
+  receiptFileId: string | null
   createdAt: Date
   tenant: {
     id: string
@@ -150,9 +151,9 @@ function ReportCard({
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{report.note}</p>
           )}
 
-          {report.receiptDataUrl ? (
+          {report.receiptFileId || report.receiptDataUrl ? (
             <a
-              href={report.receiptDataUrl}
+              href={report.receiptFileId ? `/api/storage/${report.receiptFileId}` : report.receiptDataUrl ?? "#"}
               target="_blank"
               rel="noreferrer"
               download={report.receiptName ?? "receipt"}

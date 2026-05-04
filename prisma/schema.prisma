@@ -51,6 +51,7 @@ model User {
   buildingAccess   UserBuildingAccess[]
   sentPaymentReports PaymentReport[] @relation("PaymentReportUser")
   reviewedPaymentReports PaymentReport[] @relation("PaymentReportReviewer")
+  uploadedStoredFiles StoredFile[] @relation("StoredFileUploader")
 
   @@index([organizationId])
   @@map("users")
@@ -100,6 +101,7 @@ model Organization {
   cashAccounts  CashAccount[]
   apiKeys       ApiKey[]
   faqArticles   FaqArticle[]
+  storedFiles   StoredFile[]
 
   @@map("organizations")
 }
@@ -464,6 +466,7 @@ model PaymentReport {
   receiptName    String?   @map("receipt_name")
   receiptMime    String?   @map("receipt_mime")
   receiptDataUrl String?   @map("receipt_data_url")
+  receiptFileId  String?   @map("receipt_file_id")
   reviewedById   String?   @map("reviewed_by_id")
   reviewedAt     DateTime? @map("reviewed_at")
   paymentId      String?   @map("payment_id")
@@ -474,10 +477,12 @@ model PaymentReport {
   user     User     @relation("PaymentReportUser", fields: [userId], references: [id], onDelete: Cascade)
   reviewer User?    @relation("PaymentReportReviewer", fields: [reviewedById], references: [id])
   payment  Payment? @relation(fields: [paymentId], references: [id])
+  receiptFile StoredFile? @relation("PaymentReceiptStorage", fields: [receiptFileId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status, createdAt])
   @@index([userId])
   @@index([status, createdAt])
+  @@index([receiptFileId])
   @@map("payment_reports")
 }
 
@@ -597,12 +602,43 @@ model TenantDocument {
   tenantId  String   @map("tenant_id")
   type      String
   name      String
-  fileUrl   String   @map("file_url")
+  fileUrl   String?  @map("file_url")
+  storageFileId String? @unique @map("storage_file_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  storageFile StoredFile? @relation("TenantDocumentStorage", fields: [storageFileId], references: [id], onDelete: SetNull)
 
+  @@index([storageFileId])
   @@map("tenant_documents")
+}
+
+model StoredFile {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  ownerType      String    @map("owner_type")
+  ownerId        String?   @map("owner_id")
+  fileName       String    @map("file_name")
+  mimeType       String    @map("mime_type")
+  extension      String?
+  originalSize   Int       @map("original_size")
+  compressedSize Int       @map("compressed_size")
+  compression    String    @default("GZIP")
+  sha256         String
+  data           Bytes
+  uploadedById   String?   @map("uploaded_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy   User?        @relation("StoredFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  tenantDocument TenantDocument? @relation("TenantDocumentStorage")
+  paymentReports PaymentReport[] @relation("PaymentReceiptStorage")
+
+  @@index([organizationId, ownerType, ownerId])
+  @@index([organizationId, createdAt])
+  @@index([uploadedById])
+  @@map("stored_files")
 }
 
 model Message {

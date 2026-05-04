@@ -8,7 +8,7 @@ import { getRequiredDocs, DOC_TYPE_LABELS } from "@/lib/required-docs"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
-type Doc = { id: string; type: string; name: string; fileUrl: string; createdAt: Date }
+type Doc = { id: string; type: string; name: string; fileUrl: string | null; storageFileId?: string | null; createdAt: Date }
 
 export function DocumentsChecklist({
   tenantId,
@@ -61,7 +61,7 @@ export function DocumentsChecklist({
                 {uploaded && (
                   <div className="flex items-center gap-2 mt-1.5">
                     <a
-                      href={uploaded.fileUrl}
+                      href={uploaded.fileUrl ?? "#"}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
@@ -90,7 +90,7 @@ export function DocumentsChecklist({
               <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{DOC_TYPE_LABELS[d.type] ?? d.type}</p>
               <div className="flex items-center gap-2 mt-1.5">
                 <a
-                  href={d.fileUrl}
+                  href={d.fileUrl ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
@@ -116,6 +116,7 @@ export function DocumentsChecklist({
               <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
+              encType="multipart/form-data"
               action={(fd) =>
                 startTransition(async () => {
                   try {
@@ -156,15 +157,17 @@ export function DocumentsChecklist({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Ссылка на файл *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Файл *</label>
                 <input
-                  name="fileUrl"
+                  name="file"
                   required
-                  type="url"
-                  placeholder="https://drive.google.com/..."
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  className="w-full cursor-pointer rounded-lg border border-slate-200 bg-white text-sm text-slate-500 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:file:bg-slate-800 dark:file:text-slate-200"
                 />
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Загрузите файл в Google Drive / Dropbox и вставьте ссылку</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                  PDF, JPG, PNG, WebP, DOC, DOCX, XLS или XLSX до 10 МБ. Файл сохранится в БД.
+                </p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>

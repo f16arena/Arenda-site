@@ -9,6 +9,11 @@ import { paymentReportScope, chargeScope } from "@/lib/tenant-scope"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { formatMoney } from "@/lib/utils"
+import {
+  PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
+  PAYMENT_RECEIPT_MAX_BYTES,
+  storeBufferFile,
+} from "@/lib/storage"
 import { revalidatePath } from "next/cache"
 
 type ActionResult = {
@@ -34,21 +39,20 @@ function parseDate(value: FormDataEntryValue | null) {
 async function parseReceipt(fileValue: FormDataEntryValue | null) {
   if (!(fileValue instanceof File) || fileValue.size === 0) return null
 
-  const allowed = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"])
-  if (!allowed.has(fileValue.type)) {
+  const mime = fileValue.type.trim().toLowerCase()
+  if (!PAYMENT_RECEIPT_ALLOWED_MIME_TYPES.has(mime)) {
     return { error: "Чек должен быть PDF, JPG, PNG или WebP" as const }
   }
 
-  const maxBytes = 1.5 * 1024 * 1024
-  if (fileValue.size > maxBytes) {
-    return { error: "Файл чека не должен быть больше 1.5 МБ" as const }
+  if (fileValue.size > PAYMENT_RECEIPT_MAX_BYTES) {
+    return { error: "Файл чека не должен быть больше 2 МБ" as const }
   }
 
   const buffer = Buffer.from(await fileValue.arrayBuffer())
   return {
     name: fileValue.name.slice(0, 160),
-    mime: fileValue.type,
-    dataUrl: `data:${fileValue.type};base64,${buffer.toString("base64")}`,
+    mime,
+    buffer,
   }
 }
 
@@ -67,6 +71,8 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
   const paymentPurpose = String(formData.get("paymentPurpose") ?? "").trim().slice(0, 300)
   const receipt = await parseReceipt(formData.get("receipt"))
   if (receipt && "error" in receipt) return { ok: false, error: receipt.error }
+  const organizationId = session.user.organizationId
+  if (!organizationId) return { ok: false, error: "Организация не найдена" }
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session.user.id },
@@ -107,39 +113,71 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
     "Пожалуйста, проверьте поступление и отметьте платеж в системе.",
   ].filter(Boolean).join("\n")
 
-  const report = await db.paymentReport.create({
-    data: {
-      tenantId: tenant.id,
-      userId: session.user.id,
-      amount,
-      paymentDate,
-      paymentPurpose: paymentPurpose || null,
-      note: note || null,
-      receiptName: receipt?.name ?? null,
-      receiptMime: receipt?.mime ?? null,
-      receiptDataUrl: receipt?.dataUrl ?? null,
-    },
-  })
+  let storedReceipt: { id: string; url: string } | null = null
+  try {
+    if (receipt && !("error" in receipt)) {
+      storedReceipt = await storeBufferFile({
+        organizationId,
+        fileName: receipt.name,
+        mimeType: receipt.mime,
+        bytes: receipt.buffer,
+        ownerType: "PAYMENT_RECEIPT",
+        uploadedById: session.user.id,
+        maxBytes: PAYMENT_RECEIPT_MAX_BYTES,
+        allowedMimeTypes: PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
+      })
+    }
 
-  await db.message.createMany({
-    data: admins.map((admin) => ({
-      fromId: session.user.id,
-      toId: admin.id,
-      subject: "Арендатор сообщил об оплате",
-      body: `${body}\n\nЗаявка об оплате: #${report.id}`,
-      attachmentUrl: receipt?.dataUrl ?? null,
-    })),
-  })
-
-  for (const admin of admins) {
-    await notifyUser({
-      userId: admin.id,
-      type: "PAYMENT_REPORTED",
-      title: `Оплата от ${tenant.companyName}`,
-      message: `${formatMoney(amount)} за ${formattedDate}. ${receipt ? "Чек приложен." : "Чек не приложен."}`,
-      link: "/admin/finances",
-      sendEmail: false,
+    const report = await db.paymentReport.create({
+      data: {
+        tenantId: tenant.id,
+        userId: session.user.id,
+        amount,
+        paymentDate,
+        paymentPurpose: paymentPurpose || null,
+        note: note || null,
+        receiptName: receipt && !("error" in receipt) ? receipt.name : null,
+        receiptMime: receipt && !("error" in receipt) ? receipt.mime : null,
+        receiptDataUrl: null,
+        receiptFileId: storedReceipt?.id ?? null,
+      },
     })
+
+    if (storedReceipt) {
+      await db.storedFile.update({
+        where: { id: storedReceipt.id },
+        data: { ownerId: report.id },
+      })
+    }
+
+    await db.message.createMany({
+      data: admins.map((admin) => ({
+        fromId: session.user.id,
+        toId: admin.id,
+        subject: "Арендатор сообщил об оплате",
+        body: `${body}\n\nЗаявка об оплате: #${report.id}`,
+        attachmentUrl: storedReceipt?.url ?? null,
+      })),
+    })
+
+    for (const admin of admins) {
+      await notifyUser({
+        userId: admin.id,
+        type: "PAYMENT_REPORTED",
+        title: `Оплата от ${tenant.companyName}`,
+        message: `${formatMoney(amount)} за ${formattedDate}. ${receipt ? "Чек приложен." : "Чек не приложен."}`,
+        link: "/admin/finances",
+        sendEmail: false,
+      })
+    }
+  } catch (e) {
+    if (storedReceipt) {
+      await db.storedFile.update({
+        where: { id: storedReceipt.id },
+        data: { deletedAt: new Date() },
+      }).catch(() => null)
+    }
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить чек" }
   }
 
   revalidatePath("/cabinet/finances")

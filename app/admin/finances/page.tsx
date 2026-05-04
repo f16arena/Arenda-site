@@ -129,6 +129,7 @@ export default async function FinancesPage({
         receiptName: true,
         receiptMime: true,
         receiptDataUrl: true,
+        receiptFileId: true,
         createdAt: true,
         tenant: {
           select: {
