@@ -3,7 +3,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
-import { LANDLORD } from "@/lib/landlord"
+import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 import { Document, Packer } from "docx"
 import {
   p, center, row, fmtMoney, fmtDate, periodLabel, numberToWords, shortName,
@@ -53,11 +53,12 @@ export async function GET(req: Request) {
     }),
     db.organization.findUnique({
       where: { id: orgId },
-      select: { isVatPayer: true, vatRate: true },
+      select: { ...ORGANIZATION_REQUISITES_SELECT, isVatPayer: true, vatRate: true },
     }),
   ])
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
+  const landlord = organizationToRequisites(organization)
   const today = new Date()
   const contract = tenant.contracts[0]
   const withVat = !!organization?.isVatPayer
@@ -135,11 +136,11 @@ export async function GET(req: Request) {
             width: { size: 50, type: WidthType.PERCENTAGE },
             children: [
               new Paragraph({ children: [new TextRun({ text: "Исполнитель:", bold: true, size: 22 })], spacing: { after: 80 } }),
-              new Paragraph({ children: [new TextRun({ text: LANDLORD.fullName, size: 20 })] }),
-              new Paragraph({ children: [new TextRun({ text: `ИИН: ${LANDLORD.iin}`, size: 20 })], spacing: { after: 100 } }),
+              new Paragraph({ children: [new TextRun({ text: landlord.fullName, size: 20 })] }),
+              new Paragraph({ children: [new TextRun({ text: `${landlord.taxIdLabel}: ${landlord.taxId}`, size: 20 })], spacing: { after: 100 } }),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                children: [new TextRun({ text: `___________________ ${LANDLORD.directorShort}`, size: 22 })],
+                children: [new TextRun({ text: `___________________ ${landlord.directorShort}`, size: 22 })],
                 spacing: { before: 300 },
               }),
               new Paragraph({
@@ -182,7 +183,7 @@ export async function GET(req: Request) {
         ...(contract ? [p(`К договору № ${contract.number}${contract.startDate ? ` от ${fmtDate(contract.startDate)}` : ""}`, { indent: false })] : []),
         p(`Период оказания услуг: с ${fmtDate(periodStart)} по ${fmtDate(periodEnd)}`, { indent: false }),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
-        p(`Мы, нижеподписавшиеся, ${LANDLORD.fullName} (далее — Исполнитель), в лице руководителя ${LANDLORD.directorShort}, с одной стороны, и ${tenant.companyName} (далее — Заказчик), в лице ${tenant.directorName ?? tenant.user.name}, с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки, а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:`),
+        p(`Мы, нижеподписавшиеся, ${landlord.fullName} (далее — Исполнитель), в лице руководителя ${landlord.directorShort}, с одной стороны, и ${tenant.companyName} (далее — Заказчик), в лице ${tenant.directorName ?? tenant.user.name}, с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки, а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:`),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
         itemsTable,
         new Paragraph({ children: [new TextRun("")], spacing: { before: 200 } }),
@@ -214,9 +215,10 @@ export async function GET(req: Request) {
       tenant_name: tenant.companyName,
       tenant_bin: tenant.bin || tenant.iin || "",
       tenant_director: tenant.directorName || tenant.user.name,
-      landlord_name: LANDLORD.fullName,
-      landlord_bin: LANDLORD.iin,
-      landlord_director: LANDLORD.directorShort,
+      landlord_name: landlord.fullName,
+      landlord_bin: landlord.bin || landlord.taxId,
+      landlord_iin: landlord.iin,
+      landlord_director: landlord.directorShort,
       subtotal: fmtMoney(subtotal),
       vat_rate: withVat ? `${vatRate}` : "",
       vat_amount: withVat ? fmtMoney(vatAmount) : "",

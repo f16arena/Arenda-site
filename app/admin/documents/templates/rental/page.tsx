@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
+import { BUILDING_DEFAULT } from "@/lib/landlord"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { TenantSelector } from "../tenant-selector"
 import { PrintButton } from "./print-button"
 import { ContractNumberInput } from "./contract-number-input"
@@ -24,6 +25,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const landlord = await getOrganizationRequisites(orgId)
 
   const { tenantId } = await searchParams
 
@@ -146,8 +148,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           </div>
 
           <p className="mt-4 text-justify">
-            <b>{LANDLORD.fullName}</b>, именуемый в дальнейшем «Арендодатель», в лице руководителя {LANDLORD.directorShort},
-            действующего на основании {LANDLORD.basis}, с одной стороны, и&nbsp;
+            <b>{landlord.fullName}</b>, именуемый в дальнейшем «Арендодатель», в лице руководителя {landlord.directorShort},
+            действующего на основании {landlord.basis}, с одной стороны, и&nbsp;
             <b>{tenant.companyName}</b>, именуем
             {tenant.legalType === "TOO" || tenant.legalType === "AO" ? "ое" : "ый"} в дальнейшем «Арендатор», в лице&nbsp;
             {tenant.directorName ?? tenant.user.name}
@@ -241,16 +243,16 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           <div className="grid grid-cols-2 gap-8 mt-4 text-[12px]">
             <div>
               <p className="font-bold">Арендодатель:</p>
-              <p>{LANDLORD.fullName}</p>
-              <p>Адрес: {LANDLORD.legalAddress}</p>
-              <p>ИИН: {LANDLORD.iin}</p>
-              <p>ИИК: {LANDLORD.iik}</p>
-              <p>БИК: {LANDLORD.bik}</p>
-              <p>Банк: {LANDLORD.bank}</p>
-              <p>Тел: {LANDLORD.phone}</p>
-              <p>Email: {LANDLORD.email}</p>
+              <p>{landlord.fullName}</p>
+              <p>Адрес: {landlord.legalAddress}</p>
+              <p>{landlord.taxIdLabel}: {landlord.taxId}</p>
+              <p>ИИК: {landlord.iik}</p>
+              <p>БИК: {landlord.bik}</p>
+              <p>Банк: {landlord.bank}</p>
+              <p>Тел: {landlord.phone}</p>
+              <p>Email: {landlord.email}</p>
               <div className="mt-6 border-t border-slate-300 pt-2 text-center">
-                ___________________ {LANDLORD.directorShort}
+                ___________________ {landlord.directorShort}
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">М.П.</p>
               </div>
             </div>

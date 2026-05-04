@@ -4,7 +4,6 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { TenantSelector } from "../tenant-selector"
-import { LANDLORD } from "@/lib/landlord"
 import { formatMoney } from "@/lib/utils"
 import Link from "next/link"
 import { ArrowLeft, Download, FileText } from "lucide-react"
@@ -15,6 +14,7 @@ import { NcaSignButton } from "@/components/nca-sign-button"
 import { PeriodPicker } from "@/components/documents/period-picker"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 
 const MONTHS = [
   "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -38,7 +38,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
   const [organization, tenant, building] = await Promise.all([
     db.organization.findUnique({
       where: { id: orgId },
-      select: { isVatPayer: true, vatRate: true, name: true },
+      select: { ...ORGANIZATION_REQUISITES_SELECT, isVatPayer: true, vatRate: true },
     }),
     tenantId ? db.tenant.findUnique({
       where: { id: tenantId },
@@ -54,6 +54,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
   ])
 
   const today = new Date()
+  const landlord = organizationToRequisites(organization)
   const [py, pm] = currentPeriod.split("-").map(Number)
   const periodStart = new Date(py, pm - 1, 1)
   const periodEnd = new Date(py, pm, 0)
@@ -95,7 +96,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Акт оказанных услуг</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -131,7 +132,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
           </div>
 
           <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 text-justify">
-            Мы, нижеподписавшиеся, <b>{LANDLORD.fullName}</b> (далее — Исполнитель), в лице руководителя {LANDLORD.directorShort},
+            Мы, нижеподписавшиеся, <b>{landlord.fullName}</b> (далее — Исполнитель), в лице руководителя {landlord.directorShort},
             с одной стороны, и <b>{tenant.companyName}</b> (далее — Заказчик), в лице {tenant.directorName ?? tenant.user.name},
             с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки,
             а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:
@@ -180,9 +181,9 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
           <div className="grid grid-cols-2 gap-12 text-sm">
             <div>
               <p className="font-semibold mb-1">Исполнитель:</p>
-              <p>{LANDLORD.fullName}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИН: {LANDLORD.iin}</p>
-              <p className="border-b border-slate-400 mt-12 pb-1 text-center">_____________ {LANDLORD.directorShort}</p>
+              <p>{landlord.fullName}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{landlord.taxIdLabel}: {landlord.taxId}</p>
+              <p className="border-b border-slate-400 mt-12 pb-1 text-center">_____________ {landlord.directorShort}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
             </div>
             <div>

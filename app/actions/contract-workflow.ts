@@ -154,7 +154,7 @@ export async function getContractByToken(token: string) {
         select: {
           companyName: true,
           legalType: true,
-          user: { select: { name: true, email: true } },
+          user: { select: { name: true, email: true, organizationId: true } },
         },
       },
     },

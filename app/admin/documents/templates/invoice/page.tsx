@@ -4,7 +4,6 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { TenantSelector } from "../tenant-selector"
-import { LANDLORD } from "@/lib/landlord"
 import { formatMoney } from "@/lib/utils"
 import Link from "next/link"
 import { ArrowLeft, Download, FileText } from "lucide-react"
@@ -15,6 +14,7 @@ import { NcaSignButton } from "@/components/nca-sign-button"
 import { PeriodPicker } from "@/components/documents/period-picker"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 
 const MONTHS = [
   "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -38,7 +38,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
   const [organization, tenant] = await Promise.all([
     db.organization.findUnique({
       where: { id: orgId },
-      select: { isVatPayer: true, vatRate: true, name: true },
+      select: { ...ORGANIZATION_REQUISITES_SELECT, isVatPayer: true, vatRate: true },
     }),
     tenantId ? db.tenant.findUnique({
       where: { id: tenantId },
@@ -54,6 +54,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
 
   const building = await db.building.findFirst({ where: { organizationId: orgId } })
   const today = new Date()
+  const landlord = organizationToRequisites(organization)
   const periodLabel = `${MONTHS[parseInt(currentPeriod.split("-")[1]) - 1]} ${currentPeriod.split("-")[0]}`
   const dueDate = tenant ? new Date(today.getFullYear(), today.getMonth(), tenant.paymentDueDay) : null
 
@@ -102,7 +103,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счёт на оплату</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -140,12 +141,12 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
           <div className="grid grid-cols-2 gap-8 mb-6 text-sm">
             <div>
               <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Поставщик:</p>
-              <p className="text-slate-700 dark:text-slate-300">{LANDLORD.fullName}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{LANDLORD.legalAddress}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИН: {LANDLORD.iin}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {LANDLORD.bank}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {LANDLORD.iik}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {LANDLORD.bik}</p>
+              <p className="text-slate-700 dark:text-slate-300">{landlord.fullName}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{landlord.legalAddress}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{landlord.taxIdLabel}: {landlord.taxId}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {landlord.bank}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {landlord.iik}</p>
+              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {landlord.bik}</p>
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Получатель:</p>
@@ -202,7 +203,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
           <div className="grid grid-cols-2 gap-12 mt-12 text-sm">
             <div>
               <p className="font-semibold mb-8">Поставщик:</p>
-              <p className="border-b border-slate-400 pb-1 text-center">_____________ {LANDLORD.directorShort}</p>
+              <p className="border-b border-slate-400 pb-1 text-center">_____________ {landlord.directorShort}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
             </div>
           </div>

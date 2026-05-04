@@ -5,9 +5,10 @@ import { Building2, FileSignature, Check, X, Clock } from "lucide-react"
 import { getContractByToken } from "@/app/actions/contract-workflow"
 import { SignActions } from "./sign-actions"
 import { LANDLORD } from "@/lib/landlord"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
 
-function redactOwnerContact(content: string) {
-  return [LANDLORD.phone, LANDLORD.email].reduce((text, value) => {
+function redactOwnerContact(content: string, contacts: string[]) {
+  return contacts.reduce((text, value) => {
     if (!value) return text
     return text.split(value).join("скрыто, связь через администратора")
   }, content)
@@ -23,7 +24,15 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   const landlordSigned = !!contract.signedByLandlordAt
   const documentTitle = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
   const documentTextTitle = contract.type === "ADDENDUM" ? "Текст доп. соглашения" : "Текст договора"
-  const publicContractContent = redactOwnerContact(contract.content)
+  const landlord = contract.tenant.user.organizationId
+    ? await getOrganizationRequisites(contract.tenant.user.organizationId)
+    : null
+  const publicContractContent = redactOwnerContact(contract.content, [
+    LANDLORD.phone,
+    LANDLORD.email,
+    landlord?.phone ?? "",
+    landlord?.email ?? "",
+  ])
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">

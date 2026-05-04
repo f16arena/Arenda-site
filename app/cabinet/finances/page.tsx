@@ -2,7 +2,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "@/lib/utils"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
-import { LANDLORD } from "@/lib/landlord"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { PaymentPanel } from "./payment-panel"
 
 export default async function CabinetFinances() {
@@ -11,6 +11,7 @@ export default async function CabinetFinances() {
   const tenant = await db.tenant.findUnique({
     where: { userId: session!.user.id },
     include: {
+      user: { select: { organizationId: true } },
       charges: { orderBy: { createdAt: "desc" } },
       payments: { orderBy: { paymentDate: "desc" } },
       space: { include: { floor: true } },
@@ -38,12 +39,13 @@ export default async function CabinetFinances() {
       ? assignedSpaces.map((space) => `Каб. ${space.number}`).join(", ")
       : "помещение по договору")
   const paymentPurpose = `Аренда ${placement}, ${tenant.companyName}, период ${currentPeriod}`
+  const landlord = await getOrganizationRequisites(tenant.user.organizationId ?? session!.user.organizationId!)
   const requisites = {
-    recipient: LANDLORD.fullName,
-    iin: LANDLORD.iin,
-    bank: LANDLORD.bank,
-    bik: LANDLORD.bik,
-    account: LANDLORD.iik,
+    recipient: landlord.fullName,
+    iin: landlord.taxId,
+    bank: landlord.bank,
+    bik: landlord.bik,
+    account: landlord.iik,
   }
   const qrText = [
     `Получатель: ${requisites.recipient}`,

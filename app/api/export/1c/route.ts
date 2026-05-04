@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
-import { LANDLORD } from "@/lib/landlord"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
 
 export const dynamic = "force-dynamic"
 
@@ -27,6 +27,7 @@ export async function GET(req: Request) {
   const today = new Date()
   const from = fromStr ? new Date(fromStr) : new Date(today.getFullYear(), 0, 1)
   const to = toStr ? new Date(toStr) : new Date(today.getFullYear(), 11, 31, 23, 59, 59)
+  const landlord = await getOrganizationRequisites(orgId)
 
   const floorIds = (await db.floor.findMany({
     where: { buildingId },
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
   lines.push(`ВремяСоздания=${today.toTimeString().slice(0, 5)}`)
   lines.push(`ДатаНачала=${from.toISOString().slice(0, 10).replace(/-/g, ".")}`)
   lines.push(`ДатаКонца=${to.toISOString().slice(0, 10).replace(/-/g, ".")}`)
-  lines.push(`РасчСчет=${LANDLORD.iik}`)
+  lines.push(`РасчСчет=${landlord.iik}`)
   lines.push("")
 
   for (const p of payments) {
@@ -63,9 +64,9 @@ export async function GET(req: Request) {
     lines.push(`ПлательщикРасчСчет=...`)
     lines.push(`ПлательщикИНН=${p.tenant.bin || p.tenant.iin || ""}`)
     lines.push(`Плательщик=${p.tenant.companyName}`)
-    lines.push(`ПолучательРасчСчет=${LANDLORD.iik}`)
-    lines.push(`ПолучательИНН=${LANDLORD.iin}`)
-    lines.push(`Получатель=${LANDLORD.fullName}`)
+    lines.push(`ПолучательРасчСчет=${landlord.iik}`)
+    lines.push(`ПолучательИНН=${landlord.taxId}`)
+    lines.push(`Получатель=${landlord.fullName}`)
     lines.push(`НазначениеПлатежа=${p.note || `Аренда от ${p.paymentDate.toISOString().slice(0, 10)}`}`)
     lines.push("КонецДокумента")
     lines.push("")

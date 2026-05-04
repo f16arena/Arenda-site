@@ -82,6 +82,21 @@ model Organization {
   id              String    @id @default(cuid())
   name            String
   slug            String    @unique
+  legalType       String?   @map("legal_type")
+  legalName       String?   @map("legal_name")
+  shortName       String?   @map("short_name")
+  bin             String?
+  iin             String?
+  directorName    String?   @map("director_name")
+  directorPosition String?  @map("director_position")
+  basis           String?
+  legalAddress    String?   @map("legal_address")
+  actualAddress   String?   @map("actual_address")
+  bankName        String?   @map("bank_name")
+  iik             String?
+  bik             String?
+  phone           String?
+  email           String?
   isActive        Boolean   @default(true) @map("is_active")
   isSuspended     Boolean   @default(false) @map("is_suspended")
   ownerUserId     String?   @map("owner_user_id")

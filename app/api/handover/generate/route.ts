@@ -3,7 +3,8 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
-import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
+import { BUILDING_DEFAULT } from "@/lib/landlord"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { Document, Packer } from "docx"
 import {
   p, center, fmtDate, shortName,
@@ -47,6 +48,7 @@ export async function GET(req: Request) {
   })
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
+  const landlord = await getOrganizationRequisites(orgId)
   const today = new Date()
   const fullFloor = tenant.fullFloors?.[0]
   const assignedSpaces = tenant.tenantSpaces.length > 0
@@ -78,11 +80,11 @@ export async function GET(req: Request) {
             width: { size: 50, type: WidthType.PERCENTAGE },
             children: [
               new Paragraph({ children: [new TextRun({ text: "Арендодатель:", bold: true, size: 22 })], spacing: { after: 80 } }),
-              new Paragraph({ children: [new TextRun({ text: LANDLORD.fullName, size: 20 })] }),
-              new Paragraph({ children: [new TextRun({ text: `ИИН: ${LANDLORD.iin}`, size: 20 })] }),
+              new Paragraph({ children: [new TextRun({ text: landlord.fullName, size: 20 })] }),
+              new Paragraph({ children: [new TextRun({ text: `${landlord.taxIdLabel}: ${landlord.taxId}`, size: 20 })] }),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                children: [new TextRun({ text: `___________________ ${LANDLORD.directorShort}`, size: 22 })],
+                children: [new TextRun({ text: `___________________ ${landlord.directorShort}`, size: 22 })],
                 spacing: { before: 400 },
               }),
               new Paragraph({
@@ -130,7 +132,7 @@ export async function GET(req: Request) {
           ],
           spacing: { after: 300 },
         }),
-        p(`${LANDLORD.fullName}, в лице руководителя ${LANDLORD.directorShort}, действующего на основании ${LANDLORD.basis} (далее — «Арендодатель»), и ${tenant.companyName}, в лице ${tenant.directorName ?? tenant.user.name} (далее — «Арендатор»), составили настоящий Акт о следующем:`),
+        p(`${landlord.fullName}, в лице руководителя ${landlord.directorShort}, действующего на основании ${landlord.basis} (далее — «Арендодатель»), и ${tenant.companyName}, в лице ${tenant.directorName ?? tenant.user.name} (далее — «Арендатор»), составили настоящий Акт о следующем:`),
         p(intro),
         p(`1. Адрес: ${buildingAddress}${placement ? `, ${placement}` : ""}.`, { indent: false }),
         p(`2. Площадь: ${area} кв.м.`, { indent: false }),

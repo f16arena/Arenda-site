@@ -5,7 +5,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
-import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
+import { BUILDING_DEFAULT } from "@/lib/landlord"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import {
   AlignmentType,
   BorderStyle,
@@ -69,6 +70,7 @@ export async function GET(req: Request) {
   })
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
+  const landlord = await getOrganizationRequisites(orgId)
   const contractNumber = searchParams.get("number") || "01-XXX"
   const today = new Date()
   const fullFloor = tenant.fullFloors?.[0]
@@ -118,16 +120,16 @@ export async function GET(req: Request) {
       start_date_long: fmtDate(start),
       end_date_long: fmtDate(end),
 
-      landlord_name: LANDLORD.fullName,
-      landlord_short: LANDLORD.shortName,
-      landlord_director: LANDLORD.director,
-      landlord_iin: LANDLORD.iin,
-      landlord_bin: LANDLORD.iin,
-      landlord_basis: LANDLORD.basis,
-      landlord_address: LANDLORD.legalAddress,
-      landlord_bank: LANDLORD.bank,
-      landlord_iik: LANDLORD.iik,
-      landlord_bik: LANDLORD.bik,
+      landlord_name: landlord.fullName,
+      landlord_short: landlord.shortName,
+      landlord_director: landlord.director,
+      landlord_iin: landlord.iin,
+      landlord_bin: landlord.bin || landlord.taxId,
+      landlord_basis: landlord.basis,
+      landlord_address: landlord.legalAddress,
+      landlord_bank: landlord.bank,
+      landlord_iik: landlord.iik,
+      landlord_bik: landlord.bik,
 
       tenant_name: tenant.companyName,
       tenant_legal_type: tenant.legalType,
@@ -269,7 +271,7 @@ export async function GET(req: Request) {
       spacing: { after: 200 },
     }),
 
-    p(`${LANDLORD.fullName}, именуемый в дальнейшем «Арендодатель», в лице руководителя ${LANDLORD.directorShort}, действующего на основании ${LANDLORD.basis}, с одной стороны, и ${tenantName}, именуемый(ое) в дальнейшем «Арендатор», в лице ${tenantDir}${tenant.directorPosition ? ` (${tenant.directorPosition})` : ""}, действующего на основании ${tenantBasis}, с другой стороны, заключили настоящий Договор аренды нежилого помещения о нижеследующем:`),
+    p(`${landlord.fullName}, именуемый в дальнейшем «Арендодатель», в лице руководителя ${landlord.directorShort}, действующего на основании ${landlord.basis}, с одной стороны, и ${tenantName}, именуемый(ое) в дальнейшем «Арендатор», в лице ${tenantDir}${tenant.directorPosition ? ` (${tenant.directorPosition})` : ""}, действующего на основании ${tenantBasis}, с другой стороны, заключили настоящий Договор аренды нежилого помещения о нижеследующем:`),
 
     heading("1. Предмет договора"),
     p(`1.1. Арендодатель обязуется передать, а Арендатор принять во временное владение и пользование (аренду) за плату на срок настоящего Договора нежилое помещение, расположенное по адресу: ${objectAddress}${placement ? `, ${placement}` : ""}, площадью ${formatArea(area)} кв.м., именуемое в дальнейшем «Помещение», в здании, принадлежащем Арендодателю на праве собственности.`),
@@ -314,14 +316,14 @@ export async function GET(req: Request) {
       {
         title: "Арендодатель:",
         lines: [
-          LANDLORD.fullName,
-          `Адрес: ${LANDLORD.legalAddress}`,
-          `ИИН: ${LANDLORD.iin}`,
-          `ИИК: ${LANDLORD.iik}`,
-          `БИК: ${LANDLORD.bik}`,
-          `Банк: ${LANDLORD.bank}`,
+          landlord.fullName,
+          `Адрес: ${landlord.legalAddress}`,
+          `${landlord.taxIdLabel}: ${landlord.taxId}`,
+          `ИИК: ${landlord.iik}`,
+          `БИК: ${landlord.bik}`,
+          `Банк: ${landlord.bank}`,
         ],
-        signature: LANDLORD.directorShort,
+        signature: landlord.directorShort,
       },
       {
         title: "Арендатор:",

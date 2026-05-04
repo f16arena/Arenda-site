@@ -10,6 +10,8 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 import { VatSection } from "@/components/settings/vat-section"
+import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
+import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -19,7 +21,12 @@ export default async function SettingsPage() {
   const [organization, buildingId] = await Promise.all([
     db.organization.findUnique({
       where: { id: orgId },
-      select: { id: true, isVatPayer: true, vatRate: true, vatNumber: true },
+      select: {
+        ...ORGANIZATION_REQUISITES_SELECT,
+        isVatPayer: true,
+        vatRate: true,
+        vatNumber: true,
+      },
     }),
     getCurrentBuildingId(),
   ])
@@ -34,9 +41,16 @@ export default async function SettingsPage() {
 
   if (!building) {
     return (
-      <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-6 text-center">
-        <p className="text-sm text-amber-800 dark:text-amber-200 mb-2">Здание не выбрано</p>
-        <a href="/admin/buildings" className="text-xs text-amber-700 dark:text-amber-300 underline">Перейти к списку зданий →</a>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Настройки</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Реквизиты организации и параметры объектов</p>
+        </div>
+        {organization && <OrganizationRequisitesSection organization={organization} />}
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
+          <p className="mb-2 text-sm text-amber-800 dark:text-amber-200">Здание не выбрано</p>
+          <a href="/admin/buildings" className="text-xs text-amber-700 underline dark:text-amber-300">Перейти к списку зданий →</a>
+        </div>
       </div>
     )
   }
@@ -144,6 +158,8 @@ export default async function SettingsPage() {
           </div>
         </ServerForm>
       </div>
+
+      {organization && <OrganizationRequisitesSection organization={organization} />}
 
       {/* Floors */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
