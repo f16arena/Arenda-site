@@ -1,4 +1,5 @@
 import { auth } from "@/auth"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
@@ -12,9 +13,9 @@ import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-b
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
-import { getCurrentBuildingId } from "@/lib/current-building"
-import { getAccessibleBuildingsForSession, isOwnerLike } from "@/lib/building-access"
-import { getAllowedSections } from "@/lib/acl"
+import { CURRENT_BUILDING_COOKIE, resolveCurrentBuildingIdFromSelection } from "@/lib/current-building"
+import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-access"
+import { getAllowedSections, SECTIONS } from "@/lib/acl"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
@@ -31,8 +32,10 @@ export default async function AdminLayout({
   if (!isPlatformOwner && !ALLOWED_ROLES.includes(session.user.role)) {
     redirect("/cabinet")
   }
-  const impersonate = await getValidatedImpersonateData().catch(() => null)
-  const currentOrgId = await getCurrentOrgId().catch(() => null)
+  const impersonate = isPlatformOwner ? await getValidatedImpersonateData().catch(() => null) : null
+  const currentOrgId = isPlatformOwner
+    ? (impersonate?.orgId ?? await getCurrentOrgId().catch(() => null))
+    : (session.user.organizationId ?? null)
 
   // Платформенный админ без выбранной организации — показываем экран выбора
   if (isPlatformOwner && !currentOrgId && !impersonate) {
@@ -60,13 +63,43 @@ export default async function AdminLayout({
     return <AdminSelectOrg orgs={mapped} userName={session.user.name ?? "Платформа"} />
   }
 
-  const currentBuildingId = await getCurrentBuildingId().catch(() => null)
-  const currentOrg = currentOrgId
-    ? await db.organization.findUnique({
-        where: { id: currentOrgId },
-        select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
-      }).catch(() => null)
-    : null
+  const [currentOrg, userMail, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
+    currentOrgId
+      ? db.organization.findUnique({
+          where: { id: currentOrgId },
+          select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
+        }).catch(() => null)
+      : Promise.resolve(null),
+    !isPlatformOwner
+      ? db.user.findUnique({
+          where: { id: session.user.id },
+          select: { email: true, emailVerifiedAt: true },
+        }).catch(() => null)
+      : Promise.resolve(null),
+    currentOrgId
+      ? getAccessibleBuildingsForUser({
+          userId: session.user.id,
+          orgId: currentOrgId,
+          role: session.user.role,
+          isPlatformOwner,
+        }).catch(() => [] as Array<{ id: string; name: string; address: string }>)
+      : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
+    db.notification.count({
+      where: { userId: session.user.id, isRead: false },
+    }).catch(() => 0),
+    isOwnerLike(session.user.role, isPlatformOwner)
+      ? Promise.resolve(new Set(SECTIONS))
+      : getAllowedSections(session.user.role),
+  ])
+
+  const store = await cookies()
+  const currentBuildingId = resolveCurrentBuildingIdFromSelection({
+    cookieValue: store.get(CURRENT_BUILDING_COOKIE)?.value,
+    accessibleBuildings: allBuildings,
+    role: session.user.role,
+    isPlatformOwner,
+  })
+  const building = allBuildings.find((item) => item.id === currentBuildingId) ?? null
   const isPlatformView = isPlatformOwner && !impersonate && !!currentOrg
 
   const now = new Date()
@@ -74,31 +107,6 @@ export default async function AdminLayout({
   const daysLeft = currentOrg?.planExpiresAt
     ? Math.max(0, Math.ceil((currentOrg.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
-  // Подгружаем email/emailVerifiedAt для баннера "Подтвердите email".
-  // Платформенному админу баннер не нужен — он сам управляет.
-  const userMail = !isPlatformOwner
-    ? await db.user.findUnique({
-        where: { id: session.user.id },
-        select: { email: true, emailVerifiedAt: true },
-      }).catch(() => null)
-    : null
-
-  const [building, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
-    currentBuildingId
-      ? db.building.findUnique({
-          where: { id: currentBuildingId },
-          select: { id: true, name: true, address: true, isActive: true },
-        }).catch(() => null)
-      : Promise.resolve(null),
-    (async () => {
-      if (!currentOrgId) return [] as Array<{ id: string; name: string; address: string }>
-      return getAccessibleBuildingsForSession(currentOrgId).catch(() => [] as Array<{ id: string; name: string; address: string }>)
-    })(),
-    db.notification.count({
-      where: { userId: session.user.id, isRead: false },
-    }).catch(() => 0),
-    getAllowedSections(session.user.role),
-  ])
   const aggregateLabel = isOwnerLike(session.user.role, session.user.isPlatformOwner) ? "Все здания" : "Мои здания"
   const aggregateSubtitle = isOwnerLike(session.user.role, session.user.isPlatformOwner)
     ? "Общая картина по всем зданиям"

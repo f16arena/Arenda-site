@@ -1,5 +1,6 @@
 import { auth } from "@/auth"
 import { db } from "./db"
+import { cache } from "react"
 
 export const ALL_BUILDINGS_COOKIE = "__all__"
 
@@ -30,6 +31,15 @@ export async function getAccessibleBuildingsForUser({
   role?: string | null
   isPlatformOwner?: boolean | null
 }): Promise<AccessibleBuilding[]> {
+  return getAccessibleBuildingsForUserCached(userId, orgId, role ?? null, !!isPlatformOwner)
+}
+
+const getAccessibleBuildingsForUserCached = cache(async (
+  userId: string,
+  orgId: string,
+  role: string | null,
+  isPlatformOwner: boolean,
+): Promise<AccessibleBuilding[]> => {
   if (isOwnerLike(role, isPlatformOwner)) {
     return db.building.findMany({
       where: { organizationId: orgId, isActive: true },
@@ -80,7 +90,7 @@ export async function getAccessibleBuildingsForUser({
     select: { id: true, name: true, address: true },
     orderBy: { createdAt: "asc" },
   })
-}
+})
 
 export async function getAccessibleBuildingsForSession(orgId: string) {
   const session = await auth()

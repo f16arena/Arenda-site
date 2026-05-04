@@ -2,8 +2,31 @@ import { cookies } from "next/headers"
 import { auth } from "@/auth"
 import { db } from "./db"
 import { ALL_BUILDINGS_COOKIE, getAccessibleBuildingsForUser, isOwnerLike } from "./building-access"
+import type { AccessibleBuilding } from "./building-access"
 
-const COOKIE_NAME = "currentBuildingId"
+export const CURRENT_BUILDING_COOKIE = "currentBuildingId"
+
+export function resolveCurrentBuildingIdFromSelection({
+  cookieValue,
+  accessibleBuildings,
+  role,
+  isPlatformOwner,
+}: {
+  cookieValue?: string | null
+  accessibleBuildings: AccessibleBuilding[]
+  role?: string | null
+  isPlatformOwner?: boolean | null
+}): string | null {
+  if (cookieValue === ALL_BUILDINGS_COOKIE) return null
+
+  const accessibleIds = new Set(accessibleBuildings.map((building) => building.id))
+  if (cookieValue && accessibleIds.has(cookieValue)) return cookieValue
+
+  // OWNER по умолчанию видит агрегат "Все здания"; ADMIN с несколькими зданиями — "Мои здания".
+  if (isOwnerLike(role, isPlatformOwner)) return null
+  if (accessibleBuildings.length === 1) return accessibleBuildings[0].id
+  return null
+}
 
 /**
  * Возвращает id текущего здания только в скоупе текущей орги.
@@ -28,19 +51,13 @@ export async function getCurrentBuildingId(): Promise<string | null> {
     role: session.user.role,
     isPlatformOwner: session.user.isPlatformOwner,
   })
-  const accessibleIds = new Set(accessible.map((b) => b.id))
-
   const store = await cookies()
-  const fromCookie = store.get(COOKIE_NAME)?.value
-  if (fromCookie === ALL_BUILDINGS_COOKIE) return null
-  if (fromCookie) {
-    if (accessibleIds.has(fromCookie)) return fromCookie
-  }
-
-  // OWNER по умолчанию видит агрегат "Все здания"; ADMIN с несколькими зданиями — "Мои здания".
-  if (isOwnerLike(session.user.role, session.user.isPlatformOwner)) return null
-  if (accessible.length === 1) return accessible[0].id
-  return null
+  return resolveCurrentBuildingIdFromSelection({
+    cookieValue: store.get(CURRENT_BUILDING_COOKIE)?.value,
+    accessibleBuildings: accessible,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+  })
 }
 
 export async function getCurrentBuilding() {
@@ -51,7 +68,7 @@ export async function getCurrentBuilding() {
 
 export async function setCurrentBuildingCookie(buildingId: string) {
   const store = await cookies()
-  store.set(COOKIE_NAME, buildingId || ALL_BUILDINGS_COOKIE, {
+  store.set(CURRENT_BUILDING_COOKIE, buildingId || ALL_BUILDINGS_COOKIE, {
     maxAge: 60 * 60 * 24 * 365, // 1 год
     path: "/",
     httpOnly: false, // нужно читать в client-side для switcher
