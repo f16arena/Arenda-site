@@ -5,8 +5,8 @@ import { auth } from "@/auth"
 import { headers } from "next/headers"
 import { getValidatedImpersonateData } from "./org"
 
-export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT"
-export type AuditEntity = "tenant" | "building" | "floor" | "space" | "charge" | "payment" | "expense" | "user" | "contract" | "lead" | "tariff" | "meter" | "request" | "task"
+export type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "ERROR" | "SECURITY"
+export type AuditEntity = "tenant" | "building" | "floor" | "space" | "charge" | "payment" | "expense" | "user" | "contract" | "lead" | "tariff" | "meter" | "request" | "task" | "system" | "apiKey"
 
 export async function audit(opts: {
   action: AuditAction

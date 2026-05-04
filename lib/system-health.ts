@@ -59,12 +59,27 @@ const EXPECTED_CRONS = [
   "/api/cron/check-subscriptions",
 ] as const
 
+const CLIENT_FILE_BUDGET = 140 * 1024
+const SERVER_FILE_BUDGET = 80 * 1024
+const PERFORMANCE_WATCH_FILES = [
+  { rel: path.join("app", "admin", "floors", "[id]", "floor-editor.tsx"), isClient: true },
+  { rel: path.join("app", "admin", "tenants", "[id]", "page.tsx"), isClient: false },
+  { rel: path.join("app", "admin", "data-quality", "page.tsx"), isClient: false },
+  { rel: path.join("app", "admin", "spaces", "page.tsx"), isClient: false },
+  { rel: path.join("app", "admin", "page.tsx"), isClient: false },
+  { rel: path.join("app", "cabinet", "page.tsx"), isClient: false },
+  { rel: path.join("lib", "system-health.ts"), isClient: false },
+] as const
+
 export async function runSystemHealthChecks(): Promise<SystemCheck[]> {
   const checks = await Promise.all([
     withTiming("env", "Переменные окружения", checkEnvironment),
+    withTiming("release", "Версия и release-файлы", checkReleaseVersion),
     withTiming("database", "База данных", checkDatabase),
     withTiming("schema", "Prisma-схема и таблицы", checkSchemaTables),
     withTiming("rls", "Supabase RLS", checkSensitiveRls),
+    withTiming("security", "Критичные guardrails", checkSecurityGuardrails),
+    withTiming("performance", "Performance budget", checkPerformanceBudget),
     withTiming("migrations", "Миграции", checkMigrations),
     withTiming("cron", "Cron-задачи", checkCron),
     withTiming("email", "Email-канал", checkEmail),
@@ -148,6 +163,135 @@ async function checkEnvironment(): Promise<Omit<SystemCheck, "id" | "label" | "m
   return {
     status: "ok",
     message: "Обязательные переменные и внешние каналы настроены.",
+  }
+}
+
+async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  const version = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "VERSION"), "utf8")
+    .then((value) => value.trim())
+    .catch(() => null)
+  const packageJson = await readJson<{ version?: string }>("package.json")
+  const packageLock = await readJson<{ version?: string; packages?: Record<string, { version?: string }> }>("package-lock.json")
+  const changelog = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "CHANGELOG.md"), "utf8").catch(() => "")
+
+  const details: string[] = []
+  if (!version) details.push("VERSION не найден или пустой.")
+  if (version && packageJson?.version !== version) details.push(`package.json=${packageJson?.version ?? "missing"}, VERSION=${version}.`)
+  if (version && packageLock?.version !== version) details.push(`package-lock root=${packageLock?.version ?? "missing"}, VERSION=${version}.`)
+  if (version && packageLock?.packages?.[""]?.version !== version) {
+    details.push(`package-lock package=${packageLock?.packages?.[""]?.version ?? "missing"}, VERSION=${version}.`)
+  }
+  if (version && !changelog.includes(`## ${version} -`)) details.push(`CHANGELOG.md не содержит запись для ${version}.`)
+
+  if (details.length > 0) {
+    return {
+      status: "error",
+      message: "Release-файлы расходятся. Перед deploy нужно выровнять версию.",
+      details,
+    }
+  }
+
+  return {
+    status: "ok",
+    message: `Release-файлы синхронизированы: ${version}.`,
+    details: ["VERSION, package.json, package-lock.json и CHANGELOG.md совпадают."],
+  }
+}
+
+async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  const errors: string[] = []
+  const details: string[] = []
+
+  const cronAuth = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "cron-auth.ts"), "utf8").catch(() => "")
+  if (!cronAuth.includes("CRON_SECRET")) errors.push("lib/cron-auth.ts не проверяет CRON_SECRET.")
+  if (!cronAuth.includes("authorization") || !cronAuth.includes("Bearer ")) {
+    errors.push("lib/cron-auth.ts должен требовать Authorization: Bearer <CRON_SECRET>.")
+  }
+
+  for (const cronPath of EXPECTED_CRONS) {
+    const routePath = path.join(/* turbopackIgnore: true */ process.cwd(), "app", ...cronPath.replace(/^\/api\//, "api/").split("/"), "route.ts")
+    const route = await readFile(routePath, "utf8").catch(() => "")
+    if (!route.includes("authorizeCronRequest")) errors.push(`${cronPath} не использует authorizeCronRequest.`)
+  }
+
+  const passwordReset = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "actions", "password-reset.ts"), "utf8").catch(() => "")
+  if (passwordReset.includes("previewLink") && !passwordReset.includes('process.env.NODE_ENV === "production"')) {
+    errors.push("password-reset возвращает previewLink без production-защиты.")
+  }
+
+  const org = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "lib", "org.ts"), "utf8").catch(() => "")
+  if (!org.includes("signImpersonatePayload")) errors.push("Impersonation cookie не подписывается HMAC.")
+  if (!org.includes("getValidatedImpersonateForUser")) errors.push("Impersonation cookie не проходит server-side validation.")
+  if (!org.includes("realUserId") || !org.includes("user.id")) errors.push("Impersonation не сверяет realUserId с текущей сессией.")
+  if (!org.includes("httpOnly: true") || !org.includes("secure: process.env.NODE_ENV === \"production\"")) {
+    errors.push("Impersonation/superadmin cookie должны быть httpOnly и secure в production.")
+  }
+
+  if (process.env.ENFORCE_SUBDOMAIN !== "true") {
+    details.push("ENFORCE_SUBDOMAIN не включен: после полного DNS wildcard лучше включить строгую проверку slug ↔ org.")
+  }
+
+  if (errors.length > 0) {
+    return {
+      status: "error",
+      message: "Критичные security guardrails отсутствуют или ослаблены.",
+      details: [...errors, ...details],
+    }
+  }
+
+  return {
+    status: details.length > 0 ? "warning" : "ok",
+    message: details.length > 0
+      ? "Критичные guardrails на месте, но есть production-рекомендации."
+      : "Cron, password reset и impersonation защищены базовыми guardrails.",
+    details: [
+      "Cron endpoints требуют Bearer-секрет.",
+      "Password reset не отдает previewLink в production.",
+      "Impersonation cookie подписан, httpOnly и проверяется по realUserId.",
+      ...details,
+    ],
+  }
+}
+
+async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  const enriched = await Promise.all(PERFORMANCE_WATCH_FILES.map(async (file) => {
+    const content = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), file.rel), "utf8").catch(() => "")
+    const size = Buffer.byteLength(content)
+    return { rel: file.rel, size, isClient: file.isClient, exists: content.length > 0 }
+  }))
+
+  const violations = enriched.flatMap((file) => {
+    if (!file.exists) return [`${file.rel} не найден.`]
+    if (file.isClient && file.size > CLIENT_FILE_BUDGET) {
+      return [`${formatSourceFile(file)} превышает client budget ${formatBytes(CLIENT_FILE_BUDGET)}.`]
+    }
+    if (!file.isClient && file.size > SERVER_FILE_BUDGET) {
+      return [`${formatSourceFile(file)} превышает server budget ${formatBytes(SERVER_FILE_BUDGET)}.`]
+    }
+    return []
+  })
+  const largest = enriched
+    .sort((a, b) => b.size - a.size)
+    .slice(0, 6)
+    .map((file) => formatSourceFile(file))
+
+  if (violations.length > 0) {
+    return {
+      status: "error",
+      message: "Performance budget превышен.",
+      details: [...violations, ...largest.map((line) => `Крупный файл: ${line}.`)],
+    }
+  }
+
+  return {
+    status: "ok",
+    message: "Performance budget соблюден.",
+    details: [
+      `Client budget: ${formatBytes(CLIENT_FILE_BUDGET)}.`,
+      `Server budget: ${formatBytes(SERVER_FILE_BUDGET)}.`,
+      "Полный scan запускается командой npm run perf:audit.",
+      ...largest.map((line) => `Крупный файл: ${line}.`),
+    ],
   }
 }
 
@@ -339,7 +483,7 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
     details.push("CRON_SECRET не задан: cron endpoints должны требовать Bearer-секрет.")
   }
 
-  const vercelPath = path.join(process.cwd(), "vercel.json")
+  const vercelPath = path.join(/* turbopackIgnore: true */ process.cwd(), "vercel.json")
   const vercelRaw = await readFile(vercelPath, "utf8").catch(() => null)
   if (!vercelRaw) {
     return {
@@ -425,8 +569,8 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
     details.push("ROOT_HOST и NEXTAUTH_URL указывают на разные домены.")
   }
 
-  const sitemapExists = await fileExists(path.join(process.cwd(), "app", "sitemap.ts"))
-  const robotsExists = await fileExists(path.join(process.cwd(), "app", "robots.ts"))
+  const sitemapExists = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "sitemap.ts"))
+  const robotsExists = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "robots.ts"))
 
   if (!sitemapExists) details.push("app/sitemap.ts не найден.")
   if (!robotsExists) details.push("app/robots.ts не найден.")
@@ -451,8 +595,12 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
 }
 
 async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
-  const errorRoute = await fileExists(path.join(process.cwd(), "app", "api", "errors", "report", "route.ts"))
+  const errorRoute = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "api", "errors", "report", "route.ts"))
   const sentryConfigured = !!(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const recentErrorCount = await db.auditLog.count({
+    where: { action: "ERROR", createdAt: { gte: since } },
+  }).catch(() => 0)
 
   if (!errorRoute && !sentryConfigured) {
     return {
@@ -465,19 +613,37 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
     return {
       status: "warning",
       message: "Работает внутренний журнал ошибок, Sentry пока не задан.",
-      details: ["Для внешнего мониторинга задайте SENTRY_DSN или NEXT_PUBLIC_SENTRY_DSN."],
+      details: [
+        "Для внешнего мониторинга задайте SENTRY_DSN или NEXT_PUBLIC_SENTRY_DSN.",
+        `Ошибок за 24 часа в audit_logs: ${recentErrorCount}.`,
+      ],
+    }
+  }
+
+  if (recentErrorCount > 0) {
+    return {
+      status: "warning",
+      message: "Сбор ошибок работает, но за последние 24 часа есть новые ошибки.",
+      details: [
+        `Ошибок за 24 часа в audit_logs: ${recentErrorCount}.`,
+        "Откройте журнал операций и ищите action=ERROR или код ошибки из экрана.",
+      ],
     }
   }
 
   return {
     status: "ok",
     message: "Сбор ошибок готов.",
-    details: [errorRoute ? "Внутренний журнал ошибок включен." : "Внутренний endpoint не найден.", "Sentry DSN задан."],
+    details: [
+      errorRoute ? "Внутренний журнал ошибок включен." : "Внутренний endpoint не найден.",
+      "Sentry DSN задан.",
+      "Ошибок за 24 часа в audit_logs: 0.",
+    ],
   }
 }
 
 async function getLocalMigrations(): Promise<string[]> {
-  const migrationsDir = path.join(process.cwd(), "prisma", "migrations")
+  const migrationsDir = path.join(/* turbopackIgnore: true */ process.cwd(), "prisma", "migrations")
   const entries = await readdir(migrationsDir, { withFileTypes: true }).catch(() => [])
   return entries
     .filter((entry) => entry.isDirectory())
@@ -488,7 +654,7 @@ async function getLocalMigrations(): Promise<string[]> {
 async function missingCronRoutes(): Promise<string[]> {
   const results = await Promise.all(
     EXPECTED_CRONS.map(async (cronPath) => {
-      const routePath = path.join(process.cwd(), "app", ...cronPath.replace(/^\/api\//, "api/").split("/"), "route.ts")
+      const routePath = path.join(/* turbopackIgnore: true */ process.cwd(), "app", ...cronPath.replace(/^\/api\//, "api/").split("/"), "route.ts")
       return (await fileExists(routePath)) ? null : cronPath
     })
   )
@@ -497,6 +663,12 @@ async function missingCronRoutes(): Promise<string[]> {
 
 async function fileExists(filePath: string): Promise<boolean> {
   return stat(filePath).then((item) => item.isFile()).catch(() => false)
+}
+
+async function readJson<T>(relativePath: string): Promise<T | null> {
+  return readFile(path.join(/* turbopackIgnore: true */ process.cwd(), relativePath), "utf8")
+    .then((value) => JSON.parse(value) as T)
+    .catch(() => null)
 }
 
 function hostMatches(rootHost: string, nextAuthUrl: string): boolean {
@@ -519,6 +691,10 @@ function maskEmail(value: string): string {
   const [name, domain] = value.split("@")
   if (!name || !domain) return "configured"
   return `${name.slice(0, 2)}***@${domain}`
+}
+
+function formatSourceFile(file: { rel: string; size: number; isClient: boolean }): string {
+  return `${Math.round(file.size / 1024)} KB ${file.rel}${file.isClient ? " [client]" : ""}`
 }
 
 function formatBytes(bytes: number): string {

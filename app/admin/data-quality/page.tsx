@@ -110,6 +110,11 @@ export default async function DataQualityPage() {
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const stalePaymentReportDate = new Date(today)
+  stalePaymentReportDate.setDate(today.getDate() - 2)
+  const requiredTemplateTypes = ["CONTRACT", "INVOICE", "ACT"] as const
 
   const building = buildingId
     ? await db.building.findUnique({
@@ -179,6 +184,33 @@ export default async function DataQualityPage() {
     dueDate: null,
   }
 
+  const overdueChargeWhere: Prisma.ChargeWhereInput = {
+    tenant: tenantScope,
+    isPaid: false,
+    dueDate: { lt: today },
+  }
+
+  const expiredContractWhere: Prisma.TenantWhereInput = {
+    ...tenantScope,
+    contractEnd: { lt: today },
+    OR: [{ spaceId: { not: null } }, { fullFloors: { some: {} } }],
+  }
+
+  const invalidPaymentRulesWhere: Prisma.TenantWhereInput = {
+    ...tenantScope,
+    OR: [
+      { paymentDueDay: { lt: 1 } },
+      { paymentDueDay: { gt: 31 } },
+      { penaltyPercent: { lt: 0 } },
+    ],
+  }
+
+  const pendingPaymentReportWhere: Prisma.PaymentReportWhereInput = {
+    tenant: tenantScope,
+    status: "PENDING",
+    createdAt: { lt: stalePaymentReportDate },
+  }
+
   const occupiedWithoutTenantWhere: Prisma.SpaceWhereInput = {
     kind: "RENTABLE",
     status: "OCCUPIED",
@@ -191,6 +223,19 @@ export default async function DataQualityPage() {
     status: "VACANT",
     tenant: { isNot: null },
     floor: floorScope,
+  }
+
+  const invalidRentableSpaceAreaWhere: Prisma.SpaceWhereInput = {
+    kind: "RENTABLE",
+    area: { lte: 0 },
+    floor: floorScope,
+  }
+
+  const floorWithoutPricingWhere: Prisma.FloorWhereInput = {
+    ...floorScope,
+    ratePerSqm: { lte: 0 },
+    fixedMonthlyRent: null,
+    spaces: { some: { kind: "RENTABLE" } },
   }
 
   const [
@@ -207,11 +252,24 @@ export default async function DataQualityPage() {
     signedContractMissingDatesItems,
     chargeMissingDueDateCount,
     chargeMissingDueDateItems,
+    overdueChargeCount,
+    overdueChargeItems,
+    expiredContractCount,
+    expiredContractItems,
+    invalidPaymentRulesCount,
+    invalidPaymentRulesItems,
+    pendingPaymentReportCount,
+    pendingPaymentReportItems,
     occupiedWithoutTenantCount,
     occupiedWithoutTenantItems,
     vacantWithTenantCount,
     vacantWithTenantItems,
+    invalidRentableSpaceAreaCount,
+    invalidRentableSpaceAreaItems,
+    floorWithoutPricingCount,
+    floorWithoutPricingItems,
     activeCashAccountsCount,
+    activeTemplateRows,
   ] = await Promise.all([
     db.tenant.count({ where: doubleRentWhere }),
     db.tenant.findMany({ where: doubleRentWhere, select: tenantSelect, take: SAMPLE_LIMIT, orderBy: { createdAt: "desc" } }),
@@ -248,6 +306,45 @@ export default async function DataQualityPage() {
       take: SAMPLE_LIMIT,
       orderBy: { createdAt: "desc" },
     }),
+    db.charge.count({ where: overdueChargeWhere }),
+    db.charge.findMany({
+      where: overdueChargeWhere,
+      select: {
+        id: true,
+        period: true,
+        amount: true,
+        dueDate: true,
+        type: true,
+        tenant: { select: { id: true, companyName: true } },
+      },
+      take: SAMPLE_LIMIT,
+      orderBy: { dueDate: "asc" },
+    }),
+    db.tenant.count({ where: expiredContractWhere }),
+    db.tenant.findMany({ where: expiredContractWhere, select: tenantSelect, take: SAMPLE_LIMIT, orderBy: { contractEnd: "asc" } }),
+    db.tenant.count({ where: invalidPaymentRulesWhere }),
+    db.tenant.findMany({
+      where: invalidPaymentRulesWhere,
+      select: {
+        ...tenantSelect,
+        paymentDueDay: true,
+        penaltyPercent: true,
+      },
+      take: SAMPLE_LIMIT,
+      orderBy: { createdAt: "desc" },
+    }),
+    db.paymentReport.count({ where: pendingPaymentReportWhere }),
+    db.paymentReport.findMany({
+      where: pendingPaymentReportWhere,
+      select: {
+        id: true,
+        amount: true,
+        createdAt: true,
+        tenant: { select: { id: true, companyName: true } },
+      },
+      take: SAMPLE_LIMIT,
+      orderBy: { createdAt: "asc" },
+    }),
     db.space.count({ where: occupiedWithoutTenantWhere }),
     db.space.findMany({
       where: occupiedWithoutTenantWhere,
@@ -267,7 +364,25 @@ export default async function DataQualityPage() {
       take: SAMPLE_LIMIT,
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
     }),
+    db.space.count({ where: invalidRentableSpaceAreaWhere }),
+    db.space.findMany({
+      where: invalidRentableSpaceAreaWhere,
+      select: { id: true, number: true, area: true, floor: { select: { name: true } } },
+      take: SAMPLE_LIMIT,
+      orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
+    }),
+    db.floor.count({ where: floorWithoutPricingWhere }),
+    db.floor.findMany({
+      where: floorWithoutPricingWhere,
+      select: { id: true, name: true, ratePerSqm: true, fixedMonthlyRent: true, building: { select: { name: true } } },
+      take: SAMPLE_LIMIT,
+      orderBy: [{ building: { createdAt: "asc" } }, { number: "asc" }],
+    }),
     db.cashAccount.count({ where: { organizationId: orgId, isActive: true } }),
+    db.documentTemplate.findMany({
+      where: { organizationId: orgId, isActive: true, documentType: { in: [...requiredTemplateTypes] } },
+      select: { documentType: true },
+    }),
   ])
 
   const invalidContactItemsAll = contactCheckCandidates
@@ -276,6 +391,8 @@ export default async function DataQualityPage() {
       reasons: invalidContactReasons(tenant),
     }))
     .filter((item) => item.reasons.length > 0)
+  const activeTemplateTypes = new Set(activeTemplateRows.map((template) => template.documentType))
+  const missingTemplateTypes = requiredTemplateTypes.filter((type) => !activeTemplateTypes.has(type))
 
   const issues: QualityIssue[] = [
     {
@@ -411,6 +528,111 @@ export default async function DataQualityPage() {
         label: `${charge.tenant.companyName} · ${formatMoney(charge.amount)}`,
         meta: `${charge.period} · ${charge.type} · срок оплаты не указан`,
         href: tenantHref(charge.tenant.id),
+      })),
+    },
+    {
+      key: "overdue-charge",
+      title: "Есть просроченные неоплаченные счета",
+      description: "Просрочки должны быть видны администратору сразу: по ним строятся уведомления, пеня, сверка и работа с должниками.",
+      severity: "critical",
+      count: overdueChargeCount,
+      actionLabel: "Открыть финансы",
+      href: "/admin/finances",
+      items: overdueChargeItems.map((charge) => ({
+        id: charge.id,
+        label: `${charge.tenant.companyName} · ${formatMoney(charge.amount)}`,
+        meta: `${charge.period} · ${charge.type} · срок ${charge.dueDate ? formatDate(charge.dueDate) : "не указан"}`,
+        href: tenantHref(charge.tenant.id),
+      })),
+    },
+    {
+      key: "expired-contract",
+      title: "Арендатор работает с истекшим сроком договора",
+      description: "Если договор уже закончился, продление, новый договор или выселение нужно оформить явно, чтобы начисления и документы не висели без юридического основания.",
+      severity: "critical",
+      count: expiredContractCount,
+      actionLabel: "Продлить или оформить договор",
+      href: "/admin/tenants",
+      items: expiredContractItems.map((tenant) => ({
+        id: tenant.id,
+        label: tenant.companyName,
+        meta: `${tenantPlace(tenant)} · договор до ${tenant.contractEnd ? formatDate(tenant.contractEnd) : "не указано"}`,
+        href: tenantHref(tenant.id),
+      })),
+    },
+    {
+      key: "invalid-payment-rules",
+      title: "Некорректные правила оплаты или пени",
+      description: "День оплаты должен быть от 1 до 31, пеня не может быть отрицательной. Такие записи ломают cron-начисления, напоминания и просрочки.",
+      severity: "critical",
+      count: invalidPaymentRulesCount,
+      actionLabel: "Исправить условия аренды",
+      href: "/admin/tenants",
+      items: invalidPaymentRulesItems.map((tenant) => ({
+        id: tenant.id,
+        label: tenant.companyName,
+        meta: `${tenantPlace(tenant)} · день оплаты ${tenant.paymentDueDay} · пеня ${tenant.penaltyPercent}%`,
+        href: tenantHref(tenant.id),
+      })),
+    },
+    {
+      key: "pending-payment-report",
+      title: "Оплата арендатора долго ждет подтверждения",
+      description: "Если арендатор нажал “Я оплатил” и прикрепил чек, администратор должен подтвердить или отклонить платеж, иначе долг будет отображаться неверно.",
+      severity: "warning",
+      count: pendingPaymentReportCount,
+      actionLabel: "Проверить оплаты",
+      href: "/admin/finances",
+      items: pendingPaymentReportItems.map((report) => ({
+        id: report.id,
+        label: `${report.tenant.companyName} · ${formatMoney(report.amount)}`,
+        meta: `Ожидает с ${formatDate(report.createdAt)}`,
+        href: tenantHref(report.tenant.id),
+      })),
+    },
+    {
+      key: "invalid-space-area",
+      title: "Арендопригодное помещение без корректной площади",
+      description: "Площадь должна быть больше нуля, иначе расчет аренды за м², заполняемость и аналитика по доходу на квадрат будут неверными.",
+      severity: "warning",
+      count: invalidRentableSpaceAreaCount,
+      actionLabel: "Открыть помещения",
+      href: "/admin/spaces",
+      items: invalidRentableSpaceAreaItems.map((space) => ({
+        id: space.id,
+        label: `Каб. ${space.number}`,
+        meta: `${space.floor.name} · площадь ${space.area} м²`,
+        href: "/admin/spaces",
+      })),
+    },
+    {
+      key: "floor-without-pricing",
+      title: "Этаж с помещениями без ставки аренды",
+      description: "Если у арендатора нет индивидуальной суммы, система берет ставку этажа. Нулевая ставка приводит к нулевым начислениям.",
+      severity: "warning",
+      count: floorWithoutPricingCount,
+      actionLabel: "Настроить этажи",
+      href: "/admin/buildings",
+      items: floorWithoutPricingItems.map((floor) => ({
+        id: floor.id,
+        label: floor.name,
+        meta: `${floor.building.name} · ставка ${formatMoney(floor.ratePerSqm)}/м²`,
+        href: "/admin/buildings",
+      })),
+    },
+    {
+      key: "document-templates",
+      title: "Не настроены ключевые шаблоны документов",
+      description: "Для стабильной работы нужны активные шаблоны договора, счета и акта. Без них администратор будет упираться в ручные документы.",
+      severity: "info",
+      count: missingTemplateTypes.length,
+      actionLabel: "Открыть шаблоны",
+      href: "/admin/documents/templates",
+      items: missingTemplateTypes.map((type) => ({
+        id: type,
+        label: `Шаблон ${type}`,
+        meta: "Активный шаблон не найден",
+        href: "/admin/documents/templates",
       })),
     },
     {
