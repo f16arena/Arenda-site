@@ -26,11 +26,20 @@ type Item = {
 
 type Filter = "all" | "active" | "expiring" | "suspended" | "inactive"
 
-export function OrgsListClient({ items, rootHost }: { items: Item[]; rootHost: string }) {
+export function OrgsListClient({
+  items,
+  rootHost,
+  hideFilters = false,
+}: {
+  items: Item[]
+  rootHost: string
+  hideFilters?: boolean
+}) {
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
 
   const filtered = useMemo(() => {
+    if (hideFilters) return items
     const q = query.trim().toLowerCase()
     return items.filter((o) => {
       if (q && !o.name.toLowerCase().includes(q) && !o.slug.toLowerCase().includes(q)) return false
@@ -40,12 +49,12 @@ export function OrgsListClient({ items, rootHost }: { items: Item[]; rootHost: s
       if (filter === "inactive") return !o.isActive
       return true
     })
-  }, [items, query, filter])
+  }, [items, query, filter, hideFilters])
 
   return (
-    <div className="space-y-3">
+    <div className={hideFilters ? "" : "space-y-3"}>
       {/* Поиск + фильтры */}
-      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+      {!hideFilters && <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
         <div className="relative flex-1">
           <Search className="h-4 w-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
@@ -62,14 +71,14 @@ export function OrgsListClient({ items, rootHost }: { items: Item[]; rootHost: s
           <FilterChip label="Приостановлено" active={filter === "suspended"} onClick={() => setFilter("suspended")} />
           <FilterChip label="Деактивировано" active={filter === "inactive"} onClick={() => setFilter("inactive")} />
         </div>
-      </div>
+      </div>}
 
       {filtered.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Ничего не найдено</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className={hideFilters ? "overflow-hidden" : "bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden"}>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/70">

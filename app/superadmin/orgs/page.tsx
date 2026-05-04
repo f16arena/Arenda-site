@@ -3,33 +3,83 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
-import { Plus, Building2, CheckCircle2, Clock, Pause } from "lucide-react"
+import { Plus, Building2, CheckCircle2, Clock, Pause, Search } from "lucide-react"
 import { OrgsListClient } from "./list-client"
 import { ROOT_HOST } from "@/lib/host"
+import { PaginationControls } from "@/components/ui/pagination-controls"
+import { normalizePage, pageSkip } from "@/lib/pagination"
+import type { Prisma } from "@/app/generated/prisma/client"
 
-export default async function OrgsListPage() {
+const PAGE_SIZE = 30
+type StatusFilter = "all" | "active" | "expiring" | "suspended" | "inactive"
+
+export default async function OrgsListPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string | string[]; status?: string | string[]; page?: string | string[] }>
+}) {
   await requirePlatformOwner()
-
-  const orgs = await db.organization.findMany({
-    select: {
-      id: true, name: true, slug: true, isActive: true, isSuspended: true,
-      planExpiresAt: true, createdAt: true, ownerUserId: true,
-      plan: { select: { name: true, code: true, priceMonthly: true } },
-      _count: { select: { buildings: true, users: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  }).catch(() => [])
+  const resolved = await searchParams
+  const query = one(resolved?.q).trim()
+  const status = normalizeStatus(one(resolved?.status))
+  const page = normalizePage(resolved?.page)
 
   const now = new Date()
   const sevenDays = new Date(now.getTime() + 7 * 86_400_000)
-  const stats = {
-    total: orgs.length,
-    active: orgs.filter((o) => o.isActive && !o.isSuspended).length,
-    suspended: orgs.filter((o) => o.isSuspended).length,
-    expiringSoon: orgs.filter((o) =>
-      o.isActive && !o.isSuspended && o.planExpiresAt && o.planExpiresAt > now && o.planExpiresAt < sevenDays
-    ).length,
+  const where: Prisma.OrganizationWhereInput = {
+    AND: [
+      query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { slug: { contains: query, mode: "insensitive" } },
+            ],
+          }
+        : {},
+      status === "active"
+        ? { isActive: true, isSuspended: false, OR: [{ planExpiresAt: null }, { planExpiresAt: { gte: now } }] }
+        : status === "expiring"
+          ? { isActive: true, isSuspended: false, planExpiresAt: { lte: sevenDays } }
+          : status === "suspended"
+            ? { isSuspended: true }
+            : status === "inactive"
+              ? { isActive: false }
+              : {},
+    ],
   }
+
+  const [orgs, total, stats] = await Promise.all([
+    db.organization.findMany({
+      where,
+      select: {
+        id: true, name: true, slug: true, isActive: true, isSuspended: true,
+        planExpiresAt: true, createdAt: true, ownerUserId: true,
+        plan: { select: { name: true, code: true, priceMonthly: true } },
+        _count: { select: { buildings: true, users: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: pageSkip(page, PAGE_SIZE),
+      take: PAGE_SIZE,
+    }).catch(() => []),
+    db.organization.count({ where }).catch(() => 0),
+    Promise.all([
+      db.organization.count().catch(() => 0),
+      db.organization.count({ where: { isActive: true, isSuspended: false } }).catch(() => 0),
+      db.organization.count({ where: { isSuspended: true } }).catch(() => 0),
+      db.organization.count({
+        where: {
+          isActive: true,
+          isSuspended: false,
+          planExpiresAt: { gte: now, lte: sevenDays },
+        },
+      }).catch(() => 0),
+    ]).then(([all, active, suspended, expiringSoon]) => ({
+      total: all,
+      active,
+      suspended,
+      expiringSoon,
+    })),
+  ])
 
   const items = orgs.map((o) => {
     const expired = !!(o.planExpiresAt && o.planExpiresAt < now)
@@ -59,7 +109,9 @@ export default async function OrgsListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Организации</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{stats.total} клиентов на платформе</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+            {stats.total} клиентов на платформе · показано {items.length} из {total}
+          </p>
         </div>
         <Link
           href="/superadmin/orgs/new"
@@ -68,6 +120,55 @@ export default async function OrgsListPage() {
           <Plus className="h-4 w-4" />
           Создать организацию
         </Link>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <form className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <input type="hidden" name="status" value={status === "all" ? "" : status} />
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+            <input
+              name="q"
+              defaultValue={query}
+              placeholder="Поиск по названию или slug..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-800 dark:bg-slate-950"
+            />
+          </div>
+          <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            Найти
+          </button>
+        </form>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {[
+            ["all", "Все", stats.total],
+            ["active", "Активные", stats.active],
+            ["expiring", "Истекают", stats.expiringSoon],
+            ["suspended", "Приостановлено", stats.suspended],
+            ["inactive", "Деактивировано", null],
+          ].map(([value, label, count]) => {
+            const filter = value as StatusFilter
+            const active = status === filter
+            return (
+              <Link
+                key={filter}
+                href={hrefFor({ q: query, status: filter === "all" ? null : filter })}
+                className={[
+                  "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                  active
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
+                ].join(" ")}
+              >
+                {label}
+                {typeof count === "number" && (
+                  <span className={active ? "ml-1.5 text-[10px] text-purple-100" : "ml-1.5 text-[10px] text-slate-400 dark:text-slate-500"}>
+                    {count}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </div>
       </div>
 
       {/* KPI mini-cards */}
@@ -85,10 +186,37 @@ export default async function OrgsListPage() {
           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Создайте первую через кнопку выше</p>
         </div>
       ) : (
-        <OrgsListClient items={items} rootHost={ROOT_HOST} />
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <OrgsListClient items={items} rootHost={ROOT_HOST} hideFilters />
+          <PaginationControls
+            basePath="/superadmin/orgs"
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            params={{ q: query, status: status === "all" ? null : status }}
+          />
+        </div>
       )}
     </div>
   )
+}
+
+function one(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? ""
+}
+
+function normalizeStatus(value: string): StatusFilter {
+  return value === "active" || value === "expiring" || value === "suspended" || value === "inactive"
+    ? value
+    : "all"
+}
+
+function hrefFor(params: { q?: string | null; status?: string | null }) {
+  const query = new URLSearchParams()
+  if (params.q) query.set("q", params.q)
+  if (params.status) query.set("status", params.status)
+  const qs = query.toString()
+  return qs ? `/superadmin/orgs?${qs}` : "/superadmin/orgs"
 }
 
 function KpiCard({ label, value, icon: Icon, color }: {
@@ -117,4 +245,3 @@ function KpiCard({ label, value, icon: Icon, color }: {
     </div>
   )
 }
-
