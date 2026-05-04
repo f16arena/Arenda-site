@@ -19,18 +19,21 @@ import {
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
 import { BlacklistButton } from "./blacklist-button"
-import { DocumentsChecklist } from "./documents-checklist"
-import { FullFloorAssign } from "./full-floor-assign"
-import { DocumentsActions } from "./documents-actions"
-import { EmailLog } from "./email-log"
-import { RequisitesForm } from "./requisites-form"
 import { IndexationHint } from "./indexation-hint"
 import { ContractWorkflowActions } from "./contract-actions"
-import { RentalTermsForm } from "./rental-terms-form"
-import { ServiceChargesForm } from "./service-charges-form"
+import {
+  DocumentsActionsLoader,
+  DocumentsChecklistLoader,
+  EmailLogLoader,
+  FullFloorAssignLoader,
+  RentalTermsFormLoader,
+  RequisitesFormLoader,
+  ServiceChargesFormLoader,
+} from "./client-section-loaders"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import type { Prisma } from "@/app/generated/prisma/client"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -147,20 +150,24 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     String(serviceDueDay).padStart(2, "0"),
   ].join("-")
 
+  const vacantSpacesWhere: Prisma.SpaceWhereInput = {
+    AND: [
+      spaceScope(orgId),
+      { status: "VACANT", kind: "RENTABLE" },
+      { floor: { buildingId: { in: visibleBuildingIds } } },
+    ],
+  }
+
   const vacantSpaces = await db.space.findMany({
-    where: {
-      AND: [
-        spaceScope(orgId),
-        { status: "VACANT", kind: "RENTABLE" },
-        { floor: { buildingId: { in: visibleBuildingIds } } },
-      ],
-    },
+    where: vacantSpacesWhere,
     select: {
       id: true, number: true, area: true,
       floor: { select: { id: true, name: true, number: true } },
     },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
+    take: 50,
   })
+  const vacantSpacesCount = await db.space.count({ where: vacantSpacesWhere }).catch(() => vacantSpaces.length)
 
   // Email лог (может упасть если миграция 008 не применена)
   const emailLogs = await db.emailLog.findMany({
@@ -545,7 +552,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские реквизиты</h2>
             </div>
-            <RequisitesForm
+            <RequisitesFormLoader
               tenantId={tenant.id}
               isIin={tenant.legalType === "IP" || tenant.legalType === "PHYSICAL"}
               initial={{
@@ -563,7 +570,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Условия аренды</h2>
             </div>
-            <RentalTermsForm
+            <RentalTermsFormLoader
               tenantId={tenant.id}
               locked={rentalTermsLocked}
               lockedReason={rentalTermsLockReason}
@@ -585,7 +592,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h2>
             </div>
-            <ServiceChargesForm
+            <ServiceChargesFormLoader
               tenantId={tenant.id}
               period={currentPeriod}
               defaultDueDate={defaultServiceDueDate}
@@ -594,16 +601,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
 
           {/* Documents actions: invoice, act, contract, handover */}
-          <DocumentsActions
+          <DocumentsActionsLoader
             tenantId={tenant.id}
             tenantHasEmail={!!tenant.user.email}
           />
 
           {/* Email log */}
-          <EmailLog items={emailLogs} />
+          <EmailLogLoader items={emailLogs} />
 
           {/* Documents checklist */}
-          <DocumentsChecklist
+          <DocumentsChecklistLoader
             tenantId={tenant.id}
             legalType={tenant.legalType}
             documents={tenant.documents}
@@ -667,7 +674,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         {/* Right column: info cards */}
         <div className="space-y-5">
           {/* Full floor assign */}
-          <FullFloorAssign
+          <FullFloorAssignLoader
             tenantId={tenant.id}
             floors={allFloors}
             currentFloors={myFullFloors}
@@ -724,6 +731,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   ))}
                   {vacantSpaces.length === 0 && (
                     <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
+                  )}
+                  {vacantSpacesCount > vacantSpaces.length && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Показаны первые {vacantSpaces.length} из {vacantSpacesCount}. Для точного выбора откройте страницу помещений выбранного здания.
+                    </p>
                   )}
                 </div>
               </div>

@@ -9,7 +9,7 @@ import {
   Wallet,
 } from "lucide-react"
 import Link from "next/link"
-import { PaymentsMiniCalendar } from "./payments-mini-calendar"
+import { PaymentsMiniCalendarLoader } from "./payments-mini-calendar-loader"
 
 export default async function CabinetDashboard() {
   const session = await auth()
@@ -21,6 +21,7 @@ export default async function CabinetDashboard() {
       charges: {
         where: { isPaid: false },
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        take: 20,
       },
       payments: {
         orderBy: { paymentDate: "desc" },
@@ -28,6 +29,8 @@ export default async function CabinetDashboard() {
       },
       requests: {
         where: { status: { in: ["NEW", "IN_PROGRESS"] } },
+        select: { id: true },
+        take: 20,
       },
     },
   })
@@ -72,23 +75,36 @@ export default async function CabinetDashboard() {
     )
   }
 
-  const totalDebt = tenant.charges.reduce((s, c) => s + c.amount, 0)
-  const nextCharge = tenant.charges[0]
   const today = new Date()
+  const [debtAgg, overdueAgg, activeRequestsCount] = await Promise.all([
+    db.charge.aggregate({
+      where: { tenantId: tenant.id, isPaid: false },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: tenant.charges.length } })),
+    db.charge.aggregate({
+      where: { tenantId: tenant.id, isPaid: false, dueDate: { lt: today } },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    db.request.count({
+      where: { tenantId: tenant.id, status: { in: ["NEW", "IN_PROGRESS"] } },
+    }).catch(() => tenant.requests.length),
+  ])
+  const totalDebt = debtAgg._sum.amount ?? 0
+  const debtCount = debtAgg._count._all ?? tenant.charges.length
+  const nextCharge = tenant.charges[0]
   const daysToContractEnd = tenant.contractEnd
     ? Math.ceil((tenant.contractEnd.getTime() - today.getTime()) / 86_400_000)
     : null
 
-  // Просрочки и предстоящие платежи
-  const overdueCharges = tenant.charges.filter(
-    (c) => c.dueDate && c.dueDate < today
-  )
-  const overdueTotal = overdueCharges.reduce((s, c) => s + c.amount, 0)
+  const overdueTotal = overdueAgg._sum.amount ?? 0
 
   // Здание показываем только из организации арендатора
   const [building, recentDocs, unreadMessages, recentMessages] = await Promise.all([
     db.building.findFirst({
       where: {
+        ...(tenant.space?.floor.buildingId ? { id: tenant.space.floor.buildingId } : {}),
         isActive: true,
         organizationId: session!.user.organizationId ?? "__none__",
       },
@@ -224,14 +240,14 @@ export default async function CabinetDashboard() {
         <InfoCard
           icon={ClipboardList}
           label="Активные заявки"
-          value={String(tenant.requests.length)}
-          sub={tenant.requests.length > 0 ? "в работе" : "нет открытых"}
+          value={String(activeRequestsCount)}
+          sub={activeRequestsCount > 0 ? "в работе" : "нет открытых"}
           href="/cabinet/requests"
         />
       </div>
 
       {/* Календарь оплат */}
-      <PaymentsMiniCalendar
+      <PaymentsMiniCalendarLoader
         charges={allCharges.map((c) => ({
           id: c.id,
           amount: c.amount,
@@ -380,6 +396,11 @@ export default async function CabinetDashboard() {
                 </div>
               )
             })}
+            {debtCount > tenant.charges.length && (
+              <p className="px-5 py-2 text-xs text-slate-400 dark:text-slate-500 text-center">
+                Показаны ближайшие {tenant.charges.length} из {debtCount} неоплаченных начислений.
+              </p>
+            )}
             {tenant.charges.length === 0 && (
               <p className="px-5 py-8 text-sm text-emerald-600 dark:text-emerald-400 text-center font-medium">
                 ✓ Нет неоплаченных начислений

@@ -9,13 +9,15 @@ import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-acti
 import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
-import { FloorView, type SpaceInfo } from "@/components/floor/floor-view"
+import type { SpaceInfo } from "@/components/floor/floor-view"
+import { FloorViewLoader } from "@/components/floor/floor-view-loader"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { switchBuilding } from "@/app/actions/buildings"
 
 export default async function SpacesPage() {
   const { orgId } = await requireOrgAccess()
@@ -55,34 +57,65 @@ export default async function SpacesPage() {
     const buildings = await db.building.findMany({
       where: { id: { in: accessibleBuildingIds }, organizationId: orgId, isActive: true },
       orderBy: { createdAt: "asc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        address: true,
         floors: {
           orderBy: { number: "asc" },
-          include: {
+          select: {
+            id: true,
+            name: true,
+            number: true,
+            totalArea: true,
+            ratePerSqm: true,
             spaces: {
               orderBy: { number: "asc" },
-              include: {
-                tenant: {
-                  select: {
-                    id: true,
-                    companyName: true,
-                    customRate: true,
-                    fixedMonthlyRent: true,
-                    fullFloors: { select: { fixedMonthlyRent: true } },
-                  },
-                },
-              },
+              select: { id: true, area: true, kind: true, status: true },
             },
           },
         },
       },
     })
 
-    const allSpaces = buildings.flatMap((b) => b.floors.flatMap((f) => f.spaces))
-    const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
-    const occupied = rentableSpaces.filter((s) => s.status === "OCCUPIED").length
-    const vacant = rentableSpaces.filter((s) => s.status === "VACANT").length
-    const totalArea = rentableSpaces.reduce((sum, s) => sum + s.area, 0)
+    const buildingSummaries = buildings.map((building) => {
+      const floorSummaries = building.floors.map((floor) => {
+        const rentable = floor.spaces.filter((space) => space.kind !== "COMMON")
+        const occupied = rentable.filter((space) => space.status === "OCCUPIED").length
+        const vacant = rentable.filter((space) => space.status === "VACANT").length
+        const area = rentable.reduce((sum, space) => sum + space.area, 0)
+
+        return {
+          id: floor.id,
+          name: floor.name,
+          ratePerSqm: floor.ratePerSqm,
+          totalSpaces: rentable.length,
+          occupied,
+          vacant,
+          area,
+        }
+      })
+      const totalSpaces = floorSummaries.reduce((sum, floor) => sum + floor.totalSpaces, 0)
+      const occupied = floorSummaries.reduce((sum, floor) => sum + floor.occupied, 0)
+      const vacant = floorSummaries.reduce((sum, floor) => sum + floor.vacant, 0)
+      const area = floorSummaries.reduce((sum, floor) => sum + floor.area, 0)
+
+      return {
+        id: building.id,
+        name: building.name,
+        address: building.address,
+        floorsCount: floorSummaries.length,
+        floorSummaries,
+        totalSpaces,
+        occupied,
+        vacant,
+        area,
+      }
+    })
+    const rentableSpacesCount = buildingSummaries.reduce((sum, building) => sum + building.totalSpaces, 0)
+    const occupied = buildingSummaries.reduce((sum, building) => sum + building.occupied, 0)
+    const vacant = buildingSummaries.reduce((sum, building) => sum + building.vacant, 0)
+    const totalArea = buildingSummaries.reduce((sum, building) => sum + building.area, 0)
 
     return (
       <div className="space-y-5">
@@ -96,7 +129,7 @@ export default async function SpacesPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: "Зданий", value: String(buildings.length), color: "text-slate-900 dark:text-slate-100" },
-            { label: "Помещений", value: String(rentableSpaces.length), color: "text-slate-900 dark:text-slate-100" },
+            { label: "Помещений", value: String(rentableSpacesCount), color: "text-slate-900 dark:text-slate-100" },
             { label: "Занято", value: String(occupied), color: "text-blue-600 dark:text-blue-400" },
             { label: "Свободно", value: String(vacant), color: "text-emerald-600 dark:text-emerald-400" },
           ].map((s) => (
@@ -115,86 +148,68 @@ export default async function SpacesPage() {
           </p>
         </div>
 
-        {buildings.map((building) => (
-          <div key={building.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-5 py-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{building.name}</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{building.address}</p>
-              </div>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {building.floors.length} эт. · {building.floors.flatMap((f) => f.spaces).filter((s) => s.kind !== "COMMON").length} пом.
-              </span>
-            </div>
-
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {building.floors.map((floor) => (
-                <div key={floor.id} className="p-5">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{floor.name}</h3>
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Ставка: {formatMoney(floor.ratePerSqm)}/м²</span>
-                    </div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">
-                      {floor.spaces.filter((s) => s.kind !== "COMMON").length} помещений
-                    </span>
-                  </div>
-
-                  {floor.spaces.length === 0 ? (
-                    <p className="text-sm text-slate-400 dark:text-slate-500 py-4">Нет помещений на этом этаже</p>
-                  ) : (
-                    <table className="w-full text-xs border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
-                      <thead>
-                        <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Помещение</th>
-                          <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Площадь</th>
-                          <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Аренда/мес</th>
-                          <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
-                          <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Статус</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {floor.spaces.map((space) => {
-                          const rentAmount = space.tenant
-                            ? calculateTenantMonthlyRent({
-                                customRate: space.tenant.customRate,
-                                fixedMonthlyRent: space.tenant.fixedMonthlyRent,
-                                fullFloors: space.tenant.fullFloors,
-                                space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
-                              })
-                            : space.area * floor.ratePerSqm
-
-                          return (
-                            <tr key={space.id} className="border-b border-slate-50 dark:border-slate-800/70">
-                              <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
-                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{space.area} м²</td>
-                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                                {space.tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
-                              </td>
-                              <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                                {space.tenant ? (
-                                  <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                    {space.tenant.companyName}
-                                  </Link>
-                                ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
-                              </td>
-                              <td className="px-3 py-2">
-                                <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", STATUS_COLORS[space.status])}>
-                                  {STATUS_LABELS[space.status] ?? space.status}
-                                </span>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  )}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {buildingSummaries.map((building) => (
+            <div key={building.id} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{building.name}</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{building.address}</p>
                 </div>
-              ))}
+                <form
+                  action={async () => {
+                    "use server"
+                    await switchBuilding(building.id)
+                  }}
+                >
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Открыть
+                  </button>
+                </form>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{building.floorsCount}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">этажей</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{building.totalSpaces}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">помещ.</p>
+                </div>
+                <div className="rounded-lg bg-blue-50 p-2 dark:bg-blue-500/10">
+                  <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{building.occupied}</p>
+                  <p className="text-[10px] text-blue-700 dark:text-blue-300">занято</p>
+                </div>
+                <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-500/10">
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{building.vacant}</p>
+                  <p className="text-[10px] text-emerald-700 dark:text-emerald-300">своб.</p>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {building.floorSummaries.slice(0, 6).map((floor) => (
+                  <div key={floor.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-xs dark:border-slate-800">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-800 dark:text-slate-200">{floor.name}</p>
+                      <p className="text-slate-400 dark:text-slate-500">{formatMoney(floor.ratePerSqm)}/м²</p>
+                    </div>
+                    <div className="text-right text-slate-500 dark:text-slate-400">
+                      <p>{floor.totalSpaces} помещ. · {floor.area.toFixed(1)} м²</p>
+                      <p>{floor.occupied} занято · {floor.vacant} свободно</p>
+                    </div>
+                  </div>
+                ))}
+                {building.floorSummaries.length > 6 && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    Еще {building.floorSummaries.length - 6} этажей. Выберите здание сверху, чтобы увидеть все помещения.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     )
   }
@@ -468,7 +483,7 @@ export default async function SpacesPage() {
                 <div className="space-y-3">
                   {/* Visual map — показываем только если фича включена и план задан */}
                   {hasFloorEditor && layout && (
-                    <FloorView layout={layout} spaces={spaceInfos} />
+                    <FloorViewLoader layout={layout} spaces={spaceInfos} />
                   )}
                   {hasFloorEditor && !layout && (
                     <div className="relative border-2 border-dashed border-purple-200 dark:border-purple-500/30 rounded-lg p-4 bg-purple-50/30 dark:bg-purple-500/5 text-center">
@@ -535,7 +550,7 @@ export default async function SpacesPage() {
                                   space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description }}
                                   floors={floorOptions}
                                 />
-                                <DeleteSpaceButton spaceId={space.id} hasТenant={!!space.tenant} />
+                                <DeleteSpaceButton spaceId={space.id} hasTenant={!!space.tenant} />
                               </div>
                             </td>
                           </tr>

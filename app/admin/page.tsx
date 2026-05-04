@@ -321,10 +321,7 @@ export default async function AdminDashboard() {
           name: true,
           address: true,
           floors: {
-            select: {
-              id: true,
-              spaces: { select: { id: true, status: true, kind: true } },
-            },
+            select: { id: true },
           },
         },
       })
@@ -337,7 +334,7 @@ export default async function AdminDashboard() {
           { fullFloors: { some: { buildingId: id } } },
         ],
       }
-      const [incomeAgg, expenseAgg, tenantCount] = await Promise.all([
+      const [incomeAgg, expenseAgg, tenantCount, spacesByStatus] = await Promise.all([
         db.payment.aggregate({
           where: {
             paymentDate: { gte: currentMonthStart, lt: nextMonthStart },
@@ -350,9 +347,18 @@ export default async function AdminDashboard() {
           _sum: { amount: true },
         }).catch(() => ({ _sum: { amount: 0 } })),
         db.tenant.count({ where: buildingTenantWhere }).catch(() => 0),
+        db.space.groupBy({
+          by: ["status"],
+          where: {
+            floorId: { in: ids },
+            kind: { not: "COMMON" },
+          },
+          _count: { _all: true },
+        }).catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
       ])
-      const rentable = building.floors.flatMap((f) => f.spaces).filter((s) => s.kind !== "COMMON")
-      const occupied = rentable.filter((s) => s.status === "OCCUPIED").length
+      const spaceStatusRows = spacesByStatus as Array<{ status: string; _count: { _all: number } }>
+      const occupied = spaceStatusRows.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
+      const totalSpaces = spaceStatusRows.reduce((sum, s) => sum + s._count._all, 0)
       const income = incomeAgg._sum.amount ?? 0
       const expenses = expenseAgg._sum.amount ?? 0
 
@@ -365,7 +371,7 @@ export default async function AdminDashboard() {
         profit: income - expenses,
         tenantCount,
         occupied,
-        totalSpaces: rentable.length,
+        totalSpaces,
       }
     }),
   ).then((rows) => rows.filter(Boolean) as Array<{

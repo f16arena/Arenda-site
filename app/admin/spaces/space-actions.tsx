@@ -233,7 +233,7 @@ export function EditSpaceDialog({ space }: { space: Space; floors: Floor[] }) {
   )
 }
 
-export function DeleteSpaceButton({ spaceId, hasТenant }: { spaceId: string; hasТenant: boolean }) {
+export function DeleteSpaceButton({ spaceId, hasTenant }: { spaceId: string; hasTenant: boolean }) {
   return (
     <DeleteAction
       action={async () => {
@@ -242,7 +242,7 @@ export function DeleteSpaceButton({ spaceId, hasТenant }: { spaceId: string; ha
       }}
       entity="помещение"
       successMessage="Помещение удалено"
-      disabled={hasТenant}
+      disabled={hasTenant}
     />
   )
 }
