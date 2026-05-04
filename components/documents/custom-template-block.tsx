@@ -106,31 +106,49 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
           </p>
         )}
 
-        <label className={`block border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition ${
-          pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
-        }`}>
-          <input
-            type="file"
-            accept=".docx,.xlsx,.pdf"
-            onChange={(e) => handleFile(e.target.files?.[0])}
-            disabled={pending}
-            className="hidden"
-          />
-          {pending ? (
-            <div className="flex items-center justify-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем шаблон...
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-1">
-              <Upload className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                {active ? "Заменить новой версией" : "Перетащите файл или нажмите чтобы выбрать"}
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">DOCX, XLSX или PDF · до 10 МБ</p>
-            </div>
-          )}
-        </label>
+        {active ? (
+          <label className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+            pending
+              ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-500/40 dark:bg-blue-500/10 dark:text-blue-300"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+          }`}>
+            <input
+              type="file"
+              accept=".docx,.xlsx,.pdf"
+              onChange={(e) => handleFile(e.target.files?.[0])}
+              disabled={pending}
+              className="hidden"
+            />
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {pending ? "Загружаем..." : "Заменить файл"}
+          </label>
+        ) : (
+          <label className={`block border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition ${
+            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
+          }`}>
+            <input
+              type="file"
+              accept=".docx,.xlsx,.pdf"
+              onChange={(e) => handleFile(e.target.files?.[0])}
+              disabled={pending}
+              className="hidden"
+            />
+            {pending ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Загружаем шаблон...
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <Upload className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Перетащите файл или нажмите чтобы выбрать
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">DOCX, XLSX или PDF · до 10 МБ</p>
+              </div>
+            )}
+          </label>
+        )}
 
         {uploadResult?.ok && uploadResult.detectedPlaceholders && uploadResult.detectedPlaceholders.length > 0 && (
           <div className="space-y-2">

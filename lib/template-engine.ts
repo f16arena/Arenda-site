@@ -31,7 +31,11 @@ export function detectFormat(fileName: string, mime?: string): TemplateFormat | 
 export function extractDocxPlaceholders(buffer: Buffer): string[] {
   try {
     const zip = new PizZip(buffer)
-    const xml = zip.file("word/document.xml")?.asText() ?? ""
+    const xml = zip
+      .file(/word\/(document|header|footer|footnotes|endnotes).*\.xml/)
+      .map((file) => file.asText())
+      .join("")
+      .replace(/<[^>]+>/g, "")
     const matches = Array.from(xml.matchAll(/\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)\}/g))
     return [...new Set(matches.map((m) => m[1]))]
   } catch {

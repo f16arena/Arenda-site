@@ -7,7 +7,7 @@ import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
   Clock, Calendar as CalendarIcon, Mail, Wallet,
-  ClipboardCheck, ShieldCheck,
+  ClipboardCheck, ShieldCheck, FileSpreadsheet, Printer,
 } from "lucide-react"
 import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
@@ -16,6 +16,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
+import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 
 export default async function AdminDashboard() {
   const { orgId } = await requireOrgAccess()
@@ -312,79 +313,46 @@ export default async function AdminDashboard() {
 
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const buildingBreakdown = await Promise.all(
-    visibleBuildingIds.map(async (id) => {
-      const building = await db.building.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          name: true,
-          address: true,
-          floors: {
-            select: { id: true },
-          },
-        },
-      })
+  const buildingBreakdown = await getOwnerBuildingMetrics({
+    buildingIds: visibleBuildingIds,
+    from: currentMonthStart,
+    to: nextMonthStart,
+  })
 
-      if (!building) return null
-      const ids = building.floors.map((f) => f.id)
-      const buildingTenantWhere = {
-        OR: [
-          { space: { floorId: { in: ids } } },
-          { fullFloors: { some: { buildingId: id } } },
-        ],
-      }
-      const [incomeAgg, expenseAgg, tenantCount, spacesByStatus] = await Promise.all([
-        db.payment.aggregate({
-          where: {
-            paymentDate: { gte: currentMonthStart, lt: nextMonthStart },
-            tenant: buildingTenantWhere,
-          },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-        db.expense.aggregate({
-          where: { date: { gte: currentMonthStart, lt: nextMonthStart }, buildingId: id },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-        db.tenant.count({ where: buildingTenantWhere }).catch(() => 0),
-        db.space.groupBy({
-          by: ["status"],
-          where: {
-            floorId: { in: ids },
-            kind: { not: "COMMON" },
-          },
-          _count: { _all: true },
-        }).catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
-      ])
-      const spaceStatusRows = spacesByStatus as Array<{ status: string; _count: { _all: number } }>
-      const occupied = spaceStatusRows.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
-      const totalSpaces = spaceStatusRows.reduce((sum, s) => sum + s._count._all, 0)
-      const income = incomeAgg._sum.amount ?? 0
-      const expenses = expenseAgg._sum.amount ?? 0
-
-      return {
-        id: building.id,
-        name: building.name,
-        address: building.address,
-        income,
-        expenses,
-        profit: income - expenses,
-        tenantCount,
-        occupied,
-        totalSpaces,
-      }
-    }),
-  ).then((rows) => rows.filter(Boolean) as Array<{
-    id: string
-    name: string
-    address: string
-    income: number
-    expenses: number
-    profit: number
-    tenantCount: number
-    occupied: number
-    totalSpaces: number
-  }>)
+  const attentionItems = [
+    {
+      href: "/admin/finances?filter=overdue",
+      title: "Просроченные платежи",
+      value: (overdueCharges._count._all ?? 0) > 0 ? `${overdueCharges._count._all} шт` : "Нет",
+      sub: (overdueCharges._sum.amount ?? 0) > 0 ? formatMoney(overdueCharges._sum.amount ?? 0) : "Все спокойно",
+      tone: "red" as const,
+      active: (overdueCharges._count._all ?? 0) > 0,
+    },
+    {
+      href: "/admin/finances",
+      title: "Оплаты на проверке",
+      value: (pendingPaymentReports._count._all ?? 0) > 0 ? `${pendingPaymentReports._count._all} шт` : "Нет",
+      sub: (pendingPaymentReports._sum.amount ?? 0) > 0 ? formatMoney(pendingPaymentReports._sum.amount ?? 0) : "Новых чеков нет",
+      tone: "emerald" as const,
+      active: (pendingPaymentReports._count._all ?? 0) > 0,
+    },
+    {
+      href: "/admin/data-quality",
+      title: "Ошибки в данных",
+      value: dataQualityIssues > 0 ? `${dataQualityIssues} шт` : "Нет",
+      sub: dataQualityIssues > 0 ? "Проверьте аренду, контакты и договоры" : "Критичных ошибок нет",
+      tone: "amber" as const,
+      active: dataQualityIssues > 0,
+    },
+    {
+      href: "/admin/tenants?filter=expiring",
+      title: "Договоры заканчиваются",
+      value: expiringContracts > 0 ? `${expiringContracts} шт` : "Нет",
+      sub: "Ближайшие 30 дней",
+      tone: "blue" as const,
+      active: expiringContracts > 0,
+    },
+  ].sort((left, right) => Number(right.active) - Number(left.active))
 
   return (
     <div className="space-y-6">
@@ -487,21 +455,58 @@ export default async function AdminDashboard() {
         </div>
       </div>
 
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Требует внимания сегодня</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Самые важные действия по выбранным зданиям, чтобы владелец сразу видел, где нужны деньги, документы или проверка.
+          </p>
+        </div>
+        <div className="grid gap-3 p-4 lg:grid-cols-4">
+          {attentionItems.map((item) => (
+            <AttentionRow key={item.href} {...item} />
+          ))}
+        </div>
+      </div>
+
       {/* Cashflow chart */}
       <CashflowChart months={months} />
 
       {!buildingId && buildingBreakdown.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разрез по зданиям за текущий месяц</h2>
+          <div className="flex flex-col gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разрез по зданиям за текущий месяц</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Доход, расход, прибыль, долг и свободная площадь по каждой точке.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/api/export/owner-report?format=xlsx"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </Link>
+              <Link
+                href="/api/export/owner-report?format=html"
+                target="_blank"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                <Printer className="h-4 w-4" />
+                PDF/печать
+              </Link>
+            </div>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>
                 <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Доход</th>
                 <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Расход</th>
                 <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Прибыль</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Долг</th>
+                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Свободно</th>
                 <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Заполняемость</th>
               </tr>
             </thead>
@@ -517,13 +522,21 @@ export default async function AdminDashboard() {
                   <td className={`px-5 py-3 text-right font-semibold ${b.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                     {formatMoney(b.profit)}
                   </td>
+                  <td className={`px-5 py-3 text-right font-medium ${b.debt > 0 ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+                    {b.debt > 0 ? formatMoney(b.debt) : "—"}
+                    {b.debtCount > 0 && <span className="block text-[11px] font-normal text-slate-400">{b.debtCount} шт</span>}
+                  </td>
                   <td className="px-5 py-3 text-right text-slate-600 dark:text-slate-400">
-                    {b.totalSpaces > 0 ? `${Math.round((b.occupied / b.totalSpaces) * 100)}%` : "—"}
+                    {formatArea(b.vacantArea)}
+                  </td>
+                  <td className="px-5 py-3 text-right text-slate-600 dark:text-slate-400">
+                    {b.occupancyPercent !== null ? `${b.occupancyPercent}%` : "—"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -649,6 +662,47 @@ export default async function AdminDashboard() {
   )
 }
 
+function AttentionRow({
+  href,
+  title,
+  value,
+  sub,
+  tone,
+  active,
+}: {
+  href: string
+  title: string
+  value: string
+  sub: string
+  tone: "red" | "amber" | "blue" | "emerald"
+  active: boolean
+}) {
+  const colors = {
+    red: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
+    amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+  }
+
+  return (
+    <Link
+      href={href}
+      className={`rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${
+        active ? colors[tone] : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium opacity-80">{title}</p>
+          <p className="mt-1 text-lg font-bold">{value}</p>
+          <p className="mt-0.5 truncate text-[11px] opacity-75">{sub}</p>
+        </div>
+        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 opacity-60" />
+      </div>
+    </Link>
+  )
+}
+
 function TodayCard({
   href, icon: Icon, color, label, value, sub, urgent,
 }: {
@@ -709,6 +763,10 @@ function StatCard({
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
   )
+}
+
+function formatArea(value: number) {
+  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value)} м²`
 }
 
 function StatusBadge({ status }: { status: string }) {

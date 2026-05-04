@@ -18,7 +18,7 @@ import {
   TextRun,
   WidthType,
 } from "docx"
-import { renderDocx, renderXlsx } from "@/lib/template-engine"
+import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 
 export const dynamic = "force-dynamic"
@@ -65,13 +65,17 @@ export async function GET(req: Request) {
   })
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
-  const building = await db.building.findFirst({
-    where: { isActive: true, organizationId: orgId },
-  })
-
   const contractNumber = searchParams.get("number") || "01-XXX"
   const today = new Date()
   const fullFloor = tenant.fullFloors?.[0]
+  const tenantBuildingId = tenant.space?.floor.buildingId ?? fullFloor?.buildingId
+  const building = tenantBuildingId
+    ? await db.building.findFirst({
+        where: { id: tenantBuildingId, isActive: true, organizationId: orgId },
+      })
+    : await db.building.findFirst({
+        where: { isActive: true, organizationId: orgId },
+      })
   const monthlyRent = calculateTenantMonthlyRent(tenant)
   const ratePerSqm = calculateTenantRatePerSqm(tenant) ?? 0
   const start = tenant.contractStart ?? today
@@ -92,7 +96,7 @@ export async function GET(req: Request) {
     orderBy: { uploadedAt: "desc" },
   }).catch(() => null)
 
-  if (customTemplate && customTemplate.format !== "PDF") {
+  if (customTemplate) {
     const data: Record<string, string | number> = {
       contract_number: contractNumber,
       contract_date: contractDate,
@@ -158,14 +162,21 @@ export async function GET(req: Request) {
 
     let bytes: Buffer
     try {
+      const templateBytes = Buffer.from(customTemplate.fileBytes)
       if (customTemplate.format === "DOCX") {
-        bytes = await renderDocx(customTemplate.fileBytes as Buffer, data)
+        const placeholders = extractDocxPlaceholders(templateBytes)
+        bytes = placeholders.length > 0 ? renderDocx(templateBytes, data) : templateBytes
+      } else if (customTemplate.format === "XLSX") {
+        const placeholders = await extractXlsxPlaceholders(templateBytes)
+        bytes = placeholders.length > 0 ? await renderXlsx(templateBytes, data) : templateBytes
       } else {
-        bytes = await renderXlsx(customTemplate.fileBytes as Buffer, data)
+        bytes = templateBytes
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "render failed"
-      return NextResponse.json({ error: `Ошибка рендеринга шаблона: ${msg}` }, { status: 500 })
+      return NextResponse.json({
+        error: `Не удалось заполнить загруженный шаблон: ${msg}. Проверьте, что метки написаны в формате {tenant_name}, {monthly_rent_with_words}, {start_date}.`,
+      }, { status: 500 })
     }
 
     try {
@@ -188,10 +199,12 @@ export async function GET(req: Request) {
       })
     } catch {}
 
-    const ext = customTemplate.format === "DOCX" ? "docx" : "xlsx"
+    const ext = customTemplate.format === "DOCX" ? "docx" : customTemplate.format === "XLSX" ? "xlsx" : "pdf"
     const mime = customTemplate.format === "DOCX"
       ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      : customTemplate.format === "XLSX"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "application/pdf"
     return new NextResponse(bytes as unknown as BodyInit, {
       status: 200,
       headers: {

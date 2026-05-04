@@ -9,11 +9,13 @@ export function ContractNumberInput({
   tenantId,
   suggestedNumber,
   contractId,
+  downloadFormat = "DOCX",
 }: {
   initial: string
   tenantId: string
   suggestedNumber: string | null
   contractId?: string
+  downloadFormat?: string
 }) {
   const [number, setNumber] = useState(initial)
   const isAuto = suggestedNumber && number === suggestedNumber
@@ -42,7 +44,7 @@ export function ContractNumberInput({
           </button>
         ) : null}
         <a href={docxUrl} download className="rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white shrink-0 inline-flex items-center gap-1">
-          <Download className="h-3 w-3" /> DOCX
+          <Download className="h-3 w-3" /> {downloadFormat}
         </a>
         <NcaSignButton
           documentUrl={docxUrl}

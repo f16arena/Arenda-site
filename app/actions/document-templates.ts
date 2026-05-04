@@ -54,12 +54,12 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
   if (format === "DOCX") {
     detectedPlaceholders = extractDocxPlaceholders(buffer)
     if (detectedPlaceholders.length === 0) {
-      warning = "В шаблоне не найдено placeholder'ов вида {tenant_name}. Такой DOCX сохранится как статичный файл: система не сможет подставить арендатора, суммы и реквизиты. Добавьте placeholder'ы и загрузите шаблон повторно."
+      warning = "Шаблон сохранён, но в DOCX не найдены метки вида {tenant_name}. Система будет скачивать именно этот файл как статичный шаблон. Чтобы договор заполнялся автоматически, добавьте нужные метки и загрузите новую версию."
     }
   } else if (format === "XLSX") {
     detectedPlaceholders = await extractXlsxPlaceholders(buffer)
     if (detectedPlaceholders.length === 0) {
-      warning = "В шаблоне не найдено placeholder'ов вида {tenant_name} в ячейках. Документ сохранится как статичный файл без автоподстановки данных."
+      warning = "Шаблон сохранён, но в XLSX не найдены метки вида {tenant_name}. Файл будет использоваться как статичный шаблон без автоподстановки данных."
     }
   } else if (format === "PDF") {
     warning = "PDF используется только как образец-превью. Для автоматической генерации данных загрузите DOCX или XLSX."

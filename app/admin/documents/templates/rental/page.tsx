@@ -13,6 +13,8 @@ import { ArrowLeft } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { tenantScope } from "@/lib/tenant-scope"
+import { extractDocxPlaceholders, extractXlsxPlaceholders } from "@/lib/template-engine"
 
 interface PageProps {
   searchParams: Promise<{ tenantId?: string }>
@@ -26,6 +28,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
   const { tenantId } = await searchParams
 
   const allTenantsRaw = await db.tenant.findMany({
+    where: tenantScope(orgId),
     select: {
       id: true,
       companyName: true,
@@ -42,8 +45,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
   }))
 
   const tenant = tenantId
-    ? await db.tenant.findUnique({
-        where: { id: tenantId },
+    ? await db.tenant.findFirst({
+        where: { id: tenantId, ...tenantScope(orgId) },
         include: {
           user: true,
           space: { include: { floor: true } },
@@ -61,8 +64,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
   const initialContractNumber = tenant?.contracts?.[0]?.number ?? suggestedNumber ?? "01-001"
 
   const building = tenantBuildingId
-    ? await db.building.findUnique({ where: { id: tenantBuildingId } })
-    : await db.building.findFirst({ where: { isActive: true } })
+    ? await db.building.findFirst({ where: { id: tenantBuildingId, organizationId: orgId } })
+    : await db.building.findFirst({ where: { isActive: true, organizationId: orgId } })
 
   const today = new Date()
   const contractEnd = new Date(today)
@@ -81,6 +84,18 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
   const moneyWords = (n: number) => n.toLocaleString("ru-RU")
   const objectAddress = building?.address ?? BUILDING_DEFAULT.address
+  const activeContractTemplate = await db.documentTemplate.findFirst({
+    where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
+    orderBy: { uploadedAt: "desc" },
+    select: { id: true, format: true, fileName: true, fileSize: true, uploadedAt: true, fileBytes: true },
+  })
+  const templatePlaceholders = activeContractTemplate
+    ? activeContractTemplate.format === "DOCX"
+      ? extractDocxPlaceholders(Buffer.from(activeContractTemplate.fileBytes))
+      : activeContractTemplate.format === "XLSX"
+        ? await extractXlsxPlaceholders(Buffer.from(activeContractTemplate.fileBytes))
+        : []
+    : []
 
   return (
     <div className="space-y-5 print:space-y-0">
@@ -110,7 +125,19 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           initial={initialContractNumber}
           tenantId={tenant.id}
           suggestedNumber={suggestedNumber}
+          downloadFormat={activeContractTemplate?.format ?? "DOCX"}
         />
+        {activeContractTemplate ? (
+          <ActiveContractTemplatePanel
+            template={{
+              format: activeContractTemplate.format,
+              fileName: activeContractTemplate.fileName,
+              fileSize: activeContractTemplate.fileSize,
+              uploadedAt: activeContractTemplate.uploadedAt,
+            }}
+            placeholderCount={templatePlaceholders.length}
+          />
+        ) : (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 max-w-[900px] mx-auto print:p-12 print:border-0 print:rounded-none print:shadow-none print:max-w-full text-[13px] leading-relaxed text-slate-900 dark:text-slate-100 contract-body">
           <p className="text-center font-bold text-base">Договор № {initialContractNumber} аренды нежилого помещения</p>
           <div className="flex justify-between mt-4">
@@ -245,6 +272,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
             </div>
           </div>
         </div>
+        )}
         </>
       )}
 
@@ -257,6 +285,49 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           @page { margin: 1.5cm; }
         }
       `}</style>
+    </div>
+  )
+}
+
+function ActiveContractTemplatePanel({
+  template,
+  placeholderCount,
+}: {
+  template: { format: string; fileName: string; fileSize: number; uploadedAt: Date }
+  placeholderCount: number
+}) {
+  const isDynamic = template.format !== "PDF" && placeholderCount > 0
+
+  return (
+    <div className="mx-auto max-w-[900px] rounded-xl border border-slate-200 bg-white p-5 text-sm dark:border-slate-800 dark:bg-slate-900 print:hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="font-semibold text-slate-900 dark:text-slate-100">Используется загруженный шаблон договора</p>
+          <p className="mt-1 text-slate-500 dark:text-slate-400">
+            {template.fileName} · {template.format} · {Math.round(template.fileSize / 1024)} КБ · загружен {new Date(template.uploadedAt).toLocaleDateString("ru-RU")}
+          </p>
+        </div>
+        <Link
+          href="/admin/settings/document-templates"
+          className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          Настроить шаблон
+        </Link>
+      </div>
+      <div className={`mt-4 rounded-lg border p-3 text-xs ${
+        isDynamic
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+          : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+      }`}>
+        {isDynamic ? (
+          <p>Автоподстановка активна: найдено {placeholderCount} меток. Кнопка {template.format} выше сформирует договор по этому шаблону.</p>
+        ) : (
+          <p>
+            Метки автоподстановки не найдены. Кнопка {template.format} выше скачает именно загруженный файл, без старого договора из кода.
+            Чтобы данные арендатора, сумма и реквизиты подставлялись автоматически, добавьте метки вида {"{tenant_name}"}, {"{monthly_rent_with_words}"}, {"{start_date}"} и загрузите новую версию.
+          </p>
+        )}
+      </div>
     </div>
   )
 }
