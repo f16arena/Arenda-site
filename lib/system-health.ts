@@ -32,7 +32,6 @@ type MigrationRow = {
 
 const REQUIRED_ENV = [
   "DATABASE_URL",
-  "DIRECT_URL",
   "NEXTAUTH_URL",
   "ROOT_HOST",
   "CRON_SECRET",
@@ -244,11 +243,11 @@ async function checkEnvironment(): Promise<Omit<SystemCheck, "id" | "label" | "m
   if (missing.length > 0) details.push(`Не заданы: ${missing.join(", ")}.`)
 
   const recommendations = [
+    !process.env.DIRECT_URL
+      ? "DIRECT_URL не задан: миграции используют fallback из DATABASE_URL. Для production лучше задать direct/session-pooler URL отдельно."
+      : null,
     !process.env.RESEND_API_KEY ? "RESEND_API_KEY не задан: письма будут только логироваться." : null,
     !process.env.EMAIL_FROM ? "EMAIL_FROM не задан: будет использован fallback отправителя." : null,
-    !(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
-      ? "SENTRY_DSN не задан: внешняя отправка ошибок не подключена, работает внутренний журнал."
-      : null,
   ].filter(Boolean) as string[]
 
   if (details.length > 0) {
@@ -280,6 +279,26 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
   const packageJson = await readJson<{ version?: string }>("package.json")
   const packageLock = await readJson<{ version?: string; packages?: Record<string, { version?: string }> }>("package-lock.json")
   const changelog = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "CHANGELOG.md"), "utf8").catch(() => "")
+  const runtimeVersion = version
+    ?? process.env.NEXT_PUBLIC_APP_VERSION
+    ?? process.env.APP_VERSION
+    ?? process.env.npm_package_version
+    ?? null
+
+  if (isProductionRuntime() && (!packageJson || !packageLock || !changelog)) {
+    return {
+      status: runtimeVersion ? "ok" : "warning",
+      message: runtimeVersion
+        ? `Runtime-версия определена: ${runtimeVersion}.`
+        : "Release-файлы недоступны в production runtime.",
+      details: [
+        runtimeVersion ? `VERSION=${runtimeVersion}.` : "VERSION не найден в runtime bundle.",
+        packageJson ? `package.json=${packageJson.version ?? "missing-version"}.` : "package.json недоступен в production bundle.",
+        packageLock ? `package-lock=${packageLock.version ?? "missing-version"}.` : "package-lock.json недоступен в production bundle.",
+        "Полная проверка VERSION/package.json/package-lock/CHANGELOG выполняется локально и в CI до deploy.",
+      ],
+    }
+  }
 
   const details: string[] = []
   if (!version) details.push("VERSION не найден или пустой.")
@@ -308,9 +327,8 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
 async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const errors: string[] = []
   const details: string[] = []
-  const sourceAvailable = await sourceFileAvailable("lib", "cron-auth.ts")
 
-  if (!sourceAvailable && isProductionRuntime()) {
+  if (isProductionRuntime()) {
     if (!process.env.CRON_SECRET) {
       return {
         status: "error",
@@ -324,7 +342,7 @@ async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "labe
       message: "Runtime guardrails проверены. Source-scan пропущен в production bundle.",
       details: [
         "CRON_SECRET задан, cron endpoints работают через Bearer-секрет.",
-        "Статический scan route.ts/lib/*.ts выполняется локально и в CI, потому что Vercel runtime не всегда содержит исходники app/ как файлы.",
+        "Статический scan route.ts/lib/*.ts выполняется локально и в CI; production runtime проверяет обязательные runtime-секреты.",
       ],
     }
   }
@@ -549,6 +567,7 @@ async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "
       AND g.grantee IN ('anon', 'authenticated')
     WHERE n.nspname = 'public'
       AND c.relkind = 'r'
+      AND c.relname <> '_prisma_migrations'
     GROUP BY c.relname, c.relrowsecurity
     ORDER BY c.relname
   `
@@ -897,10 +916,6 @@ async function missingCronRoutes(): Promise<string[]> {
 
 async function fileExists(filePath: string): Promise<boolean> {
   return stat(filePath).then((item) => item.isFile()).catch(() => false)
-}
-
-async function sourceFileAvailable(...segments: string[]): Promise<boolean> {
-  return fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), ...segments))
 }
 
 async function readJson<T>(relativePath: string): Promise<T | null> {

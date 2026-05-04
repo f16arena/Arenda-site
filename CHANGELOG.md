@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.51 - 2026-05-04
+
+- Исправлена диагностика `/admin/system-health` в production: проверка критичных guardrails больше не пытается читать `app/**/route.ts` из Vercel/Next runtime и не показывает ложные ошибки по cron endpoints, если `CRON_SECRET` задан.
+- `DIRECT_URL` перестал быть блокирующей переменной окружения: Prisma deploy уже умеет использовать fallback из `DATABASE_URL`, а health-check теперь показывает это как рекомендацию, а не критическую ошибку.
+- Проверка release-файлов стала корректной для production bundle: если `package.json`, `package-lock.json` или `CHANGELOG.md` недоступны на диске runtime, health-check использует runtime-версию и напоминает, что полная сверка выполняется локально/CI.
+- Supabase RLS check больше не считает служебную таблицу `_prisma_migrations` публичной бизнес-таблицей.
+- Добавлена rollback-точка `rollback/pre-system-health-runtime-1.3.51`.
+
 ## 1.3.50 - 2026-05-04
 
 - В данные компании арендатора добавлен autocomplete адресов РК для юридического и фактического адреса.
