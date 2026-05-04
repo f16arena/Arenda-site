@@ -43,8 +43,27 @@ function datasourceUrl() {
   return databaseUrl
 }
 
-async function getMigrationHistory() {
-  const url = datasourceUrl()
+function isLocalDatabaseUrl(url) {
+  try {
+    const parsed = new URL(url)
+    return ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
+function shouldSkipDeployMigrations(url) {
+  if (process.env.SKIP_DEPLOY_MIGRATIONS === "1") return true
+  if (process.env.FORCE_DEPLOY_MIGRATIONS === "1") return false
+
+  if (!url) {
+    return process.env.CI === "true"
+  }
+
+  return process.env.CI === "true" && isLocalDatabaseUrl(url)
+}
+
+async function getMigrationHistory(url) {
   if (!url) {
     throw new Error("DATABASE_URL or DIRECT_URL is required for deploy migrations.")
   }
@@ -66,8 +85,7 @@ async function getMigrationHistory() {
   }
 }
 
-async function enableDenyByDefaultRls() {
-  const url = datasourceUrl()
+async function enableDenyByDefaultRls(url) {
   if (!url) throw new Error("DATABASE_URL or DIRECT_URL is required for RLS baseline.")
 
   const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } })
@@ -127,10 +145,10 @@ async function localMigrations() {
     .sort()
 }
 
-async function baselineCurrentSchema() {
+async function baselineCurrentSchema(url) {
   console.log("[deploy-migrations] No Prisma migration history found. Running safe baseline.")
   runPrisma(["db", "push"])
-  await enableDenyByDefaultRls()
+  await enableDenyByDefaultRls(url)
 
   for (const migration of await localMigrations()) {
     runPrisma(["migrate", "resolve", "--applied", migration])
@@ -140,13 +158,19 @@ async function baselineCurrentSchema() {
 }
 
 async function main() {
-  const history = await getMigrationHistory()
+  const url = datasourceUrl()
+  if (shouldSkipDeployMigrations(url)) {
+    console.log("[deploy-migrations] Skipped: no deploy database is configured for this CI build.")
+    return
+  }
+
+  const history = await getMigrationHistory(url)
   if (history.exists && history.appliedCount > 0) {
     runPrisma(["migrate", "deploy"])
     return
   }
 
-  await baselineCurrentSchema()
+  await baselineCurrentSchema(url)
 }
 
 main().catch((error) => {

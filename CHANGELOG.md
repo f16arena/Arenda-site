@@ -2,6 +2,13 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.48 - 2026-05-04
+
+- GitHub CI build больше не падает на `deploy-migrations`: если в CI нет настоящего deploy-URL базы или задан localhost, скрипт мягко пропускает миграции и дает выполнить `prisma generate` + `next build`.
+- Production/Vercel deploy остается строгим: при наличии реального `DATABASE_URL`/`DIRECT_URL` миграции продолжают выполняться перед сборкой.
+- Добавлены управляющие флаги `SKIP_DEPLOY_MIGRATIONS=1` и `FORCE_DEPLOY_MIGRATIONS=1` для ручного контроля поведения в нестандартных окружениях.
+- Добавлена rollback-точка `rollback/pre-github-ci-build-1.3.48`.
+
 ## 1.3.47 - 2026-05-04
 
 - Vercel/production build теперь выполняет `prisma migrate deploy` перед `prisma generate` и `next build`, чтобы новая версия кода не запускалась поверх старой схемы БД.
