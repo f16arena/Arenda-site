@@ -2,11 +2,13 @@
 
 import { useState, useTransition, useMemo } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Download, FileText, Archive, Loader2, ChevronDown, ChevronRight,
-  List, Folder,
+  List, Folder, Trash2, Lock,
 } from "lucide-react"
 import { toast } from "sonner"
+import { deleteAdminDocument } from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
 
 const TYPE_LABELS: Record<string, string> = {
@@ -38,13 +40,18 @@ export interface DocRow {
   downloadHref: string | null
   /** Для bulk: GeneratedDocument id (без префикса) */
   generatedId?: string
+  deleteId?: string
+  canDelete?: boolean
+  isSigned?: boolean
 }
 
 export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint: string }) {
+  const router = useRouter()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
   const [groupBy, setGroupBy] = useState<"none" | "tenant">("none")
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [deletingRowId, setDeletingRowId] = useState<string | null>(null)
 
   // Группируем по tenantName (или "Без контрагента")
   const grouped = useMemo(() => {
@@ -112,6 +119,80 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         toast.error(e instanceof Error ? e.message : "Ошибка")
       }
     })
+  }
+
+  function handleDelete(row: DocRow) {
+    if (!row.deleteId || !row.canDelete) return
+    const number = row.number ? ` № ${row.number}` : ""
+    const signedWarning = row.isSigned
+      ? "Документ уже подписан. Удаление подписанного документа доступно только владельцу.\n\n"
+      : ""
+    const confirmed = window.confirm(
+      `${signedWarning}Удалить ${TYPE_LABELS[row.type] ?? "документ"}${number}?\n\nДействие нельзя отменить. Если документ нужен с изменениями, его нужно будет создать заново.`
+    )
+    if (!confirmed) return
+
+    setDeletingRowId(row.id)
+    startTransition(async () => {
+      const result = await deleteAdminDocument({ source: row.source, id: row.deleteId! })
+      setDeletingRowId(null)
+      if (!result.ok) {
+        toast.error(result.error ?? "Не удалось удалить документ")
+        return
+      }
+      if (row.generatedId) {
+        const nextSelected = new Set(selected)
+        nextSelected.delete(row.generatedId)
+        setSelected(nextSelected)
+      }
+      toast.success("Документ удалён")
+      router.refresh()
+    })
+  }
+
+  function renderActions(row: DocRow) {
+    const isDeleting = deletingRowId === row.id && pending
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {row.downloadHref ? (
+          <a
+            href={row.downloadHref}
+            download
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
+          >
+            <Download className="h-3 w-3" />
+            Скачать
+          </a>
+        ) : (
+          <Link
+            href={`/admin/tenants/${row.tenantId}`}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Открыть →
+          </Link>
+        )}
+        {row.deleteId && row.canDelete ? (
+          <button
+            type="button"
+            onClick={() => handleDelete(row)}
+            disabled={isDeleting}
+            className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+            title={row.isSigned ? "Удалить подписанный документ может только владелец" : "Удалить ошибочно созданный документ"}
+          >
+            {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Удалить
+          </button>
+        ) : row.deleteId && row.isSigned ? (
+          <span
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500"
+            title="Подписанный документ может удалить только владелец"
+          >
+            <Lock className="h-3 w-3" />
+            Подписан
+          </span>
+        ) : null}
+      </div>
+    )
   }
 
   return (
@@ -259,22 +340,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                         <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                           {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
                         </td>
-                        <td className="px-5 py-3 text-right">
-                          {r.downloadHref ? (
-                            <a
-                              href={r.downloadHref}
-                              download
-                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
-                            >
-                              <Download className="h-3 w-3" />
-                              Скачать
-                            </a>
-                          ) : (
-                            <Link href={`/admin/tenants/${r.tenantId}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                              Открыть →
-                            </Link>
-                          )}
-                        </td>
+                        <td className="px-5 py-3 text-right">{renderActions(r)}</td>
                       </tr>
                     )
                   })}
@@ -321,25 +387,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                   <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
                     {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
                   </td>
-                  <td className="px-5 py-3 text-right">
-                    {r.downloadHref ? (
-                      <a
-                        href={r.downloadHref}
-                        download
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
-                      >
-                        <Download className="h-3 w-3" />
-                        Скачать
-                      </a>
-                    ) : (
-                      <Link
-                        href={`/admin/tenants/${r.tenantId}`}
-                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                      >
-                        Открыть →
-                      </Link>
-                    )}
-                  </td>
+                  <td className="px-5 py-3 text-right">{renderActions(r)}</td>
                 </tr>
               )
             })}

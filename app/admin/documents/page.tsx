@@ -78,6 +78,7 @@ export default async function DocumentsPage({
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
+  const canDeleteSignedDocuments = session.user.role === "OWNER" || !!session.user.isPlatformOwner
 
   const { type, q, period } = await searchParams
   const filterType = (type ?? "ALL").toUpperCase() as DocType
@@ -85,6 +86,7 @@ export default async function DocumentsPage({
   const tenantWhere = {
     OR: [
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
     ],
   }
@@ -103,6 +105,10 @@ export default async function DocumentsPage({
             id: true,
             number: true,
             type: true,
+            status: true,
+            signedAt: true,
+            signedByTenantAt: true,
+            signedByLandlordAt: true,
             startDate: true,
             endDate: true,
             createdAt: true,
@@ -114,6 +120,10 @@ export default async function DocumentsPage({
           id: string
           number: string
           type: string
+          status: string
+          signedAt: Date | null
+          signedByTenantAt: Date | null
+          signedByLandlordAt: Date | null
           startDate: Date | null
           endDate: Date | null
           createdAt: Date
@@ -141,32 +151,89 @@ export default async function DocumentsPage({
       : [],
   ])
 
-  const contractRows: DocRow[] = contracts.map((c) => ({
-    id: `c-${c.id}`,
-    type: "CONTRACT",
-    number: c.number,
-    tenantName: c.tenant.companyName,
-    tenantId: c.tenant.id,
-    period: null,
-    totalAmount: null,
-    generatedAt: c.createdAt,
-    source: "contract",
-    downloadHref: null,
-  }))
+  const signatureTargets = [
+    ...contracts.flatMap((contract) => [
+      { documentType: "CONTRACT", documentId: contract.id },
+      ...(contract.number ? [{ documentType: "CONTRACT", documentRef: contract.number }] : []),
+    ]),
+    ...generated.flatMap((doc) => [
+      { documentType: doc.documentType, documentId: doc.id },
+      ...(doc.number ? [{ documentType: doc.documentType, documentRef: doc.number }] : []),
+    ]),
+  ]
 
-  const generatedRows: DocRow[] = generated.map((g) => ({
-    id: `g-${g.id}`,
-    type: g.documentType,
-    number: g.number,
-    tenantName: g.tenantName,
-    tenantId: g.tenantId,
-    period: g.period,
-    totalAmount: g.totalAmount,
-    generatedAt: g.generatedAt,
-    source: "generated",
-    downloadHref: `/api/documents/archive/${g.id}`,
-    generatedId: g.id,
-  }))
+  const signatures = signatureTargets.length > 0
+    ? await db.documentSignature.findMany({
+        where: {
+          organizationId: orgId,
+          OR: signatureTargets,
+        },
+        select: { documentType: true, documentId: true, documentRef: true },
+      }).catch(() => [] as Array<{ documentType: string; documentId: string | null; documentRef: string | null }>)
+    : []
+
+  const signedById = new Set(
+    signatures
+      .filter((signature) => signature.documentId)
+      .map((signature) => `${signature.documentType}:${signature.documentId}`)
+  )
+  const signedByRef = new Set(
+    signatures
+      .filter((signature) => signature.documentRef)
+      .map((signature) => `${signature.documentType}:${signature.documentRef}`)
+  )
+
+  const contractRows: DocRow[] = contracts.map((c) => {
+    const isSigned = (
+      signedById.has(`CONTRACT:${c.id}`)
+      || signedByRef.has(`CONTRACT:${c.number}`)
+      || c.status === "SIGNED"
+      || c.status === "SIGNED_BY_TENANT"
+      || !!c.signedAt
+      || !!c.signedByTenantAt
+      || !!c.signedByLandlordAt
+    )
+
+    return {
+      id: `c-${c.id}`,
+      type: "CONTRACT",
+      number: c.number,
+      tenantName: c.tenant.companyName,
+      tenantId: c.tenant.id,
+      period: null,
+      totalAmount: null,
+      generatedAt: c.createdAt,
+      source: "contract",
+      downloadHref: null,
+      deleteId: c.id,
+      canDelete: !isSigned || canDeleteSignedDocuments,
+      isSigned,
+    }
+  })
+
+  const generatedRows: DocRow[] = generated.map((g) => {
+    const isSigned = (
+      signedById.has(`${g.documentType}:${g.id}`)
+      || (g.number ? signedByRef.has(`${g.documentType}:${g.number}`) : false)
+    )
+
+    return {
+      id: `g-${g.id}`,
+      type: g.documentType,
+      number: g.number,
+      tenantName: g.tenantName,
+      tenantId: g.tenantId,
+      period: g.period,
+      totalAmount: g.totalAmount,
+      generatedAt: g.generatedAt,
+      source: "generated",
+      downloadHref: `/api/documents/archive/${g.id}`,
+      generatedId: g.id,
+      deleteId: g.id,
+      canDelete: !isSigned || canDeleteSignedDocuments,
+      isSigned,
+    }
+  })
 
   let allRows = [...contractRows, ...generatedRows].sort(
     (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
