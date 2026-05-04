@@ -59,10 +59,10 @@ export async function assertSpaceAssignable(spaceId: string): Promise<void> {
  * Проверить, что весь этаж можно отдать одному арендатору.
  * Если хоть одно помещение занято — кидает ошибку с указанием конфликтующего арендатора.
  */
-export async function assertFloorAssignableToOneTenant(floorId: string): Promise<void> {
+export async function assertFloorAssignableToOneTenant(floorId: string, allowedTenantId?: string): Promise<void> {
   // Игнорируем COMMON помещения — они не могут быть «заняты» арендатором.
   // Проверяем только RENTABLE.
-  const occupied = await db.space.findFirst({
+  const occupiedSpaces = await db.space.findMany({
     where: {
       floorId,
       kind: "RENTABLE",
@@ -73,12 +73,16 @@ export async function assertFloorAssignableToOneTenant(floorId: string): Promise
     },
     select: {
       number: true,
-      tenant: { select: { companyName: true, contractEnd: true } },
+      tenant: { select: { id: true, companyName: true, contractEnd: true } },
       tenantSpaces: {
-        select: { tenant: { select: { companyName: true, contractEnd: true } } },
+        select: { tenant: { select: { id: true, companyName: true, contractEnd: true } } },
         take: 1,
       },
     },
+  })
+  const occupied = occupiedSpaces.find((space) => {
+    const tenant = space.tenant ?? space.tenantSpaces[0]?.tenant ?? null
+    return tenant && tenant.id !== allowedTenantId
   })
   if (occupied) {
     const tenant = occupied.tenant ?? occupied.tenantSpaces[0]?.tenant ?? null
@@ -96,7 +100,7 @@ export async function assertFloorAssignableToOneTenant(floorId: string): Promise
     where: { id: floorId },
     select: { fullFloorTenantId: true, name: true, fullFloorTenant: { select: { companyName: true } } },
   })
-  if (floor?.fullFloorTenantId) {
+  if (floor?.fullFloorTenantId && floor.fullFloorTenantId !== allowedTenantId) {
     const co = floor.fullFloorTenant?.companyName ?? "—"
     throw new FullFloorConflictError(
       `Этаж «${floor.name}» уже сдан целиком арендатору «${co}». Сначала снимите его.`,

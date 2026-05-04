@@ -125,9 +125,14 @@ export function FullFloorAssign({
                 <button
                   disabled={pending || !floorId || !rent}
                   onClick={() => {
+                    const parsedRent = Number(rent.replace(",", "."))
+                    if (!Number.isFinite(parsedRent) || parsedRent <= 0) {
+                      toast.error("Введите корректную сумму аренды за этаж")
+                      return
+                    }
                     startTransition(async () => {
                       try {
-                        await assignFullFloor(floorId, tenantId, parseFloat(rent))
+                        await assignFullFloor(floorId, tenantId, parsedRent)
                         toast.success("Этаж назначен")
                         setOpen(false)
                         setRent("")

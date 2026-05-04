@@ -13,14 +13,18 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
   await assertFloorInOrg(floorId, orgId)
   await assertTenantInOrg(tenantId, orgId)
 
-  if (fixedRent <= 0) throw new Error("Сумма аренды должна быть больше 0")
+  if (!Number.isFinite(fixedRent) || fixedRent <= 0) {
+    throw new Error("Сумма аренды должна быть больше 0")
+  }
+  const normalizedFixedRent = Math.round(fixedRent * 100) / 100
 
   // Этаж должен быть свободен: ни одно помещение не занято и нет другого full-floor арендатора
-  await assertFloorAssignableToOneTenant(floorId)
+  await assertFloorAssignableToOneTenant(floorId, tenantId)
 
   const targetFloor = await db.floor.findUnique({
     where: { id: floorId },
     select: {
+      id: true,
       buildingId: true,
       building: { select: { name: true } },
     },
@@ -39,6 +43,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
           number: true,
           floor: {
             select: {
+              id: true,
               buildingId: true,
               fullFloorTenantId: true,
               building: { select: { name: true } },
@@ -55,6 +60,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
               number: true,
               floor: {
                 select: {
+                  id: true,
                   buildingId: true,
                   fullFloorTenantId: true,
                   building: { select: { name: true } },
@@ -98,6 +104,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
     ...tenant.tenantSpaces.map((item) => item.space),
   ].filter((space): space is NonNullable<typeof tenant.space> => space !== null)
   const oldSpaceIds = [...new Set(linkedSpaces
+    .filter((space) => space.floor.id === targetFloor.id)
     .filter((space) => !(space.number === "all" && space.floor.fullFloorTenantId === tenantId))
     .map((space) => space.id))]
   if (oldSpaceIds.length > 0) {
@@ -118,7 +125,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
     where: { id: floorId },
     data: {
       fullFloorTenantId: tenantId,
-      fixedMonthlyRent: fixedRent,
+      fixedMonthlyRent: normalizedFixedRent,
     },
   })
 
