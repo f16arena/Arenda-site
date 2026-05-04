@@ -70,27 +70,38 @@ export default async function SpacesPage() {
             number: true,
             totalArea: true,
             ratePerSqm: true,
-            spaces: {
-              orderBy: { number: "asc" },
-              select: { id: true, area: true, kind: true, status: true },
-            },
           },
         },
       },
     })
+    const floorIds = buildings.flatMap((building) => building.floors.map((floor) => floor.id))
+    const spaceStats = floorIds.length > 0
+      ? await db.space.groupBy({
+          by: ["floorId", "status"],
+          where: { floorId: { in: floorIds }, kind: { not: "COMMON" } },
+          _count: { _all: true },
+          _sum: { area: true },
+        }).catch(() => [] as Array<{
+          floorId: string
+          status: string
+          _count: { _all: number }
+          _sum: { area: number | null }
+        }>)
+      : []
 
     const buildingSummaries = buildings.map((building) => {
       const floorSummaries = building.floors.map((floor) => {
-        const rentable = floor.spaces.filter((space) => space.kind !== "COMMON")
-        const occupied = rentable.filter((space) => space.status === "OCCUPIED").length
-        const vacant = rentable.filter((space) => space.status === "VACANT").length
-        const area = rentable.reduce((sum, space) => sum + space.area, 0)
+        const stats = spaceStats.filter((item) => item.floorId === floor.id)
+        const totalSpaces = stats.reduce((sum, item) => sum + item._count._all, 0)
+        const occupied = stats.find((item) => item.status === "OCCUPIED")?._count._all ?? 0
+        const vacant = stats.find((item) => item.status === "VACANT")?._count._all ?? 0
+        const area = stats.reduce((sum, item) => sum + (item._sum.area ?? 0), 0)
 
         return {
           id: floor.id,
           name: floor.name,
           ratePerSqm: floor.ratePerSqm,
-          totalSpaces: rentable.length,
+          totalSpaces,
           occupied,
           vacant,
           area,
@@ -244,7 +255,6 @@ export default async function SpacesPage() {
                       },
                     },
                   },
-                  charges: { where: { isPaid: false }, select: { amount: true } },
                 },
               },
               tenantSpaces: {
@@ -264,10 +274,9 @@ export default async function SpacesPage() {
                               area: true,
                               floor: { select: { ratePerSqm: true } },
                             },
-                          },
-                        },
                       },
-                      charges: { where: { isPaid: false }, select: { amount: true } },
+                    },
+                  },
                     },
                   },
                 },
@@ -290,6 +299,20 @@ export default async function SpacesPage() {
   const rentableArea = rentableSpaces.reduce((s, sp) => s + sp.area, 0)
   const buildingTotalArea = building?.totalArea ?? 0
   const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
+  const tenantIds = Array.from(new Set(allSpaces.flatMap((space) => {
+    return [
+      space.tenant?.id,
+      ...space.tenantSpaces.map((item) => item.tenant.id),
+    ].filter((value): value is string => Boolean(value))
+  })))
+  const tenantDebtRows = tenantIds.length > 0
+    ? await db.charge.groupBy({
+        by: ["tenantId"],
+        where: { tenantId: { in: tenantIds }, isPaid: false },
+        _sum: { amount: true },
+      }).catch(() => [] as Array<{ tenantId: string; _sum: { amount: number | null } }>)
+    : []
+  const debtByTenant = new Map(tenantDebtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 
   const floors = building?.floors ?? []
   const floorOptions = floors.map((f) => ({
@@ -301,7 +324,23 @@ export default async function SpacesPage() {
   }))
   const tenantOptionsRaw = building
     ? await db.tenant.findMany({
-        where: tenantScope(orgId),
+        where: {
+          AND: [
+            tenantScope(orgId),
+            { fullFloors: { none: {} } },
+            {
+              OR: [
+                { spaceId: null },
+                { space: { floor: { buildingId: building.id } } },
+              ],
+            },
+            {
+              tenantSpaces: {
+                none: { space: { floor: { buildingId: { not: building.id } } } },
+              },
+            },
+          ],
+        },
         orderBy: { companyName: "asc" },
         select: {
           id: true,
@@ -323,7 +362,6 @@ export default async function SpacesPage() {
               },
             },
           },
-          fullFloors: { select: { buildingId: true, name: true } },
         },
       })
     : []
@@ -339,10 +377,9 @@ export default async function SpacesPage() {
       buildingIds.add(item.space.floor.buildingId)
       if (item.space.floor.buildingId === building?.id) placements.add(`Каб. ${item.space.number}`)
     }
-    for (const floor of tenant.fullFloors) buildingIds.add(floor.buildingId)
 
     const assignedToOtherBuilding = buildingIds.size > 0 && !!building && !buildingIds.has(building.id)
-    if (assignedToOtherBuilding || tenant.fullFloors.length > 0) return []
+    if (assignedToOtherBuilding) return []
 
     return [{
       id: tenant.id,
@@ -509,7 +546,7 @@ export default async function SpacesPage() {
               id: tenant.id,
               companyName: tenant.companyName,
               contractEnd: tenant.contractEnd,
-              debt: tenant.charges.reduce((sum, c) => sum + c.amount, 0),
+              debt: debtByTenant.get(tenant.id) ?? 0,
             } : null,
           }
         })

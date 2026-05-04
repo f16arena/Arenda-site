@@ -50,17 +50,25 @@ export default async function AdminDashboard() {
     ],
   }
 
-  const [
-    tenantsCount,
-    activeTenants,
-    spacesGroup,
-    chargesAgg,
-    recentRequests,
-    recentTasks,
-    debtsByTenant,
-    topTenants,
-    onboarding,
-  ] = await Promise.all([
+  const now = new Date()
+  const pastMonths: { period: string; start: Date; end: Date }[] = []
+  for (let i = -5; i <= 0; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    pastMonths.push({
+      period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      start: new Date(d.getFullYear(), d.getMonth(), 1),
+      end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
+    })
+  }
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
+  const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+
+  const baseMetricsPromise = Promise.all([
     db.tenant.count({ where: tenantWhereInBuilding }).catch(() => 0),
     db.tenant.findMany({
       where: tenantWhereInBuilding,
@@ -69,6 +77,11 @@ export default async function AdminDashboard() {
         customRate: true,
         fixedMonthlyRent: true,
         space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+        tenantSpaces: {
+          select: {
+            space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+          },
+        },
         fullFloors: { select: { fixedMonthlyRent: true } },
       },
     }).catch(() => [] as Array<{
@@ -76,6 +89,7 @@ export default async function AdminDashboard() {
       customRate: number | null
       fixedMonthlyRent: number | null
       space: { area: number; floor: { ratePerSqm: number } } | null
+      tenantSpaces: { space: { area: number; floor: { ratePerSqm: number } } }[]
       fullFloors: { fixedMonthlyRent: number | null }[]
     }>),
     db.space.groupBy({
@@ -133,78 +147,27 @@ export default async function AdminDashboard() {
     getOnboardingState(orgId),
   ])
 
-  const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
-  const vacantSpaces = spacesGroup.find((s) => s.status === "VACANT")?._count._all ?? 0
-  const totalDebt = chargesAgg._sum.amount ?? 0
-  const debtCount = chargesAgg._count._all
-  const monthlyRevenue = activeTenants.reduce((sum, t) => {
-    return sum + calculateTenantMonthlyRent(t)
-  }, 0)
-  const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
+  const pastDataPromise = Promise.all(pastMonths.map(async (m) => {
+    const [paymentsAgg, expensesAgg] = await Promise.all([
+      db.payment.aggregate({
+        where: {
+          paymentDate: { gte: m.start, lt: m.end },
+          tenant: { space: { floorId: { in: floorIds } } },
+        },
+        _sum: { amount: true },
+      }).catch(() => ({ _sum: { amount: 0 } })),
+      db.expense.aggregate({
+        where: { date: { gte: m.start, lt: m.end }, buildingId: { in: visibleBuildingIds } },
+        _sum: { amount: true },
+      }).catch(() => ({ _sum: { amount: 0 } })),
+    ])
+    return {
+      income: paymentsAgg._sum.amount ?? 0,
+      expense: expensesAgg._sum.amount ?? 0,
+    }
+  })).catch(() => pastMonths.map(() => ({ income: 0, expense: 0 })))
 
-  // ── Cashflow: 6 прошлых + 6 будущих месяцев ──
-  const months: MonthData[] = []
-  const now = new Date()
-
-  const pastMonths: { period: string; start: Date; end: Date }[] = []
-  for (let i = -5; i <= 0; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    pastMonths.push({
-      period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      start: new Date(d.getFullYear(), d.getMonth(), 1),
-      end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
-    })
-  }
-
-  // Все запросы параллельно для скорости + общий try/catch
-  let pastData: { income: number; expense: number }[] = pastMonths.map(() => ({ income: 0, expense: 0 }))
-  try {
-    pastData = await Promise.all(pastMonths.map(async (m) => {
-      const [paymentsAgg, expensesAgg] = await Promise.all([
-        db.payment.aggregate({
-          where: {
-            paymentDate: { gte: m.start, lt: m.end },
-            tenant: { space: { floorId: { in: floorIds } } },
-          },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-        db.expense.aggregate({
-          where: { date: { gte: m.start, lt: m.end }, buildingId: { in: visibleBuildingIds } },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-      ])
-      return {
-        income: paymentsAgg._sum.amount ?? 0,
-        expense: expensesAgg._sum.amount ?? 0,
-      }
-    }))
-  } catch { /* ignore */ }
-
-  pastMonths.forEach((m, i) => {
-    months.push({ period: m.period, income: pastData[i].income, expense: pastData[i].expense })
-  })
-
-  // Будущие месяцы — прогноз
-  for (let i = 1; i <= 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
-  }
-
-  // ─── Блок "Сегодня" ────────────────────────────────────────────
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
-  const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
-  const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
-
-  const [
-    overdueCharges,
-    pendingPaymentReports,
-    dataQualityIssues,
-    expiringContracts,
-    todayRequests,
-    yesterdayPayments,
-  ] = await Promise.all([
+  const todayMetricsPromise = Promise.all([
     db.charge.aggregate({
       where: {
         isPaid: false,
@@ -311,13 +274,62 @@ export default async function AdminDashboard() {
     }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
   ])
 
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const buildingBreakdown = await getOwnerBuildingMetrics({
+  const buildingBreakdownPromise = getOwnerBuildingMetrics({
     buildingIds: visibleBuildingIds,
     from: currentMonthStart,
     to: nextMonthStart,
+  }).catch(() => [])
+
+  const [
+    [
+      tenantsCount,
+      activeTenants,
+      spacesGroup,
+      chargesAgg,
+      recentRequests,
+      recentTasks,
+      debtsByTenant,
+      topTenants,
+      onboarding,
+    ],
+    pastData,
+    [
+      overdueCharges,
+      pendingPaymentReports,
+      dataQualityIssues,
+      expiringContracts,
+      todayRequests,
+      yesterdayPayments,
+    ],
+    buildingBreakdown,
+  ] = await Promise.all([
+    baseMetricsPromise,
+    pastDataPromise,
+    todayMetricsPromise,
+    buildingBreakdownPromise,
+  ])
+
+  const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
+  const vacantSpaces = spacesGroup.find((s) => s.status === "VACANT")?._count._all ?? 0
+  const totalDebt = chargesAgg._sum.amount ?? 0
+  const debtCount = chargesAgg._count._all
+  const monthlyRevenue = activeTenants.reduce((sum, t) => {
+    return sum + calculateTenantMonthlyRent(t)
+  }, 0)
+  const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
+
+  const months: MonthData[] = []
+
+  pastMonths.forEach((m, i) => {
+    months.push({ period: m.period, income: pastData[i].income, expense: pastData[i].expense })
   })
+
+  // Будущие месяцы — прогноз
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
+  }
 
   const attentionItems = [
     {
