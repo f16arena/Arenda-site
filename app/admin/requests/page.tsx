@@ -7,12 +7,15 @@ import { ClipboardList } from "lucide-react"
 import Link from "next/link"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { deleteRequest } from "@/app/actions/requests"
 import { requireOrgAccess } from "@/lib/org"
 import { requestScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
+import type { Prisma } from "@/app/generated/prisma/client"
 
 const REQUEST_FILTERS = [
   { key: "all", label: "Все", statuses: null },
@@ -31,10 +34,12 @@ function normalizeFilter(value: string | string[] | undefined): RequestFilterKey
 export default async function RequestsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ status?: string | string[] }>
+  searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
-  const selectedFilter = normalizeFilter((await searchParams)?.status)
+  const resolvedSearchParams = await searchParams
+  const selectedFilter = normalizeFilter(resolvedSearchParams?.status)
+  const page = normalizePage(resolvedSearchParams?.page)
   const selectedFilterConfig = REQUEST_FILTERS.find((filter) => filter.key === selectedFilter) ?? REQUEST_FILTERS[0]
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
@@ -46,27 +51,41 @@ export default async function RequestsPage({
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
     ],
   }
-  const allRequests = await db.request.findMany({
-    where: { AND: [requestScope(orgId), { tenant: tenantBuildingWhere }] },
-    select: {
-      id: true, title: true, description: true, type: true,
-      priority: true, status: true, createdAt: true,
-      tenant: { select: { id: true, companyName: true } },
-      user: { select: { name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  }).catch(() => [])
-
   const selectedStatuses = selectedFilterConfig.statuses as readonly string[] | null
-  const requests = selectedStatuses
-    ? allRequests.filter((request) => selectedStatuses.includes(request.status))
-    : allRequests
+  const baseWhere: Prisma.RequestWhereInput = { AND: [requestScope(orgId), { tenant: tenantBuildingWhere }] }
+  const requestsWhere: Prisma.RequestWhereInput = selectedStatuses
+    ? { AND: [baseWhere, { status: { in: [...selectedStatuses] } }] }
+    : baseWhere
+
+  const [requests, totalRequests, statusGroups, totalAllRequests] = await Promise.all([
+    db.request.findMany({
+      where: requestsWhere,
+      select: {
+        id: true, title: true, description: true, type: true,
+        priority: true, status: true, createdAt: true,
+        tenant: { select: { id: true, companyName: true } },
+        user: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: pageSkip(page),
+      take: DEFAULT_PAGE_SIZE,
+    }).catch(() => []),
+    db.request.count({ where: requestsWhere }).catch(() => 0),
+    db.request.groupBy({
+      by: ["status"],
+      where: baseWhere,
+      _count: { _all: true },
+    }).catch(() => []),
+    db.request.count({ where: baseWhere }).catch(() => 0),
+  ])
+
+  const countByStatus = new Map(statusGroups.map((group) => [group.status, group._count._all]))
 
   const filterCounts = REQUEST_FILTERS.reduce<Record<RequestFilterKey, number>>((acc, filter) => {
     const statuses = filter.statuses as readonly string[] | null
     acc[filter.key] = statuses
-      ? allRequests.filter((request) => statuses.includes(request.status)).length
-      : allRequests.length
+      ? statuses.reduce((sum, status) => sum + (countByStatus.get(status) ?? 0), 0)
+      : totalAllRequests
     return acc
   }, { all: 0, new: 0, active: 0, done: 0 })
 
@@ -154,7 +173,7 @@ export default async function RequestsPage({
             {requests.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-5 py-8">
-                  {allRequests.length === 0 ? (
+                  {totalAllRequests === 0 ? (
                     <EmptyState
                       icon={<ClipboardList className="h-5 w-5" />}
                       title="Заявок пока нет"
@@ -179,6 +198,13 @@ export default async function RequestsPage({
             )}
           </tbody>
         </table>
+        <PaginationControls
+          basePath="/admin/requests"
+          page={page}
+          pageSize={DEFAULT_PAGE_SIZE}
+          total={totalRequests}
+          params={{ status: selectedFilter }}
+        />
       </div>
     </div>
   )

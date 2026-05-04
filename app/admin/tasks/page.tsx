@@ -8,11 +8,14 @@ import { TaskDialog } from "./task-dialog"
 import { updateTaskStatus, deleteTask } from "@/app/actions/tasks"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { requireOrgAccess } from "@/lib/org"
 import { taskScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
+import type { Prisma } from "@/app/generated/prisma/client"
 import Link from "next/link"
 
 const TASK_FILTERS = [
@@ -32,43 +35,54 @@ function normalizeFilter(value: string | string[] | undefined): TaskFilterKey {
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ status?: string | string[] }>
+  searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
-  const selectedFilter = normalizeFilter((await searchParams)?.status)
+  const resolvedSearchParams = await searchParams
+  const selectedFilter = normalizeFilter(resolvedSearchParams?.status)
+  const page = normalizePage(resolvedSearchParams?.page)
   const selectedFilterConfig = TASK_FILTERS.find((filter) => filter.key === selectedFilter) ?? TASK_FILTERS[0]
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
-  const allTasks = await db.task.findMany({
-    where: {
-      AND: [
-        taskScope(orgId),
-        {
-          OR: [
-            { buildingId: { in: visibleBuildingIds } },
-            { buildingId: null, createdBy: { organizationId: orgId } },
-          ],
-        },
-      ],
-    },
-    select: {
-      id: true, title: true, description: true, category: true,
-      priority: true, status: true, floorNumber: true, spaceNumber: true,
-      estimatedCost: true, actualCost: true, dueDate: true, createdAt: true,
-      createdBy: { select: { name: true } },
-      assignedTo: { select: { name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  }).catch(() => [])
-
   const selectedStatuses = selectedFilterConfig.statuses as readonly string[] | null
-  const tasks = selectedStatuses
-    ? allTasks.filter((task) => selectedStatuses.includes(task.status))
-    : allTasks
+  const baseWhere: Prisma.TaskWhereInput = {
+    AND: [
+      taskScope(orgId),
+      {
+        OR: [
+          { buildingId: { in: visibleBuildingIds } },
+          { buildingId: null, createdBy: { organizationId: orgId } },
+        ],
+      },
+    ],
+  }
+  const tasksWhere: Prisma.TaskWhereInput = selectedStatuses
+    ? { AND: [baseWhere, { status: { in: [...selectedStatuses] } }] }
+    : baseWhere
 
-  const [staffUsers, buildingOptions] = await Promise.all([
+  const [tasks, totalTasks, statusGroups, totalAllTasks, staffUsers, buildingOptions] = await Promise.all([
+    db.task.findMany({
+      where: tasksWhere,
+      select: {
+        id: true, title: true, description: true, category: true,
+        priority: true, status: true, floorNumber: true, spaceNumber: true,
+        estimatedCost: true, actualCost: true, dueDate: true, createdAt: true,
+        createdBy: { select: { name: true } },
+        assignedTo: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: pageSkip(page),
+      take: DEFAULT_PAGE_SIZE,
+    }).catch(() => []),
+    db.task.count({ where: tasksWhere }).catch(() => 0),
+    db.task.groupBy({
+      by: ["status"],
+      where: baseWhere,
+      _count: { _all: true },
+    }).catch(() => []),
+    db.task.count({ where: baseWhere }).catch(() => 0),
     db.user.findMany({
       where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
       select: { id: true, name: true },
@@ -80,16 +94,18 @@ export default async function TasksPage({
     }).catch(() => []),
   ])
 
+  const countByStatus = new Map(statusGroups.map((group) => [group.status, group._count._all]))
+
   const filterCounts = TASK_FILTERS.reduce<Record<TaskFilterKey, number>>((acc, filter) => {
     const statuses = filter.statuses as readonly string[] | null
     acc[filter.key] = statuses
-      ? allTasks.filter((task) => statuses.includes(task.status)).length
-      : allTasks.length
+      ? statuses.reduce((sum, status) => sum + (countByStatus.get(status) ?? 0), 0)
+      : totalAllTasks
     return acc
   }, { all: 0, new: 0, active: 0, done: 0 })
 
   const stats = {
-    total: allTasks.length,
+    total: totalAllTasks,
     new: filterCounts.new,
     inProgress: filterCounts.active,
     done: filterCounts.done,
@@ -212,7 +228,7 @@ export default async function TasksPage({
 
         {tasks.length === 0 && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
-            {allTasks.length === 0 ? (
+            {totalAllTasks === 0 ? (
               <EmptyState
                 icon={<CheckSquare className="h-5 w-5" />}
                 title="Задач пока нет"
@@ -235,6 +251,13 @@ export default async function TasksPage({
           </div>
         )}
       </div>
+      <PaginationControls
+        basePath="/admin/tasks"
+        page={page}
+        pageSize={DEFAULT_PAGE_SIZE}
+        total={totalTasks}
+        params={{ status: selectedFilter }}
+      />
     </div>
   )
 }

@@ -19,6 +19,9 @@ const HEAVY_IMPORTS = [
   "@anthropic-ai/sdk",
   "cmdk",
 ]
+const CLIENT_FILE_BUDGET = 140 * 1024
+const SERVER_FILE_BUDGET = 80 * 1024
+const STRICT = process.env.PERF_AUDIT_STRICT !== "0"
 
 const files = []
 
@@ -35,6 +38,23 @@ const enriched = await Promise.all(files.map(async (file) => {
   const imports = HEAVY_IMPORTS.filter((name) => importsPackage(content, name))
   return { rel, size, isClient, imports }
 }))
+
+const budgetViolations = enriched.flatMap((file) => {
+  if (file.isClient && file.size > CLIENT_FILE_BUDGET) {
+    return [`${formatFile(file)} exceeds client budget ${formatKb(CLIENT_FILE_BUDGET)}`]
+  }
+  if (!file.isClient && file.size > SERVER_FILE_BUDGET) {
+    return [`${formatFile(file)} exceeds server budget ${formatKb(SERVER_FILE_BUDGET)}`]
+  }
+  return []
+})
+
+printSection(
+  "Performance budget",
+  budgetViolations.length > 0
+    ? budgetViolations
+    : [`OK: client <= ${formatKb(CLIENT_FILE_BUDGET)}, server <= ${formatKb(SERVER_FILE_BUDGET)}`],
+)
 
 printSection(
   "Largest client files",
@@ -61,6 +81,10 @@ printSection(
     .map((file) => `${formatFile(file)} -> ${file.imports.join(", ")}`),
 )
 
+if (STRICT && budgetViolations.length > 0) {
+  process.exitCode = 1
+}
+
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
@@ -79,6 +103,10 @@ async function walk(dir) {
 
 function formatFile(file) {
   return `${String(Math.round(file.size / 1024)).padStart(4, " ")} KB  ${file.rel}${file.isClient ? "  [client]" : ""}`
+}
+
+function formatKb(size) {
+  return `${Math.round(size / 1024)} KB`
 }
 
 function importsPackage(content, packageName) {

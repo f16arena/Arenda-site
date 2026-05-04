@@ -9,15 +9,27 @@ import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { normalizePage, pageSkip } from "@/lib/pagination"
+import type { Prisma } from "@/app/generated/prisma/client"
 
-export default async function FinancesPage() {
+const FINANCE_PAGE_SIZE = 10
+
+export default async function FinancesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ chargesPage?: string | string[]; expensesPage?: string | string[] }>
+}) {
   const { orgId } = await requireOrgAccess()
+  const resolvedSearchParams = await searchParams
+  const chargesPage = normalizePage(resolvedSearchParams?.chargesPage)
+  const expensesPage = normalizePage(resolvedSearchParams?.expensesPage)
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
@@ -44,15 +56,40 @@ export default async function FinancesPage() {
     }).catch(() => []),
   ])
 
-  const [charges, payments, expenses, paymentReports] = await Promise.all([
+  const chargesWhere: Prisma.ChargeWhereInput = {
+    AND: [chargeScope(orgId), { period: currentPeriod }, { tenant: tenantBuildingWhere }],
+  }
+  const unpaidChargesWhere: Prisma.ChargeWhereInput = {
+    AND: [chargesWhere, { isPaid: false }],
+  }
+  const paidChargesWhere: Prisma.ChargeWhereInput = {
+    AND: [chargesWhere, { isPaid: true }],
+  }
+  const expensesWhere: Prisma.ExpenseWhereInput = {
+    AND: [expenseScope(orgId), { period: currentPeriod }, { buildingId: { in: visibleBuildingIds } }],
+  }
+
+  const [
+    charges,
+    payments,
+    expenses,
+    paymentReports,
+    chargesAggregate,
+    paidChargesAggregate,
+    unpaidChargesAggregate,
+    expensesAggregate,
+    dialogCharges,
+  ] = await Promise.all([
     db.charge.findMany({
-      where: { AND: [chargeScope(orgId), { period: currentPeriod }, { tenant: tenantBuildingWhere }] },
+      where: chargesWhere,
       select: {
         id: true, tenantId: true, period: true, type: true, amount: true,
         description: true, isPaid: true, dueDate: true, createdAt: true,
         tenant: { select: { id: true, companyName: true } },
       },
       orderBy: { createdAt: "desc" },
+      skip: pageSkip(chargesPage, FINANCE_PAGE_SIZE),
+      take: FINANCE_PAGE_SIZE,
     }).catch(() => []),
     db.payment.findMany({
       where: { AND: [paymentScope(orgId), { tenant: tenantBuildingWhere }] },
@@ -65,13 +102,15 @@ export default async function FinancesPage() {
       },
     }).catch(() => []),
     db.expense.findMany({
-      where: { AND: [expenseScope(orgId), { period: currentPeriod }, { buildingId: { in: visibleBuildingIds } }] },
+      where: expensesWhere,
       select: {
         id: true, buildingId: true, category: true, amount: true,
         period: true, description: true, date: true,
         building: { select: { name: true } },
       },
       orderBy: { date: "desc" },
+      skip: pageSkip(expensesPage, FINANCE_PAGE_SIZE),
+      take: FINANCE_PAGE_SIZE,
     }).catch(() => []),
     db.paymentReport.findMany({
       where: {
@@ -113,12 +152,42 @@ export default async function FinancesPage() {
       orderBy: { createdAt: "desc" },
       take: 20,
     }).catch(() => []),
+    db.charge.aggregate({
+      where: chargesWhere,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    db.charge.aggregate({
+      where: paidChargesWhere,
+      _sum: { amount: true },
+    }).catch(() => ({ _sum: { amount: 0 } })),
+    db.charge.aggregate({
+      where: unpaidChargesWhere,
+      _sum: { amount: true },
+    }).catch(() => ({ _sum: { amount: 0 } })),
+    db.expense.aggregate({
+      where: expensesWhere,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    db.charge.findMany({
+      where: unpaidChargesWhere,
+      select: {
+        id: true, tenantId: true, period: true, type: true, amount: true,
+        description: true, isPaid: true,
+        tenant: { select: { id: true, companyName: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }).catch(() => []),
   ])
 
-  const totalCharges = charges.reduce((s, c) => s + c.amount, 0)
-  const paidCharges = charges.filter((c) => c.isPaid).reduce((s, c) => s + c.amount, 0)
-  const unpaidCharges = charges.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+  const totalCharges = chargesAggregate._sum.amount ?? 0
+  const paidCharges = paidChargesAggregate._sum.amount ?? 0
+  const unpaidCharges = unpaidChargesAggregate._sum.amount ?? 0
+  const totalExpenses = expensesAggregate._sum.amount ?? 0
+  const totalChargeCount = chargesAggregate._count._all
+  const totalExpenseCount = expensesAggregate._count._all
 
   return (
     <div className="space-y-5">
@@ -164,8 +233,8 @@ export default async function FinancesPage() {
           <BatchBillingButton defaultPeriod={currentPeriod} />
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
           <PaymentDialog
-            tenants={charges.map((c) => c.tenant).filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).map((t) => ({ id: t.id, companyName: t.companyName }))}
-            unpaidCharges={charges.filter((c) => !c.isPaid).map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
+            tenants={dialogCharges.map((c) => c.tenant).filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).map((t) => ({ id: t.id, companyName: t.companyName }))}
+            unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
             cashAccounts={cashAccounts}
           />
         </div>
@@ -196,7 +265,7 @@ export default async function FinancesPage() {
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления за {formatPeriod(currentPeriod)}</h2>
           </div>
           <div className="divide-y divide-slate-50">
-            {charges.slice(0, 10).map((c) => (
+            {charges.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-5 py-3">
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{c.tenant.companyName}</p>
@@ -229,6 +298,14 @@ export default async function FinancesPage() {
               />
             )}
           </div>
+          <PaginationControls
+            basePath="/admin/finances"
+            page={chargesPage}
+            pageSize={FINANCE_PAGE_SIZE}
+            total={totalChargeCount}
+            pageParam="chargesPage"
+            params={{ expensesPage: expensesPage > 1 ? expensesPage : null }}
+          />
         </div>
 
         {/* Payments */}
@@ -323,6 +400,14 @@ export default async function FinancesPage() {
             )}
           </tbody>
         </table>
+        <PaginationControls
+          basePath="/admin/finances"
+          page={expensesPage}
+          pageSize={FINANCE_PAGE_SIZE}
+          total={totalExpenseCount}
+          pageParam="expensesPage"
+          params={{ chargesPage: chargesPage > 1 ? chargesPage : null }}
+        />
       </div>
     </div>
   )
