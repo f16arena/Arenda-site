@@ -460,6 +460,7 @@ model PaymentReport {
   userId         String    @map("user_id")
   amount         Float
   paymentDate    DateTime  @map("payment_date")
+  method         String    @default("TRANSFER")
   status         String    @default("PENDING")
   paymentPurpose String?   @map("payment_purpose")
   note           String?

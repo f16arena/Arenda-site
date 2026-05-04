@@ -57,6 +57,13 @@ export const CHARGE_TYPES: Record<string, string> = {
   OTHER: "Прочее",
 }
 
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  TRANSFER: "Банковский перевод",
+  KASPI: "Kaspi",
+  CASH: "Наличные",
+  CARD: "Карта",
+}
+
 export const STATUS_COLORS: Record<string, string> = {
   NEW: "bg-blue-100 text-blue-700",
   IN_PROGRESS: "bg-amber-100 text-amber-700",

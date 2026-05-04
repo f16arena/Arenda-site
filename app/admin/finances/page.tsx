@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
+import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "@/lib/utils"
 import { FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
@@ -124,6 +124,7 @@ export default async function FinancesPage({
         id: true,
         amount: true,
         paymentDate: true,
+        method: true,
         paymentPurpose: true,
         note: true,
         receiptName: true,
@@ -320,7 +321,7 @@ export default async function FinancesPage({
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.tenant.companyName}</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">
-                    {p.paymentDate.toLocaleDateString("ru-RU")} · {p.method}
+                    {p.paymentDate.toLocaleDateString("ru-RU")} · {PAYMENT_METHOD_LABELS[p.method] ?? p.method}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

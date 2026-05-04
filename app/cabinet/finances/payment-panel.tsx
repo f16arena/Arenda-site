@@ -3,7 +3,7 @@
 import { useTransition } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { CheckCircle2, Copy, MessageSquare, Send } from "lucide-react"
+import { Banknote, CheckCircle2, Copy, MessageSquare, Send } from "lucide-react"
 import { toast } from "sonner"
 import { reportTenantPayment } from "@/app/actions/tenant-payments"
 
@@ -144,6 +144,23 @@ export function PaymentPanel({
                 />
               </label>
             </div>
+            <label className="block">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Способ оплаты</span>
+              <select
+                name="method"
+                defaultValue="KASPI"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/10"
+              >
+                <option value="KASPI">Kaspi</option>
+                <option value="TRANSFER">Банковский перевод</option>
+                <option value="CASH">Наличные</option>
+                <option value="CARD">Карта</option>
+              </select>
+              <span className="mt-1 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+                <Banknote className="h-3.5 w-3.5" />
+                Для наличных чек можно не прикладывать: администратор подтвердит получение в системе.
+              </span>
+            </label>
             <label className="block">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Комментарий или номер чека</span>
               <textarea

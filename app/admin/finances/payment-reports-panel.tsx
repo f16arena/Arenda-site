@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { CheckCircle2, Eye, FileText, ReceiptText, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { confirmPaymentReport, rejectPaymentReport } from "@/app/actions/tenant-payments"
-import { CHARGE_TYPES, formatMoney } from "@/lib/utils"
+import { CHARGE_TYPES, PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
 
 type CashAccount = {
   id: string
@@ -24,6 +24,7 @@ type PaymentReport = {
   id: string
   amount: number
   paymentDate: Date
+  method: string
   paymentPurpose: string | null
   note: string | null
   receiptName: string | null
@@ -93,7 +94,8 @@ function ReportCard({
 }) {
   const [pending, startTransition] = useTransition()
   const [rejecting, setRejecting] = useState(false)
-  const defaultAccountId = cashAccounts[0]?.id ?? ""
+  const [selectedMethod, setSelectedMethod] = useState(report.method || "TRANSFER")
+  const [selectedAccountId, setSelectedAccountId] = useState(() => defaultAccountForMethod(report.method, cashAccounts))
 
   function submitConfirm(formData: FormData) {
     startTransition(async () => {
@@ -137,6 +139,9 @@ function ReportCard({
               <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(report.amount)}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {new Date(report.paymentDate).toLocaleDateString("ru-RU")}
+              </p>
+              <p className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {PAYMENT_METHOD_LABELS[report.method] ?? report.method}
               </p>
             </div>
           </div>
@@ -208,7 +213,12 @@ function ReportCard({
                   <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Метод</span>
                   <select
                     name="method"
-                    defaultValue="TRANSFER"
+                    value={selectedMethod}
+                    onChange={(event) => {
+                      const nextMethod = event.target.value
+                      setSelectedMethod(nextMethod)
+                      setSelectedAccountId(defaultAccountForMethod(nextMethod, cashAccounts))
+                    }}
                     className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="TRANSFER">Перевод</option>
@@ -221,7 +231,8 @@ function ReportCard({
                   <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Счет</span>
                   <select
                     name="cashAccountId"
-                    defaultValue={defaultAccountId}
+                    value={selectedAccountId}
+                    onChange={(event) => setSelectedAccountId(event.target.value)}
                     className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
                     <option value="">Не зачислять</option>
@@ -274,4 +285,9 @@ function ReportCard({
       </div>
     </article>
   )
+}
+
+function defaultAccountForMethod(method: string, cashAccounts: CashAccount[]) {
+  const preferredType = method === "CASH" ? "CASH" : method === "CARD" ? "CARD" : "BANK"
+  return cashAccounts.find((account) => account.type === preferredType)?.id ?? ""
 }

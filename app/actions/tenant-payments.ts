@@ -8,7 +8,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { paymentReportScope, chargeScope } from "@/lib/tenant-scope"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 import { assertTenantBuildingAccess } from "@/lib/building-access"
-import { formatMoney } from "@/lib/utils"
+import { PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
 import {
   PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
   PAYMENT_RECEIPT_MAX_BYTES,
@@ -22,6 +22,8 @@ type ActionResult = {
   error?: string
 }
 
+const PAYMENT_METHODS = new Set(["TRANSFER", "KASPI", "CASH", "CARD"])
+
 function parsePositiveAmount(value: FormDataEntryValue | null) {
   const amount = Number(String(value ?? "").replace(/\s/g, "").replace(",", "."))
   if (!Number.isFinite(amount) || amount <= 0) return null
@@ -34,6 +36,12 @@ function parseDate(value: FormDataEntryValue | null) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null
   const date = new Date(`${raw}T00:00:00`)
   return Number.isNaN(date.getTime()) ? null : date
+}
+
+function parsePaymentMethod(value: FormDataEntryValue | string | null) {
+  const method = String(value ?? "").trim().toUpperCase()
+  if (!method) return "TRANSFER"
+  return PAYMENT_METHODS.has(method) ? method : null
 }
 
 async function parseReceipt(fileValue: FormDataEntryValue | null) {
@@ -67,6 +75,9 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
   const paymentDate = parseDate(formData.get("paymentDate"))
   if (!paymentDate) return { ok: false, error: "Введите корректную дату оплаты" }
 
+  const method = parsePaymentMethod(formData.get("method"))
+  if (!method) return { ok: false, error: "Выберите корректный способ оплаты" }
+
   const note = String(formData.get("note") ?? "").trim().slice(0, 500)
   const paymentPurpose = String(formData.get("paymentPurpose") ?? "").trim().slice(0, 300)
   const receipt = await parseReceipt(formData.get("receipt"))
@@ -99,6 +110,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
     ? `Каб. ${tenant.space.number}`
     : tenant.fullFloors[0]?.name ?? "помещение по договору"
   const formattedDate = paymentDate.toLocaleDateString("ru-RU")
+  const methodLabel = PAYMENT_METHOD_LABELS[method] ?? method
   const body = [
     "Здравствуйте. Сообщаю об оплате.",
     "",
@@ -106,9 +118,10 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
     `Помещение: ${placement}`,
     `Сумма: ${formatMoney(amount)}`,
     `Дата оплаты: ${formattedDate}`,
+    `Способ оплаты: ${methodLabel}`,
     paymentPurpose ? `Назначение платежа: ${paymentPurpose}` : null,
     note ? `Комментарий: ${note}` : null,
-    receipt ? `Чек: ${receipt.name}` : "Чек: не приложен",
+    receipt ? `Чек: ${receipt.name}` : method === "CASH" ? "Чек/расписка: не приложены" : "Чек: не приложен",
     "",
     "Пожалуйста, проверьте поступление и отметьте платеж в системе.",
   ].filter(Boolean).join("\n")
@@ -134,6 +147,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
         userId: session.user.id,
         amount,
         paymentDate,
+        method,
         paymentPurpose: paymentPurpose || null,
         note: note || null,
         receiptName: receipt && !("error" in receipt) ? receipt.name : null,
@@ -165,7 +179,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
         userId: admin.id,
         type: "PAYMENT_REPORTED",
         title: `Оплата от ${tenant.companyName}`,
-        message: `${formatMoney(amount)} за ${formattedDate}. ${receipt ? "Чек приложен." : "Чек не приложен."}`,
+        message: `${formatMoney(amount)} за ${formattedDate}. ${methodLabel}. ${receipt ? "Чек приложен." : "Чек не приложен."}`,
         link: "/admin/finances",
         sendEmail: false,
       })
@@ -199,7 +213,7 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   if (!reportId) return { ok: false, error: "Не указана заявка об оплате" }
 
   const cashAccountId = String(formData.get("cashAccountId") ?? "").trim() || null
-  const method = String(formData.get("method") ?? "").trim() || "TRANSFER"
+  const requestedMethod = String(formData.get("method") ?? "").trim()
   const chargeIds = formData.getAll("chargeIds").map((value) => String(value)).filter(Boolean)
 
   const report = await db.paymentReport.findFirst({
@@ -209,6 +223,7 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
       tenantId: true,
       amount: true,
       paymentDate: true,
+      method: true,
       note: true,
       paymentPurpose: true,
       tenant: { select: { companyName: true } },
@@ -217,6 +232,9 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   if (!report) return { ok: false, error: "Заявка об оплате не найдена или уже обработана" }
 
   await assertTenantBuildingAccess(report.tenantId, orgId)
+
+  const method = parsePaymentMethod(requestedMethod || report.method)
+  if (!method) return { ok: false, error: "Выберите корректный способ оплаты" }
 
   if (cashAccountId) {
     const account = await db.cashAccount.findFirst({

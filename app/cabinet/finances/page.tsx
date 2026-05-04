@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
+import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "@/lib/utils"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { LANDLORD } from "@/lib/landlord"
 import { PaymentPanel } from "./payment-panel"
@@ -100,7 +100,7 @@ export default async function CabinetFinances() {
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(payment.amount)}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(payment.paymentDate).toLocaleDateString("ru-RU")} · {payment.method}
+                    {new Date(payment.paymentDate).toLocaleDateString("ru-RU")} · {PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}
                   </p>
                   {payment.note && <p className="text-xs text-slate-400 dark:text-slate-500">{payment.note}</p>}
                 </div>
