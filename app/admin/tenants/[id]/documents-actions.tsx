@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Download, Mail, FileText, Receipt, FileCheck, Box } from "lucide-react"
 import { toast } from "sonner"
 import { sendDocumentToTenant, type DocumentType } from "@/app/actions/send-document"
+import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
 const DOCS: { type: DocumentType; label: string; icon: typeof FileText; color: string }[] = [
   { type: "INVOICE", label: "Счёт-фактура", icon: Receipt, color: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30" },
@@ -51,13 +52,11 @@ export function DocumentsActions({
   }
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы для арендатора</h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-          {tenantHasEmail ? "Скачать или отправить на email" : "Email не указан — только скачивание"}
-        </p>
-      </div>
+    <CollapsibleCard
+      title="Документы для арендатора"
+      icon={FileText}
+      meta={tenantHasEmail ? "скачать или отправить" : "email не указан"}
+    >
       <div className="divide-y divide-slate-50">
         {DOCS.map((d) => {
           const Icon = d.icon
@@ -91,6 +90,6 @@ export function DocumentsActions({
           )
         })}
       </div>
-    </div>
+    </CollapsibleCard>
   )
 }

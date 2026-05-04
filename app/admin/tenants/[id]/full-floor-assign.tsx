@@ -5,6 +5,7 @@ import { Layers, X } from "lucide-react"
 import { toast } from "sonner"
 import { assignFullFloor, unassignFullFloor } from "@/app/actions/floor-assignment"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
 type Floor = {
   id: string
@@ -31,55 +32,58 @@ export function FullFloorAssign({
   const availableFloors = floors.filter((f) => !f.fullFloorTenantId)
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium text-slate-400 dark:text-slate-500">АРЕНДА ЦЕЛОГО ЭТАЖА</p>
+    <CollapsibleCard
+      title="Аренда целого этажа"
+      icon={Layers}
+      meta={currentFloors.length > 0 ? `${currentFloors.length} назначено` : "не назначено"}
+    >
+      <div className="p-4">
         {availableFloors.length > 0 && (
           <button
             onClick={() => setOpen(true)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            className="mb-3 text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
             + Назначить
           </button>
         )}
-      </div>
 
-      {currentFloors.length === 0 && (
-        <p className="text-sm text-slate-400 dark:text-slate-500">Не назначено</p>
-      )}
+        {currentFloors.length === 0 && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Не назначено</p>
+        )}
 
-      {currentFloors.map((f) => (
-        <div key={f.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-          <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-            <div>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
+        {currentFloors.map((f) => (
+          <div key={f.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <div>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
+              </div>
             </div>
-          </div>
-          <ConfirmDialog
-            title="Снять с этажа?"
-            description="Этаж освободится. Помещения с индивидуальными арендаторами останутся."
-            variant="danger"
-            confirmLabel="Снять"
-            onConfirm={() =>
-              new Promise<void>((resolve) => {
-                startTransition(async () => {
-                  try {
-                    await unassignFullFloor(f.id)
-                    toast.success("Снят с этажа")
-                  } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Ошибка")
-                  } finally {
-                    resolve()
-                  }
+            <ConfirmDialog
+              title="Снять с этажа?"
+              description="Этаж освободится. Помещения с индивидуальными арендаторами останутся."
+              variant="danger"
+              confirmLabel="Снять"
+              onConfirm={() =>
+                new Promise<void>((resolve) => {
+                  startTransition(async () => {
+                    try {
+                      await unassignFullFloor(f.id)
+                      toast.success("Снят с этажа")
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "Ошибка")
+                    } finally {
+                      resolve()
+                    }
+                  })
                 })
-              })
-            }
-            trigger={<button className="text-xs text-red-500 hover:underline">Снять</button>}
-          />
-        </div>
-      ))}
+              }
+              trigger={<button className="text-xs text-red-500 hover:underline">Снять</button>}
+            />
+          </div>
+        ))}
+      </div>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -142,6 +146,6 @@ export function FullFloorAssign({
           </div>
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   )
 }

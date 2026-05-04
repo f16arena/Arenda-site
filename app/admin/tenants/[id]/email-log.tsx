@@ -1,5 +1,6 @@
 import { Eye, AlertCircle, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
 export type EmailLogItem = {
   id: string
@@ -41,13 +42,7 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
   if (items.length === 0) return null
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Send className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          История писем ({items.length})
-        </h2>
-      </div>
+    <CollapsibleCard title="История писем" icon={Send} meta={`${items.length} писем`}>
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
@@ -93,6 +88,6 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </CollapsibleCard>
   )
 }

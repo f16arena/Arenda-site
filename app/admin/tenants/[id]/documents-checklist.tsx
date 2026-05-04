@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { CheckCircle2, Circle, Plus, X, ExternalLink } from "lucide-react"
+import { CheckCircle2, Circle, Plus, X, ExternalLink, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { addTenantDocument, deleteTenantDocument } from "@/app/actions/tenant-docs"
 import { getRequiredDocs, DOC_TYPE_LABELS } from "@/lib/required-docs"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
 type Doc = { id: string; type: string; name: string; fileUrl: string; createdAt: Date }
 
@@ -27,14 +28,12 @@ export function DocumentsChecklist({
   const [pending, startTransition] = useTransition()
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-            {completed} из {required.length} обязательных загружено
-          </p>
-        </div>
+    <CollapsibleCard
+      title="Документы"
+      icon={FileText}
+      meta={`${completed} из ${required.length} обязательных`}
+    >
+      <div className="flex justify-end px-5 py-3 border-b border-slate-50 dark:border-slate-800">
         <button
           onClick={() => setOpen(true)}
           className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
@@ -177,6 +176,6 @@ export function DocumentsChecklist({
           </div>
         </div>
       )}
-    </div>
+    </CollapsibleCard>
   )
 }
