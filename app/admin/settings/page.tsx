@@ -12,6 +12,8 @@ import { DocumentNumberingSection } from "@/components/settings/document-numberi
 import { VatSection } from "@/components/settings/vat-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
+import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
+import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -95,9 +97,22 @@ export default async function SettingsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Адрес</label>
-              <input
+              <AddressAutocompleteInput
                 name="address"
                 defaultValue={building.address}
+                defaultFields={{
+                  countryCode: building.addressCountryCode,
+                  region: building.addressRegion,
+                  city: building.addressCity,
+                  settlement: building.addressSettlement,
+                  street: building.addressStreet,
+                  houseNumber: building.addressHouseNumber,
+                  postcode: building.addressPostcode,
+                  latitude: building.addressLatitude,
+                  longitude: building.addressLongitude,
+                  source: building.addressSource,
+                  sourceId: building.addressSourceId,
+                }}
                 required
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
@@ -106,7 +121,7 @@ export default async function SettingsPage() {
 
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Телефон</label>
-            <input
+            <KzPhoneInput
               name="phone"
               defaultValue={building.phone ?? ""}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -114,9 +129,8 @@ export default async function SettingsPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Email</label>
-            <input
+            <AsciiEmailInput
               name="email"
-              type="email"
               defaultValue={building.email ?? ""}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />

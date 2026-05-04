@@ -5,7 +5,7 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
-import { normalizeEmail } from "@/lib/contact-validation"
+import { normalizeEmailWithDns } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 
@@ -55,6 +55,7 @@ export async function changeMyName(formData: FormData): Promise<Result> {
   if (name.length < 2) return { ok: false, error: "Имя минимум 2 символа" }
 
   await db.user.update({ where: { id: session.user.id }, data: { name } })
+  revalidatePath("/admin", "layout")
   revalidatePath("/admin/profile")
   revalidatePath("/superadmin/profile")
   revalidatePath("/cabinet/profile")
@@ -71,7 +72,7 @@ export async function requestEmailChange(formData: FormData): Promise<Result & {
 
   let newEmail: string
   try {
-    newEmail = normalizeEmail(formData.get("newEmail"), { required: true })!
+    newEmail = await normalizeEmailWithDns(formData.get("newEmail"), { required: true, fieldName: "Email" })
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Введите корректный email" }
   }

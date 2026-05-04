@@ -100,7 +100,11 @@ export function organizationToRequisites(
     ? clean(organization?.shortName) ?? fullName
     : LANDLORD.shortName
   const director = hasRequisites ? clean(organization?.directorName) ?? LANDLORD.director : LANDLORD.director
-  const taxId = hasRequisites ? clean(organization?.bin) ?? clean(organization?.iin) ?? LANDLORD.iin : LANDLORD.iin
+  const organizationBin = clean(organization?.bin)
+  const organizationIin = clean(organization?.iin)
+  const taxId = hasRequisites
+    ? taxIdForLegalType(legalType, organizationBin, organizationIin) ?? LANDLORD.iin
+    : LANDLORD.iin
   const taxIdLabel = taxIdLabelFor(legalType, organization)
   const bank = hasRequisites ? clean(organization?.bankName) ?? LANDLORD.bank : LANDLORD.bank
   const iik = hasRequisites ? clean(organization?.iik) ?? LANDLORD.iik : LANDLORD.iik
@@ -125,8 +129,8 @@ export function organizationToRequisites(
     fullName,
     shortName,
     legalType,
-    bin: hasRequisites ? clean(organization?.bin) ?? "" : "",
-    iin: hasRequisites ? clean(organization?.iin) ?? clean(organization?.bin) ?? LANDLORD.iin : LANDLORD.iin,
+    bin: hasRequisites ? organizationBin ?? "" : "",
+    iin: hasRequisites ? organizationIin ?? (legalType === "IP" || legalType === "PHYSICAL" ? organizationBin : null) ?? LANDLORD.iin : LANDLORD.iin,
     taxId,
     taxIdLabel,
     director,
@@ -194,6 +198,12 @@ function taxIdLabelFor(
   if (clean(organization?.bin) && !clean(organization?.iin)) return "БИН"
   if (clean(organization?.iin) && !clean(organization?.bin)) return "ИИН"
   return "ИИН/БИН"
+}
+
+function taxIdForLegalType(legalType: string, bin: string | null, iin: string | null) {
+  if (legalType === "TOO" || legalType === "AO") return bin ?? iin
+  if (legalType === "IP" || legalType === "PHYSICAL") return iin ?? bin
+  return bin ?? iin
 }
 
 function defaultBasisFor(legalType: string) {

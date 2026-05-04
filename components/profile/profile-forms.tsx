@@ -9,6 +9,7 @@ import {
   requestEmailChange,
   requestEmailVerification,
 } from "@/app/actions/my-account"
+import { AsciiEmailInput } from "@/components/forms/contact-inputs"
 
 interface Props {
   currentName: string
@@ -149,11 +150,9 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
         >
           <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Сменить email на новый</label>
           <div className="flex gap-2">
-            <input
-              type="email"
+            <AsciiEmailInput
               name="newEmail"
               required
-              placeholder="new@example.com"
               className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
             <button

@@ -1,5 +1,8 @@
 import { Landmark } from "lucide-react"
 import { updateOrganizationRequisites } from "@/app/actions/organization-settings"
+import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
+import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { OrganizationIdentityFields } from "@/components/settings/organization-identity-fields"
 import { ServerForm } from "@/components/ui/server-form"
 
 type OrganizationRequisitesFormData = {
@@ -36,7 +39,9 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
           <Landmark className="h-4 w-4 text-slate-400 dark:text-slate-500" />
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Мои реквизиты</h2>
         </div>
-        <span className="text-xs text-slate-500 dark:text-slate-400">Подставляются в документы и оплату</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          Источник данных для договоров, счетов и оплаты
+        </span>
       </div>
 
       <ServerForm
@@ -44,56 +49,86 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         successMessage="Реквизиты организации сохранены"
         className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2"
       >
-        <div>
-          <label className={labelClass}>Правовая форма</label>
-          <select name="legalType" defaultValue={organization.legalType ?? "IP"} className={inputClass}>
-            <option value="IP">ИП</option>
-            <option value="TOO">ТОО</option>
-            <option value="AO">АО</option>
-            <option value="PHYSICAL">Физическое лицо</option>
-            <option value="OTHER">Другое</option>
-          </select>
-        </div>
+        <OrganizationIdentityFields
+          legalType={organization.legalType}
+          bin={organization.bin}
+          iin={organization.iin}
+          inputClass={inputClass}
+          labelClass={labelClass}
+        />
+
         <div>
           <label className={labelClass}>Краткое название</label>
-          <input name="shortName" defaultValue={organization.shortName ?? organization.name} className={inputClass} placeholder="ИП Иванов И.И." />
+          <input
+            name="shortName"
+            defaultValue={organization.shortName ?? organization.name}
+            className={inputClass}
+            placeholder="ИП Иванов И.И."
+          />
         </div>
 
         <div className="lg:col-span-2">
           <label className={labelClass}>Полное название арендодателя *</label>
-          <input name="legalName" defaultValue={organization.legalName ?? organization.name} required className={inputClass} placeholder="ТОО «Название» или ИП ФИО" />
-        </div>
-
-        <div>
-          <label className={labelClass}>БИН (для ТОО/АО)</label>
-          <input name="bin" defaultValue={organization.bin ?? ""} inputMode="numeric" maxLength={12} className={inputClass} placeholder="12 цифр" />
-        </div>
-        <div>
-          <label className={labelClass}>ИИН (для ИП/физлица)</label>
-          <input name="iin" defaultValue={organization.iin ?? ""} inputMode="numeric" maxLength={12} className={inputClass} placeholder="12 цифр" />
+          <input
+            name="legalName"
+            defaultValue={organization.legalName ?? organization.name}
+            required
+            className={inputClass}
+            placeholder="ТОО «Название» или ИП ФИО"
+          />
         </div>
 
         <div>
           <label className={labelClass}>ФИО руководителя *</label>
-          <input name="directorName" defaultValue={organization.directorName ?? ""} required className={inputClass} placeholder="Иванов Иван Иванович" />
+          <input
+            name="directorName"
+            defaultValue={organization.directorName ?? ""}
+            required
+            className={inputClass}
+            placeholder="Иванов Иван Иванович"
+          />
         </div>
         <div>
           <label className={labelClass}>Должность руководителя</label>
-          <input name="directorPosition" defaultValue={organization.directorPosition ?? ""} className={inputClass} placeholder="Директор" />
+          <input
+            name="directorPosition"
+            defaultValue={organization.directorPosition ?? ""}
+            className={inputClass}
+            placeholder="Директор"
+          />
         </div>
 
         <div className="lg:col-span-2">
           <label className={labelClass}>На основании чего действует *</label>
-          <input name="basis" defaultValue={organization.basis ?? ""} required className={inputClass} placeholder="Устава, приказа, уведомления о начале деятельности..." />
+          <input
+            name="basis"
+            defaultValue={organization.basis ?? ""}
+            required
+            className={inputClass}
+            placeholder="Устав, приказ, уведомление о начале деятельности..."
+          />
         </div>
 
         <div>
           <label className={labelClass}>Юридический адрес *</label>
-          <input name="legalAddress" defaultValue={organization.legalAddress ?? ""} required className={inputClass} placeholder="РК, город, улица, дом, офис" />
+          <AddressAutocompleteInput
+            name="legalAddress"
+            defaultValue={organization.legalAddress ?? ""}
+            required
+            includeStructuredFields={false}
+            className={inputClass}
+            placeholder="РК, город, улица, дом, офис"
+          />
         </div>
         <div>
           <label className={labelClass}>Фактический адрес</label>
-          <input name="actualAddress" defaultValue={organization.actualAddress ?? ""} className={inputClass} placeholder="Если отличается от юридического" />
+          <AddressAutocompleteInput
+            name="actualAddress"
+            defaultValue={organization.actualAddress ?? ""}
+            includeStructuredFields={false}
+            className={inputClass}
+            placeholder="Если отличается от юридического"
+          />
         </div>
 
         <div>
@@ -108,7 +143,8 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
           <label className={labelClass}>ИИК / расчётный счёт</label>
           <input name="iik" defaultValue={organization.iik ?? ""} className={inputClass} placeholder="KZ..." />
         </div>
-        <div className="lg:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+
+        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50 lg:col-span-2">
           <div className="mb-3">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Второй банковский счёт</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -130,15 +166,17 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
             </div>
           </div>
         </div>
+
         <div>
           <label className={labelClass}>Телефон владельца</label>
-          <input name="phone" defaultValue={organization.phone ?? ""} className={inputClass} placeholder="+7 7XX XXX XX XX" />
+          <KzPhoneInput name="phone" defaultValue={organization.phone ?? ""} className={inputClass} />
         </div>
         <div>
           <label className={labelClass}>Email владельца</label>
-          <input name="email" defaultValue={organization.email ?? ""} className={inputClass} placeholder="owner@example.com" />
+          <AsciiEmailInput name="email" defaultValue={organization.email ?? ""} className={inputClass} />
         </div>
-        <div className="flex items-end justify-end">
+
+        <div className="flex items-end justify-end lg:col-span-2">
           <button
             type="submit"
             className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"

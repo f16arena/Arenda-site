@@ -1,11 +1,11 @@
 "use server"
 
-import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireOrgAccess } from "@/lib/org"
-import { requireAdmin } from "@/lib/permissions"
+import { db } from "@/lib/db"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { assertKazakhstanIin } from "@/lib/kz-iin"
+import { requireOrgAccess } from "@/lib/org"
+import { requireAdmin } from "@/lib/permissions"
 
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
   await requireAdmin()
@@ -15,7 +15,6 @@ export async function updateOrganizationVat(orgId: string, formData: FormData) {
   const isVatPayer = formData.get("isVatPayer") === "on"
   const vatRateStr = formData.get("vatRate") as string
   const vatNumber = String(formData.get("vatNumber") ?? "").trim()
-
   const vatRate = vatRateStr ? Math.max(0, Math.min(100, parseFloat(vatRateStr))) : 12
 
   await db.organization.update({
@@ -53,18 +52,19 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
   const phone = normalizeKzPhone(formData.get("phone"), { fieldName: "Телефон владельца" })
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email владельца" })
 
+  validateOptionalBankAccount(bankName, iik, bik, "Основной счёт")
   validateOptionalBankAccount(secondBankName, secondIik, secondBik, "Второй счёт")
 
   let bin: string | null = null
   let iin: string | null = null
   if (legalType === "IP" || legalType === "PHYSICAL") {
-    iin = assertKazakhstanIin(formData.get("iin") || formData.get("bin"), "ИИН")
+    iin = assertKazakhstanIin(formData.get("iin"), "ИИН")
   } else if (legalType === "TOO" || legalType === "AO") {
     bin = normalizeBin(formData.get("bin"), true)
-    iin = assertKazakhstanIin(formData.get("iin"), "ИИН руководителя/владельца")
+    iin = normalizeOptionalIin(formData.get("iin"), "ИИН")
   } else {
     bin = normalizeBin(formData.get("bin"), false)
-    iin = assertKazakhstanIin(formData.get("iin"), "ИИН")
+    iin = normalizeOptionalIin(formData.get("iin"), "ИИН")
   }
 
   await db.organization.update({
@@ -126,6 +126,12 @@ function normalizeBin(value: FormDataEntryValue | null, required: boolean) {
   return digits
 }
 
+function normalizeOptionalIin(value: FormDataEntryValue | null, label: string) {
+  const digits = String(value ?? "").replace(/\D/g, "")
+  if (!digits) return null
+  return assertKazakhstanIin(digits, label)
+}
+
 function normalizeIik(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim().replace(/\s+/g, "").toUpperCase()
   if (!text) return null
@@ -153,6 +159,6 @@ function validateOptionalBankAccount(
   const hasAny = !!bankName || !!iik || !!bik
   if (!hasAny) return
   if (!bankName || !iik || !bik) {
-    throw new Error(`${label}: заполните название банка, ИИК и БИК либо оставьте второй счёт пустым`)
+    throw new Error(`${label}: заполните название банка, ИИК и БИК либо оставьте счёт пустым`)
   }
 }

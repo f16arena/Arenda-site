@@ -10,19 +10,23 @@ import {
 import { emergencyContactScope } from "@/lib/tenant-scope"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
-import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isStaffScopedRole } from "@/lib/building-access"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
-  const name = formData.get("name") as string
-  const address = formData.get("address") as string
-  const description = formData.get("description") as string
+  const name = String(formData.get("name") ?? "").trim()
+  const address = String(formData.get("address") ?? "").trim()
+  const addressFields = readAddressFields(formData)
+  const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
-  const responsible = formData.get("responsible") as string
+  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
+  const responsible = String(formData.get("responsible") ?? "").trim()
+
+  if (!name) throw new Error("Название здания обязательно")
+  if (!address) throw new Error("Адрес здания обязателен")
 
   // totalArea не редактируется вручную — пересчитывается из этажей
   await db.building.update({
@@ -30,6 +34,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
     data: {
       name,
       address,
+      ...addressFields,
       description: description || null,
       phone,
       email,
@@ -40,6 +45,34 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   revalidatePath("/admin/settings")
   revalidatePath("/admin/spaces")
   return { success: true }
+}
+
+function readAddressFields(formData: FormData) {
+  return {
+    addressCountryCode: readOptionalString(formData, "addressCountryCode") ?? "kz",
+    addressRegion: readOptionalString(formData, "addressRegion"),
+    addressCity: readOptionalString(formData, "addressCity"),
+    addressSettlement: readOptionalString(formData, "addressSettlement"),
+    addressStreet: readOptionalString(formData, "addressStreet"),
+    addressHouseNumber: readOptionalString(formData, "addressHouseNumber"),
+    addressPostcode: readOptionalString(formData, "addressPostcode"),
+    addressLatitude: readOptionalNumber(formData, "addressLatitude"),
+    addressLongitude: readOptionalNumber(formData, "addressLongitude"),
+    addressSource: readOptionalString(formData, "addressSource"),
+    addressSourceId: readOptionalString(formData, "addressSourceId"),
+  }
+}
+
+function readOptionalString(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim()
+  return value || null
+}
+
+function readOptionalNumber(formData: FormData, name: string) {
+  const value = String(formData.get(name) ?? "").trim()
+  if (!value) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
 }
 
 export async function updateFloor(floorId: string, formData: FormData) {

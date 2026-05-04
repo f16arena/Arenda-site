@@ -63,19 +63,17 @@ export default async function AdminLayout({
     return <AdminSelectOrg orgs={mapped} userName={session.user.name ?? "Платформа"} />
   }
 
-  const [currentOrg, userMail, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
+  const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
     currentOrgId
       ? db.organization.findUnique({
           where: { id: currentOrgId },
           select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
         }).catch(() => null)
       : Promise.resolve(null),
-    !isPlatformOwner
-      ? db.user.findUnique({
-          where: { id: session.user.id },
-          select: { email: true, emailVerifiedAt: true },
-        }).catch(() => null)
-      : Promise.resolve(null),
+    db.user.findUnique({
+      where: { id: session.user.id },
+      select: { name: true, email: true, emailVerifiedAt: true },
+    }).catch(() => null),
     currentOrgId
       ? getAccessibleBuildingsForUser({
           userId: session.user.id,
@@ -101,6 +99,7 @@ export default async function AdminLayout({
   })
   const building = allBuildings.find((item) => item.id === currentBuildingId) ?? null
   const isPlatformView = isPlatformOwner && !impersonate && !!currentOrg
+  const displayUserName = freshUser?.name?.trim() || session.user.name || "Профиль"
 
   const now = new Date()
   const isExpired = !!(currentOrg?.planExpiresAt && currentOrg.planExpiresAt < now)
@@ -130,8 +129,8 @@ export default async function AdminLayout({
             isExpired={isExpired}
           />
         )}
-        {userMail && !userMail.emailVerifiedAt && (
-          <EmailNotVerifiedBanner email={userMail.email} profileHref="/admin/profile" />
+        {freshUser?.email && !freshUser.emailVerifiedAt && (
+          <EmailNotVerifiedBanner email={freshUser.email} profileHref="/admin/profile" />
         )}
         {/* Top Header */}
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pl-16 lg:pl-6">
@@ -155,11 +154,11 @@ export default async function AdminLayout({
             >
               <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
                 <span className="text-[11px] font-semibold text-white">
-                  {session.user.name?.[0]?.toUpperCase()}
+                  {displayUserName[0]?.toUpperCase()}
                 </span>
               </div>
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
-                {session.user.name}
+                {displayUserName}
               </span>
             </Link>
           </div>
