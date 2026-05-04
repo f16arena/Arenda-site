@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatErrorId } from "@/lib/error-id"
+import { decodeErrorReport } from "@/lib/error-report"
 
 export const dynamic = "force-dynamic"
 
@@ -13,6 +14,7 @@ type ErrorReportBody = {
   message?: unknown
   digest?: unknown
   stack?: unknown
+  context?: unknown
 }
 
 export async function POST(request: NextRequest) {
@@ -21,20 +23,39 @@ export async function POST(request: NextRequest) {
   const digest = clip(body.digest, 240)
   const errorId = clip(body.errorId, 40) || formatErrorId(digest)
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || null
+  const source = clip(body.source, 80) || "unknown"
+  const path = clip(body.path, 240)
+  const href = clip(body.href, 500)
+  const message = clip(body.message, 500)
+  const stack = clip(body.stack, 4_000)
+  const decode = decodeErrorReport({ source, path, href, message, digest, stack })
 
   const payload = {
     errorId,
-    source: clip(body.source, 80) || "unknown",
-    path: clip(body.path, 240),
-    href: clip(body.href, 500),
-    message: clip(body.message, 500),
+    source,
+    path,
+    href,
+    message,
     digest,
-    stack: clip(body.stack, 4_000),
+    stack,
     userAgent: clip(request.headers.get("user-agent"), 500),
     referrer: clip(request.headers.get("referer"), 500),
     userId: session?.user?.id ?? null,
     userRole: session?.user?.role ?? null,
     organizationId: session?.user?.organizationId ?? null,
+    method: request.method,
+    host: clip(request.headers.get("host"), 180),
+    routeKind: path?.startsWith("/superadmin")
+      ? "superadmin"
+      : path?.startsWith("/admin")
+        ? "admin"
+        : path?.startsWith("/cabinet")
+          ? "cabinet"
+          : "public",
+    explanation: decode.explanation,
+    suggestedAction: decode.suggestedAction,
+    hints: decode.hints,
+    context: isPlainObject(body.context) ? body.context : null,
     at: new Date().toISOString(),
   }
 
@@ -46,7 +67,7 @@ export async function POST(request: NextRequest) {
       userName: session?.user?.name ?? null,
       userRole: session?.user?.role ?? null,
       action: "ERROR",
-      entity: "system",
+      entity: "error",
       entityId: errorId,
       details: JSON.stringify(payload),
       ip,
@@ -66,4 +87,8 @@ function clip(value: unknown, max: number): string | null {
   const normalized = value.replace(/\u0000/g, "").trim()
   if (!normalized) return null
   return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value)
 }

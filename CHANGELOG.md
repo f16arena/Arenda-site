@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.59 - 2026-05-05
+
+- Исправлен публичный вход `commrent.kz`: главная страница больше не отправляет уже авторизованного пользователя в `/admin`, поэтому root-домен остается публичным лендингом.
+- Расширен `/api/errors/report`: ошибка сохраняет host, routeKind, referrer, browser context, organizationId, digest, расшифровку и рекомендованное действие для поддержки.
+- В superadmin добавлена страница `/superadmin/errors` с поиском по коду ошибки, странице, пользователю и IP, пагинацией и понятной расшифровкой Server Components render errors.
+- Обновлено меню superadmin: добавлен раздел “Ошибки сайта”.
+- Добавлена rollback-точка `rollback/pre-root-redirect-error-logs-1.3.59`.
+
 ## 1.3.58 - 2026-05-04
 
 - В GitHub Actions добавлен отдельный CI-step `Performance gate`, который запускает `npm run perf:audit` перед build.

@@ -1,5 +1,3 @@
-import { auth } from "@/auth"
-import { redirect } from "next/navigation"
 import Link from "next/link"
 import {
   Building, Users, FileText, BarChart3, Wallet, Bell,
@@ -8,11 +6,6 @@ import {
 import { LEGAL_ENTITY } from "@/lib/legal-entity"
 
 export default async function Home() {
-  const session = await auth()
-  if (session) {
-    redirect(session.user.role === "TENANT" ? "/cabinet" : "/admin")
-  }
-
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
       {/* ─── Header ──────────────────────────────────────────── */}

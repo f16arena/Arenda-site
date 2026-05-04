@@ -26,6 +26,14 @@ export function reportClientError({ errorId, source, pathname, error }: ReportCl
       digest: error.digest ?? null,
       stack: error.stack ?? null,
       href: typeof window !== "undefined" ? window.location.href : null,
+      context: typeof window !== "undefined"
+        ? {
+            language: window.navigator.language,
+            online: window.navigator.onLine,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+          }
+        : null,
     }),
   }).catch(() => undefined)
 }
