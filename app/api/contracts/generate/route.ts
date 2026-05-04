@@ -109,7 +109,7 @@ export async function GET(req: Request) {
       end_date_long: fmtDate(end),
 
       landlord_name: LANDLORD.fullName,
-      landlord_short: LANDLORD.directorShort,
+      landlord_short: LANDLORD.shortName,
       landlord_director: LANDLORD.director,
       landlord_iin: LANDLORD.iin,
       landlord_bin: LANDLORD.iin,
