@@ -14,6 +14,7 @@ type Props = {
     iik: string | null
     bik: string | null
     bin: string | null
+    iin: string | null
   }
   /** Если арендатор — ИП или физлицо, поле подписывается ИИН (то же поле bin в схеме). */
   isIin?: boolean
@@ -36,7 +37,7 @@ export function RequisitesForm({ tenantId, initial, isIin }: Props) {
   const [bankName, setBankName] = useState(initial.bankName ?? "")
   const [iik, setIik] = useState(initial.iik ?? "")
   const [bik, setBik] = useState(initial.bik ?? "")
-  const [bin, setBin] = useState(initial.bin ?? "")
+  const [taxId, setTaxId] = useState(isIin ? initial.iin ?? initial.bin ?? "" : initial.bin ?? "")
   const [pending, startTransition] = useTransition()
 
   // Живая валидация — пересчитывается на каждое изменение
@@ -44,10 +45,10 @@ export function RequisitesForm({ tenantId, initial, isIin }: Props) {
     return validateRequisites({
       bik,
       iik,
-      bin: !isIin ? bin : undefined,
-      iin: isIin ? bin : undefined,
+      bin: !isIin ? taxId : undefined,
+      iin: isIin ? taxId : undefined,
     })
-  }, [bik, iik, bin, isIin])
+  }, [bik, iik, taxId, isIin])
 
   // Автозаполнение названия банка по БИК
   const bankFromBik = useMemo(() => findBankByBik(bik), [bik])
@@ -64,7 +65,8 @@ export function RequisitesForm({ tenantId, initial, isIin }: Props) {
     formData.set("bankName", bankName)
     formData.set("iik", iik)
     formData.set("bik", bik)
-    formData.set("bin", bin)
+    formData.set(isIin ? "iin" : "bin", taxId)
+    formData.set(isIin ? "bin" : "iin", "")
     startTransition(async () => {
       try {
         await updateTenantRequisites(tenantId, formData)
@@ -159,23 +161,23 @@ export function RequisitesForm({ tenantId, initial, isIin }: Props) {
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
             {isIin ? "ИИН" : "БИН"} <span className="text-slate-300 dark:text-slate-600">12 цифр</span>
           </label>
-          {bin && <StatusIcon ok={(isIin ? checks.iin?.ok : checks.bin?.ok) ?? null} />}
+          {taxId && <StatusIcon ok={(isIin ? checks.iin?.ok : checks.bin?.ok) ?? null} />}
         </div>
         <input
-          value={bin}
-          onChange={(e) => setBin(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
+          value={taxId}
+          onChange={(e) => setTaxId(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
           placeholder="123456789012"
           maxLength={12}
           inputMode="numeric"
           className={`w-full rounded-lg border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 ${
-            !bin
+            !taxId
               ? "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
               : (isIin ? checks.iin?.ok : checks.bin?.ok)
                 ? "border-emerald-300 dark:border-emerald-500/40"
                 : "border-red-300 dark:border-red-500/40"
           }`}
         />
-        {bin && (isIin ? checks.iin?.warning : checks.bin?.warning) && (
+        {taxId && (isIin ? checks.iin?.warning : checks.bin?.warning) && (
           <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
             {isIin ? checks.iin?.warning : checks.bin?.warning}
           </p>

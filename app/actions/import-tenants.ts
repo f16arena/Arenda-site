@@ -15,6 +15,7 @@ import {
 } from "@/lib/excel-import"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { normalizeTenantRentChoice } from "@/lib/rent"
+import { normalizeTenantTaxIds } from "@/lib/tenant-identity"
 
 function isPositiveAmount(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0
@@ -50,6 +51,7 @@ export interface ParsedTenantRow {
     companyName: string
     legalType: string
     bin: string
+    iin: string
     category: string
     spaceNumber: string
     rate: number | null
@@ -122,8 +124,23 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
       })
       continue
     }
-    const legalType = normalizeLegalType(getField(row, mapping, "legalType"))
-    const bin = extractBinIin(getField(row, mapping, "bin"))
+    const rawLegalType = normalizeLegalType(getField(row, mapping, "legalType"))
+    let taxIds: ReturnType<typeof normalizeTenantTaxIds>
+    try {
+      taxIds = normalizeTenantTaxIds({
+        legalType: rawLegalType,
+        bin: extractBinIin(getField(row, mapping, "bin")) || getField(row, mapping, "bin"),
+      })
+    } catch (error) {
+      invalidRows.push({
+        rowIndex: i + 2,
+        error: error instanceof Error ? error.message : "Некорректный БИН/ИИН",
+      })
+      continue
+    }
+    const legalType = taxIds.legalType
+    const bin = taxIds.bin ?? ""
+    const iin = taxIds.iin ?? ""
     const category = getField(row, mapping, "category")
     const spaceNumber = getField(row, mapping, "spaceNumber")
     const rate = parseFlexibleNumber(getField(row, mapping, "rate"))
@@ -135,7 +152,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     const directorName = getField(row, mapping, "directorName")
 
     if (!phone && !email) warnings.push("Нет ни телефона, ни email — пользователь не сможет войти")
-    if (bin && bin.length !== 12) warnings.push(`БИН/ИИН должен быть 12 цифр (получено: ${bin})`)
+    if ((bin || iin) && (bin || iin).length !== 12) warnings.push(`БИН/ИИН должен быть 12 цифр (получено: ${bin || iin})`)
     if (contractEnd && contractStart && contractEnd < contractStart) warnings.push("Дата окончания раньше даты начала")
     try {
       normalizeTenantRentChoice({ customRate: rate, fixedMonthlyRent })
@@ -156,6 +173,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
         companyName,
         legalType,
         bin,
+        iin,
         category,
         spaceNumber,
         rate,
@@ -235,12 +253,13 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
       }
 
       // Дублирование по БИН/email/phone
-      const dupBy: Array<{ bin?: string }> = []
+      const dupBy: Array<{ bin?: string; iin?: string }> = []
       if (d.bin) dupBy.push({ bin: d.bin })
-      const existing = d.bin
+      if (d.iin) dupBy.push({ iin: d.iin })
+      const existing = dupBy.length > 0
         ? await db.tenant.findFirst({
             where: {
-              bin: d.bin,
+              OR: dupBy,
               space: { floor: { building: { organizationId: orgId } } },
             },
             select: { id: true },
@@ -276,7 +295,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
         }
 
         // Дефолтный пароль = последние 8 цифр БИН/телефона или fallback
-        const defaultPwd = (d.bin || d.phone.replace(/\D/g, "") || "tenant123").slice(-8) || "tenant123"
+        const defaultPwd = (d.bin || d.iin || d.phone.replace(/\D/g, "") || "tenant123").slice(-8) || "tenant123"
         const hash = await bcrypt.hash(defaultPwd.padEnd(6, "0"), 10)
 
         const user = await db.user.create({
@@ -315,6 +334,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
           spaceId: spaceId ?? null,
           companyName: d.companyName,
           bin: d.bin || null,
+          iin: d.iin || null,
           legalType: d.legalType,
           category: d.category || null,
           legalAddress: d.legalAddress || null,

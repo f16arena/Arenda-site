@@ -33,6 +33,7 @@ import {
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { TenantIdentityFields } from "../tenant-identity-fields"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -437,37 +438,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Правовая форма</label>
-                <select
-                  name="legalType"
-                  defaultValue={tenant.legalType}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
-                >
-                  <option value="IP">ИП</option>
-                  <option value="TOO">ТОО</option>
-                  <option value="AO">АО</option>
-                  <option value="PHYSICAL">Физ. лицо</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИН (для ТОО/АО)</label>
-                <input
-                  name="bin"
-                  defaultValue={tenant.bin ?? ""}
-                  placeholder="12 цифр"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ИИН (для ИП/физлица)</label>
-                <input
-                  name="iin"
-                  defaultValue={tenant.iin ?? ""}
-                  placeholder="12 цифр"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
+              <TenantIdentityFields
+                initialLegalType={tenant.legalType}
+                initialBin={tenant.bin}
+                initialIin={tenant.iin}
+              />
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>
                 <input
@@ -557,11 +532,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               isIin={tenant.legalType === "IP" || tenant.legalType === "PHYSICAL"}
               initial={{
                 bankName: tenant.bankName,
-                iik: tenant.iik,
-                bik: tenant.bik,
-                bin: tenant.bin,
-              }}
-            />
+                  iik: tenant.iik,
+                  bik: tenant.bik,
+                  bin: tenant.bin,
+                  iin: tenant.iin,
+                }}
+              />
           </div>
 
           {/* Rental terms */}

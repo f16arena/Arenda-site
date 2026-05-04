@@ -14,6 +14,7 @@ import {
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import { normalizeTenantRentChoice } from "@/lib/rent"
+import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -197,12 +198,15 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   await assertTenantBuildingAccess(tenantId, orgId)
 
   const companyName = formData.get("companyName") as string
-  const bin = formData.get("bin") as string
-  const iin = formData.get("iin") as string
   const bankName = formData.get("bankName") as string
   const iik = formData.get("iik") as string
   const bik = formData.get("bik") as string
-  const legalType = formData.get("legalType") as string
+  const legalType = normalizeTenantLegalType(formData.get("legalType"))
+  const taxIds = normalizeTenantTaxIds({
+    legalType,
+    bin: formData.get("bin"),
+    iin: formData.get("iin"),
+  })
   const category = formData.get("category") as string
   const legalAddress = formData.get("legalAddress") as string
   const actualAddress = formData.get("actualAddress") as string
@@ -222,12 +226,12 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     where: { id: tenantId },
     data: {
       companyName,
-      bin: bin || null,
-      iin: iin || null,
+      bin: taxIds.bin,
+      iin: taxIds.iin,
       bankName: bankName || null,
       iik: iik || null,
       bik: bik || null,
-      legalType,
+      legalType: taxIds.legalType,
       category: category || null,
       legalAddress: legalAddress || null,
       actualAddress: actualAddress || null,
@@ -255,7 +259,16 @@ export async function updateTenantRequisites(tenantId: string, formData: FormDat
   const bankName = formData.get("bankName") as string
   const iik = formData.get("iik") as string
   const bik = formData.get("bik") as string
-  const bin = formData.get("bin") as string
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { legalType: true },
+  })
+  if (!tenant) throw new Error("Арендатор не найден")
+  const taxIds = normalizeTenantTaxIds({
+    legalType: tenant.legalType,
+    bin: formData.get("bin"),
+    iin: formData.get("iin"),
+  })
 
   await db.tenant.update({
     where: { id: tenantId },
@@ -263,7 +276,8 @@ export async function updateTenantRequisites(tenantId: string, formData: FormDat
       bankName: bankName || null,
       iik: iik || null,
       bik: bik || null,
-      bin: bin || null,
+      bin: taxIds.bin,
+      iin: taxIds.iin,
     },
   })
 

@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { createTenant } from "@/app/actions/tenant-create"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { TenantIdentityFields } from "./tenant-identity-fields"
 
 type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number }
 
@@ -90,19 +91,7 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                 <input name="companyName" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Форма</label>
-                  <select name="legalType" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
-                    <option value="IP">ИП</option>
-                    <option value="TOO">ТОО</option>
-                    <option value="AO">АО</option>
-                    <option value="PHYSICAL">Физ. лицо</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">БИН / ИИН</label>
-                  <input name="bin" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                </div>
+                <TenantIdentityFields initialLegalType="IP" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText, UsersRound } from "lucide-react"
 import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
+import { tenantTaxIdValue } from "@/lib/tenant-identity"
 import { DeleteTenantButton } from "./delete-tenant-button"
 import { EmptyState } from "@/components/ui/empty-state"
 
@@ -12,6 +13,7 @@ export interface TenantRow {
   companyName: string
   legalType: string
   bin: string | null
+  iin: string | null
   category: string | null
   user: { name: string; phone: string | null; email: string | null }
   space: { number: string; area: number; floor: { name: string; ratePerSqm: number } } | null
@@ -35,12 +37,16 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
     if (search) {
       const lower = search.toLowerCase()
       list = list.filter(
-        (t) =>
-          t.companyName.toLowerCase().includes(lower) ||
-          t.bin?.includes(search) ||
-          t.user.name.toLowerCase().includes(lower) ||
-          t.user.phone?.includes(search) ||
-          t.user.email?.toLowerCase().includes(lower)
+        (t) => {
+          const taxId = tenantTaxIdValue({ legalType: t.legalType, bin: t.bin, iin: t.iin })
+          return (
+            t.companyName.toLowerCase().includes(lower) ||
+            taxId.includes(search) ||
+            t.user.name.toLowerCase().includes(lower) ||
+            t.user.phone?.includes(search) ||
+            t.user.email?.toLowerCase().includes(lower)
+          )
+        }
       )
     }
     if (legalFilter) list = list.filter((t) => t.legalType === legalFilter)
@@ -93,7 +99,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
       ...filtered.map((t) => [
         t.companyName,
         LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType,
-        t.bin ?? "",
+        tenantTaxIdValue({ legalType: t.legalType, bin: t.bin, iin: t.iin }),
         t.user.name,
         t.user.phone ?? "",
         t.user.email ?? "",
@@ -135,7 +141,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
       <tr>
         <td>${t.companyName}</td>
         <td>${LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}</td>
-        <td>${t.bin ?? ""}</td>
+        <td>${tenantTaxIdValue({ legalType: t.legalType, bin: t.bin, iin: t.iin })}</td>
         <td>${t.user.phone ?? t.user.email ?? ""}</td>
         <td>${
           t.fullFloors.length > 0

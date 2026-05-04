@@ -11,6 +11,7 @@ import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
+import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 
 export async function createTenant(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -22,8 +23,14 @@ export async function createTenant(formData: FormData) {
   const email = await normalizeEmailWithDns(formData.get("email"))
   const password = String(formData.get("password") ?? "")
   const companyName = String(formData.get("companyName") ?? "").trim()
-  const legalType = String(formData.get("legalType") ?? "IP")
-  const bin = String(formData.get("bin") ?? "").trim()
+  const legalType = normalizeTenantLegalType(formData.get("legalType"))
+  const taxIds = normalizeTenantTaxIds({
+    legalType,
+    bin: formData.get("bin"),
+    iin: formData.get("iin"),
+  })
+  const bin = taxIds.bin
+  const iin = taxIds.iin
   const category = String(formData.get("category") ?? "").trim()
   const spaceId = String(formData.get("spaceId") ?? "").trim()
   const buildingId = String(formData.get("buildingId") ?? "").trim()
@@ -82,10 +89,10 @@ export async function createTenant(formData: FormData) {
 
   // Проверка чёрного списка по БИН/ИИН — предупреждаем не блокируя.
   // Решение принимает Owner: для этого передаём поле formData "ignoreBlacklist".
-  if (bin || (legalType === "IP" || legalType === "PHYSICAL")) {
+  if (bin || iin) {
     const where: { bin?: string; iin?: string }[] = []
     if (bin) where.push({ bin })
-    // ИИН в форме был передан? legacy: bin поле может содержать ИИН для ИП
+    if (iin) where.push({ iin })
     if (where.length > 0) {
       const blocked = await db.tenant.findFirst({
         where: {
@@ -142,6 +149,7 @@ export async function createTenant(formData: FormData) {
         companyName,
         legalType,
         bin: bin || null,
+        iin: iin || null,
         category: category || null,
         contractStart: contractStart ? new Date(contractStart) : null,
         contractEnd: contractEnd ? new Date(contractEnd) : null,
