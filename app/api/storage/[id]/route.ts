@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { readStoredFileBytes } from "@/lib/storage"
+import { getAccessibleBuildingsForUser, isOwnerLike, isStaffScopedRole } from "@/lib/building-access"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
@@ -22,7 +23,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     select: {
       id: true,
       organizationId: true,
+      buildingId: true,
+      tenantId: true,
       ownerType: true,
+      visibility: true,
       fileName: true,
       mimeType: true,
       compression: true,
@@ -49,37 +53,76 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 async function canAccessStoredFile(
-  file: { id: string; organizationId: string; ownerType: string },
+  file: {
+    id: string
+    organizationId: string
+    buildingId: string | null
+    tenantId: string | null
+    ownerType: string
+    visibility: string
+  },
   user: SessionUser,
 ) {
   if (user.isPlatformOwner) return true
 
   if (user.organizationId !== file.organizationId) return false
-  if (user.role !== "TENANT") return true
+  if (isOwnerLike(user.role, user.isPlatformOwner)) return true
 
-  if (file.ownerType === "TENANT_DOCUMENT") {
-    const doc = await db.tenantDocument.findFirst({
-      where: {
-        storageFileId: file.id,
-        tenant: { userId: user.id },
-      },
-      select: { id: true },
-    })
-    return !!doc
+  if (user.role === "TENANT") {
+    if (file.ownerType === "TENANT_DOCUMENT") {
+      if (file.visibility !== "TENANT_VISIBLE") return false
+      const doc = await db.tenantDocument.findFirst({
+        where: {
+          storageFileId: file.id,
+          tenant: { userId: user.id },
+        },
+        select: { id: true },
+      })
+      return !!doc
+    }
+
+    if (file.ownerType === "PAYMENT_RECEIPT") {
+      if (file.visibility !== "TENANT_VISIBLE") return false
+      const report = await db.paymentReport.findFirst({
+        where: {
+          receiptFileId: file.id,
+          OR: [
+            { userId: user.id },
+            { tenant: { userId: user.id } },
+          ],
+        },
+        select: { id: true },
+      })
+      return !!report
+    }
+
+    return false
   }
 
-  if (file.ownerType === "PAYMENT_RECEIPT") {
-    const report = await db.paymentReport.findFirst({
-      where: {
-        receiptFileId: file.id,
-        OR: [
-          { userId: user.id },
-          { tenant: { userId: user.id } },
-        ],
+  if (!isStaffScopedRole(user.role)) return false
+  const accessibleIds = new Set((await getAccessibleBuildingsForUser({
+    userId: user.id,
+    orgId: file.organizationId,
+    role: user.role,
+    isPlatformOwner: user.isPlatformOwner,
+  })).map((building) => building.id))
+
+  if (file.buildingId && accessibleIds.has(file.buildingId)) return true
+  if (file.tenantId) {
+    const tenant = await db.tenant.findFirst({
+      where: { id: file.tenantId, user: { organizationId: file.organizationId } },
+      select: {
+        space: { select: { floor: { select: { buildingId: true } } } },
+        tenantSpaces: { select: { space: { select: { floor: { select: { buildingId: true } } } } } },
+        fullFloors: { select: { buildingId: true } },
       },
-      select: { id: true },
     })
-    return !!report
+    const ids = [
+      tenant?.space?.floor.buildingId,
+      ...(tenant?.tenantSpaces.map((item) => item.space.floor.buildingId) ?? []),
+      ...(tenant?.fullFloors.map((floor) => floor.buildingId) ?? []),
+    ].filter(Boolean) as string[]
+    return ids.some((id) => accessibleIds.has(id))
   }
 
   return false

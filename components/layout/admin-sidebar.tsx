@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   LogOut, Building, Activity,
   CalendarDays, CirclePlus,
-  Menu, X, Rocket, CircleHelp,
+  Menu, X, Rocket, CircleHelp, HardDrive,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -50,6 +50,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
       { href: "/admin/documents/new", label: "Создать документ", icon: CirclePlus, section: "documents" },
+      { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
   {

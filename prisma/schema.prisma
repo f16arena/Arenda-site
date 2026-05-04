@@ -8,50 +8,50 @@ datasource db {
 }
 
 model User {
-  id              String   @id @default(cuid())
-  name            String
-  phone           String?  @unique
-  email           String?  @unique
-  password        String
-  role            String   @default("TENANT")
-  isActive        Boolean  @default(true)  @map("is_active")
-  telegramChatId  String?  @map("telegram_chat_id")
-  organizationId  String?  @map("organization_id")  // null только для PLATFORM_OWNER
-  isPlatformOwner Boolean  @default(false) @map("is_platform_owner")
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  phoneVerifiedAt DateTime? @map("phone_verified_at")
+  id               String    @id @default(cuid())
+  name             String
+  phone            String?   @unique
+  email            String?   @unique
+  password         String
+  role             String    @default("TENANT")
+  isActive         Boolean   @default(true) @map("is_active")
+  telegramChatId   String?   @map("telegram_chat_id")
+  organizationId   String?   @map("organization_id") // null только для PLATFORM_OWNER
+  isPlatformOwner  Boolean   @default(false) @map("is_platform_owner")
+  emailVerifiedAt  DateTime? @map("email_verified_at")
+  phoneVerifiedAt  DateTime? @map("phone_verified_at")
   // Настройки каналов уведомлений (true = включён, по умолчанию всё включено)
-  notifyEmail     Boolean   @default(true) @map("notify_email")
-  notifyTelegram  Boolean   @default(true) @map("notify_telegram")
-  notifyInApp     Boolean   @default(true) @map("notify_in_app")
-  notifySms       Boolean   @default(false) @map("notify_sms")  // SMS дороже — выключено по умолчанию
+  notifyEmail      Boolean   @default(true) @map("notify_email")
+  notifyTelegram   Boolean   @default(true) @map("notify_telegram")
+  notifyInApp      Boolean   @default(true) @map("notify_in_app")
+  notifySms        Boolean   @default(false) @map("notify_sms") // SMS дороже — выключено по умолчанию
   // Какие типы событий присылать (JSON-объект с булевыми полями)
   // Если null — все типы включены. Иначе ключ с false выключает уведомления этого типа.
-  notifyMutedTypes Json?    @map("notify_muted_types")
+  notifyMutedTypes Json?     @map("notify_muted_types")
   // 2FA (TOTP) — base32 secret для Google Authenticator. enabledAt = когда включена.
-  totpSecret      String?  @map("totp_secret")
-  totpEnabledAt   DateTime? @map("totp_enabled_at")
+  totpSecret       String?   @map("totp_secret")
+  totpEnabledAt    DateTime? @map("totp_enabled_at")
   // Резервные коды для входа без приложения (хешированные)
-  totpBackupCodes Json?    @map("totp_backup_codes")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt      @map("updated_at")
+  totpBackupCodes  Json?     @map("totp_backup_codes")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  organization     Organization?    @relation(fields: [organizationId], references: [id])
-  tenant           Tenant?
-  staff            Staff?
-  sentMessages     Message[]        @relation("MessageSender")
-  receivedMessages Message[]        @relation("MessageReceiver")
-  assignedTasks    Task[]           @relation("TaskAssignee")
-  createdTasks     Task[]           @relation("TaskCreator")
-  requests         Request[]
-  requestComments  RequestComment[]
-  complaints       Complaint[]
-  notifications    Notification[]
-  administeredBuildings Building[]  @relation("BuildingAdmin")
-  buildingAccess   UserBuildingAccess[]
-  sentPaymentReports PaymentReport[] @relation("PaymentReportUser")
-  reviewedPaymentReports PaymentReport[] @relation("PaymentReportReviewer")
-  uploadedStoredFiles StoredFile[] @relation("StoredFileUploader")
+  organization           Organization?        @relation(fields: [organizationId], references: [id])
+  tenant                 Tenant?
+  staff                  Staff?
+  sentMessages           Message[]            @relation("MessageSender")
+  receivedMessages       Message[]            @relation("MessageReceiver")
+  assignedTasks          Task[]               @relation("TaskAssignee")
+  createdTasks           Task[]               @relation("TaskCreator")
+  requests               Request[]
+  requestComments        RequestComment[]
+  complaints             Complaint[]
+  notifications          Notification[]
+  administeredBuildings  Building[]           @relation("BuildingAdmin")
+  buildingAccess         UserBuildingAccess[]
+  sentPaymentReports     PaymentReport[]      @relation("PaymentReportUser")
+  reviewedPaymentReports PaymentReport[]      @relation("PaymentReportReviewer")
+  uploadedStoredFiles    StoredFile[]         @relation("StoredFileUploader")
 
   @@index([organizationId])
   @@map("users")
@@ -62,10 +62,10 @@ model User {
 model ApiKey {
   id             String    @id @default(cuid())
   organizationId String    @map("organization_id")
-  name           String                            // как создатель назвал ключ
+  name           String // как создатель назвал ключ
   keyHash        String    @unique @map("key_hash") // bcrypt хеш токена
-  keyPrefix      String    @map("key_prefix")       // первые 8 символов для отображения
-  scope          String    @default("READ")        // READ | WRITE
+  keyPrefix      String    @map("key_prefix") // первые 8 символов для отображения
+  scope          String    @default("READ") // READ | WRITE
   expiresAt      DateTime? @map("expires_at")
   lastUsedAt     DateTime? @map("last_used_at")
   revokedAt      DateTime? @map("revoked_at")
@@ -79,40 +79,40 @@ model ApiKey {
 }
 
 model Organization {
-  id              String    @id @default(cuid())
-  name            String
-  slug            String    @unique
-  legalType       String?   @map("legal_type")
-  legalName       String?   @map("legal_name")
-  shortName       String?   @map("short_name")
-  bin             String?
-  iin             String?
-  directorName    String?   @map("director_name")
-  directorPosition String?  @map("director_position")
-  basis           String?
-  legalAddress    String?   @map("legal_address")
-  actualAddress   String?   @map("actual_address")
-  bankName        String?   @map("bank_name")
-  iik             String?
-  bik             String?
-  secondBankName  String?   @map("second_bank_name")
-  secondIik       String?   @map("second_iik")
-  secondBik       String?   @map("second_bik")
-  phone           String?
-  email           String?
-  isActive        Boolean   @default(true) @map("is_active")
-  isSuspended     Boolean   @default(false) @map("is_suspended")
-  ownerUserId     String?   @map("owner_user_id")
-  planId          String?   @map("plan_id")
-  planExpiresAt   DateTime? @map("plan_expires_at")
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  legalType        String?   @map("legal_type")
+  legalName        String?   @map("legal_name")
+  shortName        String?   @map("short_name")
+  bin              String?
+  iin              String?
+  directorName     String?   @map("director_name")
+  directorPosition String?   @map("director_position")
+  basis            String?
+  legalAddress     String?   @map("legal_address")
+  actualAddress    String?   @map("actual_address")
+  bankName         String?   @map("bank_name")
+  iik              String?
+  bik              String?
+  secondBankName   String?   @map("second_bank_name")
+  secondIik        String?   @map("second_iik")
+  secondBik        String?   @map("second_bik")
+  phone            String?
+  email            String?
+  isActive         Boolean   @default(true) @map("is_active")
+  isSuspended      Boolean   @default(false) @map("is_suspended")
+  ownerUserId      String?   @map("owner_user_id")
+  planId           String?   @map("plan_id")
+  planExpiresAt    DateTime? @map("plan_expires_at")
   // НДС: для арендодателя — выставляются ли документы с НДС
-  isVatPayer      Boolean   @default(false) @map("is_vat_payer")
-  vatRate         Float     @default(12)    @map("vat_rate")
-  vatNumber       String?   @map("vat_number")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  isVatPayer       Boolean   @default(false) @map("is_vat_payer")
+  vatRate          Float     @default(12) @map("vat_rate")
+  vatNumber        String?   @map("vat_number")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  plan          Plan?           @relation(fields: [planId], references: [id])
+  plan          Plan?          @relation(fields: [planId], references: [id])
   buildings     Building[]
   users         User[]
   subscriptions Subscription[]
@@ -153,14 +153,14 @@ model FaqArticle {
 model CashAccount {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")
-  name           String   // "Каспи Банк", "Касса", "Halyk Business"
-  type           String   // BANK | CASH | CARD
+  name           String // "Каспи Банк", "Касса", "Halyk Business"
+  type           String // BANK | CASH | CARD
   balance        Float    @default(0)
   currency       String   @default("KZT")
   notes          String?
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt      @map("updated_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   transactions CashTransaction[]
@@ -173,8 +173,8 @@ model CashAccount {
 model CashTransaction {
   id          String   @id @default(cuid())
   accountId   String   @map("account_id")
-  amount      Float    // Положительное = приход, отрицательное = расход
-  type        String   // DEPOSIT | WITHDRAW | ADJUSTMENT | TRANSFER_OUT | TRANSFER_IN
+  amount      Float // Положительное = приход, отрицательное = расход
+  type        String // DEPOSIT | WITHDRAW | ADJUSTMENT | TRANSFER_OUT | TRANSFER_IN
   description String?
   date        DateTime @default(now())
   createdById String?  @map("created_by_id")
@@ -200,7 +200,7 @@ model Plan {
   maxTenants   Int?     @map("max_tenants")
   maxUsers     Int?     @map("max_users")
   maxLeads     Int?     @map("max_leads")
-  features     String   @default("{}")  // JSON
+  features     String   @default("{}") // JSON
   isActive     Boolean  @default(true) @map("is_active")
   sortOrder    Int      @default(0) @map("sort_order")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -233,7 +233,7 @@ model Subscription {
 model Notification {
   id        String   @id @default(cuid())
   userId    String   @map("user_id")
-  type      String   // CONTRACT_EXPIRING | PAYMENT_DUE | NEW_REQUEST | NEW_COMPLAINT | INFO
+  type      String // CONTRACT_EXPIRING | PAYMENT_DUE | NEW_REQUEST | NEW_COMPLAINT | INFO
   title     String
   message   String
   link      String?
@@ -247,40 +247,41 @@ model Notification {
 }
 
 model Building {
-  id              String   @id @default(cuid())
-  organizationId  String   @map("organization_id")
-  name            String
-  address         String
-  description     String?
-  phone           String?
-  email           String?
-  responsible     String?
+  id                    String   @id @default(cuid())
+  organizationId        String   @map("organization_id")
+  name                  String
+  address               String
+  description           String?
+  phone                 String?
+  email                 String?
+  responsible           String?
   // Администратор здания — User с ролью ADMIN, к которому идут все вопросы по аренде.
   // Иерархия: Owner → Administrator → Tenants.
-  administratorUserId String? @map("administrator_user_id")
-  totalArea       Float?   @map("total_area")
+  administratorUserId   String?  @map("administrator_user_id")
+  totalArea             Float?   @map("total_area")
   // Per-building нумерация документов: префикс — настраиваемый (например, F16),
   // счётчик инкрементируется при подтверждении номера. Уникальность контролируется
   // в пределах здания на текущий год.
-  contractPrefix         String? @map("contract_prefix")
-  contractCounter        Int     @default(0) @map("contract_counter")
-  invoicePrefix          String? @map("invoice_prefix")
-  invoiceCounter         Int     @default(0) @map("invoice_counter")
-  actPrefix              String? @map("act_prefix")
-  actCounter             Int     @default(0) @map("act_counter")
-  reconciliationPrefix   String? @map("reconciliation_prefix")
-  reconciliationCounter  Int     @default(0) @map("reconciliation_counter")
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at")
+  contractPrefix        String?  @map("contract_prefix")
+  contractCounter       Int      @default(0) @map("contract_counter")
+  invoicePrefix         String?  @map("invoice_prefix")
+  invoiceCounter        Int      @default(0) @map("invoice_counter")
+  actPrefix             String?  @map("act_prefix")
+  actCounter            Int      @default(0) @map("act_counter")
+  reconciliationPrefix  String?  @map("reconciliation_prefix")
+  reconciliationCounter Int      @default(0) @map("reconciliation_counter")
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at")
 
-  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  administrator     User?             @relation("BuildingAdmin", fields: [administratorUserId], references: [id], onDelete: SetNull)
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  administrator     User?                @relation("BuildingAdmin", fields: [administratorUserId], references: [id], onDelete: SetNull)
   floors            Floor[]
   emergencyContacts EmergencyContact[]
   expenses          Expense[]
   tariffs           Tariff[]
   leads             Lead[]
   userAccess        UserBuildingAccess[]
+  storedFiles       StoredFile[]
 
   @@index([organizationId])
   @@map("buildings")
@@ -303,14 +304,14 @@ model UserBuildingAccess {
 model Tariff {
   id          String   @id @default(cuid())
   buildingId  String   @map("building_id")
-  type        String   // ELECTRICITY | WATER | HEATING | GARBAGE | INTERNET | OTHER
+  type        String // ELECTRICITY | WATER | HEATING | GARBAGE | INTERNET | OTHER
   name        String
   rate        Float
   unit        String   @default("ед.")
   description String?
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt      @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
@@ -318,19 +319,19 @@ model Tariff {
 }
 
 model Floor {
-  id               String  @id @default(cuid())
-  buildingId       String  @map("building_id")
-  number           Int
-  name             String
-  ratePerSqm       Float   @default(0) @map("rate_per_sqm")
-  totalArea        Float?  @map("total_area")
-  layoutJson       String? @map("layout_json")
-  fixedMonthlyRent Float?  @map("fixed_monthly_rent")
+  id                String  @id @default(cuid())
+  buildingId        String  @map("building_id")
+  number            Int
+  name              String
+  ratePerSqm        Float   @default(0) @map("rate_per_sqm")
+  totalArea         Float?  @map("total_area")
+  layoutJson        String? @map("layout_json")
+  fixedMonthlyRent  Float?  @map("fixed_monthly_rent")
   fullFloorTenantId String? @map("full_floor_tenant_id")
 
-  building       Building @relation(fields: [buildingId], references: [id])
-  spaces         Space[]
-  fullFloorTenant Tenant? @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
+  building        Building @relation(fields: [buildingId], references: [id])
+  spaces          Space[]
+  fullFloorTenant Tenant?  @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
 
   @@map("floors")
 }
@@ -347,10 +348,10 @@ model Space {
   kind        String  @default("RENTABLE")
   description String?
 
-  floor  Floor   @relation(fields: [floorId], references: [id])
-  tenant Tenant?
+  floor        Floor         @relation(fields: [floorId], references: [id])
+  tenant       Tenant?
   tenantSpaces TenantSpace[]
-  meters Meter[]
+  meters       Meter[]
 
   @@map("spaces")
 }
@@ -372,7 +373,7 @@ model Tenant {
   directorName     String?   @map("director_name")
   directorPosition String?   @map("director_position")
   needsCleaning    Boolean   @default(false) @map("needs_cleaning")
-  cleaningFee      Float     @default(0)     @map("cleaning_fee")
+  cleaningFee      Float     @default(0) @map("cleaning_fee")
   customRate       Float?    @map("custom_rate")
   fixedMonthlyRent Float?    @map("fixed_monthly_rent")
   contractStart    DateTime? @map("contract_start")
@@ -387,16 +388,17 @@ model Tenant {
   blacklistReason  String?   @map("blacklist_reason")
   createdAt        DateTime  @default(now()) @map("created_at")
 
-  user        User             @relation(fields: [userId], references: [id])
-  space       Space?           @relation(fields: [spaceId], references: [id])
-  tenantSpaces TenantSpace[]
-  charges     Charge[]
-  payments    Payment[]
+  user           User             @relation(fields: [userId], references: [id])
+  space          Space?           @relation(fields: [spaceId], references: [id])
+  tenantSpaces   TenantSpace[]
+  charges        Charge[]
+  payments       Payment[]
   paymentReports PaymentReport[]
-  contracts   Contract[]
-  documents   TenantDocument[]
-  requests    Request[]
-  fullFloors  Floor[]          @relation("FullFloorTenant")
+  contracts      Contract[]
+  documents      TenantDocument[]
+  storedFiles    StoredFile[]
+  requests       Request[]
+  fullFloors     Floor[]          @relation("FullFloorTenant")
 
   @@map("tenants")
 }
@@ -431,28 +433,28 @@ model Staff {
 }
 
 model Contract {
-  id        String    @id @default(cuid())
-  tenantId  String    @map("tenant_id")
-  number    String
-  type      String    @default("STANDARD")
-  content   String
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  number             String
+  type               String    @default("STANDARD")
+  content            String
   // Workflow статусы:
   // DRAFT → SENT → VIEWED → SIGNED_BY_TENANT → SIGNED (обе стороны)
   // или альтернативные: REJECTED, EXPIRED
-  status    String    @default("DRAFT")
-  signedAt  DateTime? @map("signed_at")
-  startDate DateTime? @map("start_date")
-  endDate   DateTime? @map("end_date")
+  status             String    @default("DRAFT")
+  signedAt           DateTime? @map("signed_at")
+  startDate          DateTime? @map("start_date")
+  endDate            DateTime? @map("end_date")
   // Workflow подписания:
-  signToken          String?   @unique @map("sign_token")  // токен для уникальной ссылки tenant'у
-  sentAt             DateTime? @map("sent_at")             // когда отправлено арендатору
-  viewedAt           DateTime? @map("viewed_at")           // когда арендатор открыл ссылку
+  signToken          String?   @unique @map("sign_token") // токен для уникальной ссылки tenant'у
+  sentAt             DateTime? @map("sent_at") // когда отправлено арендатору
+  viewedAt           DateTime? @map("viewed_at") // когда арендатор открыл ссылку
   signedByTenantAt   DateTime? @map("signed_by_tenant_at")
   signedByTenantName String?   @map("signed_by_tenant_name") // ФИО подписавшего
   signedByLandlordAt DateTime? @map("signed_by_landlord_at")
   rejectedAt         DateTime? @map("rejected_at")
   rejectionReason    String?   @map("rejection_reason")
-  createdAt DateTime  @default(now()) @map("created_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -484,7 +486,7 @@ model Payment {
   note        String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
   reports PaymentReport[]
 
   @@map("payments")
@@ -510,10 +512,10 @@ model PaymentReport {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user     User     @relation("PaymentReportUser", fields: [userId], references: [id], onDelete: Cascade)
-  reviewer User?    @relation("PaymentReportReviewer", fields: [reviewedById], references: [id])
-  payment  Payment? @relation(fields: [paymentId], references: [id])
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User        @relation("PaymentReportUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer    User?       @relation("PaymentReportReviewer", fields: [reviewedById], references: [id])
+  payment     Payment?    @relation(fields: [paymentId], references: [id])
   receiptFile StoredFile? @relation("PaymentReceiptStorage", fields: [receiptFileId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status, createdAt])
@@ -559,7 +561,7 @@ model Request {
   status      String   @default("NEW")
   assigneeId  String?  @map("assignee_id")
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt      @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
   user     User             @relation(fields: [userId], references: [id])
@@ -597,9 +599,9 @@ model Task {
   createdById   String    @map("created_by_id")
   assignedToId  String?   @map("assigned_to_id")
   createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt      @map("updated_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  createdBy  User  @relation("TaskCreator",  fields: [createdById],  references: [id])
+  createdBy  User  @relation("TaskCreator", fields: [createdById], references: [id])
   assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
 
   @@map("tasks")
@@ -635,15 +637,15 @@ model SalaryPayment {
 }
 
 model TenantDocument {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id")
-  type      String
-  name      String
-  fileUrl   String?  @map("file_url")
-  storageFileId String? @unique @map("storage_file_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  type          String
+  name          String
+  fileUrl       String?  @map("file_url")
+  storageFileId String?  @unique @map("storage_file_id")
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
   storageFile StoredFile? @relation("TenantDocumentStorage", fields: [storageFileId], references: [id], onDelete: SetNull)
 
   @@index([storageFileId])
@@ -653,8 +655,12 @@ model TenantDocument {
 model StoredFile {
   id             String    @id @default(cuid())
   organizationId String    @map("organization_id")
+  buildingId     String?   @map("building_id")
+  tenantId       String?   @map("tenant_id")
   ownerType      String    @map("owner_type")
   ownerId        String?   @map("owner_id")
+  category       String    @default("OTHER")
+  visibility     String    @default("ADMIN_ONLY")
   fileName       String    @map("file_name")
   mimeType       String    @map("mime_type")
   extension      String?
@@ -667,12 +673,17 @@ model StoredFile {
   createdAt      DateTime  @default(now()) @map("created_at")
   deletedAt      DateTime? @map("deleted_at")
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  uploadedBy   User?        @relation("StoredFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  building       Building?       @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  uploadedBy     User?           @relation("StoredFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   tenantDocument TenantDocument? @relation("TenantDocumentStorage")
   paymentReports PaymentReport[] @relation("PaymentReceiptStorage")
 
   @@index([organizationId, ownerType, ownerId])
+  @@index([organizationId, buildingId, category, createdAt])
+  @@index([organizationId, tenantId, category, createdAt])
+  @@index([organizationId, category, createdAt])
   @@index([organizationId, createdAt])
   @@index([uploadedById])
   @@map("stored_files")
@@ -688,8 +699,8 @@ model Message {
   attachmentUrl String?  @map("attachment_url")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  from User @relation("MessageSender",   fields: [fromId], references: [id])
-  to   User @relation("MessageReceiver", fields: [toId],   references: [id])
+  from User @relation("MessageSender", fields: [fromId], references: [id])
+  to   User @relation("MessageReceiver", fields: [toId], references: [id])
 
   @@map("messages")
 }
@@ -707,16 +718,16 @@ model EmergencyContact {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?  @map("user_id")
-  userName   String?  @map("user_name")
-  userRole   String?  @map("user_role")
-  action     String   // CREATE | UPDATE | DELETE | LOGIN | LOGOUT
-  entity     String   // tenant | building | charge | payment | space | user | ...
-  entityId   String?  @map("entity_id")
-  details    String?  // JSON с deltaмiBefore/After
-  ip         String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  userName  String?  @map("user_name")
+  userRole  String?  @map("user_role")
+  action    String // CREATE | UPDATE | DELETE | LOGIN | LOGOUT
+  entity    String // tenant | building | charge | payment | space | user | ...
+  entityId  String?  @map("entity_id")
+  details   String? // JSON с deltaмiBefore/After
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([entity, entityId])
   @@index([userId])
@@ -725,22 +736,22 @@ model AuditLog {
 }
 
 model Lead {
-  id            String    @id @default(cuid())
-  buildingId    String    @map("building_id")
-  name          String
-  contact       String    // phone or email
-  contactType   String    @default("PHONE") @map("contact_type")
-  companyName   String?   @map("company_name")
-  legalType     String?   @map("legal_type")
-  desiredArea   Float?    @map("desired_area")
-  budget        Float?
-  spaceId       String?   @map("space_id")
-  source        String    @default("OTHER") // SITE | KRISHA | OLX | WORD_OF_MOUTH | OTHER
-  status        String    @default("NEW")   // NEW | SHOWN | NEGOTIATION | SIGNED | LOST
-  notes         String?
-  bookedUntil   DateTime? @map("booked_until")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id          String    @id @default(cuid())
+  buildingId  String    @map("building_id")
+  name        String
+  contact     String // phone or email
+  contactType String    @default("PHONE") @map("contact_type")
+  companyName String?   @map("company_name")
+  legalType   String?   @map("legal_type")
+  desiredArea Float?    @map("desired_area")
+  budget      Float?
+  spaceId     String?   @map("space_id")
+  source      String    @default("OTHER") // SITE | KRISHA | OLX | WORD_OF_MOUTH | OTHER
+  status      String    @default("NEW") // NEW | SHOWN | NEGOTIATION | SIGNED | LOST
+  notes       String?
+  bookedUntil DateTime? @map("booked_until")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
@@ -753,7 +764,7 @@ model EmailLog {
   id         String    @id @default(cuid())
   recipient  String
   subject    String
-  type       String    // INVOICE | ACT | CONTRACT | NOTIFICATION | OTHER
+  type       String // INVOICE | ACT | CONTRACT | NOTIFICATION | OTHER
   tenantId   String?   @map("tenant_id")
   userId     String?   @map("user_id")
   externalId String?   @map("external_id")
@@ -771,8 +782,8 @@ model EmailLog {
 
 model RolePermission {
   id        String   @id @default(cuid())
-  role      String   // OWNER | ADMIN | ACCOUNTANT | FACILITY_MANAGER | TENANT
-  section   String   // dashboard | buildings | spaces | tenants | finances | meters | contracts | requests | tasks | staff | complaints | messages | analytics | settings | roles | users | documents
+  role      String // OWNER | ADMIN | ACCOUNTANT | FACILITY_MANAGER | TENANT
+  section   String // dashboard | buildings | spaces | tenants | finances | meters | contracts | requests | tasks | staff | complaints | messages | analytics | settings | roles | users | documents
   canView   Boolean  @default(false) @map("can_view")
   canEdit   Boolean  @default(false) @map("can_edit")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -844,22 +855,22 @@ model GeneratedDocument {
 // Хранилище ЭЦП-подписей документов через NCALayer (НУЦ РК).
 // Один документ может быть подписан несколькими сторонами (арендодатель + арендатор).
 model DocumentSignature {
-  id              String    @id @default(cuid())
-  organizationId  String    @map("organization_id")
-  documentType    String    @map("document_type") // CONTRACT | INVOICE | ACT | RECONCILIATION | HANDOVER
-  documentId      String?   @map("document_id")
-  documentRef     String?   @map("document_ref")
-  signerUserId    String?   @map("signer_user_id")
-  signerName      String    @map("signer_name")
-  signerIin       String?   @map("signer_iin")
-  signerOrgBin    String?   @map("signer_org_bin")
-  signedHashB64   String    @map("signed_hash_b64")
-  signatureB64    String    @map("signature_b64")
-  certPemB64      String    @map("cert_pem_b64")
-  validFrom       DateTime? @map("valid_from")
-  validTo         DateTime? @map("valid_to")
-  algorithm       String    @default("RSA-SHA256") @map("algorithm")
-  signedAt        DateTime  @default(now()) @map("signed_at")
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  documentType   String    @map("document_type") // CONTRACT | INVOICE | ACT | RECONCILIATION | HANDOVER
+  documentId     String?   @map("document_id")
+  documentRef    String?   @map("document_ref")
+  signerUserId   String?   @map("signer_user_id")
+  signerName     String    @map("signer_name")
+  signerIin      String?   @map("signer_iin")
+  signerOrgBin   String?   @map("signer_org_bin")
+  signedHashB64  String    @map("signed_hash_b64")
+  signatureB64   String    @map("signature_b64")
+  certPemB64     String    @map("cert_pem_b64")
+  validFrom      DateTime? @map("valid_from")
+  validTo        DateTime? @map("valid_to")
+  algorithm      String    @default("RSA-SHA256") @map("algorithm")
+  signedAt       DateTime  @default(now()) @map("signed_at")
 
   @@index([organizationId])
   @@index([documentType, documentId])
@@ -869,14 +880,14 @@ model DocumentSignature {
 // Токены для верификации email/телефона + сброса пароля.
 // Один пользователь может иметь несколько активных токенов (разные сценарии).
 model VerificationToken {
-  id        String   @id @default(cuid())
-  userId    String?  @map("user_id")  // null для password-reset по email до создания юзера (не используем)
-  type      String   // EMAIL_VERIFY | PHONE_VERIFY | PASSWORD_RESET | EMAIL_CHANGE | PHONE_CHANGE
-  target    String   // email или телефон
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
+  id        String    @id @default(cuid())
+  userId    String?   @map("user_id") // null для password-reset по email до создания юзера (не используем)
+  type      String // EMAIL_VERIFY | PHONE_VERIFY | PASSWORD_RESET | EMAIL_CHANGE | PHONE_CHANGE
+  target    String // email или телефон
+  token     String    @unique
+  expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([userId, type])
   @@index([token])

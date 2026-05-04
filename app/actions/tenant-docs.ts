@@ -8,6 +8,7 @@ import { requireSection } from "@/lib/acl"
 import {
   TENANT_DOCUMENT_ALLOWED_MIME_TYPES,
   TENANT_DOCUMENT_MAX_BYTES,
+  getTenantStorageScope,
   storeUploadedFile,
 } from "@/lib/storage"
 
@@ -20,6 +21,7 @@ export async function addTenantDocument(tenantId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim()
   const fileUrl = String(formData.get("fileUrl") ?? "").trim()
   const file = formData.get("file")
+  const storageScope = await getTenantStorageScope(tenantId)
 
   if (!name) throw new Error("Название документа обязательно")
   if (!(file instanceof File) || file.size === 0) {
@@ -34,6 +36,10 @@ export async function addTenantDocument(tenantId: string, formData: FormData) {
         file,
         ownerType: "TENANT_DOCUMENT",
         ownerId: tenantId,
+        buildingId: storageScope.buildingId,
+        tenantId: storageScope.tenantId,
+        category: "TENANT_DOCUMENT",
+        visibility: "TENANT_VISIBLE",
         uploadedById: userId,
         maxBytes: TENANT_DOCUMENT_MAX_BYTES,
         allowedMimeTypes: TENANT_DOCUMENT_ALLOWED_MIME_TYPES,

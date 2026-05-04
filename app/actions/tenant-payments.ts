@@ -12,6 +12,7 @@ import { PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
 import {
   PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
   PAYMENT_RECEIPT_MAX_BYTES,
+  getTenantStorageScope,
   storeBufferFile,
 } from "@/lib/storage"
 import { revalidatePath } from "next/cache"
@@ -134,6 +135,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
 
   let storedReceipt: { id: string; url: string } | null = null
   try {
+    const storageScope = await getTenantStorageScope(tenant.id)
     if (receipt && !("error" in receipt)) {
       storedReceipt = await storeBufferFile({
         organizationId,
@@ -141,6 +143,10 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
         mimeType: receipt.mime,
         bytes: receipt.buffer,
         ownerType: "PAYMENT_RECEIPT",
+        buildingId: storageScope.buildingId,
+        tenantId: storageScope.tenantId,
+        category: "PAYMENT_RECEIPT",
+        visibility: "TENANT_VISIBLE",
         uploadedById: session.user.id,
         maxBytes: PAYMENT_RECEIPT_MAX_BYTES,
         allowedMimeTypes: PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,

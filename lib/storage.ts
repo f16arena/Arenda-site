@@ -40,6 +40,10 @@ type StoreUploadedFileInput = {
   file: File
   ownerType: string
   ownerId?: string | null
+  buildingId?: string | null
+  tenantId?: string | null
+  category?: string
+  visibility?: string
   uploadedById?: string | null
   maxBytes: number
   allowedMimeTypes: Set<string>
@@ -52,6 +56,10 @@ type StoreBufferInput = {
   bytes: Buffer
   ownerType: string
   ownerId?: string | null
+  buildingId?: string | null
+  tenantId?: string | null
+  category?: string
+  visibility?: string
   uploadedById?: string | null
   maxBytes: number
   allowedMimeTypes: Set<string>
@@ -77,6 +85,10 @@ export async function storeUploadedFile(input: StoreUploadedFileInput) {
     bytes,
     ownerType: input.ownerType,
     ownerId: input.ownerId,
+    buildingId: input.buildingId,
+    tenantId: input.tenantId,
+    category: input.category,
+    visibility: input.visibility,
     uploadedById: input.uploadedById,
     maxBytes: input.maxBytes,
     allowedMimeTypes: input.allowedMimeTypes,
@@ -99,8 +111,12 @@ export async function storeBufferFile(input: StoreBufferInput) {
   const stored = await db.storedFile.create({
     data: {
       organizationId: input.organizationId,
+      buildingId: input.buildingId ?? null,
+      tenantId: input.tenantId ?? null,
       ownerType: input.ownerType,
       ownerId: input.ownerId ?? null,
+      category: input.category ?? input.ownerType,
+      visibility: input.visibility ?? "ADMIN_ONLY",
       fileName,
       mimeType: input.mimeType,
       extension,
@@ -128,6 +144,35 @@ export function readStoredFileBytes(file: { data: Uint8Array | Buffer; compressi
   const data = Buffer.from(file.data)
   if (file.compression === "GZIP") return gunzipSync(data)
   return data
+}
+
+export async function getTenantStorageScope(tenantId: string) {
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      id: true,
+      space: { select: { floor: { select: { buildingId: true } } } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: { space: { select: { floor: { select: { buildingId: true } } } } },
+        take: 1,
+      },
+      fullFloors: {
+        orderBy: { number: "asc" },
+        select: { buildingId: true },
+        take: 1,
+      },
+    },
+  })
+
+  return {
+    tenantId,
+    buildingId:
+      tenant?.space?.floor.buildingId ??
+      tenant?.tenantSpaces[0]?.space.floor.buildingId ??
+      tenant?.fullFloors[0]?.buildingId ??
+      null,
+  }
 }
 
 export function formatMaxFileSize(bytes: number) {
