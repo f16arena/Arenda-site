@@ -51,6 +51,9 @@ export async function GET(req: Request) {
         fullFloors: true,
         charges: { where: { period }, orderBy: { createdAt: "asc" } },
         contracts: { orderBy: { createdAt: "desc" }, take: 1 },
+        bankAccounts: {
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        },
       },
     }),
     db.organization.findUnique({
@@ -66,6 +69,17 @@ export async function GET(req: Request) {
   const contract = tenant.contracts[0]
   const withVat = !!organization?.isVatPayer
   const vatRate = organization?.vatRate ?? 12
+  const tenantBankAccounts = tenant.bankAccounts ?? []
+  const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
+  const tenantBankName = tenantPrimaryBank?.bankName ?? tenant.bankName ?? ""
+  const tenantIik = tenantPrimaryBank?.iik ?? tenant.iik ?? ""
+  const tenantBik = tenantPrimaryBank?.bik ?? tenant.bik ?? ""
+  const tenantBankAccountsText = tenantBankAccounts
+    .map((account, index) => {
+      const label = account.label ? `${account.label}: ` : `Счёт ${index + 1}: `
+      return `${label}${account.bankName}, ИИК ${account.iik}, БИК ${account.bik}${account.isPrimary ? " (основной)" : ""}`
+    })
+    .join("\n")
 
   // Считаем строки счёта
   const items: { name: string; qty: number; unit: string; price: number; amount: number }[] = []
@@ -187,9 +201,10 @@ export async function GET(req: Request) {
               ...(tenant.legalAddress ? [new Paragraph({ children: [new TextRun({ text: `Адрес: ${tenant.legalAddress}`, size: 20 })], spacing: { after: 60 } })] : []),
               ...(tenant.iin ? [new Paragraph({ children: [new TextRun({ text: `ИИН: ${tenant.iin}`, size: 20 })], spacing: { after: 60 } })] : []),
               ...(tenant.bin ? [new Paragraph({ children: [new TextRun({ text: `БИН: ${tenant.bin}`, size: 20 })], spacing: { after: 60 } })] : []),
-              ...(tenant.bankName ? [new Paragraph({ children: [new TextRun({ text: `Банк: ${tenant.bankName}`, size: 20 })], spacing: { after: 60 } })] : []),
-              ...(tenant.iik ? [new Paragraph({ children: [new TextRun({ text: `ИИК: ${tenant.iik}`, size: 20 })], spacing: { after: 60 } })] : []),
-              ...(tenant.bik ? [new Paragraph({ children: [new TextRun({ text: `БИК: ${tenant.bik}`, size: 20 })], spacing: { after: 60 } })] : []),
+              ...(tenantBankName ? [new Paragraph({ children: [new TextRun({ text: `Банк: ${tenantBankName}`, size: 20 })], spacing: { after: 60 } })] : []),
+              ...(tenantIik ? [new Paragraph({ children: [new TextRun({ text: `ИИК: ${tenantIik}`, size: 20 })], spacing: { after: 60 } })] : []),
+              ...(tenantBik ? [new Paragraph({ children: [new TextRun({ text: `БИК: ${tenantBik}`, size: 20 })], spacing: { after: 60 } })] : []),
+              ...(tenantBankAccounts.length > 1 ? [new Paragraph({ children: [new TextRun({ text: `Все счета: ${tenantBankAccountsText.replace(/\n/g, "; ")}`, size: 20 })], spacing: { after: 60 } })] : []),
             ],
           }),
         ],
@@ -243,8 +258,10 @@ export async function GET(req: Request) {
       tenant_name: tenant.companyName,
       tenant_bin: tenant.bin || tenant.iin || "",
       tenant_address: tenant.legalAddress || "",
-      tenant_iik: tenant.iik || "",
-      tenant_bank: tenant.bankName || "",
+      tenant_iik: tenantIik,
+      tenant_bik: tenantBik,
+      tenant_bank: tenantBankName,
+      tenant_bank_accounts: tenantBankAccountsText,
       landlord_name: landlord.fullName,
       landlord_bin: landlord.bin || landlord.taxId,
       landlord_iin: landlord.iin,

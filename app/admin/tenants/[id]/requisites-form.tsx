@@ -1,11 +1,27 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { Check, AlertTriangle } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { AlertTriangle, Check, Plus, Save, Star, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { updateTenantRequisites } from "@/app/actions/tenant"
+import {
+  createTenantBankAccount,
+  deleteTenantBankAccount,
+  setPrimaryTenantBankAccount,
+  updateTenantBankAccount,
+  updateTenantRequisites,
+} from "@/app/actions/tenant"
 import { validateRequisites } from "@/lib/kz-validators"
 import { findBankByBik, KZ_BANKS } from "@/lib/kz-banks"
+
+type BankAccount = {
+  id: string
+  label: string | null
+  bankName: string
+  iik: string
+  bik: string
+  isPrimary: boolean
+}
 
 type Props = {
   tenantId: string
@@ -15,184 +31,443 @@ type Props = {
     bik: string | null
     bin: string | null
     iin: string | null
+    bankAccounts: BankAccount[]
   }
-  /** Если арендатор — ИП или физлицо, поле подписывается ИИН (то же поле bin в схеме). */
   isIin?: boolean
 }
 
 function StatusIcon({ ok }: { ok: boolean | null }) {
   if (ok === null) return null
   return ok ? (
-    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-      <Check className="h-3 w-3" /> РћРљ
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+      <Check className="h-3 w-3" /> OK
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 font-medium">
-      <AlertTriangle className="h-3 w-3" /> РћС€РёР±РєР°
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400">
+      <AlertTriangle className="h-3 w-3" /> Ошибка
     </span>
   )
 }
 
-export function RequisitesForm({ tenantId, initial, isIin }: Props) {
-  const [bankName, setBankName] = useState(initial.bankName ?? "")
-  const [iik, setIik] = useState(initial.iik ?? "")
-  const [bik, setBik] = useState(initial.bik ?? "")
-  const [taxId, setTaxId] = useState(isIin ? initial.iin ?? initial.bin ?? "" : initial.bin ?? "")
-  const [pending, startTransition] = useTransition()
+function normalizeBik(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8)
+}
 
-  // Живая валидация — пересчитывается на каждое изменение
-  const checks = useMemo(() => {
-    return validateRequisites({
-      bik,
-      iik,
-      bin: !isIin ? taxId : undefined,
-      iin: isIin ? taxId : undefined,
-    })
-  }, [bik, iik, taxId, isIin])
+function normalizeIikInput(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
+}
 
-  // Автозаполнение названия банка по БИК
+function BankFields({
+  label,
+  setLabel,
+  bankName,
+  setBankName,
+  iik,
+  setIik,
+  bik,
+  setBik,
+  initialBankName,
+}: {
+  label: string
+  setLabel: (value: string) => void
+  bankName: string
+  setBankName: (value: string) => void
+  iik: string
+  setIik: (value: string) => void
+  bik: string
+  setBik: (value: string) => void
+  initialBankName?: string
+}) {
+  const checks = useMemo(() => validateRequisites({ bik, iik }), [bik, iik])
   const bankFromBik = useMemo(() => findBankByBik(bik), [bik])
-  const handleBikChange = (v: string) => {
-    const upper = v.toUpperCase()
-    setBik(upper)
-    const bank = findBankByBik(upper)
-    if (bank && (!bankName || bankName === initial.bankName)) {
+
+  const handleBikChange = (value: string) => {
+    const next = normalizeBik(value)
+    setBik(next)
+    const bank = findBankByBik(next)
+    if (bank && (!bankName || bankName === initialBankName)) {
       setBankName(bank.name)
     }
   }
 
-  const onSubmit = (formData: FormData) => {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
+          Название счета
+        </label>
+        <input
+          value={label}
+          onChange={(event) => setLabel(event.target.value.slice(0, 80))}
+          placeholder="Например: основной, Kaspi, Halyk"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800"
+        />
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">БИК банка</label>
+          {bik && <StatusIcon ok={checks.bik?.ok ?? null} />}
+        </div>
+        <input
+          value={bik}
+          onChange={(event) => handleBikChange(event.target.value)}
+          placeholder="CASPKZKA, HSBKKZKX..."
+          list="kz-banks-list"
+          maxLength={8}
+          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
+            !bik
+              ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
+              : checks.bik?.ok
+                ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-500/40"
+                : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
+          }`}
+        />
+        <datalist id="kz-banks-list">
+          {KZ_BANKS.map((bank) => (
+            <option key={bank.bik} value={bank.bik}>{bank.short}</option>
+          ))}
+        </datalist>
+        {bankFromBik && (
+          <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">{bankFromBik.name}</p>
+        )}
+        {bik && checks.bik?.warning && (
+          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.bik.warning}</p>
+        )}
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
+          Название банка
+        </label>
+        <input
+          value={bankName}
+          onChange={(event) => setBankName(event.target.value.slice(0, 160))}
+          placeholder="Подтянется автоматически из БИК"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800"
+        />
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+            ИИК <span className="text-slate-400">20 символов</span>
+          </label>
+          {iik && <StatusIcon ok={checks.iik?.ok ?? null} />}
+        </div>
+        <input
+          value={iik}
+          onChange={(event) => setIik(normalizeIikInput(event.target.value))}
+          placeholder="KZ86125KZT1001300335"
+          maxLength={20}
+          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
+            !iik
+              ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
+              : checks.iik?.ok
+                ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-500/40"
+                : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
+          }`}
+        />
+        <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Длина: {iik.length}/20</p>
+        {iik && checks.iik?.warning && (
+          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.iik.warning}</p>
+        )}
+        {checks.consistency && !checks.consistency.ok && (
+          <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">{checks.consistency.warning}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ExistingAccount({ account }: { account: BankAccount }) {
+  const router = useRouter()
+  const [label, setLabel] = useState(account.label ?? "")
+  const [bankName, setBankName] = useState(account.bankName)
+  const [iik, setIik] = useState(account.iik)
+  const [bik, setBik] = useState(account.bik)
+  const [pending, startTransition] = useTransition()
+
+  const save = () => {
+    const formData = new FormData()
+    formData.set("label", label)
     formData.set("bankName", bankName)
     formData.set("iik", iik)
     formData.set("bik", bik)
-    formData.set(isIin ? "iin" : "bin", taxId)
-    formData.set(isIin ? "bin" : "iin", "")
     startTransition(async () => {
       try {
-        await updateTenantRequisites(tenantId, formData)
-        toast.success("Реквизиты сохранены")
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось сохранить")
+        await updateTenantBankAccount(account.id, formData)
+        router.refresh()
+        toast.success("Счёт сохранён")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Не удалось сохранить счёт")
+      }
+    })
+  }
+
+  const makePrimary = () => {
+    startTransition(async () => {
+      try {
+        await setPrimaryTenantBankAccount(account.id)
+        router.refresh()
+        toast.success("Основной счёт обновлён")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Не удалось выбрать основной счёт")
+      }
+    })
+  }
+
+  const remove = () => {
+    if (!window.confirm("Удалить этот банковский счёт арендатора?")) return
+    startTransition(async () => {
+      try {
+        await deleteTenantBankAccount(account.id)
+        router.refresh()
+        toast.success("Счёт удалён")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Не удалось удалить счёт")
       }
     })
   }
 
   return (
-    <form action={onSubmit} className="p-5 grid grid-cols-2 gap-4">
-      {/* БИК — первым, так как от него подтягивается название банка */}
-      <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">БИК банка</label>
-          {bik && <StatusIcon ok={checks.bik?.ok ?? null} />}
-        </div>
-        <input
-          name="bik_visible"
-          value={bik}
-          onChange={(e) => handleBikChange(e.target.value)}
-          placeholder="HSBKKZKX, KCJBKZKX..."
-          list="kz-banks-list"
-          maxLength={8}
-          className={`w-full rounded-lg border px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:ring-2 ${
-            !bik
-              ? "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
-              : checks.bik?.ok
-                ? "border-emerald-300 dark:border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500/20"
-                : "border-red-300 dark:border-red-500/40 focus:border-red-500 focus:ring-red-500/20"
-          }`}
-        />
-        <datalist id="kz-banks-list">
-          {KZ_BANKS.map((b) => (
-            <option key={b.bik} value={b.bik}>{b.short}</option>
-          ))}
-        </datalist>
-        {bankFromBik && (
-          <p className="text-[10px] text-emerald-700 dark:text-emerald-300 mt-1">
-            ✓ {bankFromBik.name}
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {label || account.label || "Банковский счёт"}
           </p>
-        )}
-        {bik && checks.bik?.warning && (
-          <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">{checks.bik.warning}</p>
-        )}
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название банка</label>
-        <input
-          value={bankName}
-          onChange={(e) => setBankName(e.target.value)}
-          placeholder="Подтянется автоматически из БИК"
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
-
-      <div className="col-span-2">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">ИИК (расчётный счёт)</label>
-          {iik && <StatusIcon ok={checks.iik?.ok ?? null} />}
+          <p className="text-xs text-slate-500 dark:text-slate-400">{account.iik}</p>
         </div>
-        <input
-          value={iik}
-          onChange={(e) => setIik(e.target.value.toUpperCase().replace(/\s+/g, ""))}
-          placeholder="KZ86125KZT1001300335"
-          maxLength={20}
-          className={`w-full rounded-lg border px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:ring-2 ${
-            !iik
-              ? "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
-              : checks.iik?.ok
-                ? "border-emerald-300 dark:border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500/20"
-                : "border-red-300 dark:border-red-500/40 focus:border-red-500 focus:ring-red-500/20"
-          }`}
-        />
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Длина: {iik.length}/20
-        </p>
-        {iik && checks.iik?.warning && (
-          <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">{checks.iik.warning}</p>
-        )}
-        {checks.consistency && !checks.consistency.ok && (
-          <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">
-            ⚠ {checks.consistency.warning}
-          </p>
-        )}
-      </div>
-
-      <div className="col-span-2">
-        <div className="flex items-center justify-between mb-1.5">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-            {isIin ? "ИИН" : "БИН"} <span className="text-slate-300 dark:text-slate-600">12 цифр</span>
-          </label>
-          {taxId && <StatusIcon ok={(isIin ? checks.iin?.ok : checks.bin?.ok) ?? null} />}
+        <div className="flex flex-wrap items-center gap-2">
+          {account.isPrimary ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
+              <Star className="h-3.5 w-3.5 fill-current" /> Основной
+            </span>
+          ) : (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={makePrimary}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-60 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
+            >
+              <Star className="h-3.5 w-3.5" /> Сделать основным
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={remove}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Удалить
+          </button>
         </div>
-        <input
-          value={taxId}
-          onChange={(e) => setTaxId(e.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
-          placeholder="123456789012"
-          maxLength={12}
-          inputMode="numeric"
-          className={`w-full rounded-lg border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 ${
-            !taxId
-              ? "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
-              : (isIin ? checks.iin?.ok : checks.bin?.ok)
-                ? "border-emerald-300 dark:border-emerald-500/40"
-                : "border-red-300 dark:border-red-500/40"
-          }`}
-        />
-        {taxId && (isIin ? checks.iin?.warning : checks.bin?.warning) && (
-          <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
-            {isIin ? checks.iin?.warning : checks.bin?.warning}
-          </p>
-        )}
       </div>
 
-      <div className="col-span-2 flex justify-end">
+      <BankFields
+        label={label}
+        setLabel={setLabel}
+        bankName={bankName}
+        setBankName={setBankName}
+        iik={iik}
+        setIik={setIik}
+        bik={bik}
+        setBik={setBik}
+        initialBankName={account.bankName}
+      />
+
+      <div className="mt-4 flex justify-end">
         <button
-          type="submit"
+          type="button"
           disabled={pending}
-          className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          onClick={save}
+          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
-          {pending ? "Сохранение..." : "Сохранить реквизиты"}
+          <Save className="h-4 w-4" />
+          {pending ? "Сохранение..." : "Сохранить счёт"}
         </button>
       </div>
-    </form>
+    </div>
+  )
+}
+
+function AddAccountForm({ tenantId }: { tenantId: string }) {
+  const router = useRouter()
+  const [label, setLabel] = useState("")
+  const [bankName, setBankName] = useState("")
+  const [iik, setIik] = useState("")
+  const [bik, setBik] = useState("")
+  const [isPrimary, setIsPrimary] = useState(false)
+  const [pending, startTransition] = useTransition()
+
+  const submit = () => {
+    const formData = new FormData()
+    formData.set("label", label)
+    formData.set("bankName", bankName)
+    formData.set("iik", iik)
+    formData.set("bik", bik)
+    if (isPrimary) formData.set("isPrimary", "on")
+
+    startTransition(async () => {
+      try {
+        await createTenantBankAccount(tenantId, formData)
+        router.refresh()
+        setLabel("")
+        setBankName("")
+        setIik("")
+        setBik("")
+        setIsPrimary(false)
+        toast.success("Счёт добавлен")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Не удалось добавить счёт")
+      }
+    })
+  }
+
+  return (
+    <div className="rounded-xl border border-dashed border-slate-300 p-4 dark:border-slate-700">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Добавить банковский счёт</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Можно хранить несколько счетов арендатора.</p>
+        </div>
+        <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+          <input
+            type="checkbox"
+            checked={isPrimary}
+            onChange={(event) => setIsPrimary(event.target.checked)}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+          />
+          Основной
+        </label>
+      </div>
+
+      <BankFields
+        label={label}
+        setLabel={setLabel}
+        bankName={bankName}
+        setBankName={setBankName}
+        iik={iik}
+        setIik={setIik}
+        bik={bik}
+        setBik={setBik}
+      />
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={submit}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        >
+          <Plus className="h-4 w-4" />
+          {pending ? "Добавление..." : "Добавить счёт"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
+  const router = useRouter()
+  const [taxId, setTaxId] = useState(isIin ? initial.iin ?? initial.bin ?? "" : initial.bin ?? "")
+  const [pending, startTransition] = useTransition()
+
+  const checks = useMemo(() => {
+    return validateRequisites({
+      bin: !isIin ? taxId : undefined,
+      iin: isIin ? taxId : undefined,
+    })
+  }, [taxId, isIin])
+
+  const save = () => {
+    const formData = new FormData()
+    formData.set(isIin ? "iin" : "bin", taxId)
+    formData.set(isIin ? "bin" : "iin", "")
+
+    startTransition(async () => {
+      try {
+        await updateTenantRequisites(tenantId, formData)
+        router.refresh()
+        toast.success("Налоговые данные сохранены")
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Не удалось сохранить данные")
+      }
+    })
+  }
+
+  const taxCheck = isIin ? checks.iin : checks.bin
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+      <div className="mb-1.5 flex items-center justify-between">
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+          {isIin ? "ИИН" : "БИН"} <span className="text-slate-400">12 цифр</span>
+        </label>
+        {taxId && <StatusIcon ok={taxCheck?.ok ?? null} />}
+      </div>
+      <input
+        value={taxId}
+        onChange={(event) => setTaxId(event.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
+        placeholder="123456789012"
+        maxLength={12}
+        inputMode="numeric"
+        className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 ${
+          !taxId
+            ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
+            : taxCheck?.ok
+              ? "border-emerald-300 dark:border-emerald-500/40"
+              : "border-red-300 dark:border-red-500/40"
+        }`}
+      />
+      {taxId && taxCheck?.warning && (
+        <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{taxCheck.warning}</p>
+      )}
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          disabled={pending}
+          onClick={save}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+        >
+          {pending ? "Сохранение..." : "Сохранить"}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function RequisitesForm({ tenantId, initial, isIin }: Props) {
+  return (
+    <div className="space-y-4 p-5">
+      <TaxIdentityForm tenantId={tenantId} initial={initial} isIin={isIin} />
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские счета</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Основной счёт используется в договорах, счетах и старых шаблонах.
+            </p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            {initial.bankAccounts.length}
+          </span>
+        </div>
+
+        {initial.bankAccounts.length === 0 ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+            Банковские счета не добавлены. Добавьте хотя бы один счёт, чтобы реквизиты подставлялись в документы.
+          </div>
+        ) : (
+          initial.bankAccounts.map((account) => (
+            <ExistingAccount key={account.id} account={account} />
+          ))
+        )}
+
+        <AddAccountForm tenantId={tenantId} />
+      </div>
+    </div>
   )
 }

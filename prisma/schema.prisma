@@ -464,8 +464,27 @@ model Tenant {
   storedFiles    StoredFile[]
   requests       Request[]
   fullFloors     Floor[]          @relation("FullFloorTenant")
+  bankAccounts   TenantBankAccount[]
 
   @@map("tenants")
+}
+
+model TenantBankAccount {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  label     String?
+  bankName  String   @map("bank_name")
+  iik       String
+  bik       String
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, iik])
+  @@index([tenantId, isPrimary])
+  @@map("tenant_bank_accounts")
 }
 
 model TenantSpace {

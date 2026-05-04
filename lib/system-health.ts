@@ -49,6 +49,7 @@ const REQUIRED_TABLES = [
   "floors",
   "spaces",
   "tenant_spaces",
+  "tenant_bank_accounts",
   "tenants",
   "cash_accounts",
   "cash_transactions",
@@ -115,6 +116,10 @@ const REQUIRED_COLUMNS = [
     columns: ["tenant_id", "space_id", "is_primary"],
   },
   {
+    table: "tenant_bank_accounts",
+    columns: ["tenant_id", "bank_name", "iik", "bik", "is_primary"],
+  },
+  {
     table: "payment_reports",
     columns: ["method", "receipt_file_id", "reviewed_by_id", "payment_id"],
   },
@@ -152,6 +157,7 @@ const RECENT_REQUIRED_MIGRATIONS = [
   "20260505000000_kz_address_autocomplete",
   "20260505003000_performance_indexes",
   "20260505004000_web_vital_metrics",
+  "20260505010000_tenant_bank_accounts",
 ] as const
 
 const EXPECTED_CRONS = [

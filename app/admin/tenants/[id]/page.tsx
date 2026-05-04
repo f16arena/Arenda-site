@@ -63,6 +63,17 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       bankName: true,
       iik: true,
       bik: true,
+      bankAccounts: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          label: true,
+          bankName: true,
+          iik: true,
+          bik: true,
+          isPrimary: true,
+        },
+      },
       blacklistedAt: true,
       blacklistReason: true,
       category: true,
@@ -552,7 +563,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <CollapsibleCard
             title="Банковские реквизиты"
             icon={CreditCard}
-            meta={tenant.bankName ?? tenant.iik ?? "не заполнены"}
+            meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
           >
             <RequisitesFormLoader
               tenantId={tenant.id}
@@ -563,6 +574,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   bik: tenant.bik,
                   bin: tenant.bin,
                   iin: tenant.iin,
+                  bankAccounts: tenant.bankAccounts,
                 }}
               />
           </CollapsibleCard>

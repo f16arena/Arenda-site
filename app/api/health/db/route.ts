@@ -7,6 +7,7 @@ const REQUIRED_HEALTH_SCHEMA = [
   { kind: "table", table: "payment_reports" },
   { kind: "table", table: "stored_files" },
   { kind: "table", table: "tenant_spaces" },
+  { kind: "table", table: "tenant_bank_accounts" },
   { kind: "table", table: "address_cache" },
   { kind: "table", table: "web_vital_metrics" },
   { kind: "column", table: "buildings", column: "address_country_code" },
@@ -19,6 +20,8 @@ const REQUIRED_HEALTH_SCHEMA = [
   { kind: "column", table: "stored_files", column: "visibility" },
   { kind: "column", table: "floors", column: "full_floor_tenant_id" },
   { kind: "column", table: "tenant_spaces", column: "space_id" },
+  { kind: "column", table: "tenant_bank_accounts", column: "tenant_id" },
+  { kind: "column", table: "tenant_bank_accounts", column: "is_primary" },
   { kind: "column", table: "address_cache", column: "query_key" },
   { kind: "column", table: "web_vital_metrics", column: "name" },
 ] as const
@@ -90,7 +93,7 @@ export async function GET() {
   try {
     const missing = await findMissingRequiredSchema()
     checks.push({
-      name: "required_schema_1_3_47",
+      name: "required_schema_1_3_49",
       ok: missing.length === 0,
       ms: Date.now() - t0,
       result: {

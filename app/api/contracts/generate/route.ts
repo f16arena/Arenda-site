@@ -74,6 +74,9 @@ export async function GET(req: Request) {
         include: { space: { include: { floor: true } } },
       },
       fullFloors: true,
+      bankAccounts: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      },
     },
   })
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
@@ -102,6 +105,17 @@ export async function GET(req: Request) {
   const area = getTenantAreaTotal(tenant)
   const objectAddress = building?.address ?? BUILDING_DEFAULT.address
   const tenantBasis = inferTenantBasis(tenant)
+  const tenantBankAccounts = tenant.bankAccounts ?? []
+  const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
+  const tenantBankName = tenantPrimaryBank?.bankName ?? tenant.bankName ?? ""
+  const tenantIik = tenantPrimaryBank?.iik ?? tenant.iik ?? ""
+  const tenantBik = tenantPrimaryBank?.bik ?? tenant.bik ?? ""
+  const tenantBankAccountsText = tenantBankAccounts
+    .map((account, index) => {
+      const label = account.label ? `${account.label}: ` : `Счёт ${index + 1}: `
+      return `${label}${account.bankName}, ИИК ${account.iik}, БИК ${account.bik}${account.isPrimary ? " (основной)" : ""}`
+    })
+    .join("\n")
   const rentWords = numberToWords(monthlyRent)
   const rentWithWords = `${formatMoney(monthlyRent)} (${rentWords})`
   const rentClause = buildLeaseRentClause({
@@ -160,9 +174,10 @@ export async function GET(req: Request) {
       tenant_actual_address: tenant.actualAddress ?? "",
       tenant_phone: tenant.user.phone ?? "",
       tenant_email: tenant.user.email ?? "",
-      tenant_bank: tenant.bankName ?? "",
-      tenant_iik: tenant.iik ?? "",
-      tenant_bik: tenant.bik ?? "",
+      tenant_bank: tenantBankName,
+      tenant_iik: tenantIik,
+      tenant_bik: tenantBik,
+      tenant_bank_accounts: tenantBankAccountsText,
 
       placement,
       space_number: assignedSpaces.map((space) => space.number).join(", "),
@@ -366,9 +381,10 @@ export async function GET(req: Request) {
           tenant.legalAddress ? `Адрес: ${tenant.legalAddress}` : null,
           tenant.iin ? `ИИН: ${tenant.iin}` : null,
           tenant.bin ? `БИН: ${tenant.bin}` : null,
-          tenant.iik ? `ИИК: ${tenant.iik}` : null,
-          tenant.bik ? `БИК: ${tenant.bik}` : null,
-          tenant.bankName ? `Банк: ${tenant.bankName}` : null,
+          tenantIik ? `ИИК: ${tenantIik}` : null,
+          tenantBik ? `БИК: ${tenantBik}` : null,
+          tenantBankName ? `Банк: ${tenantBankName}` : null,
+          tenantBankAccounts.length > 1 ? `Все счета: ${tenantBankAccountsText.replace(/\n/g, "; ")}` : null,
           tenant.user.phone ? `Тел: ${tenant.user.phone}` : null,
           tenant.user.email ? `Email: ${tenant.user.email}` : null,
         ].filter(Boolean) as string[],
