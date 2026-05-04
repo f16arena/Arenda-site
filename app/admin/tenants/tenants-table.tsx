@@ -16,7 +16,11 @@ export interface TenantRow {
   iin: string | null
   category: string | null
   user: { name: string; phone: string | null; email: string | null }
-  space: { number: string; area: number; floor: { name: string; ratePerSqm: number } } | null
+  space: { id: string; number: string; area: number; floor: { name: string; ratePerSqm: number } } | null
+  tenantSpaces: Array<{
+    isPrimary: boolean
+    space: { id: string; number: string; area: number; floor: { name: string; ratePerSqm: number } }
+  }>
   // Этажи где арендатор сдан целиком — может быть несколько
   fullFloors: Array<{ id: string; name: string; totalArea: number | null; fixedMonthlyRent: number | null }>
   debt: number
@@ -64,13 +68,13 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
           cmp = a.legalType.localeCompare(b.legalType)
           break
         case "space": {
-          const av = a.space?.number ?? ""
-          const bv = b.space?.number ?? ""
+          const av = tenantSpaceLabel(a)
+          const bv = tenantSpaceLabel(b)
           cmp = av.localeCompare(bv, undefined, { numeric: true })
           break
         }
         case "area":
-          cmp = (a.space?.area ?? 0) - (b.space?.area ?? 0)
+          cmp = tenantArea(a) - tenantArea(b)
           break
         case "debt":
           cmp = a.debt - b.debt
@@ -105,13 +109,9 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         t.user.email ?? "",
         t.fullFloors.length > 0
           ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
-          : t.space?.number ?? "",
-        t.fullFloors[0]?.name ?? t.space?.floor.name ?? "",
-        String(
-          t.fullFloors.length > 0
-            ? t.fullFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0)
-            : t.space?.area ?? "",
-        ),
+          : tenantSpaceLabel(t),
+        t.fullFloors[0]?.name ?? t.tenantSpaces[0]?.space.floor.name ?? t.space?.floor.name ?? "",
+        String(tenantArea(t) || ""),
         String(t.debt),
       ]),
     ]
@@ -146,13 +146,9 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         <td>${
           t.fullFloors.length > 0
             ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
-            : t.space ? `Каб. ${t.space.number} · ${t.space.floor.name}` : "—"
+            : tenantSpaceLabel(t) || "—"
         }</td>
-        <td style="text-align:right">${
-          t.fullFloors.length > 0
-            ? t.fullFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0).toFixed(0)
-            : t.space?.area ?? "—"
-        } м²</td>
+        <td style="text-align:right">${tenantArea(t) ? tenantArea(t).toFixed(0) : "—"} м²</td>
         <td style="text-align:right">${t.debt > 0 ? formatMoney(t.debt) : "—"}</td>
       </tr>
     `).join("")
@@ -286,18 +282,13 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
                       <span className="text-slate-400 dark:text-slate-500">· целиком</span>
                     </span>
                   ) : t.space ? (
-                    <span>
-                      Каб. {t.space.number}
-                      <span className="text-slate-400 dark:text-slate-500 ml-1">· {t.space.floor.name}</span>
-                    </span>
+                    <SpaceCell tenant={t} />
                   ) : (
-                    <span className="text-slate-400 dark:text-slate-500">Не назначено</span>
+                    <SpaceCell tenant={t} />
                   )}
                 </td>
                 <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">
-                  {t.fullFloors.length > 0
-                    ? `${t.fullFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0).toFixed(0)} м²`
-                    : t.space ? `${t.space.area} м²` : "—"}
+                  {tenantArea(t) ? `${tenantArea(t).toFixed(0)} м²` : "—"}
                 </td>
                 <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 font-mono text-xs">
                   {t.user.phone ?? t.user.email ?? "—"}
@@ -349,6 +340,45 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         </table>
       </div>
     </div>
+  )
+}
+
+function tenantSpaces(tenant: TenantRow) {
+  if (tenant.tenantSpaces.length > 0) return tenant.tenantSpaces.map((item) => item.space)
+  return tenant.space ? [tenant.space] : []
+}
+
+function tenantSpaceLabel(tenant: TenantRow) {
+  const spaces = tenantSpaces(tenant)
+  return spaces.map((space) => `Каб. ${space.number} · ${space.floor.name}`).join(", ")
+}
+
+function tenantArea(tenant: TenantRow) {
+  if (tenant.fullFloors.length > 0) {
+    return tenant.fullFloors.reduce((sum, floor) => sum + (floor.totalArea ?? 0), 0)
+  }
+  return tenantSpaces(tenant).reduce((sum, space) => sum + space.area, 0)
+}
+
+function SpaceCell({ tenant }: { tenant: TenantRow }) {
+  const spaces = tenantSpaces(tenant)
+  if (spaces.length === 0) {
+    return <span className="text-slate-400 dark:text-slate-500">Не назначено</span>
+  }
+
+  return (
+    <span>
+      {spaces.slice(0, 2).map((space, index) => (
+        <span key={space.id ?? `${space.number}-${index}`}>
+          {index > 0 && <span className="text-slate-400 dark:text-slate-500">, </span>}
+          Каб. {space.number}
+          <span className="text-slate-400 dark:text-slate-500 ml-1">· {space.floor.name}</span>
+        </span>
+      ))}
+      {spaces.length > 2 && (
+        <span className="ml-1 text-slate-400 dark:text-slate-500">+{spaces.length - 2}</span>
+      )}
+    </span>
   )
 }
 

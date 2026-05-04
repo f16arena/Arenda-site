@@ -12,6 +12,7 @@ import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
+import { parseTenantSpaceIds } from "@/lib/tenant-spaces"
 
 export async function createTenant(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -32,7 +33,8 @@ export async function createTenant(formData: FormData) {
   const bin = taxIds.bin
   const iin = taxIds.iin
   const category = String(formData.get("category") ?? "").trim()
-  const spaceId = String(formData.get("spaceId") ?? "").trim()
+  const spaceIds = parseTenantSpaceIds(formData)
+  const spaceId = spaceIds[0] ?? ""
   const buildingId = String(formData.get("buildingId") ?? "").trim()
   const contractStart = String(formData.get("contractStart") ?? "")
   const contractEnd = String(formData.get("contractEnd") ?? "")
@@ -43,38 +45,55 @@ export async function createTenant(formData: FormData) {
   if (!companyName) throw new Error("Введите название компании")
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
 
-  if (spaceId) {
-    await assertSpaceInOrg(spaceId, orgId)
-    // Помещение не должно быть на полностью арендованном этаже
-    await assertSpaceAssignable(spaceId)
-    // И само помещение не должно быть уже занято
-    const existing = await db.space.findUnique({
-      where: { id: spaceId },
+  if (spaceIds.length > 20) throw new Error("За один раз можно привязать до 20 помещений")
+
+  if (spaceIds.length > 0) {
+    for (const id of spaceIds) {
+      await assertSpaceInOrg(id, orgId)
+      await assertSpaceAssignable(id)
+    }
+
+    const existingSpaces = await db.space.findMany({
+      where: { id: { in: spaceIds } },
       select: {
+        id: true,
         number: true,
+        tenant: { select: { id: true, companyName: true, contractEnd: true } },
+        tenantSpaces: {
+          select: {
+            tenant: { select: { id: true, companyName: true, contractEnd: true } },
+          },
+        },
         floor: {
           select: {
             buildingId: true,
             building: { select: { name: true } },
           },
         },
-        tenant: { select: { companyName: true, contractEnd: true } },
       },
     })
-    if (buildingId && existing?.floor.buildingId !== buildingId) {
-      throw new Error(
-        `Помещение «Каб. ${existing?.number ?? "—"}» относится к зданию «${existing?.floor.building.name ?? "другое здание"}». ` +
-          "Переключитесь на это здание или выберите помещение из текущего здания.",
-      )
+
+    if (existingSpaces.length !== spaceIds.length) {
+      throw new Error("Некоторые помещения не найдены")
     }
-    if (existing?.floor.buildingId) await assertBuildingAccess(existing.floor.buildingId, orgId)
-    if (existing?.tenant) {
-      const until = existing.tenant.contractEnd
-        ? ` (договор до ${existing.tenant.contractEnd.toLocaleDateString("ru-RU")})`
-        : ""
-      throw new Error(
-        `Кабинет ${existing.number} уже занят арендатором «${existing.tenant.companyName}»${until}. Сначала выселите.`,
-      )
+
+    for (const existing of existingSpaces) {
+      if (buildingId && existing.floor.buildingId !== buildingId) {
+        throw new Error(
+          `Помещение «Каб. ${existing.number}» относится к зданию «${existing.floor.building.name}». ` +
+            "Переключитесь на это здание или выберите помещение из текущего здания.",
+        )
+      }
+      if (existing.floor.buildingId) await assertBuildingAccess(existing.floor.buildingId, orgId)
+      const occupiedBy = existing.tenant ?? existing.tenantSpaces[0]?.tenant ?? null
+      if (occupiedBy) {
+        const until = occupiedBy.contractEnd
+          ? ` (договор до ${occupiedBy.contractEnd.toLocaleDateString("ru-RU")})`
+          : ""
+        throw new Error(
+          `Кабинет ${existing.number} уже занят арендатором «${occupiedBy.companyName}»${until}. Сначала выселите.`,
+        )
+      }
     }
   }
 
@@ -142,19 +161,38 @@ export async function createTenant(formData: FormData) {
 
   let tenantId: string
   try {
-    const tenant = await db.tenant.create({
-      data: {
-        userId,
-        spaceId: spaceId || null,
-        companyName,
-        legalType,
-        bin: bin || null,
-        iin: iin || null,
-        category: category || null,
-        contractStart: contractStart ? new Date(contractStart) : null,
-        contractEnd: contractEnd ? new Date(contractEnd) : null,
-      },
-      select: { id: true },
+    const tenant = await db.$transaction(async (tx) => {
+      const created = await tx.tenant.create({
+        data: {
+          userId,
+          spaceId: spaceId || null,
+          companyName,
+          legalType,
+          bin: bin || null,
+          iin: iin || null,
+          category: category || null,
+          contractStart: contractStart ? new Date(contractStart) : null,
+          contractEnd: contractEnd ? new Date(contractEnd) : null,
+        },
+        select: { id: true },
+      })
+
+      if (spaceIds.length > 0) {
+        await tx.tenantSpace.createMany({
+          data: spaceIds.map((id, index) => ({
+            tenantId: created.id,
+            spaceId: id,
+            isPrimary: index === 0,
+          })),
+          skipDuplicates: true,
+        })
+        await tx.space.updateMany({
+          where: { id: { in: spaceIds } },
+          data: { status: "OCCUPIED" },
+        })
+      }
+
+      return created
     })
     tenantId = tenant.id
   } catch (e) {
@@ -164,13 +202,6 @@ export async function createTenant(formData: FormData) {
       throw new Error("Не применены миграции БД. Запустите prisma db push.")
     }
     throw new Error(`Не удалось создать арендатора: ${msg}`)
-  }
-
-  if (spaceId) {
-    await db.space.update({
-      where: { id: spaceId },
-      data: { status: "OCCUPIED" },
-    })
   }
 
   // ── Welcome-письмо арендатору (если есть email и флажок) ─────────

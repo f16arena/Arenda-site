@@ -7,6 +7,14 @@ type TenantRentInput = {
       ratePerSqm: number
     }
   } | null
+  tenantSpaces?: Array<{
+    space: {
+      area: number
+      floor: {
+        ratePerSqm: number
+      }
+    }
+  }> | null
   fullFloors?: Array<{
     fixedMonthlyRent: number | null
   }> | null
@@ -18,6 +26,12 @@ function positiveAmount(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null
 }
 
+function rentableSpaces(tenant: TenantRentInput) {
+  const spaces = tenant.tenantSpaces?.map((item) => item.space).filter(Boolean) ?? []
+  if (spaces.length > 0) return spaces
+  return tenant.space ? [tenant.space] : []
+}
+
 export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
   const tenantFixedRent = positiveAmount(tenant.fixedMonthlyRent)
   if (tenantFixedRent !== null) return tenantFixedRent
@@ -25,15 +39,20 @@ export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
   const fullFloorFixedRent = positiveAmount(tenant.fullFloors?.[0]?.fixedMonthlyRent)
   if (fullFloorFixedRent !== null) return fullFloorFixedRent
 
-  if (!tenant.space) return 0
+  const spaces = rentableSpaces(tenant)
+  if (spaces.length === 0) return 0
 
-  const rate = tenant.customRate ?? tenant.space.floor.ratePerSqm
-  return tenant.space.area * rate
+  const customRate = positiveAmount(tenant.customRate)
+  return spaces.reduce((sum, space) => {
+    const rate = customRate ?? space.floor.ratePerSqm
+    return sum + space.area * rate
+  }, 0)
 }
 
-export function calculateTenantRatePerSqm(tenant: Pick<TenantRentInput, "customRate" | "space">) {
-  if (!tenant.space) return null
-  return tenant.customRate ?? tenant.space.floor.ratePerSqm
+export function calculateTenantRatePerSqm(tenant: Pick<TenantRentInput, "customRate" | "space" | "tenantSpaces">) {
+  const spaces = rentableSpaces(tenant)
+  if (spaces.length === 0) return null
+  return tenant.customRate ?? spaces[0].floor.ratePerSqm
 }
 
 export function hasFixedTenantRent(value: number | null | undefined) {

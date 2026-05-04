@@ -21,6 +21,7 @@ export default async function TenantsPage() {
     ? {
         OR: [
           { space: { floor: { buildingId } } },
+          { tenantSpaces: { some: { space: { floor: { buildingId } } } } },
           { fullFloors: { some: { buildingId } } },
           { spaceId: null, user: { organizationId: orgId } },
         ],
@@ -28,6 +29,7 @@ export default async function TenantsPage() {
     : {
         OR: [
           { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+          { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
           { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
           { spaceId: null, user: { organizationId: orgId } },
         ],
@@ -48,9 +50,24 @@ export default async function TenantsPage() {
       user: { select: { id: true, name: true, phone: true, email: true } },
       space: {
         select: {
+          id: true,
           number: true,
           area: true,
           floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
+        },
+      },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: {
+          isPrimary: true,
+          space: {
+            select: {
+              id: true,
+              number: true,
+              area: true,
+              floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
+            },
+          },
         },
       },
       // Этажи, где этот арендатор сдан целиком — обратное отношение через Floor.fullFloorTenantId
@@ -72,6 +89,8 @@ export default async function TenantsPage() {
       AND: [
         spaceScope(orgId),
         { status: "VACANT", kind: "RENTABLE" },
+        { tenantSpaces: { none: {} } },
+        { tenant: null },
         { floor: { buildingId: { in: visibleBuildingIds } } },
       ],
     },
@@ -93,6 +112,7 @@ export default async function TenantsPage() {
     category: t.category,
     user: { name: t.user.name, phone: t.user.phone, email: t.user.email },
     space: t.space,
+    tenantSpaces: t.tenantSpaces,
     fullFloors: t.fullFloors.map((f) => ({
       id: f.id,
       name: f.name,

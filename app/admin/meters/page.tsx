@@ -56,6 +56,7 @@ export default async function MetersPage() {
             id: true, number: true,
             floor: { select: { id: true, name: true, number: true } },
             tenant: { select: { companyName: true } },
+            tenantSpaces: { select: { tenant: { select: { companyName: true } } }, take: 1 },
           },
         },
         readings: {
@@ -128,6 +129,7 @@ export default async function MetersPage() {
               const consumption = current ? (current.value - current.previous) : null
               const tariff = tariffByType.get(TARIFF_TYPE_BY_METER[meter.type] ?? "")
               const cost = consumption !== null && tariff ? Math.round(consumption * tariff.rate) : null
+              const tenantName = meter.space.tenantSpaces[0]?.tenant.companyName ?? meter.space.tenant?.companyName ?? null
 
               return (
                 <tr key={meter.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
@@ -144,7 +146,7 @@ export default async function MetersPage() {
                     <span className="text-slate-400 dark:text-slate-500 ml-1">· {meter.space.floor.name}</span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                    {meter.space.tenant?.companyName ?? <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
+                    {tenantName ?? <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
                   </td>
                   <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">
                     {prev ? prev.value.toLocaleString("ru-RU") : "—"}

@@ -42,6 +42,10 @@ export async function GET(req: Request) {
       include: {
         user: true,
         space: { include: { floor: true } },
+        tenantSpaces: {
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          include: { space: { include: { floor: true } } },
+        },
         fullFloors: true,
         charges: { where: { period }, orderBy: { createdAt: "asc" } },
         contracts: { orderBy: { createdAt: "desc" }, take: 1 },
@@ -62,8 +66,14 @@ export async function GET(req: Request) {
   const periodStart = new Date(py, pm - 1, 1)
   const periodEnd = new Date(py, pm, 0)
   const fullFloor = tenant.fullFloors?.[0]
+  const assignedSpaces = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant.space ? [tenant.space] : []
   const monthlyRent = calculateTenantMonthlyRent(tenant)
-  const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
+  const placement = fullFloor?.name
+    ?? (assignedSpaces.length > 0
+      ? assignedSpaces.map((space) => `Каб. ${space.number}, ${space.floor.name}`).join("; ")
+      : "по договору")
 
   const items: { name: string; amount: number }[] = []
   if (tenant.charges.length > 0) {

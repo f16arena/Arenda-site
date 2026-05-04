@@ -25,7 +25,13 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
     where: { id: meterId },
     include: {
       readings: { orderBy: { createdAt: "desc" }, take: 1 },
-      space: { include: { tenant: true, floor: { include: { building: true } } } },
+      space: {
+        include: {
+          tenant: true,
+          tenantSpaces: { include: { tenant: true } },
+          floor: { include: { building: true } },
+        },
+      },
     },
   })
   if (!meter) return { error: "Счётчик не найден" }
@@ -46,7 +52,9 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
     data: { meterId, period, value, previous },
   })
 
-  if (meter.space.tenant && consumption > 0) {
+  const tenant = meter.space.tenantSpaces[0]?.tenant ?? meter.space.tenant
+
+  if (tenant && consumption > 0) {
     const tariffType = TARIFF_TYPE_BY_METER[meter.type]
     const tariff = tariffType
       ? await db.tariff.findFirst({
@@ -62,12 +70,12 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
       const amount = Math.round(consumption * tariff.rate)
       const chargeType = CHARGE_TYPE_BY_METER[meter.type] ?? "OTHER"
       const existing = await db.charge.findFirst({
-        where: { tenantId: meter.space.tenant.id, period, type: chargeType },
+        where: { tenantId: tenant.id, period, type: chargeType },
       })
       if (!existing) {
         await db.charge.create({
           data: {
-            tenantId: meter.space.tenant.id,
+            tenantId: tenant.id,
             period,
             type: chargeType,
             amount,
@@ -113,7 +121,15 @@ export async function submitTenantMeterReading(formData: FormData) {
 
   // Счётчик должен быть в помещении, где арендатор — текущий пользователь
   const owns = await db.meter.findFirst({
-    where: { id: meterId, space: { tenant: { userId: session.user.id } } },
+    where: {
+      id: meterId,
+      space: {
+        OR: [
+          { tenant: { userId: session.user.id } },
+          { tenantSpaces: { some: { tenant: { userId: session.user.id } } } },
+        ],
+      },
+    },
     select: { id: true },
   })
   if (!owns) throw new Error("Счётчик не принадлежит вам")

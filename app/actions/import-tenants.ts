@@ -328,33 +328,39 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
       // Помещение
       const spaceId = d.spaceNumber ? spaceByNumber.get(d.spaceNumber.toLowerCase()) : undefined
 
-      await db.tenant.create({
-        data: {
-          userId,
-          spaceId: spaceId ?? null,
-          companyName: d.companyName,
-          bin: d.bin || null,
-          iin: d.iin || null,
-          legalType: d.legalType,
-          category: d.category || null,
-          legalAddress: d.legalAddress || null,
-          directorName: d.directorName || null,
-          customRate: isPositiveAmount(rentChoice.customRate) ? rentChoice.customRate : null,
-          fixedMonthlyRent: isPositiveAmount(rentChoice.fixedMonthlyRent) ? rentChoice.fixedMonthlyRent : null,
-          cleaningFee: d.cleaningFee ?? 0,
-          needsCleaning: (d.cleaningFee ?? 0) > 0,
-          contractStart: d.contractStart,
-          contractEnd: d.contractEnd,
-        },
-      })
-
-      // Если помещение нашли — пометим OCCUPIED
-      if (spaceId) {
-        await db.space.update({
-          where: { id: spaceId },
-          data: { status: "OCCUPIED" },
+      await db.$transaction(async (tx) => {
+        const tenant = await tx.tenant.create({
+          data: {
+            userId,
+            spaceId: spaceId ?? null,
+            companyName: d.companyName,
+            bin: d.bin || null,
+            iin: d.iin || null,
+            legalType: d.legalType,
+            category: d.category || null,
+            legalAddress: d.legalAddress || null,
+            directorName: d.directorName || null,
+            customRate: isPositiveAmount(rentChoice.customRate) ? rentChoice.customRate : null,
+            fixedMonthlyRent: isPositiveAmount(rentChoice.fixedMonthlyRent) ? rentChoice.fixedMonthlyRent : null,
+            cleaningFee: d.cleaningFee ?? 0,
+            needsCleaning: (d.cleaningFee ?? 0) > 0,
+            contractStart: d.contractStart,
+            contractEnd: d.contractEnd,
+          },
+          select: { id: true },
         })
-      }
+
+        // Если помещение нашли — создаём новую связь и помечаем OCCUPIED
+        if (spaceId) {
+          await tx.tenantSpace.create({
+            data: { tenantId: tenant.id, spaceId, isPrimary: true },
+          })
+          await tx.space.update({
+            where: { id: spaceId },
+            data: { status: "OCCUPIED" },
+          })
+        }
+      })
 
       result.created++
     } catch (e) {

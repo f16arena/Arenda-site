@@ -60,6 +60,10 @@ export async function GET(req: Request) {
     include: {
       user: true,
       space: { include: { floor: true } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        include: { space: { include: { floor: true } } },
+      },
       fullFloors: true,
     },
   })
@@ -68,7 +72,11 @@ export async function GET(req: Request) {
   const contractNumber = searchParams.get("number") || "01-XXX"
   const today = new Date()
   const fullFloor = tenant.fullFloors?.[0]
-  const tenantBuildingId = tenant.space?.floor.buildingId ?? fullFloor?.buildingId
+  const assignedSpaces = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant.space ? [tenant.space] : []
+  const primarySpace = assignedSpaces[0] ?? null
+  const tenantBuildingId = primarySpace?.floor.buildingId ?? fullFloor?.buildingId
   const building = tenantBuildingId
     ? await db.building.findFirst({
         where: { id: tenantBuildingId, isActive: true, organizationId: orgId },
@@ -81,8 +89,10 @@ export async function GET(req: Request) {
   const start = tenant.contractStart ?? today
   const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
   const placement = fullFloor?.name
-    ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "по договору")
-  const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
+    ?? (assignedSpaces.length > 0
+      ? assignedSpaces.map((space) => `${space.floor.name}, кабинет ${space.number}`).join("; ")
+      : "по договору")
+  const area = fullFloor?.totalArea ?? assignedSpaces.reduce((sum, space) => sum + space.area, 0)
   const objectAddress = building?.address ?? BUILDING_DEFAULT.address
   const tenantBasis = inferTenantBasis(tenant)
   const rentWords = numberToWords(monthlyRent)
@@ -137,8 +147,8 @@ export async function GET(req: Request) {
       tenant_bik: tenant.bik ?? "",
 
       placement,
-      space_number: tenant.space?.number ?? "",
-      floor_name: tenant.space?.floor.name ?? "",
+      space_number: assignedSpaces.map((space) => space.number).join(", "),
+      floor_name: [...new Set(assignedSpaces.map((space) => space.floor.name))].join(", "),
       area,
       area_num: area,
       area_str: `${formatArea(area)} м²`,

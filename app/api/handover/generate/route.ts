@@ -38,6 +38,10 @@ export async function GET(req: Request) {
     include: {
       user: true,
       space: { include: { floor: { include: { building: { select: { address: true } } } } } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        include: { space: { include: { floor: { include: { building: { select: { address: true } } } } } } },
+      },
       fullFloors: { include: { building: { select: { address: true } } } },
     },
   })
@@ -45,9 +49,16 @@ export async function GET(req: Request) {
 
   const today = new Date()
   const fullFloor = tenant.fullFloors?.[0]
-  const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
-  const buildingAddress = fullFloor?.building.address ?? tenant.space?.floor.building.address ?? BUILDING_DEFAULT.address
-  const placement = fullFloor?.name ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "")
+  const assignedSpaces = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant.space ? [tenant.space] : []
+  const primarySpace = assignedSpaces[0] ?? null
+  const area = fullFloor?.totalArea ?? assignedSpaces.reduce((sum, space) => sum + space.area, 0)
+  const buildingAddress = fullFloor?.building.address ?? primarySpace?.floor.building.address ?? BUILDING_DEFAULT.address
+  const placement = fullFloor?.name
+    ?? (assignedSpaces.length > 0
+      ? assignedSpaces.map((space) => `${space.floor.name}, кабинет ${space.number}`).join("; ")
+      : "")
 
   const actTitle = direction === "out"
     ? "Акт возврата нежилого помещения"

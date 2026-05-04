@@ -14,6 +14,10 @@ export default async function CabinetFinances() {
       charges: { orderBy: { createdAt: "desc" } },
       payments: { orderBy: { paymentDate: "desc" } },
       space: { include: { floor: true } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        include: { space: { include: { floor: true } } },
+      },
       fullFloors: true,
     },
   })
@@ -22,11 +26,17 @@ export default async function CabinetFinances() {
 
   const totalDebt = tenant.charges.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
   const fullFloor = tenant.fullFloors[0]
-  const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
+  const assignedSpaces = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant.space ? [tenant.space] : []
+  const area = fullFloor?.totalArea ?? assignedSpaces.reduce((sum, space) => sum + space.area, 0)
   const rate = calculateTenantRatePerSqm(tenant) ?? 0
   const monthlyRent = calculateTenantMonthlyRent(tenant)
   const currentPeriod = new Date().toISOString().slice(0, 7)
-  const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}` : "помещение по договору")
+  const placement = fullFloor?.name
+    ?? (assignedSpaces.length > 0
+      ? assignedSpaces.map((space) => `Каб. ${space.number}`).join(", ")
+      : "помещение по договору")
   const paymentPurpose = `Аренда ${placement}, ${tenant.companyName}, период ${currentPeriod}`
   const requisites = {
     recipient: LANDLORD.fullName,

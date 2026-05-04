@@ -91,6 +91,10 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
       id: true,
       companyName: true,
       space: { select: { number: true } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: { space: { select: { number: true } } },
+      },
       fullFloors: { select: { name: true }, take: 1 },
       charges: {
         where: { isPaid: false },
@@ -106,9 +110,11 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
     return { ok: false, error: "Для вашего помещения не назначен администратор. Напишите в поддержку здания." }
   }
 
-  const placement = tenant.space?.number
-    ? `Каб. ${tenant.space.number}`
-    : tenant.fullFloors[0]?.name ?? "помещение по договору"
+  const placement = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => `Каб. ${item.space.number}`).join(", ")
+    : tenant.space?.number
+      ? `Каб. ${tenant.space.number}`
+      : tenant.fullFloors[0]?.name ?? "помещение по договору"
   const formattedDate = paymentDate.toLocaleDateString("ru-RU")
   const methodLabel = PAYMENT_METHOD_LABELS[method] ?? method
   const body = [

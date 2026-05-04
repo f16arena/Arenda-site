@@ -20,16 +20,21 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, spaceId: true },
+    select: { id: true, spaceId: true, tenantSpaces: { select: { spaceId: true } } },
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
-  // Освобождаем старое помещение арендатора, если было
-  if (tenant.spaceId) {
-    await db.space.update({
-      where: { id: tenant.spaceId },
+  // Освобождаем старые помещения арендатора, если были
+  const oldSpaceIds = [...new Set([
+    tenant.spaceId,
+    ...tenant.tenantSpaces.map((item) => item.spaceId),
+  ].filter(Boolean) as string[])]
+  if (oldSpaceIds.length > 0) {
+    await db.space.updateMany({
+      where: { id: { in: oldSpaceIds } },
       data: { status: "VACANT" },
     })
+    await db.tenantSpace.deleteMany({ where: { tenantId } })
     await db.tenant.update({
       where: { id: tenantId },
       data: { spaceId: null },
@@ -78,6 +83,9 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
         where: { id: tenantId },
         data: { spaceId: space.id },
       })
+      await db.tenantSpace.create({
+        data: { tenantId, spaceId: space.id, isPrimary: true },
+      })
     }
   }
 
@@ -121,6 +129,7 @@ export async function unassignFullFloor(floorId: string) {
       })
       if (sp?.number === "all" && sp.floorId === floorId) {
         // Это авто-созданное «весь этаж» — просто удалим, чтобы вернуть этаж в чистое состояние
+        await db.tenantSpace.deleteMany({ where: { spaceId: tenant.spaceId } })
         await db.tenant.update({
           where: { id: tenantId },
           data: { spaceId: null },
@@ -132,12 +141,12 @@ export async function unassignFullFloor(floorId: string) {
 
   const spaces = await db.space.findMany({
     where: { floorId },
-    select: { id: true, tenant: { select: { id: true } } },
+    select: { id: true, tenant: { select: { id: true } }, tenantSpaces: { select: { id: true }, take: 1 } },
   })
 
   await db.space.updateMany({
     where: {
-      id: { in: spaces.filter((s) => !s.tenant).map((s) => s.id) },
+      id: { in: spaces.filter((s) => !s.tenant && s.tenantSpaces.length === 0).map((s) => s.id) },
     },
     data: { status: "VACANT" },
   })

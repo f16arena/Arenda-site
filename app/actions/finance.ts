@@ -158,6 +158,7 @@ export async function generateMonthlyCharges(period: string) {
         {
           OR: [
             { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+            { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
             { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
           ],
         },
@@ -165,6 +166,7 @@ export async function generateMonthlyCharges(period: string) {
     },
     include: {
       space: { include: { floor: true } },
+      tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
       charges: { where: { period, type: "RENT" } },
     },
@@ -177,7 +179,10 @@ export async function generateMonthlyCharges(period: string) {
     const rentAmount = calculateTenantMonthlyRent(tenant)
     if (rentAmount <= 0) continue
     const fullFloor = tenant.fullFloors[0]
-    const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}` : "по договору")
+    const placement = fullFloor?.name
+      ?? (tenant.tenantSpaces.length > 0
+        ? tenant.tenantSpaces.map((item) => `Каб. ${item.space.number}`).join(", ")
+        : tenant.space ? `Каб. ${tenant.space.number}` : "по договору")
 
     await db.charge.create({
       data: {

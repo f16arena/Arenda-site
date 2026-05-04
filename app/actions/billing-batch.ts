@@ -37,12 +37,14 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
       ...tenantScope(orgId),
       OR: [
         { spaceId: { not: null } },
+        { tenantSpaces: { some: {} } },
         { fullFloors: { some: {} } },
         { fixedMonthlyRent: { gt: 0 } },
       ],
     },
     include: {
       space: { include: { floor: true } },
+      tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
       charges: { where: { period, type: "RENT" }, select: { id: true } },
     },
@@ -73,7 +75,9 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
       if (monthlyRent <= 0) continue
 
       const placement = ff?.name
-        ?? (t.space ? `Каб. ${t.space.number}, ${t.space.floor.name}` : "по договору")
+        ?? (t.tenantSpaces.length > 0
+          ? t.tenantSpaces.map((item) => `Каб. ${item.space.number}, ${item.space.floor.name}`).join("; ")
+          : t.space ? `Каб. ${t.space.number}, ${t.space.floor.name}` : "по договору")
       const dueDate = new Date(year, month - 1, t.paymentDueDay)
 
       await db.charge.create({

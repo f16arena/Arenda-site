@@ -42,6 +42,19 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
               charges: { where: { isPaid: false }, select: { amount: true } },
             },
           },
+          tenantSpaces: {
+            select: {
+              tenant: {
+                select: {
+                  id: true,
+                  companyName: true,
+                  contractEnd: true,
+                  charges: { where: { isPaid: false }, select: { amount: true } },
+                },
+              },
+            },
+            take: 1,
+          },
         },
       },
     },
@@ -60,6 +73,7 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
         {
           OR: [
             { space: { floor: { buildingId: floor.buildingId } } },
+            { tenantSpaces: { some: { space: { floor: { buildingId: floor.buildingId } } } } },
             { fullFloors: { some: { buildingId: floor.buildingId } } },
             { spaceId: null, fullFloors: { none: {} }, user: { organizationId: orgId } },
           ],
@@ -75,6 +89,10 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
           floor: { select: { name: true } },
         },
       },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: { space: { select: { number: true, floor: { select: { name: true } } } } },
+      },
       fullFloors: { select: { id: true } },
     },
     orderBy: { companyName: "asc" },
@@ -84,8 +102,10 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
     .map((t) => ({
       id: t.id,
       companyName: t.companyName,
-      currentSpace: t.space
-        ? { number: t.space.number, floorName: t.space.floor.name }
+      currentSpace: t.tenantSpaces[0]?.space
+        ? { number: t.tenantSpaces[0].space.number, floorName: t.tenantSpaces[0].space.floor.name }
+        : t.space
+          ? { number: t.space.number, floorName: t.space.floor.name }
         : null,
     }))
 
@@ -252,7 +272,8 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
             </thead>
             <tbody>
               {floor.spaces.map((sp) => {
-                const debt = sp.tenant?.charges.reduce((s, c) => s + c.amount, 0) ?? 0
+                const tenant = sp.tenantSpaces[0]?.tenant ?? sp.tenant
+                const debt = tenant?.charges.reduce((s, c) => s + c.amount, 0) ?? 0
                 return (
                   <tr key={sp.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">Каб. {sp.number}</td>
@@ -270,8 +291,8 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                       </span>
                     </td>
                     <td className="px-5 py-2.5 text-slate-600 dark:text-slate-400">
-                      {sp.tenant ? (
-                        <Link href={`/admin/tenants/${sp.tenant.id}`} className="hover:underline">{sp.tenant.companyName}</Link>
+                      {tenant ? (
+                        <Link href={`/admin/tenants/${tenant.id}`} className="hover:underline">{tenant.companyName}</Link>
                       ) : sp.kind === "COMMON" ? (
                         <span className="text-slate-400 dark:text-slate-600 text-[11px]">не сдаётся</span>
                       ) : fullFloorTenant ? (

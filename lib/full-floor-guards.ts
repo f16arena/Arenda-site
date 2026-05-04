@@ -63,16 +63,28 @@ export async function assertFloorAssignableToOneTenant(floorId: string): Promise
   // Игнорируем COMMON помещения — они не могут быть «заняты» арендатором.
   // Проверяем только RENTABLE.
   const occupied = await db.space.findFirst({
-    where: { floorId, kind: "RENTABLE", tenant: { isNot: null } },
+    where: {
+      floorId,
+      kind: "RENTABLE",
+      OR: [
+        { tenant: { isNot: null } },
+        { tenantSpaces: { some: {} } },
+      ],
+    },
     select: {
       number: true,
       tenant: { select: { companyName: true, contractEnd: true } },
+      tenantSpaces: {
+        select: { tenant: { select: { companyName: true, contractEnd: true } } },
+        take: 1,
+      },
     },
   })
   if (occupied) {
-    const co = occupied.tenant?.companyName ?? "—"
-    const until = occupied.tenant?.contractEnd
-      ? ` (договор до ${occupied.tenant.contractEnd.toLocaleDateString("ru-RU")})`
+    const tenant = occupied.tenant ?? occupied.tenantSpaces[0]?.tenant ?? null
+    const co = tenant?.companyName ?? "—"
+    const until = tenant?.contractEnd
+      ? ` (договор до ${tenant.contractEnd.toLocaleDateString("ru-RU")})`
       : ""
     throw new FullFloorConflictError(
       `Нельзя сдать этаж целиком — кабинет ${occupied.number} уже занят «${co}»${until}. ` +

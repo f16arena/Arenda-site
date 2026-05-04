@@ -39,15 +39,17 @@ export function spaceScope(orgId: string | null) {
 }
 
 // Tenant может быть привязан тремя путями:
-//   1. К Space (обычное помещение)
-//   2. К Floor целиком (через fullFloors)
-//   3. Без привязки — только через user.organizationId (свежесозданный арендатор)
+//   1. К Space (legacy основное помещение)
+//   2. К нескольким Space через tenantSpaces
+//   3. К Floor целиком (через fullFloors)
+//   4. Без привязки — только через user.organizationId (свежесозданный арендатор)
 // Изоляция: любой из путей должен вести в нашу организацию.
 export function tenantScope(orgId: string | null) {
   if (!orgId) return NEVER
   return {
     OR: [
       { space: { floor: { building: { organizationId: orgId } } } },
+      { tenantSpaces: { some: { space: { floor: { building: { organizationId: orgId } } } } } },
       { fullFloors: { some: { building: { organizationId: orgId } } } },
       { user: { organizationId: orgId } },
     ],

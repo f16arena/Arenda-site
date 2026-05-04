@@ -11,7 +11,16 @@ type Space = { id: string; number: string; floorName: string; buildingName?: str
 
 export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space[]; buildingId?: string | null }) {
   const [open, setOpen] = useState(false)
+  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
+
+  function toggleSpace(spaceId: string) {
+    setSelectedSpaceIds((current) =>
+      current.includes(spaceId)
+        ? current.filter((id) => id !== spaceId)
+        : [...current, spaceId],
+    )
+  }
 
   return (
     <>
@@ -39,6 +48,7 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                   try {
                     await createTenant(formData)
                     toast.success("Арендатор создан")
+                    setSelectedSpaceIds([])
                     setOpen(false)
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Не удалось создать")
@@ -100,15 +110,46 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
 
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Помещение и договор</p>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Помещение</label>
-                <select name="spaceId" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
-                  <option value="">— Назначить позже —</option>
-                  {vacantSpaces.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.buildingName ? `${s.buildingName} · ` : ""}Каб. {s.number} · {s.floorName} · {s.area} м²
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+                  Помещения <span className="text-slate-400">(можно выбрать несколько)</span>
+                </label>
+                {selectedSpaceIds.map((id) => (
+                  <input key={id} type="hidden" name="spaceIds" value={id} />
+                ))}
+                <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  {vacantSpaces.length > 0 ? vacantSpaces.map((s) => {
+                    const checked = selectedSpaceIds.includes(s.id)
+                    return (
+                      <label
+                        key={s.id}
+                        className={[
+                          "flex cursor-pointer items-start gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 dark:border-slate-800",
+                          checked ? "bg-blue-50 dark:bg-blue-500/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                        ].join(" ")}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSpace(s.id)}
+                          className="mt-0.5 rounded border-slate-300"
+                        />
+                        <span>
+                          <span className="font-medium text-slate-800 dark:text-slate-100">
+                            {s.buildingName ? `${s.buildingName} · ` : ""}Каб. {s.number}
+                          </span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400">
+                            {s.floorName} · {s.area} м²
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  }) : (
+                    <p className="px-3 py-3 text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  Не выбрано — арендатор будет создан без помещения.
+                </p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -20,12 +20,14 @@ export async function GET(req: Request) {
     where: {
       OR: [
         { spaceId: { not: null } },
+        { tenantSpaces: { some: {} } },
         { fullFloors: { some: {} } },
         { fixedMonthlyRent: { gt: 0 } },
       ],
     },
     include: {
       space: { include: { floor: true } },
+      tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
       charges: { where: { period, type: "RENT" }, select: { id: true } },
     },
@@ -52,7 +54,10 @@ export async function GET(req: Request) {
 
       if (monthlyRent <= 0) continue
 
-      const placement = fullFloor?.name ?? (tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
+      const placement = fullFloor?.name
+        ?? (tenant.tenantSpaces.length > 0
+          ? tenant.tenantSpaces.map((item) => `Каб. ${item.space.number}, ${item.space.floor.name}`).join("; ")
+          : tenant.space ? `Каб. ${tenant.space.number}, ${tenant.space.floor.name}` : "по договору")
       const dueDate = new Date(now.getFullYear(), now.getMonth(), tenant.paymentDueDay)
 
       await db.charge.create({

@@ -496,6 +496,7 @@ export async function getTenantDeleteBlockers(tenantId: string) {
     documentsCount,
     requestsCount,
     fullFloorsCount,
+    tenantSpacesCount,
     spaceLink,
   ] = await Promise.all([
     db.charge.count({ where: { tenantId } }),
@@ -504,6 +505,7 @@ export async function getTenantDeleteBlockers(tenantId: string) {
     db.tenantDocument.count({ where: { tenantId } }),
     db.request.count({ where: { tenantId } }),
     db.floor.count({ where: { fullFloorTenantId: tenantId } }),
+    db.tenantSpace.count({ where: { tenantId } }),
     db.tenant.findUnique({ where: { id: tenantId }, select: { spaceId: true } }),
   ])
 
@@ -514,7 +516,7 @@ export async function getTenantDeleteBlockers(tenantId: string) {
     documents: documentsCount,
     requests: requestsCount,
     fullFloors: fullFloorsCount,
-    hasSpace: !!spaceLink?.spaceId,
+    hasSpace: !!spaceLink?.spaceId || tenantSpacesCount > 0,
   }
 }
 
@@ -527,7 +529,13 @@ export async function deleteTenant(
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, userId: true, spaceId: true, companyName: true },
+    select: {
+      id: true,
+      userId: true,
+      spaceId: true,
+      companyName: true,
+      tenantSpaces: { select: { spaceId: true } },
+    },
   })
   if (!tenant) throw new Error("Арендатор не найден")
 
@@ -551,11 +559,17 @@ export async function deleteTenant(
   }
 
   // Force-удаление: чистим все зависимости в транзакции
+  const spaceIdsToVacate = [...new Set([
+    tenant.spaceId,
+    ...tenant.tenantSpaces.map((item) => item.spaceId),
+  ].filter(Boolean) as string[])]
+
   await db.$transaction([
-    // Освобождаем помещение
-    ...(tenant.spaceId
-      ? [db.space.update({ where: { id: tenant.spaceId }, data: { status: "VACANT" } })]
+    // Освобождаем помещения
+    ...(spaceIdsToVacate.length > 0
+      ? [db.space.updateMany({ where: { id: { in: spaceIdsToVacate } }, data: { status: "VACANT" } })]
       : []),
+    db.tenantSpace.deleteMany({ where: { tenantId } }),
     // Снимаем full-floor привязки
     db.floor.updateMany({
       where: { fullFloorTenantId: tenantId },
@@ -586,7 +600,6 @@ export async function deleteTenant(
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
-  await assertTenantBuildingAccess(tenantId, orgId)
   if (spaceId) await assertSpaceInOrg(spaceId, orgId)
 
   const tenant = await db.tenant.findUnique({
@@ -595,6 +608,22 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
       id: true,
       spaceId: true,
       companyName: true,
+      tenantSpaces: {
+        select: {
+          spaceId: true,
+          isPrimary: true,
+          space: {
+            select: {
+              floor: {
+                select: {
+                  buildingId: true,
+                  building: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
       space: {
         select: {
           floor: {
@@ -632,10 +661,19 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
           },
         },
         tenant: { select: { companyName: true, id: true } },
+        tenantSpaces: {
+          select: {
+            tenant: { select: { companyName: true, id: true } },
+          },
+        },
       },
     })
     if (target?.floor.buildingId) await assertBuildingAccess(target.floor.buildingId, orgId)
-    const tenantBuilding = tenant.space?.floor ?? tenant.fullFloors[0] ?? null
+    const tenantBuilding =
+      tenant.tenantSpaces[0]?.space.floor ??
+      tenant.space?.floor ??
+      tenant.fullFloors[0] ??
+      null
     if (target && tenantBuilding && target.floor.buildingId !== tenantBuilding.buildingId) {
       throw new Error(
         `Арендатор «${tenant.companyName}» относится к зданию «${tenantBuilding.building.name}», ` +
@@ -643,27 +681,97 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
           "Переключитесь на нужное здание или выберите помещение в том же здании.",
       )
     }
-    if (target?.tenant && target.tenant.id !== tenantId) {
+    const occupiedBy = target?.tenantSpaces[0]?.tenant ?? target?.tenant ?? null
+    if (occupiedBy && occupiedBy.id !== tenantId) {
       throw new Error(
-        `Кабинет ${target.number} уже занят арендатором «${target.tenant.companyName}». Сначала выселите.`,
+        `Кабинет ${target?.number ?? "—"} уже занят арендатором «${occupiedBy.companyName}». Сначала выселите.`,
       )
     }
   }
 
-  // Атомарно: освобождаем старое помещение, занимаем новое, переключаем привязку.
+  // Атомарно: добавляем помещение к арендатору. Старые помещения не снимаем.
   // Если что-то упадёт — БД останется в консистентном состоянии.
-  await db.$transaction([
-    ...(tenant?.spaceId
-      ? [db.space.update({ where: { id: tenant.spaceId }, data: { status: "VACANT" } })]
-      : []),
-    ...(spaceId
-      ? [db.space.update({ where: { id: spaceId }, data: { status: "OCCUPIED" } })]
-      : []),
-    db.tenant.update({
-      where: { id: tenantId },
-      data: { spaceId: spaceId || null },
-    }),
-  ])
+  await db.$transaction(async (tx) => {
+    if (!spaceId) {
+      const assignedSpaceIds = tenant.tenantSpaces.map((item) => item.spaceId)
+      await tx.tenantSpace.deleteMany({ where: { tenantId } })
+      if (assignedSpaceIds.length > 0) {
+        await tx.space.updateMany({
+          where: { id: { in: assignedSpaceIds } },
+          data: { status: "VACANT" },
+        })
+      }
+      await tx.tenant.update({ where: { id: tenantId }, data: { spaceId: null } })
+      return
+    }
+
+    const hasPrimary = tenant.tenantSpaces.some((item) => item.isPrimary) || !!tenant.spaceId
+    await tx.tenantSpace.upsert({
+      where: { tenantId_spaceId: { tenantId, spaceId } },
+      update: {},
+      create: { tenantId, spaceId, isPrimary: !hasPrimary },
+    })
+    await tx.space.update({ where: { id: spaceId }, data: { status: "OCCUPIED" } })
+    if (!tenant.spaceId) {
+      await tx.tenant.update({ where: { id: tenantId }, data: { spaceId } })
+    }
+  })
+
+  revalidatePath(`/admin/tenants/${tenantId}`)
+  revalidatePath("/admin/tenants")
+  revalidatePath("/admin/spaces")
+  return { success: true }
+}
+
+export async function unassignTenantSpace(tenantId: string, spaceId: string) {
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
+  await assertSpaceInOrg(spaceId, orgId)
+
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      id: true,
+      spaceId: true,
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: { spaceId: true, isPrimary: true },
+      },
+    },
+  })
+  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant.tenantSpaces.some((item) => item.spaceId === spaceId)) {
+    throw new Error("Это помещение не привязано к арендатору")
+  }
+
+  const remaining = tenant.tenantSpaces.filter((item) => item.spaceId !== spaceId)
+  const nextPrimarySpaceId = remaining[0]?.spaceId ?? null
+
+  await db.$transaction(async (tx) => {
+    await tx.tenantSpace.delete({
+      where: { tenantId_spaceId: { tenantId, spaceId } },
+    })
+    await tx.space.update({ where: { id: spaceId }, data: { status: "VACANT" } })
+
+    if (nextPrimarySpaceId) {
+      await tx.tenantSpace.updateMany({
+        where: { tenantId },
+        data: { isPrimary: false },
+      })
+      await tx.tenantSpace.update({
+        where: { tenantId_spaceId: { tenantId, spaceId: nextPrimarySpaceId } },
+        data: { isPrimary: true },
+      })
+    }
+
+    if (tenant.spaceId === spaceId || !tenant.spaceId) {
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: { spaceId: nextPrimarySpaceId },
+      })
+    }
+  })
 
   revalidatePath(`/admin/tenants/${tenantId}`)
   revalidatePath("/admin/tenants")

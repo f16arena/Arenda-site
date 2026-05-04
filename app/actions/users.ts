@@ -139,10 +139,17 @@ export async function deleteUserAdmin(userId: string) {
     throw new Error("Нельзя удалить самого себя")
   }
 
-  const tenant = await db.tenant.findUnique({ where: { userId } })
+  const tenant = await db.tenant.findUnique({
+    where: { userId },
+    include: { tenantSpaces: { select: { spaceId: true } } },
+  })
   if (tenant) {
-    if (tenant.spaceId) {
-      await db.space.update({ where: { id: tenant.spaceId }, data: { status: "VACANT" } })
+    const spaceIds = [...new Set([
+      tenant.spaceId,
+      ...tenant.tenantSpaces.map((item) => item.spaceId),
+    ].filter(Boolean) as string[])]
+    if (spaceIds.length > 0) {
+      await db.space.updateMany({ where: { id: { in: spaceIds } }, data: { status: "VACANT" } })
     }
     await db.tenant.delete({ where: { id: tenant.id } })
   }

@@ -122,6 +122,7 @@ export async function assertTenantBuildingAccess(tenantId: string, orgId: string
     where: { id: tenantId, user: { organizationId: orgId } },
     select: {
       space: { select: { floor: { select: { buildingId: true } } } },
+      tenantSpaces: { select: { space: { select: { floor: { select: { buildingId: true } } } } } },
       fullFloors: { select: { buildingId: true } },
     },
   })
@@ -131,6 +132,7 @@ export async function assertTenantBuildingAccess(tenantId: string, orgId: string
 
   const tenantBuildingIds = [
     tenant.space?.floor.buildingId,
+    ...tenant.tenantSpaces.map((item) => item.space.floor.buildingId),
     ...tenant.fullFloors.map((floor) => floor.buildingId),
   ].filter(Boolean) as string[]
 

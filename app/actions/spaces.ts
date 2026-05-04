@@ -64,6 +64,7 @@ export async function updateSpace(id: string, formData: FormData) {
       status: true,
       kind: true,
       tenant: { select: { id: true, companyName: true } },
+      tenantSpaces: { select: { tenant: { select: { id: true, companyName: true } } } },
       floor: {
         select: {
           fullFloorTenantId: true,
@@ -92,10 +93,11 @@ export async function updateSpace(id: string, formData: FormData) {
 
   // Если хотят сделать помещение COMMON — нельзя если оно уже занято арендатором
   let finalKind = existing.kind
+  const occupiedTenant = existing.tenant ?? existing.tenantSpaces[0]?.tenant ?? null
   if (kindIn && kindIn !== existing.kind) {
-    if (kindIn === "COMMON" && existing.tenant) {
+    if (kindIn === "COMMON" && occupiedTenant) {
       throw new Error(
-        `Нельзя сделать помещение общей зоной — оно занято арендатором «${existing.tenant.companyName}». Сначала выселите.`,
+        `Нельзя сделать помещение общей зоной — оно занято арендатором «${occupiedTenant.companyName}». Сначала выселите.`,
       )
     }
     finalKind = kindIn
@@ -105,15 +107,18 @@ export async function updateSpace(id: string, formData: FormData) {
   // автоматически отвязываем его (пользователь уже принял такое решение,
   // меняя статус на «Свободно»).
   const willUnlinkTenant =
-    !!existing.tenant && (finalStatus === "VACANT" || finalStatus === "MAINTENANCE")
+    !!occupiedTenant && (finalStatus === "VACANT" || finalStatus === "MAINTENANCE")
 
   await db.$transaction([
     db.space.update({
       where: { id },
       data: { number, area, description: description || null, status: finalStatus, kind: finalKind },
     }),
-    ...(willUnlinkTenant && existing.tenant
-      ? [db.tenant.update({ where: { id: existing.tenant.id }, data: { spaceId: null } })]
+    ...(willUnlinkTenant
+      ? [
+          db.tenantSpace.deleteMany({ where: { spaceId: id } }),
+          db.tenant.updateMany({ where: { spaceId: id }, data: { spaceId: null } }),
+        ]
       : []),
   ])
 
@@ -126,8 +131,12 @@ export async function deleteSpace(id: string) {
   const { orgId } = await requireOrgAccess()
   await assertSpaceInOrg(id, orgId)
 
-  const space = await db.space.findUnique({ where: { id }, include: { tenant: true } })
-  if (space?.tenant) return { error: "Нельзя удалить — есть арендатор" }
+  const space = await db.space.findUnique({
+    where: { id },
+    include: { tenant: true, tenantSpaces: { include: { tenant: true } } },
+  })
+  const occupiedTenant = space?.tenant ?? space?.tenantSpaces[0]?.tenant ?? null
+  if (occupiedTenant) return { error: "Нельзя удалить — есть арендатор" }
 
   await db.space.delete({ where: { id } })
   revalidatePath("/admin/spaces")
@@ -161,16 +170,24 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
   if (floorIds.length === 0) return { success: true, count: 0 }
 
   const occupied = await db.space.findFirst({
-    where: { floorId: { in: floorIds }, tenant: { isNot: null } },
+    where: {
+      floorId: { in: floorIds },
+      OR: [
+        { tenant: { isNot: null } },
+        { tenantSpaces: { some: {} } },
+      ],
+    },
     select: {
       number: true,
       floor: { select: { name: true } },
       tenant: { select: { companyName: true } },
+      tenantSpaces: { select: { tenant: { select: { companyName: true } } }, take: 1 },
     },
   })
   if (occupied) {
+    const tenantName = occupied.tenant?.companyName ?? occupied.tenantSpaces[0]?.tenant.companyName ?? "—"
     throw new Error(
-      `Нельзя удалить — кабинет ${occupied.number} (${occupied.floor.name}) занят арендатором «${occupied.tenant?.companyName ?? "—"}». Сначала выселите.`,
+      `Нельзя удалить — кабинет ${occupied.number} (${occupied.floor.name}) занят арендатором «${tenantName}». Сначала выселите.`,
     )
   }
 

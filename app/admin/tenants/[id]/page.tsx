@@ -10,6 +10,7 @@ import {
   updateTenant,
   updateTenantUser,
   assignTenantSpace,
+  unassignTenantSpace,
 } from "@/app/actions/tenant"
 import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/utils"
 import {
@@ -84,6 +85,22 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           floor: { select: { id: true, name: true, ratePerSqm: true, buildingId: true } },
         },
       },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        select: {
+          isPrimary: true,
+          space: {
+            select: {
+              id: true,
+              number: true,
+              area: true,
+              status: true,
+              description: true,
+              floor: { select: { id: true, name: true, ratePerSqm: true, buildingId: true } },
+            },
+          },
+        },
+      },
       fullFloors: {
         select: {
           id: true,
@@ -129,7 +146,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const currentBuildingId = await getCurrentBuildingId().catch(() => null)
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
-  const tenantBuildingId = tenant.space?.floor.buildingId ?? tenant.fullFloors[0]?.buildingId ?? null
+  const tenantBuildingId =
+    tenant.tenantSpaces[0]?.space.floor.buildingId ??
+    tenant.space?.floor.buildingId ??
+    tenant.fullFloors[0]?.buildingId ??
+    null
   const buildingId = currentBuildingId ?? tenantBuildingId
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
@@ -156,6 +177,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     AND: [
       spaceScope(orgId),
       { status: "VACANT", kind: "RENTABLE" },
+      { tenantSpaces: { none: {} } },
+      { tenant: null },
       { floor: { buildingId: { in: visibleBuildingIds } } },
     ],
   }
@@ -238,6 +261,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     name: f.name,
     fixedMonthlyRent: f.fixedMonthlyRent,
   }))
+  const assignedSpaces = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant.space ? [tenant.space] : []
   const rentInput = { ...tenant, fullFloors: myFullFloors }
   const monthlyRent = calculateTenantMonthlyRent(rentInput)
   const ratePerSqm = calculateTenantRatePerSqm(tenant)
@@ -299,9 +325,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <QuickStat
             icon={Building2}
             label="Помещение"
-            value={tenant.space ? `Каб. ${tenant.space.number}` : myFullFloors[0] ? myFullFloors[0].name : "—"}
+            value={assignedSpaces.length > 1 ? `${assignedSpaces.length} помещ.` : assignedSpaces[0] ? `Каб. ${assignedSpaces[0].number}` : myFullFloors[0] ? myFullFloors[0].name : "—"}
             valueClass="text-slate-900 dark:text-slate-100"
-            sub={tenant.space ? `${tenant.space.area} м² · ${tenant.space.floor.name}` : myFullFloors.length > 0 ? "Целый этаж" : "Не назначено"}
+            sub={assignedSpaces.length > 0 ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? "Целый этаж" : "Не назначено"}
           />
           <QuickStat
             icon={CalendarIcon}
@@ -656,23 +682,53 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
           {/* Space */}
           <CollapsibleCard
-            title="Помещение"
+            title="Помещения"
             icon={Building2}
-            meta={tenant.space ? `Каб. ${tenant.space.number}` : myFullFloors.length > 0 ? "целый этаж" : "не назначено"}
+            meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? "целый этаж" : "не назначено"}
           >
             <div className="p-4">
-              {tenant.space ? (
-                <div>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">Каб. {tenant.space.number}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.space.floor.name}</p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-2">{tenant.space.area} м²</p>
+              {assignedSpaces.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    {assignedSpaces.map((space, index) => (
+                      <div key={space.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                              Каб. {space.number}
+                              {index === 0 && (
+                                <span className="ml-2 align-middle rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+                                  Основное
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{space.floor.name}</p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">{space.area} м²</p>
+                          </div>
+                          <form
+                            action={async () => {
+                              "use server"
+                              await unassignTenantSpace(tenant.id, space.id)
+                            }}
+                          >
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
+                            >
+                              Снять
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                   {hasTenantFixedRent ? (
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
                   ) : tenant.customRate ? (
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
                   ) : (
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      Ставка этажа: {formatMoney(tenant.space.floor.ratePerSqm)}/м²
+                      Расчёт по ставкам этажей
                     </p>
                   )}
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
@@ -688,36 +744,40 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               ) : (
                 <div>
                   <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">Свободные помещения:</p>
-                  <div className="space-y-2">
-                    {vacantSpaces.map((s) => (
-                      <form
-                        key={s.id}
-                        action={async () => {
-                          "use server"
-                          await assignTenantSpace(tenant.id, s.id)
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10 transition-colors"
-                        >
-                          <span className="font-medium">Каб. {s.number}</span>
-                          <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
-                        </button>
-                      </form>
-                    ))}
-                    {vacantSpaces.length === 0 && (
-                      <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
-                    )}
-                    {vacantSpacesCount > vacantSpaces.length && (
-                      <p className="text-xs text-slate-400 dark:text-slate-500">
-                        Показаны первые {vacantSpaces.length} из {vacantSpacesCount}. Для точного выбора откройте страницу помещений выбранного здания.
-                      </p>
-                    )}
-                  </div>
                 </div>
               )}
+              <div className={assignedSpaces.length > 0 ? "mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" : ""}>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">
+                  {assignedSpaces.length > 0 ? "Добавить ещё помещение:" : "Свободные помещения:"}
+                </p>
+                <div className="space-y-2">
+                  {vacantSpaces.map((s) => (
+                    <form
+                      key={s.id}
+                      action={async () => {
+                        "use server"
+                        await assignTenantSpace(tenant.id, s.id)
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10 transition-colors"
+                      >
+                        <span className="font-medium">Каб. {s.number}</span>
+                        <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
+                      </button>
+                    </form>
+                  ))}
+                  {vacantSpaces.length === 0 && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
+                  )}
+                  {vacantSpacesCount > vacantSpaces.length && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Показаны первые {vacantSpaces.length} из {vacantSpacesCount}. Для точного выбора откройте страницу помещений выбранного здания.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </CollapsibleCard>
 

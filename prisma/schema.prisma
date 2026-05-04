@@ -331,6 +331,7 @@ model Space {
 
   floor  Floor   @relation(fields: [floorId], references: [id])
   tenant Tenant?
+  tenantSpaces TenantSpace[]
   meters Meter[]
 
   @@map("spaces")
@@ -370,6 +371,7 @@ model Tenant {
 
   user        User             @relation(fields: [userId], references: [id])
   space       Space?           @relation(fields: [spaceId], references: [id])
+  tenantSpaces TenantSpace[]
   charges     Charge[]
   payments    Payment[]
   paymentReports PaymentReport[]
@@ -379,6 +381,22 @@ model Tenant {
   fullFloors  Floor[]          @relation("FullFloorTenant")
 
   @@map("tenants")
+}
+
+model TenantSpace {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  spaceId   String   @map("space_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  space  Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, spaceId])
+  @@unique([spaceId])
+  @@index([tenantId])
+  @@map("tenant_spaces")
 }
 
 model Staff {

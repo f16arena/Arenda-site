@@ -18,6 +18,10 @@ export default async function CabinetDashboard() {
     where: { userId: session!.user.id },
     include: {
       space: { include: { floor: true } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        include: { space: { include: { floor: true } } },
+      },
       charges: {
         where: { isPaid: false },
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
@@ -99,12 +103,16 @@ export default async function CabinetDashboard() {
     : null
 
   const overdueTotal = overdueAgg._sum.amount ?? 0
+  const assignedSpaces = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant.space ? [tenant.space] : []
+  const primarySpace = assignedSpaces[0] ?? null
 
   // Здание показываем только из организации арендатора
   const [building, recentDocs, unreadMessages, recentMessages] = await Promise.all([
     db.building.findFirst({
       where: {
-        ...(tenant.space?.floor.buildingId ? { id: tenant.space.floor.buildingId } : {}),
+        ...(primarySpace?.floor.buildingId ? { id: primarySpace.floor.buildingId } : {}),
         isActive: true,
         organizationId: session!.user.organizationId ?? "__none__",
       },
@@ -212,14 +220,14 @@ export default async function CabinetDashboard() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <InfoCard
           icon={Building2}
-          label="Помещение"
-          value={tenant.space ? `Каб. ${tenant.space.number}` : "—"}
-          sub={tenant.space ? `${tenant.space.area} м²` : "Не назначено"}
+          label="Помещения"
+          value={assignedSpaces.length > 1 ? `${assignedSpaces.length} помещ.` : primarySpace ? `Каб. ${primarySpace.number}` : "—"}
+          sub={assignedSpaces.length > 0 ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : "Не назначено"}
         />
         <InfoCard
           icon={Building2}
           label="Этаж"
-          value={tenant.space?.floor.name ?? "—"}
+          value={primarySpace?.floor.name ?? "—"}
           sub={building?.name}
         />
         <InfoCard

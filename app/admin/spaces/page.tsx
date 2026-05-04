@@ -233,7 +233,42 @@ export default async function SpacesPage() {
                   customRate: true,
                   fixedMonthlyRent: true,
                   fullFloors: { select: { fixedMonthlyRent: true } },
+                  tenantSpaces: {
+                    select: {
+                      space: {
+                        select: {
+                          area: true,
+                          floor: { select: { ratePerSqm: true } },
+                        },
+                      },
+                    },
+                  },
                   charges: { where: { isPaid: false }, select: { amount: true } },
+                },
+              },
+              tenantSpaces: {
+                select: {
+                  tenant: {
+                    select: {
+                      id: true,
+                      companyName: true,
+                      contractEnd: true,
+                      customRate: true,
+                      fixedMonthlyRent: true,
+                      fullFloors: { select: { fixedMonthlyRent: true } },
+                      tenantSpaces: {
+                        select: {
+                          space: {
+                            select: {
+                              area: true,
+                              floor: { select: { ratePerSqm: true } },
+                            },
+                          },
+                        },
+                      },
+                      charges: { where: { isPaid: false }, select: { amount: true } },
+                    },
+                  },
                 },
               },
             },
@@ -410,19 +445,22 @@ export default async function SpacesPage() {
         }
 
         // Готовим данные о помещениях для FloorView
-        const spaceInfos: SpaceInfo[] = floor.spaces.map((s) => ({
-          id: s.id,
-          number: s.number,
-          area: s.area,
-          status: s.status,
-          description: s.description,
-          tenant: s.tenant ? {
-            id: s.tenant.id,
-            companyName: s.tenant.companyName,
-            contractEnd: s.tenant.contractEnd,
-            debt: s.tenant.charges.reduce((sum, c) => sum + c.amount, 0),
-          } : null,
-        }))
+        const spaceInfos: SpaceInfo[] = floor.spaces.map((s) => {
+          const tenant = s.tenantSpaces[0]?.tenant ?? s.tenant
+          return {
+            id: s.id,
+            number: s.number,
+            area: s.area,
+            status: s.status,
+            description: s.description,
+            tenant: tenant ? {
+              id: tenant.id,
+              companyName: tenant.companyName,
+              contractEnd: tenant.contractEnd,
+              debt: tenant.charges.reduce((sum, c) => sum + c.amount, 0),
+            } : null,
+          }
+        })
 
         const fullFloorTenant = floor.fullFloorTenant
         return (
@@ -515,11 +553,13 @@ export default async function SpacesPage() {
                     </thead>
                     <tbody>
                       {floor.spaces.map((space) => {
-                        const rentAmount = space.tenant
+                        const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
+                        const rentAmount = tenant
                           ? calculateTenantMonthlyRent({
-                              customRate: space.tenant.customRate,
-                              fixedMonthlyRent: space.tenant.fixedMonthlyRent,
-                              fullFloors: space.tenant.fullFloors,
+                              customRate: tenant.customRate,
+                              fixedMonthlyRent: tenant.fixedMonthlyRent,
+                              fullFloors: tenant.fullFloors,
+                              tenantSpaces: tenant.tenantSpaces,
                               space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
                             })
                           : space.area * floor.ratePerSqm
@@ -529,12 +569,12 @@ export default async function SpacesPage() {
                             <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{space.area} м²</td>
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                              {space.tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
+                              {tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
                             </td>
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                              {space.tenant ? (
-                                <Link href={`/admin/tenants/${space.tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                  {space.tenant.companyName}
+                              {tenant ? (
+                                <Link href={`/admin/tenants/${tenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                  {tenant.companyName}
                                 </Link>
                               ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
                             </td>
@@ -550,7 +590,7 @@ export default async function SpacesPage() {
                                   space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description }}
                                   floors={floorOptions}
                                 />
-                                <DeleteSpaceButton spaceId={space.id} hasTenant={!!space.tenant} />
+                                <DeleteSpaceButton spaceId={space.id} hasTenant={!!tenant} />
                               </div>
                             </td>
                           </tr>

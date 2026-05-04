@@ -21,10 +21,26 @@ export default async function CabinetMetersPage() {
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session.user.id },
-    include: { space: { include: { meters: { include: { readings: { orderBy: { createdAt: "desc" }, take: 2 } } } } } },
+    include: {
+      space: { include: { meters: { include: { readings: { orderBy: { createdAt: "desc" }, take: 2 } } } } },
+      tenantSpaces: {
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+        include: {
+          space: {
+            include: {
+              meters: { include: { readings: { orderBy: { createdAt: "desc" }, take: 2 } } },
+            },
+          },
+        },
+      },
+    },
   })
 
-  if (!tenant?.space) {
+  const assignedSpaces = tenant?.tenantSpaces.length
+    ? tenant.tenantSpaces.map((item) => item.space)
+    : tenant?.space ? [tenant.space] : []
+
+  if (!tenant || assignedSpaces.length === 0) {
     return (
       <div className="text-center py-16">
         <Gauge className="h-10 w-10 text-slate-200 mx-auto mb-3" />
@@ -34,13 +50,17 @@ export default async function CabinetMetersPage() {
   }
 
   const currentPeriod = new Date().toISOString().slice(0, 7)
-  const meters = tenant.space.meters
+  const meters = assignedSpaces.flatMap((space) =>
+    space.meters.map((meter) => ({ ...meter, spaceNumber: space.number })),
+  )
 
   return (
     <div className="space-y-5 max-w-xl">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счётчики</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Кабинет {tenant.space.number} · {currentPeriod}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          {assignedSpaces.length > 1 ? `${assignedSpaces.length} помещений` : `Кабинет ${assignedSpaces[0].number}`} · {currentPeriod}
+        </p>
       </div>
 
       {meters.length === 0 && (
@@ -61,6 +81,7 @@ export default async function CabinetMetersPage() {
                 {typeLabel[meter.type] ?? meter.type}
               </span>
               <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">#{meter.number}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">Каб. {meter.spaceNumber}</span>
               {hasCurrent && (
                 <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Показания внесены</span>
               )}
