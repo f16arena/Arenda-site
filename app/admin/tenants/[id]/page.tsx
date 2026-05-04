@@ -1,10 +1,11 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
+import { Suspense } from "react"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { getCurrentBuildingId } from "@/lib/current-building"
-import { floorScope, spaceScope } from "@/lib/tenant-scope"
+import { spaceScope } from "@/lib/tenant-scope"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import {
   updateTenant,
@@ -24,21 +25,21 @@ import { IndexationHint } from "./indexation-hint"
 import { ContractWorkflowActions } from "./contract-actions"
 import {
   DocumentsActionsLoader,
-  DocumentsChecklistLoader,
-  EmailLogLoader,
-  FullFloorAssignLoader,
   RentalTermsFormLoader,
   RequisitesFormLoader,
-  ServiceChargesFormLoader,
 } from "./client-section-loaders"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
-import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import type { Prisma } from "@/app/generated/prisma/client"
+import { TenantDocumentsSection } from "./tenant-documents-section"
+import { TenantEmailLogSection } from "./tenant-email-log-section"
+import { TenantFullFloorSection } from "./tenant-full-floor-section"
+import { TenantHistorySection } from "./tenant-history-section"
+import { TenantServiceChargesSection } from "./tenant-service-charges-section"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -148,10 +149,6 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         take: 5,
         select: { id: true, title: true, status: true, priority: true, createdAt: true },
       },
-      documents: {
-        orderBy: { createdAt: "desc" },
-        select: { id: true, type: true, name: true, fileUrl: true, storageFileId: true, createdAt: true },
-      },
     },
   })
 
@@ -192,78 +189,18 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     ],
   }
 
-  const vacantSpaces = await db.space.findMany({
-    where: vacantSpacesWhere,
-    select: {
-      id: true, number: true, area: true,
-      floor: { select: { id: true, name: true, number: true } },
-    },
-    orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
-    take: 50,
-  })
-  const vacantSpacesCount = await db.space.count({ where: vacantSpacesWhere }).catch(() => vacantSpaces.length)
-
-  // Email лог (может упасть если миграция 008 не применена)
-  const emailLogs = await db.emailLog.findMany({
-    where: { tenantId: tenant.id },
-    orderBy: { sentAt: "desc" },
-    take: 30,
-    select: {
-      id: true, recipient: true, subject: true, type: true, status: true,
-      externalId: true, error: true, openedAt: true, openCount: true, sentAt: true,
-    },
-  }).catch(() => [] as Array<{
-    id: string; recipient: string; subject: string; type: string; status: string;
-    externalId: string | null; error: string | null; openedAt: Date | null; openCount: number; sentAt: Date
-  }>)
-
-  const currentServiceCharges = await db.charge.findMany({
-    where: {
-      tenantId: tenant.id,
-      period: currentPeriod,
-      type: { in: [...SERVICE_CHARGE_TYPE_VALUES] },
-    },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, type: true, amount: true, description: true },
-  })
-
-  const allFloors = await db.floor.findMany({
-    where: {
-      AND: [
-        floorScope(orgId),
-        { buildingId: { in: visibleBuildingIds } },
-      ],
-    },
-    select: { id: true, name: true, totalArea: true, ratePerSqm: true, fullFloorTenantId: true, fixedMonthlyRent: true },
-    orderBy: { number: "asc" },
-  }).catch(() => [] as Array<{ id: string; name: string; totalArea: number | null; ratePerSqm: number; fullFloorTenantId: string | null; fixedMonthlyRent: number | null }>)
-
-  // История изменений по этому tenant.
-  // details — это String (JSON), Prisma не позволяет path-запросы.
-  // Поэтому фильтруем по entity=tenant с конкретным id + любые действия
-  // самого пользователя (tenant.userId).
-  // Связанные charge/payment/contract можно подтянуть через contains в details.
-  const auditLogs = await db.auditLog.findMany({
-    where: {
-      OR: [
-        { entity: "tenant", entityId: tenant.id },
-        { userId: tenant.userId },
-        // Прочие связанные сущности с tenantId в details (как substring)
-        {
-          AND: [
-            { entity: { in: ["charge", "payment", "contract", "request"] } },
-            { details: { contains: tenant.id } },
-          ],
-        },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: {
-      id: true, action: true, entity: true, entityId: true,
-      userName: true, userRole: true, details: true, createdAt: true,
-    },
-  }).catch(() => [])
+  const [vacantSpaces, vacantSpacesCount] = await Promise.all([
+    db.space.findMany({
+      where: vacantSpacesWhere,
+      select: {
+        id: true, number: true, area: true,
+        floor: { select: { id: true, name: true, number: true } },
+      },
+      orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
+      take: 50,
+    }),
+    db.space.count({ where: vacantSpacesWhere }).catch(() => 0),
+  ])
 
   const myFullFloors = tenant.fullFloors.map((f) => ({
     id: f.id,
@@ -608,14 +545,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <CollapsibleCard
             title="Дополнительные начисления"
             icon={Zap}
-            meta={`${currentServiceCharges.length} за ${currentPeriod}`}
+            meta={`за ${currentPeriod}`}
           >
-            <ServiceChargesFormLoader
-              tenantId={tenant.id}
-              period={currentPeriod}
-              defaultDueDate={defaultServiceDueDate}
-              existingCharges={currentServiceCharges}
-            />
+            <Suspense fallback={<SectionFallback />}>
+              <TenantServiceChargesSection
+                tenantId={tenant.id}
+                period={currentPeriod}
+                defaultDueDate={defaultServiceDueDate}
+              />
+            </Suspense>
           </CollapsibleCard>
 
           {/* Documents actions: invoice, act, contract, handover */}
@@ -625,75 +563,32 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           />
 
           {/* Email log */}
-          <EmailLogLoader items={emailLogs} />
+          <Suspense fallback={<SectionFallback />}>
+            <TenantEmailLogSection tenantId={tenant.id} />
+          </Suspense>
 
           {/* Documents checklist */}
-          <DocumentsChecklistLoader
-            tenantId={tenant.id}
-            legalType={tenant.legalType}
-            documents={tenant.documents}
-          />
+          <Suspense fallback={<SectionFallback />}>
+            <TenantDocumentsSection tenantId={tenant.id} legalType={tenant.legalType} />
+          </Suspense>
 
           {/* История изменений */}
-          {auditLogs.length > 0 && (
-            <CollapsibleCard
-              title="История изменений"
-              icon={ClipboardList}
-              meta={`${auditLogs.length} событий`}
-            >
-              <ul className="divide-y divide-slate-50 dark:divide-slate-800 max-h-96 overflow-y-auto">
-                {auditLogs.map((log) => {
-                  const actionLabels: Record<string, string> = {
-                    CREATE: "Создание",
-                    UPDATE: "Изменение",
-                    DELETE: "Удаление",
-                    LOGIN: "Вход",
-                    LOGOUT: "Выход",
-                  }
-                  const entityLabels: Record<string, string> = {
-                    tenant: "арендатор",
-                    charge: "начисление",
-                    payment: "платёж",
-                    contract: "договор",
-                    request: "заявка",
-                    user: "пользователь",
-                  }
-                  return (
-                    <li key={log.id} className="px-5 py-3 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-700 dark:text-slate-300">
-                          <b>{actionLabels[log.action] ?? log.action}</b>
-                          {" "}
-                          {entityLabels[log.entity] ?? log.entity}
-                        </span>
-                        <span className="text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                          {new Date(log.createdAt).toLocaleString("ru-RU", {
-                            day: "2-digit", month: "2-digit", year: "2-digit",
-                            hour: "2-digit", minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                      {log.userName && (
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                          {log.userName} · {log.userRole}
-                        </p>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </CollapsibleCard>
-          )}
+          <Suspense fallback={<SectionFallback />}>
+            <TenantHistorySection tenantId={tenant.id} userId={tenant.userId} />
+          </Suspense>
         </div>
 
         {/* Right column: info cards */}
         <div className="space-y-5">
           {/* Full floor assign */}
-          <FullFloorAssignLoader
-            tenantId={tenant.id}
-            floors={allFloors}
-            currentFloors={myFullFloors}
-          />
+          <Suspense fallback={<SectionFallback />}>
+            <TenantFullFloorSection
+              tenantId={tenant.id}
+              orgId={orgId}
+              visibleBuildingIds={visibleBuildingIds}
+              currentFloors={myFullFloors}
+            />
+          </Suspense>
 
           {/* Space */}
           <CollapsibleCard
@@ -881,6 +776,18 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             </div>
           </CollapsibleCard>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function SectionFallback() {
+  return (
+    <div className="p-5">
+      <div className="h-4 w-36 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+      <div className="mt-4 space-y-2">
+        <div className="h-9 animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
+        <div className="h-9 animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
       </div>
     </div>
   )
