@@ -40,8 +40,10 @@ import { TenantEmailLogSection } from "./tenant-email-log-section"
 import { TenantFullFloorSection } from "./tenant-full-floor-section"
 import { TenantHistorySection } from "./tenant-history-section"
 import { TenantServiceChargesSection } from "./tenant-service-charges-section"
+import { measureServerRoute } from "@/lib/server-performance"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return measureServerRoute("/admin/tenants/[id]", async () => {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
@@ -779,6 +781,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       </div>
     </div>
   )
+  })
 }
 
 function SectionFallback() {

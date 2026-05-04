@@ -19,8 +19,10 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { switchBuilding } from "@/app/actions/buildings"
 import { tenantScope } from "@/lib/tenant-scope"
+import { measureServerRoute } from "@/lib/server-performance"
 
 export default async function SpacesPage() {
+  return measureServerRoute("/admin/spaces", async () => {
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
@@ -709,4 +711,5 @@ export default async function SpacesPage() {
       })}
     </div>
   )
+  })
 }

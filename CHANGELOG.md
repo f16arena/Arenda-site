@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.57 - 2026-05-04
+
+- Добавлен `Server-Timing` в `proxy.ts`: ответы теперь получают метрику `proxy;dur=...` и диагностический заголовок `x-commrent-proxy-ms`.
+- Добавлен helper `measureServerRoute` для server-route performance logs: медленные server renders пишутся в лог как `[route-performance]` с route, durationMs и status.
+- Подключено измерение для ключевых тяжёлых страниц: `/admin`, `/admin/spaces`, `/admin/tenants/[id]`.
+- Порог медленного route можно настроить через `ROUTE_PERF_SLOW_MS`; для полного логирования есть `ROUTE_PERF_LOG_ALL=1`.
+- Добавлена rollback-точка `rollback/pre-server-timing-1.3.57`.
+
 ## 1.3.56 - 2026-05-04
 
 - Добавлена серверная пагинация для `/superadmin/orgs`: список организаций больше не грузит всех клиентов в клиентский компонент, а показывает страницы по 30 записей.

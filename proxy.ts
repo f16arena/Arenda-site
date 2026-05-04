@@ -47,6 +47,7 @@ function isPublicRootPath(path: string): boolean {
 const ENFORCE_SUBDOMAIN = process.env.ENFORCE_SUBDOMAIN === "true"
 
 export default auth((req) => {
+  const startedAt = performance.now()
   const { nextUrl } = req
   const session = req.auth
   const isLoggedIn = !!session
@@ -55,6 +56,14 @@ export default auth((req) => {
 
   const path = nextUrl.pathname
   const host = parseHost(req.headers.get("host"))
+  const withTiming = (response: NextResponse) => {
+    const durationMs = Math.max(0, Math.round(performance.now() - startedAt))
+    const current = response.headers.get("Server-Timing")
+    const metric = `proxy;dur=${durationMs};desc="Commrent proxy"`
+    response.headers.set("Server-Timing", current ? `${current}, ${metric}` : metric)
+    response.headers.set("x-commrent-proxy-ms", String(durationMs))
+    return response
+  }
 
   const isAdminRoute = path.startsWith("/admin")
   const isCabinetRoute = path.startsWith("/cabinet")
@@ -63,12 +72,12 @@ export default auth((req) => {
 
   // ─── Reserved subdomain — 404 ───────────────────────────────────
   if (host.kind === "reserved") {
-    return new NextResponse("Not Found", { status: 404 })
+    return withTiming(new NextResponse("Not Found", { status: 404 }))
   }
 
   // ─── Invalid subdomain ─────────────────────────────────────────
   if (host.kind === "invalid") {
-    return NextResponse.redirect(new URL("/", `https://${process.env.ROOT_HOST || "commrent.kz"}`))
+    return withTiming(NextResponse.redirect(new URL("/", `https://${process.env.ROOT_HOST || "commrent.kz"}`)))
   }
 
   // ─── Slug-поддомен: только рабочая зона ─────────────────────────
@@ -85,18 +94,18 @@ export default auth((req) => {
       // Корень или любой публичный путь на slug → редирект
       if (path === "/") {
         if (isLoggedIn && !isPlatformOwner) {
-          return NextResponse.redirect(new URL(role === "TENANT" ? "/cabinet" : "/admin", req.url))
+          return withTiming(NextResponse.redirect(new URL(role === "TENANT" ? "/cabinet" : "/admin", req.url)))
         }
-        return NextResponse.redirect(`https://${rootHost}/login`)
+        return withTiming(NextResponse.redirect(`https://${rootHost}/login`))
       }
       if (path === "/login") {
         // /login доступен только на корне
-        return NextResponse.redirect(`https://${rootHost}/login`)
+        return withTiming(NextResponse.redirect(`https://${rootHost}/login`))
       }
       // Юр. документы, /verify-email и любые другие — на корень.
       // ВАЖНО: сохраняем query-параметры (например ?token=xxx для verify-email).
       const query = nextUrl.search // включает "?" если есть параметры
-      return NextResponse.redirect(`https://${rootHost}${path}${query}`)
+      return withTiming(NextResponse.redirect(`https://${rootHost}${path}${query}`))
     }
   }
 
@@ -107,7 +116,7 @@ export default auth((req) => {
   // разрулит куда дальше: на slug.commrent.kz или /superadmin.)
   if (ENFORCE_SUBDOMAIN && (host.kind === "root" || host.kind === "external")) {
     if ((isAdminRoute || isCabinetRoute) && !isPlatformOwner) {
-      return NextResponse.redirect(new URL("/login", req.url))
+      return withTiming(NextResponse.redirect(new URL("/login", req.url)))
     }
 
     // Только публичные пути и /superadmin (для платформ-админа).
@@ -117,7 +126,7 @@ export default auth((req) => {
         || isCabinetRoute // (то же)
         || isSuperadminRoute
       if (!allowed) {
-        return NextResponse.redirect(new URL("/", req.url))
+        return withTiming(NextResponse.redirect(new URL("/", req.url)))
       }
     }
   }
@@ -129,28 +138,28 @@ export default auth((req) => {
     const res = NextResponse.redirect(new URL("/superadmin", req.url))
     res.cookies.delete("impersonating")
     res.cookies.delete("superadmin_currentOrgId")
-    return res
+    return withTiming(res)
   }
 
   // ─── Защита приватных маршрутов ─────────────────────────────────
   if (!isLoggedIn && (isAdminRoute || isCabinetRoute || isSuperadminRoute)) {
-    return NextResponse.redirect(new URL("/login", req.url))
+    return withTiming(NextResponse.redirect(new URL("/login", req.url)))
   }
 
   if (isSuperadminRoute && !isPlatformOwner) {
-    return NextResponse.redirect(new URL("/admin", req.url))
+    return withTiming(NextResponse.redirect(new URL("/admin", req.url)))
   }
 
   if (isLoggedIn && isCabinetRoute && isPlatformOwner) {
-    return NextResponse.redirect(new URL("/superadmin", req.url))
+    return withTiming(NextResponse.redirect(new URL("/superadmin", req.url)))
   }
 
   if (isLoggedIn && isAdminRoute && role === "TENANT" && !isPlatformOwner) {
-    return NextResponse.redirect(new URL("/cabinet", req.url))
+    return withTiming(NextResponse.redirect(new URL("/cabinet", req.url)))
   }
 
   if (isLoggedIn && isCabinetRoute && role !== "TENANT") {
-    return NextResponse.redirect(new URL("/admin", req.url))
+    return withTiming(NextResponse.redirect(new URL("/admin", req.url)))
   }
 
   // ─── Проброс информации о host в заголовки ──────────────────────
@@ -162,7 +171,7 @@ export default auth((req) => {
     requestHeaders.set("x-org-slug", host.slug)
   }
 
-  return NextResponse.next({ request: { headers: requestHeaders } })
+  return withTiming(NextResponse.next({ request: { headers: requestHeaders } }))
 })
 
 export const config = {

@@ -17,8 +17,10 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
 import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
+import { measureServerRoute } from "@/lib/server-performance"
 
 export default async function AdminDashboard() {
+  return measureServerRoute("/admin", async () => {
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
@@ -672,6 +674,7 @@ export default async function AdminDashboard() {
       </div>
     </div>
   )
+  })
 }
 
 function AttentionRow({
