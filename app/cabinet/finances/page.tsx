@@ -43,16 +43,21 @@ export default async function CabinetFinances() {
   const requisites = {
     recipient: landlord.fullName,
     iin: landlord.taxId,
-    bank: landlord.bank,
-    bik: landlord.bik,
-    account: landlord.iik,
+    accounts: landlord.bankAccounts.map((account) => ({
+      label: account.label,
+      bank: account.bank,
+      bik: account.bik,
+      account: account.iik,
+      isPrimary: account.isPrimary,
+    })),
   }
+  const primaryAccount = requisites.accounts[0]
   const qrText = [
     `Получатель: ${requisites.recipient}`,
     `ИИН/БИН: ${requisites.iin}`,
-    `Банк: ${requisites.bank}`,
-    `БИК: ${requisites.bik}`,
-    `ИИК: ${requisites.account}`,
+    `Банк: ${primaryAccount.bank}`,
+    `БИК: ${primaryAccount.bik}`,
+    `ИИК: ${primaryAccount.account}`,
     `Назначение: ${paymentPurpose}`,
     `Сумма к оплате: ${formatMoney(totalDebt > 0 ? totalDebt : monthlyRent)}`,
   ].join("\n")

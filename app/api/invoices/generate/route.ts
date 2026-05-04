@@ -170,6 +170,13 @@ export async function GET(req: Request) {
               new Paragraph({ children: [new TextRun({ text: `Банк: ${landlord.bank}`, size: 20 })], spacing: { after: 60 } }),
               new Paragraph({ children: [new TextRun({ text: `ИИК: ${landlord.iik}`, size: 20 })], spacing: { after: 60 } }),
               new Paragraph({ children: [new TextRun({ text: `БИК: ${landlord.bik}`, size: 20 })], spacing: { after: 60 } }),
+              ...(landlord.secondIik
+                ? [
+                    new Paragraph({ children: [new TextRun({ text: `Банк 2: ${landlord.secondBank}`, size: 20 })], spacing: { after: 60 } }),
+                    new Paragraph({ children: [new TextRun({ text: `ИИК 2: ${landlord.secondIik}`, size: 20 })], spacing: { after: 60 } }),
+                    new Paragraph({ children: [new TextRun({ text: `БИК 2: ${landlord.secondBik}`, size: 20 })], spacing: { after: 60 } }),
+                  ]
+                : []),
             ],
           }),
           new TableCell({
@@ -244,6 +251,9 @@ export async function GET(req: Request) {
       landlord_iik: landlord.iik,
       landlord_bik: landlord.bik,
       landlord_bank: landlord.bank,
+      landlord_second_iik: landlord.secondIik,
+      landlord_second_bik: landlord.secondBik,
+      landlord_second_bank: landlord.secondBank,
       landlord_director: landlord.directorShort,
       subtotal: fmtMoney(subtotal),
       vat_rate: withVat ? `${vatRate}` : "",

@@ -145,6 +145,9 @@ export async function GET(req: Request) {
       landlord_bank: landlord.bank,
       landlord_iik: landlord.iik,
       landlord_bik: landlord.bik,
+      landlord_second_bank: landlord.secondBank,
+      landlord_second_iik: landlord.secondIik,
+      landlord_second_bik: landlord.secondBik,
 
       tenant_name: tenant.companyName,
       tenant_legal_type: tenant.legalType,
@@ -346,6 +349,13 @@ export async function GET(req: Request) {
           `ИИК: ${landlord.iik}`,
           `БИК: ${landlord.bik}`,
           `Банк: ${landlord.bank}`,
+          ...(landlord.secondIik
+            ? [
+                `ИИК 2: ${landlord.secondIik}`,
+                `БИК 2: ${landlord.secondBik}`,
+                `Банк 2: ${landlord.secondBank}`,
+              ]
+            : []),
         ],
         signature: landlord.directorShort,
       },

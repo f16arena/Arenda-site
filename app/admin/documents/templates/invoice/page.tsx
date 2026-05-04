@@ -147,6 +147,13 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
               <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {landlord.bank}</p>
               <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {landlord.iik}</p>
               <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {landlord.bik}</p>
+              {landlord.secondIik && (
+                <>
+                  <p className="mt-2 text-slate-500 dark:text-slate-400 dark:text-slate-500">Второй банк: {landlord.secondBank}</p>
+                  <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК 2: {landlord.secondIik}</p>
+                  <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК 2: {landlord.secondBik}</p>
+                </>
+              )}
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Получатель:</p>

@@ -18,6 +18,9 @@ type OrganizationRequisitesFormData = {
   bankName: string | null
   iik: string | null
   bik: string | null
+  secondBankName: string | null
+  secondIik: string | null
+  secondBik: string | null
   phone: string | null
   email: string | null
 }
@@ -104,6 +107,28 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         <div>
           <label className={labelClass}>ИИК / расчётный счёт</label>
           <input name="iik" defaultValue={organization.iik ?? ""} className={inputClass} placeholder="KZ..." />
+        </div>
+        <div className="lg:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+          <div className="mb-3">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Второй банковский счёт</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Если заполнить второй счёт, арендатор увидит его как дополнительный вариант оплаты, а шаблоны смогут использовать отдельные метки.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div>
+              <label className={labelClass}>Название банка 2</label>
+              <input name="secondBankName" defaultValue={organization.secondBankName ?? ""} className={inputClass} placeholder="АО «Halyk Bank»" />
+            </div>
+            <div>
+              <label className={labelClass}>БИК 2</label>
+              <input name="secondBik" defaultValue={organization.secondBik ?? ""} className={inputClass} placeholder="HSBKKZKX" />
+            </div>
+            <div>
+              <label className={labelClass}>ИИК / расчётный счёт 2</label>
+              <input name="secondIik" defaultValue={organization.secondIik ?? ""} className={inputClass} placeholder="KZ..." />
+            </div>
+          </div>
         </div>
         <div>
           <label className={labelClass}>Телефон владельца</label>

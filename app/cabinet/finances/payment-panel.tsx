@@ -10,9 +10,13 @@ import { reportTenantPayment } from "@/app/actions/tenant-payments"
 type PaymentRequisites = {
   recipient: string
   iin: string
-  bank: string
-  bik: string
-  account: string
+  accounts: {
+    label: string
+    bank: string
+    bik: string
+    account: string
+    isPrimary: boolean
+  }[]
 }
 
 type PaymentPanelProps = {
@@ -53,9 +57,12 @@ export function PaymentPanel({
   const allRequisites = [
     `Получатель: ${requisites.recipient}`,
     `ИИН/БИН: ${requisites.iin}`,
-    `Банк: ${requisites.bank}`,
-    `БИК: ${requisites.bik}`,
-    `ИИК: ${requisites.account}`,
+    ...requisites.accounts.flatMap((account) => [
+      `${account.label}:`,
+      `Банк: ${account.bank}`,
+      `БИК: ${account.bik}`,
+      `ИИК: ${account.account}`,
+    ]),
     `Назначение: ${paymentPurpose}`,
   ].join("\n")
 
@@ -83,11 +90,25 @@ export function PaymentPanel({
           <div className="grid gap-3 md:grid-cols-2">
             <RequisiteRow label="Получатель" value={requisites.recipient} onCopy={copy} />
             <RequisiteRow label="ИИН/БИН" value={requisites.iin} onCopy={copy} />
-            <RequisiteRow label="Банк" value={requisites.bank} onCopy={copy} />
-            <RequisiteRow label="БИК" value={requisites.bik} onCopy={copy} />
-            <div className="md:col-span-2">
-              <RequisiteRow label="ИИК" value={requisites.account} onCopy={copy} />
-            </div>
+            {requisites.accounts.map((account, index) => (
+              <div key={`${account.account}-${index}`} className="md:col-span-2 grid gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 md:grid-cols-2">
+                <div className="md:col-span-2 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {account.label}
+                  </p>
+                  {account.isPrimary && (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                      основной
+                    </span>
+                  )}
+                </div>
+                <RequisiteRow label="Банк" value={account.bank} onCopy={copy} />
+                <RequisiteRow label="БИК" value={account.bik} onCopy={copy} />
+                <div className="md:col-span-2">
+                  <RequisiteRow label="ИИК" value={account.account} onCopy={copy} />
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 dark:border-blue-500/20 dark:bg-blue-500/10">

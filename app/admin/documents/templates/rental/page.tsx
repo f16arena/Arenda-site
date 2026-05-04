@@ -277,6 +277,13 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
               <p>ИИК: {landlord.iik}</p>
               <p>БИК: {landlord.bik}</p>
               <p>Банк: {landlord.bank}</p>
+              {landlord.secondIik && (
+                <>
+                  <p>ИИК 2: {landlord.secondIik}</p>
+                  <p>БИК 2: {landlord.secondBik}</p>
+                  <p>Банк 2: {landlord.secondBank}</p>
+                </>
+              )}
               <p>Тел: {landlord.phone}</p>
               <p>Email: {landlord.email}</p>
               <div className="mt-6 border-t border-slate-300 pt-2 text-center">

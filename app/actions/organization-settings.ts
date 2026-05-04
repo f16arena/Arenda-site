@@ -47,8 +47,13 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
   const bankName = optionalText(formData.get("bankName"))
   const iik = normalizeIik(formData.get("iik"))
   const bik = normalizeBik(formData.get("bik"))
+  const secondBankName = optionalText(formData.get("secondBankName"))
+  const secondIik = normalizeIik(formData.get("secondIik"))
+  const secondBik = normalizeBik(formData.get("secondBik"))
   const phone = normalizeKzPhone(formData.get("phone"), { fieldName: "Телефон владельца" })
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email владельца" })
+
+  validateOptionalBankAccount(secondBankName, secondIik, secondBik, "Второй счёт")
 
   let bin: string | null = null
   let iin: string | null = null
@@ -78,6 +83,9 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
       bankName,
       iik,
       bik,
+      secondBankName,
+      secondIik,
+      secondBik,
       phone,
       email,
     },
@@ -134,4 +142,17 @@ function normalizeBik(value: FormDataEntryValue | null) {
     throw new Error("БИК должен содержать 8-11 латинских букв или цифр")
   }
   return text
+}
+
+function validateOptionalBankAccount(
+  bankName: string | null,
+  iik: string | null,
+  bik: string | null,
+  label: string,
+) {
+  const hasAny = !!bankName || !!iik || !!bik
+  if (!hasAny) return
+  if (!bankName || !iik || !bik) {
+    throw new Error(`${label}: заполните название банка, ИИК и БИК либо оставьте второй счёт пустым`)
+  }
 }

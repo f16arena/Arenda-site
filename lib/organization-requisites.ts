@@ -17,6 +17,9 @@ export const ORGANIZATION_REQUISITES_SELECT = {
   bankName: true,
   iik: true,
   bik: true,
+  secondBankName: true,
+  secondIik: true,
+  secondBik: true,
   phone: true,
   email: true,
 } as const
@@ -36,8 +39,19 @@ type OrganizationRequisitesRecord = {
   bankName: string | null
   iik: string | null
   bik: string | null
+  secondBankName: string | null
+  secondIik: string | null
+  secondBik: string | null
   phone: string | null
   email: string | null
+}
+
+export type OrganizationBankAccount = {
+  label: string
+  bank: string
+  iik: string
+  bik: string
+  isPrimary: boolean
 }
 
 export type OrganizationRequisites = {
@@ -57,6 +71,10 @@ export type OrganizationRequisites = {
   iik: string
   bik: string
   bank: string
+  secondIik: string
+  secondBik: string
+  secondBank: string
+  bankAccounts: OrganizationBankAccount[]
   phone: string
   email: string
 }
@@ -84,6 +102,24 @@ export function organizationToRequisites(
   const director = hasRequisites ? clean(organization?.directorName) ?? LANDLORD.director : LANDLORD.director
   const taxId = hasRequisites ? clean(organization?.bin) ?? clean(organization?.iin) ?? LANDLORD.iin : LANDLORD.iin
   const taxIdLabel = taxIdLabelFor(legalType, organization)
+  const bank = hasRequisites ? clean(organization?.bankName) ?? LANDLORD.bank : LANDLORD.bank
+  const iik = hasRequisites ? clean(organization?.iik) ?? LANDLORD.iik : LANDLORD.iik
+  const bik = hasRequisites ? clean(organization?.bik)?.toUpperCase() ?? LANDLORD.bik : LANDLORD.bik
+  const secondBank = hasRequisites ? clean(organization?.secondBankName) ?? "" : ""
+  const secondIik = hasRequisites ? clean(organization?.secondIik) ?? "" : ""
+  const secondBik = hasRequisites ? clean(organization?.secondBik)?.toUpperCase() ?? "" : ""
+  const bankAccounts: OrganizationBankAccount[] = [
+    { label: "Основной счет", bank, iik, bik, isPrimary: true },
+  ]
+  if (secondBank && secondIik && secondBik) {
+    bankAccounts.push({
+      label: "Второй счет",
+      bank: secondBank,
+      iik: secondIik,
+      bik: secondBik,
+      isPrimary: false,
+    })
+  }
 
   return {
     fullName,
@@ -99,9 +135,13 @@ export function organizationToRequisites(
     basis: hasRequisites ? clean(organization?.basis) ?? defaultBasisFor(legalType) ?? LANDLORD.basis : LANDLORD.basis,
     legalAddress: hasRequisites ? clean(organization?.legalAddress) ?? clean(organization?.actualAddress) ?? LANDLORD.legalAddress : LANDLORD.legalAddress,
     actualAddress: hasRequisites ? clean(organization?.actualAddress) ?? clean(organization?.legalAddress) ?? LANDLORD.legalAddress : LANDLORD.legalAddress,
-    iik: hasRequisites ? clean(organization?.iik) ?? LANDLORD.iik : LANDLORD.iik,
-    bik: hasRequisites ? clean(organization?.bik)?.toUpperCase() ?? LANDLORD.bik : LANDLORD.bik,
-    bank: hasRequisites ? clean(organization?.bankName) ?? LANDLORD.bank : LANDLORD.bank,
+    iik,
+    bik,
+    bank,
+    secondIik,
+    secondBik,
+    secondBank,
+    bankAccounts,
     phone: hasRequisites ? clean(organization?.phone) ?? LANDLORD.phone : LANDLORD.phone,
     email: hasRequisites ? clean(organization?.email) ?? LANDLORD.email : LANDLORD.email,
   }
@@ -131,6 +171,9 @@ function hasCustomRequisites(organization: OrganizationRequisitesRecord | null |
     organization.bankName,
     organization.iik,
     organization.bik,
+    organization.secondBankName,
+    organization.secondIik,
+    organization.secondBik,
     organization.phone,
     organization.email,
   ]
