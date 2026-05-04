@@ -11,6 +11,8 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
+const CALENDAR_EVENT_SOURCE_LIMIT = 120
+
 export default async function CalendarPage({
   searchParams,
 }: {
@@ -60,7 +62,7 @@ export default async function CalendarPage({
         id: true, amount: true, dueDate: true, isPaid: true, type: true,
         tenant: { select: { id: true, companyName: true } },
       },
-      take: 200,
+      take: CALENDAR_EVENT_SOURCE_LIMIT,
     }).catch(() => []),
     // Полученные платежи (для отображения "получено")
     db.payment.findMany({
@@ -72,7 +74,7 @@ export default async function CalendarPage({
         id: true, amount: true, paymentDate: true,
         tenant: { select: { id: true, companyName: true } },
       },
-      take: 200,
+      take: CALENDAR_EVENT_SOURCE_LIMIT,
     }).catch(() => []),
     // Истекающие договоры
     db.tenant.findMany({
@@ -83,7 +85,7 @@ export default async function CalendarPage({
       select: {
         id: true, companyName: true, contractEnd: true,
       },
-      take: 200,
+      take: CALENDAR_EVENT_SOURCE_LIMIT,
     }).catch(() => []),
     // Задачи с дедлайном (dueDate)
     db.task.findMany({
@@ -97,7 +99,7 @@ export default async function CalendarPage({
       select: {
         id: true, title: true, dueDate: true, status: true, priority: true,
       },
-      take: 200,
+      take: CALENDAR_EVENT_SOURCE_LIMIT,
     }).catch(() => []),
   ])
 

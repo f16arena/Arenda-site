@@ -11,6 +11,8 @@ import {
 import Link from "next/link"
 import { PaymentsMiniCalendarLoader } from "./payments-mini-calendar-loader"
 
+const PAYMENT_CALENDAR_LIMIT = 120
+
 export default async function CabinetDashboard() {
   const session = await auth()
 
@@ -56,7 +58,7 @@ export default async function CabinetDashboard() {
       id: true, amount: true, type: true, period: true,
       isPaid: true, dueDate: true,
     },
-    take: 200,
+    take: PAYMENT_CALENDAR_LIMIT,
   }).catch(() => []) : []
   const allPayments = tenant ? await db.payment.findMany({
     where: {
@@ -64,7 +66,7 @@ export default async function CabinetDashboard() {
       paymentDate: { gte: calendarStart, lt: calendarEnd },
     },
     select: { id: true, amount: true, paymentDate: true },
-    take: 200,
+    take: PAYMENT_CALENDAR_LIMIT,
   }).catch(() => []) : []
 
   if (!tenant) {

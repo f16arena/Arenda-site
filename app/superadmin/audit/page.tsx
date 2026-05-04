@@ -4,6 +4,10 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { History, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PaginationControls } from "@/components/ui/pagination-controls"
+import { normalizePage, pageSkip } from "@/lib/pagination"
+
+const PAGE_SIZE = 50
 
 const ACTION_COLORS: Record<string, string> = {
   CREATE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
@@ -12,13 +16,23 @@ const ACTION_COLORS: Record<string, string> = {
   LOGIN: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
 }
 
-export default async function SuperadminAuditPage() {
+export default async function SuperadminAuditPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ page?: string | string[] }>
+}) {
   await requirePlatformOwner()
+  const resolved = await searchParams
+  const page = normalizePage(resolved?.page)
 
-  const logs = await db.auditLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  }).catch(() => [])
+  const [logs, total] = await Promise.all([
+    db.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      skip: pageSkip(page, PAGE_SIZE),
+      take: PAGE_SIZE,
+    }).catch(() => []),
+    db.auditLog.count().catch(() => 0),
+  ])
 
   // Подгрузим данные пользователей и их организации
   const userIds = Array.from(new Set(logs.map((l) => l.userId).filter(Boolean) as string[]))
@@ -41,7 +55,7 @@ export default async function SuperadminAuditPage() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Журнал платформы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Последние {logs.length} действий по всем организациям</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Журнал действий по всем организациям · {total} записей</p>
         </div>
       </div>
 
@@ -101,6 +115,12 @@ export default async function SuperadminAuditPage() {
             })}
           </tbody>
         </table>
+        <PaginationControls
+          basePath="/superadmin/audit"
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+        />
       </div>
     </div>
   )

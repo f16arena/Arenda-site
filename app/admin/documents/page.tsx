@@ -24,6 +24,8 @@ import type { DocRow } from "./documents-table"
 
 type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
 
+const DOCUMENT_SOURCE_LIMIT = 80
+
 const TYPE_LABELS: Record<string, string> = {
   CONTRACT: "Договор",
   INVOICE: "Счёт на оплату",
@@ -107,7 +109,7 @@ export default async function DocumentsPage({
             tenant: { select: { id: true, companyName: true } },
           },
           orderBy: { createdAt: "desc" },
-          take: 200,
+          take: DOCUMENT_SOURCE_LIMIT,
         }).catch(() => [] as Array<{
           id: string
           number: string
@@ -134,7 +136,7 @@ export default async function DocumentsPage({
             ...(period ? { period } : {}),
           },
           orderBy: { generatedAt: "desc" },
-          take: 200,
+          take: DOCUMENT_SOURCE_LIMIT,
         }).catch(() => [])
       : [],
   ])

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Manrope } from "next/font/google"
 import { Toaster } from "sonner"
+import { WebVitalsReporter } from "@/components/performance/web-vitals-reporter"
 import { themeInitScript } from "@/components/theme-toggle"
 import "./globals.css"
 
@@ -51,6 +52,7 @@ export default function RootLayout({
       </head>
       <body className="h-full font-sans antialiased">
         {children}
+        <WebVitalsReporter />
         <Toaster richColors position="top-right" closeButton />
       </body>
     </html>

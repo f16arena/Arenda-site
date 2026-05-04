@@ -36,7 +36,8 @@ const enriched = await Promise.all(files.map(async (file) => {
   const firstLines = content.split(/\r?\n/).slice(0, 5).join("\n")
   const isClient = firstLines.includes('"use client"') || firstLines.includes("'use client'")
   const imports = HEAVY_IMPORTS.filter((name) => importsPackage(content, name))
-  return { rel, size, isClient, imports }
+  const largeTakes = findLargePrismaTakes(content)
+  return { rel, size, isClient, imports, largeTakes }
 }))
 
 const budgetViolations = enriched.flatMap((file) => {
@@ -48,6 +49,10 @@ const budgetViolations = enriched.flatMap((file) => {
   }
   return []
 })
+
+const takeViolations = enriched.flatMap((file) =>
+  file.largeTakes.map((take) => `${file.rel}:${take.line} uses take: ${take.value}; paginate or lower the source cap below 150`),
+)
 
 printSection(
   "Performance budget",
@@ -81,7 +86,12 @@ printSection(
     .map((file) => `${formatFile(file)} -> ${file.imports.join(", ")}`),
 )
 
-if (STRICT && budgetViolations.length > 0) {
+printSection(
+  "Large Prisma takes",
+  takeViolations.length > 0 ? takeViolations : ["OK: no take >= 150 in app/components/lib"],
+)
+
+if (STRICT && (budgetViolations.length > 0 || takeViolations.length > 0)) {
   process.exitCode = 1
 }
 
@@ -118,6 +128,20 @@ function importsPackage(content, packageName) {
     new RegExp(`require\\s*\\(\\s*["']${pkg}["']\\s*\\)`),
     new RegExp(`^\\s*import\\s+["']${pkg}["']`, "m"),
   ].some((pattern) => pattern.test(content))
+}
+
+function findLargePrismaTakes(content) {
+  const results = []
+  const lines = content.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index].match(/\btake:\s*(\d+)/)
+    if (!match) continue
+    const value = Number.parseInt(match[1], 10)
+    if (Number.isFinite(value) && value >= 150) {
+      results.push({ line: index + 1, value })
+    }
+  }
+  return results
 }
 
 function printSection(title, rows) {

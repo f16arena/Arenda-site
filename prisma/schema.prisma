@@ -54,6 +54,7 @@ model User {
   uploadedStoredFiles    StoredFile[]         @relation("StoredFileUploader")
 
   @@index([organizationId])
+  @@index([organizationId, role, isActive])
   @@map("users")
 }
 
@@ -147,6 +148,26 @@ model AddressCache {
   @@index([countryCode, queryKey])
   @@index([countryCode, city])
   @@map("address_cache")
+}
+
+model WebVitalMetric {
+  id             String   @id @default(cuid())
+  organizationId String?  @map("organization_id")
+  userId         String?  @map("user_id")
+  name           String
+  value          Float
+  rating         String?
+  delta          Float?
+  navigationType String?  @map("navigation_type")
+  path           String?
+  url            String?
+  userAgent      String?  @map("user_agent")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId, name, createdAt])
+  @@index([name, createdAt])
+  @@index([path, name, createdAt])
+  @@map("web_vital_metrics")
 }
 
 // Денежные счета организации (банковские счета, касса, карты).
@@ -320,6 +341,7 @@ model Building {
   storedFiles       StoredFile[]
 
   @@index([organizationId])
+  @@index([organizationId, isActive])
   @@index([organizationId, addressCity])
   @@index([organizationId, addressStreet])
   @@map("buildings")
@@ -353,6 +375,7 @@ model Tariff {
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
+  @@index([buildingId, isActive])
   @@map("tariffs")
 }
 
@@ -371,6 +394,8 @@ model Floor {
   spaces          Space[]
   fullFloorTenant Tenant?  @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
 
+  @@index([buildingId, number])
+  @@index([fullFloorTenantId])
   @@map("floors")
 }
 
@@ -391,6 +416,8 @@ model Space {
   tenantSpaces TenantSpace[]
   meters       Meter[]
 
+  @@index([floorId, status])
+  @@index([floorId, kind])
   @@map("spaces")
 }
 
@@ -496,6 +523,7 @@ model Contract {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  @@index([tenantId, status, createdAt])
   @@map("contracts")
 }
 
@@ -512,6 +540,9 @@ model Charge {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
+  @@index([tenantId, isPaid, dueDate])
+  @@index([tenantId, period, type])
+  @@index([dueDate])
   @@map("charges")
 }
 
@@ -527,6 +558,7 @@ model Payment {
   tenant  Tenant          @relation(fields: [tenantId], references: [id])
   reports PaymentReport[]
 
+  @@index([tenantId, paymentDate])
   @@map("payments")
 }
 
@@ -572,6 +604,7 @@ model Meter {
   space    Space          @relation(fields: [spaceId], references: [id])
   readings MeterReading[]
 
+  @@index([spaceId, type])
   @@map("meters")
 }
 
@@ -585,6 +618,8 @@ model MeterReading {
 
   meter Meter @relation(fields: [meterId], references: [id])
 
+  @@index([meterId, period])
+  @@index([period, createdAt])
   @@map("meter_readings")
 }
 
@@ -605,6 +640,9 @@ model Request {
   user     User             @relation(fields: [userId], references: [id])
   comments RequestComment[]
 
+  @@index([tenantId, status, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([status, updatedAt])
   @@map("requests")
 }
 
@@ -642,6 +680,9 @@ model Task {
   createdBy  User  @relation("TaskCreator", fields: [createdById], references: [id])
   assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
 
+  @@index([buildingId, status, dueDate])
+  @@index([assignedToId, status, dueDate])
+  @@index([createdById, createdAt])
   @@map("tasks")
 }
 
@@ -657,6 +698,7 @@ model Expense {
 
   building Building @relation(fields: [buildingId], references: [id])
 
+  @@index([buildingId, period, date])
   @@map("expenses")
 }
 
@@ -769,6 +811,8 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([userId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
   @@index([createdAt])
   @@map("audit_logs")
 }
@@ -795,6 +839,7 @@ model Lead {
 
   @@index([buildingId])
   @@index([status])
+  @@index([buildingId, status, createdAt])
   @@map("leads")
 }
 
@@ -815,6 +860,8 @@ model EmailLog {
   @@index([tenantId])
   @@index([userId])
   @@index([sentAt])
+  @@index([status, sentAt])
+  @@index([type, sentAt])
   @@map("email_logs")
 }
 
@@ -885,8 +932,11 @@ model GeneratedDocument {
   templateUsedId String?  @map("template_used_id")
 
   @@index([organizationId, documentType])
+  @@index([organizationId, documentType, generatedAt])
+  @@index([organizationId, generatedAt])
   @@index([organizationId, period])
   @@index([tenantId])
+  @@index([tenantId, generatedAt])
   @@map("generated_documents")
 }
 

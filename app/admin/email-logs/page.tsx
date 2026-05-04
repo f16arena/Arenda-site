@@ -6,10 +6,14 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { emailLogScope } from "@/lib/tenant-scope"
+import { PaginationControls } from "@/components/ui/pagination-controls"
+import { normalizePage, pageSkip } from "@/lib/pagination"
 import {
   Mail, CheckCircle, XCircle, Clock, Eye,
 } from "lucide-react"
 import Link from "next/link"
+
+const PAGE_SIZE = 40
 
 const TYPE_LABELS: Record<string, string> = {
   INVOICE: "Счёт",
@@ -35,14 +39,15 @@ const STATUS_META: Record<string, { color: string; icon: React.ElementType; labe
 export default async function EmailLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; type?: string; q?: string }>
+  searchParams: Promise<{ status?: string; type?: string; q?: string; page?: string | string[] }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   if (session.user.role !== "OWNER" && !session.user.isPlatformOwner) redirect("/admin")
   const { orgId } = await requireOrgAccess()
 
-  const { status, type, q } = await searchParams
+  const { status, type, q, page: pageParam } = await searchParams
+  const page = normalizePage(pageParam)
 
   // Спец-фильтр "opened" — все письма, которые были открыты (openedAt != null).
   // Иначе обычный фильтр по полю status.
@@ -64,21 +69,23 @@ export default async function EmailLogsPage({
       }] : []),
     ],
   }
-  const logs = await db.emailLog.findMany({
-    where,
-    orderBy: { sentAt: "desc" },
-    take: 200,
-    select: {
-      id: true, recipient: true, subject: true, type: true, status: true,
-      externalId: true, error: true, openedAt: true, openCount: true, sentAt: true,
-      tenantId: true,
-    },
-  })
-
-  // Сводка по статусам
-  const sentCount = logs.filter((l) => l.status === "SENT").length
-  const failedCount = logs.filter((l) => l.status === "FAILED" || l.status === "BOUNCED").length
-  const openedCount = logs.filter((l) => l.openedAt).length
+  const [logs, total, sentCount, failedCount, openedCount] = await Promise.all([
+    db.emailLog.findMany({
+      where,
+      orderBy: { sentAt: "desc" },
+      skip: pageSkip(page, PAGE_SIZE),
+      take: PAGE_SIZE,
+      select: {
+        id: true, recipient: true, subject: true, type: true, status: true,
+        externalId: true, error: true, openedAt: true, openCount: true, sentAt: true,
+        tenantId: true,
+      },
+    }),
+    db.emailLog.count({ where }),
+    db.emailLog.count({ where: { AND: [where, { status: "SENT" }] } }),
+    db.emailLog.count({ where: { AND: [where, { OR: [{ status: "FAILED" }, { status: "BOUNCED" }] }] } }),
+    db.emailLog.count({ where: { AND: [where, { openedAt: { not: null } }] } }),
+  ])
 
   return (
     <div className="space-y-5">
@@ -88,7 +95,7 @@ export default async function EmailLogsPage({
           Журнал email-отправок
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-          {logs.length} писем · {sentCount} доставлено · {openedCount} открыто
+          {total} писем · {sentCount} доставлено · {openedCount} открыто
           {failedCount > 0 && <span className="text-red-600 dark:text-red-400"> · {failedCount} с ошибкой</span>}
         </p>
       </div>
@@ -179,6 +186,13 @@ export default async function EmailLogsPage({
             </tbody>
           </table>
         )}
+        <PaginationControls
+          basePath="/admin/email-logs"
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          params={{ status, type, q }}
+        />
       </div>
     </div>
   )

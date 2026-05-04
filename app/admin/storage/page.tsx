@@ -172,7 +172,7 @@ export default async function StoragePage({
       where: tenantOptionsWhere,
       select: { id: true, companyName: true },
       orderBy: { companyName: "asc" },
-      take: 200,
+      take: 100,
     }),
     db.building.findMany({
       where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
