@@ -318,21 +318,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         {/* Action bar */}
         <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <Link
-            href={`/admin/documents/templates/invoice?tenantId=${tenant.id}&period=${currentPeriod}`}
+            href={`/admin/documents/new/invoice?tenantId=${tenant.id}&period=${currentPeriod}`}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white"
           >
             <Receipt className="h-3.5 w-3.5" />
             Создать счёт
           </Link>
           <Link
-            href={`/admin/documents/templates/act?tenantId=${tenant.id}&period=${currentPeriod}`}
+            href={`/admin/documents/new/act?tenantId=${tenant.id}&period=${currentPeriod}`}
             className="inline-flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-1.5 text-xs font-medium text-white"
           >
             <FileText className="h-3.5 w-3.5" />
             Создать акт услуг
           </Link>
           <Link
-            href={`/admin/documents/templates/reconciliation?tenantId=${tenant.id}`}
+            href={`/admin/documents/new/reconciliation?tenantId=${tenant.id}`}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
           >
             <TrendingDown className="h-3.5 w-3.5" />
@@ -701,7 +701,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   Аренда: {formatMoney(monthlyRent)}/мес
                 </p>
                 <Link
-                  href={`/admin/documents/templates/rental?tenantId=${tenant.id}`}
+                  href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
                   className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
                 >
                   Сформировать договор

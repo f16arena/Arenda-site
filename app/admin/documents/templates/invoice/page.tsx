@@ -12,10 +12,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { NcaSignButton } from "@/components/nca-sign-button"
-import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
 import { PeriodPicker } from "@/components/documents/period-picker"
 import { DocumentArchive } from "@/components/documents/document-archive"
-import { getActiveTemplate } from "@/app/actions/document-templates"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 const MONTHS = [
@@ -37,7 +35,6 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
     orderBy: { companyName: "asc" },
   })
 
-  const activeTemplate = await getActiveTemplate("INVOICE").catch(() => null)
   const [organization, tenant] = await Promise.all([
     db.organization.findUnique({
       where: { id: orgId },
@@ -123,8 +120,6 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
           )}
         </div>
       </div>
-
-      <CustomTemplateBlock documentType="INVOICE" active={activeTemplate} />
 
       {!tenant && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">

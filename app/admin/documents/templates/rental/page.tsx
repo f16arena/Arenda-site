@@ -11,9 +11,7 @@ import { suggestContractNumber } from "@/lib/contract-numbering"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
-import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
 import { DocumentArchive } from "@/components/documents/document-archive"
-import { getActiveTemplate } from "@/app/actions/document-templates"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 interface PageProps {
@@ -24,7 +22,6 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
-  const activeTemplate = await getActiveTemplate("CONTRACT").catch(() => null)
 
   const { tenantId } = await searchParams
 
@@ -87,8 +84,6 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5 print:space-y-0">
-      <CustomTemplateBlock documentType="CONTRACT" active={activeTemplate} />
-
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3">
           <Link href="/admin/documents" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">

@@ -36,6 +36,8 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
   { label: "Лиды (CRM)", href: "/admin/leads", icon: TrendingUp, keywords: "leads crm" },
   { label: "Финансы", href: "/admin/finances", icon: Wallet, keywords: "finance деньги" },
   { label: "Документы", href: "/admin/documents", icon: FileText, keywords: "documents" },
+  { label: "Создать документ", href: "/admin/documents/new", icon: Plus, keywords: "документ создать договор счет акт авр сверка" },
+  { label: "Шаблоны документов", href: "/admin/settings/document-templates", icon: FileText, keywords: "шаблоны документы настройки docx xlsx" },
   { label: "Качество данных", href: "/admin/data-quality", icon: ShieldCheck, keywords: "data quality ошибки проверка" },
   { label: "Проверка системы", href: "/admin/system-health", icon: Activity, keywords: "health система production env cron sitemap ошибки" },
   { label: "FAQ и инструкции", href: "/admin/faq", icon: CircleHelp, keywords: "faq помощь инструкция как сделать подписать пароль счет заявка" },
@@ -44,9 +46,10 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
 ]
 
 const QUICK_CREATE: { label: string; href: string; icon: React.ElementType; keywords: string }[] = [
-  { label: "Создать счёт на оплату", href: "/admin/documents/templates/invoice", icon: Plus, keywords: "счет invoice новый" },
-  { label: "Создать акт услуг", href: "/admin/documents/templates/act", icon: Plus, keywords: "акт act" },
-  { label: "Создать акт сверки", href: "/admin/documents/templates/reconciliation", icon: Plus, keywords: "сверка reconciliation" },
+  { label: "Создать договор", href: "/admin/documents/new/contract", icon: Plus, keywords: "договор contract rental новый" },
+  { label: "Создать счёт на оплату", href: "/admin/documents/new/invoice", icon: Plus, keywords: "счет invoice новый" },
+  { label: "Создать АВР", href: "/admin/documents/new/act", icon: Plus, keywords: "акт авр act выполненных работ услуги" },
+  { label: "Создать акт сверки", href: "/admin/documents/new/reconciliation", icon: Plus, keywords: "сверка reconciliation" },
   { label: "Добавить арендатора", href: "/admin/tenants?new=1", icon: Plus, keywords: "арендатор новый создать" },
   { label: "Добавить лида", href: "/admin/leads?new=1", icon: Plus, keywords: "лид lead" },
 ]

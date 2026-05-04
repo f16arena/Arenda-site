@@ -212,7 +212,7 @@ function Section({
                   <div className="flex gap-3 justify-end text-xs">
                     <Link href={`/admin/tenants/${t.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">Карточка</Link>
                     <Link
-                      href={`/admin/documents/templates/rental?tenantId=${t.id}`}
+                      href={`/admin/documents/new/contract?tenantId=${t.id}`}
                       className="text-blue-600 dark:text-blue-400 hover:underline"
                     >
                       Договор

@@ -627,12 +627,12 @@ export default async function DataQualityPage() {
       severity: "info",
       count: missingTemplateTypes.length,
       actionLabel: "Открыть шаблоны",
-      href: "/admin/documents/templates",
+      href: "/admin/settings/document-templates",
       items: missingTemplateTypes.map((type) => ({
         id: type,
         label: `Шаблон ${type}`,
         meta: "Активный шаблон не найден",
-        href: "/admin/documents/templates",
+        href: "/admin/settings/document-templates",
       })),
     },
     {

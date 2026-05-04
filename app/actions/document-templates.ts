@@ -112,7 +112,7 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
     select: { id: true },
   })
 
-  revalidatePath(`/admin/documents/templates/${slugForType(documentType)}`)
+  revalidateTemplatePaths(documentType)
 
   return {
     ok: true,
@@ -133,7 +133,7 @@ export async function removeDocumentTemplate(documentType: DocumentType): Promis
     where: { organizationId: orgId, documentType, isActive: true },
     data: { isActive: false },
   })
-  revalidatePath(`/admin/documents/templates/${slugForType(documentType)}`)
+  revalidateTemplatePaths(documentType)
   return { ok: true }
 }
 
@@ -162,4 +162,19 @@ function slugForType(t: DocumentType): string {
     case "ACT": return "act"
     case "RECONCILIATION": return "reconciliation"
   }
+}
+
+function createPathForType(t: DocumentType): string {
+  switch (t) {
+    case "CONTRACT": return "contract"
+    case "INVOICE": return "invoice"
+    case "ACT": return "act"
+    case "RECONCILIATION": return "reconciliation"
+  }
+}
+
+function revalidateTemplatePaths(documentType: DocumentType) {
+  revalidatePath("/admin/settings/document-templates")
+  revalidatePath(`/admin/documents/new/${createPathForType(documentType)}`)
+  revalidatePath(`/admin/documents/templates/${slugForType(documentType)}`)
 }

@@ -9,6 +9,15 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import Link from "next/link"
+import type { ElementType } from "react"
+import {
+  ClipboardCheck,
+  FileCheck,
+  FileText,
+  Plus,
+  Receipt,
+  Settings,
+} from "lucide-react"
 import { DocumentTypeFilter } from "./document-type-filter"
 import { DocumentsTableLoader } from "./documents-table-loader"
 import type { DocRow } from "./documents-table"
@@ -18,10 +27,42 @@ type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HAND
 const TYPE_LABELS: Record<string, string> = {
   CONTRACT: "Договор",
   INVOICE: "Счёт на оплату",
-  ACT: "Акт оказанных услуг",
+  ACT: "АВР",
   RECONCILIATION: "Акт сверки",
   HANDOVER: "Акт приёма-передачи",
 }
+
+const CREATE_TYPES: {
+  label: string
+  href: string
+  icon: ElementType
+  color: string
+}[] = [
+  {
+    label: "Договор",
+    href: "/admin/documents/new/contract",
+    icon: FileCheck,
+    color: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  },
+  {
+    label: "Счёт на оплату",
+    href: "/admin/documents/new/invoice",
+    icon: Receipt,
+    color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    label: "АВР",
+    href: "/admin/documents/new/act",
+    icon: ClipboardCheck,
+    color: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  },
+  {
+    label: "Акт сверки",
+    href: "/admin/documents/new/reconciliation",
+    icon: FileText,
+    color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  },
+]
 
 export default async function DocumentsPage({
   searchParams,
@@ -140,39 +181,53 @@ export default async function DocumentsPage({
 
   const emptyHint = search || period || filterType !== "ALL"
     ? "По вашим фильтрам ничего не найдено"
-    : "Документы ещё не созданы. Сгенерируйте счёт или акт через кнопки выше."
+    : "Документы ещё не созданы. Нажмите «Создать документ» и выберите тип."
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {allRows.length} {allRows.length === 1 ? "документ" : "документов"}
             {filterType !== "ALL" ? ` · тип «${TYPE_LABELS[filterType] ?? filterType}»` : ""}
             {period ? ` · период ${period}` : ""}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
-            href="/admin/documents/templates/invoice"
-            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+            href="/admin/settings/document-templates"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
-            + Счёт
+            <Settings className="h-4 w-4" />
+            Шаблоны
           </Link>
           <Link
-            href="/admin/documents/templates/act"
-            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+            href="/admin/documents/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
-            + Акт услуг
-          </Link>
-          <Link
-            href="/admin/documents/templates/reconciliation"
-            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
-          >
-            + Акт сверки
+            <Plus className="h-4 w-4" />
+            Создать документ
           </Link>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {CREATE_TYPES.map((item) => {
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 hover:border-blue-300 dark:hover:border-blue-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+            >
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.color}`}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{item.label}</span>
+            </Link>
+          )
+        })}
       </div>
 
       <DocumentTypeFilter currentType={filterType} currentSearch={search} currentPeriod={period} />

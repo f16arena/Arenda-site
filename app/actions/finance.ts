@@ -352,8 +352,8 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
 
   revalidatePath("/admin/finances")
   revalidatePath(`/admin/tenants/${tenantId}`)
-  revalidatePath("/admin/documents/templates/invoice")
-  revalidatePath("/admin/documents/templates/act")
+  revalidatePath("/admin/documents/new/invoice")
+  revalidatePath("/admin/documents/new/act")
 
   return { success: true, created, updated }
 }

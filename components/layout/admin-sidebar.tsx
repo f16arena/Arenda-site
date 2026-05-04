@@ -9,7 +9,7 @@ import {
   MessageSquare, AlertCircle, Phone, BarChart3,
   ShieldCheck,
   LogOut, Building, Activity,
-  Package, CalendarDays,
+  CalendarDays, CirclePlus,
   Menu, X, Rocket, CircleHelp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -49,7 +49,7 @@ const nav: NavSection[] = [
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
-      { href: "/admin/documents/templates", label: "Шаблоны", icon: Package, section: "documents" },
+      { href: "/admin/documents/new", label: "Создать документ", icon: CirclePlus, section: "documents" },
     ],
   },
   {
