@@ -6,21 +6,30 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { LANDLORD, BUILDING_DEFAULT } from "@/lib/landlord"
-import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle } from "docx"
+import {
+  AlignmentType,
+  BorderStyle,
+  Document,
+  Packer,
+  Paragraph,
+  Table,
+  TableCell,
+  TableRow,
+  TextRun,
+  WidthType,
+} from "docx"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 
 export const dynamic = "force-dynamic"
 
 // GET /api/contracts/generate?tenantId=xxx&format=docx
-// Возвращает DOCX-файл с автозаполненными реквизитами
 export async function GET(req: Request) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  // Rate-limit генерации (CPU-тяжёлая операция, может использоваться для DoS)
   const reqHeaders = await headers()
   const rl = checkRateLimit(getClientKey(reqHeaders, `contract:${session.user.id}`), {
     max: 30,
@@ -61,41 +70,58 @@ export async function GET(req: Request) {
   })
 
   const contractNumber = searchParams.get("number") || "01-XXX"
+  const today = new Date()
+  const fullFloor = tenant.fullFloors?.[0]
+  const monthlyRent = calculateTenantMonthlyRent(tenant)
+  const ratePerSqm = calculateTenantRatePerSqm(tenant) ?? 0
+  const start = tenant.contractStart ?? today
+  const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
+  const placement = fullFloor?.name
+    ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "по договору")
+  const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
+  const objectAddress = building?.address ?? BUILDING_DEFAULT.address
+  const tenantBasis = inferTenantBasis(tenant)
+  const rentWords = numberToWords(monthlyRent)
+  const rentWithWords = `${formatMoney(monthlyRent)} (${rentWords})`
+  const startDate = start.toLocaleDateString("ru-RU")
+  const endDate = end.toLocaleDateString("ru-RU")
+  const contractDate = today.toLocaleDateString("ru-RU")
 
-  // ── Если есть кастомный шаблон — используем его ───────────────────
   const customTemplate = await db.documentTemplate.findFirst({
     where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
     orderBy: { uploadedAt: "desc" },
   }).catch(() => null)
 
   if (customTemplate && customTemplate.format !== "PDF") {
-    // Подготовим данные для подстановки. Все плейсхолдеры в шаблоне вида {key}
-    const today = new Date()
-    const fullFloor = tenant.fullFloors?.[0]
-    const monthlyRent = calculateTenantMonthlyRent(tenant)
-    const start = tenant.contractStart ?? today
-    const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
-    const placement = fullFloor?.name
-      ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "по договору")
-    const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
-
     const data: Record<string, string | number> = {
       contract_number: contractNumber,
-      contract_date: today.toLocaleDateString("ru-RU"),
-      contract_start: start.toLocaleDateString("ru-RU"),
-      contract_end: end.toLocaleDateString("ru-RU"),
-      // Арендодатель
+      contract_date: contractDate,
+      contract_date_long: fmtDate(today),
+      contract_start: startDate,
+      contract_end: endDate,
+      start_date: startDate,
+      end_date: endDate,
+      start_date_long: fmtDate(start),
+      end_date_long: fmtDate(end),
+
       landlord_name: LANDLORD.fullName,
       landlord_short: LANDLORD.directorShort,
+      landlord_director: LANDLORD.director,
       landlord_iin: LANDLORD.iin,
+      landlord_bin: LANDLORD.iin,
+      landlord_basis: LANDLORD.basis,
       landlord_address: LANDLORD.legalAddress,
       landlord_bank: LANDLORD.bank,
       landlord_iik: LANDLORD.iik,
       landlord_bik: LANDLORD.bik,
-      // Арендатор
+
       tenant_name: tenant.companyName,
+      tenant_legal_type: tenant.legalType,
       tenant_director: tenant.directorName ?? tenant.user.name,
+      tenant_director_short: shortName(tenant.directorName ?? tenant.user.name),
       tenant_position: tenant.directorPosition ?? "",
+      tenant_basis: tenantBasis,
+      tenant_basis_document: tenantBasis,
       tenant_bin: tenant.bin ?? tenant.iin ?? "",
       tenant_iin: tenant.iin ?? "",
       tenant_address: tenant.legalAddress ?? "",
@@ -105,21 +131,29 @@ export async function GET(req: Request) {
       tenant_bank: tenant.bankName ?? "",
       tenant_iik: tenant.iik ?? "",
       tenant_bik: tenant.bik ?? "",
-      // Помещение
+
       placement,
       space_number: tenant.space?.number ?? "",
       floor_name: tenant.space?.floor.name ?? "",
-      area: area,
-      area_str: `${area} м²`,
-      // Финансы
-      monthly_rent: monthlyRent.toLocaleString("ru-RU"),
+      area,
+      area_num: area,
+      area_str: `${formatArea(area)} м²`,
+      space_area: formatArea(area),
+
+      monthly_rent: formatMoney(monthlyRent),
       monthly_rent_num: monthlyRent,
-      rate_per_sqm: (calculateTenantRatePerSqm(tenant) ?? 0).toLocaleString("ru-RU"),
+      monthly_rent_words: rentWords,
+      monthly_rent_with_words: rentWithWords,
+      rent_in_words: rentWords,
+      rate_per_sqm: formatMoney(ratePerSqm),
+      rate_per_sqm_num: ratePerSqm,
       payment_due_day: tenant.paymentDueDay ?? 10,
       penalty_percent: tenant.penaltyPercent ?? 1,
-      // Здание
+
+      utilities_clause: UTILITIES_CLAUSE,
+      signage_clause: SIGNAGE_CLAUSE,
       building_name: building?.name ?? "",
-      building_address: building?.address ?? BUILDING_DEFAULT.address,
+      building_address: objectAddress,
     }
 
     let bytes: Buffer
@@ -134,7 +168,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: `Ошибка рендеринга шаблона: ${msg}` }, { status: 500 })
     }
 
-    // Сохраним в архив
     try {
       await db.generatedDocument.create({
         data: {
@@ -168,25 +201,17 @@ export async function GET(req: Request) {
       },
     })
   }
-  // ── /кастомный шаблон ──────────────────────────────────────────────
 
-  // Расчёт суммы аренды
-  const fullFloor = tenant.fullFloors?.[0]
-  const area = fullFloor?.totalArea ?? tenant.space?.area ?? 0
-  const monthlyRent = calculateTenantMonthlyRent(tenant)
-  const objectAddress = building?.address ?? BUILDING_DEFAULT.address
-  const placement = fullFloor?.name
-    ?? (tenant.space ? `${tenant.space.floor.name}, кабинет ${tenant.space.number}` : "по договору")
-
-  const today = new Date()
-  const start = tenant.contractStart ?? today
-  const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
-
-  const fmtDate = (d: Date) => `«${String(d.getDate()).padStart(2, "0")}» ${MONTH[d.getMonth()]} ${d.getFullYear()} г.`
-  const num = (n: number) => n.toLocaleString("ru-RU")
-
-  // ── Помощники ─────────────────────────────────────────────
-  const p = (text: string, opts?: { bold?: boolean; align?: typeof AlignmentType[keyof typeof AlignmentType]; size?: number; spaceAfter?: number; indent?: boolean }) => new Paragraph({
+  const p = (
+    text: string,
+    opts?: {
+      bold?: boolean
+      align?: (typeof AlignmentType)[keyof typeof AlignmentType]
+      size?: number
+      spaceAfter?: number
+      indent?: boolean
+    },
+  ) => new Paragraph({
     alignment: opts?.align ?? AlignmentType.JUSTIFIED,
     spacing: { after: opts?.spaceAfter ?? 100 },
     indent: opts?.indent !== false ? { firstLine: 567 } : undefined,
@@ -202,15 +227,10 @@ export async function GET(req: Request) {
     spacing: { after: 100 },
     children: [new TextRun({ text, bold: opts?.bold ?? true, size: opts?.size ?? 24 })],
   })
-  // Tenant data
+
   const tenantName = tenant.companyName
   const tenantDir = tenant.directorName ?? tenant.user.name
   const tenantDirShort = shortName(tenantDir)
-  const tenantBasis = tenant.bin
-    ? `Свидетельства о государственной регистрации № ${tenant.bin}`
-    : tenant.iin
-    ? `документа удостоверяющего личность (ИИН ${tenant.iin})`
-    : "учредительных документов"
 
   const children = [
     center(`Договор № ${contractNumber} аренды нежилого помещения`),
@@ -226,44 +246,44 @@ export async function GET(req: Request) {
       spacing: { after: 200 },
     }),
 
-    p(`${LANDLORD.fullName}, именуемый в дальнейшем «Арендодатель», в лице руководителя ${LANDLORD.directorShort}, действующего на основании ${LANDLORD.basis}, с одной стороны, и ${tenantName}, именуем${["TOO", "AO"].includes(tenant.legalType) ? "ое" : "ый"} в дальнейшем «Арендатор», в лице ${tenantDir}${tenant.directorPosition ? ` (${tenant.directorPosition})` : ""}, действующего на основании ${tenantBasis}, с другой стороны, заключили настоящий Договор аренды нежилого помещения о нижеследующем:`),
+    p(`${LANDLORD.fullName}, именуемый в дальнейшем «Арендодатель», в лице руководителя ${LANDLORD.directorShort}, действующего на основании ${LANDLORD.basis}, с одной стороны, и ${tenantName}, именуемый(ое) в дальнейшем «Арендатор», в лице ${tenantDir}${tenant.directorPosition ? ` (${tenant.directorPosition})` : ""}, действующего на основании ${tenantBasis}, с другой стороны, заключили настоящий Договор аренды нежилого помещения о нижеследующем:`),
 
     heading("1. Предмет договора"),
-    p(`1.1. Арендодатель обязуется передать, а Арендатор принять во временное владение и пользование (аренду) за плату на срок настоящего Договора нежилое помещение, расположенное по адресу: ${objectAddress}${placement ? `, ${placement}` : ""}, площадью ${area} кв.м., именуемое в дальнейшем «Помещение», в здании, принадлежащем Арендодателю на праве собственности.`),
-    p(`1.2. Арендодатель за отдельную плату может предоставлять Арендатору телефонную линию, интернет, отопление и электроэнергию, которые не относятся к арендным платежам и оплачиваются Арендатором.`),
-    p(`1.3. Арендатор оплачивает арендные платежи в порядке и на условиях, определенных в настоящем Договоре.`),
+    p(`1.1. Арендодатель обязуется передать, а Арендатор принять во временное владение и пользование (аренду) за плату на срок настоящего Договора нежилое помещение, расположенное по адресу: ${objectAddress}${placement ? `, ${placement}` : ""}, площадью ${formatArea(area)} кв.м., именуемое в дальнейшем «Помещение», в здании, принадлежащем Арендодателю на праве собственности.`),
+    p(`1.2. ${UTILITIES_CLAUSE}`),
+    p(`1.3. ${SIGNAGE_CLAUSE}`),
 
     heading("2. Срок аренды"),
     p(`2.1. Договор вступает в силу с ${fmtDate(start)} и действует по ${fmtDate(end)}.`),
-    p(`2.2. По истечении срока аренды Арендатор имеет право на заключение договора на новый срок, уведомив Арендодателя письменно не позднее, чем за 1 (один) месяц.`),
+    p("2.2. По истечении срока аренды Арендатор имеет право на заключение договора на новый срок, уведомив Арендодателя письменно не позднее, чем за 1 (один) месяц."),
 
     heading("3. Арендная плата и порядок расчётов"),
-    p(`3.1. Сумма арендной платы по соглашению сторон составляет: ${num(monthlyRent)} (${numberToWords(monthlyRent)}) тенге в месяц.`),
+    p(`3.1. Сумма арендной платы по соглашению сторон составляет: ${rentWithWords} тенге в месяц.`),
     p(`3.2. Оплата производится не позднее ${tenant.paymentDueDay} числа каждого месяца на условиях предоплаты, независимо от фактического количества дней в месяце.`),
-    p(`3.3. Оплата производится путём перечисления на счёт Арендодателя, внесением наличных в кассу или иным согласованным способом.`),
-    p(`3.4. Арендная плата подлежит ежегодной индексации с 1 января на величину официального уровня инфляции, публикуемого Национальным банком Республики Казахстан.`),
-    p(`3.5. В арендную плату не включена стоимость коммунальных услуг: теплоснабжение, водоснабжение, вывоз мусора, уборка, охрана здания.`),
+    p("3.3. Оплата производится путём перечисления на счёт Арендодателя, внесением наличных в кассу или иным согласованным способом."),
+    p("3.4. Арендная плата подлежит ежегодной индексации с 1 января на величину официального уровня инфляции, публикуемого Национальным банком Республики Казахстан."),
+    p("3.5. В арендную плату не включаются дополнительные услуги, подключаемые по заявке или отдельному соглашению Арендатора: телефонная линия, доступ в интернет, размещение наружной рекламы, место для видеокамеры, уборка внутри Помещения и иные услуги, прямо согласованные Сторонами."),
 
     heading("4. Права и обязанности Арендодателя"),
-    p(`4.1. Передать Помещение в трёхдневный срок с момента подписания настоящего договора по Акту приёма-передачи.`),
-    p(`4.2. Производить капитальный ремонт Помещения и обеспечивать беспрепятственное пользование.`),
-    p(`4.3. Своевременно выставлять счета на оплату с предоставлением счёта-фактуры и акта оказанных услуг.`),
+    p("4.1. Передать Помещение в трёхдневный срок с момента подписания настоящего договора по Акту приёма-передачи."),
+    p("4.2. Производить капитальный ремонт Помещения и обеспечивать беспрепятственное пользование."),
+    p("4.3. Своевременно выставлять счета на оплату с предоставлением счёта-фактуры и акта оказанных услуг."),
 
     heading("5. Права и обязанности Арендатора"),
-    p(`5.1. В 10-дневный срок с момента подписания принять Помещение.`),
-    p(`5.2. Использовать Помещение по целевому назначению.`),
-    p(`5.3. Своевременно производить арендные платежи.`),
-    p(`5.4. Содержать Помещение в порядке, предусмотренном санитарными и противопожарными правилами.`),
-    p(`5.5. Не осуществлять перестройку и перепланировку без письменного согласия Арендодателя.`),
-    p(`5.6. Возвратить Помещение после прекращения договора в состоянии, пригодном для дальнейшего использования с учётом нормального износа.`),
+    p("5.1. В 10-дневный срок с момента подписания принять Помещение."),
+    p("5.2. Использовать Помещение по целевому назначению."),
+    p("5.3. Своевременно производить арендные платежи."),
+    p("5.4. Содержать Помещение в порядке, предусмотренном санитарными и противопожарными правилами."),
+    p("5.5. Не осуществлять перестройку и перепланировку без письменного согласия Арендодателя."),
+    p("5.6. Возвратить Помещение после прекращения договора в состоянии, пригодном для дальнейшего использования с учётом нормального износа."),
 
     heading("6. Ответственность сторон"),
     p(`6.1. В случае просрочки уплаты арендных платежей Арендатор обязан уплатить пеню в размере ${tenant.penaltyPercent}% от суммы долга за каждый день просрочки, но не более 10% от суммы Договора.`),
 
     heading("7. Прочие условия"),
-    p(`7.1. Споры разрешаются путём переговоров, в претензионном порядке, а впоследствии в суде.`),
-    p(`7.2. Все изменения и дополнения действительны лишь в письменной форме при подписании обеими Сторонами.`),
-    p(`7.3. Договор составлен на русском языке в двух экземплярах, имеющих одинаковую юридическую силу.`),
+    p("7.1. Споры разрешаются путём переговоров, в претензионном порядке, а впоследствии в суде."),
+    p("7.2. Все изменения и дополнения действительны лишь в письменной форме при подписании обеими Сторонами."),
+    p("7.3. Договор составлен на русском языке в двух экземплярах, имеющих одинаковую юридическую силу."),
 
     heading("8. Реквизиты сторон"),
     new Paragraph({ children: [new TextRun("")] }),
@@ -351,8 +371,12 @@ function requisitesTable(left: SideData, right: SideData): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: {
-      top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER,
-      insideHorizontal: NO_BORDER, insideVertical: NO_BORDER,
+      top: NO_BORDER,
+      bottom: NO_BORDER,
+      left: NO_BORDER,
+      right: NO_BORDER,
+      insideHorizontal: NO_BORDER,
+      insideVertical: NO_BORDER,
     },
     rows: [
       new TableRow({
@@ -367,9 +391,74 @@ function requisitesTable(left: SideData, right: SideData): Table {
 
 type SideData = { title: string; lines: string[]; signature: string }
 
+type TenantBasisInput = {
+  legalType?: string | null
+  category?: string | null
+  companyName?: string | null
+  bin?: string | null
+  iin?: string | null
+}
+
+const UTILITIES_CLAUSE = "Отопление, электроэнергия и водоснабжение предоставляются в рамках эксплуатации здания. За отдельную плату и/или по отдельному соглашению Арендодатель может предоставлять Арендатору телефонную линию, доступ в интернет и иные дополнительные услуги, которые не относятся к арендным платежам и оплачиваются Арендатором отдельно."
+
+const SIGNAGE_CLAUSE = "По согласованию сторон Арендодатель может предоставить Арендатору место для размещения видеокамеры, наружной вывески для рекламы на фасаде здания арендуемого Помещения. Арендатор самостоятельно несёт ответственность за получение разрешения на размещение наружной рекламы и за осуществление платы за её размещение."
+
 const MONTH = [
-  "января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря",
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
 ]
+
+function fmtDate(d: Date) {
+  return `«${String(d.getDate()).padStart(2, "0")}» ${MONTH[d.getMonth()]} ${d.getFullYear()} г.`
+}
+
+function formatMoney(n: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n).replace(/[\u00a0\u202f]/g, " ")
+}
+
+function formatArea(n: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: 2,
+  }).format(n).replace(/[\u00a0\u202f]/g, " ")
+}
+
+function inferTenantBasis(tenant: TenantBasisInput) {
+  const legalType = (tenant.legalType ?? "").trim().toUpperCase()
+  const name = `${tenant.companyName ?? ""} ${tenant.category ?? ""}`.toLowerCase()
+  const id = tenant.bin ?? tenant.iin ?? ""
+  const idText = id ? ` (БИН/ИИН ${id})` : ""
+
+  if (name.includes("чси") || name.includes("судебн")) {
+    return "государственной лицензии и регистрационных документов, подтверждающих статус частного судебного исполнителя"
+  }
+
+  if (legalType === "TOO" || legalType === "ТОО" || legalType === "AO" || legalType === "АО") {
+    return "Устава"
+  }
+
+  if (legalType === "IP" || legalType === "ИП") {
+    return `Уведомления о начале деятельности в качестве индивидуального предпринимателя${idText}`
+  }
+
+  if (legalType === "FIZ" || legalType === "PHYSICAL" || legalType === "INDIVIDUAL" || legalType === "ФИЗ") {
+    return id ? `документа, удостоверяющего личность (ИИН ${id})` : "документа, удостоверяющего личность"
+  }
+
+  return id ? `регистрационных документов${idText}` : "регистрационных документов"
+}
 
 function shortName(full: string): string {
   const parts = full.trim().split(/\s+/)
@@ -378,14 +467,61 @@ function shortName(full: string): string {
   return full
 }
 
-function numberToWords(n: number): string {
-  if (n >= 1_000_000) {
-    const m = Math.floor(n / 1_000_000)
-    return `${m} миллион${m === 1 ? "" : m < 5 ? "а" : "ов"}`
+function numberToWords(value: number): string {
+  const rounded = Math.trunc(Math.abs(value))
+  if (rounded === 0) return "ноль"
+
+  const groups = [
+    { value: 1_000_000_000, forms: ["миллиард", "миллиарда", "миллиардов"] as const, gender: "male" as const },
+    { value: 1_000_000, forms: ["миллион", "миллиона", "миллионов"] as const, gender: "male" as const },
+    { value: 1_000, forms: ["тысяча", "тысячи", "тысяч"] as const, gender: "female" as const },
+  ]
+  let rest = rounded
+  const parts: string[] = []
+
+  for (const group of groups) {
+    const chunk = Math.floor(rest / group.value)
+    if (chunk > 0) {
+      parts.push(`${chunkToWords(chunk, group.gender)} ${plural(chunk, group.forms)}`)
+      rest %= group.value
+    }
   }
-  if (n >= 1000) {
-    const k = Math.floor(n / 1000)
-    return `${k} тысяч${k === 1 ? "а" : k < 5 ? "и" : ""}`
+
+  if (rest > 0) {
+    parts.push(chunkToWords(rest, "male"))
   }
-  return String(n)
+
+  return parts.join(" ")
+}
+
+function chunkToWords(value: number, gender: "male" | "female") {
+  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"]
+  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"]
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"]
+  const maleOnes = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"]
+  const femaleOnes = ["", "одна", "две", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"]
+
+  const words: string[] = []
+  const h = Math.floor(value / 100)
+  const t = Math.floor((value % 100) / 10)
+  const o = value % 10
+
+  if (h) words.push(hundreds[h])
+  if (t === 1) {
+    words.push(teens[o])
+  } else {
+    if (t) words.push(tens[t])
+    if (o) words.push((gender === "female" ? femaleOnes : maleOnes)[o])
+  }
+
+  return words.join(" ")
+}
+
+function plural(value: number, forms: readonly [string, string, string]) {
+  const mod100 = value % 100
+  const mod10 = value % 10
+  if (mod100 >= 11 && mod100 <= 14) return forms[2]
+  if (mod10 === 1) return forms[0]
+  if (mod10 >= 2 && mod10 <= 4) return forms[1]
+  return forms[2]
 }

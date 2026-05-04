@@ -54,12 +54,12 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
   if (format === "DOCX") {
     detectedPlaceholders = extractDocxPlaceholders(buffer)
     if (detectedPlaceholders.length === 0) {
-      warning = "В шаблоне не найдено placeholder'ов вида {tenant_name}. Документ будет вставлен как есть, без подстановки данных."
+      warning = "В шаблоне не найдено placeholder'ов вида {tenant_name}. Такой DOCX сохранится как статичный файл: система не сможет подставить арендатора, суммы и реквизиты. Добавьте placeholder'ы и загрузите шаблон повторно."
     }
   } else if (format === "XLSX") {
     detectedPlaceholders = await extractXlsxPlaceholders(buffer)
     if (detectedPlaceholders.length === 0) {
-      warning = "В шаблоне не найдено placeholder'ов вида {tenant_name} в ячейках. Документ будет вставлен как есть."
+      warning = "В шаблоне не найдено placeholder'ов вида {tenant_name} в ячейках. Документ сохранится как статичный файл без автоподстановки данных."
     }
   } else if (format === "PDF") {
     warning = "PDF используется только как образец-превью. Для автоматической генерации данных загрузите DOCX или XLSX."
@@ -82,7 +82,7 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
   }
   // Важные ключевые метки, без которых документ обычно теряет смысл
   const RECOMMENDED_KEYS: Record<DocumentType, string[]> = {
-    CONTRACT: ["tenant_name", "monthly_rent", "space_number", "start_date", "end_date"],
+    CONTRACT: ["tenant_name", "tenant_basis", "monthly_rent_with_words", "space_number", "start_date", "end_date"],
     INVOICE: ["tenant_name", "total", "period", "invoice_number"],
     ACT: ["tenant_name", "total", "act_number", "period_start", "period_end"],
     RECONCILIATION: ["tenant_name", "balance", "period_start", "period_end"],
