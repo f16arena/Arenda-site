@@ -82,7 +82,7 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
   }
   // Важные ключевые метки, без которых документ обычно теряет смысл
   const RECOMMENDED_KEYS: Record<DocumentType, string[]> = {
-    CONTRACT: ["tenant_name", "tenant_basis", "monthly_rent_with_words", "space_number", "start_date", "end_date"],
+    CONTRACT: ["tenant_name", "tenant_basis", "rent_clause", "prolongation_clause", "esf_clause", "space_number", "start_date", "end_date"],
     INVOICE: ["tenant_name", "total", "period", "invoice_number"],
     ACT: ["tenant_name", "total", "act_number", "period_start", "period_end"],
     RECONCILIATION: ["tenant_name", "balance", "period_start", "period_end"],

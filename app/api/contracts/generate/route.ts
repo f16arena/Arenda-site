@@ -21,6 +21,13 @@ import {
 } from "docx"
 import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
+import {
+  LEASE_ADDITIONAL_SERVICES_CLAUSE,
+  LEASE_ESF_CLAUSE,
+  LEASE_PROLONGATION_CLAUSE,
+  buildLeaseRentClause,
+  getLeaseRentBasisLabel,
+} from "@/lib/contract-clauses"
 
 export const dynamic = "force-dynamic"
 
@@ -99,6 +106,14 @@ export async function GET(req: Request) {
   const tenantBasis = inferTenantBasis(tenant)
   const rentWords = numberToWords(monthlyRent)
   const rentWithWords = `${formatMoney(monthlyRent)} (${rentWords})`
+  const rentClause = buildLeaseRentClause({
+    tenant,
+    area,
+    placement,
+    fullFloorName: fullFloor?.name,
+    monthlyRent,
+    ratePerSqm,
+  })
   const startDate = start.toLocaleDateString("ru-RU")
   const endDate = end.toLocaleDateString("ru-RU")
   const contractDate = today.toLocaleDateString("ru-RU")
@@ -163,9 +178,17 @@ export async function GET(req: Request) {
       rent_in_words: rentWords,
       rate_per_sqm: formatMoney(ratePerSqm),
       rate_per_sqm_num: ratePerSqm,
+      rent_clause: rentClause,
+      rent_terms_clause: rentClause,
+      rent_basis: getLeaseRentBasisLabel(tenant),
       payment_due_day: tenant.paymentDueDay ?? 10,
       penalty_percent: tenant.penaltyPercent ?? 1,
 
+      prolongation_clause: LEASE_PROLONGATION_CLAUSE,
+      contract_prolongation_clause: LEASE_PROLONGATION_CLAUSE,
+      esf_clause: LEASE_ESF_CLAUSE,
+      invoice_clause: LEASE_ESF_CLAUSE,
+      additional_services_clause: LEASE_ADDITIONAL_SERVICES_CLAUSE,
       utilities_clause: UTILITIES_CLAUSE,
       signage_clause: SIGNAGE_CLAUSE,
       building_name: building?.name ?? "",
@@ -280,14 +303,15 @@ export async function GET(req: Request) {
 
     heading("2. Срок аренды"),
     p(`2.1. Договор вступает в силу с ${fmtDate(start)} и действует по ${fmtDate(end)}.`),
-    p("2.2. По истечении срока аренды Арендатор имеет право на заключение договора на новый срок, уведомив Арендодателя письменно не позднее, чем за 1 (один) месяц."),
+    p(LEASE_PROLONGATION_CLAUSE),
 
     heading("3. Арендная плата и порядок расчётов"),
-    p(`3.1. Сумма арендной платы по соглашению сторон составляет: ${rentWithWords} тенге в месяц.`),
+    p(rentClause),
     p(`3.2. Оплата производится не позднее ${tenant.paymentDueDay} числа каждого месяца на условиях предоплаты, независимо от фактического количества дней в месяце.`),
     p("3.3. Оплата производится путём перечисления на счёт Арендодателя, внесением наличных в кассу или иным согласованным способом."),
     p("3.4. Арендная плата подлежит ежегодной индексации с 1 января на величину официального уровня инфляции, публикуемого Национальным банком Республики Казахстан."),
-    p("3.5. В арендную плату не включаются дополнительные услуги, подключаемые по заявке или отдельному соглашению Арендатора: телефонная линия, доступ в интернет, размещение наружной рекламы, место для видеокамеры, уборка внутри Помещения и иные услуги, прямо согласованные Сторонами."),
+    p(LEASE_ESF_CLAUSE),
+    p(LEASE_ADDITIONAL_SERVICES_CLAUSE),
 
     heading("4. Права и обязанности Арендодателя"),
     p("4.1. Передать Помещение в трёхдневный срок с момента подписания настоящего договора по Акту приёма-передачи."),

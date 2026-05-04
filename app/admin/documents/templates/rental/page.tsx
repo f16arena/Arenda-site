@@ -16,6 +16,12 @@ import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { tenantScope } from "@/lib/tenant-scope"
 import { extractDocxPlaceholders, extractXlsxPlaceholders } from "@/lib/template-engine"
+import {
+  LEASE_ADDITIONAL_SERVICES_CLAUSE,
+  LEASE_ESF_CLAUSE,
+  LEASE_PROLONGATION_CLAUSE,
+  buildLeaseRentClause,
+} from "@/lib/contract-clauses"
 
 interface PageProps {
   searchParams: Promise<{ tenantId?: string }>
@@ -52,6 +58,10 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
         include: {
           user: true,
           space: { include: { floor: true } },
+          tenantSpaces: {
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            include: { space: { include: { floor: true } } },
+          },
           fullFloors: true,
           contracts: { orderBy: { createdAt: "desc" }, take: 1 },
         },
@@ -59,7 +69,12 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
     : null
 
   // Определяем здание арендатора и предлагаем номер
-  const tenantBuildingId = tenant?.space?.floor.buildingId ?? tenant?.fullFloors?.[0]?.buildingId
+  const tenantAssignedSpaces = tenant
+    ? tenant.tenantSpaces.length > 0
+      ? tenant.tenantSpaces.map((item) => item.space)
+      : tenant.space ? [tenant.space] : []
+    : []
+  const tenantBuildingId = tenantAssignedSpaces[0]?.floor.buildingId ?? tenant?.fullFloors?.[0]?.buildingId
   const suggestedNumber = tenant && tenantBuildingId
     ? await suggestContractNumber(tenantBuildingId).catch(() => "01-001")
     : null
@@ -81,10 +96,22 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
   // Площадь и сумма аренды
   const fullFloor = tenant?.fullFloors?.[0]
-  const area = fullFloor?.totalArea ?? tenant?.space?.area ?? 0
+  const area = fullFloor?.totalArea ?? tenantAssignedSpaces.reduce((sum, space) => sum + space.area, 0)
+  const placement = fullFloor?.name
+    ?? (tenantAssignedSpaces.length > 0
+      ? tenantAssignedSpaces.map((space) => `${space.floor.name}, кабинет ${space.number}`).join("; ")
+      : "")
   const monthlyRent = tenant ? calculateTenantMonthlyRent(tenant) : 0
+  const rentClause = tenant
+    ? buildLeaseRentClause({
+        tenant,
+        area,
+        placement,
+        fullFloorName: fullFloor?.name,
+        monthlyRent,
+      })
+    : ""
 
-  const moneyWords = (n: number) => n.toLocaleString("ru-RU")
   const objectAddress = building?.address ?? BUILDING_DEFAULT.address
   const activeContractTemplate = await db.documentTemplate.findFirst({
     where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
@@ -161,7 +188,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           <p className="mt-2 text-justify">
             1.1. Арендодатель обязуется передать, а Арендатор принять во временное владение и пользование (аренду) за плату на срок настоящего Договора нежилое помещение,
             в целях использования его для размещения служебного офиса, расположенное по адресу: {objectAddress}
-            {fullFloor ? `, ${fullFloor.name}` : tenant.space ? `, ${tenant.space.floor.name}, кабинет ${tenant.space.number}` : ""},
+            {placement ? `, ${placement}` : ""},
             а именно помещение площадью – <b>{area}</b> кв.м., именуемое в дальнейшем «Помещение», в здании, принадлежащем Арендодателю на праве собственности.
           </p>
           <p className="mt-2 text-justify">
@@ -182,13 +209,12 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
             и действует по «{end.getDate().toString().padStart(2, "0")}» {fmt(end).split(" ")[1]} {end.getFullYear()} года.
           </p>
           <p className="mt-2 text-justify">
-            2.2. По истечении срока аренды Арендатор, надлежащим образом выполнивший принятые на себя обязательства,
-            имеет право на заключение договора аренды на новый срок, уведомив Арендодателя письменно не позднее, чем за 1 (один) месяц до окончания.
+            {LEASE_PROLONGATION_CLAUSE}
           </p>
 
           <h3 className="font-semibold mt-4">3. Арендная плата и порядок расчётов.</h3>
           <p className="mt-2 text-justify">
-            3.1. Сумма арендной платы по соглашению сторон составляет: <b>{moneyWords(monthlyRent)}</b> ({numberToWords(monthlyRent)}) тенге в месяц.
+            {rentClause}
           </p>
           <p className="mt-2 text-justify">
             3.2. Оплата арендных платежей производится независимо от фактического количества дней в месяце, включая налоги,
@@ -203,8 +229,10 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
             публикуемого Национальным банком Республики Казахстан.
           </p>
           <p className="mt-2 text-justify">
-            3.5. В арендную плату не включена стоимость коммунальных услуг: теплоснабжение, водоснабжение,
-            вывоз мусора, уборка, охрана здания.
+            {LEASE_ESF_CLAUSE}
+          </p>
+          <p className="mt-2 text-justify">
+            {LEASE_ADDITIONAL_SERVICES_CLAUSE}
           </p>
 
           <h3 className="font-semibold mt-4">4. Права и обязанности Арендодателя.</h3>
@@ -326,7 +354,7 @@ function ActiveContractTemplatePanel({
         ) : (
           <p>
             Метки автоподстановки не найдены. Кнопка {template.format} выше скачает именно загруженный файл, без старого договора из кода.
-            Чтобы данные арендатора, сумма и реквизиты подставлялись автоматически, добавьте метки вида {"{tenant_name}"}, {"{monthly_rent_with_words}"}, {"{start_date}"} и загрузите новую версию.
+            Чтобы данные арендатора, правильный пункт аренды и реквизиты подставлялись автоматически, добавьте метки вида {"{tenant_name}"}, {"{rent_clause}"}, {"{prolongation_clause}"}, {"{esf_clause}"} и загрузите новую версию.
           </p>
         )}
       </div>
@@ -339,18 +367,4 @@ function shortName(full: string): string {
   if (parts.length >= 3) return `${parts[0]} ${parts[1][0]}.${parts[2][0]}.`
   if (parts.length === 2) return `${parts[0]} ${parts[1][0]}.`
   return full
-}
-
-function numberToWords(n: number): string {
-  // Простой перевод суммы в слова для крупных значений (тысячи)
-  if (n >= 1_000_000) {
-    const m = Math.floor(n / 1_000_000)
-    const rest = Math.floor((n % 1_000_000) / 1000)
-    return `${m} миллион${m === 1 ? "" : m < 5 ? "а" : "ов"}${rest > 0 ? ` ${rest} тысяч${rest === 1 ? "а" : rest < 5 ? "и" : ""}` : ""}`
-  }
-  if (n >= 1000) {
-    const k = Math.floor(n / 1000)
-    return `${k} тысяч${k === 1 ? "а" : k < 5 ? "и" : ""}`
-  }
-  return String(n)
 }
