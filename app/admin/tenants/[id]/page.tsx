@@ -35,6 +35,7 @@ import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRe
 import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { SERVICE_CHARGE_TYPE_VALUES } from "@/lib/service-charges"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import type { Prisma } from "@/app/generated/prisma/client"
@@ -412,7 +413,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             >
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО</label>
-                <input
+                <AddressAutocompleteInput
                   name="name"
                   defaultValue={tenant.user.name}
                   required
@@ -491,18 +492,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Юридический адрес</label>
-                <input
+                <AddressAutocompleteInput
                   name="legalAddress"
                   defaultValue={tenant.legalAddress ?? ""}
+                  includeStructuredFields={false}
                   placeholder="г. Усть-Каменогорск, ул..."
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Фактический адрес</label>
-                <input
+                <AddressAutocompleteInput
                   name="actualAddress"
                   defaultValue={tenant.actualAddress ?? ""}
+                  includeStructuredFields={false}
                   placeholder="Если совпадает с юридическим — оставьте пустым"
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />

@@ -33,6 +33,8 @@ export async function createTenant(formData: FormData) {
   const bin = taxIds.bin
   const iin = taxIds.iin
   const category = String(formData.get("category") ?? "").trim()
+  const legalAddress = String(formData.get("legalAddress") ?? "").trim()
+  const actualAddress = String(formData.get("actualAddress") ?? "").trim()
   const spaceIds = parseTenantSpaceIds(formData)
   const spaceId = spaceIds[0] ?? ""
   const buildingId = String(formData.get("buildingId") ?? "").trim()
@@ -171,6 +173,8 @@ export async function createTenant(formData: FormData) {
           bin: bin || null,
           iin: iin || null,
           category: category || null,
+          legalAddress: legalAddress || null,
+          actualAddress: actualAddress || null,
           contractStart: contractStart ? new Date(contractStart) : null,
           contractEnd: contractEnd ? new Date(contractEnd) : null,
         },

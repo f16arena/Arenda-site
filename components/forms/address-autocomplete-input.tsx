@@ -24,6 +24,7 @@ type Props = {
   required?: boolean
   placeholder?: string
   className?: string
+  includeStructuredFields?: boolean
 }
 
 const EMPTY_FIELDS: Required<AddressFields> = {
@@ -47,6 +48,7 @@ export function AddressAutocompleteInput({
   required,
   placeholder = "г. Усть-Каменогорск, ул. ...",
   className,
+  includeStructuredFields = true,
 }: Props) {
   const initialValue = defaultValue ?? ""
   const [value, setValue] = useState(initialValue)
@@ -142,7 +144,7 @@ export function AddressAutocompleteInput({
           window.setTimeout(() => setOpen(false), 150)
         }}
       />
-      <AddressHiddenFields fields={fields} />
+      {includeStructuredFields && <AddressHiddenFields fields={fields} />}
 
       {open && (loading || suggestions.length > 0) && (
         <div className="absolute z-[60] mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">

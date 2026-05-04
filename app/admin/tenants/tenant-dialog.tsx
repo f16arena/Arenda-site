@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { createTenant } from "@/app/actions/tenant-create"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "./tenant-identity-fields"
 
 type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number }
@@ -106,6 +107,24 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>
                 <input name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>
+                <AddressAutocompleteInput
+                  name="legalAddress"
+                  includeStructuredFields={false}
+                  placeholder="г. Усть-Каменогорск, ул..."
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Фактический адрес</label>
+                <AddressAutocompleteInput
+                  name="actualAddress"
+                  includeStructuredFields={false}
+                  placeholder="Если совпадает с юридическим — оставьте пустым"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
               </div>
 
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Помещение и договор</p>
