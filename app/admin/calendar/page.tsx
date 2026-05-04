@@ -5,7 +5,8 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
-import { CalendarView, type CalendarEvent } from "./calendar-view"
+import { CalendarViewLoader } from "./calendar-view-loader"
+import type { CalendarEvent } from "./calendar-view"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
@@ -164,7 +165,7 @@ export default async function CalendarPage({
         </div>
       </div>
 
-      <CalendarView
+      <CalendarViewLoader
         currentYear={year}
         currentMonth={monthNum}
         events={events}

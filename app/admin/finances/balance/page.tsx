@@ -9,7 +9,7 @@ import {
   Wallet, Banknote, CreditCard, ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
-import { BalanceClient } from "./balance-client"
+import { BalanceClientLoader } from "./balance-client-loader"
 
 export default async function BalancePage() {
   const session = await auth()
@@ -86,7 +86,7 @@ export default async function BalancePage() {
         />
       </div>
 
-      <BalanceClient
+      <BalanceClientLoader
         accounts={accounts.map((a) => ({
           id: a.id,
           name: a.name,

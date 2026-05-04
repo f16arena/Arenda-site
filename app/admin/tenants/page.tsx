@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { TenantDialog } from "./tenant-dialog"
-import { TenantsTable, type TenantRow } from "./tenants-table"
+import { TenantsTableLoader } from "./tenants-table-loader"
+import type { TenantRow } from "./tenants-table"
 import { requireOrgAccess } from "@/lib/org"
 import { spaceScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -120,7 +121,7 @@ export default async function TenantsPage() {
         />
       </div>
 
-      <TenantsTable tenants={rows} />
+      <TenantsTableLoader tenants={rows} />
     </div>
   )
 }

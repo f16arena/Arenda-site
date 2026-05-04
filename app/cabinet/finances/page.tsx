@@ -4,7 +4,6 @@ import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { LANDLORD } from "@/lib/landlord"
 import { PaymentPanel } from "./payment-panel"
-import QRCode from "qrcode"
 
 export default async function CabinetFinances() {
   const session = await auth()
@@ -45,7 +44,9 @@ export default async function CabinetFinances() {
     `Назначение: ${paymentPurpose}`,
     `Сумма к оплате: ${formatMoney(totalDebt > 0 ? totalDebt : monthlyRent)}`,
   ].join("\n")
-  const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1, width: 180 }).catch(() => null)
+  const qrDataUrl = await import("qrcode")
+    .then((mod) => mod.default.toDataURL(qrText, { margin: 1, width: 180 }))
+    .catch(() => null)
 
   const byPeriod = tenant.charges.reduce<Record<string, typeof tenant.charges>>((acc, c) => {
     acc[c.period] = acc[c.period] ?? []

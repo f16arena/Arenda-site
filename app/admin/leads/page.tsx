@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
-import { LeadKanban } from "./lead-kanban"
+import { LeadKanbanLoader } from "./lead-kanban-loader"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 
@@ -43,5 +43,5 @@ export default async function LeadsPage() {
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   }).catch(() => [])
 
-  return <LeadKanban leads={leads} vacantSpaces={vacantSpaces} />
+  return <LeadKanbanLoader leads={leads} vacantSpaces={vacantSpaces} />
 }

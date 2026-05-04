@@ -3,7 +3,8 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { ChatView, type ChatUser, type ChatMessage } from "@/components/messages/chat-view"
+import { ChatViewLoader } from "@/components/messages/chat-view-loader"
+import type { ChatUser, ChatMessage } from "@/components/messages/chat-view"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 
 export default async function CabinetMessages() {
@@ -74,7 +75,7 @@ export default async function CabinetMessages() {
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Сообщения</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Связь с администрацией здания</p>
       </div>
-      <ChatView
+      <ChatViewLoader
         currentUserId={me}
         contacts={contacts}
         messagesByContact={messagesByContact}

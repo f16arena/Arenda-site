@@ -10,7 +10,8 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import Link from "next/link"
 import { DocumentTypeFilter } from "./document-type-filter"
-import { DocumentsTable, type DocRow } from "./documents-table"
+import { DocumentsTableLoader } from "./documents-table-loader"
+import type { DocRow } from "./documents-table"
 
 type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
 
@@ -176,7 +177,7 @@ export default async function DocumentsPage({
 
       <DocumentTypeFilter currentType={filterType} currentSearch={search} currentPeriod={period} />
 
-      <DocumentsTable rows={allRows} emptyHint={emptyHint} />
+      <DocumentsTableLoader rows={allRows} emptyHint={emptyHint} />
     </div>
   )
 }
