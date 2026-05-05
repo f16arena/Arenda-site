@@ -16,6 +16,7 @@ import {
   getTenantStorageScope,
   storeBufferFile,
 } from "@/lib/storage"
+import { applyConfirmedPaymentReport } from "@/lib/payment-report-workflow"
 import { revalidatePath } from "next/cache"
 
 type ActionResult = {
@@ -274,51 +275,13 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   }
 
   const result = await db.$transaction(async (tx) => {
-    const payment = await tx.payment.create({
-      data: {
-        tenantId: report.tenantId,
-        amount: report.amount,
-        method,
-        note: report.note || report.paymentPurpose || `Проведено по заявке #${report.id}`,
-        paymentDate: report.paymentDate,
-      },
+    return applyConfirmedPaymentReport(tx, {
+      report,
+      method,
+      reviewerId: session.user.id,
+      cashAccountId,
+      chargeIds: validChargeIds,
     })
-
-    if (cashAccountId) {
-      await tx.cashTransaction.create({
-        data: {
-          accountId: cashAccountId,
-          amount: report.amount,
-          type: "DEPOSIT",
-          paymentId: payment.id,
-          createdById: session.user.id,
-          description: `Платеж от ${report.tenant.companyName} по заявке #${report.id}`,
-        },
-      })
-      await tx.cashAccount.update({
-        where: { id: cashAccountId },
-        data: { balance: { increment: report.amount } },
-      })
-    }
-
-    if (validChargeIds.length > 0) {
-      await tx.charge.updateMany({
-        where: { id: { in: validChargeIds } },
-        data: { isPaid: true },
-      })
-    }
-
-    await tx.paymentReport.update({
-      where: { id: report.id },
-      data: {
-        status: "CONFIRMED",
-        reviewedById: session.user.id,
-        reviewedAt: new Date(),
-        paymentId: payment.id,
-      },
-    })
-
-    return payment
   })
 
   const tenant = await db.tenant.findUnique({

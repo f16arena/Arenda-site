@@ -1,6 +1,6 @@
 {
   "name": "arenda-pro",
-  "version": "1.3.79",
+  "version": "1.3.80",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,8 @@
     "lint": "eslint",
     "perf:audit": "node scripts/performance-audit.mjs",
     "security:audit": "node scripts/security-isolation-audit.mjs",
-    "quality:audit": "npm run lint && npm run perf:audit && npm run security:audit"
+    "test:e2e:payment": "tsx scripts/e2e-critical-payment.ts",
+    "quality:audit": "npm run lint && npm run perf:audit && npm run security:audit && npm run test:e2e:payment"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
