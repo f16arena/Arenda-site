@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
 import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
+import { applySignedContractChanges } from "@/lib/contract-addendum"
 import { headers } from "next/headers"
 import crypto from "crypto"
 
@@ -119,6 +120,9 @@ export async function markContractSignedByLandlord(
       ...(newStatus === "SIGNED" ? { signedAt: now } : {}),
     },
   })
+  if (newStatus === "SIGNED") {
+    await applySignedContractChanges(contract.id)
+  }
 
   revalidatePath("/admin/documents")
   return { ok: true }
@@ -202,6 +206,9 @@ export async function signContractByTenant(
       ...(newStatus === "SIGNED" ? { signedAt: now } : {}),
     },
   })
+  if (newStatus === "SIGNED") {
+    await applySignedContractChanges(contract.id)
+  }
 
   revalidatePath("/admin/documents")
   return { ok: true }

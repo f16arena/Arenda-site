@@ -539,11 +539,21 @@ model Contract {
   signedByLandlordAt DateTime? @map("signed_by_landlord_at")
   rejectedAt         DateTime? @map("rejected_at")
   rejectionReason    String?   @map("rejection_reason")
+  parentContractId   String?   @map("parent_contract_id")
+  changeKind         String?   @map("change_kind")
+  changePayload      Json?     @map("change_payload")
+  effectiveDate      DateTime? @map("effective_date")
+  appliedAt          DateTime? @map("applied_at")
   createdAt          DateTime  @default(now()) @map("created_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  parentContract Contract?  @relation("ContractAddenda", fields: [parentContractId], references: [id], onDelete: SetNull)
+  addenda        Contract[] @relation("ContractAddenda")
 
   @@index([tenantId, status, createdAt])
+  @@index([tenantId, type, status, createdAt])
+  @@index([parentContractId])
+  @@index([changeKind, appliedAt])
   @@map("contracts")
 }
 

@@ -9,6 +9,11 @@ function shouldLogAllRoutes() {
   return process.env.ROUTE_PERF_LOG_ALL === "1"
 }
 
+function isNextDynamicServerSignal(error: unknown) {
+  if (!(error instanceof Error)) return false
+  return error.message.includes("Dynamic server usage") || String((error as { digest?: unknown }).digest ?? "").includes("DYNAMIC_SERVER")
+}
+
 export async function measureServerRoute<T>(
   route: string,
   render: () => Promise<T>,
@@ -20,12 +25,14 @@ export async function measureServerRoute<T>(
   } catch (error) {
     didError = true
     const durationMs = Math.round(performance.now() - start)
-    console.error("[route-performance]", {
-      route,
-      durationMs,
-      status: "error",
-      error: error instanceof Error ? error.message : "unknown",
-    })
+    if (!isNextDynamicServerSignal(error)) {
+      console.error("[route-performance]", {
+        route,
+        durationMs,
+        status: "error",
+        error: error instanceof Error ? error.message : "unknown",
+      })
+    }
     throw error
   } finally {
     const durationMs = Math.round(performance.now() - start)

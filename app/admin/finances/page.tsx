@@ -18,15 +18,22 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { safeServerValue } from "@/lib/server-fallback"
+import { measureServerRoute } from "@/lib/server-performance"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 const FINANCE_PAGE_SIZE = 10
 
-export default async function FinancesPage({
-  searchParams,
-}: {
+type FinancesPageProps = {
   searchParams?: Promise<{ chargesPage?: string | string[]; expensesPage?: string | string[] }>
-}) {
+}
+
+export default async function FinancesPage(props: FinancesPageProps) {
+  return measureServerRoute("/admin/finances", () => renderFinancesPage(props))
+}
+
+async function renderFinancesPage({
+  searchParams,
+}: FinancesPageProps) {
   const { orgId } = await requireOrgAccess()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/finances", orgId })
@@ -141,7 +148,7 @@ export default async function FinancesPage({
         where: {
           AND: [
             paymentReportScope(orgId),
-            { status: "PENDING" },
+            { status: { in: ["PENDING", "DISPUTED"] } },
             { tenant: tenantBuildingWhere },
           ],
         },
@@ -150,6 +157,7 @@ export default async function FinancesPage({
           amount: true,
           paymentDate: true,
           method: true,
+          status: true,
           paymentPurpose: true,
           note: true,
           receiptName: true,

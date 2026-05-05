@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { CheckCircle2, Eye, FileText, ReceiptText, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Eye, FileText, ReceiptText, XCircle } from "lucide-react"
 import { toast } from "sonner"
-import { confirmPaymentReport, rejectPaymentReport } from "@/app/actions/tenant-payments"
+import { confirmPaymentReport, markPaymentReportDisputed, rejectPaymentReport } from "@/app/actions/tenant-payments"
 import { CHARGE_TYPES, PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
 
 type CashAccount = {
@@ -25,6 +25,7 @@ type PaymentReport = {
   amount: number
   paymentDate: Date
   method: string
+  status: string
   paymentPurpose: string | null
   note: string | null
   receiptName: string | null
@@ -96,6 +97,7 @@ function ReportCard({
   const [rejecting, setRejecting] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState(report.method || "TRANSFER")
   const [selectedAccountId, setSelectedAccountId] = useState(() => defaultAccountForMethod(report.method, cashAccounts))
+  const isDisputed = report.status === "DISPUTED"
 
   function submitConfirm(formData: FormData) {
     startTransition(async () => {
@@ -114,6 +116,20 @@ function ReportCard({
       } else {
         toast.error(result.error ?? "Не удалось отклонить")
       }
+    })
+  }
+
+  function submitDispute() {
+    const reason = window.prompt("Что нужно уточнить по оплате?")
+    if (!reason?.trim()) return
+    const formData = new FormData()
+    formData.set("reportId", report.id)
+    formData.set("reason", reason)
+
+    startTransition(async () => {
+      const result = await markPaymentReportDisputed(formData)
+      if (result.ok) toast.success(result.message ?? "Оплата помечена как спорная")
+      else toast.error(result.error ?? "Не удалось пометить оплату как спорную")
     })
   }
 
@@ -142,6 +158,13 @@ function ReportCard({
               </p>
               <p className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {PAYMENT_METHOD_LABELS[report.method] ?? report.method}
+              </p>
+              <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                isDisputed
+                  ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                  : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+              }`}>
+                {isDisputed ? "Спорная" : "Ждет проверки"}
               </p>
             </div>
           </div>
@@ -269,6 +292,15 @@ function ReportCard({
                 >
                   <XCircle className="h-4 w-4" />
                   Отклонить
+                </button>
+                <button
+                  type="button"
+                  onClick={submitDispute}
+                  disabled={pending || isDisputed}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-60 dark:border-amber-500/30 dark:text-amber-300 dark:hover:bg-amber-500/10"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Спорная
                 </button>
                 <button
                   type="submit"

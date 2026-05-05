@@ -18,6 +18,7 @@ import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-acces
 import { getAllowedSections, SECTIONS } from "@/lib/acl"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
+import { measureServerRoute } from "@/lib/server-performance"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -26,6 +27,10 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
+  return measureServerRoute("/admin/layout", () => renderAdminLayout(children))
+}
+
+async function renderAdminLayout(children: React.ReactNode) {
   const session = await auth()
   if (!session) redirect("/login")
   const isPlatformOwner = session.user.isPlatformOwner ?? false
@@ -70,15 +75,23 @@ export default async function AdminLayout({
 
   const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
     currentOrgId
-      ? db.organization.findUnique({
-          where: { id: currentOrgId },
-          select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
-        }).catch(() => null)
+      ? safeServerValue(
+          db.organization.findUnique({
+            where: { id: currentOrgId },
+            select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
+          }),
+          null,
+          { source: "admin.layout.currentOrg", route: "/admin", orgId: currentOrgId, userId: session.user.id },
+        )
       : Promise.resolve(null),
-    db.user.findUnique({
-      where: { id: session.user.id },
-      select: { name: true, email: true, emailVerifiedAt: true },
-    }).catch(() => null),
+    safeServerValue(
+      db.user.findUnique({
+        where: { id: session.user.id },
+        select: { name: true, email: true, emailVerifiedAt: true },
+      }),
+      null,
+      { source: "admin.layout.freshUser", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
+    ),
     currentOrgId
       ? safeServerValue(
           getAccessibleBuildingsForUser({
@@ -91,9 +104,13 @@ export default async function AdminLayout({
           { source: "admin.layout.accessibleBuildings", route: "/admin", orgId: currentOrgId, userId: session.user.id },
         )
       : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
-    db.notification.count({
-      where: { userId: session.user.id, isRead: false },
-    }).catch(() => 0),
+    safeServerValue(
+      db.notification.count({
+        where: { userId: session.user.id, isRead: false },
+      }),
+      0,
+      { source: "admin.layout.unreadNotifications", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
+    ),
     isOwnerLike(session.user.role, isPlatformOwner)
       ? Promise.resolve(new Set(SECTIONS))
       : getAllowedSections(session.user.role),

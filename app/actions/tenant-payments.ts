@@ -229,7 +229,7 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   const chargeIds = formData.getAll("chargeIds").map((value) => String(value)).filter(Boolean)
 
   const report = await db.paymentReport.findFirst({
-    where: { id: reportId, status: "PENDING", ...paymentReportScope(orgId) },
+    where: { id: reportId, status: { in: ["PENDING", "DISPUTED"] }, ...paymentReportScope(orgId) },
     select: {
       id: true,
       tenantId: true,
@@ -344,6 +344,49 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   return { ok: true, message: `Платеж проведен: ${formatMoney(result.amount)}` }
 }
 
+export async function markPaymentReportDisputed(formData: FormData): Promise<ActionResult> {
+  await requireSection("finances", "edit")
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { orgId } = await requireOrgAccess()
+
+  const reportId = String(formData.get("reportId") ?? "").trim()
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 500)
+  if (!reportId) return { ok: false, error: "Не указана заявка об оплате" }
+  if (reason.length < 5) return { ok: false, error: "Коротко укажите, что нужно уточнить по оплате" }
+
+  const report = await db.paymentReport.findFirst({
+    where: { id: reportId, status: { in: ["PENDING", "DISPUTED"] }, ...paymentReportScope(orgId) },
+    select: { id: true, tenantId: true, amount: true, userId: true, note: true },
+  })
+  if (!report) return { ok: false, error: "Заявка об оплате не найдена или уже обработана" }
+
+  await assertTenantBuildingAccess(report.tenantId, orgId)
+
+  await db.paymentReport.update({
+    where: { id: report.id },
+    data: {
+      status: "DISPUTED",
+      reviewedById: session.user.id,
+      reviewedAt: new Date(),
+      note: [report.note, `Спорная оплата: ${reason}`].filter(Boolean).join("\n\n"),
+    },
+  })
+
+  await notifyUser({
+    userId: report.userId,
+    type: "PAYMENT_DISPUTED",
+    title: "Оплата требует уточнения",
+    message: reason || `Администратор уточняет платеж ${formatMoney(report.amount)}.`,
+    link: "/cabinet/finances",
+    sendEmail: false,
+  })
+
+  revalidatePath("/admin/finances")
+  revalidatePath("/cabinet/finances")
+  return { ok: true, message: "Оплата помечена как спорная" }
+}
+
 export async function rejectPaymentReport(formData: FormData): Promise<ActionResult> {
   await requireSection("finances", "edit")
   const session = await auth()
@@ -355,7 +398,7 @@ export async function rejectPaymentReport(formData: FormData): Promise<ActionRes
   if (!reportId) return { ok: false, error: "Не указана заявка об оплате" }
 
   const report = await db.paymentReport.findFirst({
-    where: { id: reportId, status: "PENDING", ...paymentReportScope(orgId) },
+    where: { id: reportId, status: { in: ["PENDING", "DISPUTED"] }, ...paymentReportScope(orgId) },
     select: { id: true, tenantId: true, amount: true, userId: true, note: true },
   })
   if (!report) return { ok: false, error: "Заявка об оплате не найдена или уже обработана" }

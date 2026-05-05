@@ -673,7 +673,15 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
         : ""
   const changed = rentalTermsChanged(before, after)
 
-  let addendum: { number: string; date: Date; changes: string; content: string } | null = null
+  let addendum: {
+    number: string
+    date: Date
+    changes: string
+    content: string
+    before: RentalTermsSnapshot
+    after: RentalTermsSnapshot
+    lockReason: string
+  } | null = null
   if (rentalTermsLocked && changed) {
     const addendumNumber = String(formData.get("addendumNumber") ?? "").trim()
     const addendumDateRaw = String(formData.get("addendumDate") ?? "").trim()
@@ -699,6 +707,9 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
       number: addendumNumber,
       date: addendumDate,
       changes: addendumChanges,
+      before,
+      after,
+      lockReason,
       content: buildRentalTermsAddendumContent({
         number: addendumNumber,
         date: addendumDate,
@@ -711,18 +722,28 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     }
   }
 
+  const parentContract = addendum
+    ? await db.contract.findFirst({
+        where: { tenantId, status: "SIGNED", type: { not: "ADDENDUM" } },
+        select: { id: true },
+        orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
+      })
+    : null
+
   await db.$transaction(async (tx) => {
-    await tx.tenant.update({
-      where: { id: tenantId },
-      data: {
-        customRate: after.customRate,
-        fixedMonthlyRent: after.fixedMonthlyRent,
-        cleaningFee: after.cleaningFee,
-        needsCleaning: after.needsCleaning,
-        paymentDueDay: after.paymentDueDay,
-        penaltyPercent: after.penaltyPercent,
-      },
-    })
+    if (!addendum) {
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          customRate: after.customRate,
+          fixedMonthlyRent: after.fixedMonthlyRent,
+          cleaningFee: after.cleaningFee,
+          needsCleaning: after.needsCleaning,
+          paymentDueDay: after.paymentDueDay,
+          penaltyPercent: after.penaltyPercent,
+        },
+      })
+    }
 
     if (addendum) {
       await tx.contract.create({
@@ -731,6 +752,16 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
           number: addendum.number,
           type: "ADDENDUM",
           content: addendum.content,
+          parentContractId: parentContract?.id ?? null,
+          changeKind: "RENTAL_TERMS",
+          changePayload: {
+            before: addendum.before,
+            after: addendum.after,
+            newTerms: addendum.after,
+            changes: addendum.changes,
+            lockReason: addendum.lockReason,
+          },
+          effectiveDate: addendum.date,
           startDate: addendum.date,
           status: "DRAFT",
         },
