@@ -3,6 +3,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatErrorId } from "@/lib/error-id"
 import { decodeErrorReport } from "@/lib/error-report"
+import { captureServerException } from "@/lib/sentry-server"
 
 export const dynamic = "force-dynamic"
 
@@ -14,6 +15,7 @@ type ErrorReportBody = {
   message?: unknown
   digest?: unknown
   stack?: unknown
+  sentryEventId?: unknown
   context?: unknown
 }
 
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
   const href = clip(body.href, 500)
   const message = clip(body.message, 500)
   const stack = clip(body.stack, 4_000)
+  const sentryEventId = clip(body.sentryEventId, 80)
   const decode = decodeErrorReport({ source, path, href, message, digest, stack })
 
   const payload = {
@@ -38,6 +41,7 @@ export async function POST(request: NextRequest) {
     message,
     digest,
     stack,
+    sentryEventId,
     userAgent: clip(request.headers.get("user-agent"), 500),
     referrer: clip(request.headers.get("referer"), 500),
     userId: session?.user?.id ?? null,
@@ -57,6 +61,19 @@ export async function POST(request: NextRequest) {
     hints: decode.hints,
     context: isPlainObject(body.context) ? body.context : null,
     at: new Date().toISOString(),
+  }
+
+  if (!payload.sentryEventId) {
+    payload.sentryEventId = await captureServerException(new Error(message ?? `Client error report ${errorId}`), {
+      errorId,
+      source,
+      path,
+      userId: payload.userId,
+      userRole: payload.userRole,
+      organizationId: payload.organizationId,
+      routeKind: payload.routeKind,
+      context: payload.context,
+    })
   }
 
   console.error("[client-error-report]", payload)

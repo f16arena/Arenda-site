@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { formatErrorId } from "@/lib/error-id"
 import { decodeErrorReport } from "@/lib/error-report"
+import { captureServerException } from "@/lib/sentry-server"
 import { headers } from "next/headers"
 
 type ActionErrorContext = {
@@ -70,7 +71,19 @@ export async function logActionError(error: unknown, context: ActionErrorContext
     hints: decoded.hints,
     context: sanitizeContext(context.input ?? null),
     at: new Date().toISOString(),
+    sentryEventId: null as string | null,
   }
+
+  payload.sentryEventId = await captureServerException(error, {
+    errorId,
+    source: context.source,
+    path: context.route ?? null,
+    userId: payload.userId,
+    userRole: payload.userRole,
+    organizationId: payload.organizationId,
+    routeKind: payload.routeKind,
+    context: payload.context,
+  })
 
   console.error("[server-action-error]", payload)
 

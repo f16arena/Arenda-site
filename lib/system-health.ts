@@ -888,6 +888,15 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
 async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const errorRoute = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "api", "errors", "report", "route.ts"))
   const sentryConfigured = !!(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
+  const sentrySourceFiles = isProductionRuntime()
+    ? []
+    : await Promise.all([
+        fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "instrumentation.ts")),
+        fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "instrumentation-client.ts")),
+        fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "sentry.server.config.ts")),
+        fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "sentry.edge.config.ts")),
+      ])
+  const sentrySourceConfigured = isProductionRuntime() || sentrySourceFiles.every(Boolean)
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const recentErrorCount = await db.auditLog.count({
     where: { action: "ERROR", createdAt: { gte: since } },
@@ -900,12 +909,24 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
     }
   }
 
+  if (!sentrySourceConfigured) {
+    return {
+      status: "warning",
+      message: "Sentry SDK может быть установлен, но source-config файлы не все на месте.",
+      details: [
+        "Ожидаются instrumentation.ts, instrumentation-client.ts, sentry.server.config.ts и sentry.edge.config.ts.",
+        `Ошибок за 24 часа в audit_logs: ${recentErrorCount}.`,
+      ],
+    }
+  }
+
   if (!sentryConfigured) {
     return {
       status: "warning",
-      message: "Работает внутренний журнал ошибок, Sentry пока не задан.",
+      message: "Работает внутренний журнал ошибок, Sentry SDK подготовлен, но DSN не задан.",
       details: [
-        "Для внешнего мониторинга задайте SENTRY_DSN или NEXT_PUBLIC_SENTRY_DSN.",
+        "Для внешнего мониторинга задайте SENTRY_DSN и NEXT_PUBLIC_SENTRY_DSN.",
+        "Для source maps добавьте SENTRY_ORG, SENTRY_PROJECT и SENTRY_AUTH_TOKEN в CI/Vercel.",
         `Ошибок за 24 часа в audit_logs: ${recentErrorCount}.`,
       ],
     }
@@ -927,7 +948,7 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
     message: "Сбор ошибок готов.",
     details: [
       errorRoute ? "Внутренний журнал ошибок включен." : "Внутренний endpoint не найден.",
-      "Sentry DSN задан.",
+      "Sentry SDK и DSN заданы.",
       "Ошибок за 24 часа в audit_logs: 0.",
     ],
   }

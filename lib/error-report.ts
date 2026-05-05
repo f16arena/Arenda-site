@@ -6,6 +6,7 @@ export type ErrorReportDetails = {
   message?: string | null
   digest?: string | null
   stack?: string | null
+  sentryEventId?: string | null
   userAgent?: string | null
   referrer?: string | null
   userId?: string | null

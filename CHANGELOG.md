@@ -2,6 +2,16 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.83 - 2026-05-06
+
+- Подключен Sentry SDK для Next.js App Router: `instrumentation.ts`, client/server/edge configs и `withSentryConfig` в `next.config.ts`.
+- Client error boundaries теперь отправляют ошибку и в Sentry, и во внутренний `/api/errors/report`; Sentry event id сохраняется в audit log.
+- Server actions и server fallback logging отправляют исключения в Sentry при наличии `SENTRY_DSN`, сохраняя связь по `errorId`.
+- `/superadmin/errors` показывает Sentry event id рядом с digest, чтобы можно было быстро перейти от внутреннего журнала к внешнему мониторингу.
+- `/admin/system-health` проверяет наличие Sentry source-config файлов и подсказывает env для DSN/source maps.
+- В `.env.example` добавлены `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` и sample rate переменные.
+- Добавлена rollback-точка `rollback/pre-sentry-observability-1.3.83`.
+
 ## 1.3.82 - 2026-05-06
 
 - Добавлен общий release helper `getReleaseInfo()`: система теперь видит версию, commit, branch, окружение и Vercel deploy URL из runtime env.

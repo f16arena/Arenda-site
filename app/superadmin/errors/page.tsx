@@ -198,9 +198,10 @@ export default async function SuperadminErrorsPage({
                     <InfoBox title="Что делать" text={details.suggestedAction ?? decoded.suggestedAction} />
                   </div>
 
-                  <dl className="mt-4 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-4">
+                  <dl className="mt-4 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-5">
                     <Field label="Страница" value={details.path ?? "—"} mono />
                     <Field label="Digest" value={details.digest ?? "—"} mono />
+                    <Field label="Sentry" value={details.sentryEventId ?? "—"} mono />
                     <Field label="Пользователь" value={`${log.userName ?? "Система"}${log.userRole ? ` (${log.userRole})` : ""}`} />
                     <Field label="IP / Host" value={`${log.ip ?? "—"} · ${details.host ?? "—"}`} mono />
                   </dl>

@@ -3,6 +3,7 @@ import "server-only"
 import { db } from "@/lib/db"
 import { formatErrorId } from "@/lib/error-id"
 import { decodeErrorReport } from "@/lib/error-report"
+import { captureServerException } from "@/lib/sentry-server"
 
 type ServerFallbackContext = {
   source: string
@@ -58,7 +59,18 @@ export async function logServerFallback(error: unknown, context: ServerFallbackC
     hints: decoded.hints,
     context: context.extra ?? null,
     at: new Date().toISOString(),
+    sentryEventId: null as string | null,
   }
+
+  payload.sentryEventId = await captureServerException(error, {
+    errorId,
+    source: context.source,
+    path: context.route ?? null,
+    userId: context.userId ?? null,
+    organizationId: context.orgId ?? null,
+    routeKind: payload.routeKind,
+    context: payload.context,
+  })
 
   console.error("[server-fallback]", payload)
 
