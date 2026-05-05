@@ -37,10 +37,10 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
       <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
         <div className="flex items-center gap-2">
           <Landmark className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Мои реквизиты</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Реквизиты арендодателя</h2>
         </div>
         <span className="text-xs text-slate-500 dark:text-slate-400">
-          Источник данных для договоров, счетов и оплаты
+          Подставляются в договоры, счета и экран оплаты
         </span>
       </div>
 
@@ -49,6 +49,14 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         successMessage="Реквизиты организации сохранены"
         className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2"
       >
+        <div className="lg:col-span-2 rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+          Здесь заполняются данные арендодателя как юридического лица. Личный профиль пользователя находится отдельно в разделе
+          {" "}
+          <a href="/admin/profile" className="font-medium underline">Мой профиль</a>
+          {" "}
+          и не используется как реквизиты договора.
+        </div>
+
         <OrganizationIdentityFields
           legalType={organization.legalType}
           bin={organization.bin}
@@ -131,38 +139,59 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
           />
         </div>
 
-        <div>
-          <label className={labelClass}>Название банка</label>
-          <input name="bankName" defaultValue={organization.bankName ?? ""} className={inputClass} placeholder="АО «Kaspi Bank»" />
-        </div>
-        <div>
-          <label className={labelClass}>БИК</label>
-          <input name="bik" defaultValue={organization.bik ?? ""} className={inputClass} placeholder="CASPKZKA" />
-        </div>
-        <div>
-          <label className={labelClass}>ИИК / расчётный счёт</label>
-          <input name="iik" defaultValue={organization.iik ?? ""} className={inputClass} placeholder="KZ..." />
-        </div>
-
-        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50 lg:col-span-2">
-          <div className="mb-3">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Второй банковский счёт</p>
+        <div id="payment-accounts" className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50 lg:col-span-2">
+          <div className="mb-4">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Платёжные счета</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Если заполнить второй счёт, арендатор увидит его как дополнительный вариант оплаты, а шаблоны смогут использовать отдельные метки.
+              Основной счёт подставляется в документы и оплату. Дополнительный счёт будет показан арендатору как второй вариант оплаты.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <div>
-              <label className={labelClass}>Название банка 2</label>
-              <input name="secondBankName" defaultValue={organization.secondBankName ?? ""} className={inputClass} placeholder="АО «Halyk Bank»" />
+
+          <div className="grid grid-cols-1 gap-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Основной счёт</p>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                  В договорах и оплате
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div>
+                  <label className={labelClass}>Название банка</label>
+                  <input name="bankName" defaultValue={organization.bankName ?? ""} className={inputClass} placeholder="АО «Kaspi Bank»" />
+                </div>
+                <div>
+                  <label className={labelClass}>БИК</label>
+                  <input name="bik" defaultValue={organization.bik ?? ""} className={inputClass} placeholder="CASPKZKA" />
+                </div>
+                <div>
+                  <label className={labelClass}>ИИК / расчётный счёт</label>
+                  <input name="iik" defaultValue={organization.iik ?? ""} className={inputClass} placeholder="KZ..." />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>БИК 2</label>
-              <input name="secondBik" defaultValue={organization.secondBik ?? ""} className={inputClass} placeholder="HSBKKZKX" />
-            </div>
-            <div>
-              <label className={labelClass}>ИИК / расчётный счёт 2</label>
-              <input name="secondIik" defaultValue={organization.secondIik ?? ""} className={inputClass} placeholder="KZ..." />
+
+            <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Дополнительный счёт</p>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  Необязательно
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div>
+                  <label className={labelClass}>Название банка 2</label>
+                  <input name="secondBankName" defaultValue={organization.secondBankName ?? ""} className={inputClass} placeholder="АО «Halyk Bank»" />
+                </div>
+                <div>
+                  <label className={labelClass}>БИК 2</label>
+                  <input name="secondBik" defaultValue={organization.secondBik ?? ""} className={inputClass} placeholder="HSBKKZKX" />
+                </div>
+                <div>
+                  <label className={labelClass}>ИИК / расчётный счёт 2</label>
+                  <input name="secondIik" defaultValue={organization.secondIik ?? ""} className={inputClass} placeholder="KZ..." />
+                </div>
+              </div>
             </div>
           </div>
         </div>

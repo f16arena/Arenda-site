@@ -3,7 +3,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { updateBuilding, updateFloor, updateEmergencyContact, addEmergencyContact, deleteEmergencyContact } from "@/app/actions/building"
 import { createTariff, updateTariff, deleteTariff } from "@/app/actions/tariffs"
-import { ArrowRight, Building2, FileText, Phone, Layers, Plus, Zap } from "lucide-react"
+import { ArrowRight, Building2, CreditCard, FileText, Landmark, Layers, Phone, Plus, UserCircle, Zap } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -48,7 +48,12 @@ export default async function SettingsPage() {
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Настройки</h1>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Реквизиты организации и параметры объектов</p>
         </div>
-        {organization && <OrganizationRequisitesSection organization={organization} />}
+        <SettingsSourceMap buildingName={null} />
+        {organization && (
+          <section id="organization-requisites">
+            <OrganizationRequisitesSection organization={organization} />
+          </section>
+        )}
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
           <p className="mb-2 text-sm text-amber-800 dark:text-amber-200">Здание не выбрано</p>
           <a href="/admin/buildings" className="text-xs text-amber-700 underline dark:text-amber-300">Перейти к списку зданий →</a>
@@ -74,8 +79,10 @@ export default async function SettingsPage() {
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Управление информацией о бизнес-центре</p>
       </div>
 
+      <SettingsSourceMap buildingName={building.name} />
+
       {/* Building info */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div id="building-settings" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Основные сведения</h2>
@@ -146,12 +153,15 @@ export default async function SettingsPage() {
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Общая площадь, м²</label>
             <input
-              name="totalArea"
               type="number"
               step="0.01"
               defaultValue={building.totalArea ?? ""}
+              readOnly
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
+            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+              Рассчитывается автоматически из общей площади этажей.
+            </p>
           </div>
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
@@ -173,7 +183,11 @@ export default async function SettingsPage() {
         </ServerForm>
       </div>
 
-      {organization && <OrganizationRequisitesSection organization={organization} />}
+      {organization && (
+        <section id="organization-requisites">
+          <OrganizationRequisitesSection organization={organization} />
+        </section>
+      )}
 
       {/* Floors */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -457,6 +471,70 @@ export default async function SettingsPage() {
           </div>
         </ServerForm>
       </div>
+    </div>
+  )
+}
+
+function SettingsSourceMap({ buildingName }: { buildingName: string | null }) {
+  const cards = [
+    {
+      icon: UserCircle,
+      title: "Личный профиль",
+      text: "ФИО в шапке, email входа, пароль, 2FA и уведомления.",
+      meta: "Не попадает в договоры",
+      href: "/admin/profile",
+      cta: "Открыть профиль",
+    },
+    {
+      icon: Landmark,
+      title: "Реквизиты арендодателя",
+      text: "ИП/ТОО, ИИН/БИН, директор, основание, адреса и контакты владельца.",
+      meta: "Для документов",
+      href: "#organization-requisites",
+      cta: "Заполнить реквизиты",
+    },
+    {
+      icon: CreditCard,
+      title: "Платёжные счета",
+      text: "Основной и дополнительный счёт для оплаты арендаторами.",
+      meta: "Видно в оплате",
+      href: "#payment-accounts",
+      cta: "Проверить счета",
+    },
+    {
+      icon: Building2,
+      title: buildingName ? `Здание: ${buildingName}` : "Текущее здание",
+      text: "Адрес, ответственный, этажи, ставки, тарифы и экстренные контакты.",
+      meta: buildingName ? "Выбранная точка" : "Выберите здание",
+      href: buildingName ? "#building-settings" : "/admin/buildings",
+      cta: buildingName ? "Настроить здание" : "Выбрать здание",
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+      {cards.map(({ icon: Icon, title, text, meta, href, cta }) => (
+        <a
+          key={title}
+          href={href}
+          className="rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/5"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+              <Icon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              {meta}
+            </span>
+          </div>
+          <h2 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+          <p className="mt-1 min-h-10 text-xs leading-5 text-slate-500 dark:text-slate-400">{text}</p>
+          <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+            {cta}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </span>
+        </a>
+      ))}
     </div>
   )
 }
