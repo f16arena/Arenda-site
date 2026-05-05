@@ -42,11 +42,47 @@ export const KZ_BANKS: KzBank[] = [
 
 // Карта для O(1) поиска
 const BIK_INDEX = new Map(KZ_BANKS.map((b) => [b.bik.toUpperCase(), b]))
+const normalizeBankText = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[«»"]/g, "")
+    .replace(/\s+/g, " ")
 
 /** Найти банк по БИК. Возвращает null если не найден. */
 export function findBankByBik(bik: string): KzBank | null {
   if (!bik) return null
   return BIK_INDEX.get(bik.trim().toUpperCase()) ?? null
+}
+
+export function findBankByName(value: string): KzBank | null {
+  const query = normalizeBankText(value)
+  if (!query) return null
+  return KZ_BANKS.find((bank) => {
+    const name = normalizeBankText(bank.name)
+    const short = normalizeBankText(bank.short)
+    return name === query || short === query || bank.bik.toLowerCase() === query
+  }) ?? null
+}
+
+export function findSingleBankSuggestion(value: string): KzBank | null {
+  const query = normalizeBankText(value)
+  if (query.length < 3) return null
+  const matches = KZ_BANKS.filter((bank) => {
+    const text = normalizeBankText(`${bank.bik} ${bank.name} ${bank.short}`)
+    return text.includes(query)
+  })
+  return matches.length === 1 ? matches[0] : null
+}
+
+export function isKnownBankName(value: string): boolean {
+  const query = normalizeBankText(value)
+  if (!query) return false
+  return KZ_BANKS.some((bank) => {
+    const name = normalizeBankText(bank.name)
+    const short = normalizeBankText(bank.short)
+    return name === query || short === query
+  })
 }
 
 /** Грубая проверка формата БИК: 8 алфанумерических символов в верхнем регистре. */

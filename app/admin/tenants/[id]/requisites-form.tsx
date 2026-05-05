@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useId, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, Check, Plus, Save, Star, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -12,7 +12,7 @@ import {
   updateTenantRequisites,
 } from "@/app/actions/tenant"
 import { validateRequisites } from "@/lib/kz-validators"
-import { findBankByBik, KZ_BANKS } from "@/lib/kz-banks"
+import { findBankByBik, findBankByName, findSingleBankSuggestion, isKnownBankName, KZ_BANKS } from "@/lib/kz-banks"
 
 type BankAccount = {
   id: string
@@ -57,6 +57,11 @@ function normalizeIikInput(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
 }
 
+function shouldReplaceBankName(currentBankName: string, initialBankName?: string) {
+  const value = currentBankName.trim()
+  return !value || value === initialBankName || isKnownBankName(value)
+}
+
 function getBankInputError(bankName: string, bik: string, iik: string) {
   if (!bankName.trim()) return "Укажите название банка"
   if (!bik.trim()) return "Укажите БИК"
@@ -89,16 +94,36 @@ function BankFields({
   setBik: (value: string) => void
   initialBankName?: string
 }) {
+  const bikListId = useId()
+  const bankNameListId = useId()
   const checks = useMemo(() => validateRequisites({ bik, iik }), [bik, iik])
   const bankFromBik = useMemo(() => findBankByBik(bik), [bik])
+  const bankNameSuggestion = useMemo(
+    () => bankName && !findBankByName(bankName) ? findSingleBankSuggestion(bankName) : null,
+    [bankName],
+  )
 
   const handleBikChange = (value: string) => {
     const next = normalizeBik(value)
     setBik(next)
     const bank = findBankByBik(next)
-    if (bank && (!bankName || bankName === initialBankName)) {
+    if (bank && shouldReplaceBankName(bankName, initialBankName)) {
       setBankName(bank.name)
     }
+  }
+
+  const handleBankNameChange = (value: string) => {
+    const next = value.slice(0, 160)
+    setBankName(next)
+    const bank = findBankByName(next) ?? findSingleBankSuggestion(next)
+    if (bank) setBik(bank.bik)
+  }
+
+  const handleBankNameBlur = () => {
+    const bank = findBankByName(bankName) ?? findSingleBankSuggestion(bankName)
+    if (!bank) return
+    setBankName(bank.name)
+    setBik(bank.bik)
   }
 
   return (
@@ -123,8 +148,12 @@ function BankFields({
         <input
           value={bik}
           onChange={(event) => handleBikChange(event.target.value)}
+          onBlur={() => {
+            const bank = findBankByBik(bik)
+            if (bank && shouldReplaceBankName(bankName, initialBankName)) setBankName(bank.name)
+          }}
           placeholder="CASPKZKA, HSBKKZKX..."
-          list="kz-banks-list"
+          list={bikListId}
           maxLength={8}
           className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
             !bik
@@ -134,9 +163,9 @@ function BankFields({
                 : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
           }`}
         />
-        <datalist id="kz-banks-list">
+        <datalist id={bikListId}>
           {KZ_BANKS.map((bank) => (
-            <option key={bank.bik} value={bank.bik}>{bank.short}</option>
+            <option key={bank.bik} value={bank.bik} label={`${bank.short} — ${bank.name}`} />
           ))}
         </datalist>
         {bankFromBik && (
@@ -155,10 +184,22 @@ function BankFields({
         </label>
         <input
           value={bankName}
-          onChange={(event) => setBankName(event.target.value.slice(0, 160))}
-          placeholder="Подтянется автоматически из БИК"
+          onChange={(event) => handleBankNameChange(event.target.value)}
+          onBlur={handleBankNameBlur}
+          list={bankNameListId}
+          placeholder="Начните писать банк или выберите из списка"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800"
         />
+        <datalist id={bankNameListId}>
+          {KZ_BANKS.map((bank) => (
+            <option key={bank.bik} value={bank.name} label={`${bank.bik} — ${bank.short}`} />
+          ))}
+        </datalist>
+        {bankNameSuggestion && (
+          <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">
+            Найдено: {bankNameSuggestion.name}
+          </p>
+        )}
       </div>
 
       <div>
@@ -305,16 +346,19 @@ function ExistingAccount({ account }: { account: BankAccount }) {
       />
 
       <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          disabled={pending || !!inputError}
-          onClick={save}
-          title={inputError ?? undefined}
-          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-        >
-          <Save className="h-4 w-4" />
-          {pending ? "Сохранение..." : "Сохранить счёт"}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          {inputError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{inputError}</p>}
+          <button
+            type="button"
+            disabled={pending || !!inputError}
+            onClick={save}
+            title={inputError ?? undefined}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+          >
+            <Save className="h-4 w-4" />
+            {pending ? "Сохранение..." : "Сохранить счёт"}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -392,16 +436,19 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
       />
 
       <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          disabled={pending || !!inputError}
-          onClick={submit}
-          title={inputError ?? undefined}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          <Plus className="h-4 w-4" />
-          {pending ? "Добавление..." : "Добавить счёт"}
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          {inputError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{inputError}</p>}
+          <button
+            type="button"
+            disabled={pending || !!inputError}
+            onClick={submit}
+            title={inputError ?? undefined}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            <Plus className="h-4 w-4" />
+            {pending ? "Добавление..." : "Добавить счёт"}
+          </button>
+        </div>
       </div>
     </div>
   )
