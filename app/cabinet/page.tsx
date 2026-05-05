@@ -11,6 +11,8 @@ import {
 import Link from "next/link"
 import { PaymentsMiniCalendarLoader } from "./payments-mini-calendar-loader"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 const PAYMENT_CALENDAR_LIMIT = 120
 
@@ -98,6 +100,7 @@ export default async function CabinetDashboard() {
   }
 
   const today = new Date()
+  const currentPeriod = today.toISOString().slice(0, 7)
   const [debtAgg, overdueAgg, activeRequestsCount] = await Promise.all([
     safe(
       "cabinet.dashboard.debtAggregate",
@@ -139,7 +142,7 @@ export default async function CabinetDashboard() {
   const primarySpace = assignedSpaces[0] ?? null
 
   // Здание показываем только из организации арендатора
-  const [building, recentDocs, unreadMessages, recentMessages] = await Promise.all([
+  const [building, recentDocs, unreadMessages, recentMessages, landlord] = await Promise.all([
     db.building.findFirst({
       where: {
         ...(primarySpace?.floor.buildingId ? { id: primarySpace.floor.buildingId } : {}),
@@ -180,7 +183,12 @@ export default async function CabinetDashboard() {
       }),
       [],
     ),
+    session!.user.organizationId
+      ? safe("cabinet.dashboard.landlordRequisites", getOrganizationRequisites(session!.user.organizationId), null)
+      : Promise.resolve(null),
   ])
+  const primaryBankAccount = landlord?.bankAccounts[0] ?? null
+  const paymentPurpose = `Аренда ${tenant.companyName}, период ${currentPeriod}`
 
   const docTypeLabels: Record<string, string> = {
     INVOICE: "Счёт на оплату",
@@ -259,6 +267,15 @@ export default async function CabinetDashboard() {
       </div>
 
       {/* Информация по объекту + договору */}
+      <PaymentQuickCard
+        totalDebt={totalDebt}
+        monthlyRent={calculateTenantMonthlyRent(tenant)}
+        account={primaryBankAccount}
+        recipient={landlord?.shortName ?? landlord?.fullName ?? null}
+        taxId={landlord?.taxId ?? null}
+        paymentPurpose={paymentPurpose}
+      />
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <InfoCard
           icon={Building2}
@@ -484,6 +501,78 @@ export default async function CabinetDashboard() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function PaymentQuickCard({
+  totalDebt,
+  monthlyRent,
+  account,
+  recipient,
+  taxId,
+  paymentPurpose,
+}: {
+  totalDebt: number
+  monthlyRent: number
+  account: { label: string; bank: string; iik: string; bik: string; isPrimary: boolean } | null
+  recipient: string | null
+  taxId: string | null
+  paymentPurpose: string
+}) {
+  const amount = totalDebt > 0 ? totalDebt : monthlyRent
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-blue-500" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Куда оплатить</h2>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Первый экран оплаты: сумма, назначение платежа и реквизиты без контактов владельца.
+          </p>
+          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <PaymentLine label="Сумма" value={formatMoney(amount)} strong />
+            <PaymentLine label="Получатель" value={recipient ?? "Реквизиты уточняются"} />
+            <PaymentLine label="ИИН/БИН" value={taxId ?? "—"} />
+            <PaymentLine label="Банк" value={account?.bank ?? "—"} />
+            <PaymentLine label="БИК" value={account?.bik ?? "—"} />
+            <PaymentLine label="ИИК" value={account?.iik ?? "—"} />
+          </div>
+          <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+            <span className="font-medium">Назначение:</span> {paymentPurpose}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+          <Link
+            href="/cabinet/finances#payment"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+          >
+            <CreditCard className="h-4 w-4" />
+            QR / Kaspi
+          </Link>
+          <Link
+            href="/cabinet/finances#report-payment"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <Receipt className="h-4 w-4" />
+            Я оплатил
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PaymentLine({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
+      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={`mt-0.5 truncate text-sm ${strong ? "font-bold text-slate-900 dark:text-slate-100" : "font-medium text-slate-700 dark:text-slate-200"}`}>
+        {value}
+      </p>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import {
   ClipboardList, CheckSquare, ArrowUpRight,
   Clock, Calendar as CalendarIcon, Mail, Wallet,
   ClipboardCheck, ShieldCheck, FileSpreadsheet, Printer,
+  FileSignature,
 } from "lucide-react"
 import Link from "next/link"
 import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
@@ -237,7 +238,7 @@ export default async function AdminDashboard() {
       "admin.dashboard.pendingPaymentReports",
       db.paymentReport.aggregate({
         where: {
-          status: "PENDING",
+          status: { in: ["PENDING", "DISPUTED"] },
           tenant: tenantWhereInBuilding,
         },
         _sum: { amount: true },
@@ -344,6 +345,39 @@ export default async function AdminDashboard() {
       }),
       { _sum: { amount: 0 }, _count: { _all: 0 } },
     ),
+    safe(
+      "admin.dashboard.openRequestsCount",
+      db.request.count({
+        where: {
+          status: { in: ["NEW", "IN_PROGRESS"] },
+          tenant: tenantWhereInBuilding,
+        },
+      }),
+      0,
+    ),
+    safe(
+      "admin.dashboard.openTasksCount",
+      db.task.count({
+        where: {
+          status: { in: ["NEW", "IN_PROGRESS"] },
+          OR: [
+            { buildingId: { in: visibleBuildingIds } },
+            { buildingId: null, createdBy: { organizationId: orgId } },
+          ],
+        },
+      }),
+      0,
+    ),
+    safe(
+      "admin.dashboard.documentsOnSignature",
+      db.contract.count({
+        where: {
+          status: { in: ["SENT", "VIEWED", "SIGNED_BY_TENANT"] },
+          tenant: tenantWhereInBuilding,
+        },
+      }),
+      0,
+    ),
   ])
 
   const buildingBreakdownPromise = safe(
@@ -376,6 +410,9 @@ export default async function AdminDashboard() {
       expiringContracts,
       todayRequests,
       yesterdayPayments,
+      openRequestsCount,
+      openTasksCount,
+      documentsOnSignature,
     ],
     buildingBreakdown,
   ] = await Promise.all([
@@ -393,6 +430,23 @@ export default async function AdminDashboard() {
     return sum + calculateTenantMonthlyRent(t)
   }, 0)
   const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
+  const portfolioTotals = buildingBreakdown.reduce(
+    (acc, building) => ({
+      income: acc.income + building.income,
+      expenses: acc.expenses + building.expenses,
+      profit: acc.profit + building.profit,
+      debt: acc.debt + building.debt,
+      vacantArea: acc.vacantArea + building.vacantArea,
+      totalArea: acc.totalArea + building.totalArea,
+      occupiedArea: acc.occupiedArea + building.occupiedArea,
+    }),
+    { income: 0, expenses: 0, profit: 0, debt: 0, vacantArea: 0, totalArea: 0, occupiedArea: 0 },
+  )
+  const portfolioOccupancy = portfolioTotals.totalArea > 0
+    ? Math.round((portfolioTotals.occupiedArea / portfolioTotals.totalArea) * 100)
+    : null
+  const mostDebtBuilding = [...buildingBreakdown].sort((a, b) => b.debt - a.debt)[0] ?? null
+  const bestProfitBuilding = [...buildingBreakdown].sort((a, b) => b.profit - a.profit)[0] ?? null
 
   const months: MonthData[] = []
 
@@ -482,6 +536,20 @@ export default async function AdminDashboard() {
       )}
 
       {/* Сегодня */}
+      {!buildingId && buildingBreakdown.length > 0 && (
+        <OwnerPortfolioSummary
+          buildingsCount={buildingBreakdown.length}
+          income={portfolioTotals.income}
+          expenses={portfolioTotals.expenses}
+          profit={portfolioTotals.profit}
+          debt={portfolioTotals.debt}
+          vacantArea={portfolioTotals.vacantArea}
+          occupancyPercent={portfolioOccupancy}
+          bestProfitBuilding={bestProfitBuilding ? { name: bestProfitBuilding.name, amount: bestProfitBuilding.profit } : null}
+          mostDebtBuilding={mostDebtBuilding && mostDebtBuilding.debt > 0 ? { name: mostDebtBuilding.name, amount: mostDebtBuilding.debt } : null}
+        />
+      )}
+
       <div>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
           <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -556,6 +624,16 @@ export default async function AdminDashboard() {
           ))}
         </div>
       </div>
+
+      <AdminWorkdayPanel
+        overdueCount={overdueCharges._count._all ?? 0}
+        overdueAmount={overdueCharges._sum.amount ?? 0}
+        paymentReportsCount={pendingPaymentReports._count._all ?? 0}
+        paymentReportsAmount={pendingPaymentReports._sum.amount ?? 0}
+        openRequestsCount={openRequestsCount}
+        openTasksCount={openTasksCount}
+        documentsOnSignature={documentsOnSignature}
+      />
 
       {/* Cashflow chart */}
       <CashflowChart months={months} />
@@ -749,6 +827,205 @@ export default async function AdminDashboard() {
     </div>
   )
   })
+}
+
+function OwnerPortfolioSummary({
+  buildingsCount,
+  income,
+  expenses,
+  profit,
+  debt,
+  vacantArea,
+  occupancyPercent,
+  bestProfitBuilding,
+  mostDebtBuilding,
+}: {
+  buildingsCount: number
+  income: number
+  expenses: number
+  profit: number
+  debt: number
+  vacantArea: number
+  occupancyPercent: number | null
+  bestProfitBuilding: { name: string; amount: number } | null
+  mostDebtBuilding: { name: string; amount: number } | null
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Картина владельца по всем зданиям</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {buildingsCount} зданий в текущем разрезе: доход, расход, прибыль, долг и свободная площадь.
+          </p>
+        </div>
+        <Link
+          href="/api/export/owner-report?format=xlsx"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          Отчет Excel
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <PortfolioStat label="Доход" value={formatMoney(income)} tone="emerald" />
+        <PortfolioStat label="Расход" value={formatMoney(expenses)} tone="orange" />
+        <PortfolioStat label="Прибыль" value={formatMoney(profit)} tone={profit >= 0 ? "emerald" : "red"} />
+        <PortfolioStat label="Долг" value={debt > 0 ? formatMoney(debt) : "Нет"} tone={debt > 0 ? "red" : "slate"} />
+        <PortfolioStat label="Свободно" value={formatArea(vacantArea)} tone="blue" />
+        <PortfolioStat label="Заполняемость" value={occupancyPercent === null ? "—" : `${occupancyPercent}%`} tone="slate" />
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          Лучшее здание по прибыли: <b>{bestProfitBuilding ? `${bestProfitBuilding.name} · ${formatMoney(bestProfitBuilding.amount)}` : "данных пока нет"}</b>
+        </div>
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          Самый большой долг: <b>{mostDebtBuilding ? `${mostDebtBuilding.name} · ${formatMoney(mostDebtBuilding.amount)}` : "критичных долгов нет"}</b>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function PortfolioStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: "emerald" | "orange" | "red" | "blue" | "slate"
+}) {
+  const colors = {
+    emerald: "text-emerald-600 dark:text-emerald-400",
+    orange: "text-orange-600 dark:text-orange-400",
+    red: "text-red-600 dark:text-red-400",
+    blue: "text-blue-600 dark:text-blue-400",
+    slate: "text-slate-900 dark:text-slate-100",
+  }
+  return (
+    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+      <p className={`truncate text-lg font-bold ${colors[tone]}`}>{value}</p>
+      <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
+    </div>
+  )
+}
+
+function AdminWorkdayPanel({
+  overdueCount,
+  overdueAmount,
+  paymentReportsCount,
+  paymentReportsAmount,
+  openRequestsCount,
+  openTasksCount,
+  documentsOnSignature,
+}: {
+  overdueCount: number
+  overdueAmount: number
+  paymentReportsCount: number
+  paymentReportsAmount: number
+  openRequestsCount: number
+  openTasksCount: number
+  documentsOnSignature: number
+}) {
+  const totalActions = overdueCount + paymentReportsCount + openRequestsCount + openTasksCount + documentsOnSignature
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Рабочий день администратора</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Операционный список: что проверить, кому ответить и какие документы довести до подписи.
+          </p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+          totalActions > 0
+            ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+        }`}>
+          {totalActions > 0 ? `${totalActions} действий` : "Все спокойно"}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <WorkdayAction
+          href="/admin/finances?filter=overdue"
+          icon={AlertTriangle}
+          label="Собрать долги"
+          value={overdueCount > 0 ? `${overdueCount} проср.` : "Нет"}
+          sub={overdueAmount > 0 ? formatMoney(overdueAmount) : "просрочек нет"}
+          urgent={overdueCount > 0}
+        />
+        <WorkdayAction
+          href="/admin/finances"
+          icon={Wallet}
+          label="Проверить оплаты"
+          value={paymentReportsCount > 0 ? `${paymentReportsCount} заявок` : "Нет"}
+          sub={paymentReportsAmount > 0 ? formatMoney(paymentReportsAmount) : "чеков нет"}
+          urgent={paymentReportsCount > 0}
+        />
+        <WorkdayAction
+          href="/admin/requests"
+          icon={ClipboardList}
+          label="Разобрать заявки"
+          value={openRequestsCount > 0 ? `${openRequestsCount} открыто` : "Нет"}
+          sub="арендаторы ждут ответа"
+          urgent={openRequestsCount > 0}
+        />
+        <WorkdayAction
+          href="/admin/tasks"
+          icon={CheckSquare}
+          label="Закрыть задачи"
+          value={openTasksCount > 0 ? `${openTasksCount} в работе` : "Нет"}
+          sub="операционные задачи"
+          urgent={openTasksCount > 0}
+        />
+        <WorkdayAction
+          href="/admin/documents"
+          icon={FileSignature}
+          label="Довести подписи"
+          value={documentsOnSignature > 0 ? `${documentsOnSignature} док.` : "Нет"}
+          sub="ожидают сторону"
+          urgent={documentsOnSignature > 0}
+        />
+      </div>
+    </section>
+  )
+}
+
+function WorkdayAction({
+  href,
+  icon: Icon,
+  label,
+  value,
+  sub,
+  urgent,
+}: {
+  href: string
+  icon: React.ElementType
+  label: string
+  value: string
+  sub: string
+  urgent: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      className={`rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${
+        urgent
+          ? "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
+          : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <Icon className={`mt-0.5 h-4 w-4 ${urgent ? "text-amber-600 dark:text-amber-300" : "text-slate-400"}`} />
+        <ArrowUpRight className="h-3.5 w-3.5 text-slate-300" />
+      </div>
+      <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">{label}</p>
+      <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">{sub}</p>
+    </Link>
+  )
 }
 
 function AttentionRow({
