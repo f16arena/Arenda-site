@@ -57,6 +57,20 @@ function normalizeIikInput(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
 }
 
+function getBankInputError(bankName: string, bik: string, iik: string) {
+  if (!bankName.trim()) return "Укажите название банка"
+  if (!bik.trim()) return "Укажите БИК"
+  if (!iik.trim()) return "Укажите ИИК"
+
+  const checks = validateRequisites({ bik, iik })
+  if (checks.bik && !checks.bik.ok) return checks.bik.warning ?? "Некорректный БИК"
+  if (checks.iik && !checks.iik.ok) return checks.iik.warning ?? "Некорректный ИИК"
+  if (checks.consistency && !checks.consistency.ok) {
+    return checks.consistency.warning ?? "ИИК не соответствует БИК"
+  }
+  return null
+}
+
 function BankFields({
   label,
   setLabel,
@@ -187,8 +201,13 @@ function ExistingAccount({ account }: { account: BankAccount }) {
   const [iik, setIik] = useState(account.iik)
   const [bik, setBik] = useState(account.bik)
   const [pending, startTransition] = useTransition()
+  const inputError = useMemo(() => getBankInputError(bankName, bik, iik), [bankName, bik, iik])
 
   const save = () => {
+    if (inputError) {
+      toast.error(inputError)
+      return
+    }
     const formData = new FormData()
     formData.set("label", label)
     formData.set("bankName", bankName)
@@ -196,7 +215,11 @@ function ExistingAccount({ account }: { account: BankAccount }) {
     formData.set("bik", bik)
     startTransition(async () => {
       try {
-        await updateTenantBankAccount(account.id, formData)
+        const result = await updateTenantBankAccount(account.id, formData)
+        if (!result.ok) {
+          toast.error(result.error ?? "Не удалось сохранить счёт")
+          return
+        }
         router.refresh()
         toast.success("Счёт сохранён")
       } catch (error) {
@@ -208,7 +231,11 @@ function ExistingAccount({ account }: { account: BankAccount }) {
   const makePrimary = () => {
     startTransition(async () => {
       try {
-        await setPrimaryTenantBankAccount(account.id)
+        const result = await setPrimaryTenantBankAccount(account.id)
+        if (!result.ok) {
+          toast.error(result.error ?? "Не удалось выбрать основной счёт")
+          return
+        }
         router.refresh()
         toast.success("Основной счёт обновлён")
       } catch (error) {
@@ -221,7 +248,11 @@ function ExistingAccount({ account }: { account: BankAccount }) {
     if (!window.confirm("Удалить этот банковский счёт арендатора?")) return
     startTransition(async () => {
       try {
-        await deleteTenantBankAccount(account.id)
+        const result = await deleteTenantBankAccount(account.id)
+        if (!result.ok) {
+          toast.error(result.error ?? "Не удалось удалить счёт")
+          return
+        }
         router.refresh()
         toast.success("Счёт удалён")
       } catch (error) {
@@ -280,8 +311,9 @@ function ExistingAccount({ account }: { account: BankAccount }) {
       <div className="mt-4 flex justify-end">
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !!inputError}
           onClick={save}
+          title={inputError ?? undefined}
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
@@ -300,8 +332,13 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
   const [bik, setBik] = useState("")
   const [isPrimary, setIsPrimary] = useState(false)
   const [pending, startTransition] = useTransition()
+  const inputError = useMemo(() => getBankInputError(bankName, bik, iik), [bankName, bik, iik])
 
   const submit = () => {
+    if (inputError) {
+      toast.error(inputError)
+      return
+    }
     const formData = new FormData()
     formData.set("label", label)
     formData.set("bankName", bankName)
@@ -311,7 +348,11 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
 
     startTransition(async () => {
       try {
-        await createTenantBankAccount(tenantId, formData)
+        const result = await createTenantBankAccount(tenantId, formData)
+        if (!result.ok) {
+          toast.error(result.error ?? "Не удалось добавить счёт")
+          return
+        }
         router.refresh()
         setLabel("")
         setBankName("")
@@ -357,8 +398,9 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
       <div className="mt-4 flex justify-end">
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !!inputError}
           onClick={submit}
+          title={inputError ?? undefined}
           className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
         >
           <Plus className="h-4 w-4" />

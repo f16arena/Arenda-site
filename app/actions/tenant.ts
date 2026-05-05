@@ -64,6 +64,19 @@ function normalizeTenantBankAccountInput(formData: FormData) {
   return { label, bankName, iik, bik }
 }
 
+type TenantBankAccountActionResult = {
+  ok: boolean
+  error?: string
+}
+
+function tenantBankAccountActionError(error: unknown, fallback: string): TenantBankAccountActionResult {
+  const message = error instanceof Error ? error.message : ""
+  if (message && !message.includes("NEXT_REDIRECT")) {
+    return { ok: false, error: message }
+  }
+  return { ok: false, error: fallback }
+}
+
 async function syncTenantPrimaryBankAccount(
   tx: Pick<typeof db, "tenantBankAccount" | "tenant">,
   tenantId: string,
@@ -389,111 +402,137 @@ export async function updateTenantRequisites(tenantId: string, formData: FormDat
   return { success: true }
 }
 
-export async function createTenantBankAccount(tenantId: string, formData: FormData) {
-  const { orgId } = await requireOrgAccess()
-  await assertTenantInOrg(tenantId, orgId)
-  await assertTenantBuildingAccess(tenantId, orgId)
+export async function createTenantBankAccount(
+  tenantId: string,
+  formData: FormData,
+): Promise<TenantBankAccountActionResult> {
+  try {
+    const { orgId } = await requireOrgAccess()
+    await assertTenantInOrg(tenantId, orgId)
+    await assertTenantBuildingAccess(tenantId, orgId)
 
-  const accountInput = normalizeTenantBankAccountInput(formData)
-  const existing = await db.tenantBankAccount.findFirst({
-    where: { tenantId, iik: accountInput.iik },
-    select: { id: true },
-  })
-  if (existing) throw new Error("Такой ИИК уже добавлен этому арендатору")
+    const accountInput = normalizeTenantBankAccountInput(formData)
+    const existing = await db.tenantBankAccount.findFirst({
+      where: { tenantId, iik: accountInput.iik },
+      select: { id: true },
+    })
+    if (existing) throw new Error("Такой ИИК уже добавлен этому арендатору")
 
-  await db.$transaction(async (tx) => {
-    const count = await tx.tenantBankAccount.count({ where: { tenantId } })
-    const makePrimary = formData.get("isPrimary") === "on" || count === 0
-    if (makePrimary) {
+    await db.$transaction(async (tx) => {
+      const count = await tx.tenantBankAccount.count({ where: { tenantId } })
+      const makePrimary = formData.get("isPrimary") === "on" || count === 0
+      if (makePrimary) {
+        await tx.tenantBankAccount.updateMany({
+          where: { tenantId },
+          data: { isPrimary: false },
+        })
+      }
+
+      await tx.tenantBankAccount.create({
+        data: { tenantId, ...accountInput, isPrimary: makePrimary },
+      })
+
+      await syncTenantPrimaryBankAccount(tx, tenantId)
+    })
+
+    revalidatePath(`/admin/tenants/${tenantId}`)
+    return { ok: true }
+  } catch (error) {
+    console.error("[createTenantBankAccount]", error)
+    return tenantBankAccountActionError(error, "Не удалось добавить банковский счёт")
+  }
+}
+
+export async function updateTenantBankAccount(
+  accountId: string,
+  formData: FormData,
+): Promise<TenantBankAccountActionResult> {
+  try {
+    const { orgId } = await requireOrgAccess()
+    const account = await db.tenantBankAccount.findUnique({
+      where: { id: accountId },
+      select: { tenantId: true },
+    })
+    if (!account) throw new Error("Счёт не найден")
+    await assertTenantInOrg(account.tenantId, orgId)
+    await assertTenantBuildingAccess(account.tenantId, orgId)
+
+    const accountInput = normalizeTenantBankAccountInput(formData)
+    const duplicate = await db.tenantBankAccount.findFirst({
+      where: { tenantId: account.tenantId, iik: accountInput.iik, id: { not: accountId } },
+      select: { id: true },
+    })
+    if (duplicate) throw new Error("Такой ИИК уже добавлен этому арендатору")
+
+    await db.$transaction(async (tx) => {
+      await tx.tenantBankAccount.update({
+        where: { id: accountId },
+        data: accountInput,
+      })
+      await syncTenantPrimaryBankAccount(tx, account.tenantId)
+    })
+
+    revalidatePath(`/admin/tenants/${account.tenantId}`)
+    return { ok: true }
+  } catch (error) {
+    console.error("[updateTenantBankAccount]", error)
+    return tenantBankAccountActionError(error, "Не удалось сохранить банковский счёт")
+  }
+}
+
+export async function setPrimaryTenantBankAccount(accountId: string): Promise<TenantBankAccountActionResult> {
+  try {
+    const { orgId } = await requireOrgAccess()
+    const account = await db.tenantBankAccount.findUnique({
+      where: { id: accountId },
+      select: { tenantId: true },
+    })
+    if (!account) throw new Error("Счёт не найден")
+    await assertTenantInOrg(account.tenantId, orgId)
+    await assertTenantBuildingAccess(account.tenantId, orgId)
+
+    await db.$transaction(async (tx) => {
       await tx.tenantBankAccount.updateMany({
-        where: { tenantId },
+        where: { tenantId: account.tenantId },
         data: { isPrimary: false },
       })
-    }
-
-    await tx.tenantBankAccount.create({
-      data: { tenantId, ...accountInput, isPrimary: makePrimary },
+      await tx.tenantBankAccount.update({
+        where: { id: accountId },
+        data: { isPrimary: true },
+      })
+      await syncTenantPrimaryBankAccount(tx, account.tenantId)
     })
 
-    await syncTenantPrimaryBankAccount(tx, tenantId)
-  })
-
-  revalidatePath(`/admin/tenants/${tenantId}`)
-  return { success: true }
+    revalidatePath(`/admin/tenants/${account.tenantId}`)
+    return { ok: true }
+  } catch (error) {
+    console.error("[setPrimaryTenantBankAccount]", error)
+    return tenantBankAccountActionError(error, "Не удалось выбрать основной счёт")
+  }
 }
 
-export async function updateTenantBankAccount(accountId: string, formData: FormData) {
-  const { orgId } = await requireOrgAccess()
-  const account = await db.tenantBankAccount.findUnique({
-    where: { id: accountId },
-    select: { tenantId: true },
-  })
-  if (!account) throw new Error("Счёт не найден")
-  await assertTenantInOrg(account.tenantId, orgId)
-  await assertTenantBuildingAccess(account.tenantId, orgId)
-
-  const accountInput = normalizeTenantBankAccountInput(formData)
-  const duplicate = await db.tenantBankAccount.findFirst({
-    where: { tenantId: account.tenantId, iik: accountInput.iik, id: { not: accountId } },
-    select: { id: true },
-  })
-  if (duplicate) throw new Error("Такой ИИК уже добавлен этому арендатору")
-
-  await db.$transaction(async (tx) => {
-    await tx.tenantBankAccount.update({
+export async function deleteTenantBankAccount(accountId: string): Promise<TenantBankAccountActionResult> {
+  try {
+    const { orgId } = await requireOrgAccess()
+    const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
-      data: accountInput,
+      select: { tenantId: true },
     })
-    await syncTenantPrimaryBankAccount(tx, account.tenantId)
-  })
+    if (!account) throw new Error("Счёт не найден")
+    await assertTenantInOrg(account.tenantId, orgId)
+    await assertTenantBuildingAccess(account.tenantId, orgId)
 
-  revalidatePath(`/admin/tenants/${account.tenantId}`)
-  return { success: true }
-}
-
-export async function setPrimaryTenantBankAccount(accountId: string) {
-  const { orgId } = await requireOrgAccess()
-  const account = await db.tenantBankAccount.findUnique({
-    where: { id: accountId },
-    select: { tenantId: true },
-  })
-  if (!account) throw new Error("Счёт не найден")
-  await assertTenantInOrg(account.tenantId, orgId)
-  await assertTenantBuildingAccess(account.tenantId, orgId)
-
-  await db.$transaction(async (tx) => {
-    await tx.tenantBankAccount.updateMany({
-      where: { tenantId: account.tenantId },
-      data: { isPrimary: false },
+    await db.$transaction(async (tx) => {
+      await tx.tenantBankAccount.delete({ where: { id: accountId } })
+      await syncTenantPrimaryBankAccount(tx, account.tenantId)
     })
-    await tx.tenantBankAccount.update({
-      where: { id: accountId },
-      data: { isPrimary: true },
-    })
-    await syncTenantPrimaryBankAccount(tx, account.tenantId)
-  })
 
-  revalidatePath(`/admin/tenants/${account.tenantId}`)
-  return { success: true }
-}
-
-export async function deleteTenantBankAccount(accountId: string) {
-  const { orgId } = await requireOrgAccess()
-  const account = await db.tenantBankAccount.findUnique({
-    where: { id: accountId },
-    select: { tenantId: true },
-  })
-  if (!account) throw new Error("Счёт не найден")
-  await assertTenantInOrg(account.tenantId, orgId)
-  await assertTenantBuildingAccess(account.tenantId, orgId)
-
-  await db.$transaction(async (tx) => {
-    await tx.tenantBankAccount.delete({ where: { id: accountId } })
-    await syncTenantPrimaryBankAccount(tx, account.tenantId)
-  })
-
-  revalidatePath(`/admin/tenants/${account.tenantId}`)
-  return { success: true }
+    revalidatePath(`/admin/tenants/${account.tenantId}`)
+    return { ok: true }
+  } catch (error) {
+    console.error("[deleteTenantBankAccount]", error)
+    return tenantBankAccountActionError(error, "Не удалось удалить банковский счёт")
+  }
 }
 
 export async function updateTenantRentalTerms(tenantId: string, formData: FormData) {
