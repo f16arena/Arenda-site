@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.82 - 2026-05-06
+
+- Добавлен общий release helper `getReleaseInfo()`: система теперь видит версию, commit, branch, окружение и Vercel deploy URL из runtime env.
+- `/api/health` теперь возвращает объект `release`, чтобы superadmin/support быстро понимал, какая сборка реально работает.
+- `/admin/system-health` показывает commit рядом с версией сборки, а проверка release-файлов выводит runtime release details.
+- В `.env.example` добавлены `APP_VERSION` и `GIT_COMMIT_SHA` как fallback для окружений вне Vercel/GitHub.
+- Добавлена rollback-точка `rollback/pre-release-observability-1.3.82`.
+
 ## 1.3.81 - 2026-05-06
 
 - CI переведен на единый `quality:audit`: теперь GitHub проверяет lint, performance budget, security guardrails и безопасный платежный E2E-контроль одним обязательным блоком.

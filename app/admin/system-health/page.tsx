@@ -1,7 +1,5 @@
 export const dynamic = "force-dynamic"
 
-import { readFile } from "fs/promises"
-import path from "path"
 import Link from "next/link"
 import {
   Activity,
@@ -22,6 +20,7 @@ import {
   type SystemCheck,
   type SystemCheckStatus,
 } from "@/lib/system-health"
+import { getReleaseInfo } from "@/lib/release"
 
 const statusMeta: Record<SystemCheckStatus, {
   label: string
@@ -57,9 +56,9 @@ export default async function SystemHealthPage() {
   await requireSection("analytics", "view")
   await requireOrgAccess()
 
-  const [checks, version] = await Promise.all([
+  const [checks, release] = await Promise.all([
     runSystemHealthChecks(),
-    readVersion(),
+    getReleaseInfo(),
   ])
   const summary = summarizeSystemChecks(checks)
   const checkedAt = new Date()
@@ -110,7 +109,9 @@ export default async function SystemHealthPage() {
                     : "Есть критичные проблемы"}
               </h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Версия сборки: <span className="font-mono">{version}</span> · проверено {formatDateTime(checkedAt)}
+                Версия сборки: <span className="font-mono">{release.version}</span>
+                {" "}· commit <span className="font-mono">{release.commitShort}</span>
+                {" "}· проверено {formatDateTime(checkedAt)}
               </p>
             </div>
           </div>
@@ -221,10 +222,4 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date)
-}
-
-async function readVersion() {
-  return readFile(path.join(process.cwd(), "VERSION"), "utf8")
-    .then((value) => value.trim())
-    .catch(() => "unknown")
 }

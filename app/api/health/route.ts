@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server"
-import { readFile } from "fs/promises"
-import path from "path"
 import { runSystemHealthChecks, summarizeSystemChecks } from "@/lib/system-health"
 import { auth } from "@/auth"
+import { getReleaseInfo } from "@/lib/release"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   const checks = await runSystemHealthChecks()
   const summary = summarizeSystemChecks(checks)
-  const version = await readVersion()
+  const release = await getReleaseInfo()
   const session = await auth().catch(() => null)
   const canSeeDetails = !!session?.user?.isPlatformOwner || ["OWNER", "ADMIN"].includes(session?.user?.role ?? "")
 
@@ -17,7 +16,8 @@ export async function GET() {
     {
       ok: summary.ok,
       status: summary.status,
-      version,
+      version: release.version,
+      release,
       checkedAt: new Date().toISOString(),
       summary,
       checks: canSeeDetails
@@ -31,10 +31,4 @@ export async function GET() {
     },
     { status: summary.status === "error" ? 503 : 200 }
   )
-}
-
-async function readVersion() {
-  return readFile(path.join(process.cwd(), "VERSION"), "utf8")
-    .then((value) => value.trim())
-    .catch(() => "unknown")
 }

@@ -3,6 +3,7 @@ import "server-only"
 import { readFile, readdir, stat } from "fs/promises"
 import path from "path"
 import { db } from "@/lib/db"
+import { getReleaseInfo } from "@/lib/release"
 
 export type SystemCheckStatus = "ok" | "warning" | "error"
 
@@ -275,17 +276,21 @@ async function checkEnvironment(): Promise<Omit<SystemCheck, "id" | "label" | "m
 }
 
 async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  const release = await getReleaseInfo()
   const version = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "VERSION"), "utf8")
     .then((value) => value.trim())
     .catch(() => null)
   const packageJson = await readJson<{ version?: string }>("package.json")
   const packageLock = await readJson<{ version?: string; packages?: Record<string, { version?: string }> }>("package-lock.json")
   const changelog = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "CHANGELOG.md"), "utf8").catch(() => "")
-  const runtimeVersion = version
-    ?? process.env.NEXT_PUBLIC_APP_VERSION
-    ?? process.env.APP_VERSION
-    ?? process.env.npm_package_version
-    ?? null
+  const runtimeVersion = version ?? release.version
+  const releaseDetails = [
+    `Runtime version: ${release.version}.`,
+    `Commit: ${release.commitShort}.`,
+    release.branch ? `Branch: ${release.branch}.` : null,
+    `Environment: ${release.environment}.`,
+    release.deploymentUrl ? `Deploy URL: ${release.deploymentUrl}.` : null,
+  ].filter(Boolean) as string[]
 
   if (isProductionRuntime() && (!packageJson || !packageLock || !changelog)) {
     return {
@@ -297,6 +302,7 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
         runtimeVersion ? `VERSION=${runtimeVersion}.` : "VERSION не найден в runtime bundle.",
         packageJson ? `package.json=${packageJson.version ?? "missing-version"}.` : "package.json недоступен в production bundle.",
         packageLock ? `package-lock=${packageLock.version ?? "missing-version"}.` : "package-lock.json недоступен в production bundle.",
+        ...releaseDetails,
         "Полная проверка VERSION/package.json/package-lock/CHANGELOG выполняется локально и в CI до deploy.",
       ],
     }
@@ -322,7 +328,7 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
   return {
     status: "ok",
     message: `Release-файлы синхронизированы: ${version}.`,
-    details: ["VERSION, package.json, package-lock.json и CHANGELOG.md совпадают."],
+    details: ["VERSION, package.json, package-lock.json и CHANGELOG.md совпадают.", ...releaseDetails],
   }
 }
 
