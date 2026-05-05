@@ -79,31 +79,31 @@ export async function getFaqArticlesForAdmin(orgId: string): Promise<FaqArticleF
 }
 
 export async function ensureOrgFaqDefaults(orgId: string) {
-  const count = await db.faqArticle.count({ where: { organizationId: orgId } })
-  if (count > 0) return
-
-  await db.faqArticle.createMany({
-    data: faqItems.map((item, index) => ({
-      organizationId: orgId,
-      slug: item.id,
-      audience: item.audience,
-      category: item.category,
-      question: item.question,
-      answer: item.answer,
-      steps: serializeList(item.steps),
-      tags: serializeList(item.tags),
-      href: item.href ?? null,
-      hrefLabel: item.hrefLabel ?? null,
-      sortOrder: index,
-      isActive: true,
-    })),
-    skipDuplicates: true,
-  })
+  await createMissingFaqDefaults(orgId)
 }
 
 export async function restoreMissingFaqDefaults(orgId: string) {
+  await createMissingFaqDefaults(orgId)
+}
+
+async function createMissingFaqDefaults(orgId: string) {
+  const defaultSlugs = faqItems.map((item) => item.id)
+  const existing = await db.faqArticle.findMany({
+    where: {
+      organizationId: orgId,
+      slug: { in: defaultSlugs },
+    },
+    select: { slug: true },
+  })
+  const existingSlugs = new Set(existing.map((item) => item.slug))
+  const missing = faqItems
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => !existingSlugs.has(item.id))
+
+  if (missing.length === 0) return
+
   await db.faqArticle.createMany({
-    data: faqItems.map((item, index) => ({
+    data: missing.map(({ item, index }) => ({
       organizationId: orgId,
       slug: item.id,
       audience: item.audience,

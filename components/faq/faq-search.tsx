@@ -15,6 +15,7 @@ type FaqSearchProps = {
 export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps) {
   const [query, setQuery] = useState("")
   const [activeAudience, setActiveAudience] = useState<FaqAudience>(defaultAudience)
+  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
   const normalizedQuery = query.trim().toLowerCase()
 
   const filtered = useMemo(() => {
@@ -44,6 +45,17 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
   }, [filtered])
 
   const activeTotal = items.filter((item) => item.audience === activeAudience).length
+  const toggleOpen = (id: string) => {
+    setOpenIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   return (
     <div className="space-y-5">
@@ -113,9 +125,14 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
                 </div>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {categoryItems.map((item) => (
-                  <FaqCard key={item.id} item={item} />
+                  <FaqCard
+                    key={item.id}
+                    item={item}
+                    isOpen={openIds.has(item.id)}
+                    onToggle={() => toggleOpen(item.id)}
+                  />
                 ))}
               </div>
             </section>
@@ -136,48 +153,91 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
   )
 }
 
-function FaqCard({ item }: { item: FaqItem }) {
+function FaqCard({
+  item,
+  isOpen,
+  onToggle,
+}: {
+  item: FaqItem
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  const panelId = `faq-panel-${item.id}`
+  const preview = item.answer.length > 145 ? `${item.answer.slice(0, 145).trim()}...` : item.answer
+
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{item.question}</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.answer}</p>
-        </div>
-        {item.href && item.hrefLabel && (
-          <Link
-            href={item.href}
-            className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            {item.hrefLabel}
-            <ChevronRight className="h-4 w-4" />
-          </Link>
-        )}
-      </div>
-
-      {item.steps && item.steps.length > 0 && (
-        <ol className="mt-4 grid gap-2">
-          {item.steps.map((step, index) => (
-            <li key={step} className="flex gap-3 text-sm text-slate-600 dark:text-slate-300">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                {index + 1}
-              </span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {item.tags.slice(0, 6).map((tag) => (
-          <span
-            key={tag}
-            className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-          >
-            {tag}
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:border-blue-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-500/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
+        className="flex h-full w-full flex-col gap-3 p-4 text-left"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              {item.category}
+            </span>
+            <h3 className="mt-3 text-base font-semibold leading-6 text-slate-900 dark:text-slate-100">{item.question}</h3>
+          </div>
+          <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 dark:border-slate-700 dark:text-slate-300">
+            <ChevronRight className={`h-4 w-4 transition ${isOpen ? "rotate-90" : ""}`} />
           </span>
-        ))}
-      </div>
+        </div>
+        {!isOpen && (
+          <p className="line-clamp-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{preview}</p>
+        )}
+      </button>
+
+      {isOpen && (
+        <div id={panelId} className="border-t border-slate-200 px-4 pb-4 pt-4 dark:border-slate-800">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{item.answer}</p>
+            {item.href && item.hrefLabel && (
+              <Link
+                href={item.href}
+                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {item.hrefLabel}
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            )}
+          </div>
+
+          {item.steps && item.steps.length > 0 && (
+            <ol className="mt-4 grid gap-2">
+              {item.steps.map((step, index) => (
+                <li key={step} className="flex gap-3 text-sm text-slate-600 dark:text-slate-300">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {item.tags.slice(0, 6).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mt-4 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            Свернуть
+          </button>
+        </div>
+      )}
     </article>
   )
 }
