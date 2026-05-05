@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Building2, Users, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Building2, Users, AlertTriangle, FileText, HardDrive, Wallet } from "lucide-react"
 import { OrgActions, OrgEditForm, ExtendForm, ChangeOwnerForm, DangerZone } from "./client-actions"
 import { OrgUrlCard } from "./org-url-card"
 import { LimitsCard } from "./limits-card"
@@ -31,7 +31,18 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
   if (!org) notFound()
 
   // Реальные счётчики tenants/leads для блока лимитов
-  const [tenantsCount, leadsCount, plans, ownerUser, allUsers, subscriptions] = await Promise.all([
+  const [
+    tenantsCount,
+    leadsCount,
+    plans,
+    ownerUser,
+    allUsers,
+    subscriptions,
+    pendingPaymentReportsCount,
+    generatedDocumentsCount,
+    storedFilesCount,
+    dataQualitySignalCount,
+  ] = await Promise.all([
     db.tenant.count({ where: tenantScope(org.id) }).catch(() => 0),
     db.lead.count({ where: leadScope(org.id) }).catch(() => 0),
     db.plan.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" } }),
@@ -50,6 +61,29 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
       take: 10,
       include: { plan: { select: { name: true, code: true } } },
     }),
+    db.paymentReport.count({
+      where: { tenant: tenantScope(org.id), status: { in: ["PENDING", "DISPUTED"] } },
+    }).catch(() => 0),
+    db.generatedDocument.count({ where: { organizationId: org.id } }).catch(() => 0),
+    db.storedFile.count({ where: { organizationId: org.id, deletedAt: null } }).catch(() => 0),
+    Promise.all([
+      db.tenant.count({
+        where: {
+          ...tenantScope(org.id),
+          AND: [
+            { OR: [{ user: { email: null } }, { user: { email: "" } }] },
+            { OR: [{ user: { phone: null } }, { user: { phone: "" } }] },
+          ],
+        },
+      }),
+      db.tenant.count({
+        where: {
+          ...tenantScope(org.id),
+          OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }],
+          contracts: { none: { status: "SIGNED" } },
+        },
+      }),
+    ]).then(([missingContacts, noSignedContracts]) => missingContacts + noSignedContracts).catch(() => 0),
   ])
 
   const now = new Date()
@@ -108,6 +142,13 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         maxTenants={org.plan?.maxTenants ?? null}
         maxUsers={org.plan?.maxUsers ?? null}
         maxLeads={org.plan?.maxLeads ?? null}
+      />
+
+      <SupportSnapshot
+        pendingPaymentReportsCount={pendingPaymentReportsCount}
+        generatedDocumentsCount={generatedDocumentsCount}
+        storedFilesCount={storedFilesCount}
+        dataQualitySignalCount={dataQualitySignalCount}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -203,6 +244,67 @@ function Stat({ label, value, sub, icon: Icon, accent }: {
       <p className={cn("text-xl font-bold", accentClass)}>{value}</p>
       {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
     </div>
+  )
+}
+
+function SupportSnapshot({
+  pendingPaymentReportsCount,
+  generatedDocumentsCount,
+  storedFilesCount,
+  dataQualitySignalCount,
+}: {
+  pendingPaymentReportsCount: number
+  generatedDocumentsCount: number
+  storedFilesCount: number
+  dataQualitySignalCount: number
+}) {
+  const cards = [
+    {
+      label: "Оплаты на проверке",
+      value: pendingPaymentReportsCount,
+      icon: Wallet,
+      tone: pendingPaymentReportsCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      label: "Документов создано",
+      value: generatedDocumentsCount,
+      icon: FileText,
+      tone: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      label: "Файлов в хранилище",
+      value: storedFilesCount,
+      icon: HardDrive,
+      tone: "text-slate-900 dark:text-slate-100",
+    },
+    {
+      label: "Сигналы качества данных",
+      value: dataQualitySignalCount,
+      icon: AlertTriangle,
+      tone: dataQualitySignalCount > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400",
+    },
+  ]
+
+  return (
+    <Card title="Support snapshot">
+      <div className="grid gap-3 md:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+            <card.icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+            <p className={`mt-3 text-xl font-semibold ${card.tone}`}>{card.value}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{card.label}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link href="/superadmin/errors" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          Ошибки клиента
+        </Link>
+        <Link href="/superadmin/audit" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          Последние действия
+        </Link>
+      </div>
+    </Card>
   )
 }
 

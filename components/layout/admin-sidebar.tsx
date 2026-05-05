@@ -21,6 +21,7 @@ const nav: NavSection[] = [
   {
     items: [
       { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, section: "dashboard" },
+      { href: "/admin/ops", label: "Сегодня", icon: ClipboardList, section: "dashboard" },
       { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
       { href: "/admin/onboarding", label: "Запуск", icon: Rocket, section: "dashboard" },
     ],

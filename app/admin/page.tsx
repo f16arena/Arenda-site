@@ -20,6 +20,7 @@ import { getOnboardingState } from "@/lib/onboarding"
 import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 import { measureServerRoute } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
+import type { Prisma } from "@/app/generated/prisma/client"
 
 export default async function AdminDashboard() {
   return measureServerRoute("/admin", async () => {
@@ -53,9 +54,11 @@ export default async function AdminDashboard() {
     [] as string[],
   )
 
-  const tenantWhereInBuilding = {
+  const tenantWhereInBuilding: Prisma.TenantWhereInput = {
+    user: { organizationId: orgId },
     OR: [
       { space: { floorId: { in: floorIds } } },
+      { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
     ],
   }
@@ -176,11 +179,19 @@ export default async function AdminDashboard() {
           id: true,
           companyName: true,
           space: { select: { number: true } },
+          tenantSpaces: { select: { space: { select: { number: true } } }, take: 3, orderBy: { createdAt: "asc" } },
+          fullFloors: { select: { number: true, name: true }, take: 3, orderBy: { number: "asc" } },
         },
         take: 6,
         orderBy: { createdAt: "desc" },
       }),
-      [] as Array<{ id: string; companyName: string; space: { number: string } | null }>,
+      [] as Array<{
+        id: string
+        companyName: string
+        space: { number: string } | null
+        tenantSpaces: { space: { number: string } }[]
+        fullFloors: { number: number; name: string }[]
+      }>,
     ),
     safe("admin.dashboard.onboarding", getOnboardingState(orgId), {
       allDone: true,
@@ -199,7 +210,7 @@ export default async function AdminDashboard() {
         db.payment.aggregate({
           where: {
             paymentDate: { gte: m.start, lt: m.end },
-            tenant: { space: { floorId: { in: floorIds } } },
+            tenant: tenantWhereInBuilding,
           },
           _sum: { amount: true },
         }),
@@ -276,7 +287,7 @@ export default async function AdminDashboard() {
           where: {
             AND: [
               tenantWhereInBuilding,
-              { OR: [{ spaceId: { not: null } }, { fullFloors: { some: {} } }] },
+              { OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }] },
               { contracts: { none: { status: "SIGNED" } } },
             ],
           },
@@ -293,6 +304,7 @@ export default async function AdminDashboard() {
             kind: "RENTABLE",
             status: "OCCUPIED",
             tenant: { is: null },
+            tenantSpaces: { none: {} },
             floor: { buildingId: { in: visibleBuildingIds }, fullFloorTenantId: null },
           },
         }),
@@ -300,7 +312,7 @@ export default async function AdminDashboard() {
           where: {
             kind: "RENTABLE",
             status: "VACANT",
-            tenant: { isNot: null },
+            OR: [{ tenant: { isNot: null } }, { tenantSpaces: { some: {} } }],
             floorId: { in: floorIds },
           },
         }),
@@ -809,7 +821,7 @@ export default async function AdminDashboard() {
                 <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
                   <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">
-                    {t.space ? `Каб. ${t.space.number}` : "—"}
+                    {describeTenantPlacement(t)}
                   </td>
                   <td className="px-5 py-3 text-right">
                     {debt > 0 ? (
@@ -1129,6 +1141,24 @@ function StatCard({
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
   )
+}
+
+function describeTenantPlacement(tenant: {
+  space: { number: string } | null
+  tenantSpaces: { space: { number: string } }[]
+  fullFloors: { number: number; name: string }[]
+}) {
+  if (tenant.fullFloors.length > 0) {
+    return tenant.fullFloors.map((floor) => floor.name || `${floor.number} этаж`).join(", ")
+  }
+
+  const rooms = tenant.tenantSpaces.length > 0
+    ? tenant.tenantSpaces.map((item) => item.space.number)
+    : tenant.space
+      ? [tenant.space.number]
+      : []
+
+  return rooms.length > 0 ? rooms.map((number) => `Каб. ${number}`).join(", ") : "—"
 }
 
 function formatArea(value: number) {

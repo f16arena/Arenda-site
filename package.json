@@ -1,13 +1,15 @@
 {
   "name": "arenda-pro",
-  "version": "1.3.77",
+  "version": "1.3.78",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/deploy-migrations.mjs && prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "perf:audit": "node scripts/performance-audit.mjs"
+    "perf:audit": "node scripts/performance-audit.mjs",
+    "security:audit": "node scripts/security-isolation-audit.mjs",
+    "quality:audit": "npm run lint && npm run perf:audit && npm run security:audit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

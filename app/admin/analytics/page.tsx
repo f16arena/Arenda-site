@@ -32,7 +32,14 @@ export default async function AnalyticsPage() {
     db.floor.findMany({ where: { buildingId: { in: visibleBuildingIds } }, select: { id: true } }).then((rows) => rows.map((f) => f.id)),
     [] as string[],
   )
-  const tenantWhere = { space: { floorId: { in: floorIds } } }
+  const tenantWhere = {
+    user: { organizationId: orgId },
+    OR: [
+      { space: { floorId: { in: floorIds } } },
+      { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
 
   const now = new Date()
   const thisYear = now.getFullYear()
@@ -59,7 +66,7 @@ export default async function AnalyticsPage() {
     safe(
       "admin.analytics.activeTenantsCount",
       db.tenant.count({
-        where: { ...tenantWhere, spaceId: { not: null } },
+        where: tenantWhere,
       }),
       0,
     ),

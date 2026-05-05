@@ -276,6 +276,37 @@ export default async function CabinetDashboard() {
         paymentPurpose={paymentPurpose}
       />
 
+      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Что сделать сейчас</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Самые частые действия вынесены сюда, чтобы не искать их в меню.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <TenantNextAction
+            href="/cabinet/finances#payment"
+            icon={Wallet}
+            title={totalDebt > 0 ? "Оплатить аренду" : "Посмотреть реквизиты"}
+            text={totalDebt > 0 ? `К оплате ${formatMoney(totalDebt)}` : "Долга нет, реквизиты доступны заранее"}
+          />
+          <TenantNextAction
+            href="/cabinet/finances#report-payment"
+            icon={Receipt}
+            title="Я оплатил"
+            text="Отправьте чек, чтобы администратор подтвердил платеж."
+          />
+          <TenantNextAction
+            href="/cabinet/requests"
+            icon={ClipboardList}
+            title="Создать заявку"
+            text={activeRequestsCount > 0 ? `${activeRequestsCount} заявок уже в работе` : "Ремонт, обслуживание или вопрос администратору."}
+          />
+        </div>
+      </section>
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <InfoCard
           icon={Building2}
@@ -574,6 +605,29 @@ function PaymentLine({ label, value, strong }: { label: string; value: string; s
         {value}
       </p>
     </div>
+  )
+}
+
+function TenantNextAction({
+  href,
+  icon: Icon,
+  title,
+  text,
+}: {
+  href: string
+  icon: React.ElementType
+  title: string
+  text: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-xl border border-slate-200 p-4 transition hover:border-blue-300 hover:bg-blue-50/40 dark:border-slate-800 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10"
+    >
+      <Icon className="h-5 w-5 text-blue-500" />
+      <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{text}</p>
+    </Link>
   )
 }
 
