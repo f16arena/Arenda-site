@@ -10,13 +10,13 @@ export type KzBank = {
 
 export const KZ_BANKS: KzBank[] = [
   { bik: "HSBKKZKX", name: "АО «Народный Банк Казахстана» (Halyk Bank)", short: "Halyk Bank" },
-  { bik: "KCJBKZKX", name: "АО «Kaspi Bank»", short: "Kaspi Bank" },
+  { bik: "KCJBKZKX", name: "АО «Банк ЦентрКредит»", short: "Банк ЦентрКредит" },
+  { bik: "CASPKZKA", name: "АО «Kaspi Bank»", short: "Kaspi Bank" },
   { bik: "TSESKZKA", name: "АО «First Heartland Jusan Bank»", short: "Jusan Bank" },
   { bik: "BRKEKZKA", name: "АО «Bereke Bank»", short: "Bereke Bank" },
   { bik: "ATFBKZKA", name: "АО «Bank Freedom Finance Kazakhstan»", short: "Freedom Finance" },
   { bik: "EURIKZKA", name: "АО «Евразийский банк»", short: "Eurasian Bank" },
   { bik: "BTSBKZKA", name: "АО «БТА Банк»", short: "BTA Bank" },
-  { bik: "CASPKZKA", name: "АО «Caspian Bank»", short: "Caspian Bank" },
   { bik: "ALFAKZKA", name: "АО ДБ «Альфа-Банк»", short: "Alfa-Bank" },
   { bik: "NBPAKZKA", name: "АО ДБ «Национальный Банк Пакистана»", short: "NBP" },
   { bik: "INLMKZKA", name: "АО «AsiaCredit Bank»", short: "AsiaCredit" },

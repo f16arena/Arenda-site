@@ -5,7 +5,7 @@
 // БИН: 12 цифр, контрольная цифра по ГОСТ РК (ЭКО ДРАМ).
 // ИИН: 12 цифр, тот же ГОСТ РК + первые 6 цифр = ДДММГГ дата рождения.
 
-import { findBankByBik } from "./kz-banks"
+import { findBankByBik, isValidBikFormat } from "./kz-banks"
 
 // ─── ИИК (IBAN) ──────────────────────────────────────────────────
 
@@ -117,12 +117,17 @@ export function validateRequisites(input: {
 
   if (input.bik) {
     const bank = findBankByBik(input.bik)
-    if (bank) {
+    if (!isValidBikFormat(input.bik)) {
+      result.bik = {
+        ok: false,
+        warning: "БИК должен содержать 8 латинских букв или цифр.",
+      }
+    } else if (bank) {
       result.bik = { ok: true, bankName: bank.short }
     } else {
       result.bik = {
-        ok: false,
-        warning: "БИК не найден в реестре банков РК. Проверьте написание (8 символов латиницей).",
+        ok: true,
+        warning: "БИК не найден в локальном справочнике. Проверьте банк вручную, но сохранить можно.",
       }
     }
   }
@@ -157,19 +162,10 @@ export function validateRequisites(input: {
     }
   }
 
-  // Сверка БИК ↔ ИИК (3-й, 4-й, 5-й символы ИИК = код банка, должен соотв. БИК)
-  if (input.bik && input.iik && result.bik?.ok && result.iik?.ok) {
-    const bankCode = extractBankCodeFromIik(input.iik)
-    const bik = input.bik.toUpperCase().slice(0, 3)
-    if (bankCode && bankCode !== bik) {
-      result.consistency = {
-        ok: false,
-        warning: `Код банка в ИИК (${bankCode}) не совпадает с началом БИК (${bik}). Возможно, ИИК относится к другому банку.`,
-      }
-    } else {
-      result.consistency = { ok: true }
-    }
-  }
+  // В ИИК РК после контрольных цифр идет цифровой код банка, а БИК/SWIFT
+  // начинается с букв. Без официальной таблицы соответствия нельзя надежно
+  // блокировать пару БИК + ИИК, поэтому здесь проверяем формат и checksum IBAN,
+  // а не делаем ложное сравнение с первыми буквами БИК.
 
   return result
 }

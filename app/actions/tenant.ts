@@ -58,9 +58,6 @@ function normalizeTenantBankAccountInput(formData: FormData) {
   const checks = validateRequisites({ bik, iik })
   if (checks.bik && !checks.bik.ok) throw new Error(checks.bik.warning ?? "Некорректный БИК")
   if (checks.iik && !checks.iik.ok) throw new Error(checks.iik.warning ?? "Некорректный ИИК")
-  if (checks.consistency && !checks.consistency.ok) {
-    throw new Error(checks.consistency.warning ?? "ИИК не соответствует БИК")
-  }
 
   return { label, bankName, iik, bik }
 }
@@ -332,76 +329,84 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   return { success: true }
 }
 
-export async function updateTenantRequisites(tenantId: string, formData: FormData) {
-  const { orgId } = await requireOrgAccess()
-  await assertTenantInOrg(tenantId, orgId)
-  await assertTenantBuildingAccess(tenantId, orgId)
+export async function updateTenantRequisites(
+  tenantId: string,
+  formData: FormData,
+): Promise<TenantBankAccountActionResult> {
+  try {
+    const { orgId } = await requireOrgAccess()
+    await assertTenantInOrg(tenantId, orgId)
+    await assertTenantBuildingAccess(tenantId, orgId)
 
-  const tenant = await db.tenant.findUnique({
-    where: { id: tenantId },
-    select: { legalType: true },
-  })
-  if (!tenant) throw new Error("Арендатор не найден")
-  const taxIds = normalizeTenantTaxIds({
-    legalType: tenant.legalType,
-    bin: formData.get("bin"),
-    iin: formData.get("iin"),
-  })
-
-  const shouldUpdateBank = hasBankAccountInput(formData)
-  const accountInput = shouldUpdateBank ? normalizeTenantBankAccountInput(formData) : null
-  if (accountInput) {
-    const duplicateSecondary = await db.tenantBankAccount.findFirst({
-      where: { tenantId, iik: accountInput.iik, isPrimary: false },
-      select: { id: true },
-    })
-    if (duplicateSecondary) throw new Error("Такой ИИК уже добавлен этому арендатору")
-  }
-
-  await db.$transaction(async (tx) => {
-    await tx.tenant.update({
+    const tenant = await db.tenant.findUnique({
       where: { id: tenantId },
-      data: {
-        bin: taxIds.bin,
-        iin: taxIds.iin,
-      },
+      select: { legalType: true },
+    })
+    if (!tenant) throw new Error("Арендатор не найден")
+    const taxIds = normalizeTenantTaxIds({
+      legalType: tenant.legalType,
+      bin: formData.get("bin"),
+      iin: formData.get("iin"),
     })
 
+    const shouldUpdateBank = hasBankAccountInput(formData)
+    const accountInput = shouldUpdateBank ? normalizeTenantBankAccountInput(formData) : null
     if (accountInput) {
-      const existingPrimary = await tx.tenantBankAccount.findFirst({
-        where: { tenantId, isPrimary: true },
+      const duplicateSecondary = await db.tenantBankAccount.findFirst({
+        where: { tenantId, iik: accountInput.iik, isPrimary: false },
         select: { id: true },
       })
-
-      if (existingPrimary) {
-        await tx.tenantBankAccount.update({
-          where: { id: existingPrimary.id },
-          data: { ...accountInput, isPrimary: true },
-        })
-        await tx.tenantBankAccount.updateMany({
-          where: {
-            tenantId,
-            isPrimary: true,
-            id: { not: existingPrimary.id },
-          },
-          data: { isPrimary: false },
-        })
-      } else {
-        await tx.tenantBankAccount.updateMany({
-          where: { tenantId },
-          data: { isPrimary: false },
-        })
-        await tx.tenantBankAccount.create({
-          data: { tenantId, ...accountInput, isPrimary: true },
-        })
-      }
+      if (duplicateSecondary) throw new Error("Такой ИИК уже добавлен этому арендатору")
     }
 
-    await syncTenantPrimaryBankAccount(tx, tenantId)
-  })
+    await db.$transaction(async (tx) => {
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: {
+          bin: taxIds.bin,
+          iin: taxIds.iin,
+        },
+      })
 
-  revalidatePath(`/admin/tenants/${tenantId}`)
-  return { success: true }
+      if (accountInput) {
+        const existingPrimary = await tx.tenantBankAccount.findFirst({
+          where: { tenantId, isPrimary: true },
+          select: { id: true },
+        })
+
+        if (existingPrimary) {
+          await tx.tenantBankAccount.update({
+            where: { id: existingPrimary.id },
+            data: { ...accountInput, isPrimary: true },
+          })
+          await tx.tenantBankAccount.updateMany({
+            where: {
+              tenantId,
+              isPrimary: true,
+              id: { not: existingPrimary.id },
+            },
+            data: { isPrimary: false },
+          })
+        } else {
+          await tx.tenantBankAccount.updateMany({
+            where: { tenantId },
+            data: { isPrimary: false },
+          })
+          await tx.tenantBankAccount.create({
+            data: { tenantId, ...accountInput, isPrimary: true },
+          })
+        }
+      }
+
+      await syncTenantPrimaryBankAccount(tx, tenantId)
+    })
+
+    revalidatePath(`/admin/tenants/${tenantId}`)
+    return { ok: true }
+  } catch (error) {
+    console.error("[updateTenantRequisites]", error)
+    return tenantBankAccountActionError(error, "Не удалось сохранить реквизиты арендатора")
+  }
 }
 
 export async function createTenantBankAccount(

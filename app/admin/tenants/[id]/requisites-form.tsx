@@ -65,9 +65,6 @@ function getBankInputError(bankName: string, bik: string, iik: string) {
   const checks = validateRequisites({ bik, iik })
   if (checks.bik && !checks.bik.ok) return checks.bik.warning ?? "Некорректный БИК"
   if (checks.iik && !checks.iik.ok) return checks.iik.warning ?? "Некорректный ИИК"
-  if (checks.consistency && !checks.consistency.ok) {
-    return checks.consistency.warning ?? "ИИК не соответствует БИК"
-  }
   return null
 }
 
@@ -146,7 +143,9 @@ function BankFields({
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">{bankFromBik.name}</p>
         )}
         {bik && checks.bik?.warning && (
-          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.bik.warning}</p>
+          <p className={`mt-1 text-[10px] ${checks.bik.ok ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
+            {checks.bik.warning}
+          </p>
         )}
       </div>
 
@@ -185,9 +184,6 @@ function BankFields({
         <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Длина: {iik.length}/20</p>
         {iik && checks.iik?.warning && (
           <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.iik.warning}</p>
-        )}
-        {checks.consistency && !checks.consistency.ok && (
-          <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400">{checks.consistency.warning}</p>
         )}
       </div>
     </div>
@@ -430,7 +426,11 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
 
     startTransition(async () => {
       try {
-        await updateTenantRequisites(tenantId, formData)
+        const result = await updateTenantRequisites(tenantId, formData)
+        if (!result.ok) {
+          toast.error(result.error ?? "Не удалось сохранить данные")
+          return
+        }
         router.refresh()
         toast.success("Налоговые данные сохранены")
       } catch (error) {
