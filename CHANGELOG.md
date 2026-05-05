@@ -2,6 +2,13 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.70 - 2026-05-05
+
+- Optimized `/admin/tenants/[id]`: contracts and recent charges moved out of the main tenant query into separate streamed server sidebar sections.
+- Current tenant debt now uses an aggregate query instead of relying on a limited recent charges list, so the top debt card is both lighter and more accurate.
+- Reduced the tenant detail server file size from about 42 KB to 38 KB in `npm run perf:audit`.
+- Added rollback point `rollback/pre-tenant-page-performance-1.3.70`.
+
 ## 1.3.69 - 2026-05-05
 
 - Continued server fallback observability: analytics, requests, tasks, storage, leads, complaints, documents, spaces, tenant sections, cabinet, superadmin pages, search API and document bulk download now log data-loading failures through `safeServerValue(...)`.

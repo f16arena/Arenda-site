@@ -13,7 +13,7 @@ import {
   assignTenantSpace,
   unassignTenantSpace,
 } from "@/app/actions/tenant"
-import { formatMoney, formatDate, LEGAL_TYPE_LABELS, CHARGE_TYPES } from "@/lib/utils"
+import { formatMoney, formatDate, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
   Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
@@ -22,7 +22,6 @@ import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
 import { BlacklistButton } from "./blacklist-button"
 import { IndexationHint } from "./indexation-hint"
-import { ContractWorkflowActions } from "./contract-actions"
 import {
   DocumentsActionsLoader,
   RentalTermsFormLoader,
@@ -42,12 +41,21 @@ import { TenantHistorySection } from "./tenant-history-section"
 import { TenantServiceChargesSection } from "./tenant-service-charges-section"
 import { measureServerRoute } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
+import { safeServerValue } from "@/lib/server-fallback"
+import { TenantContractsSidebar, TenantRecentChargesSidebar } from "./tenant-sidebar-sections"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return measureServerRoute("/admin/tenants/[id]", async () => {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, {
+      source,
+      route: "/admin/tenants/[id]",
+      orgId,
+      userId: session.user.id,
+    })
 
   const { id } = await params
   try {
@@ -128,31 +136,6 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           buildingId: true,
         },
       },
-      charges: {
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        select: { id: true, period: true, type: true, amount: true, description: true, isPaid: true, dueDate: true, createdAt: true },
-      },
-      payments: {
-        orderBy: { paymentDate: "desc" },
-        take: 10,
-        select: { id: true, amount: true, method: true, paymentDate: true, note: true },
-      },
-      contracts: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: {
-          id: true, number: true, type: true, status: true,
-          startDate: true, endDate: true, signedAt: true,
-          sentAt: true, viewedAt: true, signedByTenantAt: true, signedByLandlordAt: true,
-          rejectedAt: true, rejectionReason: true, signToken: true,
-        },
-      },
-      requests: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, title: true, status: true, priority: true, createdAt: true },
-      },
     },
   })
 
@@ -163,10 +146,6 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const tenantBuildingId = getTenantPrimaryBuildingId(tenant)
   const buildingId = currentBuildingId ?? tenantBuildingId
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
-
-  const totalDebt = tenant.charges
-    .filter((c) => !c.isPaid)
-    .reduce((s, c) => s + c.amount, 0)
 
   // Дни до окончания договора (отрицательное = истёк)
   const today = new Date()
@@ -193,7 +172,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     ],
   }
 
-  const [vacantSpaces, vacantSpacesCount] = await Promise.all([
+  const [vacantSpaces, vacantSpacesCount, debtAgg] = await Promise.all([
     db.space.findMany({
       where: vacantSpacesWhere,
       select: {
@@ -203,8 +182,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
       take: 50,
     }),
-    db.space.count({ where: vacantSpacesWhere }).catch(() => 0),
+    safe("tenantDetail.vacantSpacesCount", db.space.count({ where: vacantSpacesWhere }), 0),
+    safe(
+      "tenantDetail.debtAggregate",
+      db.charge.aggregate({
+        where: { tenantId: tenant.id, isPaid: false },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
   ])
+
+  const totalDebt = debtAgg._sum.amount ?? 0
+  const debtCount = debtAgg._count._all ?? 0
 
   const myFullFloors = tenant.fullFloors.map((f) => ({
     id: f.id,
@@ -274,7 +265,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             label="Текущий долг"
             value={totalDebt > 0 ? formatMoney(totalDebt) : "Нет"}
             valueClass={totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}
-            sub={totalDebt > 0 ? `${tenant.charges.filter((c) => !c.isPaid).length} начислений` : "Все оплачено"}
+            sub={totalDebt > 0 ? `${debtCount} начислений` : "Все оплачено"}
           />
           <QuickStat
             icon={Building2}
@@ -753,67 +744,13 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             </div>
           </CollapsibleCard>
 
-          {/* Contracts */}
-          <CollapsibleCard title="Договоры" icon={FileText} meta={`${tenant.contracts.length} шт.`}>
-            <div className="divide-y divide-slate-50">
-              {tenant.contracts.map((c) => {
-                const statusLabels: Record<string, { label: string; cls: string }> = {
-                  DRAFT:               { label: "Черновик",           cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
-                  SENT:                { label: "Отправлен",          cls: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" },
-                  VIEWED:              { label: "Открыт арендатором", cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300" },
-                  SIGNED_BY_TENANT:    { label: "Ждёт нашей подписи", cls: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
-                  SIGNED:              { label: "Подписан",           cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" },
-                  REJECTED:            { label: "Отклонён",           cls: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" },
-                }
-                const st = statusLabels[c.status] ?? { label: c.status, cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" }
-                const docLabel = c.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
-                return (
-                  <div key={c.id} className="px-4 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{docLabel} № {c.number}</p>
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${st.cls}`}>
-                        {st.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                      {c.startDate ? formatDate(c.startDate) : "—"} → {c.endDate ? formatDate(c.endDate) : "—"}
-                    </p>
-                    <div className="mt-2">
-                      <ContractWorkflowActions contract={c} />
-                    </div>
-                  </div>
-                )
-              })}
-              {tenant.contracts.length === 0 && (
-                <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Нет договоров</p>
-              )}
-            </div>
-          </CollapsibleCard>
+          <Suspense fallback={<SectionFallback />}>
+            <TenantContractsSidebar tenantId={tenant.id} orgId={orgId} userId={session.user.id} />
+          </Suspense>
 
-          {/* Recent charges */}
-          <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${tenant.charges.length} записей`}>
-            <div className="divide-y divide-slate-50">
-              {tenant.charges.slice(0, 6).map((c) => (
-                <div key={c.id} className="px-4 py-2.5 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                      {CHARGE_TYPES[c.type] ?? c.type}
-                    </p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.period}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-xs font-semibold ${c.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                      {formatMoney(c.amount)}
-                    </p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.isPaid ? "Оплачено" : "Долг"}</p>
-                  </div>
-                </div>
-              ))}
-              {tenant.charges.length === 0 && (
-                <p className="px-4 py-4 text-xs text-slate-400 dark:text-slate-500 text-center">Начислений нет</p>
-              )}
-            </div>
-          </CollapsibleCard>
+          <Suspense fallback={<SectionFallback />}>
+            <TenantRecentChargesSidebar tenantId={tenant.id} orgId={orgId} userId={session.user.id} />
+          </Suspense>
         </div>
       </div>
     </div>
