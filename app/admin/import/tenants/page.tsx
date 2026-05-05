@@ -46,7 +46,7 @@ export default function ImportTenantsPage() {
         <p className="font-semibold text-slate-900 dark:text-slate-100">Что распознаёт система</p>
         <ul className="space-y-1.5 list-disc list-inside text-slate-600 dark:text-slate-400 dark:text-slate-500">
           <li><b>Название колонок</b> — синонимы: «Название» = «Контрагент» = «Компания» = «Организация»</li>
-          <li><b>Тип организации</b> — ИП / ТОО / АО / ФЛ; если не указано — по умолчанию ТОО</li>
+          <li><b>Тип организации</b> — ИП / ТОО / АО / ЧСИ / ФЛ; если не указано — по умолчанию ТОО</li>
           <li><b>БИН/ИИН</b> — извлекается 12 цифр из любого формата (с пробелами, дефисами и пр.)</li>
           <li><b>Телефон</b> — нормализуется к виду +7XXXXXXXXXX</li>
           <li><b>Дата</b> — поддерживается ДД.ММ.ГГГГ, ГГГГ-ММ-ДД, ДД/ММ/ГГГГ и Excel serial date</li>

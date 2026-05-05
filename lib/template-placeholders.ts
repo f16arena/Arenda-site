@@ -27,7 +27,7 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     { key: "tenant_director", label: "Директор арендатора" },
     { key: "tenant_director_short", label: "Директор арендатора кратко" },
     { key: "tenant_position", label: "Должность подписанта арендатора" },
-    { key: "tenant_basis", label: "Основание действия арендатора: Уведомление/Устав/лицензия" },
+    { key: "tenant_basis", label: "Основание действия арендатора: Уведомление/Устав/лицензия ЧСИ" },
     { key: "tenant_basis_document", label: "Документ-основание арендатора" },
     { key: "landlord_name", label: "Название арендодателя" },
     { key: "landlord_short", label: "Краткое название арендодателя" },

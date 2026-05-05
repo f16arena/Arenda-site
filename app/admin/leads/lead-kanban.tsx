@@ -248,6 +248,7 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
               <select name="legalType" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                 <option value="">—</option>
                 <option value="IP">ИП</option>
+                <option value="CHSI">ЧСИ</option>
                 <option value="TOO">ТОО</option>
                 <option value="AO">АО</option>
                 <option value="PHYSICAL">Физ. лицо</option>

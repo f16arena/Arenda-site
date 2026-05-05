@@ -1,11 +1,12 @@
 import { assertKazakhstanIin } from "@/lib/kz-iin"
 
-export type TenantLegalType = "IP" | "TOO" | "AO" | "PHYSICAL"
+export type TenantLegalType = "IP" | "TOO" | "AO" | "CHSI" | "PHYSICAL"
 
-const LEGAL_TYPES = new Set<TenantLegalType>(["IP", "TOO", "AO", "PHYSICAL"])
+const LEGAL_TYPES = new Set<TenantLegalType>(["IP", "TOO", "AO", "CHSI", "PHYSICAL"])
 
 export function normalizeTenantLegalType(value: unknown): TenantLegalType {
   const raw = String(value ?? "IP").trim().toUpperCase()
+  if (raw === "CHSI" || raw === "ЧСИ" || raw.includes("СУДЕБН") || raw.includes("ИСПОЛНИТЕЛ")) return "CHSI"
   if (raw === "PERSON" || raw === "INDIVIDUAL" || raw === "FL" || raw === "ФЛ") return "PHYSICAL"
   return LEGAL_TYPES.has(raw as TenantLegalType) ? (raw as TenantLegalType) : "IP"
 }

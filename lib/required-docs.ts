@@ -14,6 +14,13 @@ const DOCS_BY_LEGAL_TYPE: Record<string, RequiredDoc[]> = {
     { type: "ID_CARD",         label: "Удостоверение личности руководителя", description: "Скан или фото обеих сторон" },
     ...COMMON_DOCS,
   ],
+  CHSI: [
+    { type: "CHSI_LICENSE",             label: "Лицензия частного судебного исполнителя", description: "Документ, подтверждающий право заниматься деятельностью ЧСИ" },
+    { type: "CHSI_CERTIFICATE",         label: "Удостоверение / подтверждение статуса ЧСИ", description: "Удостоверение или иной документ, подтверждающий статус частного судебного исполнителя" },
+    { type: "CHSI_CHAMBER_MEMBERSHIP",  label: "Подтверждение членства в палате ЧСИ", description: "Документ или сведения о членстве в Республиканской/региональной палате частных судебных исполнителей" },
+    { type: "ID_CARD",                  label: "Удостоверение личности ЧСИ", description: "Скан или фото обеих сторон" },
+    ...COMMON_DOCS,
+  ],
   TOO: [
     { type: "CHARTER",          label: "Устав", description: "Действующая редакция, прошитая и пронумерованная" },
     { type: "ORDER",            label: "Приказ о назначении директора", description: "Подписанный учредителем" },
@@ -42,6 +49,9 @@ export function getRequiredDocs(legalType: string): RequiredDoc[] {
 
 export const DOC_TYPE_LABELS: Record<string, string> = {
   IP_CERTIFICATE:  "Талон ИП",
+  CHSI_LICENSE:    "Лицензия ЧСИ",
+  CHSI_CERTIFICATE: "Удостоверение ЧСИ",
+  CHSI_CHAMBER_MEMBERSHIP: "Членство в палате ЧСИ",
   CHARTER:         "Устав",
   ORDER:           "Приказ",
   DECISION:        "Решение",

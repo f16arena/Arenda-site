@@ -153,10 +153,11 @@ export function normalizePhone(s: string): string {
 }
 
 /**
- * Тип легальной формы организации — нормализуем к {IP, TOO, AO, OTHER}.
+ * Тип легальной формы организации — нормализуем к {IP, TOO, AO, CHSI, PERSON}.
  */
 export function normalizeLegalType(s: string): string {
   const v = s.trim().toUpperCase().replace(/["«»]/g, "")
+  if (/(^|\s)(ЧСИ|CHSI)(\s|$)/.test(v) || v.includes("СУДЕБН") || v.includes("ИСПОЛНИТЕЛ")) return "CHSI"
   if (/(^|\s)ИП(\s|$)/.test(v) || v === "ИП") return "IP"
   if (/(^|\s)(ТОО|TOO|OOO|ООО|LLP)(\s|$)/.test(v)) return "TOO"
   if (/(^|\s)(АО|AO)(\s|$)/.test(v)) return "AO"

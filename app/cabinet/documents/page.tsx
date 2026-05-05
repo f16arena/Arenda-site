@@ -27,6 +27,9 @@ export default async function CabinetDocuments() {
     ID_CARD: "Удостоверение личности",
     CHARTER: "Устав",
     IP_CERTIFICATE: "Свидетельство ИП",
+    CHSI_LICENSE: "Лицензия ЧСИ",
+    CHSI_CERTIFICATE: "Удостоверение ЧСИ",
+    CHSI_CHAMBER_MEMBERSHIP: "Членство в палате ЧСИ",
     ORDER: "Приказ",
     OTHER: "Прочее",
   }

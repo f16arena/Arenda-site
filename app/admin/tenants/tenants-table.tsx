@@ -202,10 +202,11 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         >
           <option value="">Все типы</option>
           <option value="IP">ИП</option>
+          <option value="CHSI">ЧСИ</option>
           <option value="TOO">ТОО</option>
           <option value="AO">АО</option>
           <option value="GP">ГП/ГКП</option>
-          <option value="INDIVIDUAL">Физ. лицо</option>
+          <option value="PHYSICAL">Физ. лицо</option>
         </select>
         <select
           value={debtFilter}

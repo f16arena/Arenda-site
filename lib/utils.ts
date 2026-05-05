@@ -124,6 +124,7 @@ export const REQUEST_TYPE_LABELS: Record<string, string> = {
 
 export const LEGAL_TYPE_LABELS: Record<string, string> = {
   IP: "ИП",
+  CHSI: "ЧСИ",
   TOO: "ТОО",
   AO: "АО",
   PHYSICAL: "Физическое лицо",

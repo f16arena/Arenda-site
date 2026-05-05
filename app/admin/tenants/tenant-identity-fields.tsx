@@ -41,6 +41,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
         >
           <option value="IP">ИП</option>
+          <option value="CHSI">ЧСИ</option>
           <option value="TOO">ТОО</option>
           <option value="AO">АО</option>
           <option value="PHYSICAL">Физ. лицо</option>
@@ -55,7 +56,13 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
           name={usesBin ? "bin" : "iin"}
           value={taxId}
           onChange={(event) => setTaxId(event.target.value.replace(/\D/g, "").slice(0, 12))}
-          placeholder={usesBin ? "БИН для ТОО/АО" : "ИИН для ИП/физлица"}
+          placeholder={
+            usesBin
+              ? "БИН для ТОО/АО"
+              : legalType === "CHSI"
+                ? "ИИН частного судебного исполнителя"
+                : "ИИН для ИП/физлица"
+          }
           inputMode="numeric"
           maxLength={12}
           className={[

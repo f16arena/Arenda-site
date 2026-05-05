@@ -538,7 +538,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           >
             <RequisitesFormLoader
               tenantId={tenant.id}
-              isIin={tenant.legalType === "IP" || tenant.legalType === "PHYSICAL"}
+              isIin={tenant.legalType === "IP" || tenant.legalType === "CHSI" || tenant.legalType === "PHYSICAL"}
               initial={{
                 bankName: tenant.bankName,
                   iik: tenant.iik,

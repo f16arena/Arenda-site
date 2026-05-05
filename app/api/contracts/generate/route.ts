@@ -521,8 +521,10 @@ function inferTenantBasis(tenant: TenantBasisInput) {
   const id = tenant.bin ?? tenant.iin ?? ""
   const idText = id ? ` (БИН/ИИН ${id})` : ""
 
-  if (name.includes("чси") || name.includes("судебн")) {
-    return "государственной лицензии и регистрационных документов, подтверждающих статус частного судебного исполнителя"
+  if (legalType === "CHSI" || legalType === "ЧСИ" || name.includes("чси") || name.includes("судебн")) {
+    return id
+      ? `лицензии частного судебного исполнителя и документов, подтверждающих статус ЧСИ (ИИН ${id})`
+      : "лицензии частного судебного исполнителя и документов, подтверждающих статус ЧСИ"
   }
 
   if (legalType === "TOO" || legalType === "ТОО" || legalType === "AO" || legalType === "АО") {
