@@ -18,6 +18,7 @@ import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 import { normalizeIik, validateRequisites } from "@/lib/kz-validators"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
+import { actionErrorResult } from "@/lib/action-error"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -65,14 +66,30 @@ function normalizeTenantBankAccountInput(formData: FormData) {
 type TenantBankAccountActionResult = {
   ok: boolean
   error?: string
+  errorId?: string
 }
 
-function tenantBankAccountActionError(error: unknown, fallback: string): TenantBankAccountActionResult {
-  const message = error instanceof Error ? error.message : ""
-  if (message && !message.includes("NEXT_REDIRECT")) {
-    return { ok: false, error: message }
-  }
-  return { ok: false, error: fallback }
+async function tenantBankAccountActionError(
+  error: unknown,
+  fallback: string,
+  context: {
+    source: string
+    tenantId?: string | null
+    accountId?: string | null
+    orgId?: string | null
+  },
+): Promise<TenantBankAccountActionResult> {
+  return actionErrorResult(error, fallback, {
+    source: context.source,
+    route: context.tenantId ? `/admin/tenants/${context.tenantId}` : "/admin/tenants",
+    orgId: context.orgId,
+    entity: "tenant",
+    entityId: context.tenantId ?? context.accountId ?? null,
+    input: {
+      tenantId: context.tenantId ?? null,
+      accountId: context.accountId ?? null,
+    },
+  })
 }
 
 async function syncTenantPrimaryBankAccount(
@@ -333,8 +350,9 @@ export async function updateTenantRequisites(
   tenantId: string,
   formData: FormData,
 ): Promise<TenantBankAccountActionResult> {
+  let orgId: string | null = null
   try {
-    const { orgId } = await requireOrgAccess()
+    ;({ orgId } = await requireOrgAccess())
     await assertTenantInOrg(tenantId, orgId)
     await assertTenantBuildingAccess(tenantId, orgId)
 
@@ -405,7 +423,11 @@ export async function updateTenantRequisites(
     return { ok: true }
   } catch (error) {
     console.error("[updateTenantRequisites]", error)
-    return tenantBankAccountActionError(error, "Не удалось сохранить реквизиты арендатора")
+    return tenantBankAccountActionError(error, "Не удалось сохранить реквизиты арендатора", {
+      source: "tenant.updateRequisites",
+      tenantId,
+      orgId,
+    })
   }
 }
 
@@ -413,8 +435,9 @@ export async function createTenantBankAccount(
   tenantId: string,
   formData: FormData,
 ): Promise<TenantBankAccountActionResult> {
+  let orgId: string | null = null
   try {
-    const { orgId } = await requireOrgAccess()
+    ;({ orgId } = await requireOrgAccess())
     await assertTenantInOrg(tenantId, orgId)
     await assertTenantBuildingAccess(tenantId, orgId)
 
@@ -446,7 +469,11 @@ export async function createTenantBankAccount(
     return { ok: true }
   } catch (error) {
     console.error("[createTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось добавить банковский счёт")
+    return tenantBankAccountActionError(error, "Не удалось добавить банковский счёт", {
+      source: "tenant.createBankAccount",
+      tenantId,
+      orgId,
+    })
   }
 }
 
@@ -454,13 +481,16 @@ export async function updateTenantBankAccount(
   accountId: string,
   formData: FormData,
 ): Promise<TenantBankAccountActionResult> {
+  let orgId: string | null = null
+  let tenantId: string | null = null
   try {
-    const { orgId } = await requireOrgAccess()
+    ;({ orgId } = await requireOrgAccess())
     const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
       select: { tenantId: true },
     })
     if (!account) throw new Error("Счёт не найден")
+    tenantId = account.tenantId
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
 
@@ -483,18 +513,26 @@ export async function updateTenantBankAccount(
     return { ok: true }
   } catch (error) {
     console.error("[updateTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось сохранить банковский счёт")
+    return tenantBankAccountActionError(error, "Не удалось сохранить банковский счёт", {
+      source: "tenant.updateBankAccount",
+      tenantId,
+      accountId,
+      orgId,
+    })
   }
 }
 
 export async function setPrimaryTenantBankAccount(accountId: string): Promise<TenantBankAccountActionResult> {
+  let orgId: string | null = null
+  let tenantId: string | null = null
   try {
-    const { orgId } = await requireOrgAccess()
+    ;({ orgId } = await requireOrgAccess())
     const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
       select: { tenantId: true },
     })
     if (!account) throw new Error("Счёт не найден")
+    tenantId = account.tenantId
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
 
@@ -514,18 +552,26 @@ export async function setPrimaryTenantBankAccount(accountId: string): Promise<Te
     return { ok: true }
   } catch (error) {
     console.error("[setPrimaryTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось выбрать основной счёт")
+    return tenantBankAccountActionError(error, "Не удалось выбрать основной счёт", {
+      source: "tenant.setPrimaryBankAccount",
+      tenantId,
+      accountId,
+      orgId,
+    })
   }
 }
 
 export async function deleteTenantBankAccount(accountId: string): Promise<TenantBankAccountActionResult> {
+  let orgId: string | null = null
+  let tenantId: string | null = null
   try {
-    const { orgId } = await requireOrgAccess()
+    ;({ orgId } = await requireOrgAccess())
     const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
       select: { tenantId: true },
     })
     if (!account) throw new Error("Счёт не найден")
+    tenantId = account.tenantId
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
 
@@ -538,7 +584,12 @@ export async function deleteTenantBankAccount(accountId: string): Promise<Tenant
     return { ok: true }
   } catch (error) {
     console.error("[deleteTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось удалить банковский счёт")
+    return tenantBankAccountActionError(error, "Не удалось удалить банковский счёт", {
+      source: "tenant.deleteBankAccount",
+      tenantId,
+      accountId,
+      orgId,
+    })
   }
 }
 

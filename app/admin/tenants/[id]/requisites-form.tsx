@@ -73,6 +73,11 @@ function getBankInputError(bankName: string, bik: string, iik: string) {
   return null
 }
 
+function showActionError(result: { error?: string; errorId?: string }, fallback: string) {
+  const message = result.error ?? fallback
+  toast.error(result.errorId ? `${message}. Код ошибки #${result.errorId}` : message)
+}
+
 function BankFields({
   label,
   setLabel,
@@ -254,7 +259,7 @@ function ExistingAccount({ account }: { account: BankAccount }) {
       try {
         const result = await updateTenantBankAccount(account.id, formData)
         if (!result.ok) {
-          toast.error(result.error ?? "Не удалось сохранить счёт")
+          showActionError(result, "Не удалось сохранить счёт")
           return
         }
         router.refresh()
@@ -270,7 +275,7 @@ function ExistingAccount({ account }: { account: BankAccount }) {
       try {
         const result = await setPrimaryTenantBankAccount(account.id)
         if (!result.ok) {
-          toast.error(result.error ?? "Не удалось выбрать основной счёт")
+          showActionError(result, "Не удалось выбрать основной счёт")
           return
         }
         router.refresh()
@@ -287,7 +292,7 @@ function ExistingAccount({ account }: { account: BankAccount }) {
       try {
         const result = await deleteTenantBankAccount(account.id)
         if (!result.ok) {
-          toast.error(result.error ?? "Не удалось удалить счёт")
+          showActionError(result, "Не удалось удалить счёт")
           return
         }
         router.refresh()
@@ -390,7 +395,7 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
       try {
         const result = await createTenantBankAccount(tenantId, formData)
         if (!result.ok) {
-          toast.error(result.error ?? "Не удалось добавить счёт")
+          showActionError(result, "Не удалось добавить счёт")
           return
         }
         router.refresh()
@@ -475,7 +480,7 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
       try {
         const result = await updateTenantRequisites(tenantId, formData)
         if (!result.ok) {
-          toast.error(result.error ?? "Не удалось сохранить данные")
+          showActionError(result, "Не удалось сохранить данные")
           return
         }
         router.refresh()

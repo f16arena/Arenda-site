@@ -2,6 +2,16 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.73 - 2026-05-05
+
+- Усилен Error & Support Center: добавлен `app/global-error.tsx`, чтобы ошибки root/layout уровня тоже попадали в журнал поддержки.
+- Добавлен глобальный клиентский монитор ошибок: `window.error` и `unhandledrejection` теперь отправляются в `/api/errors/report` и видны в `/superadmin/errors`.
+- Добавлен серверный helper `actionErrorResult(...)` для server actions: техническая ошибка логируется в `audit_logs`, а пользователь получает понятное сообщение и код ошибки.
+- Подключено логирование server action ошибок для банковских реквизитов арендатора; toast теперь показывает код ошибки для поддержки.
+- `/superadmin/errors` получил фильтр по зоне (`admin`, `cabinet`, `superadmin`, `public`, `server-action`, `server`) и раскрываемые блоки stack/context.
+- Расширена расшифровка ошибок: отдельно распознаются server action failures и Prisma/database errors.
+- Добавлена rollback-точка `rollback/pre-error-support-center-1.3.73`.
+
 ## 1.3.72 - 2026-05-05
 
 - Добавлен отдельный тип арендатора `CHSI` / ЧСИ: формы, фильтры, лиды и импорт Excel теперь не смешивают частного судебного исполнителя с ТОО/ИП.

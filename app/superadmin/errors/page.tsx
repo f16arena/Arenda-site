@@ -16,28 +16,35 @@ const PAGE_SIZE = 30
 export default async function SuperadminErrorsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string | string[]; q?: string | string[] }>
+  searchParams?: Promise<{ page?: string | string[]; q?: string | string[]; kind?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
   const query = normalizeQuery(resolved?.q)
+  const kind = normalizeKind(resolved?.kind)
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/superadmin/errors", userId })
 
+  const filters: Prisma.AuditLogWhereInput[] = []
+  if (kind) {
+    filters.push({ details: { contains: `"routeKind":"${kind}"`, mode: "insensitive" } })
+  }
+  if (query) {
+    filters.push({
+      OR: [
+        { entityId: { contains: query, mode: "insensitive" } },
+        { details: { contains: query, mode: "insensitive" } },
+        { userName: { contains: query, mode: "insensitive" } },
+        { userRole: { contains: query, mode: "insensitive" } },
+        { ip: { contains: query, mode: "insensitive" } },
+      ],
+    })
+  }
+
   const where: Prisma.AuditLogWhereInput = {
     action: "ERROR",
-    ...(query
-      ? {
-          OR: [
-            { entityId: { contains: query, mode: "insensitive" } },
-            { details: { contains: query, mode: "insensitive" } },
-            { userName: { contains: query, mode: "insensitive" } },
-            { userRole: { contains: query, mode: "insensitive" } },
-            { ip: { contains: query, mode: "insensitive" } },
-          ],
-        }
-      : {}),
+    ...(filters.length > 0 ? { AND: filters } : {}),
   }
 
   const now = new Date()
@@ -97,7 +104,7 @@ export default async function SuperadminErrorsPage({
           </div>
         </div>
 
-        <form action="/superadmin/errors" className="flex w-full gap-2 lg:w-[420px]">
+        <form action="/superadmin/errors" className="flex w-full gap-2 lg:w-[560px]">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -107,6 +114,19 @@ export default async function SuperadminErrorsPage({
               className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-purple-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
             />
           </div>
+          <select
+            name="kind"
+            defaultValue={kind}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-purple-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+          >
+            <option value="">Все зоны</option>
+            <option value="admin">Admin</option>
+            <option value="cabinet">Cabinet</option>
+            <option value="superadmin">Superadmin</option>
+            <option value="public">Public</option>
+            <option value="server-action">Server action</option>
+            <option value="server">Server</option>
+          </select>
           <button className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
             Найти
           </button>
@@ -191,6 +211,31 @@ export default async function SuperadminErrorsPage({
                     </pre>
                   )}
 
+                  {(details.stack || details.context) && (
+                    <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                      {details.stack && (
+                        <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+                          <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                            Stack trace
+                          </summary>
+                          <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+                            {details.stack}
+                          </pre>
+                        </details>
+                      )}
+                      {details.context && (
+                        <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+                          <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                            Контекст
+                          </summary>
+                          <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+                            {JSON.stringify(details.context, null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+
                   {details.hints && details.hints.length > 0 && (
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-500 dark:text-slate-400">
                       {details.hints.map((hint) => <li key={hint}>{hint}</li>)}
@@ -204,7 +249,7 @@ export default async function SuperadminErrorsPage({
 
         <PaginationControls
           basePath="/superadmin/errors"
-          params={{ q: query }}
+          params={{ q: query, kind }}
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
@@ -217,6 +262,11 @@ export default async function SuperadminErrorsPage({
 function normalizeQuery(value: string | string[] | undefined): string {
   const raw = Array.isArray(value) ? value[0] : value
   return (raw ?? "").trim().slice(0, 120)
+}
+
+function normalizeKind(value: string | string[] | undefined): string {
+  const raw = (Array.isArray(value) ? value[0] : value ?? "").trim()
+  return ["admin", "cabinet", "superadmin", "public", "server-action", "server"].includes(raw) ? raw : ""
 }
 
 function StatCard({

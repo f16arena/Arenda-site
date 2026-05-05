@@ -83,6 +83,36 @@ export function decodeErrorReport(input: {
     }
   }
 
+  if (text.includes("server-action") || source.includes(".") && !source.includes("/")) {
+    return {
+      title: "Server action failed",
+      severity: "warning",
+      explanation:
+        "Ошибка произошла во время сохранения формы или выполнения действия на сервере. Пользователь должен увидеть понятное сообщение, а разработчик — источник action, страницу, пользователя, организацию и контекст.",
+      suggestedAction:
+        "Откройте stack trace и context. Если это validation error — улучшите текст в форме; если Prisma/database error — проверьте scope, миграции, обязательные поля и уникальные ограничения.",
+      hints: [
+        "Если ошибка повторяется только у одной организации, сравните данные этой организации с рабочей.",
+        "Если в stack есть Prisma, сначала проверьте схему, миграции и реальные значения foreign key/unique fields.",
+      ],
+    }
+  }
+
+  if (text.includes("prisma") || text.includes("unique constraint") || text.includes("foreign key constraint")) {
+    return {
+      title: "Database / Prisma error",
+      severity: "critical",
+      explanation:
+        "Серверный код получил ошибку базы данных. Обычно причина в миграции, обязательном поле, неверной связи, дубликате уникального значения или нарушении scope между организациями/зданиями.",
+      suggestedAction:
+        "Проверьте stack trace, модель Prisma, миграции и данные записи. Если ошибка связана с tenant/building/org scope, добавьте явную проверку guard перед записью.",
+      hints: [
+        "Unique constraint означает, что запись с таким значением уже есть.",
+        "Foreign key constraint означает, что связанная запись отсутствует или принадлежит другому scope.",
+      ],
+    }
+  }
+
   if (text.includes("hydration") || text.includes("hydrating")) {
     return {
       title: "React hydration mismatch",
