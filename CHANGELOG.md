@@ -2,6 +2,13 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.81 - 2026-05-06
+
+- CI переведен на единый `quality:audit`: теперь GitHub проверяет lint, performance budget, security guardrails и безопасный платежный E2E-контроль одним обязательным блоком.
+- В CI build явно задан `SKIP_DEPLOY_MIGRATIONS=1`, чтобы GitHub не пытался подключаться к локальной или production-базе во время сборки.
+- Добавлен ручной workflow `Payment E2E`: его можно запускать из GitHub Actions против staging/test базы через secret `E2E_DATABASE_URL`.
+- Добавлена rollback-точка `rollback/pre-ci-release-gates-1.3.81`.
+
 ## 1.3.80 - 2026-05-06
 
 - Критический платежный контур вынесен в общий helper `applyConfirmedPaymentReport(...)`: подтверждение заявки арендатора теперь единообразно создает платеж, кассовую транзакцию, закрывает выбранные начисления и связывает заявку с платежом.

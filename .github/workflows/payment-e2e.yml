@@ -1,18 +1,17 @@
-name: CI
+name: Payment E2E
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
-  lint-build:
-    name: Quality gates and build
+  staging-payment-e2e:
+    name: Staging payment path
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      SKIP_DEPLOY_MIGRATIONS: "1"
+      E2E_DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      RUN_E2E_PAYMENT: "1"
+      E2E_ALLOW_DB_WRITE: "1"
       AUTH_SECRET: ci-auth-secret-change-in-production
       NEXTAUTH_URL: http://localhost:3000
       ROOT_HOST: localhost:3000
@@ -35,19 +34,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate Prisma schema
-        run: npx prisma validate
+      - name: Require staging database
+        run: |
+          if [ -z "$E2E_DATABASE_URL" ]; then
+            echo "Set repository secret E2E_DATABASE_URL to a staging/test database URL."
+            exit 1
+          fi
 
-      - name: TypeScript
-        run: npx tsc --noEmit --pretty false
-
-      - name: Quality audit
-        run: npm run quality:audit
-        env:
-          PERF_AUDIT_STRICT: "1"
-          PERF_AUDIT_CLIENT_KB: "140"
-          PERF_AUDIT_SERVER_KB: "80"
-          PERF_AUDIT_TAKE_LIMIT: "150"
-
-      - name: Build
-        run: npm run build
+      - name: Run payment E2E
+        run: npm run test:e2e:payment
