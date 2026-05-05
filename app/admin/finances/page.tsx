@@ -23,8 +23,13 @@ import type { Prisma } from "@/app/generated/prisma/client"
 
 const FINANCE_PAGE_SIZE = 10
 
+function readSearchParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? ""
+  return value ?? ""
+}
+
 type FinancesPageProps = {
-  searchParams?: Promise<{ chargesPage?: string | string[]; expensesPage?: string | string[] }>
+  searchParams?: Promise<{ chargesPage?: string | string[]; expensesPage?: string | string[]; tenantId?: string | string[] }>
 }
 
 export default async function FinancesPage(props: FinancesPageProps) {
@@ -40,6 +45,7 @@ async function renderFinancesPage({
   const resolvedSearchParams = await searchParams
   const chargesPage = normalizePage(resolvedSearchParams?.chargesPage)
   const expensesPage = normalizePage(resolvedSearchParams?.expensesPage)
+  const selectedTenantId = readSearchParam(resolvedSearchParams?.tenantId)
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
@@ -97,6 +103,7 @@ async function renderFinancesPage({
     unpaidChargesAggregate,
     expensesAggregate,
     dialogCharges,
+    selectedPaymentTenant,
   ] = await Promise.all([
     safe(
       "admin.finances.charges",
@@ -237,6 +244,20 @@ async function renderFinancesPage({
       }),
       [],
     ),
+    selectedTenantId
+      ? safe(
+          "admin.finances.selectedPaymentTenant",
+          db.tenant.findFirst({
+            where: {
+              id: selectedTenantId,
+              user: { organizationId: orgId },
+              ...tenantBuildingWhere,
+            },
+            select: { id: true, companyName: true },
+          }),
+          null as { id: string; companyName: string } | null,
+        )
+      : Promise.resolve(null),
   ])
 
   const totalCharges = chargesAggregate._sum.amount ?? 0
@@ -245,6 +266,13 @@ async function renderFinancesPage({
   const totalExpenses = expensesAggregate._sum.amount ?? 0
   const totalChargeCount = chargesAggregate._count._all
   const totalExpenseCount = expensesAggregate._count._all
+  const dialogTenantOptions = dialogCharges
+    .map((c) => c.tenant)
+    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
+    .map((t) => ({ id: t.id, companyName: t.companyName }))
+  if (selectedPaymentTenant && !dialogTenantOptions.some((tenant) => tenant.id === selectedPaymentTenant.id)) {
+    dialogTenantOptions.push(selectedPaymentTenant)
+  }
 
   return (
     <div className="space-y-5">
@@ -290,9 +318,11 @@ async function renderFinancesPage({
           <BatchBillingButton defaultPeriod={currentPeriod} />
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
           <PaymentDialog
-            tenants={dialogCharges.map((c) => c.tenant).filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i).map((t) => ({ id: t.id, companyName: t.companyName }))}
+            tenants={dialogTenantOptions}
             unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
             cashAccounts={cashAccounts}
+            initialTenantId={selectedPaymentTenant?.id}
+            autoOpen={Boolean(selectedPaymentTenant)}
           />
         </div>
       </div>

@@ -10,14 +10,16 @@ type Charge = { id: string; tenantId: string; type: string; amount: number; desc
 type CashAccount = { id: string; name: string; type: string }
 type BuildingOption = { id: string; name: string }
 
-export function PaymentDialog({ tenants, unpaidCharges, cashAccounts }: {
+export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTenantId, autoOpen }: {
   tenants: Tenant[]
   unpaidCharges: Charge[]
   cashAccounts?: CashAccount[]
+  initialTenantId?: string
+  autoOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(Boolean(autoOpen))
   const [pending, startTransition] = useTransition()
-  const [selectedTenant, setSelectedTenant] = useState("")
+  const [selectedTenant, setSelectedTenant] = useState(initialTenantId ?? "")
   const today = new Date().toISOString().slice(0, 10)
 
   const tenantCharges = unpaidCharges.filter((c) => c.tenantId === selectedTenant)
