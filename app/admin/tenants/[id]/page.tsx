@@ -40,7 +40,7 @@ import { TenantEmailLogSection } from "./tenant-email-log-section"
 import { TenantFullFloorSection } from "./tenant-full-floor-section"
 import { TenantHistorySection } from "./tenant-history-section"
 import { TenantServiceChargesSection } from "./tenant-service-charges-section"
-import { measureServerRoute } from "@/lib/server-performance"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { safeServerValue } from "@/lib/server-fallback"
 import { TenantContractsSidebar, TenantRecentChargesSidebar } from "./tenant-sidebar-sections"
@@ -65,7 +65,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     notFound()
   }
 
-  const tenant = await db.tenant.findUnique({
+  const tenant = await measureServerStep("/admin/tenants/[id]", "tenant-main", db.tenant.findUnique({
     where: { id },
     select: {
       id: true,
@@ -138,7 +138,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         },
       },
     },
-  })
+  }))
 
   if (!tenant) notFound()
   const currentBuildingId = await getCurrentBuildingId().catch(() => null)
@@ -173,7 +173,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     ],
   }
 
-  const [vacantSpaces, vacantSpacesCount, debtAgg] = await Promise.all([
+  const [vacantSpaces, vacantSpacesCount, debtAgg] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
     db.space.findMany({
       where: vacantSpacesWhere,
       select: {
@@ -193,7 +193,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       }),
       { _sum: { amount: 0 }, _count: { _all: 0 } },
     ),
-  ])
+  ]))
 
   const totalDebt = debtAgg._sum.amount ?? 0
   const debtCount = debtAgg._count._all ?? 0

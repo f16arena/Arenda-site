@@ -19,7 +19,7 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { switchBuilding } from "@/app/actions/buildings"
 import { tenantScope } from "@/lib/tenant-scope"
-import { measureServerRoute } from "@/lib/server-performance"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function SpacesPage() {
@@ -60,7 +60,7 @@ export default async function SpacesPage() {
       )
     }
 
-    const buildings = await db.building.findMany({
+    const buildings = await measureServerStep("/admin/spaces", "building-overview", db.building.findMany({
       where: { id: { in: accessibleBuildingIds }, organizationId: orgId, isActive: true },
       orderBy: { createdAt: "asc" },
       select: {
@@ -78,7 +78,7 @@ export default async function SpacesPage() {
           },
         },
       },
-    })
+    }))
     const floorIds = buildings.flatMap((building) => building.floors.map((floor) => floor.id))
     const spaceStats = floorIds.length > 0
       ? await safe(
@@ -236,7 +236,7 @@ export default async function SpacesPage() {
   }
 
   const [building, hasFloorEditor, tenantOptionsRaw] = buildingId
-    ? await Promise.all([
+    ? await measureServerStep("/admin/spaces", "selected-building", Promise.all([
         db.building.findUnique({
           where: { id: buildingId },
           include: {
@@ -345,7 +345,7 @@ export default async function SpacesPage() {
           }),
           [],
         ),
-      ])
+      ]))
     : [null, await hasFeature(orgId, "floorEditor"), []]
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
   // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
@@ -363,7 +363,7 @@ export default async function SpacesPage() {
     ].filter((value): value is string => Boolean(value))
   })))
   const tenantDebtRows = tenantIds.length > 0
-    ? await safe(
+    ? await measureServerStep("/admin/spaces", "tenant-debts", safe(
         "admin.spaces.tenantDebts",
         db.charge.groupBy({
           by: ["tenantId"],
@@ -371,7 +371,7 @@ export default async function SpacesPage() {
           _sum: { amount: true },
         }),
         [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
-      )
+      ))
     : []
   const debtByTenant = new Map(tenantDebtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 

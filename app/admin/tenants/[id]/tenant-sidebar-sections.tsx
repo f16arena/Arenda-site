@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { safeServerValue } from "@/lib/server-fallback"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import { CHARGE_TYPES, formatDate, formatMoney } from "@/lib/utils"
+import { measureServerStep } from "@/lib/server-performance"
 
 type SidebarContext = {
   tenantId: string
@@ -13,7 +14,7 @@ type SidebarContext = {
 }
 
 export async function TenantContractsSidebar({ tenantId, orgId, userId }: SidebarContext) {
-  const [contracts, total] = await Promise.all([
+  const [contracts, total] = await measureServerStep("/admin/tenants/[id]", "tenant-contracts-sidebar", Promise.all([
     safeServerValue(
       db.contract.findMany({
         where: { tenantId, tenant: { user: { organizationId: orgId } } },
@@ -39,7 +40,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
       0,
       { source: "tenantDetail.sidebar.contractCount", route: "/admin/tenants/[id]", orgId, userId, entityId: tenantId },
     ),
-  ])
+  ]))
 
   return (
     <CollapsibleCard title="Договоры" icon={FileText} meta={`${total} шт.`}>
@@ -87,7 +88,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
 }
 
 export async function TenantRecentChargesSidebar({ tenantId, orgId, userId }: SidebarContext) {
-  const [charges, total] = await Promise.all([
+  const [charges, total] = await measureServerStep("/admin/tenants/[id]", "tenant-charges-sidebar", Promise.all([
     safeServerValue(
       db.charge.findMany({
         where: { tenantId, tenant: { user: { organizationId: orgId } } },
@@ -109,7 +110,7 @@ export async function TenantRecentChargesSidebar({ tenantId, orgId, userId }: Si
       0,
       { source: "tenantDetail.sidebar.chargeCount", route: "/admin/tenants/[id]", orgId, userId, entityId: tenantId },
     ),
-  ])
+  ]))
 
   return (
     <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${total} записей`}>

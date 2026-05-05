@@ -45,3 +45,24 @@ export async function measureServerRoute<T>(
     }
   }
 }
+
+export async function measureServerStep<T>(
+  route: string,
+  step: string,
+  promise: Promise<T>,
+  slowMs = Math.max(250, Math.round(getSlowRouteMs() / 3)),
+): Promise<T> {
+  const start = performance.now()
+  try {
+    return await promise
+  } finally {
+    const durationMs = Math.round(performance.now() - start)
+    if (shouldLogAllRoutes() || durationMs >= slowMs) {
+      console.info("[route-performance-step]", {
+        route,
+        step,
+        durationMs,
+      })
+    }
+  }
+}

@@ -13,10 +13,12 @@ import { PaymentsMiniCalendarLoader } from "./payments-mini-calendar-loader"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 
 const PAYMENT_CALENDAR_LIMIT = 120
 
 export default async function CabinetDashboard() {
+  return measureServerRoute("/cabinet", async () => {
   const session = await auth()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, {
@@ -37,16 +39,11 @@ export default async function CabinetDashboard() {
       charges: {
         where: { isPaid: false },
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-        take: 20,
+        take: 8,
       },
       payments: {
         orderBy: { paymentDate: "desc" },
         take: 3,
-      },
-      requests: {
-        where: { status: { in: ["NEW", "IN_PROGRESS"] } },
-        select: { id: true },
-        take: 20,
       },
     },
   })
@@ -56,36 +53,42 @@ export default async function CabinetDashboard() {
   calendarStart.setMonth(calendarStart.getMonth() - 12)
   const calendarEnd = new Date()
   calendarEnd.setMonth(calendarEnd.getMonth() + 3)
-  const allCharges = tenant ? await safe(
-    "cabinet.dashboard.calendarCharges",
-    db.charge.findMany({
-      where: {
-        tenantId: tenant.id,
-        OR: [
-          { dueDate: { gte: calendarStart, lt: calendarEnd } },
-          { dueDate: null, createdAt: { gte: calendarStart } },
-        ],
-      },
-      select: {
-        id: true, amount: true, type: true, period: true,
-        isPaid: true, dueDate: true,
-      },
-      take: PAYMENT_CALENDAR_LIMIT,
-    }),
-    [],
-  ) : []
-  const allPayments = tenant ? await safe(
-    "cabinet.dashboard.calendarPayments",
-    db.payment.findMany({
-      where: {
-        tenantId: tenant.id,
-        paymentDate: { gte: calendarStart, lt: calendarEnd },
-      },
-      select: { id: true, amount: true, paymentDate: true },
-      take: PAYMENT_CALENDAR_LIMIT,
-    }),
-    [],
-  ) : []
+  const [allCharges, allPayments] = tenant ? await measureServerStep(
+    "/cabinet",
+    "calendar-window",
+    Promise.all([
+      safe(
+        "cabinet.dashboard.calendarCharges",
+        db.charge.findMany({
+          where: {
+            tenantId: tenant.id,
+            OR: [
+              { dueDate: { gte: calendarStart, lt: calendarEnd } },
+              { dueDate: null, createdAt: { gte: calendarStart } },
+            ],
+          },
+          select: {
+            id: true, amount: true, type: true, period: true,
+            isPaid: true, dueDate: true,
+          },
+          take: PAYMENT_CALENDAR_LIMIT,
+        }),
+        [],
+      ),
+      safe(
+        "cabinet.dashboard.calendarPayments",
+        db.payment.findMany({
+          where: {
+            tenantId: tenant.id,
+            paymentDate: { gte: calendarStart, lt: calendarEnd },
+          },
+          select: { id: true, amount: true, paymentDate: true },
+          take: PAYMENT_CALENDAR_LIMIT,
+        }),
+        [],
+      ),
+    ]),
+  ) : [[], []]
 
   if (!tenant) {
     return (
@@ -101,7 +104,7 @@ export default async function CabinetDashboard() {
 
   const today = new Date()
   const currentPeriod = today.toISOString().slice(0, 7)
-  const [debtAgg, overdueAgg, activeRequestsCount] = await Promise.all([
+  const [debtAgg, overdueAgg, activeRequestsCount] = await measureServerStep("/cabinet", "money-summary", Promise.all([
     safe(
       "cabinet.dashboard.debtAggregate",
       db.charge.aggregate({
@@ -125,9 +128,9 @@ export default async function CabinetDashboard() {
       db.request.count({
         where: { tenantId: tenant.id, status: { in: ["NEW", "IN_PROGRESS"] } },
       }),
-      tenant.requests.length,
+      0,
     ),
-  ])
+  ]))
   const totalDebt = debtAgg._sum.amount ?? 0
   const debtCount = debtAgg._count._all ?? tenant.charges.length
   const nextCharge = tenant.charges[0]
@@ -142,7 +145,7 @@ export default async function CabinetDashboard() {
   const primarySpace = assignedSpaces[0] ?? null
 
   // Здание показываем только из организации арендатора
-  const [building, recentDocs, unreadMessages, recentMessages, landlord] = await Promise.all([
+  const [building, recentDocs, unreadMessages, recentMessages, landlord] = await measureServerStep("/cabinet", "supporting-widgets", Promise.all([
     db.building.findFirst({
       where: {
         ...(primarySpace?.floor.buildingId ? { id: primarySpace.floor.buildingId } : {}),
@@ -186,7 +189,7 @@ export default async function CabinetDashboard() {
     session!.user.organizationId
       ? safe("cabinet.dashboard.landlordRequisites", getOrganizationRequisites(session!.user.organizationId), null)
       : Promise.resolve(null),
-  ])
+  ]))
   const primaryBankAccount = landlord?.bankAccounts[0] ?? null
   const paymentPurpose = `Аренда ${tenant.companyName}, период ${currentPeriod}`
 
@@ -534,6 +537,7 @@ export default async function CabinetDashboard() {
       </div>
     </div>
   )
+  })
 }
 
 function PaymentQuickCard({

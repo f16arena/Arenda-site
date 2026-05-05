@@ -18,7 +18,7 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
 import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
-import { measureServerRoute } from "@/lib/server-performance"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import type { Prisma } from "@/app/generated/prisma/client"
 
@@ -428,10 +428,10 @@ export default async function AdminDashboard() {
     ],
     buildingBreakdown,
   ] = await Promise.all([
-    baseMetricsPromise,
-    pastDataPromise,
-    todayMetricsPromise,
-    buildingBreakdownPromise,
+    measureServerStep("/admin", "base-metrics", baseMetricsPromise),
+    measureServerStep("/admin", "cashflow-history", pastDataPromise),
+    measureServerStep("/admin", "today-metrics", todayMetricsPromise),
+    measureServerStep("/admin", "building-breakdown", buildingBreakdownPromise),
   ])
 
   const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0

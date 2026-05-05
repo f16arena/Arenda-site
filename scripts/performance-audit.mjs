@@ -24,6 +24,33 @@ const SERVER_FILE_BUDGET = readKbEnv("PERF_AUDIT_SERVER_KB", 80) * 1024
 const PRISMA_TAKE_LIMIT = readNumberEnv("PERF_AUDIT_TAKE_LIMIT", 150)
 const STRICT = process.env.PERF_AUDIT_STRICT !== "0"
 const FAIL_SILENT_FALLBACKS = process.env.PERF_AUDIT_FAIL_SILENT_FALLBACKS === "1"
+const ROUTE_TIMING_CHECKS = [
+  {
+    file: "app/admin/layout.tsx",
+    routeToken: 'measureServerRoute("/admin/layout"',
+    stepToken: "measureServerStep",
+  },
+  {
+    file: "app/admin/page.tsx",
+    routeToken: 'measureServerRoute("/admin"',
+    stepToken: "measureServerStep",
+  },
+  {
+    file: "app/admin/spaces/page.tsx",
+    routeToken: 'measureServerRoute("/admin/spaces"',
+    stepToken: "measureServerStep",
+  },
+  {
+    file: "app/admin/tenants/[id]/page.tsx",
+    routeToken: 'measureServerRoute("/admin/tenants/[id]"',
+    stepToken: "measureServerStep",
+  },
+  {
+    file: "app/cabinet/page.tsx",
+    routeToken: 'measureServerRoute("/cabinet"',
+    stepToken: "measureServerStep",
+  },
+]
 
 const files = []
 
@@ -74,6 +101,7 @@ const silentFallbackMatches = enriched.flatMap((file) =>
     message: `${file.rel}:${line} uses catch(() => []); use safeServerValue/logged fallback so support can see the real error`,
   })),
 )
+const routeTimingViolations = await findRouteTimingViolations()
 
 printSection(
   "Performance budget",
@@ -121,19 +149,53 @@ printSection(
     : ["OK: no catch(() => []) fallbacks in app/components/lib"],
 )
 
+printSection(
+  "Route timing coverage",
+  routeTimingViolations.length > 0
+    ? routeTimingViolations.map((violation) => violation.message)
+    : ["OK: key admin/cabinet pages have route and step timing"],
+)
+
 if (silentFallbackMatches.length > 25) {
   console.log(`...and ${silentFallbackMatches.length - 25} more silent fallbacks.`)
 }
 
-if (STRICT && (budgetViolations.length > 0 || takeViolations.length > 0 || (FAIL_SILENT_FALLBACKS && silentFallbackMatches.length > 0))) {
+if (STRICT && (
+  budgetViolations.length > 0
+  || takeViolations.length > 0
+  || routeTimingViolations.length > 0
+  || (FAIL_SILENT_FALLBACKS && silentFallbackMatches.length > 0)
+)) {
   for (const violation of [
     ...budgetViolations,
     ...takeViolations,
+    ...routeTimingViolations,
     ...(FAIL_SILENT_FALLBACKS ? silentFallbackMatches : []),
   ]) {
     emitGithubError(violation)
   }
   process.exitCode = 1
+}
+
+async function findRouteTimingViolations() {
+  const violations = []
+  for (const check of ROUTE_TIMING_CHECKS) {
+    const fullPath = path.join(ROOT, check.file)
+    const content = await readFile(fullPath, "utf8").catch(() => "")
+    if (!content.includes(check.routeToken)) {
+      violations.push({
+        file: check.file,
+        message: `${check.file} does not use ${check.routeToken}; wrap the route in measureServerRoute`,
+      })
+    }
+    if (!content.includes(check.stepToken)) {
+      violations.push({
+        file: check.file,
+        message: `${check.file} does not use measureServerStep; split expensive query groups into measured steps`,
+      })
+    }
+  }
+  return violations
 }
 
 async function walk(dir) {

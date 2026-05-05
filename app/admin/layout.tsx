@@ -18,7 +18,7 @@ import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-acces
 import { getAllowedSections, SECTIONS } from "@/lib/acl"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
-import { measureServerRoute } from "@/lib/server-performance"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -45,7 +45,7 @@ async function renderAdminLayout(children: React.ReactNode) {
 
   // Платформенный админ без выбранной организации — показываем экран выбора
   if (isPlatformOwner && !currentOrgId && !impersonate) {
-    const orgs = await safeServerValue(
+    const orgs = await measureServerStep("/admin/layout", "platform-org-picker", safeServerValue(
       db.organization.findMany({
         orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
         include: {
@@ -55,7 +55,7 @@ async function renderAdminLayout(children: React.ReactNode) {
       }),
       [],
       { source: "admin.layout.orgPicker", route: "/admin", userId: session.user.id },
-    )
+    ))
 
     const mapped = orgs.map((o) => ({
       id: o.id,
@@ -73,7 +73,7 @@ async function renderAdminLayout(children: React.ReactNode) {
     return <AdminSelectOrg orgs={mapped} userName={session.user.name ?? "Платформа"} />
   }
 
-  const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections] = await Promise.all([
+  const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections] = await measureServerStep("/admin/layout", "admin-shell-data", Promise.all([
     currentOrgId
       ? safeServerValue(
           db.organization.findUnique({
@@ -114,7 +114,7 @@ async function renderAdminLayout(children: React.ReactNode) {
     isOwnerLike(session.user.role, isPlatformOwner)
       ? Promise.resolve(new Set(SECTIONS))
       : getAllowedSections(session.user.role),
-  ])
+  ]))
 
   const store = await cookies()
   const currentBuildingId = resolveCurrentBuildingIdFromSelection({
