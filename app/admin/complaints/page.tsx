@@ -8,6 +8,7 @@ import { complaintScope } from "@/lib/tenant-scope"
 import { cn } from "@/lib/utils"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const statusLabel: Record<string, string> = {
   NEW: "Новая",
@@ -40,17 +41,23 @@ export default async function ComplaintsPage({
   searchParams?: Promise<{ status?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/complaints", orgId })
   const selectedFilter = normalizeFilter((await searchParams)?.status)
   const selectedFilterConfig = COMPLAINT_FILTERS.find((filter) => filter.key === selectedFilter) ?? COMPLAINT_FILTERS[0]
 
-  const allComplaints = await db.complaint.findMany({
-    where: complaintScope(orgId),
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true, name: true, text: true, status: true, response: true, createdAt: true,
-      user: { select: { name: true } },
-    },
-  }).catch(() => [])
+  const allComplaints = await safe(
+    "admin.complaints.items",
+    db.complaint.findMany({
+      where: complaintScope(orgId),
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, name: true, text: true, status: true, response: true, createdAt: true,
+        user: { select: { name: true } },
+      },
+    }),
+    [],
+  )
 
   const selectedStatuses = selectedFilterConfig.statuses as readonly string[] | null
   const complaints = selectedStatuses

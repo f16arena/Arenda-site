@@ -8,24 +8,29 @@ import {
   Clock, ExternalLink,
 } from "lucide-react"
 import { ROOT_HOST } from "@/lib/host"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function SubscriptionsTimelinePage() {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
 
   const now = new Date()
   const in7Days = new Date(now.getTime() + 7 * 24 * 3600 * 1000)
   const in30Days = new Date(now.getTime() + 30 * 24 * 3600 * 1000)
 
-  const orgs = await db.organization.findMany({
-    where: { isActive: true },
-    select: {
-      id: true, name: true, slug: true, isSuspended: true,
-      planExpiresAt: true,
-      plan: { select: { name: true, priceMonthly: true } },
-      _count: { select: { buildings: true, users: true } },
-    },
-    orderBy: { planExpiresAt: "asc" },
-  }).catch(() => [])
+  const orgs = await safeServerValue(
+    db.organization.findMany({
+      where: { isActive: true },
+      select: {
+        id: true, name: true, slug: true, isSuspended: true,
+        planExpiresAt: true,
+        plan: { select: { name: true, priceMonthly: true } },
+        _count: { select: { buildings: true, users: true } },
+      },
+      orderBy: { planExpiresAt: "asc" },
+    }),
+    [],
+    { source: "superadmin.subscriptions.organizations", route: "/superadmin/subscriptions", userId },
+  )
 
   // Группируем
   const expired = orgs.filter((o) => o.planExpiresAt && o.planExpiresAt < now)

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { Download, FileText } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
+import { safeServerValue } from "@/lib/server-fallback"
 
 interface Props {
   organizationId: string
@@ -13,20 +14,29 @@ interface Props {
  * Опциональная фильтрация по периоду.
  */
 export async function DocumentArchive({ organizationId, documentType, period }: Props) {
-  const docs = await db.generatedDocument.findMany({
-    where: {
-      organizationId,
-      documentType,
-      ...(period ? { period } : {}),
+  const docs = await safeServerValue(
+    db.generatedDocument.findMany({
+      where: {
+        organizationId,
+        documentType,
+        ...(period ? { period } : {}),
+      },
+      orderBy: { generatedAt: "desc" },
+      take: 50,
+      select: {
+        id: true, number: true, tenantName: true, period: true,
+        totalAmount: true, fileName: true, fileSize: true, format: true,
+        generatedAt: true,
+      },
+    }),
+    [],
+    {
+      source: "components.documents.archive",
+      route: "/admin/documents",
+      orgId: organizationId,
+      extra: { documentType, period },
     },
-    orderBy: { generatedAt: "desc" },
-    take: 50,
-    select: {
-      id: true, number: true, tenantName: true, period: true,
-      totalAmount: true, fileName: true, fileSize: true, format: true,
-      generatedAt: true,
-    },
-  }).catch(() => [])
+  )
 
   if (docs.length === 0) {
     return (

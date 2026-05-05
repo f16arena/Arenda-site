@@ -10,11 +10,19 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { PaymentsMiniCalendarLoader } from "./payments-mini-calendar-loader"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const PAYMENT_CALENDAR_LIMIT = 120
 
 export default async function CabinetDashboard() {
   const session = await auth()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, {
+      source,
+      route: "/cabinet",
+      orgId: session?.user.organizationId,
+      userId: session?.user.id,
+    })
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session!.user.id },
@@ -46,28 +54,36 @@ export default async function CabinetDashboard() {
   calendarStart.setMonth(calendarStart.getMonth() - 12)
   const calendarEnd = new Date()
   calendarEnd.setMonth(calendarEnd.getMonth() + 3)
-  const allCharges = tenant ? await db.charge.findMany({
-    where: {
-      tenantId: tenant.id,
-      OR: [
-        { dueDate: { gte: calendarStart, lt: calendarEnd } },
-        { dueDate: null, createdAt: { gte: calendarStart } },
-      ],
-    },
-    select: {
-      id: true, amount: true, type: true, period: true,
-      isPaid: true, dueDate: true,
-    },
-    take: PAYMENT_CALENDAR_LIMIT,
-  }).catch(() => []) : []
-  const allPayments = tenant ? await db.payment.findMany({
-    where: {
-      tenantId: tenant.id,
-      paymentDate: { gte: calendarStart, lt: calendarEnd },
-    },
-    select: { id: true, amount: true, paymentDate: true },
-    take: PAYMENT_CALENDAR_LIMIT,
-  }).catch(() => []) : []
+  const allCharges = tenant ? await safe(
+    "cabinet.dashboard.calendarCharges",
+    db.charge.findMany({
+      where: {
+        tenantId: tenant.id,
+        OR: [
+          { dueDate: { gte: calendarStart, lt: calendarEnd } },
+          { dueDate: null, createdAt: { gte: calendarStart } },
+        ],
+      },
+      select: {
+        id: true, amount: true, type: true, period: true,
+        isPaid: true, dueDate: true,
+      },
+      take: PAYMENT_CALENDAR_LIMIT,
+    }),
+    [],
+  ) : []
+  const allPayments = tenant ? await safe(
+    "cabinet.dashboard.calendarPayments",
+    db.payment.findMany({
+      where: {
+        tenantId: tenant.id,
+        paymentDate: { gte: calendarStart, lt: calendarEnd },
+      },
+      select: { id: true, amount: true, paymentDate: true },
+      take: PAYMENT_CALENDAR_LIMIT,
+    }),
+    [],
+  ) : []
 
   if (!tenant) {
     return (
@@ -83,19 +99,31 @@ export default async function CabinetDashboard() {
 
   const today = new Date()
   const [debtAgg, overdueAgg, activeRequestsCount] = await Promise.all([
-    db.charge.aggregate({
-      where: { tenantId: tenant.id, isPaid: false },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: tenant.charges.length } })),
-    db.charge.aggregate({
-      where: { tenantId: tenant.id, isPaid: false, dueDate: { lt: today } },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-    db.request.count({
-      where: { tenantId: tenant.id, status: { in: ["NEW", "IN_PROGRESS"] } },
-    }).catch(() => tenant.requests.length),
+    safe(
+      "cabinet.dashboard.debtAggregate",
+      db.charge.aggregate({
+        where: { tenantId: tenant.id, isPaid: false },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: tenant.charges.length } },
+    ),
+    safe(
+      "cabinet.dashboard.overdueAggregate",
+      db.charge.aggregate({
+        where: { tenantId: tenant.id, isPaid: false, dueDate: { lt: today } },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe(
+      "cabinet.dashboard.activeRequestsCount",
+      db.request.count({
+        where: { tenantId: tenant.id, status: { in: ["NEW", "IN_PROGRESS"] } },
+      }),
+      tenant.requests.length,
+    ),
   ])
   const totalDebt = debtAgg._sum.amount ?? 0
   const debtCount = debtAgg._count._all ?? tenant.charges.length
@@ -119,27 +147,39 @@ export default async function CabinetDashboard() {
         organizationId: session!.user.organizationId ?? "__none__",
       },
     }),
-    db.generatedDocument.findMany({
-      where: { tenantId: tenant.id },
-      orderBy: { generatedAt: "desc" },
-      take: 5,
-      select: {
-        id: true, number: true, documentType: true,
-        period: true, totalAmount: true, generatedAt: true, fileName: true,
-      },
-    }).catch(() => []),
-    db.message.count({
-      where: { toId: session!.user.id, isRead: false },
-    }).catch(() => 0),
-    db.message.findMany({
-      where: { toId: session!.user.id },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: {
-        id: true, subject: true, body: true, isRead: true, createdAt: true,
-        from: { select: { name: true } },
-      },
-    }).catch(() => []),
+    safe(
+      "cabinet.dashboard.recentDocs",
+      db.generatedDocument.findMany({
+        where: { tenantId: tenant.id },
+        orderBy: { generatedAt: "desc" },
+        take: 5,
+        select: {
+          id: true, number: true, documentType: true,
+          period: true, totalAmount: true, generatedAt: true, fileName: true,
+        },
+      }),
+      [],
+    ),
+    safe(
+      "cabinet.dashboard.unreadMessages",
+      db.message.count({
+        where: { toId: session!.user.id, isRead: false },
+      }),
+      0,
+    ),
+    safe(
+      "cabinet.dashboard.recentMessages",
+      db.message.findMany({
+        where: { toId: session!.user.id },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: {
+          id: true, subject: true, body: true, isRead: true, createdAt: true,
+          from: { select: { name: true } },
+        },
+      }),
+      [],
+    ),
   ])
 
   const docTypeLabels: Record<string, string> = {

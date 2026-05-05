@@ -9,6 +9,7 @@ import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { cn } from "@/lib/utils"
 import { PaginationControls } from "@/components/ui/pagination-controls"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const PAGE_SIZE = 30
 
@@ -17,10 +18,12 @@ export default async function SuperadminErrorsPage({
 }: {
   searchParams?: Promise<{ page?: string | string[]; q?: string | string[] }>
 }) {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
   const query = normalizeQuery(resolved?.q)
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/superadmin/errors", userId })
 
   const where: Prisma.AuditLogWhereInput = {
     action: "ERROR",
@@ -40,24 +43,36 @@ export default async function SuperadminErrorsPage({
   const now = new Date()
   const last24 = new Date(now.getTime() - 24 * 3600 * 1000)
   const [logs, total, totalAll, last24Count] = await Promise.all([
-    db.auditLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(page, PAGE_SIZE),
-      take: PAGE_SIZE,
-    }).catch(() => []),
-    db.auditLog.count({ where }).catch(() => 0),
-    db.auditLog.count({ where: { action: "ERROR" } }).catch(() => 0),
-    db.auditLog.count({ where: { action: "ERROR", createdAt: { gte: last24 } } }).catch(() => 0),
+    safe(
+      "superadmin.errors.logs",
+      db.auditLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(page, PAGE_SIZE),
+        take: PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe("superadmin.errors.total", db.auditLog.count({ where }), 0),
+    safe("superadmin.errors.totalAll", db.auditLog.count({ where: { action: "ERROR" } }), 0),
+    safe(
+      "superadmin.errors.last24Count",
+      db.auditLog.count({ where: { action: "ERROR", createdAt: { gte: last24 } } }),
+      0,
+    ),
   ])
 
   const parsed = logs.map((log) => ({ log, details: parseErrorDetails(log.details) }))
   const orgIds = Array.from(new Set(parsed.map((x) => x.details.organizationId).filter(Boolean) as string[]))
   const orgs = orgIds.length > 0
-    ? await db.organization.findMany({
-        where: { id: { in: orgIds } },
-        select: { id: true, name: true, slug: true },
-      }).catch(() => [])
+    ? await safe(
+        "superadmin.errors.organizations",
+        db.organization.findMany({
+          where: { id: { in: orgIds } },
+          select: { id: true, name: true, slug: true },
+        }),
+        [],
+      )
     : []
   const orgMap = new Map(orgs.map((org) => [org.id, org]))
 

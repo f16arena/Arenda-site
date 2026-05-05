@@ -8,9 +8,12 @@ import {
   ExternalLink, UserCheck, TrendingDown, Briefcase, Target,
 } from "lucide-react"
 import { ROOT_HOST } from "@/lib/host"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function SuperadminHomePage() {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/superadmin", userId })
 
   const now = new Date()
   const [
@@ -21,30 +24,42 @@ export default async function SuperadminHomePage() {
     plansData,
     revenueAgg,
   ] = await Promise.all([
-    db.organization.count().catch(() => 0),
-    db.organization.count({ where: { isActive: true, isSuspended: false } }).catch(() => 0),
-    db.organization.count({ where: { isSuspended: true } }).catch(() => 0),
-    db.organization.count({
-      where: {
-        isActive: true,
-        isSuspended: false,
-        planExpiresAt: {
-          gte: now,
-          lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
+    safe("superadmin.home.totalOrgs", db.organization.count(), 0),
+    safe("superadmin.home.activeOrgs", db.organization.count({ where: { isActive: true, isSuspended: false } }), 0),
+    safe("superadmin.home.suspendedOrgs", db.organization.count({ where: { isSuspended: true } }), 0),
+    safe(
+      "superadmin.home.expiringOrgs",
+      db.organization.count({
+        where: {
+          isActive: true,
+          isSuspended: false,
+          planExpiresAt: {
+            gte: now,
+            lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
+          },
         },
-      },
-    }).catch(() => 0),
-    db.plan.findMany({
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true, code: true, name: true, priceMonthly: true,
-        _count: { select: { organizations: true } },
-      },
-    }).catch(() => []),
-    db.subscription.aggregate({
-      where: { startedAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) } },
-      _sum: { paidAmount: true },
-    }).catch(() => ({ _sum: { paidAmount: 0 } })),
+      }),
+      0,
+    ),
+    safe(
+      "superadmin.home.plansData",
+      db.plan.findMany({
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true, code: true, name: true, priceMonthly: true,
+          _count: { select: { organizations: true } },
+        },
+      }),
+      [],
+    ),
+    safe(
+      "superadmin.home.revenueAggregate",
+      db.subscription.aggregate({
+        where: { startedAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) } },
+        _sum: { paidAmount: true },
+      }),
+      { _sum: { paidAmount: 0 } },
+    ),
   ])
 
   return (
@@ -61,7 +76,7 @@ export default async function SuperadminHomePage() {
         <Card label="MRR этого месяца" value={`${(revenueAgg._sum.paidAmount ?? 0).toLocaleString("ru-RU")} ₸`} icon={TrendingUp} color="blue" />
       </div>
 
-      <KpiBlock />
+      <KpiBlock userId={userId} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Распределение по тарифам */}
@@ -92,30 +107,34 @@ export default async function SuperadminHomePage() {
           </div>
         </div>
 
-        <SubscriptionDynamics />
+        <SubscriptionDynamics userId={userId} />
       </div>
 
-      <TopOrgsByMrr />
+      <TopOrgsByMrr userId={userId} />
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия (всех организаций)</h2>
         </div>
-        <RecentAuditTable />
+        <RecentAuditTable userId={userId} />
       </div>
     </div>
   )
 }
 
-async function TopOrgsByMrr() {
-  const orgs = await db.organization.findMany({
-    where: { isActive: true },
-    select: {
-      id: true, name: true, slug: true, isSuspended: true,
-      plan: { select: { name: true, priceMonthly: true } },
-      _count: { select: { buildings: true, users: true } },
-    },
-  }).catch(() => [])
+async function TopOrgsByMrr({ userId }: { userId: string }) {
+  const orgs = await safeServerValue(
+    db.organization.findMany({
+      where: { isActive: true },
+      select: {
+        id: true, name: true, slug: true, isSuspended: true,
+        plan: { select: { name: true, priceMonthly: true } },
+        _count: { select: { buildings: true, users: true } },
+      },
+    }),
+    [],
+    { source: "superadmin.home.topOrgsByMrr", route: "/superadmin", userId },
+  )
 
   const sorted = orgs
     .map((o) => ({ ...o, mrr: o.plan?.priceMonthly ?? 0 }))
@@ -180,7 +199,7 @@ async function TopOrgsByMrr() {
   )
 }
 
-async function SubscriptionDynamics() {
+async function SubscriptionDynamics({ userId }: { userId: string }) {
   const now = new Date()
   const months: { period: string; created: number; revenue: number }[] = []
   for (let i = 5; i >= 0; i--) {
@@ -188,11 +207,19 @@ async function SubscriptionDynamics() {
     const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
     const period = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`
     const [created, revenue] = await Promise.all([
-      db.organization.count({ where: { createdAt: { gte: start, lt: end } } }).catch(() => 0),
-      db.subscription.aggregate({
-        where: { startedAt: { gte: start, lt: end } },
-        _sum: { paidAmount: true },
-      }).then((r) => r._sum.paidAmount ?? 0).catch(() => 0),
+      safeServerValue(
+        db.organization.count({ where: { createdAt: { gte: start, lt: end } } }),
+        0,
+        { source: "superadmin.home.subscriptionDynamics.created", route: "/superadmin", userId, extra: { period } },
+      ),
+      safeServerValue(
+        db.subscription.aggregate({
+          where: { startedAt: { gte: start, lt: end } },
+          _sum: { paidAmount: true },
+        }).then((r) => r._sum.paidAmount ?? 0),
+        0,
+        { source: "superadmin.home.subscriptionDynamics.revenue", route: "/superadmin", userId, extra: { period } },
+      ),
     ])
     months.push({ period, created, revenue })
   }
@@ -229,15 +256,19 @@ async function SubscriptionDynamics() {
   )
 }
 
-async function RecentAuditTable() {
-  const logs = await db.auditLog.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 15,
-    select: {
-      id: true, userName: true, userRole: true, action: true,
-      entity: true, createdAt: true,
-    },
-  }).catch(() => [])
+async function RecentAuditTable({ userId }: { userId: string }) {
+  const logs = await safeServerValue(
+    db.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 15,
+      select: {
+        id: true, userName: true, userRole: true, action: true,
+        entity: true, createdAt: true,
+      },
+    }),
+    [],
+    { source: "superadmin.home.recentAudit", route: "/superadmin", userId },
+  )
 
   if (logs.length === 0) {
     return <p className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет записей</p>
@@ -269,7 +300,7 @@ async function RecentAuditTable() {
   )
 }
 
-async function KpiBlock() {
+async function KpiBlock({ userId }: { userId: string }) {
   const now = new Date()
   const monthAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
   const twoMonthsAgo = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
@@ -285,55 +316,83 @@ async function KpiBlock() {
     avgPlanRevenue,
   ] = await Promise.all([
     // Активные пользователи на платформе (исключая платформ-админов)
-    db.user.count({ where: { isActive: true, isPlatformOwner: false } }).catch(() => 0),
+    safeServerValue(
+      db.user.count({ where: { isActive: true, isPlatformOwner: false } }),
+      0,
+      { source: "superadmin.home.kpi.totalUsers", route: "/superadmin", userId },
+    ),
     // Всего арендаторов
-    db.tenant.count().catch(() => 0),
+    safeServerValue(db.tenant.count(), 0, { source: "superadmin.home.kpi.totalTenants", route: "/superadmin", userId }),
     // Платных подписок (paymentMethod != TRIAL) за последние 30 дней
-    db.subscription.count({
-      where: {
-        startedAt: { gte: monthAgo },
-        paymentMethod: { not: "TRIAL" },
-      },
-    }).catch(() => 0),
-    // Орги, созданные 30-60 дней назад (для конверсии trial → paid)
-    db.organization.count({
-      where: {
-        createdAt: { gte: twoMonthsAgo, lt: monthAgo },
-      },
-    }).catch(() => 0),
-    // Из них перешли на платный тариф (имеют subscription с paymentMethod != TRIAL)
-    db.organization.count({
-      where: {
-        createdAt: { gte: twoMonthsAgo, lt: monthAgo },
-        subscriptions: {
-          some: { paymentMethod: { not: "TRIAL" } },
+    safeServerValue(
+      db.subscription.count({
+        where: {
+          startedAt: { gte: monthAgo },
+          paymentMethod: { not: "TRIAL" },
         },
-      },
-    }).catch(() => 0),
+      }),
+      0,
+      { source: "superadmin.home.kpi.paidSubsLast30", route: "/superadmin", userId },
+    ),
+    // Орги, созданные 30-60 дней назад (для конверсии trial → paid)
+    safeServerValue(
+      db.organization.count({
+        where: {
+          createdAt: { gte: twoMonthsAgo, lt: monthAgo },
+        },
+      }),
+      0,
+      { source: "superadmin.home.kpi.trialOrgsCreated30To60", route: "/superadmin", userId },
+    ),
+    // Из них перешли на платный тариф (имеют subscription с paymentMethod != TRIAL)
+    safeServerValue(
+      db.organization.count({
+        where: {
+          createdAt: { gte: twoMonthsAgo, lt: monthAgo },
+          subscriptions: {
+            some: { paymentMethod: { not: "TRIAL" } },
+          },
+        },
+      }),
+      0,
+      { source: "superadmin.home.kpi.convertedTo30", route: "/superadmin", userId },
+    ),
     // Сколько было активных орг на 30 дней назад
-    db.organization.count({
-      where: { createdAt: { lt: monthAgo }, isActive: true },
-    }).catch(() => 0),
+    safeServerValue(
+      db.organization.count({
+        where: { createdAt: { lt: monthAgo }, isActive: true },
+      }),
+      0,
+      { source: "superadmin.home.kpi.activeOrgs30Ago", route: "/superadmin", userId },
+    ),
     // Сколько из них деактивировано за последние 30 дней
-    db.organization.count({
-      where: {
-        createdAt: { lt: monthAgo },
-        OR: [
-          { isActive: false, updatedAt: { gte: monthAgo } },
-          { isSuspended: true, updatedAt: { gte: monthAgo } },
-        ],
-      },
-    }).catch(() => 0),
+    safeServerValue(
+      db.organization.count({
+        where: {
+          createdAt: { lt: monthAgo },
+          OR: [
+            { isActive: false, updatedAt: { gte: monthAgo } },
+            { isSuspended: true, updatedAt: { gte: monthAgo } },
+          ],
+        },
+      }),
+      0,
+      { source: "superadmin.home.kpi.deactivated30", route: "/superadmin", userId },
+    ),
     // Средний MRR по активным платным
-    db.organization.findMany({
-      where: { isActive: true, isSuspended: false },
-      select: { plan: { select: { priceMonthly: true } } },
-    }).then((orgs) => {
-      const paidOrgs = orgs.filter((o) => (o.plan?.priceMonthly ?? 0) > 0)
-      if (paidOrgs.length === 0) return 0
-      const total = paidOrgs.reduce((s, o) => s + (o.plan?.priceMonthly ?? 0), 0)
-      return Math.round(total / paidOrgs.length)
-    }).catch(() => 0),
+    safeServerValue(
+      db.organization.findMany({
+        where: { isActive: true, isSuspended: false },
+        select: { plan: { select: { priceMonthly: true } } },
+      }).then((orgs) => {
+        const paidOrgs = orgs.filter((o) => (o.plan?.priceMonthly ?? 0) > 0)
+        if (paidOrgs.length === 0) return 0
+        const total = paidOrgs.reduce((s, o) => s + (o.plan?.priceMonthly ?? 0), 0)
+        return Math.round(total / paidOrgs.length)
+      }),
+      0,
+      { source: "superadmin.home.kpi.avgPlanRevenue", route: "/superadmin", userId },
+    ),
   ])
 
   const conversionRate = trialOrgsCreated30To60 > 0

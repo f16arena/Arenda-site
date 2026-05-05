@@ -17,6 +17,7 @@ import { CURRENT_BUILDING_COOKIE, resolveCurrentBuildingIdFromSelection } from "
 import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-access"
 import { getAllowedSections, SECTIONS } from "@/lib/acl"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -39,13 +40,17 @@ export default async function AdminLayout({
 
   // Платформенный админ без выбранной организации — показываем экран выбора
   if (isPlatformOwner && !currentOrgId && !impersonate) {
-    const orgs = await db.organization.findMany({
-      orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
-      include: {
-        plan: { select: { name: true } },
-        _count: { select: { buildings: true, users: true } },
-      },
-    }).catch(() => [])
+    const orgs = await safeServerValue(
+      db.organization.findMany({
+        orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
+        include: {
+          plan: { select: { name: true } },
+          _count: { select: { buildings: true, users: true } },
+        },
+      }),
+      [],
+      { source: "admin.layout.orgPicker", route: "/admin", userId: session.user.id },
+    )
 
     const mapped = orgs.map((o) => ({
       id: o.id,
@@ -75,12 +80,16 @@ export default async function AdminLayout({
       select: { name: true, email: true, emailVerifiedAt: true },
     }).catch(() => null),
     currentOrgId
-      ? getAccessibleBuildingsForUser({
-          userId: session.user.id,
-          orgId: currentOrgId,
-          role: session.user.role,
-          isPlatformOwner,
-        }).catch(() => [] as Array<{ id: string; name: string; address: string }>)
+      ? safeServerValue(
+          getAccessibleBuildingsForUser({
+            userId: session.user.id,
+            orgId: currentOrgId,
+            role: session.user.role,
+            isPlatformOwner,
+          }),
+          [] as Array<{ id: string; name: string; address: string }>,
+          { source: "admin.layout.accessibleBuildings", route: "/admin", orgId: currentOrgId, userId: session.user.id },
+        )
       : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
     db.notification.count({
       where: { userId: session.user.id, isRead: false },

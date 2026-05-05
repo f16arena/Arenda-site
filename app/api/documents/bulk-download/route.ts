@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import PizZip from "pizzip"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export const dynamic = "force-dynamic"
 
@@ -32,13 +33,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Слишком много документов (максимум 100)" }, { status: 400 })
   }
 
-  const docs = await db.generatedDocument.findMany({
-    where: { id: { in: ids }, organizationId: orgId },
-    select: {
-      id: true, fileName: true, fileBytes: true,
-      documentType: true, period: true, tenantName: true,
+  const docs = await safeServerValue(
+    db.generatedDocument.findMany({
+      where: { id: { in: ids }, organizationId: orgId },
+      select: {
+        id: true, fileName: true, fileBytes: true,
+        documentType: true, period: true, tenantName: true,
+      },
+    }),
+    [],
+    {
+      source: "api.documents.bulkDownload.documents",
+      route: "/api/documents/bulk-download",
+      orgId,
+      userId: session.user.id,
+      extra: { requestedCount: ids.length },
     },
-  }).catch(() => [])
+  )
 
   if (docs.length === 0) {
     return NextResponse.json({ error: "Документы не найдены" }, { status: 404 })

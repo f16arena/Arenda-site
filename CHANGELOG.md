@@ -2,6 +2,13 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.69 - 2026-05-05
+
+- Continued server fallback observability: analytics, requests, tasks, storage, leads, complaints, documents, spaces, tenant sections, cabinet, superadmin pages, search API and document bulk download now log data-loading failures through `safeServerValue(...)`.
+- Replaced remaining silent `catch(() => [])` query fallbacks in app/components/lib with logged fallbacks; `/admin/system-health` should now report the silent fallback scan as clean.
+- Kept filesystem-only health check fallbacks explicit through `readDirOrEmpty(...)`, so the source scanner no longer reports its own helper implementation.
+- Added rollback point `rollback/pre-silent-fallback-cleanup-1.3.69`.
+
 ## 1.3.68 - 2026-05-05
 
 - Added `safeServerValue(...)` for logged server fallbacks: failed server queries now create `ERROR` audit log entries with source, route, error id, explanation and context.

@@ -1,6 +1,7 @@
 import "server-only"
 
 import { db } from "@/lib/db"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export type OnboardingStepCategory = "setup" | "people" | "legal" | "finance"
 
@@ -24,22 +25,29 @@ export type OnboardingState = {
 }
 
 export async function getOnboardingState(orgId: string): Promise<OnboardingState> {
-  const buildings = await db.building.findMany({
-    where: { organizationId: orgId },
-    select: {
-      id: true,
-      administratorUserId: true,
-      contractPrefix: true,
-      invoicePrefix: true,
-      actPrefix: true,
-    },
-  }).catch(() => [] as Array<{
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin", orgId })
+
+  const buildings = await safe(
+    "onboarding.buildings",
+    db.building.findMany({
+      where: { organizationId: orgId },
+      select: {
+        id: true,
+        administratorUserId: true,
+        contractPrefix: true,
+        invoicePrefix: true,
+        actPrefix: true,
+      },
+    }),
+    [] as Array<{
     id: string
     administratorUserId: string | null
     contractPrefix: string | null
     invoicePrefix: string | null
     actPrefix: string | null
-  }>)
+  }>,
+  )
 
   const buildingIds = buildings.map((building) => building.id)
   const buildingScope = { buildingId: { in: buildingIds } }
@@ -57,47 +65,55 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
     chargeCount,
     paymentCount,
   ] = await Promise.all([
-    db.floor.count({ where: buildingScope }).catch(() => 0),
-    db.space.count({
-      where: {
-        kind: "RENTABLE",
-        floor: { buildingId: { in: buildingIds } },
-      },
-    }).catch(() => 0),
-    db.floor.count({
-      where: {
-        ...buildingScope,
-        OR: [
-          { ratePerSqm: { gt: 0 } },
-          { fixedMonthlyRent: { gt: 0 } },
-        ],
-      },
-    }).catch(() => 0),
-    db.tenant.count({ where: tenantOrgScope }).catch(() => 0),
-    db.tenant.count({
-      where: {
-        ...tenantOrgScope,
-        OR: [
-          { user: { phone: { not: null } } },
-          { user: { email: { not: null } } },
-        ],
-      },
-    }).catch(() => 0),
-    db.cashAccount.count({
-      where: { organizationId: orgId, isActive: true },
-    }).catch(() => 0),
-    db.contract.count({
-      where: { tenant: tenantOrgScope },
-    }).catch(() => 0),
-    db.contract.count({
-      where: { tenant: tenantOrgScope, status: "SIGNED" },
-    }).catch(() => 0),
-    db.charge.count({
-      where: { tenant: tenantOrgScope },
-    }).catch(() => 0),
-    db.payment.count({
-      where: { tenant: tenantOrgScope },
-    }).catch(() => 0),
+    safe("onboarding.floorCount", db.floor.count({ where: buildingScope }), 0),
+    safe(
+      "onboarding.rentableSpaceCount",
+      db.space.count({
+        where: {
+          kind: "RENTABLE",
+          floor: { buildingId: { in: buildingIds } },
+        },
+      }),
+      0,
+    ),
+    safe(
+      "onboarding.pricedFloorCount",
+      db.floor.count({
+        where: {
+          ...buildingScope,
+          OR: [
+            { ratePerSqm: { gt: 0 } },
+            { fixedMonthlyRent: { gt: 0 } },
+          ],
+        },
+      }),
+      0,
+    ),
+    safe("onboarding.tenantCount", db.tenant.count({ where: tenantOrgScope }), 0),
+    safe(
+      "onboarding.tenantWithContactCount",
+      db.tenant.count({
+        where: {
+          ...tenantOrgScope,
+          OR: [
+            { user: { phone: { not: null } } },
+            { user: { email: { not: null } } },
+          ],
+        },
+      }),
+      0,
+    ),
+    safe(
+      "onboarding.cashAccountCount",
+      db.cashAccount.count({
+        where: { organizationId: orgId, isActive: true },
+      }),
+      0,
+    ),
+    safe("onboarding.contractCount", db.contract.count({ where: { tenant: tenantOrgScope } }), 0),
+    safe("onboarding.signedContractCount", db.contract.count({ where: { tenant: tenantOrgScope, status: "SIGNED" } }), 0),
+    safe("onboarding.chargeCount", db.charge.count({ where: { tenant: tenantOrgScope } }), 0),
+    safe("onboarding.paymentCount", db.payment.count({ where: { tenant: tenantOrgScope } }), 0),
   ])
 
   const buildingsWithAdmin = buildings.filter((building) => !!building.administratorUserId).length

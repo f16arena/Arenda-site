@@ -20,10 +20,13 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { switchBuilding } from "@/app/actions/buildings"
 import { tenantScope } from "@/lib/tenant-scope"
 import { measureServerRoute } from "@/lib/server-performance"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function SpacesPage() {
   return measureServerRoute("/admin/spaces", async () => {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/spaces", orgId })
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -78,17 +81,21 @@ export default async function SpacesPage() {
     })
     const floorIds = buildings.flatMap((building) => building.floors.map((floor) => floor.id))
     const spaceStats = floorIds.length > 0
-      ? await db.space.groupBy({
-          by: ["floorId", "status"],
-          where: { floorId: { in: floorIds }, kind: { not: "COMMON" } },
-          _count: { _all: true },
-          _sum: { area: true },
-        }).catch(() => [] as Array<{
+      ? await safe(
+          "admin.spaces.spaceStats",
+          db.space.groupBy({
+            by: ["floorId", "status"],
+            where: { floorId: { in: floorIds }, kind: { not: "COMMON" } },
+            _count: { _all: true },
+            _sum: { area: true },
+          }),
+          [] as Array<{
           floorId: string
           status: string
           _count: { _all: number }
           _sum: { area: number | null }
-        }>)
+        }>,
+        )
       : []
 
     const buildingSummaries = buildings.map((building) => {
@@ -308,11 +315,15 @@ export default async function SpacesPage() {
     ].filter((value): value is string => Boolean(value))
   })))
   const tenantDebtRows = tenantIds.length > 0
-    ? await db.charge.groupBy({
-        by: ["tenantId"],
-        where: { tenantId: { in: tenantIds }, isPaid: false },
-        _sum: { amount: true },
-      }).catch(() => [] as Array<{ tenantId: string; _sum: { amount: number | null } }>)
+    ? await safe(
+        "admin.spaces.tenantDebts",
+        db.charge.groupBy({
+          by: ["tenantId"],
+          where: { tenantId: { in: tenantIds }, isPaid: false },
+          _sum: { amount: true },
+        }),
+        [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
+      )
     : []
   const debtByTenant = new Map(tenantDebtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export const dynamic = "force-dynamic"
 
@@ -56,16 +57,24 @@ export async function GET() {
 
     // 4. Проверка: тенанты должны иметь User с organizationId совпадающим с их organizationId через цепочку
     // (через space.floor.building.organizationId vs user.organizationId)
-    const tenantMismatches = await db.$queryRaw<Array<{ id: string; tenant_user_org: string; building_org: string }>>`
-      SELECT t.id, u.organization_id as tenant_user_org, b.organization_id as building_org
-      FROM tenants t
-      JOIN users u ON t.user_id = u.id
-      JOIN spaces s ON t.space_id = s.id
-      JOIN floors f ON s.floor_id = f.id
-      JOIN buildings b ON f.building_id = b.id
-      WHERE u.organization_id != b.organization_id
-      LIMIT 10
-    `.catch(() => [])
+    const tenantMismatches = await safeServerValue(
+      db.$queryRaw<Array<{ id: string; tenant_user_org: string; building_org: string }>>`
+        SELECT t.id, u.organization_id as tenant_user_org, b.organization_id as building_org
+        FROM tenants t
+        JOIN users u ON t.user_id = u.id
+        JOIN spaces s ON t.space_id = s.id
+        JOIN floors f ON s.floor_id = f.id
+        JOIN buildings b ON f.building_id = b.id
+        WHERE u.organization_id != b.organization_id
+        LIMIT 10
+      `,
+      [],
+      {
+        source: "api.health.isolation.tenantMismatches",
+        route: "/api/health/isolation",
+        userId: session.user.id,
+      },
+    )
     if (tenantMismatches.length > 0) {
       issues.push(`Найдено ${tenantMismatches.length} арендаторов с несовпадающими организациями (User ↔ Building)`)
     }

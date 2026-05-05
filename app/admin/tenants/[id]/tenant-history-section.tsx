@@ -1,6 +1,7 @@
 import { ClipboardList } from "lucide-react"
 import { db } from "@/lib/db"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const actionLabels: Record<string, string> = {
   CREATE: "Создание",
@@ -26,30 +27,34 @@ export async function TenantHistorySection({
   tenantId: string
   userId: string
 }) {
-  const auditLogs = await db.auditLog.findMany({
-    where: {
-      OR: [
-        { entity: "tenant", entityId: tenantId },
-        { userId },
-        {
-          AND: [
-            { entity: { in: ["charge", "payment", "contract", "request"] } },
-            { details: { contains: tenantId } },
-          ],
-        },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    select: {
-      id: true,
-      action: true,
-      entity: true,
-      userName: true,
-      userRole: true,
-      createdAt: true,
-    },
-  }).catch(() => [])
+  const auditLogs = await safeServerValue(
+    db.auditLog.findMany({
+      where: {
+        OR: [
+          { entity: "tenant", entityId: tenantId },
+          { userId },
+          {
+            AND: [
+              { entity: { in: ["charge", "payment", "contract", "request"] } },
+              { details: { contains: tenantId } },
+            ],
+          },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        action: true,
+        entity: true,
+        userName: true,
+        userRole: true,
+        createdAt: true,
+      },
+    }),
+    [],
+    { source: "admin.tenant.history", route: "/admin/tenants/[id]", userId, entity: "tenant", entityId: tenantId },
+  )
 
   if (auditLogs.length === 0) return null
 

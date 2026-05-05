@@ -2,15 +2,20 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
+import { safeServerValue } from "@/lib/server-fallback"
 import { PlansClient } from "./plans-client"
 
 export default async function PlansPage() {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
 
-  const plans = await db.plan.findMany({
-    orderBy: { sortOrder: "asc" },
-    include: { _count: { select: { organizations: true } } },
-  }).catch(() => [])
+  const plans = await safeServerValue(
+    db.plan.findMany({
+      orderBy: { sortOrder: "asc" },
+      include: { _count: { select: { organizations: true } } },
+    }),
+    [],
+    { source: "superadmin.plans.items", route: "/superadmin/plans", userId },
+  )
 
   return (
     <div className="space-y-5">

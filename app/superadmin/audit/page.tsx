@@ -6,6 +6,7 @@ import { History, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { normalizePage, pageSkip } from "@/lib/pagination"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const PAGE_SIZE = 50
 
@@ -21,29 +22,39 @@ export default async function SuperadminAuditPage({
 }: {
   searchParams?: Promise<{ page?: string | string[] }>
 }) {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/superadmin/audit", userId })
 
   const [logs, total] = await Promise.all([
-    db.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(page, PAGE_SIZE),
-      take: PAGE_SIZE,
-    }).catch(() => []),
-    db.auditLog.count().catch(() => 0),
+    safe(
+      "superadmin.audit.logs",
+      db.auditLog.findMany({
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(page, PAGE_SIZE),
+        take: PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe("superadmin.audit.total", db.auditLog.count(), 0),
   ])
 
   // Подгрузим данные пользователей и их организации
   const userIds = Array.from(new Set(logs.map((l) => l.userId).filter(Boolean) as string[]))
   const users = userIds.length > 0
-    ? await db.user.findMany({
-        where: { id: { in: userIds } },
-        select: {
-          id: true,
-          organization: { select: { id: true, name: true, slug: true } },
-        },
-      })
+    ? await safe(
+        "superadmin.audit.users",
+        db.user.findMany({
+          where: { id: { in: userIds } },
+          select: {
+            id: true,
+            organization: { select: { id: true, name: true, slug: true } },
+          },
+        }),
+        [],
+      )
     : []
   const userOrgMap = new Map(users.map((u) => [u.id, u.organization]))
 

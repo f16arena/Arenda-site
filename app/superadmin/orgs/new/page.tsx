@@ -2,16 +2,21 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
+import { safeServerValue } from "@/lib/server-fallback"
 import { CreateOrgForm } from "./create-form"
 
 export default async function NewOrgPage() {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
 
-  const plans = await db.plan.findMany({
-    where: { isActive: true },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, code: true, name: true, priceMonthly: true, maxBuildings: true, maxTenants: true },
-  }).catch(() => [])
+  const plans = await safeServerValue(
+    db.plan.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, code: true, name: true, priceMonthly: true, maxBuildings: true, maxTenants: true },
+    }),
+    [],
+    { source: "superadmin.orgs.new.plans", route: "/superadmin/orgs/new", userId },
+  )
 
   return (
     <div className="space-y-5 max-w-2xl">

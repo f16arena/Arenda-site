@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export type OwnerBuildingMetric = {
   id: string
@@ -28,17 +29,24 @@ export async function getOwnerBuildingMetrics({
   to: Date
 }): Promise<OwnerBuildingMetric[]> {
   if (buildingIds.length === 0) return []
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T, extra?: Record<string, unknown>) =>
+    safeServerValue(promise, fallback, { source, route: "/admin", extra })
 
-  const buildings = await db.building.findMany({
-    where: { id: { in: buildingIds }, isActive: true },
-    select: {
-      id: true,
-      name: true,
-      address: true,
-      floors: { select: { id: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  })
+  const buildings = await safe(
+    "ownerDashboard.buildings",
+    db.building.findMany({
+      where: { id: { in: buildingIds }, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        floors: { select: { id: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    [],
+    { buildingIds },
+  )
 
   const rows = await Promise.all(
     buildings.map(async (building) => {
@@ -60,57 +68,92 @@ export async function getOwnerBuildingMetrics({
         occupiedAreaAgg,
         vacantAreaAgg,
       ] = await Promise.all([
-        db.payment.aggregate({
-          where: {
-            paymentDate: { gte: from, lt: to },
-            tenant: buildingTenantWhere,
-          },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-        db.expense.aggregate({
-          where: { date: { gte: from, lt: to }, buildingId: building.id },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-        db.charge.aggregate({
-          where: {
-            isPaid: false,
-            tenant: buildingTenantWhere,
-          },
-          _sum: { amount: true },
-          _count: { _all: true },
-        }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-        db.tenant.count({ where: buildingTenantWhere }).catch(() => 0),
-        db.space.groupBy({
-          by: ["status"],
-          where: {
-            floorId: { in: floorIds },
-            kind: { not: "COMMON" },
-          },
-          _count: { _all: true },
-        }).catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
-        db.space.aggregate({
-          where: {
-            floorId: { in: floorIds },
-            kind: { not: "COMMON" },
-          },
-          _sum: { area: true },
-        }).catch(() => ({ _sum: { area: 0 } })),
-        db.space.aggregate({
-          where: {
-            floorId: { in: floorIds },
-            kind: { not: "COMMON" },
-            status: "OCCUPIED",
-          },
-          _sum: { area: true },
-        }).catch(() => ({ _sum: { area: 0 } })),
-        db.space.aggregate({
-          where: {
-            floorId: { in: floorIds },
-            kind: { not: "COMMON" },
-            status: "VACANT",
-          },
-          _sum: { area: true },
-        }).catch(() => ({ _sum: { area: 0 } })),
+        safe(
+          "ownerDashboard.incomeAggregate",
+          db.payment.aggregate({
+            where: {
+              paymentDate: { gte: from, lt: to },
+              tenant: buildingTenantWhere,
+            },
+            _sum: { amount: true },
+          }),
+          { _sum: { amount: 0 } },
+          { buildingId: building.id },
+        ),
+        safe(
+          "ownerDashboard.expenseAggregate",
+          db.expense.aggregate({
+            where: { date: { gte: from, lt: to }, buildingId: building.id },
+            _sum: { amount: true },
+          }),
+          { _sum: { amount: 0 } },
+          { buildingId: building.id },
+        ),
+        safe(
+          "ownerDashboard.debtAggregate",
+          db.charge.aggregate({
+            where: {
+              isPaid: false,
+              tenant: buildingTenantWhere,
+            },
+            _sum: { amount: true },
+            _count: { _all: true },
+          }),
+          { _sum: { amount: 0 }, _count: { _all: 0 } },
+          { buildingId: building.id },
+        ),
+        safe("ownerDashboard.tenantCount", db.tenant.count({ where: buildingTenantWhere }), 0, { buildingId: building.id }),
+        safe(
+          "ownerDashboard.spacesByStatus",
+          db.space.groupBy({
+            by: ["status"],
+            where: {
+              floorId: { in: floorIds },
+              kind: { not: "COMMON" },
+            },
+            _count: { _all: true },
+          }),
+          [] as Array<{ status: string; _count: { _all: number } }>,
+          { buildingId: building.id },
+        ),
+        safe(
+          "ownerDashboard.totalArea",
+          db.space.aggregate({
+            where: {
+              floorId: { in: floorIds },
+              kind: { not: "COMMON" },
+            },
+            _sum: { area: true },
+          }),
+          { _sum: { area: 0 } },
+          { buildingId: building.id },
+        ),
+        safe(
+          "ownerDashboard.occupiedArea",
+          db.space.aggregate({
+            where: {
+              floorId: { in: floorIds },
+              kind: { not: "COMMON" },
+              status: "OCCUPIED",
+            },
+            _sum: { area: true },
+          }),
+          { _sum: { area: 0 } },
+          { buildingId: building.id },
+        ),
+        safe(
+          "ownerDashboard.vacantArea",
+          db.space.aggregate({
+            where: {
+              floorId: { in: floorIds },
+              kind: { not: "COMMON" },
+              status: "VACANT",
+            },
+            _sum: { area: true },
+          }),
+          { _sum: { area: 0 } },
+          { buildingId: building.id },
+        ),
       ])
 
       const spaceStatusRows = spacesByStatus as Array<{ status: string; _count: { _all: number } }>

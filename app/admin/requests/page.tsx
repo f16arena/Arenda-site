@@ -15,6 +15,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
+import { safeServerValue } from "@/lib/server-fallback"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 const REQUEST_FILTERS = [
@@ -37,6 +38,8 @@ export default async function RequestsPage({
   searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/requests", orgId })
   const resolvedSearchParams = await searchParams
   const selectedFilter = normalizeFilter(resolvedSearchParams?.status)
   const page = normalizePage(resolvedSearchParams?.page)
@@ -58,25 +61,33 @@ export default async function RequestsPage({
     : baseWhere
 
   const [requests, totalRequests, statusGroups, totalAllRequests] = await Promise.all([
-    db.request.findMany({
-      where: requestsWhere,
-      select: {
-        id: true, title: true, description: true, type: true,
-        priority: true, status: true, createdAt: true,
-        tenant: { select: { id: true, companyName: true } },
-        user: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(page),
-      take: DEFAULT_PAGE_SIZE,
-    }).catch(() => []),
-    db.request.count({ where: requestsWhere }).catch(() => 0),
-    db.request.groupBy({
-      by: ["status"],
-      where: baseWhere,
-      _count: { _all: true },
-    }).catch(() => []),
-    db.request.count({ where: baseWhere }).catch(() => 0),
+    safe(
+      "admin.requests.items",
+      db.request.findMany({
+        where: requestsWhere,
+        select: {
+          id: true, title: true, description: true, type: true,
+          priority: true, status: true, createdAt: true,
+          tenant: { select: { id: true, companyName: true } },
+          user: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(page),
+        take: DEFAULT_PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe("admin.requests.total", db.request.count({ where: requestsWhere }), 0),
+    safe(
+      "admin.requests.statusGroups",
+      db.request.groupBy({
+        by: ["status"],
+        where: baseWhere,
+        _count: { _all: true },
+      }),
+      [],
+    ),
+    safe("admin.requests.totalAll", db.request.count({ where: baseWhere }), 0),
   ])
 
   const countByStatus = new Map(statusGroups.map((group) => [group.status, group._count._all]))

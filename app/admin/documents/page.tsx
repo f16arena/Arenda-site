@@ -21,6 +21,7 @@ import {
 import { DocumentTypeFilter } from "./document-type-filter"
 import { DocumentsTableLoader } from "./documents-table-loader"
 import type { DocRow } from "./documents-table"
+import { safeServerValue } from "@/lib/server-fallback"
 
 type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
 
@@ -74,6 +75,8 @@ export default async function DocumentsPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/documents", orgId, userId: session.user.id })
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -91,32 +94,39 @@ export default async function DocumentsPage({
     ],
   }
   const visibleTenantIds = visibleBuildingIds.length > 0
-    ? await db.tenant.findMany({
-        where: tenantWhere,
-        select: { id: true },
-      }).then((rows) => rows.map((t) => t.id)).catch(() => [] as string[])
+    ? await safe(
+        "admin.documents.visibleTenantIds",
+        db.tenant.findMany({
+          where: tenantWhere,
+          select: { id: true },
+        }).then((rows) => rows.map((t) => t.id)),
+        [] as string[],
+      )
     : []
 
   const [contracts, generated] = await Promise.all([
     filterType === "ALL" || filterType === "CONTRACT"
-      ? db.contract.findMany({
-          where: { AND: [contractScope(orgId), { tenant: tenantWhere }] },
-          select: {
-            id: true,
-            number: true,
-            type: true,
-            status: true,
-            signedAt: true,
-            signedByTenantAt: true,
-            signedByLandlordAt: true,
-            startDate: true,
-            endDate: true,
-            createdAt: true,
-            tenant: { select: { id: true, companyName: true } },
-          },
-          orderBy: { createdAt: "desc" },
-          take: DOCUMENT_SOURCE_LIMIT,
-        }).catch(() => [] as Array<{
+      ? safe(
+        "admin.documents.contracts",
+        db.contract.findMany({
+            where: { AND: [contractScope(orgId), { tenant: tenantWhere }] },
+            select: {
+              id: true,
+              number: true,
+              type: true,
+              status: true,
+              signedAt: true,
+              signedByTenantAt: true,
+              signedByLandlordAt: true,
+              startDate: true,
+              endDate: true,
+              createdAt: true,
+              tenant: { select: { id: true, companyName: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: DOCUMENT_SOURCE_LIMIT,
+          }),
+        [] as Array<{
           id: string
           number: string
           type: string
@@ -128,26 +138,31 @@ export default async function DocumentsPage({
           endDate: Date | null
           createdAt: Date
           tenant: { id: string; companyName: string }
-        }>)
+        }>,
+      )
       : [],
     filterType === "ALL" || filterType !== "CONTRACT"
-      ? db.generatedDocument.findMany({
-          where: {
-            organizationId: orgId,
-            ...(currentBuildingId
-              ? { tenantId: { in: visibleTenantIds } }
-              : {
-                  OR: [
-                    { tenantId: { in: visibleTenantIds } },
-                    { tenantId: null },
-                  ],
-                }),
-            ...(filterType !== "ALL" ? { documentType: filterType } : {}),
-            ...(period ? { period } : {}),
-          },
-          orderBy: { generatedAt: "desc" },
-          take: DOCUMENT_SOURCE_LIMIT,
-        }).catch(() => [])
+      ? safe(
+        "admin.documents.generated",
+        db.generatedDocument.findMany({
+            where: {
+              organizationId: orgId,
+              ...(currentBuildingId
+                ? { tenantId: { in: visibleTenantIds } }
+                : {
+                    OR: [
+                      { tenantId: { in: visibleTenantIds } },
+                      { tenantId: null },
+                    ],
+                  }),
+              ...(filterType !== "ALL" ? { documentType: filterType } : {}),
+              ...(period ? { period } : {}),
+            },
+            orderBy: { generatedAt: "desc" },
+            take: DOCUMENT_SOURCE_LIMIT,
+          }),
+        [],
+      )
       : [],
   ])
 
@@ -163,13 +178,17 @@ export default async function DocumentsPage({
   ]
 
   const signatures = signatureTargets.length > 0
-    ? await db.documentSignature.findMany({
-        where: {
-          organizationId: orgId,
-          OR: signatureTargets,
-        },
-        select: { documentType: true, documentId: true, documentRef: true },
-      }).catch(() => [] as Array<{ documentType: string; documentId: string | null; documentRef: string | null }>)
+    ? await safe(
+        "admin.documents.signatures",
+        db.documentSignature.findMany({
+          where: {
+            organizationId: orgId,
+            OR: signatureTargets,
+          },
+          select: { documentType: true, documentId: true, documentRef: true },
+        }),
+        [] as Array<{ documentType: string; documentId: string | null; documentRef: string | null }>,
+      )
     : []
 
   const signedById = new Set(

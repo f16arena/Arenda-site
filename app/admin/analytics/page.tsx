@@ -10,11 +10,14 @@ import { OccupancyHeatmap } from "./occupancy-heatmap"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function AnalyticsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/analytics", orgId, userId: session.user.id })
 
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
@@ -24,7 +27,11 @@ export default async function AnalyticsPage() {
     return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Нет доступных зданий</div>
   }
 
-  const floorIds = (await db.floor.findMany({ where: { buildingId: { in: visibleBuildingIds } }, select: { id: true } })).map((f) => f.id)
+  const floorIds = await safe(
+    "admin.analytics.floorIds",
+    db.floor.findMany({ where: { buildingId: { in: visibleBuildingIds } }, select: { id: true } }).then((rows) => rows.map((f) => f.id)),
+    [] as string[],
+  )
   const tenantWhere = { space: { floorId: { in: floorIds } } }
 
   const now = new Date()
@@ -40,41 +47,69 @@ export default async function AnalyticsPage() {
     topPayersAgg,
     monthlyOccupancy,
   ] = await Promise.all([
-    db.space.groupBy({
-      by: ["status"],
-      where: { floorId: { in: floorIds } },
-      _count: { _all: true },
-    }).catch(() => []),
-    db.tenant.count({
-      where: { ...tenantWhere, spaceId: { not: null } },
-    }).catch(() => 0),
-    db.tenant.findMany({
-      where: tenantWhere,
-      select: { contractStart: true, contractEnd: true },
-    }).catch(() => []),
-    db.payment.aggregate({
-      where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
-      _sum: { amount: true },
-    }).catch(() => ({ _sum: { amount: 0 } })),
-    db.expense.aggregate({
-      where: { date: { gte: yearStart }, buildingId: { in: visibleBuildingIds } },
-      _sum: { amount: true },
-    }).catch(() => ({ _sum: { amount: 0 } })),
-    db.payment.groupBy({
-      by: ["tenantId"],
-      where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
-      _sum: { amount: true },
-      orderBy: { _sum: { amount: "desc" } },
-      take: 5,
-    }).catch(() => []),
-    db.tenant.findMany({
-      where: tenantWhere,
-      select: {
-        space: { select: { id: true, number: true, area: true } },
-        contractStart: true,
-        contractEnd: true,
-      },
-    }).catch(() => []),
+    safe(
+      "admin.analytics.spaceStats",
+      db.space.groupBy({
+        by: ["status"],
+        where: { floorId: { in: floorIds } },
+        _count: { _all: true },
+      }),
+      [],
+    ),
+    safe(
+      "admin.analytics.activeTenantsCount",
+      db.tenant.count({
+        where: { ...tenantWhere, spaceId: { not: null } },
+      }),
+      0,
+    ),
+    safe(
+      "admin.analytics.contractDurations",
+      db.tenant.findMany({
+        where: tenantWhere,
+        select: { contractStart: true, contractEnd: true },
+      }),
+      [],
+    ),
+    safe(
+      "admin.analytics.paymentsThisYear",
+      db.payment.aggregate({
+        where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
+        _sum: { amount: true },
+      }),
+      { _sum: { amount: 0 } },
+    ),
+    safe(
+      "admin.analytics.expensesThisYear",
+      db.expense.aggregate({
+        where: { date: { gte: yearStart }, buildingId: { in: visibleBuildingIds } },
+        _sum: { amount: true },
+      }),
+      { _sum: { amount: 0 } },
+    ),
+    safe(
+      "admin.analytics.topPayersAgg",
+      db.payment.groupBy({
+        by: ["tenantId"],
+        where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
+        _sum: { amount: true },
+        orderBy: { _sum: { amount: "desc" } },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "admin.analytics.monthlyOccupancy",
+      db.tenant.findMany({
+        where: tenantWhere,
+        select: {
+          space: { select: { id: true, number: true, area: true } },
+          contractStart: true,
+          contractEnd: true,
+        },
+      }),
+      [],
+    ),
   ])
 
   const totalSpaces = spaceStats.reduce((s, x) => s + x._count._all, 0) || 1
@@ -96,10 +131,14 @@ export default async function AnalyticsPage() {
   const margin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0
 
   const topPayerIds = topPayersAgg.map((t) => t.tenantId)
-  const topPayerInfo = await db.tenant.findMany({
-    where: { id: { in: topPayerIds } },
-    select: { id: true, companyName: true },
-  }).catch(() => [])
+  const topPayerInfo = await safe(
+    "admin.analytics.topPayerInfo",
+    db.tenant.findMany({
+      where: { id: { in: topPayerIds } },
+      select: { id: true, companyName: true },
+    }),
+    [],
+  )
   const topPayers = topPayersAgg.map((t) => {
     const info = topPayerInfo.find((p) => p.id === t.tenantId)
     return { ...t, companyName: info?.companyName ?? "—" }

@@ -14,6 +14,7 @@ import { db } from "@/lib/db"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { safeServerValue } from "@/lib/server-fallback"
 import {
   Archive,
   Building2,
@@ -65,6 +66,8 @@ export default async function StoragePage({
   if (!session || session.user.role === "TENANT") redirect("/login")
 
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/storage", orgId, userId: session.user.id })
   const resolved = await searchParams
   const search = one(resolved?.q).trim()
   const selectedCategory = normalizeCategory(one(resolved?.category))
@@ -131,54 +134,74 @@ export default async function StoragePage({
   }
 
   const [files, total, stats, categoryStats, tenantOptions, buildingOptions] = await Promise.all([
-    db.storedFile.findMany({
-      where: fileWhere,
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(page, PAGE_SIZE),
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        fileName: true,
-        mimeType: true,
-        extension: true,
-        originalSize: true,
-        compressedSize: true,
-        compression: true,
-        ownerType: true,
-        category: true,
-        visibility: true,
-        createdAt: true,
-        deletedAt: true,
-        building: { select: { id: true, name: true } },
-        tenant: { select: { id: true, companyName: true } },
-        uploadedBy: { select: { name: true, email: true } },
-        tenantDocument: { select: { id: true, name: true, type: true } },
-        _count: { select: { paymentReports: true } },
-      },
-    }),
-    db.storedFile.count({ where: fileWhere }),
-    db.storedFile.aggregate({
-      where: baseWhere,
-      _count: { _all: true },
-      _sum: { originalSize: true, compressedSize: true },
-    }),
-    db.storedFile.groupBy({
-      by: ["category"],
-      where: baseWhere,
-      _count: { _all: true },
-      _sum: { originalSize: true },
-    }).catch(() => []),
-    db.tenant.findMany({
-      where: tenantOptionsWhere,
-      select: { id: true, companyName: true },
-      orderBy: { companyName: "asc" },
-      take: 100,
-    }),
-    db.building.findMany({
-      where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
-      select: { id: true, name: true },
-      orderBy: { createdAt: "asc" },
-    }),
+    safe(
+      "admin.storage.files",
+      db.storedFile.findMany({
+        where: fileWhere,
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(page, PAGE_SIZE),
+        take: PAGE_SIZE,
+        select: {
+          id: true,
+          fileName: true,
+          mimeType: true,
+          extension: true,
+          originalSize: true,
+          compressedSize: true,
+          compression: true,
+          ownerType: true,
+          category: true,
+          visibility: true,
+          createdAt: true,
+          deletedAt: true,
+          building: { select: { id: true, name: true } },
+          tenant: { select: { id: true, companyName: true } },
+          uploadedBy: { select: { name: true, email: true } },
+          tenantDocument: { select: { id: true, name: true, type: true } },
+          _count: { select: { paymentReports: true } },
+        },
+      }),
+      [],
+    ),
+    safe("admin.storage.total", db.storedFile.count({ where: fileWhere }), 0),
+    safe(
+      "admin.storage.stats",
+      db.storedFile.aggregate({
+        where: baseWhere,
+        _count: { _all: true },
+        _sum: { originalSize: true, compressedSize: true },
+      }),
+      { _count: { _all: 0 }, _sum: { originalSize: 0, compressedSize: 0 } },
+    ),
+    safe(
+      "admin.storage.categoryStats",
+      db.storedFile.groupBy({
+        by: ["category"],
+        where: baseWhere,
+        _count: { _all: true },
+        _sum: { originalSize: true },
+      }),
+      [],
+    ),
+    safe(
+      "admin.storage.tenantOptions",
+      db.tenant.findMany({
+        where: tenantOptionsWhere,
+        select: { id: true, companyName: true },
+        orderBy: { companyName: "asc" },
+        take: 100,
+      }),
+      [],
+    ),
+    safe(
+      "admin.storage.buildingOptions",
+      db.building.findMany({
+        where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      [],
+    ),
   ])
 
   const queryParams = {

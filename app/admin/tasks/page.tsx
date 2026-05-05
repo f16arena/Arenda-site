@@ -15,6 +15,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
+import { safeServerValue } from "@/lib/server-fallback"
 import type { Prisma } from "@/app/generated/prisma/client"
 import Link from "next/link"
 
@@ -38,6 +39,8 @@ export default async function TasksPage({
   searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/tasks", orgId })
   const resolvedSearchParams = await searchParams
   const selectedFilter = normalizeFilter(resolvedSearchParams?.status)
   const page = normalizePage(resolvedSearchParams?.page)
@@ -63,35 +66,51 @@ export default async function TasksPage({
     : baseWhere
 
   const [tasks, totalTasks, statusGroups, totalAllTasks, staffUsers, buildingOptions] = await Promise.all([
-    db.task.findMany({
-      where: tasksWhere,
-      select: {
-        id: true, title: true, description: true, category: true,
-        priority: true, status: true, floorNumber: true, spaceNumber: true,
-        estimatedCost: true, actualCost: true, dueDate: true, createdAt: true,
-        createdBy: { select: { name: true } },
-        assignedTo: { select: { name: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(page),
-      take: DEFAULT_PAGE_SIZE,
-    }).catch(() => []),
-    db.task.count({ where: tasksWhere }).catch(() => 0),
-    db.task.groupBy({
-      by: ["status"],
-      where: baseWhere,
-      _count: { _all: true },
-    }).catch(() => []),
-    db.task.count({ where: baseWhere }).catch(() => 0),
-    db.user.findMany({
-      where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
-      select: { id: true, name: true },
-    }).catch(() => []),
-    db.building.findMany({
-      where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
-      select: { id: true, name: true },
-      orderBy: { createdAt: "asc" },
-    }).catch(() => []),
+    safe(
+      "admin.tasks.items",
+      db.task.findMany({
+        where: tasksWhere,
+        select: {
+          id: true, title: true, description: true, category: true,
+          priority: true, status: true, floorNumber: true, spaceNumber: true,
+          estimatedCost: true, actualCost: true, dueDate: true, createdAt: true,
+          createdBy: { select: { name: true } },
+          assignedTo: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(page),
+        take: DEFAULT_PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe("admin.tasks.total", db.task.count({ where: tasksWhere }), 0),
+    safe(
+      "admin.tasks.statusGroups",
+      db.task.groupBy({
+        by: ["status"],
+        where: baseWhere,
+        _count: { _all: true },
+      }),
+      [],
+    ),
+    safe("admin.tasks.totalAll", db.task.count({ where: baseWhere }), 0),
+    safe(
+      "admin.tasks.staffUsers",
+      db.user.findMany({
+        where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
+        select: { id: true, name: true },
+      }),
+      [],
+    ),
+    safe(
+      "admin.tasks.buildingOptions",
+      db.building.findMany({
+        where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      [],
+    ),
   ])
 
   const countByStatus = new Map(statusGroups.map((group) => [group.status, group._count._all]))

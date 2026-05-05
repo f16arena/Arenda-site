@@ -9,6 +9,7 @@ import { ROOT_HOST } from "@/lib/host"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import type { Prisma } from "@/app/generated/prisma/client"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const PAGE_SIZE = 30
 type StatusFilter = "all" | "active" | "expiring" | "suspended" | "inactive"
@@ -18,11 +19,13 @@ export default async function OrgsListPage({
 }: {
   searchParams?: Promise<{ q?: string | string[]; status?: string | string[]; page?: string | string[] }>
 }) {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
   const resolved = await searchParams
   const query = one(resolved?.q).trim()
   const status = normalizeStatus(one(resolved?.status))
   const page = normalizePage(resolved?.page)
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/superadmin/orgs", userId })
 
   const now = new Date()
   const sevenDays = new Date(now.getTime() + 7 * 86_400_000)
@@ -49,30 +52,38 @@ export default async function OrgsListPage({
   }
 
   const [orgs, total, stats] = await Promise.all([
-    db.organization.findMany({
-      where,
-      select: {
-        id: true, name: true, slug: true, isActive: true, isSuspended: true,
-        planExpiresAt: true, createdAt: true, ownerUserId: true,
-        plan: { select: { name: true, code: true, priceMonthly: true } },
-        _count: { select: { buildings: true, users: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(page, PAGE_SIZE),
-      take: PAGE_SIZE,
-    }).catch(() => []),
-    db.organization.count({ where }).catch(() => 0),
-    Promise.all([
-      db.organization.count().catch(() => 0),
-      db.organization.count({ where: { isActive: true, isSuspended: false } }).catch(() => 0),
-      db.organization.count({ where: { isSuspended: true } }).catch(() => 0),
-      db.organization.count({
-        where: {
-          isActive: true,
-          isSuspended: false,
-          planExpiresAt: { gte: now, lte: sevenDays },
+    safe(
+      "superadmin.orgs.items",
+      db.organization.findMany({
+        where,
+        select: {
+          id: true, name: true, slug: true, isActive: true, isSuspended: true,
+          planExpiresAt: true, createdAt: true, ownerUserId: true,
+          plan: { select: { name: true, code: true, priceMonthly: true } },
+          _count: { select: { buildings: true, users: true } },
         },
-      }).catch(() => 0),
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(page, PAGE_SIZE),
+        take: PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe("superadmin.orgs.total", db.organization.count({ where }), 0),
+    Promise.all([
+      safe("superadmin.orgs.stats.total", db.organization.count(), 0),
+      safe("superadmin.orgs.stats.active", db.organization.count({ where: { isActive: true, isSuspended: false } }), 0),
+      safe("superadmin.orgs.stats.suspended", db.organization.count({ where: { isSuspended: true } }), 0),
+      safe(
+        "superadmin.orgs.stats.expiringSoon",
+        db.organization.count({
+          where: {
+            isActive: true,
+            isSuspended: false,
+            planExpiresAt: { gte: now, lte: sevenDays },
+          },
+        }),
+        0,
+      ),
     ]).then(([all, active, suspended, expiringSoon]) => ({
       total: all,
       active,

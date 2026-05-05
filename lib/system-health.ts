@@ -929,7 +929,7 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
 
 async function getLocalMigrations(): Promise<string[]> {
   const migrationsDir = path.join(/* turbopackIgnore: true */ process.cwd(), "prisma", "migrations")
-  const entries = await readdir(migrationsDir, { withFileTypes: true }).catch(() => [])
+  const entries = await readDirOrEmpty(migrationsDir)
   return entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -970,7 +970,7 @@ async function getSourceFilesForHealthScan(): Promise<string[]> {
   ]
 
   async function walk(dir: string) {
-    const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+    const entries = await readDirOrEmpty(dir)
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name)
       if (excludedSegments.some((segment) => fullPath.includes(segment))) continue
@@ -988,6 +988,14 @@ async function getSourceFilesForHealthScan(): Promise<string[]> {
   }
 
   return files
+}
+
+async function readDirOrEmpty(dir: string) {
+  try {
+    return await readdir(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

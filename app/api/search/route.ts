@@ -3,6 +3,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope, spaceScope, requestScope, leadScope, contractScope, userScope } from "@/lib/tenant-scope"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export const dynamic = "force-dynamic"
 
@@ -16,112 +17,142 @@ export async function GET(req: Request) {
   }
 
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/api/search", orgId, userId: session.user.id })
 
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get("q") ?? "").trim()
   if (!q || q.length < 2) return NextResponse.json({ items: [] })
 
   const [tenants, spaces, requests, leads, contracts, generated, staff] = await Promise.all([
-    db.tenant.findMany({
-      where: {
-        AND: [
-          tenantScope(orgId),
-          {
-            OR: [
-              { companyName: { contains: q, mode: "insensitive" } },
-              { bin: { contains: q } },
-              { iin: { contains: q } },
-              { user: { name: { contains: q, mode: "insensitive" } } },
-            ],
-          },
-        ],
-      },
-      select: { id: true, companyName: true, user: { select: { name: true } } },
-      take: 5,
-    }).catch(() => []),
-    db.space.findMany({
-      where: {
-        AND: [
-          spaceScope(orgId),
-          { number: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      select: {
-        id: true, number: true,
-        floor: { select: { name: true, buildingId: true } },
-      },
-      take: 5,
-    }).catch(() => []),
-    db.request.findMany({
-      where: {
-        AND: [
-          requestScope(orgId),
-          { title: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      select: { id: true, title: true, status: true },
-      take: 5,
-    }).catch(() => []),
-    db.lead.findMany({
-      where: {
-        AND: [
-          leadScope(orgId),
-          {
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { contact: { contains: q } },
-              { companyName: { contains: q, mode: "insensitive" } },
-            ],
-          },
-        ],
-      },
-      select: { id: true, name: true, companyName: true },
-      take: 5,
-    }).catch(() => []),
-    db.contract.findMany({
-      where: {
-        AND: [
-          contractScope(orgId),
-          { number: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      select: {
-        id: true, number: true,
-        tenant: { select: { id: true, companyName: true } },
-      },
-      take: 5,
-    }).catch(() => []),
-    db.generatedDocument.findMany({
-      where: {
-        organizationId: orgId,
-        OR: [
-          { number: { contains: q, mode: "insensitive" } },
-          { tenantName: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      select: {
-        id: true, number: true, documentType: true,
-        tenantName: true, tenantId: true,
-      },
-      take: 5,
-    }).catch(() => []),
-    db.user.findMany({
-      where: {
-        AND: [
-          userScope(orgId),
-          { isActive: true, role: { not: "TENANT" } },
-          {
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { email: { contains: q, mode: "insensitive" } },
-              { phone: { contains: q } },
-            ],
-          },
-        ],
-      },
-      select: { id: true, name: true, email: true, role: true },
-      take: 5,
-    }).catch(() => []),
+    safe(
+      "api.search.tenants",
+      db.tenant.findMany({
+        where: {
+          AND: [
+            tenantScope(orgId),
+            {
+              OR: [
+                { companyName: { contains: q, mode: "insensitive" } },
+                { bin: { contains: q } },
+                { iin: { contains: q } },
+                { user: { name: { contains: q, mode: "insensitive" } } },
+              ],
+            },
+          ],
+        },
+        select: { id: true, companyName: true, user: { select: { name: true } } },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "api.search.spaces",
+      db.space.findMany({
+        where: {
+          AND: [
+            spaceScope(orgId),
+            { number: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          id: true, number: true,
+          floor: { select: { name: true, buildingId: true } },
+        },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "api.search.requests",
+      db.request.findMany({
+        where: {
+          AND: [
+            requestScope(orgId),
+            { title: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true, title: true, status: true },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "api.search.leads",
+      db.lead.findMany({
+        where: {
+          AND: [
+            leadScope(orgId),
+            {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { contact: { contains: q } },
+                { companyName: { contains: q, mode: "insensitive" } },
+              ],
+            },
+          ],
+        },
+        select: { id: true, name: true, companyName: true },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "api.search.contracts",
+      db.contract.findMany({
+        where: {
+          AND: [
+            contractScope(orgId),
+            { number: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          id: true, number: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "api.search.generatedDocuments",
+      db.generatedDocument.findMany({
+        where: {
+          organizationId: orgId,
+          OR: [
+            { number: { contains: q, mode: "insensitive" } },
+            { tenantName: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          id: true, number: true, documentType: true,
+          tenantName: true, tenantId: true,
+        },
+        take: 5,
+      }),
+      [],
+    ),
+    safe(
+      "api.search.staff",
+      db.user.findMany({
+        where: {
+          AND: [
+            userScope(orgId),
+            { isActive: true, role: { not: "TENANT" } },
+            {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+                { phone: { contains: q } },
+              ],
+            },
+          ],
+        },
+        select: { id: true, name: true, email: true, role: true },
+        take: 5,
+      }),
+      [],
+    ),
   ])
 
   type Item = { type: string; id: string; title: string; subtitle?: string; href: string }

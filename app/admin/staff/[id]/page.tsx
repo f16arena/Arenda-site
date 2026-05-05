@@ -12,6 +12,7 @@ import {
   CheckCircle, AlertCircle, Calendar, History,
 } from "lucide-react"
 import { StaffEditForm } from "./staff-edit-form"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function StaffDetailPage({
   params,
@@ -21,6 +22,8 @@ export default async function StaffDetailPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/staff/[id]", orgId, userId: session.user.id, entity: "user" })
   const { id } = await params
 
   try {
@@ -48,14 +51,18 @@ export default async function StaffDetailPage({
   const isCurrentUser = session.user.id === user.id
 
   // Audit logs (последние действия этого юзера)
-  const auditLogs = await db.auditLog.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    select: {
-      id: true, action: true, entity: true, entityId: true, createdAt: true, details: true,
-    },
-  }).catch(() => [])
+  const auditLogs = await safe(
+    "admin.staff.auditLogs",
+    db.auditLog.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: {
+        id: true, action: true, entity: true, entityId: true, createdAt: true, details: true,
+      },
+    }),
+    [],
+  )
 
   // Прочитаны/непрочитаны сообщения
   const [unreadMessages, totalNotifications] = await Promise.all([
