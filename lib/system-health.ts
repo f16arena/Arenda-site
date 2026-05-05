@@ -176,6 +176,7 @@ const PERFORMANCE_WATCH_FILES = [
   { rel: path.join("app", "cabinet", "page.tsx"), isClient: false },
   { rel: path.join("lib", "system-health.ts"), isClient: false },
 ] as const
+const SILENT_FALLBACK_SCAN_DIRS = ["app", "components", "lib"] as const
 
 export async function runSystemHealthChecks(): Promise<SystemCheck[]> {
   const checks = await Promise.all([
@@ -186,6 +187,7 @@ export async function runSystemHealthChecks(): Promise<SystemCheck[]> {
     withTiming("rls", "Supabase RLS", checkSensitiveRls),
     withTiming("security", "Критичные guardrails", checkSecurityGuardrails),
     withTiming("performance", "Performance budget", checkPerformanceBudget),
+    withTiming("silent-fallbacks", "Silent data fallbacks", checkSilentFallbacks),
     withTiming("migrations", "Миграции", checkMigrations),
     withTiming("cron", "Cron-задачи", checkCron),
     withTiming("email", "Email-канал", checkEmail),
@@ -437,6 +439,50 @@ async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label
       "Полный scan запускается командой npm run perf:audit.",
       ...largest.map((line) => `Крупный файл: ${line}.`),
     ],
+  }
+}
+
+async function checkSilentFallbacks(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  if (isProductionRuntime()) {
+    return {
+      status: "ok",
+      message: "Source scan for silent fallbacks is skipped in production runtime.",
+      details: [
+        "CI/local health checks scan app/components/lib for catch(() => []) patterns.",
+        "Runtime errors are still collected through /api/errors/report and logged server fallbacks.",
+      ],
+    }
+  }
+
+  const files = await getSourceFilesForHealthScan()
+  const matches: string[] = []
+
+  for (const file of files) {
+    const content = await readFile(file, "utf8").catch(() => "")
+    const lines = content.split(/\r?\n/)
+    for (let index = 0; index < lines.length; index += 1) {
+      if (/\.catch\(\s*\(\s*\)\s*=>\s*\[\s*\]\s*\)/.test(lines[index])) {
+        matches.push(`${path.relative(process.cwd(), file)}:${index + 1}`)
+      }
+    }
+  }
+
+  if (matches.length > 0) {
+    return {
+      status: "warning",
+      message: "Silent empty fallbacks remain in server pages.",
+      details: [
+        `Found catch(() => []) patterns: ${matches.length}.`,
+        "Replace them gradually with safeServerValue(...) so support can see real query errors.",
+        ...matches.slice(0, 12),
+        matches.length > 12 ? `...and ${matches.length - 12} more.` : null,
+      ].filter(Boolean) as string[],
+    }
+  }
+
+  return {
+    status: "ok",
+    message: "No silent catch(() => []) fallbacks found in app/components/lib.",
   }
 }
 
@@ -912,6 +958,36 @@ async function missingCronRoutes(): Promise<string[]> {
     })
   )
   return results.filter(Boolean) as string[]
+}
+
+async function getSourceFilesForHealthScan(): Promise<string[]> {
+  const files: string[] = []
+  const allowedExtensions = new Set([".ts", ".tsx", ".js", ".mjs"])
+  const excludedSegments = [
+    `${path.sep}.next${path.sep}`,
+    `${path.sep}node_modules${path.sep}`,
+    `${path.sep}generated${path.sep}`,
+  ]
+
+  async function walk(dir: string) {
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (excludedSegments.some((segment) => fullPath.includes(segment))) continue
+      if (entry.isDirectory()) {
+        await walk(fullPath)
+        continue
+      }
+      if (!entry.isFile() || !allowedExtensions.has(path.extname(entry.name))) continue
+      files.push(fullPath)
+    }
+  }
+
+  for (const dir of SILENT_FALLBACK_SCAN_DIRS) {
+    await walk(path.join(/* turbopackIgnore: true */ process.cwd(), dir))
+  }
+
+  return files
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

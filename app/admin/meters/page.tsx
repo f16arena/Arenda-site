@@ -11,6 +11,7 @@ import { meterScope, spaceScope, tariffScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const typeLabel: Record<string, string> = {
   ELECTRICITY: "Электричество",
@@ -32,6 +33,8 @@ const TARIFF_TYPE_BY_METER: Record<string, string> = {
 
 export default async function MetersPage() {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/meters", orgId })
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -42,47 +45,59 @@ export default async function MetersPage() {
   const prevPeriod = prevDate.toISOString().slice(0, 7)
 
   const [meters, spaces, tariffs] = await Promise.all([
-    db.meter.findMany({
-      where: {
-        AND: [
-          meterScope(orgId),
-          { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
-        ],
-      },
-      select: {
-        id: true, type: true, number: true, spaceId: true,
-        space: {
-          select: {
-            id: true, number: true,
-            floor: { select: { id: true, name: true, number: true } },
-            tenant: { select: { companyName: true } },
-            tenantSpaces: { select: { tenant: { select: { companyName: true } } }, take: 1 },
+    safe(
+      "admin.meters.meters",
+      db.meter.findMany({
+        where: {
+          AND: [
+            meterScope(orgId),
+            { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+          ],
+        },
+        select: {
+          id: true, type: true, number: true, spaceId: true,
+          space: {
+            select: {
+              id: true, number: true,
+              floor: { select: { id: true, name: true, number: true } },
+              tenant: { select: { companyName: true } },
+              tenantSpaces: { select: { tenant: { select: { companyName: true } } }, take: 1 },
+            },
+          },
+          readings: {
+            where: { period: { in: [currentPeriod, prevPeriod] } },
+            orderBy: { period: "desc" },
+            select: { id: true, period: true, value: true, previous: true, createdAt: true },
           },
         },
-        readings: {
-          where: { period: { in: [currentPeriod, prevPeriod] } },
-          orderBy: { period: "desc" },
-          select: { id: true, period: true, value: true, previous: true, createdAt: true },
+      }),
+      [],
+    ),
+    safe(
+      "admin.meters.spaces",
+      db.space.findMany({
+        where: {
+          AND: [
+            spaceScope(orgId),
+            { floor: { buildingId: { in: visibleBuildingIds } } },
+          ],
         },
-      },
-    }).catch(() => []),
-    db.space.findMany({
-      where: {
-        AND: [
-          spaceScope(orgId),
-          { floor: { buildingId: { in: visibleBuildingIds } } },
-        ],
-      },
-      select: {
-        id: true, number: true, area: true, status: true,
-        floor: { select: { id: true, name: true, number: true } },
-      },
-      orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
-    }).catch(() => []),
-    db.tariff.findMany({
-      where: { AND: [tariffScope(orgId), { isActive: true }, { buildingId: { in: visibleBuildingIds } }] },
-      select: { id: true, type: true, name: true, rate: true, unit: true },
-    }).catch(() => []),
+        select: {
+          id: true, number: true, area: true, status: true,
+          floor: { select: { id: true, name: true, number: true } },
+        },
+        orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
+      }),
+      [],
+    ),
+    safe(
+      "admin.meters.tariffs",
+      db.tariff.findMany({
+        where: { AND: [tariffScope(orgId), { isActive: true }, { buildingId: { in: visibleBuildingIds } }] },
+        select: { id: true, type: true, name: true, rate: true, unit: true },
+      }),
+      [],
+    ),
   ])
 
   const tariffByType = new Map(tariffs.map((t) => [t.type, t]))

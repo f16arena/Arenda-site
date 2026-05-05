@@ -18,10 +18,13 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
 import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 import { measureServerRoute } from "@/lib/server-performance"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function AdminDashboard() {
   return measureServerRoute("/admin", async () => {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin", orgId })
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -40,10 +43,14 @@ export default async function AdminDashboard() {
     )
   }
 
-  const floorIds = await db.floor.findMany({
-    where: { buildingId: { in: visibleBuildingIds } },
-    select: { id: true },
-  }).then((floors) => floors.map((f) => f.id)).catch(() => [] as string[])
+  const floorIds = await safe(
+    "admin.dashboard.floorIds",
+    db.floor.findMany({
+      where: { buildingId: { in: visibleBuildingIds } },
+      select: { id: true },
+    }).then((floors) => floors.map((f) => f.id)),
+    [] as string[],
+  )
 
   const tenantWhereInBuilding = {
     OR: [
@@ -71,123 +78,174 @@ export default async function AdminDashboard() {
   const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
   const baseMetricsPromise = Promise.all([
-    db.tenant.count({ where: tenantWhereInBuilding }).catch(() => 0),
-    db.tenant.findMany({
-      where: tenantWhereInBuilding,
-      select: {
-        id: true,
-        customRate: true,
-        fixedMonthlyRent: true,
-        space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
-        tenantSpaces: {
-          select: {
-            space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+    safe("admin.dashboard.tenantsCount", db.tenant.count({ where: tenantWhereInBuilding }), 0),
+    safe(
+      "admin.dashboard.activeTenants",
+      db.tenant.findMany({
+        where: tenantWhereInBuilding,
+        select: {
+          id: true,
+          customRate: true,
+          fixedMonthlyRent: true,
+          space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+          tenantSpaces: {
+            select: {
+              space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+            },
           },
+          fullFloors: { select: { fixedMonthlyRent: true } },
         },
-        fullFloors: { select: { fixedMonthlyRent: true } },
-      },
-    }).catch(() => [] as Array<{
-      id: string
-      customRate: number | null
-      fixedMonthlyRent: number | null
-      space: { area: number; floor: { ratePerSqm: number } } | null
-      tenantSpaces: { space: { area: number; floor: { ratePerSqm: number } } }[]
-      fullFloors: { fixedMonthlyRent: number | null }[]
-    }>),
-    db.space.groupBy({
-      by: ["status"],
-      where: { floorId: { in: floorIds } },
-      _count: { _all: true },
-    }).catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
-    db.charge.aggregate({
-      where: {
-        isPaid: false,
-        tenant: tenantWhereInBuilding,
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-    db.request.findMany({
-      where: {
-        status: { in: ["NEW", "IN_PROGRESS"] },
-        tenant: tenantWhereInBuilding,
-      },
-      select: { id: true, title: true, status: true },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-    }).catch(() => [] as Array<{ id: string; title: string; status: string }>),
-    db.task.findMany({
-      where: {
-        status: { in: ["NEW", "IN_PROGRESS"] },
-        OR: [
-          { buildingId: { in: visibleBuildingIds } },
-          { buildingId: null, createdBy: { organizationId: orgId } },
-        ],
-      },
-      select: { id: true, title: true, status: true },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-    }).catch(() => [] as Array<{ id: string; title: string; status: string }>),
-    db.charge.groupBy({
-      by: ["tenantId"],
-      where: {
-        isPaid: false,
-        tenant: tenantWhereInBuilding,
-      },
-      _sum: { amount: true },
-    }).catch(() => [] as Array<{ tenantId: string; _sum: { amount: number | null } }>),
-    db.tenant.findMany({
-      where: tenantWhereInBuilding,
-      select: {
-        id: true,
-        companyName: true,
-        space: { select: { number: true } },
-      },
-      take: 6,
-      orderBy: { createdAt: "desc" },
-    }).catch(() => [] as Array<{ id: string; companyName: string; space: { number: string } | null }>),
-    getOnboardingState(orgId),
+      }),
+      [] as Array<{
+        id: string
+        customRate: number | null
+        fixedMonthlyRent: number | null
+        space: { area: number; floor: { ratePerSqm: number } } | null
+        tenantSpaces: { space: { area: number; floor: { ratePerSqm: number } } }[]
+        fullFloors: { fixedMonthlyRent: number | null }[]
+      }>,
+    ),
+    safe(
+      "admin.dashboard.spacesGroup",
+      db.space.groupBy({
+        by: ["status"],
+        where: { floorId: { in: floorIds } },
+        _count: { _all: true },
+      }),
+      [] as Array<{ status: string; _count: { _all: number } }>,
+    ),
+    safe(
+      "admin.dashboard.chargesAggregate",
+      db.charge.aggregate({
+        where: {
+          isPaid: false,
+          tenant: tenantWhereInBuilding,
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe(
+      "admin.dashboard.recentRequests",
+      db.request.findMany({
+        where: {
+          status: { in: ["NEW", "IN_PROGRESS"] },
+          tenant: tenantWhereInBuilding,
+        },
+        select: { id: true, title: true, status: true },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+      }),
+      [] as Array<{ id: string; title: string; status: string }>,
+    ),
+    safe(
+      "admin.dashboard.recentTasks",
+      db.task.findMany({
+        where: {
+          status: { in: ["NEW", "IN_PROGRESS"] },
+          OR: [
+            { buildingId: { in: visibleBuildingIds } },
+            { buildingId: null, createdBy: { organizationId: orgId } },
+          ],
+        },
+        select: { id: true, title: true, status: true },
+        take: 5,
+        orderBy: { createdAt: "desc" },
+      }),
+      [] as Array<{ id: string; title: string; status: string }>,
+    ),
+    safe(
+      "admin.dashboard.debtsByTenant",
+      db.charge.groupBy({
+        by: ["tenantId"],
+        where: {
+          isPaid: false,
+          tenant: tenantWhereInBuilding,
+        },
+        _sum: { amount: true },
+      }),
+      [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
+    ),
+    safe(
+      "admin.dashboard.topTenants",
+      db.tenant.findMany({
+        where: tenantWhereInBuilding,
+        select: {
+          id: true,
+          companyName: true,
+          space: { select: { number: true } },
+        },
+        take: 6,
+        orderBy: { createdAt: "desc" },
+      }),
+      [] as Array<{ id: string; companyName: string; space: { number: string } | null }>,
+    ),
+    safe("admin.dashboard.onboarding", getOnboardingState(orgId), {
+      allDone: true,
+      nextStep: null,
+      steps: [],
+      doneCount: 0,
+      totalCount: 0,
+      percent: 100,
+    }),
   ])
 
   const pastDataPromise = Promise.all(pastMonths.map(async (m) => {
     const [paymentsAgg, expensesAgg] = await Promise.all([
-      db.payment.aggregate({
-        where: {
-          paymentDate: { gte: m.start, lt: m.end },
-          tenant: { space: { floorId: { in: floorIds } } },
-        },
-        _sum: { amount: true },
-      }).catch(() => ({ _sum: { amount: 0 } })),
-      db.expense.aggregate({
-        where: { date: { gte: m.start, lt: m.end }, buildingId: { in: visibleBuildingIds } },
-        _sum: { amount: true },
-      }).catch(() => ({ _sum: { amount: 0 } })),
+      safe(
+        "admin.dashboard.monthlyPayments",
+        db.payment.aggregate({
+          where: {
+            paymentDate: { gte: m.start, lt: m.end },
+            tenant: { space: { floorId: { in: floorIds } } },
+          },
+          _sum: { amount: true },
+        }),
+        { _sum: { amount: 0 } },
+      ),
+      safe(
+        "admin.dashboard.monthlyExpenses",
+        db.expense.aggregate({
+          where: { date: { gte: m.start, lt: m.end }, buildingId: { in: visibleBuildingIds } },
+          _sum: { amount: true },
+        }),
+        { _sum: { amount: 0 } },
+      ),
     ])
     return {
       income: paymentsAgg._sum.amount ?? 0,
       expense: expensesAgg._sum.amount ?? 0,
     }
-  })).catch(() => pastMonths.map(() => ({ income: 0, expense: 0 })))
+  }))
 
   const todayMetricsPromise = Promise.all([
-    db.charge.aggregate({
-      where: {
-        isPaid: false,
-        dueDate: { lt: todayStart },
-        tenant: tenantWhereInBuilding,
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-    db.paymentReport.aggregate({
-      where: {
-        status: "PENDING",
-        tenant: tenantWhereInBuilding,
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-    (async () => {
+    safe(
+      "admin.dashboard.overdueCharges",
+      db.charge.aggregate({
+        where: {
+          isPaid: false,
+          dueDate: { lt: todayStart },
+          tenant: tenantWhereInBuilding,
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe(
+      "admin.dashboard.pendingPaymentReports",
+      db.paymentReport.aggregate({
+        where: {
+          status: "PENDING",
+          tenant: tenantWhereInBuilding,
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe("admin.dashboard.dataQualityIssues", (async () => {
       const [
         doubleRentCount,
         missingContactCount,
@@ -253,34 +311,50 @@ export default async function AdminDashboard() {
         + chargeMissingDueDateCount
         + occupiedWithoutTenantCount
         + vacantWithTenantCount
-    })().catch(() => 0),
-    db.tenant.count({
-      where: {
-        ...tenantWhereInBuilding,
-        contractEnd: { gte: todayStart, lte: in30Days },
-      },
-    }).catch(() => 0),
-    db.request.count({
-      where: {
-        createdAt: { gte: todayStart, lt: tomorrow },
-        tenant: tenantWhereInBuilding,
-      },
-    }).catch(() => 0),
-    db.payment.aggregate({
-      where: {
-        paymentDate: { gte: yesterdayStart, lt: todayStart },
-        tenant: tenantWhereInBuilding,
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
+    })(), 0),
+    safe(
+      "admin.dashboard.expiringContracts",
+      db.tenant.count({
+        where: {
+          ...tenantWhereInBuilding,
+          contractEnd: { gte: todayStart, lte: in30Days },
+        },
+      }),
+      0,
+    ),
+    safe(
+      "admin.dashboard.todayRequests",
+      db.request.count({
+        where: {
+          createdAt: { gte: todayStart, lt: tomorrow },
+          tenant: tenantWhereInBuilding,
+        },
+      }),
+      0,
+    ),
+    safe(
+      "admin.dashboard.yesterdayPayments",
+      db.payment.aggregate({
+        where: {
+          paymentDate: { gte: yesterdayStart, lt: todayStart },
+          tenant: tenantWhereInBuilding,
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
   ])
 
-  const buildingBreakdownPromise = getOwnerBuildingMetrics({
-    buildingIds: visibleBuildingIds,
-    from: currentMonthStart,
-    to: nextMonthStart,
-  }).catch(() => [])
+  const buildingBreakdownPromise = safe(
+    "admin.dashboard.buildingBreakdown",
+    getOwnerBuildingMetrics({
+      buildingIds: visibleBuildingIds,
+      from: currentMonthStart,
+      to: nextMonthStart,
+    }),
+    [],
+  )
 
   const [
     [

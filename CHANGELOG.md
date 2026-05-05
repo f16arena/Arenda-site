@@ -2,6 +2,14 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.68 - 2026-05-05
+
+- Added `safeServerValue(...)` for logged server fallbacks: failed server queries now create `ERROR` audit log entries with source, route, error id, explanation and context.
+- Replaced silent empty fallbacks on `/admin`, `/admin/finances`, `/admin/calendar` and `/admin/meters` so support can see real data-loading errors instead of only empty states.
+- `npm run perf:audit` now reports `catch(() => [])` patterns as a separate "Silent empty fallbacks" section; CI can make this strict with `PERF_AUDIT_FAIL_SILENT_FALLBACKS=1`.
+- `/admin/system-health` now includes a local/CI source scan for silent data fallbacks.
+- Added rollback point `rollback/pre-server-fallback-observability-1.3.68`.
+
 ## 1.3.67 - 2026-05-05
 
 - Улучшен ввод банковских счетов арендатора: БИК автоматически подставляет банк, а выбранный банк автоматически подставляет БИК.

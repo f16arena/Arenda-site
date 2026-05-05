@@ -17,6 +17,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { normalizePage, pageSkip } from "@/lib/pagination"
+import { safeServerValue } from "@/lib/server-fallback"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 const FINANCE_PAGE_SIZE = 10
@@ -27,6 +28,8 @@ export default async function FinancesPage({
   searchParams?: Promise<{ chargesPage?: string | string[]; expensesPage?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/finances", orgId })
   const resolvedSearchParams = await searchParams
   const chargesPage = normalizePage(resolvedSearchParams?.chargesPage)
   const expensesPage = normalizePage(resolvedSearchParams?.expensesPage)
@@ -44,16 +47,24 @@ export default async function FinancesPage({
 
   // Активные cash-аккаунты для выпадашки в диалогах
   const [cashAccounts, buildingOptions] = await Promise.all([
-    db.cashAccount.findMany({
-      where: { organizationId: orgId, isActive: true },
-      select: { id: true, name: true, type: true },
-      orderBy: [{ type: "asc" }, { createdAt: "asc" }],
-    }).catch(() => []),
-    db.building.findMany({
-      where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
-      select: { id: true, name: true },
-      orderBy: { createdAt: "asc" },
-    }).catch(() => []),
+    safe(
+      "admin.finances.cashAccounts",
+      db.cashAccount.findMany({
+        where: { organizationId: orgId, isActive: true },
+        select: { id: true, name: true, type: true },
+        orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+      }),
+      [],
+    ),
+    safe(
+      "admin.finances.buildingOptions",
+      db.building.findMany({
+        where: { id: { in: visibleBuildingIds }, organizationId: orgId, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      [],
+    ),
   ])
 
   const chargesWhere: Prisma.ChargeWhereInput = {
@@ -80,108 +91,144 @@ export default async function FinancesPage({
     expensesAggregate,
     dialogCharges,
   ] = await Promise.all([
-    db.charge.findMany({
-      where: chargesWhere,
-      select: {
-        id: true, tenantId: true, period: true, type: true, amount: true,
-        description: true, isPaid: true, dueDate: true, createdAt: true,
-        tenant: { select: { id: true, companyName: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: pageSkip(chargesPage, FINANCE_PAGE_SIZE),
-      take: FINANCE_PAGE_SIZE,
-    }).catch(() => []),
-    db.payment.findMany({
-      where: { AND: [paymentScope(orgId), { tenant: tenantBuildingWhere }] },
-      orderBy: { paymentDate: "desc" },
-      take: 20,
-      select: {
-        id: true, tenantId: true, amount: true, method: true,
-        paymentDate: true, note: true,
-        tenant: { select: { id: true, companyName: true } },
-      },
-    }).catch(() => []),
-    db.expense.findMany({
-      where: expensesWhere,
-      select: {
-        id: true, buildingId: true, category: true, amount: true,
-        period: true, description: true, date: true,
-        building: { select: { name: true } },
-      },
-      orderBy: { date: "desc" },
-      skip: pageSkip(expensesPage, FINANCE_PAGE_SIZE),
-      take: FINANCE_PAGE_SIZE,
-    }).catch(() => []),
-    db.paymentReport.findMany({
-      where: {
-        AND: [
-          paymentReportScope(orgId),
-          { status: "PENDING" },
-          { tenant: tenantBuildingWhere },
-        ],
-      },
-      select: {
-        id: true,
-        amount: true,
-        paymentDate: true,
-        method: true,
-        paymentPurpose: true,
-        note: true,
-        receiptName: true,
-        receiptMime: true,
-        receiptDataUrl: true,
-        receiptFileId: true,
-        createdAt: true,
-        tenant: {
-          select: {
-            id: true,
-            companyName: true,
-            charges: {
-              where: { isPaid: false },
-              select: {
-                id: true,
-                type: true,
-                amount: true,
-                period: true,
-                description: true,
+    safe(
+      "admin.finances.charges",
+      db.charge.findMany({
+        where: chargesWhere,
+        select: {
+          id: true, tenantId: true, period: true, type: true, amount: true,
+          description: true, isPaid: true, dueDate: true, createdAt: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: pageSkip(chargesPage, FINANCE_PAGE_SIZE),
+        take: FINANCE_PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe(
+      "admin.finances.payments",
+      db.payment.findMany({
+        where: { AND: [paymentScope(orgId), { tenant: tenantBuildingWhere }] },
+        orderBy: { paymentDate: "desc" },
+        take: 20,
+        select: {
+          id: true, tenantId: true, amount: true, method: true,
+          paymentDate: true, note: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+      }),
+      [],
+    ),
+    safe(
+      "admin.finances.expenses",
+      db.expense.findMany({
+        where: expensesWhere,
+        select: {
+          id: true, buildingId: true, category: true, amount: true,
+          period: true, description: true, date: true,
+          building: { select: { name: true } },
+        },
+        orderBy: { date: "desc" },
+        skip: pageSkip(expensesPage, FINANCE_PAGE_SIZE),
+        take: FINANCE_PAGE_SIZE,
+      }),
+      [],
+    ),
+    safe(
+      "admin.finances.paymentReports",
+      db.paymentReport.findMany({
+        where: {
+          AND: [
+            paymentReportScope(orgId),
+            { status: "PENDING" },
+            { tenant: tenantBuildingWhere },
+          ],
+        },
+        select: {
+          id: true,
+          amount: true,
+          paymentDate: true,
+          method: true,
+          paymentPurpose: true,
+          note: true,
+          receiptName: true,
+          receiptMime: true,
+          receiptDataUrl: true,
+          receiptFileId: true,
+          createdAt: true,
+          tenant: {
+            select: {
+              id: true,
+              companyName: true,
+              charges: {
+                where: { isPaid: false },
+                select: {
+                  id: true,
+                  type: true,
+                  amount: true,
+                  period: true,
+                  description: true,
+                },
+                orderBy: { createdAt: "desc" },
+                take: 6,
               },
-              orderBy: { createdAt: "desc" },
-              take: 6,
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    }).catch(() => []),
-    db.charge.aggregate({
-      where: chargesWhere,
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-    db.charge.aggregate({
-      where: paidChargesWhere,
-      _sum: { amount: true },
-    }).catch(() => ({ _sum: { amount: 0 } })),
-    db.charge.aggregate({
-      where: unpaidChargesWhere,
-      _sum: { amount: true },
-    }).catch(() => ({ _sum: { amount: 0 } })),
-    db.expense.aggregate({
-      where: expensesWhere,
-      _sum: { amount: true },
-      _count: { _all: true },
-    }).catch(() => ({ _sum: { amount: 0 }, _count: { _all: 0 } })),
-    db.charge.findMany({
-      where: unpaidChargesWhere,
-      select: {
-        id: true, tenantId: true, period: true, type: true, amount: true,
-        description: true, isPaid: true,
-        tenant: { select: { id: true, companyName: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }).catch(() => []),
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }),
+      [],
+    ),
+    safe(
+      "admin.finances.chargesAggregate",
+      db.charge.aggregate({
+        where: chargesWhere,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe(
+      "admin.finances.paidChargesAggregate",
+      db.charge.aggregate({
+        where: paidChargesWhere,
+        _sum: { amount: true },
+      }),
+      { _sum: { amount: 0 } },
+    ),
+    safe(
+      "admin.finances.unpaidChargesAggregate",
+      db.charge.aggregate({
+        where: unpaidChargesWhere,
+        _sum: { amount: true },
+      }),
+      { _sum: { amount: 0 } },
+    ),
+    safe(
+      "admin.finances.expensesAggregate",
+      db.expense.aggregate({
+        where: expensesWhere,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe(
+      "admin.finances.dialogCharges",
+      db.charge.findMany({
+        where: unpaidChargesWhere,
+        select: {
+          id: true, tenantId: true, period: true, type: true, amount: true,
+          description: true, isPaid: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+      [],
+    ),
   ])
 
   const totalCharges = chargesAggregate._sum.amount ?? 0

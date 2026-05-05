@@ -23,6 +23,7 @@ const CLIENT_FILE_BUDGET = readKbEnv("PERF_AUDIT_CLIENT_KB", 140) * 1024
 const SERVER_FILE_BUDGET = readKbEnv("PERF_AUDIT_SERVER_KB", 80) * 1024
 const PRISMA_TAKE_LIMIT = readNumberEnv("PERF_AUDIT_TAKE_LIMIT", 150)
 const STRICT = process.env.PERF_AUDIT_STRICT !== "0"
+const FAIL_SILENT_FALLBACKS = process.env.PERF_AUDIT_FAIL_SILENT_FALLBACKS === "1"
 
 const files = []
 
@@ -38,7 +39,8 @@ const enriched = await Promise.all(files.map(async (file) => {
   const isClient = firstLines.includes('"use client"') || firstLines.includes("'use client'")
   const imports = HEAVY_IMPORTS.filter((name) => importsPackage(content, name))
   const largeTakes = findLargePrismaTakes(content)
-  return { rel, size, isClient, imports, largeTakes }
+  const silentFallbacks = findSilentFallbacks(content)
+  return { rel, size, isClient, imports, largeTakes, silentFallbacks }
 }))
 
 const budgetViolations = enriched.flatMap((file) => {
@@ -62,6 +64,14 @@ const takeViolations = enriched.flatMap((file) =>
     file: file.rel,
     line: take.line,
     message: `${file.rel}:${take.line} uses take: ${take.value}; paginate or lower the source cap below ${PRISMA_TAKE_LIMIT}`,
+  })),
+)
+
+const silentFallbackMatches = enriched.flatMap((file) =>
+  file.silentFallbacks.map((line) => ({
+    file: file.rel,
+    line,
+    message: `${file.rel}:${line} uses catch(() => []); use safeServerValue/logged fallback so support can see the real error`,
   })),
 )
 
@@ -104,8 +114,23 @@ printSection(
     : [`OK: no take >= ${PRISMA_TAKE_LIMIT} in app/components/lib`],
 )
 
-if (STRICT && (budgetViolations.length > 0 || takeViolations.length > 0)) {
-  for (const violation of [...budgetViolations, ...takeViolations]) {
+printSection(
+  "Silent empty fallbacks",
+  silentFallbackMatches.length > 0
+    ? silentFallbackMatches.slice(0, 25).map((violation) => violation.message)
+    : ["OK: no catch(() => []) fallbacks in app/components/lib"],
+)
+
+if (silentFallbackMatches.length > 25) {
+  console.log(`...and ${silentFallbackMatches.length - 25} more silent fallbacks.`)
+}
+
+if (STRICT && (budgetViolations.length > 0 || takeViolations.length > 0 || (FAIL_SILENT_FALLBACKS && silentFallbackMatches.length > 0))) {
+  for (const violation of [
+    ...budgetViolations,
+    ...takeViolations,
+    ...(FAIL_SILENT_FALLBACKS ? silentFallbackMatches : []),
+  ]) {
     emitGithubError(violation)
   }
   process.exitCode = 1
@@ -155,6 +180,17 @@ function findLargePrismaTakes(content) {
     const value = Number.parseInt(match[1], 10)
     if (Number.isFinite(value) && value >= PRISMA_TAKE_LIMIT) {
       results.push({ line: index + 1, value })
+    }
+  }
+  return results
+}
+
+function findSilentFallbacks(content) {
+  const results = []
+  const lines = content.split(/\r?\n/)
+  for (let index = 0; index < lines.length; index += 1) {
+    if (/\.catch\(\s*\(\s*\)\s*=>\s*\[\s*\]\s*\)/.test(lines[index])) {
+      results.push(index + 1)
     }
   }
   return results

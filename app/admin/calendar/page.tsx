@@ -10,6 +10,7 @@ import type { CalendarEvent } from "./calendar-view"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { safeServerValue } from "@/lib/server-fallback"
 
 const CALENDAR_EVENT_SOURCE_LIMIT = 120
 
@@ -21,6 +22,8 @@ export default async function CalendarPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/calendar", orgId, userId: session.user.id })
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -53,54 +56,70 @@ export default async function CalendarPage({
     upcomingTasks,
   ] = await Promise.all([
     // Ожидаемые платежи (charges с dueDate в выбранном диапазоне)
-    db.charge.findMany({
-      where: {
-        dueDate: { gte: rangeStart, lt: rangeEnd },
-        tenant: buildingFilter,
-      },
-      select: {
-        id: true, amount: true, dueDate: true, isPaid: true, type: true,
-        tenant: { select: { id: true, companyName: true } },
-      },
-      take: CALENDAR_EVENT_SOURCE_LIMIT,
-    }).catch(() => []),
+    safe(
+      "admin.calendar.charges",
+      db.charge.findMany({
+        where: {
+          dueDate: { gte: rangeStart, lt: rangeEnd },
+          tenant: buildingFilter,
+        },
+        select: {
+          id: true, amount: true, dueDate: true, isPaid: true, type: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+        take: CALENDAR_EVENT_SOURCE_LIMIT,
+      }),
+      [],
+    ),
     // Полученные платежи (для отображения "получено")
-    db.payment.findMany({
-      where: {
-        paymentDate: { gte: rangeStart, lt: rangeEnd },
-        tenant: buildingFilter,
-      },
-      select: {
-        id: true, amount: true, paymentDate: true,
-        tenant: { select: { id: true, companyName: true } },
-      },
-      take: CALENDAR_EVENT_SOURCE_LIMIT,
-    }).catch(() => []),
+    safe(
+      "admin.calendar.payments",
+      db.payment.findMany({
+        where: {
+          paymentDate: { gte: rangeStart, lt: rangeEnd },
+          tenant: buildingFilter,
+        },
+        select: {
+          id: true, amount: true, paymentDate: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+        take: CALENDAR_EVENT_SOURCE_LIMIT,
+      }),
+      [],
+    ),
     // Истекающие договоры
-    db.tenant.findMany({
-      where: {
-        ...buildingFilter,
-        contractEnd: { gte: rangeStart, lt: rangeEnd },
-      },
-      select: {
-        id: true, companyName: true, contractEnd: true,
-      },
-      take: CALENDAR_EVENT_SOURCE_LIMIT,
-    }).catch(() => []),
+    safe(
+      "admin.calendar.expiringContracts",
+      db.tenant.findMany({
+        where: {
+          ...buildingFilter,
+          contractEnd: { gte: rangeStart, lt: rangeEnd },
+        },
+        select: {
+          id: true, companyName: true, contractEnd: true,
+        },
+        take: CALENDAR_EVENT_SOURCE_LIMIT,
+      }),
+      [],
+    ),
     // Задачи с дедлайном (dueDate)
-    db.task.findMany({
-      where: {
-        dueDate: { gte: rangeStart, lt: rangeEnd },
-        OR: [
-          { buildingId: { in: visibleBuildingIds } },
-          { buildingId: null, createdBy: { organizationId: orgId } },
-        ],
-      },
-      select: {
-        id: true, title: true, dueDate: true, status: true, priority: true,
-      },
-      take: CALENDAR_EVENT_SOURCE_LIMIT,
-    }).catch(() => []),
+    safe(
+      "admin.calendar.tasks",
+      db.task.findMany({
+        where: {
+          dueDate: { gte: rangeStart, lt: rangeEnd },
+          OR: [
+            { buildingId: { in: visibleBuildingIds } },
+            { buildingId: null, createdBy: { organizationId: orgId } },
+          ],
+        },
+        select: {
+          id: true, title: true, dueDate: true, status: true, priority: true,
+        },
+        take: CALENDAR_EVENT_SOURCE_LIMIT,
+      }),
+      [],
+    ),
   ])
 
   const events: CalendarEvent[] = []
