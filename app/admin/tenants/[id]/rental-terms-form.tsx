@@ -14,7 +14,6 @@ type RentalTermsInitial = {
   needsCleaning: boolean
   paymentDueDay: number
   penaltyPercent: number
-  isVatPayer: boolean
 }
 
 type Props = {
@@ -224,19 +223,6 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           При просрочке (0 = без пени)
         </p>
       </div>
-      <div className="flex items-end pb-2">
-        <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-          <input
-            name="isVatPayer"
-            type="checkbox"
-            defaultChecked={initial.isVatPayer}
-            disabled={termsDisabled || pending}
-            className="rounded border-slate-300 disabled:cursor-not-allowed"
-          />
-          Плательщик НДС
-        </label>
-      </div>
-
       {locked && addendumMode && (
         <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
           <div>

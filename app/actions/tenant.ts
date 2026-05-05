@@ -17,6 +17,7 @@ import { normalizeTenantRentChoice } from "@/lib/rent"
 import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 import { normalizeIik, validateRequisites } from "@/lib/kz-validators"
+import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -119,7 +120,6 @@ type RentalTermsSnapshot = {
   needsCleaning: boolean
   paymentDueDay: number
   penaltyPercent: number
-  isVatPayer: boolean
 }
 
 const RENTAL_TERM_FIELDS: Array<keyof RentalTermsSnapshot> = [
@@ -129,7 +129,6 @@ const RENTAL_TERM_FIELDS: Array<keyof RentalTermsSnapshot> = [
   "needsCleaning",
   "paymentDueDay",
   "penaltyPercent",
-  "isVatPayer",
 ]
 
 const RENTAL_TERM_LABELS: Record<keyof RentalTermsSnapshot, string> = {
@@ -139,7 +138,6 @@ const RENTAL_TERM_LABELS: Record<keyof RentalTermsSnapshot, string> = {
   needsCleaning: "Требуется уборка",
   paymentDueDay: "День оплаты",
   penaltyPercent: "Пеня",
-  isVatPayer: "Плательщик НДС",
 }
 
 function normalizeMoney(value: number | null | undefined) {
@@ -160,7 +158,7 @@ function formatRentalTermValue(field: keyof RentalTermsSnapshot, value: RentalTe
   if (field === "customRate") return value === null ? "не указана" : `${formatAmount(value as number)} ₸/м²`
   if (field === "fixedMonthlyRent") return value === null ? "не указана" : `${formatAmount(value as number)} ₸/мес`
   if (field === "cleaningFee") return `${formatAmount(value as number)} ₸/мес`
-  if (field === "needsCleaning" || field === "isVatPayer") return value ? "да" : "нет"
+  if (field === "needsCleaning") return value ? "да" : "нет"
   if (field === "paymentDueDay") return `${value} число`
   if (field === "penaltyPercent") return `${formatAmount(value as number)}% в день`
   return String(value ?? "")
@@ -291,6 +289,8 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   const actualAddress = formData.get("actualAddress") as string
   const directorName = formData.get("directorName") as string
   const directorPosition = formData.get("directorPosition") as string
+  const isVatPayer = formData.get("isVatPayer") === "on"
+  const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
   const rentChoice = normalizeTenantRentChoice({
     rentMode: String(formData.get("rentMode") ?? "").trim() || null,
     customRate: parsePositiveNumberOrNull(formData.get("customRate")),
@@ -316,6 +316,8 @@ export async function updateTenant(tenantId: string, formData: FormData) {
       actualAddress: actualAddress || null,
       directorName: directorName || null,
       directorPosition: directorPosition || null,
+      isVatPayer,
+      vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
       customRate: rentChoice.customRate,
       fixedMonthlyRent: rentChoice.fixedMonthlyRent,
       cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
@@ -552,7 +554,6 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
       needsCleaning: true,
       paymentDueDay: true,
       penaltyPercent: true,
-      isVatPayer: true,
       space: { select: { floor: { select: { buildingId: true } } } },
       fullFloors: {
         select: { id: true, name: true, fixedMonthlyRent: true, buildingId: true },
@@ -571,7 +572,6 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   const needsCleaning = formData.get("needsCleaning") === "on"
   const paymentDueDayStr = String(formData.get("paymentDueDay") ?? "")
   const penaltyPercentStr = String(formData.get("penaltyPercent") ?? "")
-  const isVatPayer = formData.get("isVatPayer") === "on"
 
   let paymentDueDay = tenant.paymentDueDay ?? 10
   if (paymentDueDayStr) {
@@ -592,7 +592,6 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     needsCleaning: tenant.needsCleaning,
     paymentDueDay: tenant.paymentDueDay ?? 10,
     penaltyPercent: normalizePercent(tenant.penaltyPercent),
-    isVatPayer: tenant.isVatPayer,
   }
 
   const after: RentalTermsSnapshot = {
@@ -602,7 +601,6 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     needsCleaning,
     paymentDueDay,
     penaltyPercent: normalizePercent(penaltyPercent),
-    isVatPayer,
   }
 
   const fullFloorsWithFixedRent = tenant.fullFloors.filter((floor) => positiveAmount(floor.fixedMonthlyRent) !== null)
@@ -667,7 +665,6 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
         needsCleaning: after.needsCleaning,
         paymentDueDay: after.paymentDueDay,
         penaltyPercent: after.penaltyPercent,
-        isVatPayer: after.isVatPayer,
       },
     })
 

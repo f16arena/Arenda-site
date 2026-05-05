@@ -1,6 +1,7 @@
 import { Receipt } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { updateOrganizationVat } from "@/app/actions/organization-settings"
+import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 
 interface Props {
   organization: {
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export function VatSection({ organization }: Props) {
+  const selectedRate = coerceKzVatRate(organization.vatRate, DEFAULT_KZ_VAT_RATE)
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -42,16 +45,20 @@ export function VatSection({ organization }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Ставка НДС, %</label>
-            <input
+            <select
               name="vatRate"
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              defaultValue={organization.vatRate}
+              defaultValue={String(selectedRate)}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            />
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Стандарт РК — 12%</p>
+            >
+              {KZ_VAT_RATE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+              Стандарт РК — 16%. 0%, 5% и 10% используйте только для случаев, предусмотренных Налоговым кодексом.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Серия по НДС</label>

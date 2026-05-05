@@ -15,6 +15,7 @@ import { PeriodPicker } from "@/components/documents/period-picker"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
+import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 
 const MONTHS = [
   "январь", "февраль", "март", "апрель", "май", "июнь",
@@ -79,7 +80,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
   }
   const subtotal = items.reduce((s, it) => s + it.amount, 0)
   const withVat = !!organization?.isVatPayer
-  const vatRate = organization?.vatRate ?? 12
+  const vatRate = coerceKzVatRate(organization?.vatRate, DEFAULT_KZ_VAT_RATE)
   const vatAmount = withVat ? Math.round(subtotal * vatRate / 100) : 0
   const total = subtotal + vatAmount
 

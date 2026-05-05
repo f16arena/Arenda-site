@@ -41,6 +41,7 @@ import { TenantFullFloorSection } from "./tenant-full-floor-section"
 import { TenantHistorySection } from "./tenant-history-section"
 import { TenantServiceChargesSection } from "./tenant-service-charges-section"
 import { measureServerRoute } from "@/lib/server-performance"
+import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return measureServerRoute("/admin/tenants/[id]", async () => {
@@ -92,6 +93,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       paymentDueDay: true,
       penaltyPercent: true,
       isVatPayer: true,
+      vatRate: true,
       contractStart: true,
       contractEnd: true,
       user: { select: { id: true, name: true, email: true, phone: true } },
@@ -213,6 +215,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const assignedSpaces = tenant.tenantSpaces.length > 0
     ? tenant.tenantSpaces.map((item) => item.space)
     : tenant.space ? [tenant.space] : []
+  const tenantVatRate = coerceKzVatRate(tenant.vatRate, DEFAULT_KZ_VAT_RATE)
   const rentInput = { ...tenant, fullFloors: myFullFloors }
   const monthlyRent = calculateTenantMonthlyRent(rentInput)
   const ratePerSqm = calculateTenantRatePerSqm(tenant)
@@ -390,7 +393,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <CollapsibleCard
             title="Данные компании"
             icon={Building2}
-            meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"}`}
+            meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"} · ${tenant.isVatPayer ? `НДС ${tenantVatRate}%` : "без НДС"}`}
           >
             <form
               action={async (formData: FormData) => {
@@ -428,6 +431,41 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   defaultValue={tenant.category ?? ""}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
+              </div>
+              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
+                    <input
+                      name="isVatPayer"
+                      type="checkbox"
+                      defaultChecked={tenant.isVatPayer}
+                      className="mt-1 rounded border-slate-300"
+                    />
+                    <span>
+                      <span className="block font-medium text-slate-900 dark:text-slate-100">Арендатор — плательщик НДС</span>
+                      <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                        Для карточки контрагента, документов и будущего ЭСФ-контура.
+                      </span>
+                    </span>
+                  </label>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ставка НДС арендатора</label>
+                    <select
+                      name="vatRate"
+                      defaultValue={String(tenantVatRate)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900"
+                    >
+                      {KZ_VAT_RATE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                      Можно выбрать только ставки, предусмотренные НК РК: 0%, 5%, 10% или 16%.
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Юридический адрес</label>
@@ -538,7 +576,6 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 needsCleaning: tenant.needsCleaning,
                 paymentDueDay: tenant.paymentDueDay ?? 10,
                 penaltyPercent: tenant.penaltyPercent ?? 1,
-                isVatPayer: tenant.isVatPayer,
               }}
             />
           </CollapsibleCard>

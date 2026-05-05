@@ -108,7 +108,7 @@ model Organization {
   planExpiresAt    DateTime? @map("plan_expires_at")
   // НДС: для арендодателя — выставляются ли документы с НДС
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
-  vatRate          Float     @default(12) @map("vat_rate")
+  vatRate          Float     @default(16) @map("vat_rate")
   vatNumber        String?   @map("vat_number")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
@@ -447,6 +447,7 @@ model Tenant {
   penaltyPercent   Float     @default(1) @map("penalty_percent")
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
+  vatRate          Float     @default(16) @map("vat_rate")
   // Чёрный список: причина и время попадания. Если != null — нельзя завести
   // нового арендатора с таким БИН/ИИН (предупреждение администратору).
   blacklistedAt    DateTime? @map("blacklisted_at")

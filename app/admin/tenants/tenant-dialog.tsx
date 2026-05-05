@@ -7,6 +7,7 @@ import { createTenant } from "@/app/actions/tenant-create"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "./tenant-identity-fields"
+import { DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 
 type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number }
 
@@ -107,6 +108,26 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>
                 <input name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
+                <label className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
+                  <input name="isVatPayer" type="checkbox" className="mt-0.5 rounded border-slate-300" />
+                  <span>
+                    <span className="block font-medium">Арендатор — плательщик НДС</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Ставка выбирается только из НК РК.</span>
+                  </span>
+                </label>
+                <select
+                  name="vatRate"
+                  defaultValue={String(DEFAULT_KZ_VAT_RATE)}
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                >
+                  {KZ_VAT_RATE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>

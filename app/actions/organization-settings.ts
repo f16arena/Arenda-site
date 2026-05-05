@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { assertKazakhstanIin } from "@/lib/kz-iin"
+import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { requireOrgAccess } from "@/lib/org"
 import { requireAdmin } from "@/lib/permissions"
 
@@ -13,15 +14,14 @@ export async function updateOrganizationVat(orgId: string, formData: FormData) {
   if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
 
   const isVatPayer = formData.get("isVatPayer") === "on"
-  const vatRateStr = formData.get("vatRate") as string
   const vatNumber = String(formData.get("vatNumber") ?? "").trim()
-  const vatRate = vatRateStr ? Math.max(0, Math.min(100, parseFloat(vatRateStr))) : 12
+  const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
 
   await db.organization.update({
     where: { id: orgId },
     data: {
       isVatPayer,
-      vatRate,
+      vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
       vatNumber: vatNumber || null,
     },
   })

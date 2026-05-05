@@ -13,6 +13,7 @@ import { ROOT_HOST } from "@/lib/host"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 import { parseTenantSpaceIds } from "@/lib/tenant-spaces"
+import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 
 export async function createTenant(formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -35,6 +36,8 @@ export async function createTenant(formData: FormData) {
   const category = String(formData.get("category") ?? "").trim()
   const legalAddress = String(formData.get("legalAddress") ?? "").trim()
   const actualAddress = String(formData.get("actualAddress") ?? "").trim()
+  const isVatPayer = formData.get("isVatPayer") === "on"
+  const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
   const spaceIds = parseTenantSpaceIds(formData)
   const spaceId = spaceIds[0] ?? ""
   const buildingId = String(formData.get("buildingId") ?? "").trim()
@@ -175,6 +178,8 @@ export async function createTenant(formData: FormData) {
           category: category || null,
           legalAddress: legalAddress || null,
           actualAddress: actualAddress || null,
+          isVatPayer,
+          vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
           contractStart: contractStart ? new Date(contractStart) : null,
           contractEnd: contractEnd ? new Date(contractEnd) : null,
         },

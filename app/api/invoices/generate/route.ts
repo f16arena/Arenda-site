@@ -12,6 +12,7 @@ import {
 } from "@/lib/docx-helpers"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 
 export const dynamic = "force-dynamic"
 
@@ -68,7 +69,8 @@ export async function GET(req: Request) {
   const dueDate = new Date(today.getFullYear(), today.getMonth(), tenant.paymentDueDay)
   const contract = tenant.contracts[0]
   const withVat = !!organization?.isVatPayer
-  const vatRate = organization?.vatRate ?? 12
+  const vatRate = coerceKzVatRate(organization?.vatRate, DEFAULT_KZ_VAT_RATE)
+  const tenantVatRate = coerceKzVatRate(tenant.vatRate, DEFAULT_KZ_VAT_RATE)
   const tenantBankAccounts = tenant.bankAccounts ?? []
   const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
   const tenantBankName = tenantPrimaryBank?.bankName ?? tenant.bankName ?? ""
@@ -262,6 +264,9 @@ export async function GET(req: Request) {
       tenant_bik: tenantBik,
       tenant_bank: tenantBankName,
       tenant_bank_accounts: tenantBankAccountsText,
+      tenant_is_vat_payer: tenant.isVatPayer ? "да" : "нет",
+      tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
+      tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
       landlord_name: landlord.fullName,
       landlord_bin: landlord.bin || landlord.taxId,
       landlord_iin: landlord.iin,

@@ -22,6 +22,7 @@ import {
 import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 import { formatTenantPlacement, getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
+import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
   LEASE_ADDITIONAL_SERVICES_CLAUSE,
   LEASE_ESF_CLAUSE,
@@ -116,6 +117,7 @@ export async function GET(req: Request) {
       return `${label}${account.bankName}, ИИК ${account.iik}, БИК ${account.bik}${account.isPrimary ? " (основной)" : ""}`
     })
     .join("\n")
+  const tenantVatRate = coerceKzVatRate(tenant.vatRate, DEFAULT_KZ_VAT_RATE)
   const rentWords = numberToWords(monthlyRent)
   const rentWithWords = `${formatMoney(monthlyRent)} (${rentWords})`
   const rentClause = buildLeaseRentClause({
@@ -178,6 +180,9 @@ export async function GET(req: Request) {
       tenant_iik: tenantIik,
       tenant_bik: tenantBik,
       tenant_bank_accounts: tenantBankAccountsText,
+      tenant_is_vat_payer: tenant.isVatPayer ? "да" : "нет",
+      tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
+      tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
 
       placement,
       space_number: assignedSpaces.map((space) => space.number).join(", "),
