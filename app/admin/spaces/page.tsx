@@ -235,70 +235,118 @@ export default async function SpacesPage() {
     )
   }
 
-  const building = buildingId ? await db.building.findUnique({
-    where: { id: buildingId },
-    include: {
-      floors: {
-        orderBy: { number: "asc" },
-        include: {
-          fullFloorTenant: {
-            select: { id: true, companyName: true, contractEnd: true },
-          },
-          spaces: {
-            include: {
-              tenant: {
-                select: {
-                  id: true,
-                  companyName: true,
-                  contractEnd: true,
-                  customRate: true,
-                  fixedMonthlyRent: true,
-                  fullFloors: { select: { fixedMonthlyRent: true } },
-                  tenantSpaces: {
-                    select: {
-                      space: {
-                        select: {
-                          area: true,
-                          floor: { select: { ratePerSqm: true } },
+  const [building, hasFloorEditor, tenantOptionsRaw] = buildingId
+    ? await Promise.all([
+        db.building.findUnique({
+          where: { id: buildingId },
+          include: {
+            floors: {
+              orderBy: { number: "asc" },
+              include: {
+                fullFloorTenant: {
+                  select: { id: true, companyName: true, contractEnd: true },
+                },
+                spaces: {
+                  include: {
+                    tenant: {
+                      select: {
+                        id: true,
+                        companyName: true,
+                        contractEnd: true,
+                        customRate: true,
+                        fixedMonthlyRent: true,
+                        fullFloors: { select: { fixedMonthlyRent: true } },
+                        tenantSpaces: {
+                          select: {
+                            space: {
+                              select: {
+                                area: true,
+                                floor: { select: { ratePerSqm: true } },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                    tenantSpaces: {
+                      select: {
+                        tenant: {
+                          select: {
+                            id: true,
+                            companyName: true,
+                            contractEnd: true,
+                            customRate: true,
+                            fixedMonthlyRent: true,
+                            fullFloors: { select: { fixedMonthlyRent: true } },
+                            tenantSpaces: {
+                              select: {
+                                space: {
+                                  select: {
+                                    area: true,
+                                    floor: { select: { ratePerSqm: true } },
+                                  },
+                                },
+                              },
+                            },
+                          },
                         },
                       },
                     },
                   },
+                  orderBy: { number: "asc" },
+                },
+              },
+            },
+          },
+        }),
+        hasFeature(orgId, "floorEditor"),
+        safe(
+          "admin.spaces.assignableTenants",
+          db.tenant.findMany({
+            where: {
+              AND: [
+                tenantScope(orgId),
+                { fullFloors: { none: {} } },
+                {
+                  OR: [
+                    { spaceId: null },
+                    { space: { floor: { buildingId } } },
+                  ],
+                },
+                {
+                  tenantSpaces: {
+                    none: { space: { floor: { buildingId: { not: buildingId } } } },
+                  },
+                },
+              ],
+            },
+            orderBy: { companyName: "asc" },
+            select: {
+              id: true,
+              companyName: true,
+              space: {
+                select: {
+                  number: true,
+                  floor: { select: { buildingId: true, name: true } },
                 },
               },
               tenantSpaces: {
+                orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
                 select: {
-                  tenant: {
+                  space: {
                     select: {
-                      id: true,
-                      companyName: true,
-                      contractEnd: true,
-                      customRate: true,
-                      fixedMonthlyRent: true,
-                      fullFloors: { select: { fixedMonthlyRent: true } },
-                      tenantSpaces: {
-                        select: {
-                          space: {
-                            select: {
-                              area: true,
-                              floor: { select: { ratePerSqm: true } },
-                            },
-                      },
-                    },
-                  },
+                      number: true,
+                      floor: { select: { buildingId: true, name: true } },
                     },
                   },
                 },
               },
             },
-            orderBy: { number: "asc" },
-          },
-        },
-      },
-    },
-  }) : null
-
-  const hasFloorEditor = await hasFeature(orgId, "floorEditor")
+          }),
+          [],
+        ),
+      ])
+    : [null, await hasFeature(orgId, "floorEditor"), []]
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
   // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
   const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
@@ -335,63 +383,20 @@ export default async function SpacesPage() {
     totalArea: f.totalArea,
     usedArea: f.spaces.reduce((s, sp) => s + sp.area, 0),
   }))
-  const tenantOptionsRaw = building
-    ? await db.tenant.findMany({
-        where: {
-          AND: [
-            tenantScope(orgId),
-            { fullFloors: { none: {} } },
-            {
-              OR: [
-                { spaceId: null },
-                { space: { floor: { buildingId: building.id } } },
-              ],
-            },
-            {
-              tenantSpaces: {
-                none: { space: { floor: { buildingId: { not: building.id } } } },
-              },
-            },
-          ],
-        },
-        orderBy: { companyName: "asc" },
-        select: {
-          id: true,
-          companyName: true,
-          space: {
-            select: {
-              number: true,
-              floor: { select: { buildingId: true, name: true } },
-            },
-          },
-          tenantSpaces: {
-            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-            select: {
-              space: {
-                select: {
-                  number: true,
-                  floor: { select: { buildingId: true, name: true } },
-                },
-              },
-            },
-          },
-        },
-      })
-    : []
   const assignableTenants = tenantOptionsRaw.flatMap((tenant) => {
     const buildingIds = new Set<string>()
     const placements = new Set<string>()
 
     if (tenant.space?.floor.buildingId) {
       buildingIds.add(tenant.space.floor.buildingId)
-      if (tenant.space.floor.buildingId === building?.id) placements.add(`Каб. ${tenant.space.number}`)
+      if (tenant.space.floor.buildingId === buildingId) placements.add(`Каб. ${tenant.space.number}`)
     }
     for (const item of tenant.tenantSpaces) {
       buildingIds.add(item.space.floor.buildingId)
-      if (item.space.floor.buildingId === building?.id) placements.add(`Каб. ${item.space.number}`)
+      if (item.space.floor.buildingId === buildingId) placements.add(`Каб. ${item.space.number}`)
     }
 
-    const assignedToOtherBuilding = buildingIds.size > 0 && !!building && !buildingIds.has(building.id)
+    const assignedToOtherBuilding = buildingIds.size > 0 && !!buildingId && !buildingIds.has(buildingId)
     if (assignedToOtherBuilding) return []
 
     return [{

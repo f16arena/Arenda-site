@@ -2,6 +2,13 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.71 - 2026-05-05
+
+- Optimized `/admin/spaces` server loading: building data, floor-editor feature access and assignable tenant options now load in parallel instead of sequentially.
+- The assignable tenant picker still remains building-scoped, so tenants from another building are not offered when editing spaces.
+- Added logged fallback for assignable tenant options on the spaces page.
+- Added rollback point `rollback/pre-spaces-page-performance-1.3.71`.
+
 ## 1.3.70 - 2026-05-05
 
 - Optimized `/admin/tenants/[id]`: contracts and recent charges moved out of the main tenant query into separate streamed server sidebar sections.
