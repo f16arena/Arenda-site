@@ -37,7 +37,10 @@ const PUBLIC_ROOT_PREFIXES = [
   "/sign",
 ]
 
+const PUBLIC_ASSET_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|map|woff2?|ttf|otf)$/i
+
 function isPublicRootPath(path: string): boolean {
+  if (PUBLIC_ASSET_FILE.test(path)) return true
   if (PUBLIC_ROOT_PATHS.has(path)) return true
   return PUBLIC_ROOT_PREFIXES.some((p) => path.startsWith(p))
 }
@@ -88,7 +91,11 @@ export default auth((req) => {
   if (host.kind === "subdomain") {
     const rootHost = process.env.ROOT_HOST || "commrent.kz"
     const isApi = path.startsWith("/api/")
-    const isStatic = path.startsWith("/_next/") || path.startsWith("/favicon") || path.startsWith("/icon") || path.startsWith("/manifest")
+    const isStatic = path.startsWith("/_next/")
+      || path.startsWith("/favicon")
+      || path.startsWith("/icon")
+      || path.startsWith("/manifest")
+      || PUBLIC_ASSET_FILE.test(path)
 
     if (!isAdminRoute && !isCabinetRoute && !isSuperadminRoute && !isApi && !isStatic) {
       // Корень или любой публичный путь на slug → редирект
@@ -179,6 +186,6 @@ export const config = {
     // /api/logout исключён, чтобы middleware (auth() wrapper) не рефрешил
     // session cookie в момент логаута — иначе наша очистка cookie конфликтует
     // с обновлённым cookie от middleware и пользователь "не выходит".
-    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json|robots.txt|sitemap.xml).*)",
+    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json|robots.txt|sitemap.xml|.*\\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|map|woff2?|ttf|otf)$).*)",
   ],
 }
