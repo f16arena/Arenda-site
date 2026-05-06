@@ -483,6 +483,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
 
 function DeveloperDetails({ details }: { details: ErrorReportDetails }) {
   if (!details.context && !details.message && !details.stack) return null
+  const technicalBrief = getTechnicalBrief(details)
 
   return (
     <details className="mt-4 rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
@@ -490,13 +491,14 @@ function DeveloperDetails({ details }: { details: ErrorReportDetails }) {
         Показать технические детали для разработчика
       </summary>
       <div className="mt-3 space-y-3">
+        <TechnicalBriefView brief={technicalBrief} />
         {details.context && <ContextPreview context={details.context} />}
-        {details.message && <CodeBlock title="Техническое сообщение" value={details.message} />}
-        {details.stack && <CodeBlock title="Stack trace" value={details.stack} />}
+        {details.message && <RawBlock title="Сырой текст ошибки" value={details.message} />}
+        {details.stack && <RawBlock title="Сырой stack trace" value={details.stack} />}
         {details.context && (
           <details className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
             <summary className="cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Полный технический контекст
+              Показать полный JSON-контекст
             </summary>
             <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
               {JSON.stringify(details.context, null, 2)}
@@ -505,6 +507,95 @@ function DeveloperDetails({ details }: { details: ErrorReportDetails }) {
         )}
       </div>
     </details>
+  )
+}
+
+type TechnicalBrief = {
+  title: string
+  summary: string
+  checklist: string[]
+}
+
+function getTechnicalBrief(details: ErrorReportDetails): TechnicalBrief {
+  const source = details.source ?? ""
+  const path = details.path ?? "неизвестная страница"
+  const message = details.message ?? ""
+  const stack = details.stack ?? ""
+  const text = `${source}\n${path}\n${message}\n${stack}\n${details.digest ?? ""}`.toLowerCase()
+
+  if (text.includes("minified react error #418") || text.includes("react.dev/errors/418")) {
+    return {
+      title: "React #418: браузер и сервер собрали разный HTML",
+      summary:
+        "Это не ошибка данных в базе, а ошибка отрисовки интерфейса. Обычно она появляется, когда компонент на сервере и в браузере получает разные значения или браузер меняет HTML до гидрации.",
+      checklist: [
+        "Проверьте компоненты этой страницы на Date.now(), Math.random(), Intl без фиксированного timeZone и чтение window/localStorage до mount.",
+        "Проверьте невалидную HTML-разметку: table/tr/td, вложенные ссылки, вложенные формы, интерактивные элементы внутри интерактивных.",
+        "Если ошибка видна только у одного пользователя, проверьте расширения браузера и повторите страницу в приватном режиме.",
+      ],
+    }
+  }
+
+  if (text.includes("server components render") || (details.digest && source.includes("/error"))) {
+    return {
+      title: "Server Component: production скрыл реальную ошибку",
+      summary:
+        "Next.js не показывает пользователю внутренний текст ошибки. Ищите тот же error id или digest в серверных логах за указанное время.",
+      checklist: [
+        "Начните со страницы, указанной в карточке, и последних Prisma-запросов этой страницы.",
+        "Проверьте, совпадает ли production-база с текущей Prisma-схемой и применены ли миграции.",
+        "Проверьте обязательные env-переменные и scope организации/здания/арендатора.",
+      ],
+    }
+  }
+
+  if (text.includes("prisma") || text.includes("unique constraint") || text.includes("foreign key constraint")) {
+    return {
+      title: "Prisma / Database: запрос не прошел",
+      summary:
+        "Сервер дошел до базы данных, но запрос отклонен или не совпал с текущей схемой. Сначала смотрите модель, where/select и миграции.",
+      checklist: [
+        "Если есть Unknown field/Unknown argument, обновите schema.prisma, миграцию и prisma generate.",
+        "Если есть unique constraint, проверьте дубликат номера, email, счета, slug или другого уникального поля.",
+        "Если есть foreign key constraint, проверьте принадлежность записи текущей организации и здания.",
+      ],
+    }
+  }
+
+  if (text.includes("server-action") || (source.includes(".") && !source.includes("/"))) {
+    return {
+      title: "Server action: действие формы не завершилось",
+      summary:
+        "Пользователь нажал кнопку или отправил форму, но серверное действие вернуло ошибку. Нужно проверить входные данные, права и запись в базе.",
+      checklist: [
+        "Откройте context: там должны быть форма, entity id, организация и пользователь.",
+        "Если это ошибка валидации, исправьте текст прямо в форме, чтобы пользователь понял, что поменять.",
+        "Если это ошибка доступа, проверьте server-side permission и building scope.",
+      ],
+    }
+  }
+
+  return {
+    title: "Техническая сводка",
+    summary:
+      "Автоматическая классификация не нашла узкий тип ошибки. Начните со страницы, пользователя, времени события и stack trace.",
+    checklist: [
+      "Повторите действие пользователя на той же странице.",
+      "Сравните время события с последними релизами и серверными логами.",
+      "Если ошибка повторяется, добавьте более точный лог контекста рядом с проблемным действием.",
+    ],
+  }
+}
+
+function TechnicalBriefView({ brief }: { brief: TechnicalBrief }) {
+  return (
+    <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">
+      <p className="text-xs font-semibold text-blue-900 dark:text-blue-200">{brief.title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-blue-800 dark:text-blue-200/80">{brief.summary}</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-blue-800 dark:text-blue-200/80">
+        {brief.checklist.map((item) => <li key={item}>{item}</li>)}
+      </ul>
+    </div>
   )
 }
 
@@ -524,14 +615,14 @@ function ContextPreview({ context }: { context: Record<string, unknown> }) {
   )
 }
 
-function CodeBlock({ title, value }: { title: string; value: string }) {
+function RawBlock({ title, value }: { title: string; value: string }) {
   return (
-    <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase text-slate-400 dark:text-slate-500">{title}</p>
-      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+    <details className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+      <summary className="cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400">{title}</summary>
+      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
         {value}
       </pre>
-    </div>
+    </details>
   )
 }
 

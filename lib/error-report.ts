@@ -50,6 +50,21 @@ export function decodeErrorReport(input: {
   const digest = input.digest ?? ""
   const text = `${source}\n${path}\n${message}\n${stack}\n${digest}`.toLowerCase()
 
+  if (text.includes("minified react error #418") || text.includes("react.dev/errors/418")) {
+    return {
+      title: "React hydration/render mismatch",
+      severity: "info",
+      explanation:
+        "React сообщил, что HTML с сервера и итоговая разметка в браузере не совпали. Обычно это ошибка отрисовки, а не повреждение данных.",
+      suggestedAction:
+        "Проверьте страницу на разные значения server/client: даты без фиксированного timeZone, случайные значения, window/localStorage до mount, невалидную HTML-разметку и расширения браузера.",
+      hints: [
+        "Если повторяется у всех пользователей, ищите компонент с разным server/client render.",
+        "Если повторяется только у одного пользователя, проверьте браузерные расширения и приватный режим.",
+      ],
+    }
+  }
+
   if (text.includes("server components render") || (digest && source.includes("/error"))) {
     return {
       title: "Server Components render error",
