@@ -514,12 +514,15 @@ export default function Home() {
 
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-8 sm:px-8 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/commrent-mark.png" alt="" width={34} height={34} className="rounded-lg object-contain" />
-            <div>
-              <p className="text-sm font-semibold text-slate-950">commrent.kz</p>
-              <p className="text-xs text-slate-500">Операционная система для коммерческой аренды</p>
-            </div>
+          <div className="flex flex-col gap-1">
+            <Image
+              src="/commrent-logo-navbar.png"
+              alt="Commrent.kz"
+              width={178}
+              height={62}
+              className="h-9 w-auto object-contain"
+            />
+            <p className="text-xs text-slate-500">Операционная система для коммерческой аренды</p>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-slate-500">
             <Link href="/offer" className="hover:text-slate-950">Оферта</Link>
