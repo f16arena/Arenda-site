@@ -8,6 +8,12 @@ import { assertTenantInOrg, assertRequestInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
 import { requireSection } from "@/lib/acl"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
+import {
+  REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES,
+  REQUEST_ATTACHMENT_MAX_BYTES,
+  getTenantStorageScope,
+  storeBufferFile,
+} from "@/lib/storage"
 
 export async function createRequestAdmin(formData: FormData) {
   await requireSection("requests", "edit")
@@ -120,6 +126,8 @@ export async function deleteRequest(requestId: string) {
 export async function createRequestTenant(formData: FormData) {
   const session = await auth()
   if (!session) return { error: "Не авторизован" }
+  const organizationId = session.user.organizationId
+  if (!organizationId) return { error: "Организация не найдена" }
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session.user.id },
@@ -134,6 +142,8 @@ export async function createRequestTenant(formData: FormData) {
   const description = formData.get("description") as string
   const type = formData.get("type") as string
   const priority = formData.get("priority") as string
+  const attachment = await parseRequestAttachment(formData.get("attachment"))
+  if (attachment && "error" in attachment) return { error: attachment.error }
 
   const created = await db.request.create({
     data: {
@@ -147,16 +157,42 @@ export async function createRequestTenant(formData: FormData) {
     },
   })
 
+  let storedAttachment: { id: string; url: string; fileName: string } | null = null
+  try {
+    if (attachment && !("error" in attachment)) {
+      const storageScope = await getTenantStorageScope(tenant.id)
+      storedAttachment = await storeBufferFile({
+        organizationId,
+        fileName: attachment.name,
+        mimeType: attachment.mime,
+        bytes: attachment.buffer,
+        ownerType: "REQUEST_ATTACHMENT",
+        ownerId: created.id,
+        buildingId: storageScope.buildingId,
+        tenantId: storageScope.tenantId,
+        category: "REQUEST_ATTACHMENT",
+        visibility: "TENANT_VISIBLE",
+        uploadedById: session.user.id,
+        maxBytes: REQUEST_ATTACHMENT_MAX_BYTES,
+        allowedMimeTypes: REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES,
+      })
+    }
+  } catch (error) {
+    await db.request.delete({ where: { id: created.id } }).catch(() => null)
+    return { error: error instanceof Error ? error.message : "Не удалось сохранить файл заявки" }
+  }
+
   // Уведомляем только администратора здания/организации. OWNER не получает tenant-facing заявки напрямую.
   {
     const staff = await getTenantAdminContactsForUser(session.user.id)
     const isUrgent = priority === "HIGH" || priority === "URGENT"
+    const attachmentNote = storedAttachment ? " Фото/файл приложен." : ""
     for (const s of staff) {
       await notifyUser({
         userId: s.id,
         type: "NEW_REQUEST",
         title: isUrgent ? `🔥 Срочная заявка: ${title}` : `Новая заявка: ${title}`,
-        message: `От «${tenant.companyName}»: ${description.length > 100 ? description.slice(0, 97) + "..." : description}`,
+        message: `От «${tenant.companyName}»: ${description.length > 100 ? description.slice(0, 97) + "..." : description}${attachmentNote}`,
         link: `/admin/requests/${created.id}`,
         // Email только для срочных — обычные заявки летят админам пачками,
         // не хочется забивать им инбокс.
@@ -166,5 +202,25 @@ export async function createRequestTenant(formData: FormData) {
   }
 
   revalidatePath("/cabinet/requests")
+  revalidatePath("/cabinet")
   return { success: true }
+}
+
+async function parseRequestAttachment(fileValue: FormDataEntryValue | null) {
+  if (!(fileValue instanceof File) || fileValue.size === 0) return null
+
+  const mime = fileValue.type.trim().toLowerCase()
+  if (!REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES.has(mime)) {
+    return { error: "К заявке можно приложить PDF, JPG, PNG или WebP" as const }
+  }
+
+  if (fileValue.size > REQUEST_ATTACHMENT_MAX_BYTES) {
+    return { error: "Файл заявки не должен быть больше 5 МБ" as const }
+  }
+
+  return {
+    name: fileValue.name.slice(0, 160),
+    mime,
+    buffer: Buffer.from(await fileValue.arrayBuffer()),
+  }
 }

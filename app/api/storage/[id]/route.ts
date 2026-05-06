@@ -26,6 +26,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       buildingId: true,
       tenantId: true,
       ownerType: true,
+      ownerId: true,
       visibility: true,
       fileName: true,
       mimeType: true,
@@ -59,6 +60,7 @@ async function canAccessStoredFile(
     buildingId: string | null
     tenantId: string | null
     ownerType: string
+    ownerId: string | null
     visibility: string
   },
   user: SessionUser,
@@ -94,6 +96,18 @@ async function canAccessStoredFile(
         select: { id: true },
       })
       return !!report
+    }
+
+    if (file.ownerType === "REQUEST_ATTACHMENT") {
+      if (file.visibility !== "TENANT_VISIBLE") return false
+      const request = await db.request.findFirst({
+        where: {
+          id: file.ownerId ?? "__none__",
+          tenant: { userId: user.id },
+        },
+        select: { id: true },
+      })
+      return !!request
     }
 
     return false

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import {
   STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST_TYPE_LABELS,
 } from "@/lib/utils"
-import { ArrowLeft, User } from "lucide-react"
+import { ArrowLeft, Paperclip, User } from "lucide-react"
 import Link from "next/link"
 import { addRequestComment, updateRequestStatus } from "@/app/actions/requests"
 
@@ -19,7 +19,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     notFound()
   }
 
-  const [request, staff] = await Promise.all([
+  const [request, staff, attachments] = await Promise.all([
     db.request.findUnique({
       where: { id },
       include: {
@@ -34,6 +34,16 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     db.user.findMany({
       where: { role: { not: "TENANT" }, isActive: true, organizationId: orgId },
       select: { id: true, name: true, role: true },
+    }),
+    db.storedFile.findMany({
+      where: {
+        organizationId: orgId,
+        ownerType: "REQUEST_ATTACHMENT",
+        ownerId: id,
+        deletedAt: null,
+      },
+      select: { id: true, fileName: true, mimeType: true, originalSize: true },
+      orderBy: { createdAt: "asc" },
     }),
   ])
 
@@ -70,11 +80,27 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Main info */}
-        <div className="col-span-2 space-y-4">
+        <div className="space-y-4 lg:col-span-2">
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
             <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{request.description}</p>
+            {attachments.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {attachments.map((file) => (
+                  <a
+                    key={file.id}
+                    href={`/api/storage/${file.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" />
+                    {file.mimeType.startsWith("image/") ? "Фото заявки" : file.fileName}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Comments */}

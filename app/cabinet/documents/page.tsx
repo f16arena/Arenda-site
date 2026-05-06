@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { FileText, Upload } from "lucide-react"
+import Link from "next/link"
 
 export default async function CabinetDocuments() {
   const session = await auth()
@@ -54,12 +55,12 @@ export default async function CabinetDocuments() {
         ) : (
           <div className="divide-y divide-slate-50">
             {tenant.contracts.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-5 py-4">
-                <div className="flex items-center gap-3">
+              <div key={c.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
                   <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
                     <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                       {typeLabel[c.type] ?? c.type} №{c.number}
                     </p>
@@ -70,17 +71,19 @@ export default async function CabinetDocuments() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                   <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[c.status])}>
                     {STATUS_LABELS[c.status] ?? c.status}
                   </span>
-                  {c.status === "SENT" && (
-                    <button className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+                  {(c.status === "SENT" || c.status === "VIEWED") && c.signToken && (
+                    <Link href={`/sign/${c.signToken}`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
                       Подписать
-                    </button>
+                    </Link>
                   )}
-                  {c.status === "SIGNED" && (
-                    <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Скачать</button>
+                  {c.signToken && c.status !== "SENT" && c.status !== "VIEWED" && (
+                    <Link href={`/sign/${c.signToken}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                      Открыть
+                    </Link>
                   )}
                 </div>
               </div>

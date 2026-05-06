@@ -211,7 +211,7 @@ export function PaymentPanel({
               <button
                 type="submit"
                 disabled={pending}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60 sm:w-auto"
               >
                 <Send className="h-4 w-4" />
                 Я оплатил

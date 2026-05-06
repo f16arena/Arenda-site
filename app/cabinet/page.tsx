@@ -6,7 +6,7 @@ import { formatMoney, CHARGE_TYPES } from "@/lib/utils"
 import {
   CreditCard, FileText, ClipboardList, Building2, Calendar,
   AlertCircle, MessageSquare, Download, ArrowRight, Receipt,
-  Wallet,
+  Wallet, FileSignature, CircleHelp, Camera,
 } from "lucide-react"
 import Link from "next/link"
 import { PaymentsMiniCalendarLoader } from "./payments-mini-calendar-loader"
@@ -44,6 +44,18 @@ export default async function CabinetDashboard() {
       payments: {
         orderBy: { paymentDate: "desc" },
         take: 3,
+      },
+      paymentReports: {
+        where: { status: { in: ["PENDING", "DISPUTED"] } },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        select: { id: true, amount: true, status: true, createdAt: true },
+      },
+      contracts: {
+        where: { status: { in: ["SENT", "VIEWED", "SIGNED_BY_TENANT"] } },
+        orderBy: [{ sentAt: "desc" }, { createdAt: "desc" }],
+        take: 3,
+        select: { id: true, number: true, type: true, status: true, signToken: true, sentAt: true },
       },
     },
   })
@@ -192,6 +204,11 @@ export default async function CabinetDashboard() {
   ]))
   const primaryBankAccount = landlord?.bankAccounts[0] ?? null
   const paymentPurpose = `Аренда ${tenant.companyName}, период ${currentPeriod}`
+  const pendingContracts = tenant.contracts
+  const pendingPaymentReports = tenant.paymentReports
+  const tenantMustSignCount = pendingContracts.filter((contract) => (
+    (contract.status === "SENT" || contract.status === "VIEWED") && !!contract.signToken
+  )).length
 
   const docTypeLabels: Record<string, string> = {
     INVOICE: "Счёт на оплату",
@@ -202,9 +219,9 @@ export default async function CabinetDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pb-20 sm:space-y-6 sm:pb-0">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
           Здравствуйте, {session?.user.name?.split(" ")[0] ?? session?.user.name}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
@@ -279,6 +296,59 @@ export default async function CabinetDashboard() {
         paymentPurpose={paymentPurpose}
       />
 
+      {(tenantMustSignCount > 0 || pendingPaymentReports.length > 0) && (
+        <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/30 dark:bg-blue-500/10">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ожидает вашего действия</h2>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                Всё, что может задержать оплату, подпись или обработку заявки.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {pendingContracts.map((contract) => (
+              <Link
+                key={contract.id}
+                href={contract.signToken ? `/sign/${contract.signToken}` : "/cabinet/documents"}
+                className="rounded-lg border border-blue-200 bg-white p-3 text-sm transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900 dark:hover:bg-blue-500/10"
+              >
+                <div className="flex items-start gap-2">
+                  <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">
+                      {contract.status === "SIGNED_BY_TENANT" ? "Ждёт арендодателя" : "Нужно подписать"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"} № {contract.number}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+            {pendingPaymentReports.map((report) => (
+              <Link
+                key={report.id}
+                href="/cabinet/finances"
+                className="rounded-lg border border-blue-200 bg-white p-3 text-sm transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900 dark:hover:bg-blue-500/10"
+              >
+                <div className="flex items-start gap-2">
+                  <Receipt className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">
+                      {report.status === "DISPUTED" ? "Оплата требует уточнения" : "Оплата на проверке"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {formatMoney(report.amount)} · {new Date(report.createdAt).toLocaleDateString("ru-RU")}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -288,7 +358,7 @@ export default async function CabinetDashboard() {
             </p>
           </div>
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <TenantNextAction
             href="/cabinet/finances#payment"
             icon={Wallet}
@@ -303,9 +373,15 @@ export default async function CabinetDashboard() {
           />
           <TenantNextAction
             href="/cabinet/requests"
-            icon={ClipboardList}
+            icon={Camera}
             title="Создать заявку"
-            text={activeRequestsCount > 0 ? `${activeRequestsCount} заявок уже в работе` : "Ремонт, обслуживание или вопрос администратору."}
+            text={activeRequestsCount > 0 ? `${activeRequestsCount} заявок уже в работе. Можно приложить фото.` : "Ремонт, обслуживание или вопрос администратору с фото."}
+          />
+          <TenantNextAction
+            href="/cabinet/faq"
+            icon={CircleHelp}
+            title="FAQ арендатора"
+            text="Как оплатить, подписать документ, отправить чек или создать заявку."
           />
         </div>
       </section>
@@ -535,6 +611,11 @@ export default async function CabinetDashboard() {
           </div>
         </div>
       </div>
+
+      <MobileTenantActionBar
+        debt={totalDebt}
+        pendingSignatures={tenantMustSignCount}
+      />
     </div>
   )
   })
@@ -654,4 +735,40 @@ function InfoCard({
     </div>
   )
   return href ? <Link href={href}>{inner}</Link> : inner
+}
+
+function MobileTenantActionBar({
+  debt,
+  pendingSignatures,
+}: {
+  debt: number
+  pendingSignatures: number
+}) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:hidden">
+      <div className="grid grid-cols-3 gap-2">
+        <Link
+          href="/cabinet/finances#payment"
+          className="flex flex-col items-center justify-center rounded-xl bg-blue-600 px-2 py-2 text-[11px] font-semibold text-white"
+        >
+          <Wallet className="mb-1 h-4 w-4" />
+          {debt > 0 ? "Оплатить" : "Реквизиты"}
+        </Link>
+        <Link
+          href="/cabinet/finances#report-payment"
+          className="flex flex-col items-center justify-center rounded-xl border border-slate-200 px-2 py-2 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
+        >
+          <Receipt className="mb-1 h-4 w-4" />
+          Я оплатил
+        </Link>
+        <Link
+          href={pendingSignatures > 0 ? "/cabinet/documents" : "/cabinet/requests"}
+          className="flex flex-col items-center justify-center rounded-xl border border-slate-200 px-2 py-2 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
+        >
+          {pendingSignatures > 0 ? <FileSignature className="mb-1 h-4 w-4" /> : <Camera className="mb-1 h-4 w-4" />}
+          {pendingSignatures > 0 ? "Подписать" : "Заявка"}
+        </Link>
+      </div>
+    </div>
+  )
 }

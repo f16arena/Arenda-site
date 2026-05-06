@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 
 export const TENANT_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
 export const PAYMENT_RECEIPT_MAX_BYTES = 2 * 1024 * 1024
+export const REQUEST_ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024
 
 export const TENANT_DOCUMENT_ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -17,6 +18,13 @@ export const TENANT_DOCUMENT_ALLOWED_MIME_TYPES = new Set([
 ])
 
 export const PAYMENT_RECEIPT_ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+])
+
+export const REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
   "image/png",

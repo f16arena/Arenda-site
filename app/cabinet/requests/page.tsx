@@ -2,7 +2,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST_TYPE_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { ClipboardList } from "lucide-react"
+import { ClipboardList, Paperclip } from "lucide-react"
 import { RequestDialog } from "./request-dialog"
 
 export default async function CabinetRequests() {
@@ -20,9 +20,30 @@ export default async function CabinetRequests() {
 
   if (!tenant) return null
 
+  const requestIds = tenant.requests.map((request) => request.id)
+  const attachments = requestIds.length > 0
+    ? await db.storedFile.findMany({
+        where: {
+          tenantId: tenant.id,
+          ownerType: "REQUEST_ATTACHMENT",
+          ownerId: { in: requestIds },
+          deletedAt: null,
+        },
+        select: { id: true, ownerId: true, fileName: true, mimeType: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : []
+  const attachmentsByRequest = new Map<string, typeof attachments>()
+  for (const file of attachments) {
+    if (!file.ownerId) continue
+    const list = attachmentsByRequest.get(file.ownerId) ?? []
+    list.push(file)
+    attachmentsByRequest.set(file.ownerId, list)
+  }
+
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мои заявки</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.requests.length} заявок</p>
@@ -33,7 +54,7 @@ export default async function CabinetRequests() {
       <div className="space-y-3">
         {tenant.requests.map((r) => (
           <div key={r.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.title}</h3>
@@ -45,7 +66,23 @@ export default async function CabinetRequests() {
                   </span>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{r.description}</p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 dark:text-slate-500">
+                {(attachmentsByRequest.get(r.id)?.length ?? 0) > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {attachmentsByRequest.get(r.id)?.map((file) => (
+                      <a
+                        key={file.id}
+                        href={`/api/storage/${file.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        <Paperclip className="h-3.5 w-3.5" />
+                        {file.mimeType.startsWith("image/") ? "Фото" : "Файл"}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400 dark:text-slate-500">
                   <span>{REQUEST_TYPE_LABELS[r.type] ?? r.type}</span>
                   <span>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>
                   {r.comments.length > 0 && (

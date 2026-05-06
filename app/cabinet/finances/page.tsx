@@ -15,6 +15,11 @@ export default async function CabinetFinances() {
       user: { select: { organizationId: true } },
       charges: { orderBy: { createdAt: "desc" } },
       payments: { orderBy: { paymentDate: "desc" } },
+      paymentReports: {
+        where: { status: { in: ["PENDING", "DISPUTED", "REJECTED"] } },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+      },
       space: { include: { floor: true } },
       tenantSpaces: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
@@ -76,7 +81,7 @@ export default async function CabinetFinances() {
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Начисления и оплаты</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {formatMoney(totalDebt)}
@@ -103,6 +108,39 @@ export default async function CabinetFinances() {
         paymentPurpose={paymentPurpose}
         qrDataUrl={qrDataUrl}
       />
+
+      {tenant.paymentReports.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Отправленные чеки и оплаты</h2>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Здесь видно, что уже отправлено администратору на проверку.
+            </p>
+          </div>
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
+            {tenant.paymentReports.map((report) => (
+              <div key={report.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(report.amount)}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {new Date(report.paymentDate).toLocaleDateString("ru-RU")} · {PAYMENT_METHOD_LABELS[report.method] ?? report.method}
+                    {report.receiptName ? ` · чек: ${report.receiptName}` : ""}
+                  </p>
+                </div>
+                <span className={`w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
+                  report.status === "DISPUTED"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+                    : report.status === "REJECTED"
+                      ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                      : "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
+                }`}>
+                  {report.status === "DISPUTED" ? "Требует уточнения" : report.status === "REJECTED" ? "Отклонено" : "На проверке"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {tenant.payments.length > 0 && (
         <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">

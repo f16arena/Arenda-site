@@ -40,7 +40,7 @@ export default async function CabinetLayout({
         {userMail && !userMail.emailVerifiedAt && (
           <EmailNotVerifiedBanner email={userMail.email} profileHref="/cabinet/profile" />
         )}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pl-16 lg:pl-6">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 pl-16 dark:border-slate-800 dark:bg-slate-900 sm:px-6 lg:pl-6">
           <div />
           <div className="flex items-center gap-4">
             <ThemeIconToggle />
@@ -55,13 +55,13 @@ export default async function CabinetLayout({
                   {session.user.name?.[0]?.toUpperCase()}
                 </span>
               </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
+              <span className="hidden max-w-[180px] truncate text-sm font-medium text-slate-700 dark:text-slate-200 sm:inline">
                 {session.user.name}
               </span>
             </Link>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )
