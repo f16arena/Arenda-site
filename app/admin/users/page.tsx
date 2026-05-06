@@ -4,7 +4,7 @@ import Link from "next/link"
 import { db } from "@/lib/db"
 import { fallbackCanEdit, fallbackCanView, requireSection } from "@/lib/acl"
 import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
-import { History, Shield, Users as UsersIcon } from "lucide-react"
+import { AlertTriangle, CheckCircle2, History, Shield, Users as UsersIcon } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import {
   ACTION_CAPABILITIES,
@@ -42,6 +42,15 @@ type EffectiveRightsSummary = {
   personalAllow: number
   personalDeny: number
   states: Record<string, EffectiveCapabilityState>
+}
+
+type AccessReviewItem = {
+  userId: string
+  name: string
+  role: string
+  roleLabel: string
+  reasons: Array<{ label: string; tone: "amber" | "purple" | "red" }>
+  score: number
 }
 
 export default async function UsersPage() {
@@ -188,6 +197,52 @@ export default async function UsersPage() {
     )
   }
 
+  const accessReviewItems = users
+    .map((user): AccessReviewItem | null => {
+      const summary = effectiveRightsByUserId.get(user.id)
+      if (!summary) return null
+
+      const reasons: AccessReviewItem["reasons"] = []
+      const personalCount = summary.personalAllow + summary.personalDeny
+      const staffWithoutBuildings = user.isActive && isStaffLikeRole(user.role) && user.buildingAccess.length === 0
+
+      if (user.role !== "OWNER" && summary.highRisk > 0) {
+        reasons.push({ label: `Рискованных прав: ${summary.highRisk}`, tone: "amber" })
+      }
+      if (personalCount > 0) {
+        reasons.push({ label: `Личных исключений: ${personalCount}`, tone: "purple" })
+      }
+      if (staffWithoutBuildings) {
+        reasons.push({ label: "Нет привязки к зданиям", tone: "red" })
+      }
+      if (!user.isActive && personalCount > 0) {
+        reasons.push({ label: "Неактивен, но есть личные права", tone: "red" })
+      }
+
+      if (reasons.length === 0) return null
+
+      return {
+        userId: user.id,
+        name: user.name,
+        role: user.role,
+        roleLabel: displayRoleLabel(user.role),
+        reasons,
+        score: (user.role !== "OWNER" ? summary.highRisk : 0) + personalCount * 2 + (staffWithoutBuildings ? 10 : 0),
+      }
+    })
+    .filter((item): item is AccessReviewItem => Boolean(item))
+    .sort((a, b) => b.score - a.score)
+
+  const accessReviewStats = {
+    riskyUsers: accessReviewItems.filter((item) => item.reasons.some((reason) => reason.tone === "amber")).length,
+    personalOverrides: Array.from(effectiveRightsByUserId.values()).reduce(
+      (sum, summary) => sum + summary.personalAllow + summary.personalDeny,
+      0,
+    ),
+    staffWithoutBuildings: users.filter((user) => user.isActive && isStaffLikeRole(user.role) && user.buildingAccess.length === 0).length,
+    lockedByPlan: capabilities.filter((capability) => capability.locked).length,
+  }
+
   const byRole = users.reduce<Record<string, number>>((acc, user) => {
     if (user.isActive) acc[user.role] = (acc[user.role] ?? 0) + 1
     return acc
@@ -228,6 +283,77 @@ export default async function UsersPage() {
             <p className="mt-0.5 truncate text-xs text-slate-500">{role.label}</p>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+              <Shield className="h-4 w-4 text-blue-300" />
+              Ревизия доступов
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Быстрая проверка: кому выдали рискованные действия, личные исключения и где забыли привязать здания.
+            </p>
+          </div>
+          <Link
+            href="/admin/data-quality"
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-700 px-3 text-xs font-medium text-slate-300 transition-colors hover:border-slate-600 hover:text-slate-100"
+          >
+            Открыть качество данных
+          </Link>
+        </div>
+
+        <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <AccessReviewMetric label="Сотрудников с риском" value={accessReviewStats.riskyUsers} tone={accessReviewStats.riskyUsers > 0 ? "amber" : "emerald"} />
+          <AccessReviewMetric label="Личных исключений" value={accessReviewStats.personalOverrides} tone={accessReviewStats.personalOverrides > 0 ? "purple" : "emerald"} />
+          <AccessReviewMetric label="Без зданий" value={accessReviewStats.staffWithoutBuildings} tone={accessReviewStats.staffWithoutBuildings > 0 ? "red" : "emerald"} />
+          <AccessReviewMetric label="Закрыто тарифом" value={accessReviewStats.lockedByPlan} tone="slate" />
+        </div>
+
+        {accessReviewItems.length > 0 ? (
+          <div className="border-t border-slate-800 p-4">
+            <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-300">
+              <AlertTriangle className="h-4 w-4" />
+              Проверить в первую очередь
+            </p>
+            <div className="grid gap-2 lg:grid-cols-2">
+              {accessReviewItems.slice(0, 6).map((item) => (
+                <div key={item.userId} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-slate-100">{item.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{item.roleLabel}</p>
+                    </div>
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      ROLE_COLORS[item.role] ?? "bg-indigo-500/10 text-indigo-300",
+                    )}>
+                      {item.roleLabel}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {item.reasons.map((reason) => (
+                      <AccessReasonPill key={reason.label} reason={reason} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="border-t border-slate-800 p-4">
+            <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
+              <div>
+                <p className="text-sm font-medium text-emerald-100">Критичных отклонений по доступам не найдено</p>
+                <p className="mt-1 text-xs text-emerald-200/70">
+                  Все активные сотрудники привязаны к зданиям, а личные исключения и рискованные права не требуют внимания.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
@@ -497,5 +623,44 @@ function EffectiveRightsCell({ summary }: { summary: EffectiveRightsSummary }) {
         </span>
       )}
     </div>
+  )
+}
+
+function AccessReviewMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone: "amber" | "emerald" | "purple" | "red" | "slate"
+}) {
+  const tones = {
+    amber: "border-amber-500/25 bg-amber-500/10 text-amber-200",
+    emerald: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
+    purple: "border-purple-500/25 bg-purple-500/10 text-purple-200",
+    red: "border-red-500/25 bg-red-500/10 text-red-200",
+    slate: "border-slate-800 bg-slate-950/50 text-slate-300",
+  }
+
+  return (
+    <div className={`rounded-lg border p-3 ${tones[tone]}`}>
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="mt-1 text-xs opacity-75">{label}</p>
+    </div>
+  )
+}
+
+function AccessReasonPill({ reason }: { reason: AccessReviewItem["reasons"][number] }) {
+  const tones = {
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
+    red: "border-red-500/30 bg-red-500/10 text-red-200",
+  }
+
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${tones[reason.tone]}`}>
+      {reason.label}
+    </span>
   )
 }
