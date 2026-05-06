@@ -124,6 +124,8 @@ export function FloorEditor({
   const [history, setHistory] = useState<FloorLayoutV2[]>([])
   const [future, setFuture] = useState<FloorLayoutV2[]>([])
   const isRestoringRef = useRef(false)
+  const layoutRef = useRef(layout)
+  const dragHistoryCapturedRef = useRef(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 })
   const [tool, setTool] = useState<Tool>("select")
@@ -144,6 +146,10 @@ export function FloorEditor({
     active: false, first: null, second: null,
   })
 
+  useEffect(() => {
+    layoutRef.current = layout
+  }, [layout])
+
   // setLayout с записью в историю
   const setLayout = useCallback((next: FloorLayoutV2 | ((prev: FloorLayoutV2) => FloorLayoutV2)) => {
     if (isRestoringRef.current) {
@@ -157,6 +163,18 @@ export function FloorEditor({
       setFuture([])
       return newLayout
     })
+  }, [])
+
+  const setLayoutDraft = useCallback((next: FloorLayoutV2 | ((prev: FloorLayoutV2) => FloorLayoutV2)) => {
+    setLayoutRaw(next)
+  }, [])
+
+  const rememberLayoutForDrag = useCallback(() => {
+    if (dragHistoryCapturedRef.current) return
+    dragHistoryCapturedRef.current = true
+    const snapshot = layoutRef.current
+    setHistory((h) => [...h.slice(-49), snapshot])
+    setFuture([])
   }, [])
 
   const undo = useCallback(() => {
@@ -348,6 +366,13 @@ export function FloorEditor({
     }))
   }
 
+  const updateElementDraft = (id: string, patch: Partial<FloorElement>) => {
+    setLayoutDraft((prev) => ({
+      ...prev,
+      elements: prev.elements.map((el) => (el.id === id ? ({ ...el, ...patch } as FloorElement) : el)),
+    }))
+  }
+
   const deleteElement = (id: string) => {
     setLayout((prev) => ({ ...prev, elements: prev.elements.filter((e) => e.id !== id) }))
     if (selectedId === id) setSelectedId(null)
@@ -479,7 +504,7 @@ export function FloorEditor({
       const y = Math.min(ds.startSvg.y, pt.y)
       const w = Math.abs(pt.x - ds.startSvg.x)
       const h = Math.abs(pt.y - ds.startSvg.y)
-      updateElement(ds.elId, { x: snap(x), y: snap(y), width: snap(w), height: snap(h) } as Partial<FloorElement>)
+      updateElementDraft(ds.elId, { x: snap(x), y: snap(y), width: snap(w), height: snap(h) } as Partial<FloorElement>)
       return
     }
 
@@ -489,22 +514,23 @@ export function FloorEditor({
       const endX = snapPoint ? snapPoint.x : snap(pt.x)
       const endY = snapPoint ? snapPoint.y : snap(pt.y)
       setSnapTarget(snapPoint)
-      updateElement(ds.elId, { x2: endX, y2: endY } as Partial<FloorElement>)
+      updateElementDraft(ds.elId, { x2: endX, y2: endY } as Partial<FloorElement>)
       return
     }
 
     if (ds.type === "move" && ds.elId && ds.startEl && ds.startSvg) {
+      rememberLayoutForDrag()
       const dx = pt.x - ds.startSvg.x
       const dy = pt.y - ds.startSvg.y
       const startEl = ds.startEl
       if (startEl.type === "rect" || startEl.type === "door" || startEl.type === "window" || startEl.type === "label" || startEl.type === "icon") {
-        updateElement(ds.elId, { x: snap(startEl.x + dx), y: snap(startEl.y + dy) } as Partial<FloorElement>)
+        updateElementDraft(ds.elId, { x: snap(startEl.x + dx), y: snap(startEl.y + dy) } as Partial<FloorElement>)
       } else if (startEl.type === "polygon") {
-        updateElement(ds.elId, {
+        updateElementDraft(ds.elId, {
           points: startEl.points.map((p) => ({ x: snap(p.x + dx), y: snap(p.y + dy) })),
         } as Partial<FloorElement>)
       } else if (startEl.type === "wall") {
-        updateElement(ds.elId, {
+        updateElementDraft(ds.elId, {
           x1: snap(startEl.x1 + dx),
           y1: snap(startEl.y1 + dy),
           x2: snap(startEl.x2 + dx),
@@ -515,6 +541,7 @@ export function FloorEditor({
     }
 
     if (ds.type === "resize-rect" && ds.elId && ds.startEl && ds.handle && ds.startSvg) {
+      rememberLayoutForDrag()
       const dx = pt.x - ds.startSvg.x
       const dy = pt.y - ds.startSvg.y
       const start = ds.startEl
@@ -530,17 +557,18 @@ export function FloorEditor({
         y = start.y + dy
         height = Math.max(0.5, start.height - dy)
       }
-      updateElement(ds.elId, { x: snap(x), y: snap(y), width: snap(width), height: snap(height) } as Partial<FloorElement>)
+      updateElementDraft(ds.elId, { x: snap(x), y: snap(y), width: snap(width), height: snap(height) } as Partial<FloorElement>)
       return
     }
 
     if (ds.type === "resize-poly" && ds.elId && ds.startEl && ds.vertexIndex !== undefined) {
+      rememberLayoutForDrag()
       const start = ds.startEl
       if (start.type !== "polygon") return
       const newPoints = start.points.map((p, i) =>
         i === ds.vertexIndex ? { x: snap(pt.x), y: snap(pt.y) } : p
       )
-      updateElement(ds.elId, { points: newPoints } as Partial<FloorElement>)
+      updateElementDraft(ds.elId, { points: newPoints } as Partial<FloorElement>)
     }
   }
 
@@ -555,6 +583,7 @@ export function FloorEditor({
     }
     // wall, draw-rect: тоже не сбрасываем — рисуем ещё одну стену/прямоугольник
     dragStateRef.current = null
+    dragHistoryCapturedRef.current = false
     setSnapTarget(null)
   }
 
