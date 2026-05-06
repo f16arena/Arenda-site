@@ -24,6 +24,68 @@ import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
+type SafeQuery = <T>(source: string, promise: Promise<T>, fallback: T) => Promise<T>
+
+type OverviewBuilding = {
+  id: string
+  name: string
+  address: string
+  floors: Array<{
+    id: string
+    name: string
+    number: number
+    totalArea: number | null
+    ratePerSqm: number
+  }>
+}
+
+type SpaceTenantInfo = {
+  id: string
+  companyName: string
+  contractEnd: Date | null
+  customRate: number | null
+  fixedMonthlyRent: number | null
+  fullFloors: Array<{ fixedMonthlyRent: number | null }>
+  tenantSpaces: Array<{ space: { area: number; floor: { ratePerSqm: number } } }>
+}
+
+type SelectedSpaceInfo = {
+  id: string
+  number: string
+  area: number
+  status: string
+  kind: string
+  description: string | null
+  tenant: SpaceTenantInfo | null
+  tenantSpaces: Array<{ tenant: SpaceTenantInfo }>
+}
+
+type SelectedFloorInfo = {
+  id: string
+  number: number
+  name: string
+  ratePerSqm: number
+  totalArea: number | null
+  layoutJson: string | null
+  fullFloorTenant: { id: string; companyName: string; contractEnd: Date | null } | null
+  spaces: SelectedSpaceInfo[]
+}
+
+type SelectedBuildingInfo = {
+  id: string
+  name: string
+  address: string
+  totalArea: number | null
+  floors: SelectedFloorInfo[]
+}
+
+type AssignableTenantInfo = {
+  id: string
+  companyName: string
+  space: { number: string; floor: { buildingId: string; name: string } } | null
+  tenantSpaces: Array<{ space: { number: string; floor: { buildingId: string; name: string } } }>
+}
+
 export default async function SpacesPage() {
   return measureServerRoute("/admin/spaces", async () => {
   const { orgId } = await requireOrgAccess()
@@ -74,25 +136,11 @@ export default async function SpacesPage() {
       )
     }
 
-    const buildings = await measureServerStep("/admin/spaces", "building-overview", db.building.findMany({
-      where: { id: { in: accessibleBuildingIds }, organizationId: orgId, isActive: true },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        floors: {
-          orderBy: { number: "asc" },
-          select: {
-            id: true,
-            name: true,
-            number: true,
-            totalArea: true,
-            ratePerSqm: true,
-          },
-        },
-      },
-    }))
+    const buildings = await measureServerStep(
+      "/admin/spaces",
+      "building-overview",
+      getOverviewBuildings(orgId, accessibleBuildingIds, safe),
+    )
     const floorIds = buildings.flatMap((building) => building.floors.map((floor) => floor.id))
     const spaceStats = floorIds.length > 0
       ? await safe(
@@ -261,116 +309,11 @@ export default async function SpacesPage() {
 
   const [building, hasFloorEditor, tenantOptionsRaw] = buildingId
     ? await measureServerStep("/admin/spaces", "selected-building", Promise.all([
-        db.building.findUnique({
-          where: { id: buildingId },
-          include: {
-            floors: {
-              orderBy: { number: "asc" },
-              include: {
-                fullFloorTenant: {
-                  select: { id: true, companyName: true, contractEnd: true },
-                },
-                spaces: {
-                  include: {
-                    tenant: {
-                      select: {
-                        id: true,
-                        companyName: true,
-                        contractEnd: true,
-                        customRate: true,
-                        fixedMonthlyRent: true,
-                        fullFloors: { select: { fixedMonthlyRent: true } },
-                        tenantSpaces: {
-                          select: {
-                            space: {
-                              select: {
-                                area: true,
-                                floor: { select: { ratePerSqm: true } },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                    tenantSpaces: {
-                      select: {
-                        tenant: {
-                          select: {
-                            id: true,
-                            companyName: true,
-                            contractEnd: true,
-                            customRate: true,
-                            fixedMonthlyRent: true,
-                            fullFloors: { select: { fixedMonthlyRent: true } },
-                            tenantSpaces: {
-                              select: {
-                                space: {
-                                  select: {
-                                    area: true,
-                                    floor: { select: { ratePerSqm: true } },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                  orderBy: { number: "asc" },
-                },
-              },
-            },
-          },
-        }),
+        getSelectedBuilding(buildingId, safe),
         hasFeature(orgId, "floorEditor"),
-        safe(
-          "admin.spaces.assignableTenants",
-          db.tenant.findMany({
-            where: {
-              AND: [
-                tenantScope(orgId),
-                { fullFloors: { none: {} } },
-                {
-                  OR: [
-                    { spaceId: null },
-                    { space: { floor: { buildingId } } },
-                  ],
-                },
-                {
-                  tenantSpaces: {
-                    none: { space: { floor: { buildingId: { not: buildingId } } } },
-                  },
-                },
-              ],
-            },
-            orderBy: { companyName: "asc" },
-            select: {
-              id: true,
-              companyName: true,
-              space: {
-                select: {
-                  number: true,
-                  floor: { select: { buildingId: true, name: true } },
-                },
-              },
-              tenantSpaces: {
-                orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-                select: {
-                  space: {
-                    select: {
-                      number: true,
-                      floor: { select: { buildingId: true, name: true } },
-                    },
-                  },
-                },
-              },
-            },
-          }),
-          [],
-        ),
+        getAssignableTenants(orgId, buildingId, safe),
       ]))
-    : [null, await hasFeature(orgId, "floorEditor"), []]
+    : [null, await hasFeature(orgId, "floorEditor"), [] as AssignableTenantInfo[]]
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
   // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
   const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
@@ -755,4 +698,325 @@ export default async function SpacesPage() {
     </div>
   )
   })
+}
+
+async function getOverviewBuildings(
+  orgId: string,
+  accessibleBuildingIds: string[],
+  safe: SafeQuery,
+): Promise<OverviewBuilding[]> {
+  const where = { id: { in: accessibleBuildingIds }, organizationId: orgId, isActive: true }
+  const full = await safe(
+    "admin.spaces.overviewBuildings.full",
+    db.building.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        floors: {
+          orderBy: { number: "asc" },
+          select: {
+            id: true,
+            name: true,
+            number: true,
+            totalArea: true,
+            ratePerSqm: true,
+          },
+        },
+      },
+    }) as unknown as Promise<OverviewBuilding[]>,
+    null as OverviewBuilding[] | null,
+  )
+  if (full) return full
+
+  return safe(
+    "admin.spaces.overviewBuildings.legacy",
+    db.building.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        floors: {
+          orderBy: { number: "asc" },
+          select: {
+            id: true,
+            name: true,
+            number: true,
+            ratePerSqm: true,
+          },
+        },
+      },
+    }).then((rows) => rows.map((building) => ({
+      ...building,
+      floors: building.floors.map((floor) => ({ ...floor, totalArea: null })),
+    }))),
+    [] as OverviewBuilding[],
+  )
+}
+
+async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise<SelectedBuildingInfo | null> {
+  const full = await safe(
+    "admin.spaces.selectedBuilding.full",
+    db.building.findUnique({
+      where: { id: buildingId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        totalArea: true,
+        floors: {
+          orderBy: { number: "asc" },
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            ratePerSqm: true,
+            totalArea: true,
+            layoutJson: true,
+            fullFloorTenant: {
+              select: { id: true, companyName: true, contractEnd: true },
+            },
+            spaces: {
+              orderBy: { number: "asc" },
+              select: {
+                id: true,
+                number: true,
+                area: true,
+                status: true,
+                kind: true,
+                description: true,
+                tenant: {
+                  select: {
+                    id: true,
+                    companyName: true,
+                    contractEnd: true,
+                    customRate: true,
+                    fixedMonthlyRent: true,
+                    fullFloors: { select: { fixedMonthlyRent: true } },
+                    tenantSpaces: {
+                      select: {
+                        space: {
+                          select: {
+                            area: true,
+                            floor: { select: { ratePerSqm: true } },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+                tenantSpaces: {
+                  select: {
+                    tenant: {
+                      select: {
+                        id: true,
+                        companyName: true,
+                        contractEnd: true,
+                        customRate: true,
+                        fixedMonthlyRent: true,
+                        fullFloors: { select: { fixedMonthlyRent: true } },
+                        tenantSpaces: {
+                          select: {
+                            space: {
+                              select: {
+                                area: true,
+                                floor: { select: { ratePerSqm: true } },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }) as unknown as Promise<SelectedBuildingInfo | null>,
+    null,
+  )
+  if (full) return full
+
+  return safe(
+    "admin.spaces.selectedBuilding.legacy",
+    db.building.findUnique({
+      where: { id: buildingId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        floors: {
+          orderBy: { number: "asc" },
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            ratePerSqm: true,
+            spaces: {
+              orderBy: { number: "asc" },
+              select: {
+                id: true,
+                number: true,
+                area: true,
+                status: true,
+                description: true,
+                tenant: {
+                  select: {
+                    id: true,
+                    companyName: true,
+                    contractEnd: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    }).then((building) => building ? normalizeLegacySelectedBuilding(building) : null),
+    null as SelectedBuildingInfo | null,
+  )
+}
+
+async function getAssignableTenants(
+  orgId: string,
+  buildingId: string,
+  safe: SafeQuery,
+): Promise<AssignableTenantInfo[]> {
+  const full = await safe(
+    "admin.spaces.assignableTenants.full",
+    db.tenant.findMany({
+      where: {
+        AND: [
+          tenantScope(orgId),
+          { fullFloors: { none: {} } },
+          {
+            OR: [
+              { spaceId: null },
+              { space: { floor: { buildingId } } },
+            ],
+          },
+          {
+            tenantSpaces: {
+              none: { space: { floor: { buildingId: { not: buildingId } } } },
+            },
+          },
+        ],
+      },
+      orderBy: { companyName: "asc" },
+      select: {
+        id: true,
+        companyName: true,
+        space: {
+          select: {
+            number: true,
+            floor: { select: { buildingId: true, name: true } },
+          },
+        },
+        tenantSpaces: {
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          select: {
+            space: {
+              select: {
+                number: true,
+                floor: { select: { buildingId: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    }) as unknown as Promise<AssignableTenantInfo[]>,
+    null as AssignableTenantInfo[] | null,
+  )
+  if (full) return full
+
+  return safe(
+    "admin.spaces.assignableTenants.legacy",
+    db.tenant.findMany({
+      where: {
+        user: { organizationId: orgId },
+        OR: [
+          { spaceId: null },
+          { space: { floor: { buildingId } } },
+        ],
+      },
+      orderBy: { companyName: "asc" },
+      select: {
+        id: true,
+        companyName: true,
+        space: {
+          select: {
+            number: true,
+            floor: { select: { buildingId: true, name: true } },
+          },
+        },
+      },
+    }).then((rows) => rows.map((tenant) => ({ ...tenant, tenantSpaces: [] }))),
+    [] as AssignableTenantInfo[],
+  )
+}
+
+function normalizeLegacySelectedBuilding(building: {
+  id: string
+  name: string
+  address: string
+  floors: Array<{
+    id: string
+    number: number
+    name: string
+    ratePerSqm: number
+    spaces: Array<{
+      id: string
+      number: string
+      area: number
+      status: string
+      description: string | null
+      tenant: { id: string; companyName: string; contractEnd: Date | null } | null
+    }>
+  }>
+}): SelectedBuildingInfo {
+  return {
+    id: building.id,
+    name: building.name,
+    address: building.address,
+    totalArea: null,
+    floors: building.floors.map((floor) => ({
+      id: floor.id,
+      number: floor.number,
+      name: floor.name,
+      ratePerSqm: floor.ratePerSqm,
+      totalArea: null,
+      layoutJson: null,
+      fullFloorTenant: null,
+      spaces: floor.spaces.map((space) => ({
+        id: space.id,
+        number: space.number,
+        area: space.area,
+        status: space.status,
+        kind: "RENTABLE",
+        description: space.description,
+        tenant: space.tenant ? normalizeLegacyTenant(space.tenant, space.area, floor.ratePerSqm) : null,
+        tenantSpaces: [],
+      })),
+    })),
+  }
+}
+
+function normalizeLegacyTenant(
+  tenant: { id: string; companyName: string; contractEnd: Date | null },
+  area: number,
+  ratePerSqm: number,
+): SpaceTenantInfo {
+  return {
+    ...tenant,
+    customRate: null,
+    fixedMonthlyRent: null,
+    fullFloors: [],
+    tenantSpaces: [{ space: { area, floor: { ratePerSqm } } }],
+  }
 }

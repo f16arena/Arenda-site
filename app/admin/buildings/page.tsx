@@ -11,11 +11,67 @@ import { BuildingAdminAssign } from "./admin-assign"
 import { requireOrgAccess } from "@/lib/org"
 import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-access"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import { safeServerValue } from "@/lib/server-fallback"
+
+type BuildingListItem = {
+  id: string
+  name: string
+  address: string
+  addressCountryCode: string | null
+  addressRegion: string | null
+  addressCity: string | null
+  addressSettlement: string | null
+  addressStreet: string | null
+  addressHouseNumber: string | null
+  addressPostcode: string | null
+  addressLatitude: number | null
+  addressLongitude: number | null
+  addressSource: string | null
+  addressSourceId: string | null
+  description: string | null
+  phone: string | null
+  email: string | null
+  responsible: string | null
+  totalArea: number | null
+  isActive: boolean
+  administratorUserId: string | null
+  administrator: { id: string; name: string; email: string | null; phone: string | null } | null
+  floors: Array<{
+    id: string
+    number: number
+    name: string
+    ratePerSqm: number
+    totalArea: number | null
+    _count: { spaces: number }
+  }>
+  _count: { floors: number }
+}
+
+type LegacyBuildingListItem = {
+  id: string
+  name: string
+  address: string
+  description: string | null
+  phone: string | null
+  email: string | null
+  responsible: string | null
+  isActive: boolean
+  floors: Array<{
+    id: string
+    number: number
+    name: string
+    ratePerSqm: number
+    _count: { spaces: number }
+  }>
+  _count: { floors: number }
+}
 
 export default async function BuildingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/buildings", orgId, userId: session.user.id })
   const isOwner = isOwnerLike(session.user.role, session.user.isPlatformOwner)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const allowedCapabilities = new Set(await getAllowedCapabilityKeysForUser({
@@ -33,7 +89,59 @@ export default async function BuildingsPage() {
 
   const currentBuildingId = await getCurrentBuildingId()
 
-  const buildings = await db.building.findMany({
+  const buildingWhere = {
+    organizationId: orgId,
+    ...(isOwner ? {} : { id: { in: accessibleBuildingIds }, isActive: true }),
+  }
+
+  const fullBuildings = await safe(
+    "admin.buildings.items.full",
+    db.building.findMany({
+      where: buildingWhere,
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        addressCountryCode: true,
+        addressRegion: true,
+        addressCity: true,
+        addressSettlement: true,
+        addressStreet: true,
+        addressHouseNumber: true,
+        addressPostcode: true,
+        addressLatitude: true,
+        addressLongitude: true,
+        addressSource: true,
+        addressSourceId: true,
+        description: true,
+        phone: true,
+        email: true,
+        responsible: true,
+        totalArea: true,
+        isActive: true,
+        administratorUserId: true,
+        administrator: { select: { id: true, name: true, email: true, phone: true } },
+        floors: {
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            ratePerSqm: true,
+            totalArea: true,
+            _count: { select: { spaces: true } },
+          },
+          orderBy: { number: "asc" },
+        },
+        _count: { select: { floors: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }) as unknown as Promise<BuildingListItem[]>,
+    null as BuildingListItem[] | null,
+  )
+
+  const legacyBuildings = await safe(
+    "admin.buildings.items.legacy",
+    db.building.findMany({
     where: {
       organizationId: orgId,
       ...(isOwner ? {} : { id: { in: accessibleBuildingIds }, isActive: true }),
@@ -42,32 +150,17 @@ export default async function BuildingsPage() {
       id: true,
       name: true,
       address: true,
-      addressCountryCode: true,
-      addressRegion: true,
-      addressCity: true,
-      addressSettlement: true,
-      addressStreet: true,
-      addressHouseNumber: true,
-      addressPostcode: true,
-      addressLatitude: true,
-      addressLongitude: true,
-      addressSource: true,
-      addressSourceId: true,
       description: true,
       phone: true,
       email: true,
       responsible: true,
-      totalArea: true,
       isActive: true,
-      administratorUserId: true,
-      administrator: { select: { id: true, name: true, email: true, phone: true } },
       floors: {
         select: {
           id: true,
           number: true,
           name: true,
           ratePerSqm: true,
-          totalArea: true,
           _count: { select: { spaces: true } },
         },
         orderBy: { number: "asc" },
@@ -75,35 +168,43 @@ export default async function BuildingsPage() {
       _count: { select: { floors: true } },
     },
     orderBy: { createdAt: "asc" },
-  })
+    }).then((rows) => rows.map(normalizeLegacyBuilding)),
+    [] as BuildingListItem[],
+  )
+  const buildings: BuildingListItem[] = fullBuildings ?? legacyBuildings
 
   // contractPrefix отдельным запросом — может не быть в БД до миграции 007
-  let prefixMap = new Map<string, string | null>()
-  try {
-    const withPrefix = await db.building.findMany({
+  const withPrefix = await safe(
+    "admin.buildings.contractPrefixes",
+    db.building.findMany({
       where: { id: { in: buildings.map((b) => b.id) } },
       select: { id: true, contractPrefix: true },
-    })
-    prefixMap = new Map(withPrefix.map((b) => [b.id, b.contractPrefix]))
-  } catch { /* migration 007 not applied yet */ }
+    }),
+    [] as Array<{ id: string; contractPrefix: string | null }>,
+  )
+  const prefixMap = new Map(withPrefix.map((b) => [b.id, b.contractPrefix]))
 
   // Кандидаты в администраторы здания: ADMIN и OWNER из этой организации
-  const adminCandidates = await db.user.findMany({
-    where: { organizationId: orgId, isActive: true, role: { in: ["ADMIN", "OWNER"] } },
-    select: { id: true, name: true, email: true, phone: true, role: true },
-    orderBy: [{ role: "asc" }, { name: "asc" }],
-  })
+  const adminCandidates = await safe(
+    "admin.buildings.adminCandidates",
+    db.user.findMany({
+      where: { organizationId: orgId, isActive: true, role: { in: ["ADMIN", "OWNER"] } },
+      select: { id: true, name: true, email: true, phone: true, role: true },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    }),
+    [] as Array<{ id: string; name: string; email: string | null; phone: string | null; role: string }>,
+  )
 
   // Считаем арендаторов и помещения по каждому зданию
   const stats = await Promise.all(
     buildings.map(async (b) => {
       const floorIds = b.floors.map((f) => f.id)
       const [tenantsCount, spacesCount, occupiedCount] = await Promise.all([
-        db.tenant.count({
+        safe(`admin.buildings.${b.id}.tenantsCount`, db.tenant.count({
           where: { space: { floorId: { in: floorIds } } },
-        }),
-        db.space.count({ where: { floorId: { in: floorIds } } }),
-        db.space.count({ where: { floorId: { in: floorIds }, status: "OCCUPIED" } }),
+        }), 0),
+        safe(`admin.buildings.${b.id}.spacesCount`, db.space.count({ where: { floorId: { in: floorIds } } }), 0),
+        safe(`admin.buildings.${b.id}.occupiedCount`, db.space.count({ where: { floorId: { in: floorIds }, status: "OCCUPIED" } }), 0),
       ])
       return { id: b.id, tenantsCount, spacesCount, occupiedCount }
     })
@@ -287,6 +388,27 @@ export default async function BuildingsPage() {
       </div>
     </div>
   )
+}
+
+function normalizeLegacyBuilding(building: LegacyBuildingListItem): BuildingListItem {
+  return {
+    ...building,
+    addressCountryCode: null,
+    addressRegion: null,
+    addressCity: null,
+    addressSettlement: null,
+    addressStreet: null,
+    addressHouseNumber: null,
+    addressPostcode: null,
+    addressLatitude: null,
+    addressLongitude: null,
+    addressSource: null,
+    addressSourceId: null,
+    totalArea: null,
+    administratorUserId: null,
+    administrator: null,
+    floors: building.floors.map((floor) => ({ ...floor, totalArea: null })),
+  }
 }
 
 function Stat({
