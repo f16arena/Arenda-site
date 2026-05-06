@@ -13,8 +13,8 @@ export default async function CabinetFinances() {
     where: { userId: session!.user.id },
     include: {
       user: { select: { organizationId: true } },
-      charges: { orderBy: { createdAt: "desc" } },
-      payments: { orderBy: { paymentDate: "desc" } },
+      charges: { orderBy: { createdAt: "desc" }, take: 80 },
+      payments: { orderBy: { paymentDate: "desc" }, take: 8 },
       paymentReports: {
         where: { status: { in: ["PENDING", "DISPUTED", "REJECTED"] } },
         orderBy: { createdAt: "desc" },
@@ -31,7 +31,10 @@ export default async function CabinetFinances() {
 
   if (!tenant) return null
 
-  const totalDebt = tenant.charges.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
+  const totalDebt = await db.charge.aggregate({
+    where: { tenantId: tenant.id, isPaid: false },
+    _sum: { amount: true },
+  }).then((result) => result._sum.amount ?? 0).catch(() => 0)
   const area = getTenantAreaTotal(tenant)
   const rate = calculateTenantRatePerSqm(tenant) ?? 0
   const monthlyRent = calculateTenantMonthlyRent(tenant)
@@ -148,7 +151,7 @@ export default async function CabinetFinances() {
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">История оплат</h2>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
-            {tenant.payments.slice(0, 8).map((payment) => (
+            {tenant.payments.map((payment) => (
               <div key={payment.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div>
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(payment.amount)}</p>

@@ -13,12 +13,17 @@ export default async function CabinetRequests() {
     include: {
       requests: {
         orderBy: { createdAt: "desc" },
-        include: { comments: true },
+        take: 50,
+        include: { _count: { select: { comments: true } } },
       },
     },
   })
 
   if (!tenant) return null
+
+  const activeRequests = tenant.requests.filter((request) => !["DONE", "CLOSED", "CANCELLED"].includes(request.status)).length
+  const waitingRequests = tenant.requests.filter((request) => ["NEW", "OPEN"].includes(request.status)).length
+  const doneRequests = tenant.requests.filter((request) => ["DONE", "CLOSED"].includes(request.status)).length
 
   const requestIds = tenant.requests.map((request) => request.id)
   const attachments = requestIds.length > 0
@@ -49,6 +54,12 @@ export default async function CabinetRequests() {
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.requests.length} заявок</p>
         </div>
         <RequestDialog />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <RequestStat label="Активные" value={activeRequests} tone="blue" />
+        <RequestStat label="Ожидают принятия" value={waitingRequests} tone="amber" />
+        <RequestStat label="Закрытые" value={doneRequests} tone="emerald" />
       </div>
 
       <div className="space-y-3">
@@ -85,8 +96,8 @@ export default async function CabinetRequests() {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400 dark:text-slate-500">
                   <span>{REQUEST_TYPE_LABELS[r.type] ?? r.type}</span>
                   <span>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>
-                  {r.comments.length > 0 && (
-                    <span>{r.comments.length} комментариев</span>
+                  {r._count.comments > 0 && (
+                    <span>{r._count.comments} комментариев</span>
                   )}
                 </div>
               </div>
@@ -104,6 +115,21 @@ export default async function CabinetRequests() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function RequestStat({ label, value, tone }: { label: string; value: number; tone: "blue" | "amber" | "emerald" }) {
+  const toneClass = tone === "blue"
+    ? "text-blue-600 dark:text-blue-300"
+    : tone === "amber"
+      ? "text-amber-600 dark:text-amber-300"
+      : "text-emerald-600 dark:text-emerald-300"
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <p className={`text-2xl font-bold ${toneClass}`}>{value}</p>
+      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{label}</p>
     </div>
   )
 }

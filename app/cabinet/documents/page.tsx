@@ -11,12 +11,15 @@ export default async function CabinetDocuments() {
   const tenant = await db.tenant.findUnique({
     where: { userId: session!.user.id },
     include: {
-      contracts: { orderBy: { createdAt: "desc" } },
-      documents: { orderBy: { createdAt: "desc" } },
+      contracts: { orderBy: { createdAt: "desc" }, take: 50 },
+      documents: { orderBy: { createdAt: "desc" }, take: 50 },
     },
   })
 
   if (!tenant) return null
+
+  const pendingSignatureCount = tenant.contracts.filter((contract) => ["SENT", "VIEWED"].includes(contract.status)).length
+  const signedContractsCount = tenant.contracts.filter((contract) => contract.status === "SIGNED").length
 
   const typeLabel: Record<string, string> = {
     STANDARD: "Договор аренды",
@@ -40,6 +43,12 @@ export default async function CabinetDocuments() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Договоры и ваши документы</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <DocumentStat label="Ожидают подписи" value={pendingSignatureCount} tone="amber" />
+        <DocumentStat label="Подписаны" value={signedContractsCount} tone="emerald" />
+        <DocumentStat label="Мои файлы" value={tenant.documents.length} tone="blue" />
       </div>
 
       {/* Contracts */}
@@ -131,6 +140,21 @@ export default async function CabinetDocuments() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function DocumentStat({ label, value, tone }: { label: string; value: number; tone: "blue" | "amber" | "emerald" }) {
+  const toneClass = tone === "blue"
+    ? "text-blue-600 dark:text-blue-300"
+    : tone === "amber"
+      ? "text-amber-600 dark:text-amber-300"
+      : "text-emerald-600 dark:text-emerald-300"
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <p className={`text-2xl font-bold ${toneClass}`}>{value}</p>
+      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{label}</p>
     </div>
   )
 }
