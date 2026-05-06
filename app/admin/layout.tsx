@@ -14,11 +14,17 @@ import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { CURRENT_BUILDING_COOKIE, resolveCurrentBuildingIdFromSelection } from "@/lib/current-building"
-import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-access"
-import { getAllowedSections, SECTIONS } from "@/lib/acl"
+import { isOwnerLike } from "@/lib/building-access"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
+import {
+  getCachedAdminShellBuildings,
+  getCachedAdminShellOrg,
+  getCachedAdminShellSections,
+  getCachedAdminShellUser,
+  getCachedUnreadNotificationCount,
+} from "@/lib/admin-shell-cache"
 
 const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
 
@@ -76,44 +82,29 @@ async function renderAdminLayout(children: React.ReactNode) {
   const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections] = await measureServerStep("/admin/layout", "admin-shell-data", Promise.all([
     currentOrgId
       ? safeServerValue(
-          db.organization.findUnique({
-            where: { id: currentOrgId },
-            select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
-          }),
+          getCachedAdminShellOrg(currentOrgId),
           null,
           { source: "admin.layout.currentOrg", route: "/admin", orgId: currentOrgId, userId: session.user.id },
         )
       : Promise.resolve(null),
     safeServerValue(
-      db.user.findUnique({
-        where: { id: session.user.id },
-        select: { name: true, email: true, emailVerifiedAt: true },
-      }),
+      getCachedAdminShellUser(session.user.id),
       null,
       { source: "admin.layout.freshUser", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
     ),
     currentOrgId
       ? safeServerValue(
-          getAccessibleBuildingsForUser({
-            userId: session.user.id,
-            orgId: currentOrgId,
-            role: session.user.role,
-            isPlatformOwner,
-          }),
+          getCachedAdminShellBuildings(session.user.id, currentOrgId, session.user.role, isPlatformOwner),
           [] as Array<{ id: string; name: string; address: string }>,
           { source: "admin.layout.accessibleBuildings", route: "/admin", orgId: currentOrgId, userId: session.user.id },
         )
       : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
     safeServerValue(
-      db.notification.count({
-        where: { userId: session.user.id, isRead: false },
-      }),
+      getCachedUnreadNotificationCount(session.user.id),
       0,
       { source: "admin.layout.unreadNotifications", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
     ),
-    isOwnerLike(session.user.role, isPlatformOwner)
-      ? Promise.resolve(new Set(SECTIONS))
-      : getAllowedSections(session.user.role),
+    getCachedAdminShellSections(session.user.role, isPlatformOwner),
   ]))
 
   const store = await cookies()
@@ -128,9 +119,10 @@ async function renderAdminLayout(children: React.ReactNode) {
   const displayUserName = freshUser?.name?.trim() || session.user.name || "Профиль"
 
   const now = new Date()
-  const isExpired = !!(currentOrg?.planExpiresAt && currentOrg.planExpiresAt < now)
-  const daysLeft = currentOrg?.planExpiresAt
-    ? Math.max(0, Math.ceil((currentOrg.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
+  const planExpiresAt = currentOrg?.planExpiresAtIso ? new Date(currentOrg.planExpiresAtIso) : null
+  const isExpired = !!(planExpiresAt && planExpiresAt < now)
+  const daysLeft = planExpiresAt
+    ? Math.max(0, Math.ceil((planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
   const aggregateLabel = isOwnerLike(session.user.role, session.user.isPlatformOwner) ? "Все здания" : "Мои здания"
   const aggregateSubtitle = isOwnerLike(session.user.role, session.user.isPlatformOwner)
@@ -143,7 +135,7 @@ async function renderAdminLayout(children: React.ReactNode) {
       <AdminSidebar
         buildingName={building?.name ?? aggregateLabel}
         userRole={session.user.role}
-        allowedSections={Array.from(allowedSections)}
+        allowedSections={allowedSections}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         {impersonate && currentOrg && <ImpersonateBanner orgName={currentOrg.name} />}
@@ -155,7 +147,7 @@ async function renderAdminLayout(children: React.ReactNode) {
             isExpired={isExpired}
           />
         )}
-        {freshUser?.email && !freshUser.emailVerifiedAt && (
+        {freshUser?.email && !freshUser.emailVerifiedAtIso && (
           <EmailNotVerifiedBanner email={freshUser.email} profileHref="/admin/profile" />
         )}
         {/* Top Header */}

@@ -1,12 +1,13 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertStaffInOrg, assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 function parseBuildingIds(formData: FormData) {
   return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
@@ -55,6 +56,7 @@ export async function createStaff(formData: FormData) {
 
   revalidatePath("/admin/staff")
   revalidatePath("/admin/users")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 
@@ -95,6 +97,7 @@ export async function updateStaff(staffId: string, userId: string, formData: For
 
   revalidatePath("/admin/staff")
   revalidatePath("/admin/users")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 
@@ -108,6 +111,7 @@ export async function deactivateStaff(userId: string) {
   })
 
   revalidatePath("/admin/staff")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 
@@ -121,6 +125,7 @@ export async function reactivateStaff(userId: string) {
   })
 
   revalidatePath("/admin/staff")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 
@@ -133,4 +138,5 @@ export async function deleteStaff(staffId: string, userId: string) {
   await db.user.update({ where: { id: userId }, data: { isActive: false } })
 
   revalidatePath("/admin/staff")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }

@@ -1,7 +1,7 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import {
   requirePlatformOwner,
@@ -15,6 +15,7 @@ import { slugify, suggestSlugs } from "@/lib/slugify"
 import { ROOT_HOST } from "@/lib/host"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 /**
  * Проверяет доступность slug для регистрации организации.
@@ -129,6 +130,7 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
 
   revalidatePath("/superadmin/orgs")
   revalidatePath("/superadmin")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 
   return {
     orgId: org.id,
@@ -158,6 +160,7 @@ export async function updateOrganization(orgId: string, formData: FormData) {
 
   revalidatePath("/superadmin/orgs")
   revalidatePath(`/superadmin/orgs/${orgId}`)
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function extendSubscription(orgId: string, months: number, paidAmount: number) {
@@ -193,6 +196,7 @@ export async function extendSubscription(orgId: string, months: number, paidAmou
   })
 
   revalidatePath(`/superadmin/orgs/${orgId}`)
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function changeOrgOwner(orgId: string, newOwnerId: string) {
@@ -223,6 +227,7 @@ export async function changeOrgOwner(orgId: string, newOwnerId: string) {
     details: { changed_owner_for_org: orgId, promoted: user.role !== "OWNER" },
   })
   revalidatePath(`/superadmin/orgs/${orgId}`)
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function impersonateOrg(orgId: string) {
@@ -248,11 +253,13 @@ export async function impersonateOrg(orgId: string) {
   })
 
   revalidatePath("/admin", "layout")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function stopImpersonating() {
   await clearImpersonate()
   revalidatePath("/admin", "layout")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 // Платформенный админ выбирает орг для «просмотра» — без impersonate.
@@ -268,12 +275,14 @@ export async function viewOrgAsPlatformOwner(orgId: string) {
   if (!org || !org.isActive) throw new Error("Организация недоступна")
   await setSuperadminOrgCookie(orgId)
   revalidatePath("/admin", "layout")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function exitOrgAsPlatformOwner() {
   await requirePlatformOwner()
   await setSuperadminOrgCookie(null)
   revalidatePath("/admin", "layout")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function deactivateOrganization(orgId: string) {
@@ -290,6 +299,7 @@ export async function deactivateOrganization(orgId: string) {
   })
   revalidatePath("/superadmin/orgs")
   revalidatePath(`/superadmin/orgs/${orgId}`)
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function reactivateOrganization(orgId: string) {
@@ -306,6 +316,7 @@ export async function reactivateOrganization(orgId: string) {
   })
   revalidatePath("/superadmin/orgs")
   revalidatePath(`/superadmin/orgs/${orgId}`)
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 // Полное удаление организации — необратимо.
@@ -339,6 +350,7 @@ export async function deleteOrganization(orgId: string, confirmSlug: string) {
 
   revalidatePath("/superadmin/orgs")
   revalidatePath("/superadmin")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   redirect("/superadmin/orgs")
 }
 

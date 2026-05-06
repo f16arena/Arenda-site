@@ -1,13 +1,14 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOwner } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 const BUILDING_SCOPED_ROLES = new Set(["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"])
 
@@ -67,6 +68,7 @@ export async function createUserAdmin(formData: FormData) {
 
   revalidatePath("/admin/users")
   revalidatePath("/admin/staff")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function updateUserAdmin(userId: string, formData: FormData) {
@@ -100,6 +102,7 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
 
   revalidatePath("/admin/users")
   revalidatePath("/admin/staff")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean) {
@@ -113,6 +116,7 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
   })
 
   revalidatePath("/admin/users")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function resetUserPassword(userId: string, newPassword: string) {
@@ -128,6 +132,7 @@ export async function resetUserPassword(userId: string, newPassword: string) {
   })
 
   revalidatePath("/admin/users")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function deleteUserAdmin(userId: string) {
@@ -164,4 +169,5 @@ export async function deleteUserAdmin(userId: string) {
   revalidatePath("/admin/users")
   revalidatePath("/admin/staff")
   revalidatePath("/admin/tenants")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }

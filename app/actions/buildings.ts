@@ -1,7 +1,7 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOwner, requireAdmin } from "@/lib/permissions"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
 import { ALL_BUILDINGS_COOKIE, assertBuildingAccess } from "@/lib/building-access"
@@ -9,6 +9,7 @@ import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function createBuilding(formData: FormData) {
   await requireOwner()
@@ -46,6 +47,7 @@ export async function createBuilding(formData: FormData) {
 
   revalidatePath("/admin/buildings")
   revalidatePath("/admin")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { id: building.id }
 }
 
@@ -84,6 +86,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
 
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 function readAddressFields(formData: FormData) {
@@ -125,6 +128,7 @@ export async function toggleBuildingActive(buildingId: string, isActive: boolean
   })
 
   revalidatePath("/admin/buildings")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function deleteBuilding(buildingId: string) {
@@ -140,6 +144,7 @@ export async function deleteBuilding(buildingId: string) {
   await db.building.delete({ where: { id: buildingId } })
 
   revalidatePath("/admin/buildings")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
 export async function switchBuilding(buildingId: string) {

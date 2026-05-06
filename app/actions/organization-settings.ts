@@ -1,12 +1,13 @@
-"use server"
+﻿"use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { db } from "@/lib/db"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { assertKazakhstanIin } from "@/lib/kz-iin"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { requireOrgAccess } from "@/lib/org"
 import { requireAdmin } from "@/lib/permissions"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
   await requireAdmin()
@@ -27,6 +28,7 @@ export async function updateOrganizationVat(orgId: string, formData: FormData) {
   })
 
   revalidatePath("/admin/settings")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 
@@ -94,6 +96,7 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
   revalidatePath("/admin/settings")
   revalidatePath("/admin/documents")
   revalidatePath("/cabinet/finances")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 

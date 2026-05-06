@@ -1,7 +1,7 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import {
   assertBuildingInOrg,
@@ -12,6 +12,7 @@ import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isStaffScopedRole } from "@/lib/building-access"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
@@ -44,6 +45,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
 
   revalidatePath("/admin/settings")
   revalidatePath("/admin/spaces")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 
@@ -160,6 +162,7 @@ export async function setBuildingAdministrator(buildingId: string, adminUserId: 
 
   revalidatePath("/admin/buildings")
   revalidatePath("/cabinet")
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { success: true }
 }
 

@@ -1,9 +1,10 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOwner } from "@/lib/permissions"
 import { invalidateAclCache } from "@/lib/acl"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function setPermission(role: string, section: string, canView: boolean, canEdit: boolean) {
   await requireOwner()
@@ -18,5 +19,6 @@ export async function setPermission(role: string, section: string, canView: bool
   })
 
   invalidateAclCache()
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/roles", "layout")
 }

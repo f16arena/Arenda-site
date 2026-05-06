@@ -1,12 +1,13 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { sendTelegram } from "@/lib/telegram"
 import { sendSms } from "@/lib/sms"
 import { requireOrgAccess } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
+import { ADMIN_NOTIFICATION_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function createNotification(opts: {
   userId: string
@@ -66,6 +67,7 @@ export async function createNotification(opts: {
     }
   }
 
+  revalidateTag(ADMIN_NOTIFICATION_CACHE_TAG, { expire: 0 })
   return created
 }
 
@@ -79,6 +81,7 @@ export async function markNotificationRead(notificationId: string) {
     data: { isRead: true },
   })
 
+  revalidateTag(ADMIN_NOTIFICATION_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin")
   revalidatePath("/cabinet")
 }
@@ -92,6 +95,7 @@ export async function markAllRead() {
     data: { isRead: true },
   })
 
+  revalidateTag(ADMIN_NOTIFICATION_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin")
   revalidatePath("/cabinet")
 }
@@ -104,6 +108,7 @@ export async function deleteNotification(notificationId: string) {
   await db.notification.deleteMany({
     where: { id: notificationId, userId: session.user.id },
   })
+  revalidateTag(ADMIN_NOTIFICATION_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin")
   revalidatePath("/cabinet")
 }

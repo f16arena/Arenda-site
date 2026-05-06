@@ -1,13 +1,14 @@
-"use server"
+﻿"use server"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { headers } from "next/headers"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { normalizeEmailWithDns } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
+import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export interface ResultOk { ok: true; message?: string }
 export interface ResultError { ok: false; error: string }
@@ -55,6 +56,7 @@ export async function changeMyName(formData: FormData): Promise<Result> {
   if (name.length < 2) return { ok: false, error: "Имя минимум 2 символа" }
 
   await db.user.update({ where: { id: session.user.id }, data: { name } })
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin", "layout")
   revalidatePath("/admin/profile")
   revalidatePath("/superadmin/profile")
@@ -164,6 +166,7 @@ export async function confirmEmailChange(token: string): Promise<Result> {
     data: { usedAt: new Date() },
   })
 
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { ok: true, message: "Email подтверждён и обновлён" }
 }
 
