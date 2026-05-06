@@ -540,7 +540,9 @@ function ProductVisual() {
     <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-950 shadow-2xl shadow-slate-900/15">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div className="flex items-center gap-3">
-          <Image src="/commrent-mark.png" alt="" width={30} height={30} className="rounded-md bg-white object-contain p-0.5" priority />
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/15 text-blue-200">
+            <LayoutDashboard className="h-4 w-4" />
+          </span>
           <div>
             <p className="text-sm font-semibold text-white">Dashboard владельца</p>
             <p className="text-xs text-slate-400">Все здания · май 2026</p>
