@@ -116,7 +116,10 @@ async function renderAdminLayout(children: React.ReactNode) {
   })
   const building = allBuildings.find((item) => item.id === currentBuildingId) ?? null
   const isPlatformView = isPlatformOwner && !impersonate && !!currentOrg
-  const displayUserName = freshUser?.name?.trim() || session.user.name || "Профиль"
+  const organizationOwnerName = session.user.role === "OWNER"
+    ? currentOrg?.directorName?.trim() || currentOrg?.shortName?.trim() || null
+    : null
+  const displayUserName = organizationOwnerName || freshUser?.name?.trim() || session.user.name || "Профиль"
 
   const now = new Date()
   const planExpiresAt = currentOrg?.planExpiresAtIso ? new Date(currentOrg.planExpiresAtIso) : null

@@ -11,6 +11,8 @@ export const ADMIN_NOTIFICATION_CACHE_TAG = "admin-notifications"
 export type AdminShellOrg = {
   id: string
   name: string
+  shortName: string | null
+  directorName: string | null
   isSuspended: boolean | null
   planExpiresAtIso: string | null
 }
@@ -25,12 +27,14 @@ export const getCachedAdminShellOrg = unstable_cache(
   async (orgId: string): Promise<AdminShellOrg | null> => {
     const org = await db.organization.findUnique({
       where: { id: orgId },
-      select: { id: true, name: true, isSuspended: true, planExpiresAt: true },
+      select: { id: true, name: true, shortName: true, directorName: true, isSuspended: true, planExpiresAt: true },
     })
     if (!org) return null
     return {
       id: org.id,
       name: org.name,
+      shortName: org.shortName,
+      directorName: org.directorName,
       isSuspended: org.isSuspended,
       planExpiresAtIso: org.planExpiresAt?.toISOString() ?? null,
     }

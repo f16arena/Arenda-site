@@ -31,6 +31,10 @@ export function KzPhoneInput({ name, defaultValue, required, className }: BaseIn
         if (PHONE_CONTROL_KEYS.has(event.key)) return
         if (event.key.length === 1 && !/\d/.test(event.key)) event.preventDefault()
       }}
+      onBeforeInput={(event) => {
+        const data = (event.nativeEvent as InputEvent).data
+        if (data && /\D/.test(data)) event.preventDefault()
+      }}
       onPaste={(event) => {
         event.preventDefault()
         setValue(formatKzPhoneInput(event.clipboardData.getData("text")))

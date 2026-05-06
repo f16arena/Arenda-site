@@ -1,7 +1,9 @@
 import { Landmark } from "lucide-react"
+
 import { updateOrganizationRequisites } from "@/app/actions/organization-settings"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { OrganizationBankFields } from "@/components/settings/organization-bank-fields"
 import { OrganizationIdentityFields } from "@/components/settings/organization-identity-fields"
 import { ServerForm } from "@/components/ui/server-form"
 
@@ -49,12 +51,10 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         successMessage="Реквизиты организации сохранены"
         className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2"
       >
-        <div className="lg:col-span-2 rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
-          Здесь заполняются данные арендодателя как юридического лица. Личный профиль пользователя находится отдельно в разделе
-          {" "}
-          <a href="/admin/profile" className="font-medium underline">Мой профиль</a>
-          {" "}
-          и не используется как реквизиты договора.
+        <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100 lg:col-span-2">
+          Здесь заполняются данные арендодателя как юридического лица. Они являются единым источником для договоров,
+          счетов, актов и экрана оплаты арендатора. Личный профиль пользователя хранится отдельно в{" "}
+          <a href="/admin/profile" className="font-medium underline">Моём профиле</a>.
         </div>
 
         <OrganizationIdentityFields
@@ -155,20 +155,16 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
                   В договорах и оплате
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div>
-                  <label className={labelClass}>Название банка</label>
-                  <input name="bankName" defaultValue={organization.bankName ?? ""} className={inputClass} placeholder="АО «Kaspi Bank»" />
-                </div>
-                <div>
-                  <label className={labelClass}>БИК</label>
-                  <input name="bik" defaultValue={organization.bik ?? ""} className={inputClass} placeholder="CASPKZKA" />
-                </div>
-                <div>
-                  <label className={labelClass}>ИИК / расчётный счёт</label>
-                  <input name="iik" defaultValue={organization.iik ?? ""} className={inputClass} placeholder="KZ..." />
-                </div>
-              </div>
+              <OrganizationBankFields
+                bankNameName="bankName"
+                bikName="bik"
+                iikName="iik"
+                defaultBankName={organization.bankName}
+                defaultBik={organization.bik}
+                defaultIik={organization.iik}
+                labelClass={labelClass}
+                inputClass={inputClass}
+              />
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
@@ -178,20 +174,16 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
                   Необязательно
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div>
-                  <label className={labelClass}>Название банка 2</label>
-                  <input name="secondBankName" defaultValue={organization.secondBankName ?? ""} className={inputClass} placeholder="АО «Halyk Bank»" />
-                </div>
-                <div>
-                  <label className={labelClass}>БИК 2</label>
-                  <input name="secondBik" defaultValue={organization.secondBik ?? ""} className={inputClass} placeholder="HSBKKZKX" />
-                </div>
-                <div>
-                  <label className={labelClass}>ИИК / расчётный счёт 2</label>
-                  <input name="secondIik" defaultValue={organization.secondIik ?? ""} className={inputClass} placeholder="KZ..." />
-                </div>
-              </div>
+              <OrganizationBankFields
+                bankNameName="secondBankName"
+                bikName="secondBik"
+                iikName="secondIik"
+                defaultBankName={organization.secondBankName}
+                defaultBik={organization.secondBik}
+                defaultIik={organization.secondIik}
+                labelClass={labelClass}
+                inputClass={inputClass}
+              />
             </div>
           </div>
         </div>
