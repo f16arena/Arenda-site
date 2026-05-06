@@ -44,6 +44,7 @@ import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { safeServerValue } from "@/lib/server-fallback"
 import { TenantContractsSidebar, TenantRecentChargesSidebar } from "./tenant-sidebar-sections"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 type TenantHealthItem = {
   label: string
@@ -63,6 +64,22 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const allowedCapabilities = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canEditContacts = allowedCapabilities.has("tenants.editContacts")
+  const canEditCompany = allowedCapabilities.has("tenants.editCompany")
+  const canEditRentalTerms = allowedCapabilities.has("tenants.editRentalTerms")
+  const canAssignTenantSpaces = allowedCapabilities.has("tenants.assignSpaces")
+  const canBlacklistTenant = allowedCapabilities.has("tenants.blacklist")
+  const canDeleteTenant = allowedCapabilities.has("tenants.delete")
+  const canCreateDocuments = allowedCapabilities.has("documents.create")
+  const canCreateInvoice = allowedCapabilities.has("finance.createInvoice")
+  const canRecordPayment = allowedCapabilities.has("finance.recordPayment")
+  const canSendMessages = allowedCapabilities.has("messages.send")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, {
       source,
@@ -331,17 +348,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canBlacklistTenant && (
           <BlacklistButton
             tenantId={tenant.id}
             companyName={tenant.companyName}
             blacklistedAt={tenant.blacklistedAt}
             blacklistReason={tenant.blacklistReason}
           />
+          )}
+          {canDeleteTenant && (
           <DeleteTenantButton
             tenantId={tenant.id}
             companyName={tenant.companyName}
             redirectAfter
           />
+          )}
         </div>
       </div>
 
@@ -378,6 +399,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
         {/* Action bar */}
         <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          {canCreateInvoice && (
           <Link
             href={`/admin/documents/new/invoice?tenantId=${tenant.id}&period=${currentPeriod}`}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white"
@@ -385,6 +407,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <Receipt className="h-3.5 w-3.5" />
             Создать счёт
           </Link>
+          )}
+          {canRecordPayment && (
           <Link
             href={`/admin/finances?tenantId=${tenant.id}`}
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white"
@@ -392,6 +416,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <Wallet className="h-3.5 w-3.5" />
             Принять оплату
           </Link>
+          )}
+          {canCreateDocuments && (
+          <>
           <Link
             href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
@@ -413,6 +440,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <TrendingDown className="h-3.5 w-3.5" />
             Акт сверки
           </Link>
+          </>
+          )}
+          {canSendMessages && (
           <Link
             href={`/admin/messages?to=${tenant.userId}`}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
@@ -420,6 +450,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <MessageSquare className="h-3.5 w-3.5" />
             Написать
           </Link>
+          )}
           <Link
             href={`/admin/requests?tenantId=${tenant.id}`}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
@@ -449,6 +480,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               }}
               className="p-5 grid grid-cols-2 gap-4"
             >
+              <fieldset disabled={!canEditContacts} className="contents">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО</label>
                 <input
@@ -478,11 +510,13 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <div className="col-span-2 flex justify-end">
                 <button
                   type="submit"
+                  disabled={!canEditContacts}
                   className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
                 >
                   Сохранить
                 </button>
               </div>
+              </fieldset>
             </form>
             </CollapsibleCard>
           </div>
@@ -508,6 +542,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <input type="hidden" name="customRate" value={tenant.customRate ?? ""} />
               <input type="hidden" name="fixedMonthlyRent" value={tenant.fixedMonthlyRent ?? ""} />
 
+              <fieldset disabled={!canEditCompany} className="contents">
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название компании</label>
                 <input
@@ -629,11 +664,13 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <div className="col-span-2 flex justify-end">
                 <button
                   type="submit"
+                  disabled={!canEditCompany}
                   className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
                 >
                   Сохранить
                 </button>
               </div>
+              </fieldset>
             </form>
           </CollapsibleCard>
 
@@ -644,6 +681,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               icon={CreditCard}
               meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
             >
+            {canEditCompany ? (
             <RequisitesFormLoader
               tenantId={tenant.id}
               isIin={tenant.legalType === "IP" || tenant.legalType === "CHSI" || tenant.legalType === "PHYSICAL"}
@@ -656,6 +694,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   bankAccounts: tenant.bankAccounts,
                 }}
               />
+            ) : (
+              <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
+                Реквизиты доступны только для просмотра. Для изменения нужно право на данные компании арендатора.
+              </div>
+            )}
             </CollapsibleCard>
           </div>
 
@@ -665,6 +708,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             icon={Receipt}
             meta={`${formatMoney(monthlyRent)}/мес`}
           >
+            {canEditRentalTerms ? (
             <RentalTermsFormLoader
               tenantId={tenant.id}
               locked={rentalTermsLocked}
@@ -678,6 +722,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 penaltyPercent: tenant.penaltyPercent ?? 1,
               }}
             />
+            ) : (
+              <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
+                Условия аренды доступны только для просмотра. Для изменения нужно отдельное право.
+              </div>
+            )}
           </CollapsibleCard>
 
           {/* Service charges */}
@@ -696,10 +745,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </CollapsibleCard>
 
           {/* Documents actions: invoice, act, contract, handover */}
-          <DocumentsActionsLoader
-            tenantId={tenant.id}
-            tenantHasEmail={!!tenant.user.email}
-          />
+          {canCreateDocuments && (
+            <DocumentsActionsLoader
+              tenantId={tenant.id}
+              tenantHasEmail={!!tenant.user.email}
+            />
+          )}
 
           {/* Email log */}
           <Suspense fallback={<SectionFallback />}>
@@ -720,14 +771,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         {/* Right column: info cards */}
         <div className="space-y-5">
           {/* Full floor assign */}
-          <Suspense fallback={<SectionFallback />}>
-            <TenantFullFloorSection
-              tenantId={tenant.id}
-              orgId={orgId}
-              visibleBuildingIds={visibleBuildingIds}
-              currentFloors={myFullFloors}
-            />
-          </Suspense>
+          {canAssignTenantSpaces && (
+            <Suspense fallback={<SectionFallback />}>
+              <TenantFullFloorSection
+                tenantId={tenant.id}
+                orgId={orgId}
+                visibleBuildingIds={visibleBuildingIds}
+                currentFloors={myFullFloors}
+              />
+            </Suspense>
+          )}
 
           {/* Space */}
           <div id="tenant-placement">
@@ -755,6 +808,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                             <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{space.floor.name}</p>
                             <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">{space.area} м²</p>
                           </div>
+                          {canAssignTenantSpaces && (
                           <form
                             action={async () => {
                               "use server"
@@ -768,6 +822,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                               Снять
                             </button>
                           </form>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -784,12 +839,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
                     Аренда: {formatMoney(monthlyRent)}/мес
                   </p>
+                  {canCreateDocuments && (
                   <Link
                     href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
                     className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
                   >
                     Сформировать договор
                   </Link>
+                  )}
                 </div>
               ) : myFullFloors.length > 0 ? (
                 <div className="space-y-3">
@@ -807,18 +864,21 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
                     Аренда всего: {formatMoney(monthlyRent)}/мес
                   </p>
+                  {canCreateDocuments && (
                   <Link
                     href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
                     className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                   >
                     Сформировать договор
                   </Link>
+                  )}
                 </div>
               ) : (
                 <div>
                   <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
                 </div>
               )}
+              {canAssignTenantSpaces && (
               <div className={assignedSpaces.length > 0 ? "mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" : ""}>
                 <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">
                   {assignedSpaces.length > 0 ? "Добавить ещё помещение:" : "Свободные помещения:"}
@@ -851,6 +911,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   )}
                 </div>
               </div>
+              )}
             </div>
             </CollapsibleCard>
           </div>

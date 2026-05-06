@@ -9,6 +9,7 @@ import { assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { userCapabilityRole } from "@/lib/capability-keys"
 import {
   canManageRoleInOrg,
   displayRoleLabel,
@@ -203,6 +204,7 @@ export async function deleteUserAdmin(userId: string) {
   }
 
   await db.staff.deleteMany({ where: { userId } })
+  await db.rolePermission.deleteMany({ where: { role: userCapabilityRole(userId) } })
 
   await db.user.update({
     where: { id: userId },

@@ -101,12 +101,14 @@ export function CreateBuildingButton() {
 }
 
 export function BuildingActions({
-  buildingId, isCurrent, isActive, isOwner, building,
+  buildingId, isCurrent, isActive, canEdit, canToggle, canDelete, building,
 }: {
   buildingId: string
   isCurrent: boolean
   isActive: boolean
-  isOwner: boolean
+  canEdit: boolean
+  canToggle: boolean
+  canDelete: boolean
   building: {
     name: string
     address: string
@@ -152,6 +154,7 @@ export function BuildingActions({
         </button>
       )}
 
+      {canEdit && (
       <button
         onClick={() => setEditOpen(true)}
         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200"
@@ -159,8 +162,9 @@ export function BuildingActions({
       >
         <Edit2 className="h-4 w-4" />
       </button>
+      )}
 
-      {isOwner && (
+      {canToggle && (
         <ConfirmDialog
           title={isActive ? "Деактивировать здание?" : "Активировать здание?"}
           description={isActive ? "Здание не будет доступно для переключения." : "Здание снова станет доступным."}
@@ -188,7 +192,7 @@ export function BuildingActions({
         />
       )}
 
-      {isOwner && (
+      {canDelete && (
         <DeleteAction
           action={() => deleteBuilding(buildingId)}
           entity="здание"
@@ -197,7 +201,7 @@ export function BuildingActions({
         />
       )}
 
-      {editOpen && (
+      {editOpen && canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
@@ -282,11 +286,12 @@ export function BuildingActions({
 }
 
 export function FloorsList({
-  buildingId, floors, isOwner,
+  buildingId, floors, canCreate, canDelete,
 }: {
   buildingId: string
   floors: { id: string; number: number; name: string; ratePerSqm: number; totalArea: number | null; spacesCount: number }[]
-  isOwner: boolean
+  canCreate: boolean
+  canDelete: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -298,9 +303,11 @@ export function FloorsList({
           <Layers className="h-3.5 w-3.5" />
           Этажи ({floors.length})
         </p>
+        {canCreate && (
         <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
           + Добавить этаж
         </button>
+        )}
       </div>
       {floors.length === 0 ? (
         <p className="text-xs text-slate-400 dark:text-slate-500">Нет этажей</p>
@@ -324,7 +331,7 @@ export function FloorsList({
                   <ArrowRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
                 </div>
               </Link>
-              {isOwner && (
+              {canDelete && (
                 <div className="absolute top-2 right-7 opacity-0 group-hover:opacity-100 z-10">
                   <DeleteAction
                     action={() => deleteFloor(f.id, { cascade: f.spacesCount > 0 })}
@@ -342,7 +349,7 @@ export function FloorsList({
         </div>
       )}
 
-      {open && (
+      {open && canCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">

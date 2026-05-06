@@ -20,6 +20,7 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import {
   getCachedAdminShellBuildings,
+  getCachedAdminShellCapabilities,
   getCachedAdminShellOrg,
   getCachedAdminShellSections,
   getCachedAdminShellUser,
@@ -78,7 +79,7 @@ async function renderAdminLayout(children: React.ReactNode) {
     return <AdminSelectOrg orgs={mapped} userName={session.user.name ?? "Платформа"} />
   }
 
-  const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections] = await measureServerStep("/admin/layout", "admin-shell-data", Promise.all([
+  const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections, allowedCapabilities] = await measureServerStep("/admin/layout", "admin-shell-data", Promise.all([
     currentOrgId
       ? safeServerValue(
           getCachedAdminShellOrg(currentOrgId),
@@ -103,7 +104,8 @@ async function renderAdminLayout(children: React.ReactNode) {
       0,
       { source: "admin.layout.unreadNotifications", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
     ),
-    getCachedAdminShellSections(session.user.role, isPlatformOwner),
+    getCachedAdminShellSections(session.user.id, session.user.role, isPlatformOwner),
+    getCachedAdminShellCapabilities(session.user.id, session.user.role, isPlatformOwner, currentOrgId),
   ]))
 
   const store = await cookies()
@@ -138,6 +140,7 @@ async function renderAdminLayout(children: React.ReactNode) {
         buildingName={building?.name ?? aggregateLabel}
         userRole={session.user.role}
         allowedSections={allowedSections}
+        allowedCapabilities={allowedCapabilities}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         {impersonate && currentOrg && <ImpersonateBanner orgName={currentOrg.name} />}

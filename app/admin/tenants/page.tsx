@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
+import { auth } from "@/auth"
 import { TenantDialog } from "./tenant-dialog"
 import { TenantsTableLoader } from "./tenants-table-loader"
 import type { TenantRow } from "./tenants-table"
@@ -9,13 +10,23 @@ import { spaceScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 export default async function TenantsPage() {
   const { orgId } = await requireOrgAccess()
+  const session = await auth()
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+  const allowedCapabilities = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
 
   const tenantWhere = buildingId
     ? {
@@ -131,16 +142,18 @@ export default async function TenantsPage() {
             {tenants.length} зарегистрировано
           </p>
         </div>
-        <TenantDialog
-          buildingId={buildingId}
-          vacantSpaces={vacantSpaces.map((s) => ({
-            id: s.id,
-            number: s.number,
-            floorName: s.floor.name,
-            buildingName: s.floor.building.name,
-            area: s.area,
-          }))}
-        />
+        {allowedCapabilities.has("tenants.create") && (
+          <TenantDialog
+            buildingId={buildingId}
+            vacantSpaces={vacantSpaces.map((s) => ({
+              id: s.id,
+              number: s.number,
+              floorName: s.floor.name,
+              buildingName: s.floor.building.name,
+              area: s.area,
+            }))}
+          />
+        )}
       </div>
 
       <TenantsTableLoader tenants={rows} />

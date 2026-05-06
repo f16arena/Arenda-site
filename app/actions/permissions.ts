@@ -12,6 +12,7 @@ import {
   capabilityPermissionKey,
   requireOrgFeature,
 } from "@/lib/capabilities"
+import { userCapabilityRole } from "@/lib/capability-keys"
 import {
   canManageRoleInOrg,
   isOwnerRole,
@@ -101,6 +102,60 @@ export async function setCapability(role: string, capabilityKey: string, enabled
   invalidateAclCache()
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/roles", "layout")
+}
+
+export async function setUserCapabilityOverride(
+  userId: string,
+  capabilityKey: string,
+  mode: "INHERIT" | "ALLOW" | "DENY",
+) {
+  await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertRoleBuilderEnabled(orgId)
+
+  const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
+  if (!capability) {
+    throw new Error("Некорректное точное право")
+  }
+
+  const target = await db.user.findFirst({
+    where: { id: userId, organizationId: orgId },
+    select: { id: true, role: true, name: true },
+  })
+  if (!target) throw new Error("Пользователь не найден в текущей организации")
+  if (isOwnerRole(target.role)) throw new Error("Владелец всегда имеет полный доступ")
+
+  const role = userCapabilityRole(userId)
+  const section = capabilityPermissionKey(capabilityKey)
+
+  if (mode === "INHERIT") {
+    await db.rolePermission.deleteMany({ where: { role, section } })
+  } else {
+    const enabled = mode === "ALLOW"
+    await db.rolePermission.upsert({
+      where: { role_section: { role, section } },
+      update: { canView: enabled, canEdit: enabled },
+      create: { role, section, canView: enabled, canEdit: enabled },
+    })
+  }
+
+  await audit({
+    action: "UPDATE",
+    entity: "user",
+    entityId: userId,
+    details: {
+      scope: "user_capability_override",
+      capability: capabilityKey,
+      label: capability.label,
+      mode,
+      orgId,
+    },
+  })
+
+  invalidateAclCache()
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidatePath("/admin/users")
+  revalidatePath("/admin/roles")
 }
 
 export async function createRole(formData: FormData) {

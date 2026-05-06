@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { Edit2, Key, Plus, Power, X } from "lucide-react"
+import { useMemo, useState, useTransition } from "react"
+import { Edit2, Key, Plus, Power, Search, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   createUserAdmin,
@@ -10,6 +10,7 @@ import {
   toggleUserActive,
   updateUserAdmin,
 } from "@/app/actions/users"
+import { setUserCapabilityOverride } from "@/app/actions/permissions"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { isStaffLikeRole, type RoleOption } from "@/lib/role-capabilities"
@@ -149,6 +150,198 @@ export function EditUserDialog({
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+    </>
+  )
+}
+
+type UserCapabilityInfo = {
+  key: string
+  label: string
+  description: string
+  section: string
+  level: "view" | "edit" | "sensitive"
+  risk: "normal" | "business" | "sensitive"
+  requiredFeature: string | null
+  requiredFeatureLabel: string | null
+  locked: boolean
+}
+
+type UserCapabilityGroupInfo = {
+  key: string
+  label: string
+  description: string
+  capabilities: string[]
+}
+
+type OverrideMode = "INHERIT" | "ALLOW" | "DENY"
+
+export function UserCapabilitiesDialog({
+  userId,
+  userName,
+  capabilities,
+  capabilityGroups,
+  overrides,
+}: {
+  userId: string
+  userName: string
+  capabilities: UserCapabilityInfo[]
+  capabilityGroups: UserCapabilityGroupInfo[]
+  overrides: Record<string, "ALLOW" | "DENY">
+}) {
+  const [open, setOpen] = useState(false)
+  const [pending, startTransition] = useTransition()
+  const [query, setQuery] = useState("")
+  const [localOverrides, setLocalOverrides] = useState<Partial<Record<string, "ALLOW" | "DENY">>>(overrides)
+
+  const capabilityMap = useMemo(() => new Map(capabilities.map((capability) => [capability.key, capability])), [capabilities])
+  const filteredGroups = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return capabilityGroups
+    return capabilityGroups
+      .map((group) => ({
+        ...group,
+        capabilities: group.capabilities.filter((key) => {
+          const capability = capabilityMap.get(key)
+          if (!capability) return false
+          return [
+            capability.key,
+            capability.label,
+            capability.description,
+            capability.requiredFeatureLabel ?? "",
+          ].join(" ").toLowerCase().includes(needle)
+        }),
+      }))
+      .filter((group) => group.capabilities.length > 0)
+  }, [capabilityGroups, capabilityMap, query])
+
+  function updateOverride(capability: UserCapabilityInfo, mode: OverrideMode) {
+    if (capability.locked) {
+      toast.info(`Действие закрыто тарифом: ${capability.requiredFeatureLabel ?? capability.requiredFeature}`)
+      return
+    }
+
+    const before = localOverrides[capability.key]
+    setLocalOverrides((current) => {
+      const next = { ...current }
+      if (mode === "INHERIT") delete next[capability.key]
+      else next[capability.key] = mode
+      return next
+    })
+
+    startTransition(async () => {
+      try {
+        await setUserCapabilityOverride(userId, capability.key, mode)
+        toast.success(mode === "INHERIT" ? "Личное исключение снято" : "Личное исключение сохранено")
+      } catch (error) {
+        setLocalOverrides((current) => {
+          const next = { ...current }
+          if (before) next[capability.key] = before
+          else delete next[capability.key]
+          return next
+        })
+        toast.error(error instanceof Error ? error.message : "Не удалось сохранить личное право")
+      }
+    })
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="text-purple-400 hover:text-purple-200"
+        aria-label="Личные права"
+        title="Личные права"
+      >
+        <SlidersHorizontal className="h-4 w-4" />
+      </button>
+
+      {open && (
+        <Modal title="Личные права сотрудника" onClose={() => setOpen(false)} wide>
+          <div className="space-y-4 p-6">
+            <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs text-purple-100">
+              Эти настройки применяются только к пользователю «{userName}» и имеют приоритет над должностью.
+            </div>
+
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Поиск действия..."
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1">
+              {filteredGroups.map((group) => (
+                <div key={group.key}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
+                  <p className="mt-0.5 text-xs text-slate-600">{group.description}</p>
+                  <div className="mt-2 space-y-2">
+                    {group.capabilities.map((key) => {
+                      const capability = capabilityMap.get(key)
+                      if (!capability) return null
+                      const mode: OverrideMode = localOverrides[capability.key] ?? "INHERIT"
+                      return (
+                        <div
+                          key={capability.key}
+                          className={`rounded-lg border p-3 ${
+                            capability.locked
+                              ? "border-slate-800 bg-slate-950/50 opacity-60"
+                              : mode === "ALLOW"
+                                ? "border-emerald-500/40 bg-emerald-500/10"
+                                : mode === "DENY"
+                                  ? "border-red-500/40 bg-red-500/10"
+                                  : "border-slate-800 bg-slate-950/50"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-slate-100">{capability.label}</p>
+                              <p className="mt-1 text-xs text-slate-500">{capability.description}</p>
+                              {capability.locked && (
+                                <p className="mt-2 text-[11px] text-amber-300">
+                                  Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}
+                                </p>
+                              )}
+                            </div>
+                            {mode !== "INHERIT" && (
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                mode === "ALLOW" ? "bg-emerald-500/20 text-emerald-200" : "bg-red-500/20 text-red-200"
+                              }`}>
+                                {mode === "ALLOW" ? "разрешено" : "запрещено"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            <ModeButton active={mode === "INHERIT"} disabled={pending} onClick={() => updateOverride(capability, "INHERIT")}>
+                              По должности
+                            </ModeButton>
+                            <ModeButton active={mode === "ALLOW"} disabled={pending || capability.locked} onClick={() => updateOverride(capability, "ALLOW")} tone="allow">
+                              Разрешить
+                            </ModeButton>
+                            <ModeButton active={mode === "DENY"} disabled={pending || capability.locked} onClick={() => updateOverride(capability, "DENY")} tone="deny">
+                              Запретить
+                            </ModeButton>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="w-full rounded-lg border border-slate-700 py-2 text-sm text-slate-300"
+            >
+              Закрыть
+            </button>
+          </div>
         </Modal>
       )}
     </>
@@ -359,20 +552,55 @@ function Field({
   )
 }
 
+function ModeButton({
+  active,
+  disabled,
+  onClick,
+  tone = "neutral",
+  children,
+}: {
+  active: boolean
+  disabled?: boolean
+  onClick: () => void
+  tone?: "neutral" | "allow" | "deny"
+  children: React.ReactNode
+}) {
+  const activeClass = tone === "allow"
+    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-100"
+    : tone === "deny"
+      ? "border-red-500/50 bg-red-500/15 text-red-100"
+      : "border-blue-500/50 bg-blue-500/15 text-blue-100"
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-lg border px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+        active ? activeClass : "border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
 function Modal({
   title,
   children,
   onClose,
   narrow = false,
+  wide = false,
 }: {
   title: string
   children: React.ReactNode
   onClose: () => void
   narrow?: boolean
+  wide?: boolean
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-slate-900 shadow-2xl ${narrow ? "max-w-sm" : "max-w-md"}`}>
+      <div className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-slate-900 shadow-2xl ${wide ? "max-w-3xl" : narrow ? "max-w-sm" : "max-w-md"}`}>
         <div className="sticky top-0 flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
           <h2 className="text-base font-semibold text-slate-100">{title}</h2>
           <button onClick={onClose} aria-label="Закрыть">

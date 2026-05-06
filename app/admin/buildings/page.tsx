@@ -10,6 +10,7 @@ import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-ac
 import { BuildingAdminAssign } from "./admin-assign"
 import { requireOrgAccess } from "@/lib/org"
 import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-access"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 export default async function BuildingsPage() {
   const session = await auth()
@@ -17,6 +18,18 @@ export default async function BuildingsPage() {
   const { orgId } = await requireOrgAccess()
   const isOwner = isOwnerLike(session.user.role, session.user.isPlatformOwner)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const allowedCapabilities = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canCreateBuildings = allowedCapabilities.has("buildings.create")
+  const canEditBuildings = allowedCapabilities.has("buildings.edit")
+  const canToggleBuildings = allowedCapabilities.has("buildings.toggle")
+  const canDeleteBuildings = allowedCapabilities.has("buildings.delete")
+  const canCreateFloors = allowedCapabilities.has("floors.create")
+  const canDeleteFloors = allowedCapabilities.has("floors.delete")
 
   const currentBuildingId = await getCurrentBuildingId()
 
@@ -115,14 +128,14 @@ export default async function BuildingsPage() {
             </p>
           </div>
         </div>
-        {isOwner && <CreateBuildingButton />}
+        {canCreateBuildings && <CreateBuildingButton />}
       </div>
 
       {buildings.length === 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
           <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Нет зданий</p>
-          {isOwner && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
+          {canCreateBuildings && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
         </div>
       )}
 
@@ -162,13 +175,15 @@ export default async function BuildingsPage() {
                   {b.description && (
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{b.description}</p>
                   )}
-                  <div className="mt-2">
-                    <BuildingAdminAssign
-                      buildingId={b.id}
-                      current={b.administrator}
-                      candidates={adminCandidates}
-                    />
-                  </div>
+                  {canEditBuildings && (
+                    <div className="mt-2">
+                      <BuildingAdminAssign
+                        buildingId={b.id}
+                        current={b.administrator}
+                        candidates={adminCandidates}
+                      />
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
                     {b.responsible && (
                       <span>👤 {b.responsible}</span>
@@ -192,7 +207,9 @@ export default async function BuildingsPage() {
                   buildingId={b.id}
                   isCurrent={isCurrent}
                   isActive={b.isActive}
-                  isOwner={isOwner}
+                  canEdit={canEditBuildings}
+                  canToggle={canToggleBuildings}
+                  canDelete={canDeleteBuildings}
                   building={{
                     name: b.name,
                     address: b.address,
@@ -261,7 +278,8 @@ export default async function BuildingsPage() {
                   totalArea: f.totalArea,
                   spacesCount: f._count.spaces,
                 }))}
-                isOwner={isOwner}
+                canCreate={canCreateFloors}
+                canDelete={canDeleteFloors}
               />
             </div>
           )

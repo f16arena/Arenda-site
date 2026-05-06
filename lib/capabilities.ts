@@ -1,9 +1,9 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { canEdit, canView, type Section } from "@/lib/acl"
+import { canEdit, canView, fallbackCanEdit, fallbackCanView, getAllowedSections, SECTIONS, type Section } from "@/lib/acl"
 import { parsePlanFeatures } from "@/lib/plan-capabilities"
 import { requireOrgAccess } from "@/lib/org"
-import { capabilityPermissionKey } from "@/lib/capability-keys"
+import { capabilityKeyFromPermission, capabilityPermissionKey, userCapabilityRole } from "@/lib/capability-keys"
 import { redirect } from "next/navigation"
 
 export {
@@ -142,10 +142,31 @@ export const ACTION_CAPABILITY_BY_KEY = new Map(ACTION_CAPABILITIES.map((capabil
 
 export type ActionCapabilityKey = (typeof ACTION_CAPABILITIES)[number]["key"] | string
 
-export async function canPerformCapability(role: string, capabilityKey: string, isPlatformOwner = false) {
+export type ResolvedActionCapability = ActionCapability & {
+  allowed: boolean
+  source: "owner" | "user_allow" | "user_deny" | "role_explicit" | "section" | "locked" | "unknown"
+  locked: boolean
+}
+
+type PermissionRow = {
+  role: string
+  section: string
+  canView: boolean
+  canEdit: boolean
+}
+
+export async function canPerformCapability(role: string, capabilityKey: string, isPlatformOwner = false, userId?: string | null) {
   if (role === "OWNER" || isPlatformOwner) return true
   const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
   if (!capability) return false
+
+  if (userId) {
+    const userExplicit = await db.rolePermission.findUnique({
+      where: { role_section: { role: userCapabilityRole(userId), section: capabilityPermissionKey(capabilityKey) } },
+      select: { canView: true, canEdit: true },
+    })
+    if (userExplicit) return userExplicit.canView || userExplicit.canEdit
+  }
 
   const explicit = await db.rolePermission.findUnique({
     where: { role_section: { role, section: capabilityPermissionKey(capabilityKey) } },
@@ -166,6 +187,7 @@ export async function requireCapability(capabilityKey: string) {
     session.user.role,
     capabilityKey,
     session.user.isPlatformOwner,
+    session.user.id,
   )
   if (!allowed) {
     const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
@@ -173,6 +195,77 @@ export async function requireCapability(capabilityKey: string) {
   }
 
   return { id: session.user.id, role: session.user.role, isPlatformOwner: !!session.user.isPlatformOwner }
+}
+
+export async function getAllowedCapabilitiesForUser({
+  userId,
+  role,
+  isPlatformOwner = false,
+  orgId,
+}: {
+  userId: string
+  role: string
+  isPlatformOwner?: boolean
+  orgId?: string | null
+}) {
+  const features = orgId
+    ? await db.organization.findUnique({
+        where: { id: orgId },
+        select: { plan: { select: { features: true } } },
+      }).then((org) => org?.plan?.features ?? null).catch(() => null)
+    : null
+
+  return resolveActionCapabilities({
+    userId,
+    role,
+    isPlatformOwner,
+    planFeatures: features,
+  })
+}
+
+export async function getAllowedCapabilityKeysForUser(args: {
+  userId: string
+  role: string
+  isPlatformOwner?: boolean
+  orgId?: string | null
+}) {
+  const resolved = await getAllowedCapabilitiesForUser(args)
+  return resolved.filter((capability) => capability.allowed && !capability.locked).map((capability) => capability.key)
+}
+
+export async function getAllowedSectionsForUser({
+  userId,
+  role,
+  isPlatformOwner = false,
+}: {
+  userId: string
+  role: string
+  isPlatformOwner?: boolean
+}) {
+  if (role === "OWNER" || isPlatformOwner) return [...SECTIONS]
+
+  const sections = new Set(await getAllowedSections(role))
+  const userRole = userCapabilityRole(userId)
+  const overrides = await db.rolePermission.findMany({
+    where: { role: userRole },
+    select: { section: true, canView: true, canEdit: true },
+  }).catch(() => [] as Array<{ section: string; canView: boolean; canEdit: boolean }>)
+
+  for (const override of overrides) {
+    const capabilityKey = capabilityKeyFromPermission(override.section)
+    if (capabilityKey && (override.canView || override.canEdit)) {
+      const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
+      if (capability) sections.add(capability.section)
+      continue
+    }
+
+    if (SECTIONS.includes(override.section as Section)) {
+      if (override.canView || override.canEdit) sections.add(override.section as Section)
+      else sections.delete(override.section as Section)
+    }
+  }
+
+  return Array.from(sections)
 }
 
 export async function requireCapabilityAndFeature(capabilityKey: string) {
@@ -183,6 +276,70 @@ export async function requireCapabilityAndFeature(capabilityKey: string) {
     await requireOrgFeature(orgId, capability.requiredFeature)
   }
   return { ...session, orgId }
+}
+
+async function resolveActionCapabilities({
+  userId,
+  role,
+  isPlatformOwner,
+  planFeatures,
+}: {
+  userId: string
+  role: string
+  isPlatformOwner: boolean
+  planFeatures?: string | null
+}): Promise<ResolvedActionCapability[]> {
+  if (role === "OWNER" || isPlatformOwner) {
+    return ACTION_CAPABILITIES.map((capability) => ({
+      ...capability,
+      allowed: true,
+      locked: isCapabilityLocked(capability, planFeatures),
+      source: "owner",
+    }))
+  }
+
+  const userRole = userCapabilityRole(userId)
+  const rows = await db.rolePermission.findMany({
+    where: { role: { in: [role, userRole] } },
+    select: { role: true, section: true, canView: true, canEdit: true },
+  }).catch(() => [] as PermissionRow[])
+
+  const roleRows = new Map<string, PermissionRow>()
+  const userRows = new Map<string, PermissionRow>()
+  for (const row of rows) {
+    if (row.role === userRole) userRows.set(row.section, row)
+    else if (row.role === role) roleRows.set(row.section, row)
+  }
+
+  return ACTION_CAPABILITIES.map((capability) => {
+    const locked = isCapabilityLocked(capability, planFeatures)
+    if (locked) {
+      return { ...capability, allowed: false, locked, source: "locked" }
+    }
+
+    const permissionKey = capabilityPermissionKey(capability.key)
+    const userOverride = userRows.get(permissionKey)
+    if (userOverride) {
+      const allowed = userOverride.canView || userOverride.canEdit
+      return { ...capability, allowed, locked, source: allowed ? "user_allow" : "user_deny" }
+    }
+
+    const roleExplicit = roleRows.get(permissionKey)
+    if (roleExplicit) {
+      return { ...capability, allowed: roleExplicit.canView || roleExplicit.canEdit, locked, source: "role_explicit" }
+    }
+
+    const sectionExplicit = roleRows.get(capability.section)
+    const allowed = sectionExplicit
+      ? (capability.level === "view" ? sectionExplicit.canView : sectionExplicit.canEdit)
+      : (capability.level === "view" ? fallbackCanView(role, capability.section) : fallbackCanEdit(role, capability.section))
+
+    return { ...capability, allowed, locked, source: "section" }
+  })
+}
+
+function isCapabilityLocked(capability: ActionCapability, planFeatures?: string | null) {
+  return !!capability.requiredFeature && !isFeatureAvailableInPlan(planFeatures, capability.requiredFeature)
 }
 
 export async function requireOrgFeature(orgId: string, featureKey: string) {

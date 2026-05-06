@@ -13,8 +13,10 @@ import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isStaffScopedRole } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
+  await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -78,6 +80,7 @@ function readOptionalNumber(formData: FormData, name: string) {
 }
 
 export async function updateFloor(floorId: string, formData: FormData) {
+  await requireCapabilityAndFeature("floors.create")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 
@@ -119,6 +122,7 @@ export async function updateFloor(floorId: string, formData: FormData) {
  * из той же организации.
  */
 export async function setBuildingAdministrator(buildingId: string, adminUserId: string | null) {
+  await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 

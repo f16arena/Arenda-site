@@ -24,6 +24,7 @@ import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { normalizePage, pageSkip } from "@/lib/pagination"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
 
@@ -84,7 +85,17 @@ export default async function DocumentsPage({
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
-  const canDeleteSignedDocuments = session.user.role === "OWNER" || !!session.user.isPlatformOwner
+  const allowedCapabilities = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+    orgId,
+  }))
+  const isOwnerLikeUser = session.user.role === "OWNER" || !!session.user.isPlatformOwner
+  const canCreateDocuments = allowedCapabilities.has("documents.create")
+  const canDeleteUnsignedDocuments = allowedCapabilities.has("documents.deleteUnsigned")
+  const canDeleteSignedDocuments = isOwnerLikeUser && allowedCapabilities.has("documents.deleteSigned")
+  const canOpenTemplates = allowedCapabilities.has("documents.uploadTemplate")
 
   const { type, q, period, page: pageParam } = await searchParams
   const page = normalizePage(pageParam)
@@ -229,7 +240,7 @@ export default async function DocumentsPage({
       source: "contract",
       downloadHref: null,
       deleteId: c.id,
-      canDelete: !isSigned || canDeleteSignedDocuments,
+      canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
     }
   })
@@ -253,7 +264,7 @@ export default async function DocumentsPage({
       downloadHref: `/api/documents/archive/${g.id}`,
       generatedId: g.id,
       deleteId: g.id,
-      canDelete: !isSigned || canDeleteSignedDocuments,
+      canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
     }
   })
@@ -291,6 +302,7 @@ export default async function DocumentsPage({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canOpenTemplates && (
           <Link
             href="/admin/settings/document-templates"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -298,6 +310,8 @@ export default async function DocumentsPage({
             <Settings className="h-4 w-4" />
             Шаблоны
           </Link>
+          )}
+          {canCreateDocuments && (
           <Link
             href="/admin/documents/new"
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -305,9 +319,11 @@ export default async function DocumentsPage({
             <Plus className="h-4 w-4" />
             Создать документ
           </Link>
+          )}
         </div>
       </div>
 
+      {canCreateDocuments && (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {CREATE_TYPES.map((item) => {
           const Icon = item.icon
@@ -325,6 +341,7 @@ export default async function DocumentsPage({
           )
         })}
       </div>
+      )}
 
       <DocumentTypeFilter currentType={filterType} currentSearch={search} currentPeriod={period} />
 

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
+import { auth } from "@/auth"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { Building2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -21,10 +22,23 @@ import { switchBuilding } from "@/app/actions/buildings"
 import { tenantScope } from "@/lib/tenant-scope"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 export default async function SpacesPage() {
   return measureServerRoute("/admin/spaces", async () => {
   const { orgId } = await requireOrgAccess()
+  const session = await auth()
+  const allowedCapabilities = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canEditSpaces = allowedCapabilities.has("spaces.edit")
+  const canDeleteSpaces = allowedCapabilities.has("spaces.delete")
+  const canAssignSpaces = allowedCapabilities.has("spaces.assignTenant")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/spaces", orgId })
   const buildingId = await getCurrentBuildingId()
@@ -424,14 +438,14 @@ export default async function SpacesPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
         <div className="flex items-center gap-2">
-          {building && allSpaces.length > 0 && (
+          {canDeleteSpaces && building && allSpaces.length > 0 && (
             <WipeAllSpacesButton
               buildingId={building.id}
               buildingName={building.name}
               spacesCount={allSpaces.length}
             />
           )}
-          <AddSpaceDialog floors={floorOptions} />
+          {canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
         </div>
       </div>
 
@@ -623,11 +637,13 @@ export default async function SpacesPage() {
                     Помещения этажа недоступны для индивидуальной сдачи.
                   </p>
                 </div>
-                <UnassignFloorButton
-                  floorId={floor.id}
-                  floorName={floor.name}
-                  tenantName={fullFloorTenant.companyName}
-                />
+                {canAssignSpaces && (
+                  <UnassignFloorButton
+                    floorId={floor.id}
+                    floorName={floor.name}
+                    tenantName={fullFloorTenant.companyName}
+                  />
+                )}
               </div>
             )}
 
@@ -709,18 +725,20 @@ export default async function SpacesPage() {
                             <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{space.description ?? "—"}</td>
                             <td className="px-3 py-2">
                               <div className="flex items-center gap-2">
-                                <EditSpaceDialog
-                                  space={{
-                                    id: space.id,
-                                    number: space.number,
-                                    area: space.area,
-                                    status: space.status,
-                                    description: space.description,
-                                    tenant: occupancyTenant,
-                                  }}
-                                  tenants={assignableTenants}
-                                />
-                                <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />
+                                {canEditSpaces && (
+                                  <EditSpaceDialog
+                                    space={{
+                                      id: space.id,
+                                      number: space.number,
+                                      area: space.area,
+                                      status: space.status,
+                                      description: space.description,
+                                      tenant: occupancyTenant,
+                                    }}
+                                    tenants={canAssignSpaces ? assignableTenants : []}
+                                  />
+                                )}
+                                {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
                               </div>
                             </td>
                           </tr>

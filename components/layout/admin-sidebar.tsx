@@ -14,7 +14,15 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; exact?: boolean; ownerOnly?: boolean; section?: string }
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  exact?: boolean
+  ownerOnly?: boolean
+  section?: string
+  capability?: string
+}
 type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
 
 const nav: NavSection[] = [
@@ -50,7 +58,7 @@ const nav: NavSection[] = [
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
-      { href: "/admin/documents/new", label: "Создать документ", icon: CirclePlus, section: "documents" },
+      { href: "/admin/documents/new", label: "Создать документ", icon: CirclePlus, section: "documents", capability: "documents.create" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
@@ -69,7 +77,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
       { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
-      { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics" },
+      { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics", capability: "systemHealth.view" },
     ],
   },
   {
@@ -86,15 +94,17 @@ const nav: NavSection[] = [
 ]
 
 export function AdminSidebar({
-  buildingName, userRole, allowedSections,
+  buildingName, userRole, allowedSections, allowedCapabilities,
 }: {
   buildingName?: string
   userRole?: string
   allowedSections?: string[]
+  allowedCapabilities?: string[]
 }) {
   const pathname = usePathname()
   const isOwner = userRole === "OWNER"
   const allowed = new Set(allowedSections ?? [])
+  const capabilities = new Set(allowedCapabilities ?? [])
   const [mobileOpen, setMobileOpen] = useState(false)
 
   // Закрываем drawer при смене URL
@@ -117,6 +127,7 @@ export function AdminSidebar({
         if (item.ownerOnly && !isOwner) return false
         if (isOwner) return true
         if (item.section && !allowed.has(item.section)) return false
+        if (item.capability && !capabilities.has(item.capability)) return false
         return true
       }),
     }))

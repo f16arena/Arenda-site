@@ -3,7 +3,8 @@ import "server-only"
 import { unstable_cache } from "next/cache"
 import { db } from "@/lib/db"
 import { getAccessibleBuildingsForUser, isOwnerLike, type AccessibleBuilding } from "@/lib/building-access"
-import { getAllowedSections, SECTIONS, type Section } from "@/lib/acl"
+import { SECTIONS, type Section } from "@/lib/acl"
+import { getAllowedCapabilityKeysForUser, getAllowedSectionsForUser } from "@/lib/capabilities"
 
 export const ADMIN_SHELL_CACHE_TAG = "admin-shell"
 export const ADMIN_NOTIFICATION_CACHE_TAG = "admin-notifications"
@@ -74,11 +75,19 @@ export const getCachedAdminShellBuildings = unstable_cache(
 )
 
 export const getCachedAdminShellSections = unstable_cache(
-  async (role: string, isPlatformOwner: boolean): Promise<Section[]> => {
+  async (userId: string, role: string, isPlatformOwner: boolean): Promise<Section[]> => {
     if (isOwnerLike(role, isPlatformOwner)) return [...SECTIONS]
-    return Array.from(await getAllowedSections(role))
+    return getAllowedSectionsForUser({ userId, role, isPlatformOwner })
   },
   ["admin-shell-sections"],
+  { revalidate: 60, tags: [ADMIN_SHELL_CACHE_TAG] },
+)
+
+export const getCachedAdminShellCapabilities = unstable_cache(
+  async (userId: string, role: string, isPlatformOwner: boolean, orgId: string | null): Promise<string[]> => {
+    return getAllowedCapabilityKeysForUser({ userId, role, isPlatformOwner, orgId })
+  },
+  ["admin-shell-capabilities"],
   { revalidate: 60, tags: [ADMIN_SHELL_CACHE_TAG] },
 )
 

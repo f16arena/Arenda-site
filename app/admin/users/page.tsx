@@ -6,6 +6,14 @@ import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
 import { Shield, Users as UsersIcon } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import {
+  ACTION_CAPABILITIES,
+  ACTION_CAPABILITY_GROUPS,
+  getAllowedCapabilityKeysForUser,
+  isFeatureAvailableInPlan,
+} from "@/lib/capabilities"
+import { PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
+import { CAPABILITY_PERMISSION_PREFIX, capabilityKeyFromPermission, userCapabilityRole } from "@/lib/capability-keys"
+import {
   buildRoleOptions,
   displayRoleLabel,
   isStaffLikeRole,
@@ -15,6 +23,7 @@ import {
   CreateUserDialog,
   DeleteUserButton,
   EditUserDialog,
+  UserCapabilitiesDialog,
   ResetPasswordDialog,
   ToggleActiveButton,
 } from "./user-actions"
@@ -23,7 +32,7 @@ export default async function UsersPage() {
   const session = await requireSection("users", "view")
   const { orgId } = await requireOrgAccess()
 
-  const [users, buildings, roleRows] = await Promise.all([
+  const [users, buildings, roleRows, org, currentCapabilityKeys] = await Promise.all([
     db.user.findMany({
       where: { organizationId: orgId },
       select: {
@@ -56,7 +65,62 @@ export default async function UsersPage() {
       [] as Array<{ role: string }>,
       { source: "admin.users.roleOptions", route: "/admin/users", orgId, userId: session.user.id },
     ),
+    db.organization.findUnique({
+      where: { id: orgId },
+      select: { plan: { select: { features: true } } },
+    }),
+    getAllowedCapabilityKeysForUser({
+      userId: session.user.id,
+      role: session.user.role,
+      isPlatformOwner: !!session.user.isPlatformOwner,
+      orgId,
+    }),
   ])
+
+  const overrideRoles = users.map((user) => userCapabilityRole(user.id))
+  const overrideRows = overrideRoles.length > 0
+    ? await db.rolePermission.findMany({
+        where: {
+          role: { in: overrideRoles },
+          section: { startsWith: CAPABILITY_PERMISSION_PREFIX },
+        },
+        select: { role: true, section: true, canView: true, canEdit: true },
+      }).catch(() => [] as Array<{ role: string; section: string; canView: boolean; canEdit: boolean }>)
+    : []
+
+  const overridesByUserId = new Map<string, Record<string, "ALLOW" | "DENY">>()
+  for (const row of overrideRows) {
+    const userId = row.role.startsWith("user:") ? row.role.slice("user:".length) : null
+    const capabilityKey = capabilityKeyFromPermission(row.section)
+    if (!userId || !capabilityKey) continue
+    const current = overridesByUserId.get(userId) ?? {}
+    current[capabilityKey] = row.canView || row.canEdit ? "ALLOW" : "DENY"
+    overridesByUserId.set(userId, current)
+  }
+
+  const planFeatureJson = org?.plan?.features ?? null
+  const featureLabels = new Map(PLAN_CAPABILITIES.map((feature) => [feature.key, feature.label]))
+  const capabilityGroups = ACTION_CAPABILITY_GROUPS.map((group) => ({
+    key: group.key,
+    label: group.label,
+    description: group.description,
+    capabilities: group.capabilities.map((capability) => capability.key),
+  }))
+  const capabilities = ACTION_CAPABILITIES.map((capability) => ({
+    key: capability.key,
+    label: capability.label,
+    description: capability.description,
+    section: capability.section,
+    level: capability.level,
+    risk: capability.risk ?? "normal",
+    requiredFeature: capability.requiredFeature ?? null,
+    requiredFeatureLabel: capability.requiredFeature
+      ? featureLabels.get(capability.requiredFeature) ?? capability.requiredFeature
+      : null,
+    locked: !!capability.requiredFeature && !isFeatureAvailableInPlan(planFeatureJson, capability.requiredFeature),
+  }))
+
+  const currentCapabilities = new Set(currentCapabilityKeys)
 
   const roleOptions = buildRoleOptions(
     [...roleRows.map((row) => row.role), ...users.map((user) => user.role)],
@@ -82,7 +146,9 @@ export default async function UsersPage() {
             </p>
           </div>
         </div>
-        <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
+        {currentCapabilities.has("users.invite") && (
+          <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -179,21 +245,38 @@ export default async function UsersPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-2">
-                      <EditUserDialog
-                        user={{
-                          id: user.id,
-                          name: user.name,
-                          email: user.email,
-                          phone: user.phone,
-                          role: user.role,
-                          buildingIds: user.buildingAccess.map((access) => access.buildingId),
-                        }}
-                        buildings={buildings}
-                        roleOptions={roleOptions}
-                      />
-                      <ResetPasswordDialog userId={user.id} userName={user.name} />
-                      <ToggleActiveButton userId={user.id} isActive={user.isActive} disabled={isSelf} />
-                      <DeleteUserButton userId={user.id} userName={user.name} disabled={isSelf} />
+                      {currentCapabilities.has("users.edit") && (
+                        <EditUserDialog
+                          user={{
+                            id: user.id,
+                            name: user.name,
+                            email: user.email,
+                            phone: user.phone,
+                            role: user.role,
+                            buildingIds: user.buildingAccess.map((access) => access.buildingId),
+                          }}
+                          buildings={buildings}
+                          roleOptions={roleOptions}
+                        />
+                      )}
+                      {currentCapabilities.has("roles.editActions") && !isSelf && user.role !== "OWNER" && (
+                        <UserCapabilitiesDialog
+                          userId={user.id}
+                          userName={user.name}
+                          capabilities={capabilities}
+                          capabilityGroups={capabilityGroups}
+                          overrides={overridesByUserId.get(user.id) ?? {}}
+                        />
+                      )}
+                      {currentCapabilities.has("users.resetPassword") && (
+                        <ResetPasswordDialog userId={user.id} userName={user.name} />
+                      )}
+                      {currentCapabilities.has("users.deactivate") && (
+                        <ToggleActiveButton userId={user.id} isActive={user.isActive} disabled={isSelf} />
+                      )}
+                      {currentCapabilities.has("users.delete") && (
+                        <DeleteUserButton userId={user.id} userName={user.name} disabled={isSelf} />
+                      )}
                     </div>
                   </td>
                 </tr>

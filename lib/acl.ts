@@ -131,3 +131,11 @@ export async function getAllowedSections(role: string): Promise<Set<Section>> {
   // Fallback: используем дефолтные права если БД пуста или таблица отсутствует
   return DEFAULT_PERMS[role] ?? new Set<Section>()
 }
+
+export function fallbackCanView(role: string, section: Section): boolean {
+  return DEFAULT_PERMS[role]?.has(section) ?? false
+}
+
+export function fallbackCanEdit(role: string, section: Section): boolean {
+  return DEFAULT_EDIT_PERMS[role]?.has(section) ?? false
+}

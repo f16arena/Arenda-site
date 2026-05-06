@@ -782,6 +782,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
 }
 
 export async function updateTenantUser(userId: string, tenantId: string, formData: FormData) {
+  await requireCapabilityAndFeature("tenants.editContacts")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
