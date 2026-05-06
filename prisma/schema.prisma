@@ -1016,3 +1016,26 @@ model VerificationToken {
   @@index([token])
   @@map("verification_tokens")
 }
+
+model PushDevice {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  organizationId String    @map("organization_id")
+  provider       String    @default("EXPO")
+  token          String
+  platform       String
+  deviceName     String?   @map("device_name")
+  appVersion     String?   @map("app_version")
+  locale         String?
+  timezone       String?
+  isActive       Boolean   @default(true) @map("is_active")
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
+  revokedAt      DateTime? @map("revoked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@unique([provider, token])
+  @@index([userId, isActive])
+  @@index([organizationId, isActive])
+  @@map("push_devices")
+}
