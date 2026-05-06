@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
-import { History, User } from "lucide-react"
+import type { Prisma } from "@/app/generated/prisma/client"
+import { History, Search, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { normalizePage, pageSkip } from "@/lib/pagination"
@@ -20,25 +21,28 @@ const ACTION_COLORS: Record<string, string> = {
 export default async function SuperadminAuditPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string | string[] }>
+  searchParams?: Promise<{ page?: string | string[]; q?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
+  const query = normalizeAuditQuery(resolved?.q)
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/superadmin/audit", userId })
+  const where = buildAuditWhere(query)
 
   const [logs, total] = await Promise.all([
     safe(
       "superadmin.audit.logs",
       db.auditLog.findMany({
+        where,
         orderBy: { createdAt: "desc" },
         skip: pageSkip(page, PAGE_SIZE),
         take: PAGE_SIZE,
       }),
       [],
     ),
-    safe("superadmin.audit.total", db.auditLog.count(), 0),
+    safe("superadmin.audit.total", db.auditLog.count({ where }), 0),
   ])
 
   // Подгрузим данные пользователей и их организации
@@ -69,6 +73,21 @@ export default async function SuperadminAuditPage({
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Журнал действий по всем организациям · {total} записей</p>
         </div>
       </div>
+
+      <form action="/superadmin/audit" className="flex w-full gap-2 lg:w-[560px]">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            name="q"
+            defaultValue={query}
+            placeholder="Организация, код, пользователь, IP..."
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-amber-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+          />
+        </div>
+        <button className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+          Найти
+        </button>
+      </form>
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <table className="w-full text-sm">
@@ -128,6 +147,7 @@ export default async function SuperadminAuditPage({
         </table>
         <PaginationControls
           basePath="/superadmin/audit"
+          params={{ q: query }}
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
@@ -135,4 +155,24 @@ export default async function SuperadminAuditPage({
       </div>
     </div>
   )
+}
+
+function normalizeAuditQuery(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value[0] : value
+  return (raw ?? "").trim().slice(0, 120)
+}
+
+function buildAuditWhere(query: string): Prisma.AuditLogWhereInput {
+  if (!query) return {}
+  return {
+    OR: [
+      { entityId: { contains: query, mode: "insensitive" } },
+      { entity: { contains: query, mode: "insensitive" } },
+      { action: { contains: query, mode: "insensitive" } },
+      { details: { contains: query, mode: "insensitive" } },
+      { userName: { contains: query, mode: "insensitive" } },
+      { userRole: { contains: query, mode: "insensitive" } },
+      { ip: { contains: query, mode: "insensitive" } },
+    ],
+  }
 }

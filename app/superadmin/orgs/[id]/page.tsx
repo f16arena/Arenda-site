@@ -4,16 +4,17 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Building2, Users, AlertTriangle, FileText, HardDrive, Wallet } from "lucide-react"
+import { Activity, ArrowLeft, Building2, Bug, Users, AlertTriangle, FileText, HardDrive, Wallet } from "lucide-react"
 import { OrgActions, OrgEditForm, ExtendForm, ChangeOwnerForm, DangerZone } from "./client-actions"
 import { OrgUrlCard } from "./org-url-card"
 import { LimitsCard } from "./limits-card"
 import { cn } from "@/lib/utils"
 import { ROOT_HOST } from "@/lib/host"
 import { tenantScope, leadScope } from "@/lib/tenant-scope"
+import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePlatformOwner()
+  const { userId } = await requirePlatformOwner()
   const { id } = await params
 
   const org = await db.organization.findUnique({
@@ -29,6 +30,19 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
     },
   })
   if (!org) notFound()
+
+  const now = new Date()
+  const last24 = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const last7 = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, {
+      source,
+      route: "/superadmin/orgs/[id]",
+      userId,
+      orgId: org.id,
+      entity: "organization",
+      entityId: org.id,
+    })
 
   // Реальные счётчики tenants/leads для блока лимитов
   const [
@@ -86,7 +100,52 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
     ]).then(([missingContacts, noSignedContracts]) => missingContacts + noSignedContracts).catch(() => 0),
   ])
 
-  const now = new Date()
+  const supportUserIds = allUsers.map((user) => user.id)
+  const supportLogWhere = {
+    OR: [
+      { entityId: org.id },
+      { details: { contains: org.id, mode: "insensitive" as const } },
+      ...(supportUserIds.length > 0 ? [{ userId: { in: supportUserIds } }] : []),
+    ],
+  }
+  const [recentErrorCount, recentErrors, recentAuditLogs, poorVitalsCount] = await Promise.all([
+    db.auditLog.count({
+      where: {
+        action: "ERROR",
+        createdAt: { gte: last24 },
+        details: { contains: org.id, mode: "insensitive" },
+      },
+    }).catch(() => 0),
+    safe(
+      "superadmin.org.support.recentErrors",
+      db.auditLog.findMany({
+        where: {
+          action: "ERROR",
+          details: { contains: org.id, mode: "insensitive" },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      }),
+      [],
+    ),
+    safe(
+      "superadmin.org.support.recentAuditLogs",
+      db.auditLog.findMany({
+        where: supportLogWhere,
+        orderBy: { createdAt: "desc" },
+        take: 8,
+      }),
+      [],
+    ),
+    db.webVitalMetric.count({
+      where: {
+        organizationId: org.id,
+        rating: "poor",
+        createdAt: { gte: last7 },
+      },
+    }).catch(() => 0),
+  ])
+
   const expired = org.planExpiresAt && org.planExpiresAt < now
   const daysLeft = org.planExpiresAt
     ? Math.ceil((org.planExpiresAt.getTime() - now.getTime()) / 86_400_000)
@@ -145,10 +204,15 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
       />
 
       <SupportSnapshot
+        orgId={org.id}
         pendingPaymentReportsCount={pendingPaymentReportsCount}
         generatedDocumentsCount={generatedDocumentsCount}
         storedFilesCount={storedFilesCount}
         dataQualitySignalCount={dataQualitySignalCount}
+        recentErrorCount={recentErrorCount}
+        recentErrors={recentErrors}
+        recentAuditLogs={recentAuditLogs}
+        poorVitalsCount={poorVitalsCount}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -248,15 +312,38 @@ function Stat({ label, value, sub, icon: Icon, accent }: {
 }
 
 function SupportSnapshot({
+  orgId,
   pendingPaymentReportsCount,
   generatedDocumentsCount,
   storedFilesCount,
   dataQualitySignalCount,
+  recentErrorCount,
+  recentErrors,
+  recentAuditLogs,
+  poorVitalsCount,
 }: {
+  orgId: string
   pendingPaymentReportsCount: number
   generatedDocumentsCount: number
   storedFilesCount: number
   dataQualitySignalCount: number
+  recentErrorCount: number
+  recentErrors: Array<{
+    id: string
+    entityId: string | null
+    details: string | null
+    createdAt: Date
+  }>
+  recentAuditLogs: Array<{
+    id: string
+    action: string
+    entity: string
+    entityId: string | null
+    userName: string | null
+    userRole: string | null
+    createdAt: Date
+  }>
+  poorVitalsCount: number
 }) {
   const cards = [
     {
@@ -283,11 +370,23 @@ function SupportSnapshot({
       icon: AlertTriangle,
       tone: dataQualitySignalCount > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400",
     },
+    {
+      label: "Ошибки за 24 часа",
+      value: recentErrorCount,
+      icon: Bug,
+      tone: recentErrorCount > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      label: "Poor Web Vitals за 7 дней",
+      value: poorVitalsCount,
+      icon: Activity,
+      tone: poorVitalsCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
+    },
   ]
 
   return (
-    <Card title="Support snapshot">
-      <div className="grid gap-3 md:grid-cols-4">
+    <Card title="Support mode">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         {cards.map((card) => (
           <div key={card.label} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
             <card.icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -296,16 +395,102 @@ function SupportSnapshot({
           </div>
         ))}
       </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние ошибки</p>
+            <Link href={`/superadmin/errors?q=${encodeURIComponent(orgId)}`} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+              открыть
+            </Link>
+          </div>
+          {recentErrors.length === 0 ? (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">За организацией не закреплены свежие ошибки.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {recentErrors.map((log) => (
+                <Link
+                  key={log.id}
+                  href={`/superadmin/errors?q=${encodeURIComponent(getSupportErrorCode(log))}`}
+                  className="block rounded-lg border border-slate-100 p-3 text-xs hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono font-semibold text-red-600 dark:text-red-300">#{getSupportErrorCode(log)}</span>
+                    <span className="text-slate-400 dark:text-slate-500">{formatSupportDate(log.createdAt)}</span>
+                  </div>
+                  <p className="mt-1 truncate text-slate-500 dark:text-slate-400">{getSupportErrorPath(log)}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия</p>
+            <Link href={`/superadmin/audit?q=${encodeURIComponent(orgId)}`} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+              открыть
+            </Link>
+          </div>
+          {recentAuditLogs.length === 0 ? (
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Действий по организации пока не найдено.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {recentAuditLogs.map((log) => (
+                <div key={log.id} className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{log.action} · {log.entity}</span>
+                    <span className="text-slate-400 dark:text-slate-500">{formatSupportDate(log.createdAt)}</span>
+                  </div>
+                  <p className="mt-1 truncate text-slate-500 dark:text-slate-400">
+                    {log.userName ?? "Система"}{log.userRole ? ` · ${log.userRole}` : ""}{log.entityId ? ` · ${log.entityId}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Link href="/superadmin/errors" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+        <Link href={`/superadmin/errors?q=${encodeURIComponent(orgId)}`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
           Ошибки клиента
         </Link>
-        <Link href="/superadmin/audit" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+        <Link href={`/superadmin/audit?q=${encodeURIComponent(orgId)}`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
           Последние действия
+        </Link>
+        <Link href="/admin/system-health" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+          System health
         </Link>
       </div>
     </Card>
   )
+}
+
+function getSupportErrorCode(log: { entityId: string | null; details: string | null }): string {
+  const details = parseSupportLogDetails(log.details)
+  return details.errorId ?? log.entityId ?? "unknown"
+}
+
+function getSupportErrorPath(log: { details: string | null }): string {
+  const details = parseSupportLogDetails(log.details)
+  return details.path ?? details.source ?? "Нет страницы в журнале"
+}
+
+function parseSupportLogDetails(details: string | null): { errorId?: string; path?: string; source?: string } {
+  if (!details) return {}
+  try {
+    return JSON.parse(details) as { errorId?: string; path?: string; source?: string }
+  } catch {
+    return {}
+  }
+}
+
+function formatSupportDate(value: Date): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value)
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
