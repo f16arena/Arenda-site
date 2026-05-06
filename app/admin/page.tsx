@@ -196,9 +196,14 @@ export default async function AdminDashboard() {
     safe("admin.dashboard.onboarding", getOnboardingState(orgId), {
       allDone: true,
       nextStep: null,
+      nextRequiredStep: null,
       steps: [],
       doneCount: 0,
       totalCount: 0,
+      requiredCount: 0,
+      doneRequiredCount: 0,
+      recommendedCount: 0,
+      doneRecommendedCount: 0,
       percent: 100,
     }),
   ])
