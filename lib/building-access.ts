@@ -50,46 +50,31 @@ const getAccessibleBuildingsForUserCached = cache(async (
 
   if (!isStaffScopedRole(role)) return []
 
-  try {
-    const access = await db.userBuildingAccess.findMany({
-      where: {
-        userId,
-        building: { organizationId: orgId, isActive: true },
-      },
-      select: {
-        building: { select: { id: true, name: true, address: true, createdAt: true } },
-      },
-      orderBy: { building: { createdAt: "asc" } },
-    })
+  const access = await db.userBuildingAccess.findMany({
+    where: {
+      userId,
+      building: { organizationId: orgId, isActive: true },
+    },
+    select: {
+      building: { select: { id: true, name: true, address: true, createdAt: true } },
+    },
+    orderBy: { building: { createdAt: "asc" } },
+  })
 
-    const buildings = access.map((a) => a.building)
-    if (buildings.length > 0) return buildings.map(({ id, name, address }) => ({ id, name, address }))
-  } catch {
-    // During rollout the table may not exist yet. Fall back to legacy behavior below.
-  }
+  const buildings = access.map((a) => a.building)
+  if (buildings.length > 0) return buildings.map(({ id, name, address }) => ({ id, name, address }))
 
-  const legacy = await db.building.findMany({
+  const legacyAssigned = await db.building.findMany({
     where: {
       organizationId: orgId,
       isActive: true,
-      OR: [
-        { administratorUserId: userId },
-        // Pre-1.3.0 behavior gave org staff broad visibility. Keep that as a safe rollout fallback
-        // until the migration/backfill is applied.
-        { administratorUserId: null },
-      ],
+      administratorUserId: userId,
     },
-    select: { id: true, name: true, address: true },
+    select: { id: true, name: true, address: true, createdAt: true },
     orderBy: { createdAt: "asc" },
   })
 
-  if (legacy.length > 0) return legacy
-
-  return db.building.findMany({
-    where: { organizationId: orgId, isActive: true },
-    select: { id: true, name: true, address: true },
-    orderBy: { createdAt: "asc" },
-  })
+  return legacyAssigned.map(({ id, name, address }) => ({ id, name, address }))
 })
 
 export async function getAccessibleBuildingsForSession(orgId: string) {

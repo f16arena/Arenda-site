@@ -137,6 +137,42 @@ async function enableDenyByDefaultRls(url) {
   }
 }
 
+async function hardenPrismaMigrationsTable(url) {
+  if (!url) throw new Error("DATABASE_URL or DIRECT_URL is required for Prisma migration RLS hardening.")
+
+  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } })
+  try {
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('public._prisma_migrations') IS NOT NULL THEN
+          ALTER TABLE public._prisma_migrations ENABLE ROW LEVEL SECURITY;
+
+          IF NOT EXISTS (
+            SELECT 1
+            FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = '_prisma_migrations'
+              AND policyname = 'prisma_migrations_no_client_access'
+          ) THEN
+            CREATE POLICY prisma_migrations_no_client_access
+              ON public._prisma_migrations
+              AS RESTRICTIVE
+              FOR ALL
+              TO anon, authenticated
+              USING (false)
+              WITH CHECK (false);
+          END IF;
+
+          REVOKE ALL ON TABLE public._prisma_migrations FROM anon, authenticated;
+        END IF;
+      END $$;
+    `)
+  } finally {
+    await pool.end()
+  }
+}
+
 async function localMigrations() {
   const entries = await readdir(migrationsDir, { withFileTypes: true })
   return entries
@@ -155,6 +191,7 @@ async function baselineCurrentSchema(url) {
   }
 
   runPrisma(["migrate", "deploy"])
+  await hardenPrismaMigrationsTable(url)
 }
 
 async function main() {
@@ -167,6 +204,7 @@ async function main() {
   const history = await getMigrationHistory(url)
   if (history.exists && history.appliedCount > 0) {
     runPrisma(["migrate", "deploy"])
+    await hardenPrismaMigrationsTable(url)
     return
   }
 

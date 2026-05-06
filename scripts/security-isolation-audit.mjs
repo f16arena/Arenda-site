@@ -49,6 +49,48 @@ const checks = [
     tokens: ["createMissingFaqDefaults", "skipDuplicates: true"],
     message: "FAQ defaults must sync safely without overwriting custom articles",
   },
+  {
+    file: "lib/building-access.ts",
+    tokens: ["db.userBuildingAccess.findMany", "administratorUserId: userId"],
+    forbidden: ["administratorUserId: null", "return db.building.findMany({\n    where: { organizationId: orgId"],
+    message: "staff building access must be explicit and must not fall back to all org buildings",
+  },
+  {
+    file: "app/superadmin/layout.tsx",
+    tokens: ["isPlatformOwner", "redirect(\"/admin\")"],
+    message: "superadmin support mode must be limited to platform owner",
+  },
+  {
+    file: "app/cabinet/page.tsx",
+    tokens: ["where: { userId: session!.user.id }", "getOrganizationRequisites"],
+    forbidden: ["ownerUser", "ownerUserId"],
+    message: "tenant cabinet must not query owner user data and must load tenant by authenticated user",
+  },
+  {
+    file: "app/admin/storage/page.tsx",
+    tokens: ["organizationId: orgId", "restrictByBuildings", "getAccessibleBuildingIdsForSession"],
+    message: "storage page must be org-scoped and building-scoped for staff",
+  },
+  {
+    file: "app/api/storage/[id]/route.ts",
+    tokens: ["user.organizationId !== file.organizationId", "TENANT_VISIBLE", "tenant: { userId"],
+    message: "storage download route must enforce org and tenant visibility",
+  },
+  {
+    file: "prisma/migrations/20260506060000_harden_prisma_migrations_rls/migration.sql",
+    tokens: ["ALTER TABLE public._prisma_migrations ENABLE ROW LEVEL SECURITY", "prisma_migrations_no_client_access", "REVOKE ALL"],
+    message: "Prisma migration metadata must be protected from Supabase public roles",
+  },
+  {
+    file: "scripts/deploy-migrations.mjs",
+    tokens: ["hardenPrismaMigrationsTable", "prisma_migrations_no_client_access"],
+    message: "deploy baseline must harden Prisma migration metadata after bootstrap",
+  },
+  {
+    file: "scripts/e2e-isolation.ts",
+    tokens: ["RUN_E2E_ISOLATION", "getAccessibleBuildingsForUser", "tenantScope(orgA.id)", "_prisma_migrations"],
+    message: "SaaS isolation E2E must cover building access, tenant scope and RLS metadata",
+  },
 ]
 
 const failures = []
@@ -66,6 +108,14 @@ for (const check of checks) {
     failures.push({
       file: check.file,
       message: `${check.message}; missing: ${missing.join(", ")}`,
+    })
+  }
+
+  const forbidden = (check.forbidden ?? []).filter((token) => content.includes(token))
+  if (forbidden.length > 0) {
+    failures.push({
+      file: check.file,
+      message: `${check.message}; forbidden tokens present: ${forbidden.join(", ")}`,
     })
   }
 }

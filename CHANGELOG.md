@@ -2,6 +2,16 @@
 
 Все заметные изменения сайта фиксируются здесь. Версии ведем в формате `MAJOR.MINOR.PATCH`.
 
+## 1.3.91 - 2026-05-06
+
+- Усилена SaaS-isolation: сотрудники больше не получают fallback-доступ ко всем зданиям организации, если нет явной записи `user_building_access`.
+- Для сотрудников оставлен только явный доступ к зданиям и legacy-доступ через `administratorUserId`, чтобы админ одного здания не видел другое здание без назначения.
+- Добавлен staging E2E `test:e2e:isolation`: проверяет владелец A не видит org B, админ видит только назначенное здание, `tenantScope` не смешивает арендаторов и `_prisma_migrations` защищена RLS.
+- Добавлен ручной GitHub workflow `Isolation E2E` для запуска проверки изоляции на staging/test базе через `E2E_DATABASE_URL`.
+- Добавлена миграция RLS для `public._prisma_migrations`, чтобы Supabase Data API не видел migration metadata.
+- `security:audit` теперь ловит возврат широкого fallback-доступа, отсутствие isolation E2E, слабую защиту storage/cabinet/superadmin и RLS migration metadata.
+- Добавлена rollback-точка `rollback/pre-security-isolation-1.3.91`.
+
 ## 1.3.90 - 2026-05-06
 
 - В футере публичной главной квадратная mark-иконка заменена на единый горизонтальный логотип `commrent-logo-navbar.png`.
