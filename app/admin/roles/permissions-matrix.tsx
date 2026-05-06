@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
-import { Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Zap } from "lucide-react"
+import { useCallback, useMemo, useState, useTransition } from "react"
+import { AlertTriangle, Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Zap } from "lucide-react"
 import { toast } from "sonner"
 import { createRole, deleteRole, setCapability, setPermission } from "@/app/actions/permissions"
 import { cn } from "@/lib/utils"
@@ -51,6 +51,15 @@ type CapabilityGroupInfo = {
 }
 
 type PermMap = Record<string, Record<string, { canView: boolean; canEdit: boolean }>>
+type CapabilityFilter = "all" | "enabled" | "highRisk" | "locked" | "explicit"
+
+const CAPABILITY_FILTERS: Array<{ key: CapabilityFilter; label: string; description: string }> = [
+  { key: "all", label: "Все", description: "Все точные действия" },
+  { key: "enabled", label: "Включены", description: "Что сейчас разрешено" },
+  { key: "highRisk", label: "Риск", description: "Деньги, удаление, доступы" },
+  { key: "locked", label: "Тариф", description: "Закрыто тарифом" },
+  { key: "explicit", label: "Настроено", description: "Отдельно от раздела" },
+]
 
 export function PermissionsMatrix({
   roles,
@@ -74,21 +83,79 @@ export function PermissionsMatrix({
   const [label, setLabel] = useState("")
   const [sourceRole, setSourceRole] = useState(selectedRole)
   const [query, setQuery] = useState("")
+  const [capabilityFilter, setCapabilityFilter] = useState<CapabilityFilter>("all")
   const [pending, startTransition] = useTransition()
 
   const sectionMap = useMemo(() => new Map(sections.map((section) => [section.key, section])), [sections])
   const capabilityMap = useMemo(() => new Map(capabilities.map((capability) => [capability.key, capability])), [capabilities])
   const selected = roles.find((role) => role.key === selectedRole) ?? roles[0]
 
+  const capabilityState = useCallback((role: RoleInfo, capability: CapabilityInfo) => {
+    if (role.key === "OWNER") return { enabled: true, inherited: true }
+    const permissionKey = capabilityPermissionKey(capability.key)
+    const explicit = perms[role.key]?.[permissionKey]
+    if (explicit) return { enabled: explicit.canView || explicit.canEdit, inherited: false }
+
+    const sectionPerm = perms[role.key]?.[capability.section] ?? { canView: false, canEdit: false }
+    const enabled = capability.level === "view" ? sectionPerm.canView : sectionPerm.canEdit
+    return { enabled, inherited: true }
+  }, [perms])
+
+  const selectedStats = useMemo(() => {
+    if (!selected) return { view: 0, edit: 0, enabled: 0, explicit: 0, highRiskEnabled: 0, locked: 0 }
+    const rolePerms = selected ? perms[selected.key] ?? {} : {}
+    const sectionStats = sections.reduce(
+      (acc, section) => {
+        const current = selected?.key === "OWNER"
+          ? { canView: true, canEdit: true }
+          : rolePerms[section.key] ?? { canView: false, canEdit: false }
+        if (current.canView) acc.view += 1
+        if (current.canEdit) acc.edit += 1
+        return acc
+      },
+      { view: 0, edit: 0 },
+    )
+
+    let enabled = 0
+    let explicit = 0
+    let highRiskEnabled = 0
+    let locked = 0
+    for (const capability of capabilities) {
+      const state = capabilityState(selected, capability)
+      if (state.enabled) enabled += 1
+      if (!state.inherited) explicit += 1
+      if (capability.locked) locked += 1
+      if (state.enabled && isHighRiskCapability(capability)) highRiskEnabled += 1
+    }
+
+    return { ...sectionStats, enabled, explicit, highRiskEnabled, locked }
+  }, [capabilities, capabilityState, perms, sections, selected])
+
+  const selectedHighRiskCapabilities = useMemo(() => (
+    !selected ? [] :
+    capabilities
+      .filter((capability) => capabilityState(selected, capability).enabled && isHighRiskCapability(capability))
+      .slice(0, 6)
+  ), [capabilities, capabilityState, selected])
+
   const filteredCapabilityGroups = useMemo(() => {
+    if (!selected) return []
     const needle = query.trim().toLowerCase()
-    if (!needle) return capabilityGroups
     return capabilityGroups
       .map((group) => ({
         ...group,
         capabilities: group.capabilities.filter((key) => {
           const capability = capabilityMap.get(key)
           if (!capability) return false
+          const state = capabilityState(selected, capability)
+          const matchesFilter =
+            capabilityFilter === "all"
+              || (capabilityFilter === "enabled" && state.enabled)
+              || (capabilityFilter === "highRisk" && isHighRiskCapability(capability))
+              || (capabilityFilter === "locked" && capability.locked)
+              || (capabilityFilter === "explicit" && !state.inherited)
+          if (!matchesFilter) return false
+          if (!needle) return true
           return [
             capability.key,
             capability.label,
@@ -98,7 +165,7 @@ export function PermissionsMatrix({
         }),
       }))
       .filter((group) => group.capabilities.length > 0)
-  }, [capabilityGroups, capabilityMap, query])
+  }, [capabilityFilter, capabilityGroups, capabilityMap, capabilityState, query, selected])
 
   const cycleSection = (role: RoleInfo, section: SectionInfo) => {
     if (!editable) return
@@ -198,17 +265,6 @@ export function PermissionsMatrix({
         toast.error(error instanceof Error ? error.message : "Не удалось удалить должность")
       }
     })
-  }
-
-  const capabilityState = (role: RoleInfo, capability: CapabilityInfo) => {
-    if (role.key === "OWNER") return { enabled: true, inherited: true }
-    const permissionKey = capabilityPermissionKey(capability.key)
-    const explicit = perms[role.key]?.[permissionKey]
-    if (explicit) return { enabled: explicit.canView || explicit.canEdit, inherited: false }
-
-    const sectionPerm = perms[role.key]?.[capability.section] ?? { canView: false, canEdit: false }
-    const enabled = capability.level === "view" ? sectionPerm.canView : sectionPerm.canEdit
-    return { enabled, inherited: true }
   }
 
   if (!selected) {
@@ -335,6 +391,43 @@ export function PermissionsMatrix({
         </div>
 
         <div className="space-y-5 p-5">
+          <div className="grid gap-3 md:grid-cols-6">
+            <RoleStat label="Разделы видит" value={selectedStats.view} />
+            <RoleStat label="Разделы меняет" value={selectedStats.edit} />
+            <RoleStat label="Действий включено" value={selectedStats.enabled} />
+            <RoleStat label="Точно настроено" value={selectedStats.explicit} />
+            <RoleStat label="Закрыто тарифом" value={selectedStats.locked} />
+            <RoleStat
+              label="Рискованных прав"
+              value={selectedStats.highRiskEnabled}
+              tone={selectedStats.highRiskEnabled > 0 ? "amber" : "slate"}
+            />
+          </div>
+
+          {selectedHighRiskCapabilities.length > 0 && selected.key !== "OWNER" && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-100">У этой должности есть рискованные права</p>
+                  <p className="mt-1 text-xs text-amber-100/75">
+                    Проверьте, что сотрудник действительно должен работать с деньгами, удалениями, реквизитами или доступами.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedHighRiskCapabilities.map((capability) => (
+                      <span
+                        key={capability.key}
+                        className="rounded-full border border-amber-500/30 bg-slate-950/40 px-2 py-1 text-[11px] font-medium text-amber-100"
+                      >
+                        {capability.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
             <div className="mb-3">
               <p className="text-sm font-semibold text-slate-100">Доступ к разделам</p>
@@ -393,6 +486,28 @@ export function PermissionsMatrix({
                 />
               </div>
             </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {CAPABILITY_FILTERS.map((filter) => {
+                const active = capabilityFilter === filter.key
+                return (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => setCapabilityFilter(filter.key)}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-left transition",
+                      active
+                        ? "border-blue-500/40 bg-blue-500/10 text-blue-200"
+                        : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700",
+                    )}
+                    title={filter.description}
+                  >
+                    <span className="block text-xs font-semibold">{filter.label}</span>
+                    <span className="mt-0.5 block text-[10px] opacity-70">{filter.description}</span>
+                  </button>
+                )
+              })}
+            </div>
 
             <div className="mt-4 space-y-4">
               {filteredCapabilityGroups.map((group) => (
@@ -431,6 +546,42 @@ export function PermissionsMatrix({
       </section>
     </div>
   )
+}
+
+function RoleStat({
+  label,
+  value,
+  tone = "slate",
+}: {
+  label: string
+  value: number
+  tone?: "slate" | "amber"
+}) {
+  return (
+    <div className={cn(
+      "rounded-xl border p-3",
+      tone === "amber"
+        ? "border-amber-500/30 bg-amber-500/10"
+        : "border-slate-800 bg-slate-950/40",
+    )}>
+      <p className={cn(
+        "text-xl font-semibold",
+        tone === "amber" ? "text-amber-200" : "text-slate-100",
+      )}>
+        {value}
+      </p>
+      <p className={cn(
+        "mt-1 text-[11px]",
+        tone === "amber" ? "text-amber-100/70" : "text-slate-500",
+      )}>
+        {label}
+      </p>
+    </div>
+  )
+}
+
+function isHighRiskCapability(capability: CapabilityInfo) {
+  return capability.risk !== "normal" || capability.level === "sensitive"
 }
 
 function SectionButton({

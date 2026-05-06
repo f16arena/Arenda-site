@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic"
 
 import { auth } from "@/auth"
+import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Shield, AlertTriangle, Lock } from "lucide-react"
+import { Shield, AlertTriangle, History, Lock } from "lucide-react"
 import { db } from "@/lib/db"
 import { SECTIONS, SECTION_LABELS } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
@@ -127,11 +128,20 @@ export default async function RolesPage() {
             </p>
           </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-          <p className="font-medium text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
-          </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Link
+            href="/admin/audit?type=permissions"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+          >
+            <History className="h-4 w-4" />
+            Журнал прав
+          </Link>
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+            <p className="font-medium text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
+            </p>
+          </div>
         </div>
       </div>
 
