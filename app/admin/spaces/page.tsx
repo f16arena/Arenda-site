@@ -98,9 +98,19 @@ export default async function SpacesPage() {
         )
       : []
 
+    const statsByFloorId = new Map<string, (typeof spaceStats)[number][]>()
+    for (const stat of spaceStats) {
+      const floorStats = statsByFloorId.get(stat.floorId)
+      if (floorStats) {
+        floorStats.push(stat)
+      } else {
+        statsByFloorId.set(stat.floorId, [stat])
+      }
+    }
+
     const buildingSummaries = buildings.map((building) => {
       const floorSummaries = building.floors.map((floor) => {
-        const stats = spaceStats.filter((item) => item.floorId === floor.id)
+        const stats = statsByFloorId.get(floor.id) ?? []
         const totalSpaces = stats.reduce((sum, item) => sum + item._count._all, 0)
         const occupied = stats.find((item) => item.status === "OCCUPIED")?._count._all ?? 0
         const vacant = stats.find((item) => item.status === "VACANT")?._count._all ?? 0
@@ -708,7 +718,6 @@ export default async function SpacesPage() {
                                     description: space.description,
                                     tenant: occupancyTenant,
                                   }}
-                                  floors={floorOptions}
                                   tenants={assignableTenants}
                                 />
                                 <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />
