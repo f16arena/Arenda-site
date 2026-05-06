@@ -39,7 +39,6 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
               id: true,
               companyName: true,
               contractEnd: true,
-              charges: { where: { isPaid: false }, select: { amount: true } },
             },
           },
           tenantSpaces: {
@@ -49,7 +48,6 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                   id: true,
                   companyName: true,
                   contractEnd: true,
-                  charges: { where: { isPaid: false }, select: { amount: true } },
                 },
               },
             },
@@ -64,6 +62,11 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   await assertBuildingAccess(floor.buildingId, orgId)
 
   const hasFloorEditor = await hasFeature(orgId, "floorEditor")
+  const floorTenantIds = Array.from(new Set(
+    floor.spaces
+      .map((space) => space.tenantSpaces[0]?.tenant?.id ?? space.tenant?.id ?? null)
+      .filter(Boolean) as string[],
+  ))
 
   // Кандидаты для привязки: арендаторы этого здания и ещё не назначенные арендаторы организации.
   const tenantCandidates = await db.tenant.findMany({
@@ -97,6 +100,14 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
     },
     orderBy: { companyName: "asc" },
   })
+  const tenantDebtRows = floorTenantIds.length > 0
+    ? await db.charge.groupBy({
+        by: ["tenantId"],
+        where: { tenantId: { in: floorTenantIds }, isPaid: false },
+        _sum: { amount: true },
+      })
+    : []
+  const debtByTenantId = new Map(tenantDebtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
   const candidates = tenantCandidates
     .map((t) => ({
       id: t.id,
@@ -272,7 +283,7 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
             <tbody>
               {floor.spaces.map((sp) => {
                 const tenant = sp.tenantSpaces[0]?.tenant ?? sp.tenant
-                const debt = tenant?.charges.reduce((s, c) => s + c.amount, 0) ?? 0
+                const debt = tenant ? debtByTenantId.get(tenant.id) ?? 0 : 0
                 return (
                   <tr key={sp.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">Каб. {sp.number}</td>
