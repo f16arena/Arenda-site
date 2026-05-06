@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useMemo, useState, useTransition } from "react"
-import { AlertTriangle, Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Zap } from "lucide-react"
+import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react"
+import { AlertTriangle, ClipboardCheck, Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Zap } from "lucide-react"
 import { toast } from "sonner"
 import { createRole, deleteRole, setCapability, setPermission } from "@/app/actions/permissions"
 import { cn } from "@/lib/utils"
@@ -52,6 +52,14 @@ type CapabilityGroupInfo = {
 
 type PermMap = Record<string, Record<string, { canView: boolean; canEdit: boolean }>>
 type CapabilityFilter = "all" | "enabled" | "highRisk" | "locked" | "explicit"
+type RoleReview = {
+  role: RoleInfo
+  enabled: number
+  explicit: number
+  highRiskEnabled: number
+  examples: CapabilityInfo[]
+  score: number
+}
 
 const CAPABILITY_FILTERS: Array<{ key: CapabilityFilter; label: string; description: string }> = [
   { key: "all", label: "Все", description: "Все точные действия" },
@@ -137,6 +145,38 @@ export function PermissionsMatrix({
       .filter((capability) => capabilityState(selected, capability).enabled && isHighRiskCapability(capability))
       .slice(0, 6)
   ), [capabilities, capabilityState, selected])
+
+  const roleReviews = useMemo<RoleReview[]>(() => (
+    roles
+      .filter((role) => role.key !== "OWNER")
+      .map((role) => {
+        let enabled = 0
+        let explicit = 0
+        let highRiskEnabled = 0
+        const examples: CapabilityInfo[] = []
+
+        for (const capability of capabilities) {
+          const state = capabilityState(role, capability)
+          if (state.enabled) enabled += 1
+          if (!state.inherited) explicit += 1
+          if (state.enabled && isHighRiskCapability(capability)) {
+            highRiskEnabled += 1
+            if (examples.length < 3) examples.push(capability)
+          }
+        }
+
+        return {
+          role,
+          enabled,
+          explicit,
+          highRiskEnabled,
+          examples,
+          score: highRiskEnabled * 3 + explicit + (role.userCount > 0 ? 2 : 0),
+        }
+      })
+      .filter((review) => review.highRiskEnabled > 0 || review.explicit > 0 || review.role.userCount === 0)
+      .sort((a, b) => b.score - a.score)
+  ), [capabilities, capabilityState, roles])
 
   const filteredCapabilityGroups = useMemo(() => {
     if (!selected) return []
@@ -356,6 +396,73 @@ export function PermissionsMatrix({
               Копия
             </button>
           </div>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
+              <ClipboardCheck className="h-4 w-4 text-blue-300" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-100">Ревизия должностей</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Какие пресеты прав стоит проверить перед назначением сотрудникам.
+              </p>
+            </div>
+          </div>
+
+          {roleReviews.length > 0 ? (
+            <div className="mt-4 space-y-2">
+              {roleReviews.slice(0, 6).map((review) => (
+                <button
+                  key={review.role.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole(review.role.key)
+                    setSourceRole(review.role.key)
+                  }}
+                  className={cn(
+                    "w-full rounded-lg border p-3 text-left transition",
+                    selectedRole === review.role.key
+                      ? "border-blue-500/40 bg-blue-500/10"
+                      : "border-slate-800 bg-slate-950/40 hover:border-slate-700",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-100">{review.role.label}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{review.role.userCount} сотрудников</p>
+                    </div>
+                    <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", review.role.color)}>
+                      {review.enabled}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {review.highRiskEnabled > 0 && (
+                      <ReviewPill tone="amber">риск {review.highRiskEnabled}</ReviewPill>
+                    )}
+                    {review.explicit > 0 && (
+                      <ReviewPill tone="blue">точно {review.explicit}</ReviewPill>
+                    )}
+                    {review.role.userCount === 0 && (
+                      <ReviewPill tone="slate">не используется</ReviewPill>
+                    )}
+                  </div>
+                  {review.examples.length > 0 && (
+                    <p className="mt-2 line-clamp-2 text-[11px] text-slate-500">
+                      {review.examples.map((capability) => capability.label).join(" · ")}
+                    </p>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
+              <p className="text-sm font-medium text-emerald-100">Все должности выглядят спокойно</p>
+              <p className="mt-1 text-xs text-emerald-200/70">
+                Нет рискованных пресетов и лишних точечных настроек для проверки.
+              </p>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -577,6 +684,26 @@ function RoleStat({
         {label}
       </p>
     </div>
+  )
+}
+
+function ReviewPill({
+  tone,
+  children,
+}: {
+  tone: "amber" | "blue" | "slate"
+  children: ReactNode
+}) {
+  const tones = {
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    blue: "border-blue-500/30 bg-blue-500/10 text-blue-200",
+    slate: "border-slate-700 bg-slate-800/70 text-slate-400",
+  }
+
+  return (
+    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
+      {children}
+    </span>
   )
 }
 
