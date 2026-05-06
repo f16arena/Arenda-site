@@ -148,6 +148,7 @@ export async function setUserCapabilityOverride(
       capability: capabilityKey,
       label: capability.label,
       mode,
+      targetName: target.name,
       orgId,
     },
   })

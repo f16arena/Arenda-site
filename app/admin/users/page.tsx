@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic"
 
+import Link from "next/link"
 import { db } from "@/lib/db"
 import { requireSection } from "@/lib/acl"
 import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
-import { Shield, Users as UsersIcon } from "lucide-react"
+import { History, Shield, Users as UsersIcon } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import {
   ACTION_CAPABILITIES,
@@ -146,9 +147,18 @@ export default async function UsersPage() {
             </p>
           </div>
         </div>
-        {currentCapabilities.has("users.invite") && (
-          <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/audit?type=permissions"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+          >
+            <History className="h-4 w-4" />
+            Журнал прав
+          </Link>
+          {currentCapabilities.has("users.invite") && (
+            <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

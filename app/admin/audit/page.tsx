@@ -52,6 +52,7 @@ const ENTITY_LABELS: Record<string, string> = {
 
 const AUDIT_FILTERS = [
   { key: "all", label: "Все", action: null },
+  { key: "permissions", label: "Права", action: null },
   { key: "delete", label: "Удаления", action: "DELETE" },
   { key: "security", label: "Безопасность", action: "SECURITY" },
   { key: "error", label: "Ошибки", action: "ERROR" },
@@ -63,6 +64,18 @@ type AuditFilterKey = (typeof AUDIT_FILTERS)[number]["key"]
 function normalizeFilter(value: string | string[] | undefined): AuditFilterKey {
   const raw = Array.isArray(value) ? value[0] : value
   return AUDIT_FILTERS.some((filter) => filter.key === raw) ? raw as AuditFilterKey : "all"
+}
+
+function permissionAuditWhere(): Prisma.AuditLogWhereInput {
+  return {
+    entity: "user",
+    OR: [
+      { details: { contains: "\"scope\":\"role_permission\"" } },
+      { details: { contains: "\"scope\":\"role_capability\"" } },
+      { details: { contains: "\"scope\":\"user_capability_override\"" } },
+      { details: { contains: "\"scope\":\"role\"" } },
+    ],
+  }
 }
 
 export default async function AuditPage({
@@ -77,11 +90,14 @@ export default async function AuditPage({
   const page = normalizePage(resolvedSearchParams?.page)
   const selectedConfig = AUDIT_FILTERS.find((filter) => filter.key === selectedFilter) ?? AUDIT_FILTERS[0]
   const baseWhere = await auditLogScope(orgId) as Prisma.AuditLogWhereInput
-  const logsWhere: Prisma.AuditLogWhereInput = selectedConfig.action
-    ? { AND: [baseWhere, { action: selectedConfig.action }] }
-    : baseWhere
+  const permissionsWhere = permissionAuditWhere()
+  const logsWhere: Prisma.AuditLogWhereInput = selectedFilter === "permissions"
+    ? { AND: [baseWhere, permissionsWhere] }
+    : selectedConfig.action
+      ? { AND: [baseWhere, { action: selectedConfig.action }] }
+      : baseWhere
 
-  const [logs, totalLogs, totalAllLogs, actionGroups] = await Promise.all([
+  const [logs, totalLogs, totalAllLogs, actionGroups, permissionsCount] = await Promise.all([
     db.auditLog.findMany({
       where: logsWhere,
       orderBy: { createdAt: "desc" },
@@ -95,12 +111,15 @@ export default async function AuditPage({
       where: baseWhere,
       _count: { _all: true },
     }),
+    db.auditLog.count({ where: { AND: [baseWhere, permissionsWhere] } }),
   ])
   const countByAction = new Map(actionGroups.map((group) => [group.action, group._count._all]))
   const filterCounts = AUDIT_FILTERS.reduce<Record<AuditFilterKey, number>>((acc, filter) => {
-    acc[filter.key] = filter.action ? countByAction.get(filter.action) ?? 0 : totalAllLogs
+    acc[filter.key] = filter.key === "permissions"
+      ? permissionsCount
+      : filter.action ? countByAction.get(filter.action) ?? 0 : totalAllLogs
     return acc
-  }, { all: 0, delete: 0, security: 0, error: 0, login: 0 })
+  }, { all: 0, permissions: 0, delete: 0, security: 0, error: 0, login: 0 })
 
   return (
     <div className="space-y-5">
@@ -116,8 +135,9 @@ export default async function AuditPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <AuditSummary label="Всего" value={totalAllLogs} tone="slate" />
+        <AuditSummary label="Права" value={filterCounts.permissions} tone="blue" />
         <AuditSummary label="Удаления" value={filterCounts.delete} tone="red" />
         <AuditSummary label="Безопасность" value={filterCounts.security} tone="amber" />
         <AuditSummary label="Ошибки" value={filterCounts.error} tone="red" />
@@ -202,7 +222,7 @@ export default async function AuditPage({
                     </td>
                     <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{ENTITY_LABELS[log.entity] ?? log.entity}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{log.entityId?.slice(0, 12) ?? "—"}</td>
-                    <td className="max-w-xs px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{summarizeDetails(log.details)}</td>
+                    <td className="max-w-sm px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{summarizeDetails(log.details)}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{log.ip ?? "—"}</td>
                   </tr>
                 )
@@ -222,9 +242,10 @@ export default async function AuditPage({
   )
 }
 
-function AuditSummary({ label, value, tone }: { label: string; value: number; tone: "slate" | "red" | "amber" }) {
+function AuditSummary({ label, value, tone }: { label: string; value: number; tone: "slate" | "red" | "amber" | "blue" }) {
   const tones = {
     slate: "border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100",
+    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
     red: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
     amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
   }
@@ -237,10 +258,52 @@ function AuditSummary({ label, value, tone }: { label: string; value: number; to
   )
 }
 
+function summarizePermissionDetails(parsed: Record<string, unknown>) {
+  const scope = parsed.scope
+
+  if (scope === "role_permission") {
+    const section = typeof parsed.section === "string" ? parsed.section : null
+    const canView = parsed.canView ? "просмотр: да" : "просмотр: нет"
+    const canEdit = parsed.canEdit ? "редактирование: да" : "редактирование: нет"
+    return ["Раздел", section, canView, canEdit].filter(Boolean).join(" · ")
+  }
+
+  if (scope === "role_capability") {
+    const label = typeof parsed.label === "string"
+      ? parsed.label
+      : typeof parsed.capability === "string" ? parsed.capability : null
+    return ["Право должности", label, parsed.enabled ? "включено" : "выключено"].filter(Boolean).join(" · ")
+  }
+
+  if (scope === "user_capability_override") {
+    const label = typeof parsed.label === "string"
+      ? parsed.label
+      : typeof parsed.capability === "string" ? parsed.capability : null
+    const targetName = typeof parsed.targetName === "string" ? parsed.targetName : null
+    const mode = parsed.mode === "ALLOW"
+      ? "разрешено лично"
+      : parsed.mode === "DENY" ? "запрещено лично" : "по должности"
+    return ["Личное исключение", targetName, label, mode].filter(Boolean).join(" · ")
+  }
+
+  if (scope === "role") {
+    const label = typeof parsed.label === "string" ? parsed.label : null
+    const sourceRole = typeof parsed.sourceRole === "string" && parsed.sourceRole
+      ? `копия: ${parsed.sourceRole}`
+      : null
+    return ["Должность", label, sourceRole].filter(Boolean).join(" · ")
+  }
+
+  return null
+}
+
 function summarizeDetails(details: string | null) {
   if (!details) return "—"
   try {
     const parsed = JSON.parse(details) as Record<string, unknown>
+    const permissionSummary = summarizePermissionDetails(parsed)
+    if (permissionSummary) return permissionSummary
+
     const keys = ["errorId", "source", "path", "name", "status", "amount", "period"]
     const values = keys
       .map((key) => {
