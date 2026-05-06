@@ -22,10 +22,13 @@ import { DocumentTypeFilter } from "./document-type-filter"
 import { DocumentsTableLoader } from "./documents-table-loader"
 import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
+import { PaginationControls } from "@/components/ui/pagination-controls"
+import { normalizePage, pageSkip } from "@/lib/pagination"
 
 type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
 
 const DOCUMENT_SOURCE_LIMIT = 80
+const DOCUMENT_PAGE_SIZE = 30
 
 const TYPE_LABELS: Record<string, string> = {
   CONTRACT: "Договор",
@@ -70,7 +73,7 @@ const CREATE_TYPES: {
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; q?: string; period?: string }>
+  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[] }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
@@ -83,7 +86,8 @@ export default async function DocumentsPage({
   const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
   const canDeleteSignedDocuments = session.user.role === "OWNER" || !!session.user.isPlatformOwner
 
-  const { type, q, period } = await searchParams
+  const { type, q, period, page: pageParam } = await searchParams
+  const page = normalizePage(pageParam)
   const filterType = (type ?? "ALL").toUpperCase() as DocType
   const search = q?.trim() ?? ""
   const tenantWhere = {
@@ -271,6 +275,10 @@ export default async function DocumentsPage({
     ? "По вашим фильтрам ничего не найдено"
     : "Документы ещё не созданы. Нажмите «Создать документ» и выберите тип."
 
+  const totalRows = allRows.length
+  const start = pageSkip(page, DOCUMENT_PAGE_SIZE)
+  const rowsForPage = allRows.slice(start, start + DOCUMENT_PAGE_SIZE)
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -320,7 +328,14 @@ export default async function DocumentsPage({
 
       <DocumentTypeFilter currentType={filterType} currentSearch={search} currentPeriod={period} />
 
-      <DocumentsTableLoader rows={allRows} emptyHint={emptyHint} />
+      <DocumentsTableLoader rows={rowsForPage} emptyHint={emptyHint} />
+      <PaginationControls
+        basePath="/admin/documents"
+        page={page}
+        pageSize={DOCUMENT_PAGE_SIZE}
+        total={totalRows}
+        params={{ type: filterType === "ALL" ? null : filterType, q: search, period }}
+      />
     </div>
   )
 }

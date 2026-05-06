@@ -7,6 +7,8 @@ import { ChatViewLoader } from "@/components/messages/chat-view-loader"
 import type { ChatUser, ChatMessage } from "@/components/messages/chat-view"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 
+const CHAT_MESSAGE_SOURCE_LIMIT = 300
+
 export default async function CabinetMessages() {
   const session = await auth()
   if (!session?.user) redirect("/login")
@@ -18,27 +20,41 @@ export default async function CabinetMessages() {
   const staff = await getTenantAdminContactsForUser(me)
   const staffIds = staff.map((user) => user.id)
 
-  const allMessages = await db.message.findMany({
-    where: staffIds.length > 0
-      ? {
-          OR: [
-            { fromId: me, toId: { in: staffIds } },
-            { toId: me, fromId: { in: staffIds } },
-          ],
-        }
-      : { id: "__no_admin_contacts__" },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      fromId: true,
-      toId: true,
-      subject: true,
-      body: true,
-      isRead: true,
-      attachmentUrl: true,
-      createdAt: true,
-    },
-  })
+  const messageWhere = staffIds.length > 0
+    ? {
+        OR: [
+          { fromId: me, toId: { in: staffIds } },
+          { toId: me, fromId: { in: staffIds } },
+        ],
+      }
+    : { id: "__no_admin_contacts__" }
+
+  const [recentMessagesDesc, unreadGroups] = await Promise.all([
+    db.message.findMany({
+      where: messageWhere,
+      orderBy: { createdAt: "desc" },
+      take: CHAT_MESSAGE_SOURCE_LIMIT,
+      select: {
+        id: true,
+        fromId: true,
+        toId: true,
+        subject: true,
+        body: true,
+        isRead: true,
+        attachmentUrl: true,
+        createdAt: true,
+      },
+    }),
+    db.message.groupBy({
+      by: ["fromId"],
+      where: staffIds.length > 0
+        ? { toId: me, fromId: { in: staffIds }, isRead: false }
+        : { id: "__no_admin_contacts__" },
+      _count: { _all: true },
+    }),
+  ])
+  const allMessages = [...recentMessagesDesc].reverse()
+  const unreadByContact = new Map(unreadGroups.map((group) => [group.fromId, group._count._all]))
 
   const messagesByContact: Record<string, ChatMessage[]> = {}
   for (const m of allMessages) {
@@ -50,7 +66,7 @@ export default async function CabinetMessages() {
   const contacts: ChatUser[] = staff.map((u) => {
     const conv = messagesByContact[u.id] ?? []
     const last = conv[conv.length - 1]
-    const unread = conv.filter((m) => m.toId === me && !m.isRead).length
+    const unread = unreadByContact.get(u.id) ?? 0
     return {
       id: u.id,
       name: u.name,

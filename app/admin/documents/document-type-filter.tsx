@@ -33,6 +33,7 @@ export function DocumentTypeFilter({
       const sp = new URLSearchParams(params.toString())
       if (q) sp.set("q", q)
       else sp.delete("q")
+      sp.delete("page")
       startTransition(() => router.push(`?${sp.toString()}`))
     }, 350)
     return () => clearTimeout(timer)
@@ -42,6 +43,7 @@ export function DocumentTypeFilter({
     const sp = new URLSearchParams(params.toString())
     if (type === "ALL") sp.delete("type")
     else sp.set("type", type)
+    sp.delete("page")
     startTransition(() => router.push(`?${sp.toString()}`))
   }
 
@@ -50,6 +52,7 @@ export function DocumentTypeFilter({
     const sp = new URLSearchParams(params.toString())
     if (value) sp.set("period", value)
     else sp.delete("period")
+    sp.delete("page")
     startTransition(() => router.push(`?${sp.toString()}`))
   }
 

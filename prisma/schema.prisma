@@ -758,6 +758,7 @@ model TenantDocument {
   tenant      Tenant      @relation(fields: [tenantId], references: [id])
   storageFile StoredFile? @relation("TenantDocumentStorage", fields: [storageFileId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId, createdAt])
   @@index([storageFileId])
   @@map("tenant_documents")
 }
@@ -812,6 +813,8 @@ model Message {
   from User @relation("MessageSender", fields: [fromId], references: [id])
   to   User @relation("MessageReceiver", fields: [toId], references: [id])
 
+  @@index([fromId, toId, createdAt])
+  @@index([toId, fromId, isRead, createdAt])
   @@map("messages")
 }
 

@@ -7,6 +7,8 @@ import { ChatViewLoader } from "@/components/messages/chat-view-loader"
 import type { ChatUser, ChatMessage } from "@/components/messages/chat-view"
 import { requireOrgAccess } from "@/lib/org"
 
+const CHAT_MESSAGE_SOURCE_LIMIT = 300
+
 export default async function AdminMessagesPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
@@ -22,29 +24,42 @@ export default async function AdminMessagesPage() {
   })
 
   // Только сообщения, где обе стороны в моей организации
-  const allMessages = await db.message.findMany({
-    where: {
-      AND: [
-        { OR: [{ fromId: me }, { toId: me }] },
-        {
-          OR: [
-            { from: { organizationId: orgId }, to: { organizationId: orgId } },
-          ],
-        },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      fromId: true,
-      toId: true,
-      subject: true,
-      body: true,
-      isRead: true,
-      attachmentUrl: true,
-      createdAt: true,
-    },
-  })
+  const contactIds = others.map((user) => user.id)
+  const messageWhere = contactIds.length > 0
+    ? {
+        OR: [
+          { fromId: me, toId: { in: contactIds } },
+          { toId: me, fromId: { in: contactIds } },
+        ],
+      }
+    : { id: "__no_contacts__" }
+
+  const [recentMessagesDesc, unreadGroups] = await Promise.all([
+    db.message.findMany({
+      where: messageWhere,
+      orderBy: { createdAt: "desc" },
+      take: CHAT_MESSAGE_SOURCE_LIMIT,
+      select: {
+        id: true,
+        fromId: true,
+        toId: true,
+        subject: true,
+        body: true,
+        isRead: true,
+        attachmentUrl: true,
+        createdAt: true,
+      },
+    }),
+    db.message.groupBy({
+      by: ["fromId"],
+      where: contactIds.length > 0
+        ? { toId: me, fromId: { in: contactIds }, isRead: false }
+        : { id: "__no_contacts__" },
+      _count: { _all: true },
+    }),
+  ])
+  const allMessages = [...recentMessagesDesc].reverse()
+  const unreadByContact = new Map(unreadGroups.map((group) => [group.fromId, group._count._all]))
 
   // Группируем по собеседнику
   const messagesByContact: Record<string, ChatMessage[]> = {}
@@ -58,7 +73,7 @@ export default async function AdminMessagesPage() {
   const contacts: ChatUser[] = others.map((u) => {
     const conv = messagesByContact[u.id] ?? []
     const last = conv[conv.length - 1]
-    const unread = conv.filter((m) => m.toId === me && !m.isRead).length
+    const unread = unreadByContact.get(u.id) ?? 0
     return {
       id: u.id,
       name: u.name,
