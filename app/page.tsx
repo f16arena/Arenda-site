@@ -217,6 +217,14 @@ export default function Home() {
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-5 pb-12 pt-12 sm:px-8 lg:pb-16 lg:pt-16">
           <div className="mx-auto max-w-4xl text-center">
+            <Image
+              src="/commrent-logo-hero.png"
+              alt="Commrent.kz"
+              width={699}
+              height={550}
+              priority
+              className="mx-auto mb-6 h-auto w-48 rounded-lg object-contain shadow-xl shadow-slate-900/10 sm:w-64 lg:w-72"
+            />
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
               <Sparkles className="h-3.5 w-3.5" />
               SaaS для коммерческой аренды в Казахстане
