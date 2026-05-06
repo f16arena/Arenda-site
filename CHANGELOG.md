@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.128 - 2026-05-07
+
+- Performance audit теперь в strict-режиме считает `catch(() => [])` критичной ошибкой, а не только предупреждением.
+- GitHub Actions явно запускает audit с `PERF_AUDIT_FAIL_SILENT_FALLBACKS=1`, чтобы тихие падения не возвращались в main.
+- Локальный `npm run quality:audit` тоже остается зеленым после ужесточения: silent fallback сейчас не найден.
+- Добавлена rollback-точка `rollback/pre-strict-silent-fallback-audit-1.3.128`.
+
 ## 1.3.127 - 2026-05-07
 
 - `lib/push.ts` больше не глушит ошибки поиска push-устройств через `catch(() => [])`.

@@ -23,7 +23,9 @@ const CLIENT_FILE_BUDGET = readKbEnv("PERF_AUDIT_CLIENT_KB", 140) * 1024
 const SERVER_FILE_BUDGET = readKbEnv("PERF_AUDIT_SERVER_KB", 80) * 1024
 const PRISMA_TAKE_LIMIT = readNumberEnv("PERF_AUDIT_TAKE_LIMIT", 150)
 const STRICT = process.env.PERF_AUDIT_STRICT !== "0"
-const FAIL_SILENT_FALLBACKS = process.env.PERF_AUDIT_FAIL_SILENT_FALLBACKS === "1"
+const FAIL_SILENT_FALLBACKS = process.env.PERF_AUDIT_FAIL_SILENT_FALLBACKS == null
+  ? STRICT
+  : process.env.PERF_AUDIT_FAIL_SILENT_FALLBACKS !== "0"
 const ROUTE_TIMING_CHECKS = [
   {
     file: "app/admin/layout.tsx",

@@ -45,6 +45,7 @@ jobs:
         run: npm run quality:audit
         env:
           PERF_AUDIT_STRICT: "1"
+          PERF_AUDIT_FAIL_SILENT_FALLBACKS: "1"
           PERF_AUDIT_CLIENT_KB: "140"
           PERF_AUDIT_SERVER_KB: "80"
           PERF_AUDIT_TAKE_LIMIT: "150"
