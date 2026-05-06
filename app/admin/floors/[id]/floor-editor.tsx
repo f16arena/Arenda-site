@@ -18,13 +18,10 @@ import {
   type RoomKind,
   DEFAULT_LAYOUT,
   uid,
-  polygonArea,
-  elementCenter,
 } from "@/lib/floor-layout"
+import { RenderElement, type FloorEditorSpaceLite as SpaceLite } from "./floor-render-element"
 
 type Tool = "select" | "rect" | "polygon" | "door" | "window" | "label" | "wall" | "stairs" | "elevator" | "toilet"
-
-type SpaceLite = { id: string; number: string; status: string }
 
 const InsertRoomPanel = dynamic(() => import("./floor-editor-panels").then((mod) => mod.InsertRoomPanel), {
   loading: () => <PanelSkeleton />,
@@ -102,19 +99,6 @@ function findNearestVertex(
     }
   }
   return best
-}
-
-const STATUS_FILL: Record<string, string> = {
-  VACANT: "#dcfce7",      // emerald-100
-  OCCUPIED: "#dbeafe",    // blue-100
-  MAINTENANCE: "#fef3c7", // amber-100
-  UNLINKED: "#f8fafc",    // slate-50
-}
-const STATUS_STROKE: Record<string, string> = {
-  VACANT: "#10b981",
-  OCCUPIED: "#3b82f6",
-  MAINTENANCE: "#f59e0b",
-  UNLINKED: "#cbd5e1",
 }
 
 export function FloorEditor({
@@ -590,7 +574,7 @@ export function FloorEditor({
   }
 
   // ── Element-level mouse handlers ─────────────────────────────
-  const startMove = (e: ReactMouseEvent, el: FloorElement) => {
+  const startMove = useCallback((e: ReactMouseEvent, el: FloorElement) => {
     if (tool !== "select") return
     e.stopPropagation()
     setSelectedId(el.id)
@@ -601,9 +585,9 @@ export function FloorEditor({
       startSvg: pt,
       startEl: el,
     }
-  }
+  }, [screenToSvg, tool])
 
-  const startResizeRect = (e: ReactMouseEvent, el: FloorElement, handle: string) => {
+  const startResizeRect = useCallback((e: ReactMouseEvent, el: FloorElement, handle: string) => {
     if (el.type !== "rect") return
     e.stopPropagation()
     setSelectedId(el.id)
@@ -615,9 +599,9 @@ export function FloorEditor({
       startSvg: pt,
       startEl: el,
     }
-  }
+  }, [screenToSvg])
 
-  const startResizePoly = (e: ReactMouseEvent, el: FloorElement, vertexIndex: number) => {
+  const startResizePoly = useCallback((e: ReactMouseEvent, el: FloorElement, vertexIndex: number) => {
     if (el.type !== "polygon") return
     e.stopPropagation()
     setSelectedId(el.id)
@@ -627,7 +611,7 @@ export function FloorEditor({
       vertexIndex,
       startEl: el,
     }
-  }
+  }, [])
 
   // ── Авто-подгонка при первом открытии редактора (когда DOM готов) ──
   const initialFitDone = useRef(false)
@@ -1360,9 +1344,9 @@ export function FloorEditor({
                   zoom={zoom}
                   spaceById={spaceById}
                   outlineOnly={displayMode === "outline"}
-                  onMouseDown={(e) => startMove(e, el)}
-                  onResizeRect={(e, h) => startResizeRect(e, el, h)}
-                  onResizePoly={(e, vi) => startResizePoly(e, el, vi)}
+                  onMoveStart={startMove}
+                  onRectResizeStart={startResizeRect}
+                  onPolyResizeStart={startResizePoly}
                 />
               ))}
 
@@ -1580,312 +1564,6 @@ export function FloorEditor({
       </div>
     </div>
   )
-}
-
-// ── Render single element ──────────────────────────────────────
-function RenderElement({
-  el, selected, zoom, spaceById, outlineOnly,
-  onMouseDown, onResizeRect, onResizePoly,
-}: {
-  el: FloorElement
-  selected: boolean
-  zoom: number
-  spaceById: Map<string, SpaceLite>
-  outlineOnly?: boolean
-  onMouseDown: (e: ReactMouseEvent) => void
-  onResizeRect: (e: ReactMouseEvent, handle: string) => void
-  onResizePoly: (e: ReactMouseEvent, vertexIndex: number) => void
-}) {
-  const linkedSpace = "spaceId" in el && el.spaceId
-    ? spaceById.get(el.spaceId)
-    : undefined
-  const isCommon = (el.type === "rect" || el.type === "polygon") && el.kind === "common"
-  const status = linkedSpace?.status ?? (isCommon ? "COMMON" : "UNLINKED")
-  // Common area: нейтральная серая заливка, dashed обводка
-  const COMMON_FILL = "#f1f5f9"
-  const COMMON_STROKE = "#94a3b8"
-  const fill = outlineOnly ? "transparent"
-    : isCommon ? COMMON_FILL
-    : (STATUS_FILL[status] ?? STATUS_FILL.UNLINKED)
-  const stroke = selected ? "#3b82f6"
-    : isCommon ? COMMON_STROKE
-    : (STATUS_STROKE[status] ?? STATUS_STROKE.UNLINKED)
-  const strokeWidth = selected ? 3 / zoom : 1.5 / zoom
-  const strokeDasharray = isCommon && !selected ? `${4 / zoom} ${3 / zoom}` : undefined
-
-  if (el.type === "rect") {
-    const center = elementCenter(el)
-    const handles = [
-      { id: "nw", x: el.x, y: el.y, cursor: "nwse-resize" },
-      { id: "ne", x: el.x + el.width, y: el.y, cursor: "nesw-resize" },
-      { id: "se", x: el.x + el.width, y: el.y + el.height, cursor: "nwse-resize" },
-      { id: "sw", x: el.x, y: el.y + el.height, cursor: "nesw-resize" },
-    ]
-    return (
-      <g onMouseDown={onMouseDown} style={{ cursor: "move" }}>
-        <rect
-          x={el.x * PX_PER_METER}
-          y={el.y * PX_PER_METER}
-          width={el.width * PX_PER_METER}
-          height={el.height * PX_PER_METER}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={strokeWidth}
-          strokeDasharray={strokeDasharray}
-        />
-        <text
-          x={center.x * PX_PER_METER}
-          y={center.y * PX_PER_METER}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={14 / zoom}
-          fill={isCommon ? "#475569" : "#0f172a"}
-          fontWeight={600}
-          pointerEvents="none"
-          style={{ userSelect: "none" }}
-        >
-          {linkedSpace ? `Каб. ${linkedSpace.number}` : (el.label || (isCommon ? "Общая зона" : ""))}
-        </text>
-        <text
-          x={center.x * PX_PER_METER}
-          y={center.y * PX_PER_METER + 16 / zoom}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={10 / zoom}
-          fill="#64748b"
-          pointerEvents="none"
-          style={{ userSelect: "none" }}
-        >
-          {(el.width * el.height).toFixed(1)} м² · {el.width.toFixed(1)}×{el.height.toFixed(1)}
-        </text>
-
-        {selected && handles.map((h) => (
-          <rect
-            key={h.id}
-            x={h.x * PX_PER_METER - 5 / zoom}
-            y={h.y * PX_PER_METER - 5 / zoom}
-            width={10 / zoom}
-            height={10 / zoom}
-            fill="white"
-            stroke="#3b82f6"
-            strokeWidth={1.5 / zoom}
-            style={{ cursor: h.cursor }}
-            onMouseDown={(e) => onResizeRect(e, h.id)}
-          />
-        ))}
-      </g>
-    )
-  }
-
-  if (el.type === "polygon") {
-    const center = elementCenter(el)
-    const points = el.points.map((p) => `${p.x * PX_PER_METER},${p.y * PX_PER_METER}`).join(" ")
-    const area = polygonArea(el.points)
-    return (
-      <g onMouseDown={onMouseDown} style={{ cursor: "move" }}>
-        <polygon
-          points={points}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={strokeWidth}
-          strokeDasharray={strokeDasharray}
-        />
-        <text
-          x={center.x * PX_PER_METER}
-          y={center.y * PX_PER_METER}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={14 / zoom}
-          fill="#0f172a"
-          fontWeight={600}
-          pointerEvents="none"
-          style={{ userSelect: "none" }}
-        >
-          {linkedSpace ? `Каб. ${linkedSpace.number}` : (el.label || "")}
-        </text>
-        <text
-          x={center.x * PX_PER_METER}
-          y={center.y * PX_PER_METER + 16 / zoom}
-          textAnchor="middle"
-          fontSize={10 / zoom}
-          fill="#64748b"
-          pointerEvents="none"
-          style={{ userSelect: "none" }}
-        >
-          {area.toFixed(1)} м²
-        </text>
-
-        {selected && el.points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.x * PX_PER_METER}
-            cy={p.y * PX_PER_METER}
-            r={6 / zoom}
-            fill="white"
-            stroke="#3b82f6"
-            strokeWidth={1.5 / zoom}
-            style={{ cursor: "move" }}
-            onMouseDown={(e) => onResizePoly(e, i)}
-          />
-        ))}
-      </g>
-    )
-  }
-
-  if (el.type === "door") {
-    const cx = el.x * PX_PER_METER
-    const cy = el.y * PX_PER_METER
-    const w = el.width * PX_PER_METER
-    return (
-      <g onMouseDown={onMouseDown} transform={`rotate(${el.rotation} ${cx} ${cy})`} style={{ cursor: "move" }}>
-        {/* Door slab */}
-        <line x1={cx - w / 2} y1={cy} x2={cx + w / 2} y2={cy} stroke="#475569" strokeWidth={3 / zoom} />
-        {/* Hinge arc */}
-        <path
-          d={el.swing === "right"
-            ? `M ${cx + w / 2} ${cy} A ${w} ${w} 0 0 0 ${cx + w / 2 - w} ${cy + w}`
-            : `M ${cx - w / 2} ${cy} A ${w} ${w} 0 0 1 ${cx - w / 2 + w} ${cy + w}`}
-          fill="none"
-          stroke="#94a3b8"
-          strokeWidth={1 / zoom}
-          strokeDasharray={`${3 / zoom} ${3 / zoom}`}
-        />
-        {selected && (
-          <rect
-            x={cx - w / 2 - 4 / zoom}
-            y={cy - 4 / zoom}
-            width={w + 8 / zoom}
-            height={8 / zoom}
-            fill="none"
-            stroke="#3b82f6"
-            strokeWidth={1.5 / zoom}
-            strokeDasharray={`${2 / zoom} ${2 / zoom}`}
-          />
-        )}
-      </g>
-    )
-  }
-
-  if (el.type === "label") {
-    const fontSize = (el.fontSize ?? 0.5) * PX_PER_METER
-    return (
-      <g onMouseDown={onMouseDown} style={{ cursor: "move" }}>
-        <text
-          x={el.x * PX_PER_METER}
-          y={el.y * PX_PER_METER}
-          fontSize={fontSize}
-          fill={selected ? "#3b82f6" : "#475569"}
-          fontWeight={500}
-          style={{ userSelect: "none" }}
-        >
-          {el.text}
-        </text>
-      </g>
-    )
-  }
-
-  if (el.type === "wall") {
-    const thickness = (el.thickness ?? 0.15) * PX_PER_METER
-    return (
-      <g onMouseDown={onMouseDown} style={{ cursor: "move" }}>
-        <line
-          x1={el.x1 * PX_PER_METER}
-          y1={el.y1 * PX_PER_METER}
-          x2={el.x2 * PX_PER_METER}
-          y2={el.y2 * PX_PER_METER}
-          stroke={selected ? "#3b82f6" : "#475569"}
-          strokeWidth={thickness}
-          strokeLinecap="round"
-        />
-      </g>
-    )
-  }
-
-  if (el.type === "window") {
-    const cx = el.x * PX_PER_METER
-    const cy = el.y * PX_PER_METER
-    const w = el.width * PX_PER_METER
-    return (
-      <g onMouseDown={onMouseDown} transform={`rotate(${el.rotation} ${cx} ${cy})`} style={{ cursor: "move" }}>
-        <rect
-          x={cx - w / 2}
-          y={cy - 3 / zoom}
-          width={w}
-          height={6 / zoom}
-          fill="#dbeafe"
-          stroke={selected ? "#3b82f6" : "#60a5fa"}
-          strokeWidth={1.5 / zoom}
-        />
-        <line
-          x1={cx - w / 2}
-          y1={cy}
-          x2={cx + w / 2}
-          y2={cy}
-          stroke={selected ? "#3b82f6" : "#3b82f6"}
-          strokeWidth={1 / zoom}
-        />
-      </g>
-    )
-  }
-
-  if (el.type === "icon") {
-    const s = el.size * PX_PER_METER
-    const x = el.x * PX_PER_METER
-    const y = el.y * PX_PER_METER
-    const colors: Record<string, { bg: string; border: string; fg: string }> = {
-      stairs: { bg: "#fef3c7", border: "#f59e0b", fg: "#92400e" },
-      elevator: { bg: "#ede9fe", border: "#8b5cf6", fg: "#5b21b6" },
-      toilet: { bg: "#dbeafe", border: "#3b82f6", fg: "#1e40af" },
-      kitchen: { bg: "#dcfce7", border: "#10b981", fg: "#065f46" },
-      parking: { bg: "#f1f5f9", border: "#64748b", fg: "#334155" },
-    }
-    const c = colors[el.kind] ?? colors.parking
-    const symbol: Record<string, string> = {
-      stairs: "≡", elevator: "▲▼", toilet: "WC", kitchen: "🍳", parking: "P",
-    }
-    return (
-      <g onMouseDown={onMouseDown} style={{ cursor: "move" }}>
-        <rect
-          x={x - s / 2}
-          y={y - s / 2}
-          width={s}
-          height={s}
-          fill={c.bg}
-          stroke={selected ? "#3b82f6" : c.border}
-          strokeWidth={(selected ? 2 : 1.5) / zoom}
-          rx={4 / zoom}
-        />
-        <text
-          x={x}
-          y={y - 4 / zoom}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={Math.min(s * 0.4, 24 / zoom)}
-          fontWeight="bold"
-          fill={c.fg}
-          pointerEvents="none"
-          style={{ userSelect: "none" }}
-        >
-          {symbol[el.kind] ?? el.kind}
-        </text>
-        {el.label && (
-          <text
-            x={x}
-            y={y + s / 2 - 4 / zoom}
-            textAnchor="middle"
-            fontSize={10 / zoom}
-            fill={c.fg}
-            pointerEvents="none"
-            style={{ userSelect: "none" }}
-          >
-            {el.label}
-          </text>
-        )}
-      </g>
-    )
-  }
-
-  return null
 }
 
 // ── Properties Panel ───────────────────────────────────────────
