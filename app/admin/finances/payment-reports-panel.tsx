@@ -98,6 +98,7 @@ function ReportCard({
   const [selectedMethod, setSelectedMethod] = useState(report.method || "TRANSFER")
   const [selectedAccountId, setSelectedAccountId] = useState(() => defaultAccountForMethod(report.method, cashAccounts))
   const isDisputed = report.status === "DISPUTED"
+  const defaultChargeIds = getDefaultChargeIds(report.amount, report.tenant.charges)
 
   function submitConfirm(formData: FormData) {
     startTransition(async () => {
@@ -271,10 +272,13 @@ function ReportCard({
               {report.tenant.charges.length > 0 && (
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">Закрыть начисления</p>
+                  <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">
+                    Система заранее отмечает старые начисления, которые помещаются в сумму платежа. Нельзя закрыть долгов больше, чем поступило денег.
+                  </p>
                   <div className="max-h-28 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
                     {report.tenant.charges.map((charge) => (
                       <label key={charge.id} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
-                        <input type="checkbox" name="chargeIds" value={charge.id} className="mt-0.5 rounded" />
+                        <input type="checkbox" name="chargeIds" value={charge.id} defaultChecked={defaultChargeIds.has(charge.id)} className="mt-0.5 rounded" />
                         <span>
                           {CHARGE_TYPES[charge.type] ?? charge.type} · {charge.period} · {formatMoney(charge.amount)}
                         </span>
@@ -322,4 +326,16 @@ function ReportCard({
 function defaultAccountForMethod(method: string, cashAccounts: CashAccount[]) {
   const preferredType = method === "CASH" ? "CASH" : method === "CARD" ? "CARD" : "BANK"
   return cashAccounts.find((account) => account.type === preferredType)?.id ?? ""
+}
+
+function getDefaultChargeIds(amount: number, charges: ReportCharge[]) {
+  const selected = new Set<string>()
+  let remaining = amount
+  for (const charge of charges) {
+    if (charge.amount <= remaining + 0.01) {
+      selected.add(charge.id)
+      remaining = Math.round((remaining - charge.amount) * 100) / 100
+    }
+  }
+  return selected
 }

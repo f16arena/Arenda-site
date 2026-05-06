@@ -258,6 +258,7 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   }
 
   let validChargeIds: string[] = []
+  let selectedChargesTotal = 0
   if (chargeIds.length > 0) {
     const validCharges = await db.charge.findMany({
       where: {
@@ -266,11 +267,21 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
           { id: { in: chargeIds }, tenantId: report.tenantId },
         ],
       },
-      select: { id: true },
+      select: { id: true, amount: true },
     })
     validChargeIds = validCharges.map((charge) => charge.id)
+    selectedChargesTotal = Math.round(validCharges.reduce((sum, charge) => sum + charge.amount, 0) * 100) / 100
     if (validChargeIds.length !== chargeIds.length) {
       return { ok: false, error: "Некоторые начисления недоступны для текущей организации" }
+    }
+  }
+
+  if (chargeIds.length > 0) {
+    if (selectedChargesTotal > report.amount + 0.01) {
+      return {
+        ok: false,
+        error: `Нельзя закрыть начисления на ${formatMoney(selectedChargesTotal)} платежом ${formatMoney(report.amount)}. Снимите лишние начисления или уточните сумму оплаты.`,
+      }
     }
   }
 
@@ -304,7 +315,10 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
   revalidatePath("/cabinet/finances")
   revalidatePath(`/admin/tenants/${report.tenantId}`)
 
-  return { ok: true, message: `Платеж проведен: ${formatMoney(result.amount)}` }
+  const closedText = validChargeIds.length > 0
+    ? ` Закрыто начислений: ${validChargeIds.length} на ${formatMoney(selectedChargesTotal)}.`
+    : ""
+  return { ok: true, message: `Платеж проведен: ${formatMoney(result.amount)}.${closedText}` }
 }
 
 export async function markPaymentReportDisputed(formData: FormData): Promise<ActionResult> {

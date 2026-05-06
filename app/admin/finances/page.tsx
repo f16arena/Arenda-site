@@ -185,7 +185,7 @@ async function renderFinancesPage({
                   period: true,
                   description: true,
                 },
-                orderBy: { createdAt: "desc" },
+                orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
                 take: 6,
               },
             },
