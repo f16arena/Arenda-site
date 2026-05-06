@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
-import { Edit2, Key, Plus, Power, Search, SlidersHorizontal, X } from "lucide-react"
+import { Edit2, Key, Lock, Plus, Power, Search, ShieldCheck, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
 import {
   createUserAdmin,
@@ -177,18 +177,40 @@ type UserCapabilityGroupInfo = {
 
 type OverrideMode = "INHERIT" | "ALLOW" | "DENY"
 
+type EffectiveCapabilityState = {
+  allowed: boolean
+  locked: boolean
+  source: "owner" | "personal_allow" | "personal_deny" | "role_action" | "role_section" | "fallback" | "locked"
+}
+
+type EffectiveRightsSummary = {
+  allowed: number
+  highRisk: number
+  locked: number
+  personalAllow: number
+  personalDeny: number
+}
+
 export function UserCapabilitiesDialog({
   userId,
   userName,
   capabilities,
   capabilityGroups,
   overrides,
+  effectiveSummary,
+  effectiveStates,
+  inheritedStates,
+  roleLabel,
 }: {
   userId: string
   userName: string
   capabilities: UserCapabilityInfo[]
   capabilityGroups: UserCapabilityGroupInfo[]
   overrides: Record<string, "ALLOW" | "DENY">
+  effectiveSummary?: EffectiveRightsSummary
+  effectiveStates: Record<string, EffectiveCapabilityState>
+  inheritedStates: Record<string, EffectiveCapabilityState>
+  roleLabel: string
 }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -196,6 +218,50 @@ export function UserCapabilitiesDialog({
   const [localOverrides, setLocalOverrides] = useState<Partial<Record<string, "ALLOW" | "DENY">>>(overrides)
 
   const capabilityMap = useMemo(() => new Map(capabilities.map((capability) => [capability.key, capability])), [capabilities])
+  const displayStates = useMemo(() => {
+    const states: Record<string, EffectiveCapabilityState> = {}
+    for (const capability of capabilities) {
+      if (capability.locked) {
+        states[capability.key] = { allowed: false, locked: true, source: "locked" }
+        continue
+      }
+
+      const mode = localOverrides[capability.key]
+      if (mode === "ALLOW") {
+        states[capability.key] = { allowed: true, locked: false, source: "personal_allow" }
+      } else if (mode === "DENY") {
+        states[capability.key] = { allowed: false, locked: false, source: "personal_deny" }
+      } else {
+        states[capability.key] = inheritedStates[capability.key] ?? effectiveStates[capability.key] ?? {
+          allowed: false,
+          locked: false,
+          source: "fallback",
+        }
+      }
+    }
+    return states
+  }, [capabilities, effectiveStates, inheritedStates, localOverrides])
+  const displaySummary = useMemo(() => {
+    const summary = {
+      allowed: 0,
+      highRisk: 0,
+      locked: 0,
+      personalAllow: 0,
+      personalDeny: 0,
+    }
+    for (const capability of capabilities) {
+      const state = displayStates[capability.key]
+      const mode = localOverrides[capability.key]
+      if (mode === "ALLOW") summary.personalAllow += 1
+      if (mode === "DENY") summary.personalDeny += 1
+      if (state?.locked) summary.locked += 1
+      if (state?.allowed && !state.locked) {
+        summary.allowed += 1
+        if (capability.risk !== "normal" || capability.level === "sensitive") summary.highRisk += 1
+      }
+    }
+    return summary
+  }, [capabilities, displayStates, localOverrides])
   const filteredGroups = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return capabilityGroups
@@ -261,8 +327,18 @@ export function UserCapabilitiesDialog({
         <Modal title="Личные права сотрудника" onClose={() => setOpen(false)} wide>
           <div className="space-y-4 p-6">
             <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs text-purple-100">
-              Эти настройки применяются только к пользователю «{userName}» и имеют приоритет над должностью.
+              Эти настройки применяются только к пользователю «{userName}» и имеют приоритет над должностью «{roleLabel}».
             </div>
+
+            {effectiveSummary && (
+              <div className="grid gap-2 sm:grid-cols-5">
+                <RightsStat label="Итог разрешено" value={displaySummary.allowed} tone="blue" />
+                <RightsStat label="Рискованных" value={displaySummary.highRisk} tone={displaySummary.highRisk > 0 ? "amber" : "slate"} />
+                <RightsStat label="Лично разрешено" value={displaySummary.personalAllow} tone="emerald" />
+                <RightsStat label="Лично запрещено" value={displaySummary.personalDeny} tone="red" />
+                <RightsStat label="Закрыто тарифом" value={displaySummary.locked} tone="slate" />
+              </div>
+            )}
 
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
@@ -284,6 +360,7 @@ export function UserCapabilitiesDialog({
                       const capability = capabilityMap.get(key)
                       if (!capability) return null
                       const mode: OverrideMode = localOverrides[capability.key] ?? "INHERIT"
+                      const effectiveState = displayStates[capability.key]
                       return (
                         <div
                           key={capability.key}
@@ -299,8 +376,16 @@ export function UserCapabilitiesDialog({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-sm font-medium text-slate-100">{capability.label}</p>
+                              <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
+                                {capability.label}
+                                {effectiveState && <EffectiveStatePill state={effectiveState} />}
+                              </p>
                               <p className="mt-1 text-xs text-slate-500">{capability.description}</p>
+                              {effectiveState && (
+                                <p className="mt-2 text-[11px] text-slate-500">
+                                  Итог: {effectiveState.allowed && !effectiveState.locked ? "разрешено" : "запрещено"} · {effectiveSourceLabel(effectiveState.source)}
+                                </p>
+                              )}
                               {capability.locked && (
                                 <p className="mt-2 text-[11px] text-amber-300">
                                   Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}
@@ -346,6 +431,60 @@ export function UserCapabilitiesDialog({
       )}
     </>
   )
+}
+
+function RightsStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: number
+  tone: "blue" | "amber" | "emerald" | "red" | "slate"
+}) {
+  const tones = {
+    blue: "border-blue-500/30 bg-blue-500/10 text-blue-200",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    red: "border-red-500/30 bg-red-500/10 text-red-200",
+    slate: "border-slate-800 bg-slate-950/50 text-slate-300",
+  }
+
+  return (
+    <div className={`rounded-lg border p-3 ${tones[tone]}`}>
+      <p className="text-lg font-semibold">{value}</p>
+      <p className="mt-1 text-[10px] opacity-75">{label}</p>
+    </div>
+  )
+}
+
+function EffectiveStatePill({ state }: { state: EffectiveCapabilityState }) {
+  const allowed = state.allowed && !state.locked
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
+      state.locked
+        ? "border-slate-700 text-slate-500"
+        : allowed
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+          : "border-red-500/30 bg-red-500/10 text-red-200"
+    }`}>
+      {state.locked ? <Lock className="h-3 w-3" /> : allowed ? <ShieldCheck className="h-3 w-3" /> : <X className="h-3 w-3" />}
+      {state.locked ? "тариф" : allowed ? "разрешено" : "запрещено"}
+    </span>
+  )
+}
+
+function effectiveSourceLabel(source: EffectiveCapabilityState["source"]) {
+  const labels: Record<EffectiveCapabilityState["source"], string> = {
+    owner: "владелец имеет полный доступ",
+    personal_allow: "личное разрешение",
+    personal_deny: "личный запрет",
+    role_action: "точное право должности",
+    role_section: "доступ к разделу",
+    fallback: "базовые права роли",
+    locked: "закрыто тарифом",
+  }
+  return labels[source]
 }
 
 export function ResetPasswordDialog({ userId, userName }: { userId: string; userName: string }) {

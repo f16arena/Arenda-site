@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import Link from "next/link"
 import { db } from "@/lib/db"
-import { requireSection } from "@/lib/acl"
+import { fallbackCanEdit, fallbackCanView, requireSection } from "@/lib/acl"
 import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
 import { History, Shield, Users as UsersIcon } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
@@ -13,7 +13,7 @@ import {
   isFeatureAvailableInPlan,
 } from "@/lib/capabilities"
 import { PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
-import { CAPABILITY_PERMISSION_PREFIX, capabilityKeyFromPermission, userCapabilityRole } from "@/lib/capability-keys"
+import { CAPABILITY_PERMISSION_PREFIX, capabilityKeyFromPermission, capabilityPermissionKey, userCapabilityRole } from "@/lib/capability-keys"
 import {
   buildRoleOptions,
   displayRoleLabel,
@@ -28,6 +28,21 @@ import {
   ResetPasswordDialog,
   ToggleActiveButton,
 } from "./user-actions"
+
+type EffectiveCapabilityState = {
+  allowed: boolean
+  locked: boolean
+  source: "owner" | "personal_allow" | "personal_deny" | "role_action" | "role_section" | "fallback" | "locked"
+}
+
+type EffectiveRightsSummary = {
+  allowed: number
+  highRisk: number
+  locked: number
+  personalAllow: number
+  personalDeny: number
+  states: Record<string, EffectiveCapabilityState>
+}
 
 export default async function UsersPage() {
   const session = await requireSection("users", "view")
@@ -127,6 +142,51 @@ export default async function UsersPage() {
     [...roleRows.map((row) => row.role), ...users.map((user) => user.role)],
     orgId,
   )
+  const permissionRoleCodes = [
+    ...new Set([
+      ...roleOptions.map((role) => role.value),
+      ...users.map((user) => user.role),
+      ...users.map((user) => userCapabilityRole(user.id)),
+    ]),
+  ]
+  const permissionRows = await safeServerValue(
+    db.rolePermission.findMany({
+      where: { role: { in: permissionRoleCodes } },
+      select: { role: true, section: true, canView: true, canEdit: true },
+    }),
+    [] as Array<{ role: string; section: string; canView: boolean; canEdit: boolean }>,
+    { source: "admin.users.effectivePermissions", route: "/admin/users", orgId, userId: session.user.id },
+  )
+  const permissionsByRole = new Map<string, Record<string, { canView: boolean; canEdit: boolean }>>()
+  for (const row of permissionRows) {
+    const current = permissionsByRole.get(row.role) ?? {}
+    current[row.section] = { canView: row.canView, canEdit: row.canEdit }
+    permissionsByRole.set(row.role, current)
+  }
+
+  const effectiveRightsByUserId = new Map<string, EffectiveRightsSummary>()
+  const inheritedRightsByUserId = new Map<string, EffectiveRightsSummary>()
+  for (const user of users) {
+    const rolePermissions = permissionsByRole.get(user.role) ?? {}
+    effectiveRightsByUserId.set(
+      user.id,
+      resolveEffectiveRightsSummary({
+        role: user.role,
+        overrides: overridesByUserId.get(user.id) ?? {},
+        capabilities,
+        rolePermissions,
+      }),
+    )
+    inheritedRightsByUserId.set(
+      user.id,
+      resolveEffectiveRightsSummary({
+        role: user.role,
+        overrides: {},
+        capabilities,
+        rolePermissions,
+      }),
+    )
+  }
 
   const byRole = users.reduce<Record<string, number>>((acc, user) => {
     if (user.isActive) acc[user.role] = (acc[user.role] ?? 0) + 1
@@ -179,6 +239,7 @@ export default async function UsersPage() {
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Контакты</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Здания</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Профиль</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Итоговые права</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Создан</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Действия</th>
             </tr>
@@ -186,6 +247,8 @@ export default async function UsersPage() {
           <tbody>
             {users.map((user) => {
               const isSelf = user.id === session.user.id
+              const effectiveRights = effectiveRightsByUserId.get(user.id)
+              const inheritedRights = inheritedRightsByUserId.get(user.id)
               return (
                 <tr
                   key={user.id}
@@ -250,6 +313,13 @@ export default async function UsersPage() {
                       <span className="text-xs text-slate-500">-</span>
                     )}
                   </td>
+                  <td className="px-5 py-3.5">
+                    {effectiveRights ? (
+                      <EffectiveRightsCell summary={effectiveRights} />
+                    ) : (
+                      <span className="text-xs text-slate-500">-</span>
+                    )}
+                  </td>
                   <td className="px-5 py-3.5 text-xs text-slate-500">
                     {formatDate(user.createdAt)}
                   </td>
@@ -276,6 +346,10 @@ export default async function UsersPage() {
                           capabilities={capabilities}
                           capabilityGroups={capabilityGroups}
                           overrides={overridesByUserId.get(user.id) ?? {}}
+                          effectiveSummary={effectiveRights}
+                          effectiveStates={effectiveRights?.states ?? {}}
+                          inheritedStates={inheritedRights?.states ?? {}}
+                          roleLabel={displayRoleLabel(user.role)}
                         />
                       )}
                       {currentCapabilities.has("users.resetPassword") && (
@@ -294,7 +368,7 @@ export default async function UsersPage() {
             })}
             {users.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-16 text-center">
+                <td colSpan={8} className="px-5 py-16 text-center">
                   <UsersIcon className="mx-auto mb-2 h-8 w-8 text-slate-700" />
                   <p className="text-sm text-slate-500">Нет пользователей</p>
                 </td>
@@ -303,6 +377,125 @@ export default async function UsersPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  )
+}
+
+function resolveEffectiveRightsSummary({
+  role,
+  overrides,
+  capabilities,
+  rolePermissions,
+}: {
+  role: string
+  overrides: Record<string, "ALLOW" | "DENY">
+  capabilities: Array<{
+    key: string
+    section: Parameters<typeof fallbackCanView>[1]
+    level: "view" | "edit" | "sensitive"
+    risk: "normal" | "business" | "sensitive"
+    locked: boolean
+  }>
+  rolePermissions: Record<string, { canView: boolean; canEdit: boolean }>
+}): EffectiveRightsSummary {
+  const summary: EffectiveRightsSummary = {
+    allowed: 0,
+    highRisk: 0,
+    locked: 0,
+    personalAllow: 0,
+    personalDeny: 0,
+    states: {},
+  }
+
+  for (const capability of capabilities) {
+    const override = overrides[capability.key]
+    if (override === "ALLOW") summary.personalAllow += 1
+    if (override === "DENY") summary.personalDeny += 1
+
+    const state = resolveCapabilityState({ role, capability, override, rolePermissions })
+    summary.states[capability.key] = state
+
+    if (state.locked) summary.locked += 1
+    if (state.allowed && !state.locked) {
+      summary.allowed += 1
+      if (capability.risk !== "normal" || capability.level === "sensitive") summary.highRisk += 1
+    }
+  }
+
+  return summary
+}
+
+function resolveCapabilityState({
+  role,
+  capability,
+  override,
+  rolePermissions,
+}: {
+  role: string
+  capability: {
+    key: string
+    section: Parameters<typeof fallbackCanView>[1]
+    level: "view" | "edit" | "sensitive"
+    locked: boolean
+  }
+  override?: "ALLOW" | "DENY"
+  rolePermissions: Record<string, { canView: boolean; canEdit: boolean }>
+}): EffectiveCapabilityState {
+  if (capability.locked) return { allowed: false, locked: true, source: "locked" }
+  if (role === "OWNER") return { allowed: true, locked: false, source: "owner" }
+  if (override === "ALLOW") return { allowed: true, locked: false, source: "personal_allow" }
+  if (override === "DENY") return { allowed: false, locked: false, source: "personal_deny" }
+
+  const permissionKey = capabilityPermissionKey(capability.key)
+  const actionPermission = rolePermissions[permissionKey]
+  if (actionPermission) {
+    return {
+      allowed: actionPermission.canView || actionPermission.canEdit,
+      locked: false,
+      source: "role_action",
+    }
+  }
+
+  const sectionPermission = rolePermissions[capability.section]
+  if (sectionPermission) {
+    return {
+      allowed: capability.level === "view" ? sectionPermission.canView : sectionPermission.canEdit,
+      locked: false,
+      source: "role_section",
+    }
+  }
+
+  return {
+    allowed: capability.level === "view"
+      ? fallbackCanView(role, capability.section)
+      : fallbackCanEdit(role, capability.section),
+    locked: false,
+    source: "fallback",
+  }
+}
+
+function EffectiveRightsCell({ summary }: { summary: EffectiveRightsSummary }) {
+  const personalCount = summary.personalAllow + summary.personalDeny
+  return (
+    <div className="flex max-w-52 flex-wrap gap-1.5">
+      <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-200">
+        {summary.allowed} действий
+      </span>
+      {summary.highRisk > 0 && (
+        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+          риск {summary.highRisk}
+        </span>
+      )}
+      {personalCount > 0 && (
+        <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-200">
+          личные {personalCount}
+        </span>
+      )}
+      {summary.locked > 0 && (
+        <span className="rounded-full border border-slate-700 bg-slate-800/70 px-2 py-0.5 text-[11px] font-medium text-slate-400">
+          тариф {summary.locked}
+        </span>
+      )}
     </div>
   )
 }
