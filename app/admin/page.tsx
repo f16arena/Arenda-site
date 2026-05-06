@@ -20,7 +20,7 @@ import { getOnboardingState } from "@/lib/onboarding"
 import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
-import type { Prisma } from "@/app/generated/prisma/client"
+import { Prisma } from "@/app/generated/prisma/client"
 
 type AttentionItem = {
   href: string
@@ -29,6 +29,11 @@ type AttentionItem = {
   sub: string
   tone: "red" | "amber" | "blue" | "emerald"
   active: boolean
+}
+
+type MonthlyTotalRow = {
+  period: string
+  amount: number | null
 }
 
 export default async function AdminDashboard() {
@@ -217,33 +222,73 @@ export default async function AdminDashboard() {
     }),
   ])
 
-  const pastDataPromise = Promise.all(pastMonths.map(async (m) => {
-    const [paymentsAgg, expensesAgg] = await Promise.all([
-      safe(
-        "admin.dashboard.monthlyPayments",
-        db.payment.aggregate({
-          where: {
-            paymentDate: { gte: m.start, lt: m.end },
-            tenant: tenantWhereInBuilding,
-          },
-          _sum: { amount: true },
-        }),
-        { _sum: { amount: 0 } },
-      ),
-      safe(
-        "admin.dashboard.monthlyExpenses",
-        db.expense.aggregate({
-          where: { date: { gte: m.start, lt: m.end }, buildingId: { in: visibleBuildingIds } },
-          _sum: { amount: true },
-        }),
-        { _sum: { amount: 0 } },
-      ),
-    ])
-    return {
-      income: paymentsAgg._sum.amount ?? 0,
-      expense: expensesAgg._sum.amount ?? 0,
-    }
-  }))
+  const historyStart = pastMonths[0]?.start ?? currentMonthStart
+  const historyEnd = pastMonths[pastMonths.length - 1]?.end ?? nextMonthStart
+  const floorIdList = floorIds.length > 0 ? Prisma.join(floorIds) : Prisma.sql`NULL`
+  const buildingIdList = Prisma.join(visibleBuildingIds)
+
+  const pastDataPromise = Promise.all([
+    safe(
+      "admin.dashboard.monthlyPaymentsGrouped",
+      db.$queryRaw<MonthlyTotalRow[]>(Prisma.sql`
+        SELECT
+          to_char(date_trunc('month', p.payment_date), 'YYYY-MM') AS period,
+          COALESCE(SUM(p.amount), 0)::double precision AS amount
+        FROM payments p
+        JOIN tenants t ON t.id = p.tenant_id
+        JOIN users u ON u.id = t.user_id
+        WHERE u.organization_id = ${orgId}
+          AND p.payment_date >= ${historyStart}
+          AND p.payment_date < ${historyEnd}
+          AND (
+            t.space_id IN (
+              SELECT s.id
+              FROM spaces s
+              WHERE s.floor_id IN (${floorIdList})
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM tenant_spaces ts
+              JOIN spaces s ON s.id = ts.space_id
+              WHERE ts.tenant_id = t.id
+                AND s.floor_id IN (${floorIdList})
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM floors f
+              WHERE f.full_floor_tenant_id = t.id
+                AND f.building_id IN (${buildingIdList})
+            )
+          )
+        GROUP BY 1
+        ORDER BY 1
+      `),
+      [] as MonthlyTotalRow[],
+    ),
+    safe(
+      "admin.dashboard.monthlyExpensesGrouped",
+      db.$queryRaw<MonthlyTotalRow[]>(Prisma.sql`
+        SELECT
+          to_char(date_trunc('month', e.date), 'YYYY-MM') AS period,
+          COALESCE(SUM(e.amount), 0)::double precision AS amount
+        FROM expenses e
+        WHERE e.building_id IN (${buildingIdList})
+          AND e.date >= ${historyStart}
+          AND e.date < ${historyEnd}
+        GROUP BY 1
+        ORDER BY 1
+      `),
+      [] as MonthlyTotalRow[],
+    ),
+  ]).then(([paymentRows, expenseRows]) => {
+    const paymentsByPeriod = new Map(paymentRows.map((row) => [row.period, row.amount ?? 0]))
+    const expensesByPeriod = new Map(expenseRows.map((row) => [row.period, row.amount ?? 0]))
+
+    return pastMonths.map((m) => ({
+      income: paymentsByPeriod.get(m.period) ?? 0,
+      expense: expensesByPeriod.get(m.period) ?? 0,
+    }))
+  })
 
   const todayMetricsPromise = Promise.all([
     safe(
