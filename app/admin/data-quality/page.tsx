@@ -17,7 +17,14 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { formatDate, formatMoney } from "@/lib/utils"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import {
+  ACTION_CAPABILITIES,
+  CAPABILITY_PERMISSION_PREFIX,
+  capabilityPermissionKey,
+} from "@/lib/capabilities"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { userCapabilityRole } from "@/lib/capability-keys"
+import { canManageRoleInOrg, displayRoleLabel, isStaffLikeRole } from "@/lib/role-capabilities"
 
 type Severity = "critical" | "warning" | "info"
 
@@ -100,6 +107,10 @@ function invalidContactReasons(tenant: {
   }
 
   return reasons
+}
+
+function isHighRiskCapability(capability: { level: string; risk?: string | null }) {
+  return capability.level === "sensitive" || capability.risk === "business" || capability.risk === "sensitive"
 }
 
 export default async function DataQualityPage() {
@@ -205,6 +216,12 @@ export default async function DataQualityPage() {
     ],
   }
 
+  const highRiskCapabilityByPermission = new Map(
+    ACTION_CAPABILITIES
+      .filter(isHighRiskCapability)
+      .map((capability) => [capabilityPermissionKey(capability.key), capability]),
+  )
+
   const pendingPaymentReportWhere: Prisma.PaymentReportWhereInput = {
     tenant: tenantScope,
     status: "PENDING",
@@ -270,6 +287,8 @@ export default async function DataQualityPage() {
     floorWithoutPricingItems,
     activeCashAccountsCount,
     activeTemplateRows,
+    accessUsers,
+    roleCapabilityRows,
   ] = await Promise.all([
     db.tenant.count({ where: doubleRentWhere }),
     db.tenant.findMany({ where: doubleRentWhere, select: tenantSelect, take: SAMPLE_LIMIT, orderBy: { createdAt: "desc" } }),
@@ -383,6 +402,22 @@ export default async function DataQualityPage() {
       where: { organizationId: orgId, isActive: true, documentType: { in: [...requiredTemplateTypes] } },
       select: { documentType: true },
     }),
+    db.user.findMany({
+      where: { organizationId: orgId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        buildingAccess: { select: { building: { select: { name: true } } } },
+        administeredBuildings: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.rolePermission.findMany({
+      where: { section: { startsWith: CAPABILITY_PERMISSION_PREFIX } },
+      select: { role: true, section: true, canView: true, canEdit: true },
+    }).catch(() => [] as Array<{ role: string; section: string; canView: boolean; canEdit: boolean }>),
   ])
 
   const invalidContactItemsAll = contactCheckCandidates
@@ -393,6 +428,32 @@ export default async function DataQualityPage() {
     .filter((item) => item.reasons.length > 0)
   const activeTemplateTypes = new Set(activeTemplateRows.map((template) => template.documentType))
   const missingTemplateTypes = requiredTemplateTypes.filter((type) => !activeTemplateTypes.has(type))
+  const accessUserByOverrideRole = new Map(accessUsers.map((user) => [userCapabilityRole(user.id), user]))
+  const staffWithoutBuildingAccessItems = accessUsers
+    .filter((user) => (
+      isStaffLikeRole(user.role)
+      && user.buildingAccess.length === 0
+      && user.administeredBuildings.length === 0
+    ))
+  const highRiskRoleCapabilityItems = roleCapabilityRows
+    .map((row) => ({
+      row,
+      capability: highRiskCapabilityByPermission.get(row.section),
+    }))
+    .filter(({ row, capability }) => (
+      !!capability
+      && !row.role.startsWith("user:")
+      && isStaffLikeRole(row.role)
+      && canManageRoleInOrg(row.role, orgId)
+      && (row.canView || row.canEdit)
+    ))
+  const personalCapabilityOverrideItems = roleCapabilityRows
+    .map((row) => ({
+      row,
+      user: accessUserByOverrideRole.get(row.role),
+      capability: ACTION_CAPABILITIES.find((capability) => capabilityPermissionKey(capability.key) === row.section),
+    }))
+    .filter(({ user, capability }) => !!user && !!capability)
 
   const issues: QualityIssue[] = [
     {
@@ -438,6 +499,51 @@ export default async function DataQualityPage() {
         label: tenant.companyName,
         meta: `${tenantPlace(tenant)} · ${reasons.join(" · ")}`,
         href: tenantHref(tenant.id),
+      })),
+    },
+    {
+      key: "staff-without-building-access",
+      title: "Сотрудник без доступа к зданиям",
+      description: "Сотрудник или кастомная должность могут иметь права, но без привязки к зданиям не увидят объекты, помещения и арендаторов.",
+      severity: "warning",
+      count: staffWithoutBuildingAccessItems.length,
+      actionLabel: "Настроить доступ",
+      href: "/admin/users",
+      items: staffWithoutBuildingAccessItems.slice(0, SAMPLE_LIMIT).map((user) => ({
+        id: user.id,
+        label: user.name,
+        meta: `${displayRoleLabel(user.role)} · здания не назначены`,
+        href: "/admin/users",
+      })),
+    },
+    {
+      key: "high-risk-role-capabilities",
+      title: "У должностей включены рискованные права",
+      description: "Проверьте права на деньги, удаления, реквизиты, доступы и документы. Такие действия должны быть выданы только доверенным сотрудникам.",
+      severity: "info",
+      count: highRiskRoleCapabilityItems.length,
+      actionLabel: "Открыть права",
+      href: "/admin/roles",
+      items: highRiskRoleCapabilityItems.slice(0, SAMPLE_LIMIT).map(({ row, capability }) => ({
+        id: `${row.role}:${row.section}`,
+        label: displayRoleLabel(row.role),
+        meta: `${capability?.label ?? row.section} · ${row.canEdit ? "полное действие" : "просмотр"}`,
+        href: "/admin/roles",
+      })),
+    },
+    {
+      key: "personal-capability-overrides",
+      title: "Есть личные исключения прав",
+      description: "Личные исключения удобны для точечной настройки, но их нужно периодически пересматривать, чтобы доступы не накапливались случайно.",
+      severity: "info",
+      count: personalCapabilityOverrideItems.length,
+      actionLabel: "Проверить сотрудников",
+      href: "/admin/users",
+      items: personalCapabilityOverrideItems.slice(0, SAMPLE_LIMIT).map(({ row, user, capability }) => ({
+        id: `${row.role}:${row.section}`,
+        label: user?.name ?? "Пользователь",
+        meta: `${capability?.label ?? row.section} · ${row.canView || row.canEdit ? "лично разрешено" : "лично запрещено"}`,
+        href: "/admin/users",
       })),
     },
     {

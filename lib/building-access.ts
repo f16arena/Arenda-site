@@ -17,7 +17,7 @@ export function isOwnerLike(role?: string | null, isPlatformOwner?: boolean | nu
 }
 
 export function isStaffScopedRole(role?: string | null) {
-  return STAFF_SCOPED_ROLES.has(role ?? "")
+  return STAFF_SCOPED_ROLES.has(role ?? "") || !!role?.startsWith("ORG_")
 }
 
 export async function getAccessibleBuildingsForUser({
