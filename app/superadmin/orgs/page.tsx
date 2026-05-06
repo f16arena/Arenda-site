@@ -3,16 +3,33 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
-import { Plus, Building2, CheckCircle2, Clock, Pause, Search } from "lucide-react"
-import { OrgsListClient } from "./list-client"
+import { Plus, Building2, CheckCircle2, Clock, Pause, Search, ExternalLink, AlertTriangle } from "lucide-react"
 import { ROOT_HOST } from "@/lib/host"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { safeServerValue } from "@/lib/server-fallback"
+import { OrgRowActions } from "./row-actions"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 30
 type StatusFilter = "all" | "active" | "expiring" | "suspended" | "inactive"
+type OrgListItem = {
+  id: string
+  name: string
+  slug: string
+  isActive: boolean
+  isSuspended: boolean
+  hasOwner: boolean
+  planName: string | null
+  planExpiresAt: string | null
+  planExpiresAtLabel: string | null
+  expired: boolean
+  expiringSoon: boolean
+  daysLeft: number | null
+  buildingsCount: number
+  usersCount: number
+}
 
 export default async function OrgsListPage({
   searchParams,
@@ -92,7 +109,7 @@ export default async function OrgsListPage({
     })),
   ])
 
-  const items = orgs.map((o) => {
+  const items: OrgListItem[] = orgs.map((o) => {
     const expired = !!(o.planExpiresAt && o.planExpiresAt < now)
     const expiringSoon = !!(o.planExpiresAt && !expired && o.planExpiresAt < sevenDays)
     const daysLeft = o.planExpiresAt
@@ -199,7 +216,7 @@ export default async function OrgsListPage({
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <OrgsListClient items={items} rootHost={ROOT_HOST} hideFilters />
+          <OrgsTable items={items} rootHost={ROOT_HOST} />
           <PaginationControls
             basePath="/superadmin/orgs"
             page={page}
@@ -210,6 +227,155 @@ export default async function OrgsListPage({
         </div>
       )}
     </div>
+  )
+}
+
+function OrgsTable({ items, rootHost }: { items: OrgListItem[]; rootHost: string }) {
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+          <TableHead>Организация</TableHead>
+          <TableHead>Тариф</TableHead>
+          <TableHead>Подписка</TableHead>
+          <TableHead align="right">Зданий</TableHead>
+          <TableHead align="right">Пользователей</TableHead>
+          <TableHead>Статус</TableHead>
+          <TableHead align="right">Действия</TableHead>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((org) => (
+          <OrgRow key={org.id} org={org} rootHost={rootHost} />
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
+  const orgUrl = `https://${org.slug}.${rootHost}`
+
+  return (
+    <tr
+      className={cn(
+        "border-b border-slate-50 transition hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50",
+        org.isSuspended && "bg-red-50 dark:bg-red-500/10",
+        !org.isActive && "opacity-60",
+      )}
+    >
+      <td className="px-5 py-3.5">
+        <div className="min-w-0">
+          <Link href={`/superadmin/orgs/${org.id}`} className="block">
+            <p className="font-medium text-slate-900 transition hover:text-purple-600 dark:text-slate-100 dark:hover:text-purple-400">
+              {org.name}
+            </p>
+          </Link>
+          <a
+            href={orgUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 inline-flex items-center gap-0.5 font-mono text-[10px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
+            title="Открыть поддомен в новой вкладке"
+          >
+            {org.slug}.{rootHost}
+            <ExternalLink className="h-2.5 w-2.5" />
+          </a>
+        </div>
+      </td>
+      <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
+        {org.planName ? (
+          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            {org.planName}
+          </span>
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        )}
+      </td>
+      <td className="px-5 py-3.5 text-xs">
+        {org.planExpiresAt ? (
+          <div>
+            <p
+              className={cn(
+                org.expired
+                  ? "font-medium text-red-600 dark:text-red-400"
+                  : org.expiringSoon
+                    ? "font-medium text-amber-600 dark:text-amber-400"
+                    : "text-slate-600 dark:text-slate-400",
+              )}
+            >
+              {org.planExpiresAtLabel ?? "—"}
+            </p>
+            {org.daysLeft !== null && (
+              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                {org.expired ? `просрочен ${-org.daysLeft} дн.` : `${org.daysLeft} дн.`}
+              </p>
+            )}
+          </div>
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        )}
+      </td>
+      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{org.buildingsCount}</td>
+      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{org.usersCount}</td>
+      <td className="px-5 py-3.5">
+        {org.isSuspended ? (
+          <Badge color="red" icon={AlertTriangle}>Приостановлен</Badge>
+        ) : !org.isActive ? (
+          <Badge color="slate" icon={Pause}>Деактивирован</Badge>
+        ) : org.expired ? (
+          <Badge color="red">Истек</Badge>
+        ) : org.expiringSoon ? (
+          <Badge color="amber">Истекает</Badge>
+        ) : (
+          <Badge color="emerald">Активен</Badge>
+        )}
+      </td>
+      <td className="px-5 py-3.5">
+        <OrgRowActions
+          id={org.id}
+          name={org.name}
+          hasOwner={org.hasOwner}
+          isActive={org.isActive}
+        />
+      </td>
+    </tr>
+  )
+}
+
+function TableHead({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th
+      className={cn(
+        "px-5 py-3 text-xs font-medium text-slate-500 dark:text-slate-400",
+        align === "right" ? "text-right" : "text-left",
+      )}
+    >
+      {children}
+    </th>
+  )
+}
+
+function Badge({
+  children,
+  color,
+  icon: Icon,
+}: {
+  children: React.ReactNode
+  color: "emerald" | "amber" | "red" | "slate"
+  icon?: React.ElementType
+}) {
+  const colors = {
+    emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+    amber: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+    red: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
+    slate: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${colors[color]}`}>
+      {Icon && <Icon className="h-3 w-3" />}
+      {children}
+    </span>
   )
 }
 
