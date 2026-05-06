@@ -22,6 +22,15 @@ import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import type { Prisma } from "@/app/generated/prisma/client"
 
+type AttentionItem = {
+  href: string
+  title: string
+  value: string
+  sub: string
+  tone: "red" | "amber" | "blue" | "emerald"
+  active: boolean
+}
+
 export default async function AdminDashboard() {
   return measureServerRoute("/admin", async () => {
   const { orgId } = await requireOrgAccess()
@@ -478,7 +487,7 @@ export default async function AdminDashboard() {
     months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
   }
 
-  const attentionItems = [
+  const attentionItems: AttentionItem[] = [
     {
       href: "/admin/finances?filter=overdue",
       title: "Просроченные платежи",
@@ -512,6 +521,7 @@ export default async function AdminDashboard() {
       active: expiringContracts > 0,
     },
   ].sort((left, right) => Number(right.active) - Number(left.active))
+  const ownerPrimaryAction = attentionItems.find((item) => item.active) ?? null
 
   return (
     <div className="space-y-6">
@@ -566,6 +576,8 @@ export default async function AdminDashboard() {
           mostDebtBuilding={mostDebtBuilding && mostDebtBuilding.debt > 0 ? { name: mostDebtBuilding.name, amount: mostDebtBuilding.debt } : null}
         />
       )}
+
+      <OwnerNextActionCard action={ownerPrimaryAction} />
 
       <div>
         <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
@@ -925,6 +937,67 @@ function PortfolioStat({
       <p className={`truncate text-lg font-bold ${colors[tone]}`}>{value}</p>
       <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</p>
     </div>
+  )
+}
+
+function OwnerNextActionCard({ action }: { action: AttentionItem | null }) {
+  if (!action) {
+    return (
+      <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              Главное действие владельца
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-emerald-950 dark:text-emerald-100">
+              Критичных действий сейчас нет
+            </h2>
+            <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200">
+              Долги, проверки оплат, документы и качество данных в норме по текущему срезу.
+            </p>
+          </div>
+          <Link
+            href="/admin/ops"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Открыть рабочий день
+            <ArrowUpRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+    )
+  }
+
+  const colors = {
+    red: "border-red-200 bg-red-50 text-red-950 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-100",
+    amber: "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100",
+    blue: "border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100",
+    emerald: "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100",
+  }
+  const buttonColors = {
+    red: "bg-red-600 hover:bg-red-700",
+    amber: "bg-amber-600 hover:bg-amber-700",
+    blue: "bg-blue-600 hover:bg-blue-700",
+    emerald: "bg-emerald-600 hover:bg-emerald-700",
+  }
+
+  return (
+    <section className={`rounded-xl border p-4 ${colors[action.tone]}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide opacity-75">Главное действие владельца</p>
+          <h2 className="mt-1 text-lg font-semibold">{action.title}: {action.value}</h2>
+          <p className="mt-1 text-sm opacity-80">{action.sub}</p>
+        </div>
+        <Link
+          href={action.href}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white ${buttonColors[action.tone]}`}
+        >
+          Перейти
+          <ArrowUpRight className="h-4 w-4" />
+        </Link>
+      </div>
+    </section>
   )
 }
 
