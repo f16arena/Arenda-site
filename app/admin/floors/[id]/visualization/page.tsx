@@ -8,6 +8,7 @@ import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg } from "@/lib/scope-guards"
 import { hasFeature } from "@/lib/plan-features"
+import { getF16TemplateByFloorNumber } from "@/lib/f16-templates"
 
 export default async function FloorVisualizationPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -76,6 +77,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
       if (isLayoutV2(parsed)) initialLayout = parsed
     } catch {}
   }
+  const f16Template = getF16TemplateByFloorNumber(floor.number)
 
   return (
     <div className="space-y-4">
@@ -93,6 +95,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
         floorId={floor.id}
         floorName={floor.name}
         floorNumber={floor.number}
+        f16Template={f16Template}
         initialLayout={initialLayout}
         initialTotalArea={floor.totalArea ?? null}
         spaces={floor.spaces}

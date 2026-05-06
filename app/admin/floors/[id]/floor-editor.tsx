@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback, MouseEvent as ReactMouseEvent } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo, MouseEvent as ReactMouseEvent } from "react"
 import dynamic from "next/dynamic"
 import { saveFloorLayout, setBuildingAreaFromFloors } from "@/app/actions/floor-layout"
 import { useRouter } from "next/navigation"
@@ -21,7 +21,6 @@ import {
   polygonArea,
   elementCenter,
 } from "@/lib/floor-layout"
-import { getF16TemplateByFloorNumber } from "@/lib/f16-templates"
 
 type Tool = "select" | "rect" | "polygon" | "door" | "window" | "label" | "wall" | "stairs" | "elevator" | "toilet"
 
@@ -33,7 +32,7 @@ const InsertRoomPanel = dynamic(() => import("./floor-editor-panels").then((mod)
 const AreasPanel = dynamic(() => import("./floor-editor-panels").then((mod) => mod.AreasPanel), {
   loading: () => <PanelSkeleton />,
 })
-const DangerZone = dynamic(() => import("./floor-editor-panels").then((mod) => mod.DangerZone), {
+const DangerZone = dynamic(() => import("./floor-editor-danger-zone").then((mod) => mod.DangerZone), {
   loading: () => <PanelSkeleton tone="danger" />,
 })
 const PropertiesPanel = dynamic(() => import("./floor-editor-panels").then((mod) => mod.PropertiesPanel), {
@@ -122,6 +121,7 @@ export function FloorEditor({
   floorId,
   floorName,
   floorNumber,
+  f16Template,
   initialLayout,
   initialTotalArea,
   spaces,
@@ -129,12 +129,12 @@ export function FloorEditor({
   floorId: string
   floorName: string
   floorNumber: number
+  f16Template?: FloorLayoutV2 | null
   initialLayout: FloorLayoutV2 | null
   initialTotalArea?: number | null
   spaces: SpaceLite[]
 }) {
   const router = useRouter()
-  const f16Template = getF16TemplateByFloorNumber(floorNumber)
   const [layout, setLayoutRaw] = useState<FloorLayoutV2>(() => initialLayout ?? DEFAULT_LAYOUT)
   const [totalArea, setTotalArea] = useState<number | null>(initialTotalArea ?? null)
   const [history, setHistory] = useState<FloorLayoutV2[]>([])
@@ -1014,7 +1014,11 @@ export function FloorEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, layout, clipboard])
 
-  const selected = layout.elements.find((e) => e.id === selectedId) ?? null
+  const spaceById = useMemo(() => new Map(spaces.map((space) => [space.id, space])), [spaces])
+  const selected = useMemo(
+    () => layout.elements.find((element) => element.id === selectedId) ?? null,
+    [layout.elements, selectedId],
+  )
   const px = PX_PER_METER * zoom
 
   // ── Render ───────────────────────────────────────────────────
@@ -1354,7 +1358,7 @@ export function FloorEditor({
                   el={el}
                   selected={el.id === selectedId}
                   zoom={zoom}
-                  spaces={spaces}
+                  spaceById={spaceById}
                   outlineOnly={displayMode === "outline"}
                   onMouseDown={(e) => startMove(e, el)}
                   onResizeRect={(e, h) => startResizeRect(e, el, h)}
@@ -1580,20 +1584,20 @@ export function FloorEditor({
 
 // ── Render single element ──────────────────────────────────────
 function RenderElement({
-  el, selected, zoom, spaces, outlineOnly,
+  el, selected, zoom, spaceById, outlineOnly,
   onMouseDown, onResizeRect, onResizePoly,
 }: {
   el: FloorElement
   selected: boolean
   zoom: number
-  spaces: SpaceLite[]
+  spaceById: Map<string, SpaceLite>
   outlineOnly?: boolean
   onMouseDown: (e: ReactMouseEvent) => void
   onResizeRect: (e: ReactMouseEvent, handle: string) => void
   onResizePoly: (e: ReactMouseEvent, vertexIndex: number) => void
 }) {
   const linkedSpace = "spaceId" in el && el.spaceId
-    ? spaces.find((s) => s.id === el.spaceId)
+    ? spaceById.get(el.spaceId)
     : undefined
   const isCommon = (el.type === "rect" || el.type === "polygon") && el.kind === "common"
   const status = linkedSpace?.status ?? (isCommon ? "COMMON" : "UNLINKED")

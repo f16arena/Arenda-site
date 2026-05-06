@@ -9,6 +9,7 @@ type FloorEditorProps = {
   floorId: string
   floorName: string
   floorNumber: number
+  f16Template?: FloorLayoutV2 | null
   initialLayout: FloorLayoutV2 | null
   initialTotalArea?: number | null
   spaces: SpaceLite[]
