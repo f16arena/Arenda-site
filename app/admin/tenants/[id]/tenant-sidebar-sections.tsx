@@ -25,6 +25,8 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
           number: true,
           type: true,
           status: true,
+          changeKind: true,
+          appliedAt: true,
           startDate: true,
           endDate: true,
           signedByTenantAt: true,
@@ -73,6 +75,19 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
               <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                 {contract.startDate ? formatDate(contract.startDate) : "—"} → {contract.endDate ? formatDate(contract.endDate) : "—"}
               </p>
+              {contract.type === "ADDENDUM" && (
+                <p className={`mt-1 text-[11px] ${
+                  contract.status === "SIGNED" && contract.appliedAt
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-amber-600 dark:text-amber-300"
+                }`}>
+                  {contract.status === "SIGNED"
+                    ? contract.appliedAt
+                      ? "Применено к условиям аренды"
+                      : "Подписано, ожидает применения"
+                    : "Изменения вступят только после подписи"}
+                </p>
+              )}
               <div className="mt-2">
                 <ContractWorkflowActions contract={contract} />
               </div>
