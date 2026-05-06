@@ -114,6 +114,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         action: "ERROR",
         createdAt: { gte: last24 },
         details: { contains: org.id, mode: "insensitive" },
+        NOT: [{ details: { contains: `"supportStatus":"RESOLVED"` } }],
       },
     }).catch(() => 0),
     safe(
@@ -122,6 +123,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         where: {
           action: "ERROR",
           details: { contains: org.id, mode: "insensitive" },
+          NOT: [{ details: { contains: `"supportStatus":"RESOLVED"` } }],
         },
         orderBy: { createdAt: "desc" },
         take: 3,

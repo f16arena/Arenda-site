@@ -20,6 +20,11 @@ export type ErrorReportDetails = {
   suggestedAction?: string | null
   hints?: string[]
   context?: Record<string, unknown> | null
+  supportStatus?: "NEW" | "IN_PROGRESS" | "RESOLVED" | null
+  supportNote?: string | null
+  supportUpdatedAt?: string | null
+  supportUpdatedBy?: string | null
+  supportResolvedAt?: string | null
 }
 
 export type ErrorReportDecode = {

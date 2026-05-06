@@ -900,7 +900,11 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
   const sentrySourceConfigured = isProductionRuntime() || sentrySourceFiles.every(Boolean)
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const recentErrorCount = await db.auditLog.count({
-    where: { action: "ERROR", createdAt: { gte: since } },
+    where: {
+      action: "ERROR",
+      createdAt: { gte: since },
+      NOT: [{ details: { contains: `"supportStatus":"RESOLVED"` } }],
+    },
   }).catch(() => 0)
 
   if (!errorRoute && !sentryConfigured) {

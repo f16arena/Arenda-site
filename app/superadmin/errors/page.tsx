@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import Link from "next/link"
-import { AlertTriangle, Bug, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
+import { AlertTriangle, Bug, CheckCircle2, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
+import { updateErrorSupportStatus, type ErrorSupportStatus } from "@/app/actions/superadmin-errors"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
@@ -13,20 +14,23 @@ import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 30
 
+type SupportFilter = "open" | "new" | "in_progress" | "resolved" | "all"
+
 export default async function SuperadminErrorsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string | string[]; q?: string | string[]; kind?: string | string[] }>
+  searchParams?: Promise<{ page?: string | string[]; q?: string | string[]; kind?: string | string[]; status?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
   const query = normalizeQuery(resolved?.q)
   const kind = normalizeKind(resolved?.kind)
+  const supportFilter = normalizeSupportFilter(resolved?.status)
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/superadmin/errors", userId })
 
-  const filters: Prisma.AuditLogWhereInput[] = []
+  const filters: Prisma.AuditLogWhereInput[] = [supportFilterWhere(supportFilter)]
   if (kind) filters.push({ details: { contains: `"routeKind":"${kind}"`, mode: "insensitive" } })
   if (query) {
     filters.push({
@@ -47,7 +51,11 @@ export default async function SuperadminErrorsPage({
 
   const now = new Date()
   const last24 = new Date(now.getTime() - 24 * 3600 * 1000)
-  const [logs, total, totalAll, last24Count] = await Promise.all([
+  const openWhere = { action: "ERROR", ...supportFilterWhere("open") } satisfies Prisma.AuditLogWhereInput
+  const inProgressWhere = { action: "ERROR", ...supportFilterWhere("in_progress") } satisfies Prisma.AuditLogWhereInput
+  const resolvedWhere = { action: "ERROR", ...supportFilterWhere("resolved") } satisfies Prisma.AuditLogWhereInput
+
+  const [logs, total, totalAll, openCount, inProgressCount, resolvedCount, last24Count] = await Promise.all([
     safe(
       "superadmin.errors.logs",
       db.auditLog.findMany({
@@ -60,6 +68,9 @@ export default async function SuperadminErrorsPage({
     ),
     safe("superadmin.errors.total", db.auditLog.count({ where }), 0),
     safe("superadmin.errors.totalAll", db.auditLog.count({ where: { action: "ERROR" } }), 0),
+    safe("superadmin.errors.openCount", db.auditLog.count({ where: openWhere }), 0),
+    safe("superadmin.errors.inProgressCount", db.auditLog.count({ where: inProgressWhere }), 0),
+    safe("superadmin.errors.resolvedCount", db.auditLog.count({ where: resolvedWhere }), 0),
     safe("superadmin.errors.last24Count", db.auditLog.count({ where: { action: "ERROR", createdAt: { gte: last24 } } }), 0),
   ])
 
@@ -82,6 +93,7 @@ export default async function SuperadminErrorsPage({
     const text = `${details.message ?? ""} ${details.digest ?? ""} ${details.source ?? ""}`.toLowerCase()
     return text.includes("server components render") || (!!details.digest && `${details.source ?? ""}`.includes("/error"))
   }).length
+  const repeatMap = getRepeatMap(parsed.map(({ log, details }) => details.errorId ?? log.entityId ?? log.id))
 
   return (
     <div className="space-y-5">
@@ -93,12 +105,13 @@ export default async function SuperadminErrorsPage({
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Ошибки сайта</h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Понятный журнал: какая страница сломалась, кто был в системе, что произошло и что делать дальше.
+              Рабочий журнал поддержки: новые ошибки, ошибки в работе и уже решенные события не смешиваются.
             </p>
           </div>
         </div>
 
-        <form action="/superadmin/errors" className="flex w-full gap-2 lg:w-[560px]">
+        <form action="/superadmin/errors" className="flex w-full gap-2 lg:w-[680px]">
+          <input type="hidden" name="status" value={supportFilter} />
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -127,10 +140,19 @@ export default async function SuperadminErrorsPage({
         </form>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard icon={ShieldAlert} label="Всего ошибок" value={totalAll} tone="red" />
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard icon={ShieldAlert} label="Открытых" value={openCount} tone="red" />
         <StatCard icon={AlertTriangle} label="За 24 часа" value={last24Count} tone="amber" />
         <StatCard icon={ServerCrash} label="Server Component" value={serverComponentCount} tone="purple" />
+        <StatCard icon={CheckCircle2} label="Решено" value={resolvedCount} tone="emerald" />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <StatusLink label="Открытые" value="open" active={supportFilter === "open"} count={openCount} q={query} kind={kind} />
+        <StatusLink label="Новые" value="new" active={supportFilter === "new"} count={Math.max(openCount - inProgressCount, 0)} q={query} kind={kind} />
+        <StatusLink label="В работе" value="in_progress" active={supportFilter === "in_progress"} count={inProgressCount} q={query} kind={kind} />
+        <StatusLink label="Решенные" value="resolved" active={supportFilter === "resolved"} count={resolvedCount} q={query} kind={kind} />
+        <StatusLink label="Все" value="all" active={supportFilter === "all"} count={totalAll} q={query} kind={kind} />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -138,7 +160,7 @@ export default async function SuperadminErrorsPage({
           <div className="px-5 py-12 text-center">
             <Bug className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-700" />
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Ошибок не найдено</p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Попробуйте изменить поиск или зону.</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Попробуйте изменить поиск, зону или статус.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -147,12 +169,15 @@ export default async function SuperadminErrorsPage({
               const human = humanizeErrorReport(details)
               const org = details.organizationId ? orgMap.get(details.organizationId) : null
               const errorCode = details.errorId ?? log.entityId ?? log.id
+              const supportStatus = getSupportStatus(details)
+              const repeatCount = repeatMap.get(errorCode) ?? 1
 
               return (
-                <article key={log.id} className="p-5">
+                <article key={log.id} className={cn("p-5", supportStatus === "RESOLVED" && "bg-emerald-50/40 dark:bg-emerald-500/5")}>
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        <SupportStatusBadge status={supportStatus} />
                         <span
                           className={cn(
                             "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
@@ -167,11 +192,21 @@ export default async function SuperadminErrorsPage({
                         </span>
                         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{human.title}</h2>
                         <span className="font-mono text-xs text-slate-500 dark:text-slate-400">#{errorCode}</span>
+                        {repeatCount > 1 && (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            {repeatCount} похожих на странице
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         {formatDateTime(log.createdAt)} · {routeKindLabel(details.routeKind)} ·{" "}
                         {org ? `${org.name} (${org.slug})` : "платформа / публичная зона"}
                       </p>
+                      {details.supportNote && (
+                        <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+                          Заметка поддержки: {details.supportNote}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -215,6 +250,7 @@ export default async function SuperadminErrorsPage({
                     </ul>
                   )}
 
+                  <SupportActions logId={log.id} status={supportStatus} note={details.supportNote ?? ""} />
                   <DeveloperDetails details={details} />
                 </article>
               )
@@ -224,7 +260,7 @@ export default async function SuperadminErrorsPage({
 
         <PaginationControls
           basePath="/superadmin/errors"
-          params={{ q: query, kind }}
+          params={{ q: query, kind, status: supportFilter === "open" ? null : supportFilter }}
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
@@ -232,6 +268,21 @@ export default async function SuperadminErrorsPage({
       </div>
     </div>
   )
+}
+
+function supportFilterWhere(filter: SupportFilter): Prisma.AuditLogWhereInput {
+  if (filter === "all") return {}
+  if (filter === "resolved") return { details: { contains: `"supportStatus":"RESOLVED"` } }
+  if (filter === "in_progress") return { details: { contains: `"supportStatus":"IN_PROGRESS"` } }
+  if (filter === "new") {
+    return {
+      NOT: [
+        { details: { contains: `"supportStatus":"IN_PROGRESS"` } },
+        { details: { contains: `"supportStatus":"RESOLVED"` } },
+      ],
+    }
+  }
+  return { NOT: [{ details: { contains: `"supportStatus":"RESOLVED"` } }] }
 }
 
 function normalizeQuery(value: string | string[] | undefined): string {
@@ -242,6 +293,21 @@ function normalizeQuery(value: string | string[] | undefined): string {
 function normalizeKind(value: string | string[] | undefined): string {
   const raw = (Array.isArray(value) ? value[0] : value ?? "").trim()
   return ["admin", "cabinet", "superadmin", "public", "server-action", "server"].includes(raw) ? raw : ""
+}
+
+function normalizeSupportFilter(value: string | string[] | undefined): SupportFilter {
+  const raw = (Array.isArray(value) ? value[0] : value ?? "").trim().toLowerCase()
+  return raw === "all" || raw === "new" || raw === "in_progress" || raw === "resolved" ? raw : "open"
+}
+
+function getSupportStatus(details: ErrorReportDetails): ErrorSupportStatus {
+  return details.supportStatus === "IN_PROGRESS" || details.supportStatus === "RESOLVED" ? details.supportStatus : "NEW"
+}
+
+function getRepeatMap(keys: string[]): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const key of keys) map.set(key, (map.get(key) ?? 0) + 1)
+  return map
 }
 
 function severityLabel(severity: "critical" | "warning" | "info"): string {
@@ -274,6 +340,43 @@ function formatDateTime(value: Date): string {
   }).format(value)
 }
 
+function StatusLink({
+  label,
+  value,
+  active,
+  count,
+  q,
+  kind,
+}: {
+  label: string
+  value: SupportFilter
+  active: boolean
+  count: number
+  q: string
+  kind: string
+}) {
+  const params = new URLSearchParams()
+  if (q) params.set("q", q)
+  if (kind) params.set("kind", kind)
+  if (value !== "open") params.set("status", value)
+  const href = params.toString() ? `/superadmin/errors?${params}` : "/superadmin/errors"
+
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "rounded-lg border px-3 py-1.5 text-xs font-medium transition",
+        active
+          ? "border-purple-600 bg-purple-600 text-white"
+          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
+      )}
+    >
+      {label}
+      <span className={cn("ml-1.5 text-[10px]", active ? "text-purple-100" : "text-slate-400 dark:text-slate-500")}>{count}</span>
+    </Link>
+  )
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -283,12 +386,13 @@ function StatCard({
   icon: React.ElementType
   label: string
   value: number
-  tone: "red" | "amber" | "purple"
+  tone: "red" | "amber" | "purple" | "emerald"
 }) {
   const tones = {
     red: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300",
     amber: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300",
     purple: "bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-300",
+    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300",
   }
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -298,6 +402,64 @@ function StatCard({
       <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{label}</p>
     </div>
+  )
+}
+
+function SupportStatusBadge({ status }: { status: ErrorSupportStatus }) {
+  const config = {
+    NEW: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+    IN_PROGRESS: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+    RESOLVED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  }
+  return (
+    <span className={cn("inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold", config[status])}>
+      {status === "NEW" ? "Новая" : status === "IN_PROGRESS" ? "В работе" : "Решена"}
+    </span>
+  )
+}
+
+function SupportActions({ logId, status, note }: { logId: string; status: ErrorSupportStatus; note: string }) {
+  return (
+    <form action={updateErrorSupportStatus} className="mt-4 rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+      <input type="hidden" name="logId" value={logId} />
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <input
+          name="note"
+          defaultValue={note}
+          placeholder="Заметка поддержки, например: исправлено в 1.3.104"
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none focus:border-purple-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+        />
+        <div className="flex flex-wrap gap-2">
+          {status !== "IN_PROGRESS" && (
+            <button
+              name="status"
+              value="IN_PROGRESS"
+              className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-300 dark:hover:bg-amber-500/10"
+            >
+              В работу
+            </button>
+          )}
+          {status !== "RESOLVED" && (
+            <button
+              name="status"
+              value="RESOLVED"
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              Пометить решенной
+            </button>
+          )}
+          {status !== "NEW" && (
+            <button
+              name="status"
+              value="NEW"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
+            >
+              Открыть заново
+            </button>
+          )}
+        </div>
+      </div>
+    </form>
   )
 }
 
