@@ -1,23 +1,7 @@
-// Feature flags из тарифного плана организации.
-// Plan.features — JSON со строкой вида {"floorEditor": true, "telegramBot": true, ...}
-// Если у организации нет плана / план не задал ключ — фича считается ВЫКЛЮЧЕННОЙ.
-
 import { db } from "@/lib/db"
+import type { PlanCapabilityKey } from "@/lib/plan-capabilities"
 
-export type FeatureKey =
-  | "emailNotifications"
-  | "telegramBot"
-  | "floorEditor"      // Визуализация помещения (BETA)
-  | "contractTemplates"
-  | "bankImport"
-  | "excelExport"
-  | "export1c"
-  | "cmdkSearch"
-  | "customDomain"
-  | "api"
-  | "whiteLabel"
-  | "aiAssistant"
-  | "prioritySupport"
+export type FeatureKey = PlanCapabilityKey
 
 export async function getOrgFeatures(orgId: string): Promise<Record<string, boolean>> {
   const org = await db.organization.findUnique({
