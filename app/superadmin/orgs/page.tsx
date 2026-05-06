@@ -107,6 +107,7 @@ export default async function OrgsListPage({
       hasOwner: !!o.ownerUserId,
       planName: o.plan?.name ?? null,
       planExpiresAt: o.planExpiresAt ? o.planExpiresAt.toISOString() : null,
+      planExpiresAtLabel: o.planExpiresAt ? formatDateRu(o.planExpiresAt) : null,
       expired,
       expiringSoon,
       daysLeft,
@@ -228,6 +229,10 @@ function hrefFor(params: { q?: string | null; status?: string | null }) {
   if (params.status) query.set("status", params.status)
   const qs = query.toString()
   return qs ? `/superadmin/orgs?${qs}` : "/superadmin/orgs"
+}
+
+function formatDateRu(value: Date): string {
+  return new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Qyzylorda" }).format(value)
 }
 
 function KpiCard({ label, value, icon: Icon, color }: {

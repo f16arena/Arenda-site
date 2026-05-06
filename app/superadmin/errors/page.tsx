@@ -3,13 +3,13 @@ export const dynamic = "force-dynamic"
 import Link from "next/link"
 import { AlertTriangle, Bug, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
 import type { Prisma } from "@/app/generated/prisma/client"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
-import { decodeErrorReport, humanizeErrorReport, parseErrorDetails } from "@/lib/error-report"
+import { decodeErrorReport, humanizeErrorReport, parseErrorDetails, type ErrorReportDetails } from "@/lib/error-report"
 import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
-import { cn } from "@/lib/utils"
-import { PaginationControls } from "@/components/ui/pagination-controls"
 import { safeServerValue } from "@/lib/server-fallback"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 30
 
@@ -27,9 +27,7 @@ export default async function SuperadminErrorsPage({
     safeServerValue(promise, fallback, { source, route: "/superadmin/errors", userId })
 
   const filters: Prisma.AuditLogWhereInput[] = []
-  if (kind) {
-    filters.push({ details: { contains: `"routeKind":"${kind}"`, mode: "insensitive" } })
-  }
+  if (kind) filters.push({ details: { contains: `"routeKind":"${kind}"`, mode: "insensitive" } })
   if (query) {
     filters.push({
       OR: [
@@ -62,11 +60,7 @@ export default async function SuperadminErrorsPage({
     ),
     safe("superadmin.errors.total", db.auditLog.count({ where }), 0),
     safe("superadmin.errors.totalAll", db.auditLog.count({ where: { action: "ERROR" } }), 0),
-    safe(
-      "superadmin.errors.last24Count",
-      db.auditLog.count({ where: { action: "ERROR", createdAt: { gte: last24 } } }),
-      0,
-    ),
+    safe("superadmin.errors.last24Count", db.auditLog.count({ where: { action: "ERROR", createdAt: { gte: last24 } } }), 0),
   ])
 
   const parsed = logs.map((log) => ({ log, details: parseErrorDetails(log.details) }))
@@ -99,7 +93,7 @@ export default async function SuperadminErrorsPage({
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Ошибки сайта</h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Понятный журнал: где сломалось, кто был в системе, что произошло и что делать дальше.
+              Понятный журнал: какая страница сломалась, кто был в системе, что произошло и что делать дальше.
             </p>
           </div>
         </div>
@@ -159,21 +153,24 @@ export default async function SuperadminErrorsPage({
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn(
-                          "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                          decoded.severity === "critical"
-                            ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
-                            : decoded.severity === "warning"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-                        )}>
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                            decoded.severity === "critical"
+                              ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+                              : decoded.severity === "warning"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+                          )}
+                        >
                           {severityLabel(decoded.severity)}
                         </span>
                         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{human.title}</h2>
                         <span className="font-mono text-xs text-slate-500 dark:text-slate-400">#{errorCode}</span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {new Date(log.createdAt).toLocaleString("ru-RU")} · {routeKindLabel(details.routeKind)} · {org ? `${org.name} (${org.slug})` : "платформа / публичная зона"}
+                        {formatDateTime(log.createdAt)} · {routeKindLabel(details.routeKind)} ·{" "}
+                        {org ? `${org.name} (${org.slug})` : "платформа / публичная зона"}
                       </p>
                     </div>
 
@@ -212,37 +209,13 @@ export default async function SuperadminErrorsPage({
                     <Field label="IP / Host" value={`${log.ip ?? "—"} · ${details.host ?? "—"}`} mono />
                   </dl>
 
-                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                    {details.context && <ContextDetails context={details.context} />}
-
-                    {details.message && (
-                      <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
-                        <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                          Техническое сообщение для разработчика
-                        </summary>
-                        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
-                          {details.message}
-                        </pre>
-                      </details>
-                    )}
-
-                    {details.stack && (
-                      <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
-                        <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                          Stack trace
-                        </summary>
-                        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
-                          {details.stack}
-                        </pre>
-                      </details>
-                    )}
-                  </div>
-
                   {mergedHints(details.hints, decoded.hints).length > 0 && (
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-500 dark:text-slate-400">
                       {mergedHints(details.hints, decoded.hints).map((hint) => <li key={hint}>{hint}</li>)}
                     </ul>
                   )}
+
+                  <DeveloperDetails details={details} />
                 </article>
               )
             })}
@@ -293,6 +266,14 @@ function mergedHints(...groups: Array<string[] | undefined>): string[] {
   return Array.from(new Set(groups.flatMap((group) => group ?? []).filter(Boolean)))
 }
 
+function formatDateTime(value: Date): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Asia/Qyzylorda",
+  }).format(value)
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -338,34 +319,57 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   )
 }
 
-function ContextDetails({ context }: { context: Record<string, unknown> }) {
-  const entries = Object.entries(context).slice(0, 12)
+function DeveloperDetails({ details }: { details: ErrorReportDetails }) {
+  if (!details.context && !details.message && !details.stack) return null
+
   return (
-    <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
-      <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-        Контекст действия
+    <details className="mt-4 rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+      <summary className="cursor-pointer font-medium text-slate-600 dark:text-slate-300">
+        Показать технические детали для разработчика
       </summary>
-      {entries.length === 0 ? (
-        <p className="mt-3 text-slate-500 dark:text-slate-400">Контекст пустой.</p>
-      ) : (
-        <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/50">
-              <dt className="text-[11px] text-slate-400 dark:text-slate-500">{contextKeyLabel(key)}</dt>
-              <dd className="mt-1 break-words text-slate-700 dark:text-slate-300">{formatContextValue(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      <details className="mt-3">
-        <summary className="cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          Полный технический контекст
-        </summary>
-        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
-          {JSON.stringify(context, null, 2)}
-        </pre>
-      </details>
+      <div className="mt-3 space-y-3">
+        {details.context && <ContextPreview context={details.context} />}
+        {details.message && <CodeBlock title="Техническое сообщение" value={details.message} />}
+        {details.stack && <CodeBlock title="Stack trace" value={details.stack} />}
+        {details.context && (
+          <details className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
+            <summary className="cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Полный технический контекст
+            </summary>
+            <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+              {JSON.stringify(details.context, null, 2)}
+            </pre>
+          </details>
+        )}
+      </div>
     </details>
+  )
+}
+
+function ContextPreview({ context }: { context: Record<string, unknown> }) {
+  const entries = Object.entries(context).slice(0, 8)
+  if (entries.length === 0) return <p className="text-slate-500 dark:text-slate-400">Контекст пустой.</p>
+
+  return (
+    <dl className="grid gap-2 sm:grid-cols-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/50">
+          <dt className="text-[11px] text-slate-400 dark:text-slate-500">{contextKeyLabel(key)}</dt>
+          <dd className="mt-1 break-words text-slate-700 dark:text-slate-300">{formatContextValue(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function CodeBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-semibold uppercase text-slate-400 dark:text-slate-500">{title}</p>
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+        {value}
+      </pre>
+    </div>
   )
 }
 
@@ -384,6 +388,10 @@ function contextKeyLabel(key: string): string {
     entityId: "ID записи",
     form: "Форма",
     method: "Метод",
+    language: "Язык браузера",
+    timezone: "Часовой пояс",
+    viewport: "Размер экрана",
+    online: "Браузер онлайн",
   }
   return labels[key] ?? key
 }

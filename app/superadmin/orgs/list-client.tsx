@@ -3,8 +3,8 @@
 import { useMemo, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { AlertTriangle, ExternalLink, LogIn, Pause, Search } from "lucide-react"
 import { toast } from "sonner"
-import { Search, LogIn, ExternalLink, AlertTriangle, Pause } from "lucide-react"
 import { impersonateOrg } from "@/app/actions/organizations"
 import { cn } from "@/lib/utils"
 
@@ -17,6 +17,7 @@ type Item = {
   hasOwner: boolean
   planName: string | null
   planExpiresAt: string | null
+  planExpiresAtLabel: string | null
   expired: boolean
   expiringSoon: boolean
   daysLeft: number | null
@@ -53,42 +54,43 @@ export function OrgsListClient({
 
   return (
     <div className={hideFilters ? "" : "space-y-3"}>
-      {/* Поиск + фильтры */}
-      {!hideFilters && <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-        <div className="relative flex-1">
-          <Search className="h-4 w-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Поиск по названию или slug…"
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-          />
+      {!hideFilters && (
+        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск по названию или slug..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-800 dark:bg-slate-900"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <FilterChip label="Все" active={filter === "all"} onClick={() => setFilter("all")} count={items.length} />
+            <FilterChip label="Активные" active={filter === "active"} onClick={() => setFilter("active")} />
+            <FilterChip label="Истекают" active={filter === "expiring"} onClick={() => setFilter("expiring")} />
+            <FilterChip label="Приостановлено" active={filter === "suspended"} onClick={() => setFilter("suspended")} />
+            <FilterChip label="Деактивировано" active={filter === "inactive"} onClick={() => setFilter("inactive")} />
+          </div>
         </div>
-        <div className="flex gap-1.5 flex-wrap">
-          <FilterChip label="Все" active={filter === "all"} onClick={() => setFilter("all")} count={items.length} />
-          <FilterChip label="Активные" active={filter === "active"} onClick={() => setFilter("active")} />
-          <FilterChip label="Истекают" active={filter === "expiring"} onClick={() => setFilter("expiring")} />
-          <FilterChip label="Приостановлено" active={filter === "suspended"} onClick={() => setFilter("suspended")} />
-          <FilterChip label="Деактивировано" active={filter === "inactive"} onClick={() => setFilter("inactive")} />
-        </div>
-      </div>}
+      )}
 
       {filtered.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Ничего не найдено</p>
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Ничего не найдено</p>
         </div>
       ) : (
-        <div className={hideFilters ? "overflow-hidden" : "bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden"}>
+        <div className={hideFilters ? "overflow-hidden" : "overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"}>
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/70">
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Организация</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Подписка</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Зданий</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Юзеров</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действия</th>
+              <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
+                <TableHead>Организация</TableHead>
+                <TableHead>Тариф</TableHead>
+                <TableHead>Подписка</TableHead>
+                <TableHead align="right">Зданий</TableHead>
+                <TableHead align="right">Пользователей</TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead align="right">Действия</TableHead>
               </tr>
             </thead>
             <tbody>
@@ -109,58 +111,74 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
   const orgUrl = `https://${o.slug}.${rootHost}`
 
   return (
-    <tr className={cn(
-      "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition",
-      o.isSuspended && "bg-red-50 dark:bg-red-500/10/30",
-      !o.isActive && "opacity-60",
-    )}>
+    <tr
+      className={cn(
+        "border-b border-slate-50 transition hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50",
+        o.isSuspended && "bg-red-50 dark:bg-red-500/10",
+        !o.isActive && "opacity-60",
+      )}
+    >
       <td className="px-5 py-3.5">
-        <Link href={`/superadmin/orgs/${o.id}`} className="block">
-          <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400 transition">{o.name}</p>
+        <div className="min-w-0">
+          <Link href={`/superadmin/orgs/${o.id}`} className="block">
+            <p className="font-medium text-slate-900 transition hover:text-purple-600 dark:text-slate-100 dark:hover:text-purple-400">
+              {o.name}
+            </p>
+          </Link>
           <a
             href={orgUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 font-mono mt-0.5 inline-flex items-center gap-0.5"
+            className="mt-0.5 inline-flex items-center gap-0.5 font-mono text-[10px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
             title="Открыть поддомен в новой вкладке"
           >
             {o.slug}.{rootHost}
             <ExternalLink className="h-2.5 w-2.5" />
           </a>
-        </Link>
+        </div>
       </td>
-      <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+      <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
         {o.planName ? (
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{o.planName}</span>
-        ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
+          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            {o.planName}
+          </span>
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        )}
       </td>
       <td className="px-5 py-3.5 text-xs">
         {o.planExpiresAt ? (
           <div>
-            <p className={cn(
-              o.expired ? "text-red-600 dark:text-red-400 font-medium" :
-              o.expiringSoon ? "text-amber-600 dark:text-amber-400 font-medium" : "text-slate-600 dark:text-slate-400 dark:text-slate-500"
-            )}>
-              {new Date(o.planExpiresAt).toLocaleDateString("ru-RU")}
+            <p
+              className={cn(
+                o.expired
+                  ? "font-medium text-red-600 dark:text-red-400"
+                  : o.expiringSoon
+                    ? "font-medium text-amber-600 dark:text-amber-400"
+                    : "text-slate-600 dark:text-slate-400",
+              )}
+            >
+              {o.planExpiresAtLabel ?? "—"}
             </p>
             {o.daysLeft !== null && (
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
                 {o.expired ? `просрочен ${-o.daysLeft} дн.` : `${o.daysLeft} дн.`}
               </p>
             )}
           </div>
-        ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        )}
       </td>
-      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.buildingsCount}</td>
-      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">{o.usersCount}</td>
+      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{o.buildingsCount}</td>
+      <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{o.usersCount}</td>
       <td className="px-5 py-3.5">
         {o.isSuspended ? (
           <Badge color="red" icon={AlertTriangle}>Приостановлен</Badge>
         ) : !o.isActive ? (
           <Badge color="slate" icon={Pause}>Деактивирован</Badge>
         ) : o.expired ? (
-          <Badge color="red">Истёк</Badge>
+          <Badge color="red">Истек</Badge>
         ) : o.expiringSoon ? (
           <Badge color="amber">Истекает</Badge>
         ) : (
@@ -171,12 +189,13 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
         <div className="flex items-center justify-end gap-1.5">
           {o.hasOwner && o.isActive && (
             <button
+              type="button"
               onClick={() => {
                 if (!confirm(`Войти как клиент в «${o.name}»? Действия записываются в журнал.`)) return
                 startTransition(async () => {
                   try {
                     await impersonateOrg(o.id)
-                    toast.success("Входим как клиент…")
+                    toast.success("Входим как клиент...")
                     router.push("/admin")
                     router.refresh()
                   } catch (e) {
@@ -185,7 +204,7 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
                 })
               }}
               disabled={pending}
-              className="flex items-center gap-1 rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-white transition"
+              className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-blue-700 disabled:bg-slate-300"
               title="Войти как клиент"
             >
               <LogIn className="h-3 w-3" />
@@ -194,7 +213,7 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
           )}
           <Link
             href={`/superadmin/orgs/${o.id}`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition"
+            className="flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-800/50"
           >
             <ExternalLink className="h-3 w-3" />
             Открыть
@@ -205,7 +224,25 @@ function Row({ o, rootHost }: { o: Item; rootHost: string }) {
   )
 }
 
-function FilterChip({ label, active, onClick, count }: {
+function TableHead({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
+  return (
+    <th
+      className={cn(
+        "px-5 py-3 text-xs font-medium text-slate-500 dark:text-slate-400",
+        align === "right" ? "text-right" : "text-left",
+      )}
+    >
+      {children}
+    </th>
+  )
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+  count,
+}: {
   label: string
   active: boolean
   onClick: () => void
@@ -213,12 +250,13 @@ function FilterChip({ label, active, onClick, count }: {
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={cn(
-        "px-3 py-1.5 rounded-lg text-xs font-medium transition",
+        "rounded-lg px-3 py-1.5 text-xs font-medium transition",
         active
           ? "bg-purple-600 text-white shadow-sm"
-          : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
       )}
     >
       {label}
@@ -232,7 +270,9 @@ function FilterChip({ label, active, onClick, count }: {
 }
 
 function Badge({
-  color, icon: Icon, children,
+  color,
+  icon: Icon,
+  children,
 }: {
   color: "emerald" | "amber" | "red" | "slate"
   icon?: React.ElementType
@@ -242,10 +282,10 @@ function Badge({
     emerald: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
     amber: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",
     red: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300",
-    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
   }
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium", colors[color])}>
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", colors[color])}>
       {Icon && <Icon className="h-3 w-3" />}
       {children}
     </span>
