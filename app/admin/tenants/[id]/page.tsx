@@ -150,6 +150,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           buildingId: true,
         },
       },
+      _count: {
+        select: {
+          contracts: { where: { status: "SIGNED" } },
+        },
+      },
     },
   }))
 
@@ -186,7 +191,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     ],
   }
 
-  const [vacantSpaces, vacantSpacesCount, debtAgg, signedContractsCount] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
+  const [vacantSpacesPreview, debtAgg] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
     db.space.findMany({
       where: vacantSpacesWhere,
       select: {
@@ -194,9 +199,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         floor: { select: { id: true, name: true, number: true } },
       },
       orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
-      take: 50,
+      take: 51,
     }),
-    safe("tenantDetail.vacantSpacesCount", db.space.count({ where: vacantSpacesWhere }), 0),
     safe(
       "tenantDetail.debtAggregate",
       db.charge.aggregate({
@@ -206,19 +210,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       }),
       { _sum: { amount: 0 }, _count: { _all: 0 } },
     ),
-    safe(
-      "tenantDetail.signedContractsCount",
-      db.contract.count({
-        where: {
-          tenantId: tenant.id,
-          status: "SIGNED",
-          tenant: { user: { organizationId: orgId } },
-        },
-      }),
-      0,
-    ),
   ]))
 
+  const vacantSpacesHasMore = vacantSpacesPreview.length > 50
+  const vacantSpaces = vacantSpacesPreview.slice(0, 50)
+  const signedContractsCount = tenant._count.contracts
   const totalDebt = debtAgg._sum.amount ?? 0
   const debtCount = debtAgg._count._all ?? 0
 
@@ -848,9 +844,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   {vacantSpaces.length === 0 && (
                     <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
                   )}
-                  {vacantSpacesCount > vacantSpaces.length && (
+                  {vacantSpacesHasMore && (
                     <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Показаны первые {vacantSpaces.length} из {vacantSpacesCount}. Для точного выбора откройте страницу помещений выбранного здания.
+                      Показаны первые {vacantSpaces.length}. Для точного выбора откройте страницу помещений выбранного здания.
                     </p>
                   )}
                 </div>
