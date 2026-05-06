@@ -158,6 +158,7 @@ const RECENT_REQUIRED_MIGRATIONS = [
   "20260505003000_performance_indexes",
   "20260505004000_web_vital_metrics",
   "20260505010000_tenant_bank_accounts",
+  "20260506110000_task_building_relation",
 ] as const
 
 const EXPECTED_CRONS = [

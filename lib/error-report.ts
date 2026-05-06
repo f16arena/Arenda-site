@@ -146,3 +146,103 @@ export function parseErrorDetails(raw: string | null | undefined): ErrorReportDe
     return { message: raw.slice(0, 1_000) }
   }
 }
+
+export type HumanErrorSummary = {
+  title: string
+  problem: string
+  cause: string
+  action: string
+  impact: string
+  technicalKind: string
+}
+
+export function humanizeErrorReport(details: ErrorReportDetails): HumanErrorSummary {
+  const path = details.path || "неизвестная страница"
+  const source = details.source || ""
+  const message = details.message || ""
+  const stack = details.stack || ""
+  const text = `${source}\n${path}\n${message}\n${stack}\n${details.digest ?? ""}`.toLowerCase()
+  const pageLabel = path.startsWith("/") ? path : `страница ${path}`
+
+  if (text.includes("minified react error #418") || text.includes("react.dev/errors/418")) {
+    return {
+      title: `На странице ${pageLabel} сломалась отрисовка интерфейса`,
+      problem: "Браузер получил ошибку React #418. Пользователь мог увидеть белый экран, сломанную страницу или сообщение об ошибке.",
+      cause: "Чаще всего сервер отдал один HTML, а браузер попытался собрать другой. Проверьте компоненты страницы: даты, случайные значения, данные из window/localStorage и некорректную HTML-разметку.",
+      action: "Откройте страницу, повторите действие пользователя и проверьте последний релиз. Если ошибка повторяется, исправьте компонент, который по-разному рендерится на сервере и в браузере.",
+      impact: "Это клиентская ошибка интерфейса: данные обычно не повреждаются, но пользователь не может нормально работать на этой странице.",
+      technicalKind: "React hydration/render",
+    }
+  }
+
+  if (text.includes("server components render") || (details.digest && source.includes("/error"))) {
+    return {
+      title: `Страница ${pageLabel} не открылась на сервере`,
+      problem: "Next.js скрыл точную серверную ошибку в production, чтобы не показать секреты. Пользователь видит только код ошибки.",
+      cause: "Обычно причина в Prisma-запросе, отсутствующей переменной окружения, несовпадении схемы базы данных или ошибке внутри server component.",
+      action: "Найдите запись по коду ошибки или digest, откройте stack trace и проверьте запросы этой страницы. В первую очередь смотрите Prisma, scope организации/здания и обязательные поля.",
+      impact: "Страница не работает для пользователя до исправления серверной причины.",
+      technicalKind: "Next.js Server Component",
+    }
+  }
+
+  const prismaInvocation = message.match(/Invalid `?prisma\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\(\)`? invocation/i)
+  if (prismaInvocation || text.includes("prisma") || text.includes("unique constraint") || text.includes("foreign key constraint")) {
+    const model = prismaInvocation?.[1]
+    const operation = prismaInvocation?.[2]
+    const subject = model && operation ? `Prisma ${model}.${operation}` : "Prisma-запрос"
+    const isSchemaMismatch = text.includes("unknown argument") || text.includes("unknown field") || text.includes("invalid")
+    return {
+      title: `Ошибка базы данных на ${pageLabel}`,
+      problem: `${subject} не выполнился. Пользовательский экран или действие получили ошибку вместо данных.`,
+      cause: isSchemaMismatch
+        ? "Код обращается к полю или связи, которых нет в текущей Prisma-схеме/клиенте. Часто это происходит после неполной миграции или когда в запрос добавили relation, но не добавили её в schema.prisma."
+        : "База данных отклонила запрос: возможны неверная связь, дубль уникального значения, отсутствующая запись или нарушение scope между организациями/зданиями.",
+      action: "Проверьте модель в schema.prisma, миграции и конкретный where/select из stack trace. После исправления запустите prisma generate, build и проверьте страницу повторно.",
+      impact: "Данные не должны исчезнуть, но нужная страница или действие сейчас не завершается.",
+      technicalKind: "Prisma / Database",
+    }
+  }
+
+  if (text.includes("server-action") || (source.includes(".") && !source.includes("/"))) {
+    return {
+      title: `Действие пользователя на ${pageLabel} не выполнилось`,
+      problem: "Пользователь нажал кнопку или отправил форму, но серверное действие завершилось ошибкой.",
+      cause: "Возможны неверные данные формы, отсутствие прав, невалидная связь с организацией/зданием или ошибка записи в базе.",
+      action: "Откройте контекст действия, проверьте пользователя, организацию, форму и stack trace. Если это ошибка ввода, покажите пользователю понятный текст прямо в форме.",
+      impact: "Изменение не применилось, поэтому пользователю нужно повторить действие после исправления причины.",
+      technicalKind: "Server action",
+    }
+  }
+
+  if (text.includes("next_redirect") || text.includes("redirect")) {
+    return {
+      title: `Пользователя неожиданно перенаправило с ${pageLabel}`,
+      problem: "Система выполнила redirect не там, где ожидалось.",
+      cause: "Чаще всего причина в роли пользователя, subdomain routing, middleware/proxy или логике входа.",
+      action: "Проверьте host, роль пользователя, текущую организацию и правила redirect для root-домена и поддоменов.",
+      impact: "Пользователь может попасть не в тот кабинет или не увидеть нужную страницу.",
+      technicalKind: "Redirect",
+    }
+  }
+
+  if (text.includes("failed to fetch") || text.includes("networkerror") || text.includes("load failed")) {
+    return {
+      title: `Не загрузился запрос или файл на ${pageLabel}`,
+      problem: "Браузер не смог получить ответ от API или загрузить ресурс.",
+      cause: "Возможны сеть, неправильный URL, redirect вместо JSON, ошибка API route или блокировка доступа.",
+      action: "Проверьте Network tab, URL запроса, статус ответа и серверный лог API за это же время.",
+      impact: "Часть страницы может не загрузиться, но остальные данные обычно остаются целыми.",
+      technicalKind: "Network / API",
+    }
+  }
+
+  return {
+    title: `Ошибка на ${pageLabel}`,
+    problem: "Система поймала ошибку в интерфейсе или серверной операции.",
+    cause: "Точная причина пока не распознана автоматически. Нужны страница, пользователь, время события и технические детали.",
+    action: "Сначала повторите действие пользователя. Затем откройте техническое сообщение и stack trace, чтобы найти файл или запрос, где возникла ошибка.",
+    impact: "Нужно проверить, мешает ли ошибка пользователю завершить действие.",
+    technicalKind: "Application error",
+  }
+}

@@ -336,6 +336,7 @@ model Building {
   emergencyContacts EmergencyContact[]
   expenses          Expense[]
   tariffs           Tariff[]
+  tasks             Task[]
   leads             Lead[]
   userAccess        UserBuildingAccess[]
   storedFiles       StoredFile[]
@@ -707,8 +708,9 @@ model Task {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  createdBy  User  @relation("TaskCreator", fields: [createdById], references: [id])
-  assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  createdBy  User      @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedTo User?     @relation("TaskAssignee", fields: [assignedToId], references: [id])
 
   @@index([buildingId, status, dueDate])
   @@index([assignedToId, status, dueDate])

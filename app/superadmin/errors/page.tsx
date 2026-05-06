@@ -4,7 +4,7 @@ import Link from "next/link"
 import { AlertTriangle, Bug, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { db } from "@/lib/db"
-import { decodeErrorReport, parseErrorDetails } from "@/lib/error-report"
+import { decodeErrorReport, humanizeErrorReport, parseErrorDetails } from "@/lib/error-report"
 import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { cn } from "@/lib/utils"
@@ -70,7 +70,7 @@ export default async function SuperadminErrorsPage({
   ])
 
   const parsed = logs.map((log) => ({ log, details: parseErrorDetails(log.details) }))
-  const orgIds = Array.from(new Set(parsed.map((x) => x.details.organizationId).filter(Boolean) as string[]))
+  const orgIds = Array.from(new Set(parsed.map((item) => item.details.organizationId).filter(Boolean) as string[]))
   const orgs = orgIds.length > 0
     ? await safe(
         "superadmin.errors.organizations",
@@ -83,10 +83,10 @@ export default async function SuperadminErrorsPage({
     : []
   const orgMap = new Map(orgs.map((org) => [org.id, org]))
 
-  const serverComponentCount = parsed.filter((x) => {
-    const d = x.details
-    const text = `${d.message ?? ""} ${d.digest ?? ""} ${d.source ?? ""}`.toLowerCase()
-    return text.includes("server components render") || (!!d.digest && `${d.source ?? ""}`.includes("/error"))
+  const serverComponentCount = parsed.filter((item) => {
+    const details = item.details
+    const text = `${details.message ?? ""} ${details.digest ?? ""} ${details.source ?? ""}`.toLowerCase()
+    return text.includes("server components render") || (!!details.digest && `${details.source ?? ""}`.includes("/error"))
   }).length
 
   return (
@@ -99,7 +99,7 @@ export default async function SuperadminErrorsPage({
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Ошибки сайта</h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Единый журнал падений public/admin/cabinet/superadmin с расшифровкой и контекстом.
+              Понятный журнал: где сломалось, кто был в системе, что произошло и что делать дальше.
             </p>
           </div>
         </div>
@@ -120,12 +120,12 @@ export default async function SuperadminErrorsPage({
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-purple-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
           >
             <option value="">Все зоны</option>
-            <option value="admin">Admin</option>
-            <option value="cabinet">Cabinet</option>
-            <option value="superadmin">Superadmin</option>
-            <option value="public">Public</option>
-            <option value="server-action">Server action</option>
-            <option value="server">Server</option>
+            <option value="admin">Админка</option>
+            <option value="cabinet">Кабинет арендатора</option>
+            <option value="superadmin">Суперпользователь</option>
+            <option value="public">Публичный сайт</option>
+            <option value="server-action">Действия на сервере</option>
+            <option value="server">Сервер</option>
           </select>
           <button className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
             Найти
@@ -136,7 +136,7 @@ export default async function SuperadminErrorsPage({
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard icon={ShieldAlert} label="Всего ошибок" value={totalAll} tone="red" />
         <StatCard icon={AlertTriangle} label="За 24 часа" value={last24Count} tone="amber" />
-        <StatCard icon={ServerCrash} label="На этой странице с Server Component" value={serverComponentCount} tone="purple" />
+        <StatCard icon={ServerCrash} label="Server Component" value={serverComponentCount} tone="purple" />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -144,13 +144,16 @@ export default async function SuperadminErrorsPage({
           <div className="px-5 py-12 text-center">
             <Bug className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-700" />
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Ошибок не найдено</p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Попробуйте изменить поисковый запрос.</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Попробуйте изменить поиск или зону.</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {parsed.map(({ log, details }) => {
               const decoded = decodeErrorReport(details)
+              const human = humanizeErrorReport(details)
               const org = details.organizationId ? orgMap.get(details.organizationId) : null
+              const errorCode = details.errorId ?? log.entityId ?? log.id
+
               return (
                 <article key={log.id} className="p-5">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -164,15 +167,16 @@ export default async function SuperadminErrorsPage({
                               ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
                               : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
                         )}>
-                          {decoded.severity.toUpperCase()}
+                          {severityLabel(decoded.severity)}
                         </span>
-                        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{decoded.title}</h2>
-                        <span className="font-mono text-xs text-slate-500 dark:text-slate-400">#{details.errorId ?? log.entityId ?? log.id}</span>
+                        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{human.title}</h2>
+                        <span className="font-mono text-xs text-slate-500 dark:text-slate-400">#{errorCode}</span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {new Date(log.createdAt).toLocaleString("ru-RU")} · {details.routeKind ?? "unknown"} · {org ? `${org.name} (${org.slug})` : "platform/public"}
+                        {new Date(log.createdAt).toLocaleString("ru-RU")} · {routeKindLabel(details.routeKind)} · {org ? `${org.name} (${org.slug})` : "платформа / публичная зона"}
                       </p>
                     </div>
+
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                       {details.href && (
                         <a
@@ -185,7 +189,7 @@ export default async function SuperadminErrorsPage({
                         </a>
                       )}
                       <Link
-                        href={`/superadmin/audit?q=${encodeURIComponent(details.errorId ?? log.entityId ?? log.id)}`}
+                        href={`/superadmin/audit?q=${encodeURIComponent(errorCode)}`}
                         className="rounded-lg border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
                       >
                         В audit
@@ -193,53 +197,50 @@ export default async function SuperadminErrorsPage({
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-3 xl:grid-cols-[1fr_1fr]">
-                    <InfoBox title="Расшифровка" text={details.explanation ?? decoded.explanation} />
-                    <InfoBox title="Что делать" text={details.suggestedAction ?? decoded.suggestedAction} />
+                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                    <InfoBox title="Что произошло" text={human.problem} />
+                    <InfoBox title="Вероятная причина" text={human.cause} />
+                    <InfoBox title="Что сделать" text={human.action} />
+                    <InfoBox title="Влияние" text={human.impact} />
                   </div>
 
                   <dl className="mt-4 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-5">
                     <Field label="Страница" value={details.path ?? "—"} mono />
-                    <Field label="Digest" value={details.digest ?? "—"} mono />
-                    <Field label="Sentry" value={details.sentryEventId ?? "—"} mono />
+                    <Field label="Тип ошибки" value={human.technicalKind} />
+                    <Field label="Код Next/Sentry" value={details.sentryEventId ?? details.digest ?? "—"} mono />
                     <Field label="Пользователь" value={`${log.userName ?? "Система"}${log.userRole ? ` (${log.userRole})` : ""}`} />
                     <Field label="IP / Host" value={`${log.ip ?? "—"} · ${details.host ?? "—"}`} mono />
                   </dl>
 
-                  {details.message && (
-                    <pre className="mt-4 max-h-24 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
-                      {details.message}
-                    </pre>
-                  )}
+                  <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                    {details.context && <ContextDetails context={details.context} />}
 
-                  {(details.stack || details.context) && (
-                    <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                      {details.stack && (
-                        <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
-                          <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                            Stack trace
-                          </summary>
-                          <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
-                            {details.stack}
-                          </pre>
-                        </details>
-                      )}
-                      {details.context && (
-                        <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
-                          <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
-                            Контекст
-                          </summary>
-                          <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
-                            {JSON.stringify(details.context, null, 2)}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  )}
+                    {details.message && (
+                      <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+                        <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                          Техническое сообщение для разработчика
+                        </summary>
+                        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+                          {details.message}
+                        </pre>
+                      </details>
+                    )}
 
-                  {details.hints && details.hints.length > 0 && (
+                    {details.stack && (
+                      <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+                        <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+                          Stack trace
+                        </summary>
+                        <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+                          {details.stack}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+
+                  {mergedHints(details.hints, decoded.hints).length > 0 && (
                     <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-500 dark:text-slate-400">
-                      {details.hints.map((hint) => <li key={hint}>{hint}</li>)}
+                      {mergedHints(details.hints, decoded.hints).map((hint) => <li key={hint}>{hint}</li>)}
                     </ul>
                   )}
                 </article>
@@ -268,6 +269,28 @@ function normalizeQuery(value: string | string[] | undefined): string {
 function normalizeKind(value: string | string[] | undefined): string {
   const raw = (Array.isArray(value) ? value[0] : value ?? "").trim()
   return ["admin", "cabinet", "superadmin", "public", "server-action", "server"].includes(raw) ? raw : ""
+}
+
+function severityLabel(severity: "critical" | "warning" | "info"): string {
+  if (severity === "critical") return "Критично"
+  if (severity === "warning") return "Внимание"
+  return "Инфо"
+}
+
+function routeKindLabel(kind: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    admin: "админка",
+    cabinet: "кабинет арендатора",
+    superadmin: "суперпользователь",
+    public: "публичный сайт",
+    "server-action": "действие на сервере",
+    server: "сервер",
+  }
+  return kind ? labels[kind] ?? kind : "неизвестная зона"
+}
+
+function mergedHints(...groups: Array<string[] | undefined>): string[] {
+  return Array.from(new Set(groups.flatMap((group) => group ?? []).filter(Boolean)))
 }
 
 function StatCard({
@@ -313,4 +336,62 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
       <dd className={cn("mt-1 truncate text-slate-700 dark:text-slate-300", mono && "font-mono")}>{value}</dd>
     </div>
   )
+}
+
+function ContextDetails({ context }: { context: Record<string, unknown> }) {
+  const entries = Object.entries(context).slice(0, 12)
+  return (
+    <details className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
+      <summary className="cursor-pointer font-medium text-slate-700 dark:text-slate-300">
+        Контекст действия
+      </summary>
+      {entries.length === 0 ? (
+        <p className="mt-3 text-slate-500 dark:text-slate-400">Контекст пустой.</p>
+      ) : (
+        <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+          {entries.map(([key, value]) => (
+            <div key={key} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/50">
+              <dt className="text-[11px] text-slate-400 dark:text-slate-500">{contextKeyLabel(key)}</dt>
+              <dd className="mt-1 break-words text-slate-700 dark:text-slate-300">{formatContextValue(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <details className="mt-3">
+        <summary className="cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          Полный технический контекст
+        </summary>
+        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
+          {JSON.stringify(context, null, 2)}
+        </pre>
+      </details>
+    </details>
+  )
+}
+
+function contextKeyLabel(key: string): string {
+  const labels: Record<string, string> = {
+    source: "Источник",
+    route: "Страница",
+    path: "Страница",
+    orgId: "Организация",
+    organizationId: "Организация",
+    buildingId: "Здание",
+    tenantId: "Арендатор",
+    userId: "Пользователь",
+    action: "Действие",
+    entity: "Сущность",
+    entityId: "ID записи",
+    form: "Форма",
+    method: "Метод",
+  }
+  return labels[key] ?? key
+}
+
+function formatContextValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—"
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value)
+  if (Array.isArray(value)) return value.length === 0 ? "пустой список" : `список: ${value.length}`
+  if (typeof value === "object") return `объект с ${Object.keys(value as Record<string, unknown>).length} полями`
+  return String(value)
 }
