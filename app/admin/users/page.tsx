@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { requireOwner } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
 import { Shield, Users as UsersIcon } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
@@ -20,7 +20,7 @@ import {
 } from "./user-actions"
 
 export default async function UsersPage() {
-  const session = await requireOwner()
+  const session = await requireSection("users", "view")
   const { orgId } = await requireOrgAccess()
 
   const [users, buildings, roleRows] = await Promise.all([
@@ -54,7 +54,7 @@ export default async function UsersPage() {
         distinct: ["role"],
       }),
       [] as Array<{ role: string }>,
-      { source: "admin.users.roleOptions", route: "/admin/users", orgId, userId: session.id },
+      { source: "admin.users.roleOptions", route: "/admin/users", orgId, userId: session.user.id },
     ),
   ])
 
@@ -109,7 +109,7 @@ export default async function UsersPage() {
           </thead>
           <tbody>
             {users.map((user) => {
-              const isSelf = user.id === session.id
+              const isSelf = user.id === session.user.id
               return (
                 <tr
                   key={user.id}

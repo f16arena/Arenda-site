@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingAccess, assertTenantBuildingAccess } from "@/lib/building-access"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import {
   assertTenantInOrg,
   assertSpaceInOrg,
@@ -236,6 +236,7 @@ export async function setTenantBlacklist(
   tenantId: string,
   payload: { reason: string | null } | null,
 ) {
+  await requireCapabilityAndFeature("tenants.blacklist")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 
@@ -284,6 +285,7 @@ export async function checkBlacklist(opts: { bin?: string; iin?: string }) {
 }
 
 export async function updateTenant(tenantId: string, formData: FormData) {
+  await requireCapabilityAndFeature("tenants.editCompany")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
@@ -352,6 +354,7 @@ export async function updateTenantRequisites(
 ): Promise<TenantBankAccountActionResult> {
   let orgId: string | null = null
   try {
+    await requireCapabilityAndFeature("tenants.editCompany")
     ;({ orgId } = await requireOrgAccess())
     await assertTenantInOrg(tenantId, orgId)
     await assertTenantBuildingAccess(tenantId, orgId)
@@ -437,6 +440,7 @@ export async function createTenantBankAccount(
 ): Promise<TenantBankAccountActionResult> {
   let orgId: string | null = null
   try {
+    await requireCapabilityAndFeature("tenants.editCompany")
     ;({ orgId } = await requireOrgAccess())
     await assertTenantInOrg(tenantId, orgId)
     await assertTenantBuildingAccess(tenantId, orgId)
@@ -484,6 +488,7 @@ export async function updateTenantBankAccount(
   let orgId: string | null = null
   let tenantId: string | null = null
   try {
+    await requireCapabilityAndFeature("tenants.editCompany")
     ;({ orgId } = await requireOrgAccess())
     const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
@@ -526,6 +531,7 @@ export async function setPrimaryTenantBankAccount(accountId: string): Promise<Te
   let orgId: string | null = null
   let tenantId: string | null = null
   try {
+    await requireCapabilityAndFeature("tenants.editCompany")
     ;({ orgId } = await requireOrgAccess())
     const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
@@ -565,6 +571,7 @@ export async function deleteTenantBankAccount(accountId: string): Promise<Tenant
   let orgId: string | null = null
   let tenantId: string | null = null
   try {
+    await requireCapabilityAndFeature("tenants.editCompany")
     ;({ orgId } = await requireOrgAccess())
     const account = await db.tenantBankAccount.findUnique({
       where: { id: accountId },
@@ -594,7 +601,7 @@ export async function deleteTenantBankAccount(accountId: string): Promise<Tenant
 }
 
 export async function updateTenantRentalTerms(tenantId: string, formData: FormData) {
-  await requireSection("tenants", "edit")
+  await requireCapabilityAndFeature("tenants.editRentalTerms")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
@@ -859,6 +866,7 @@ export async function deleteTenant(
   tenantId: string,
   options?: { redirectAfter?: boolean; force?: boolean },
 ) {
+  await requireCapabilityAndFeature("tenants.delete")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 
@@ -933,6 +941,7 @@ export async function deleteTenant(
 }
 
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {
+  await requireCapabilityAndFeature("tenants.assignSpaces")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   if (spaceId) await assertSpaceInOrg(spaceId, orgId)
@@ -1061,6 +1070,7 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
 }
 
 export async function unassignTenantSpace(tenantId: string, spaceId: string) {
+  await requireCapabilityAndFeature("tenants.assignSpaces")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)

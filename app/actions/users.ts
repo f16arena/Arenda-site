@@ -2,9 +2,9 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
-import { requireOwner } from "@/lib/permissions"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
@@ -31,8 +31,23 @@ function assertAssignableRole(role: string, orgId: string) {
   }
 }
 
+async function assertCanManageTargetUser(
+  userId: string,
+  orgId: string,
+  actor: { role: string; isPlatformOwner?: boolean },
+) {
+  const target = await db.user.findFirst({
+    where: { id: userId, organizationId: orgId },
+    select: { role: true },
+  })
+  if (!target) throw new Error("Пользователь не найден")
+  if (target.role === "OWNER" && actor.role !== "OWNER" && !actor.isPlatformOwner) {
+    throw new Error("Пользователя-владельца может менять только владелец")
+  }
+}
+
 export async function createUserAdmin(formData: FormData) {
-  await requireOwner()
+  await requireCapabilityAndFeature("users.invite")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "users")
@@ -82,9 +97,10 @@ export async function createUserAdmin(formData: FormData) {
 }
 
 export async function updateUserAdmin(userId: string, formData: FormData) {
-  await requireOwner()
+  const session = await requireCapabilityAndFeature("users.edit")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
+  await assertCanManageTargetUser(userId, orgId, session)
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
@@ -130,9 +146,10 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean) {
-  await requireOwner()
+  const session = await requireCapabilityAndFeature("users.deactivate")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
+  await assertCanManageTargetUser(userId, orgId, session)
 
   await db.user.update({
     where: { id: userId },
@@ -144,9 +161,10 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
 }
 
 export async function resetUserPassword(userId: string, newPassword: string) {
-  await requireOwner()
+  const session = await requireCapabilityAndFeature("users.resetPassword")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
+  await assertCanManageTargetUser(userId, orgId, session)
 
   if (newPassword.length < 6) throw new Error("Пароль минимум 6 символов")
 
@@ -160,9 +178,10 @@ export async function resetUserPassword(userId: string, newPassword: string) {
 }
 
 export async function deleteUserAdmin(userId: string) {
-  const session = await requireOwner()
+  const session = await requireCapabilityAndFeature("users.delete")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
+  await assertCanManageTargetUser(userId, orgId, session)
 
   if (userId === session.id) {
     throw new Error("Нельзя удалить самого себя")

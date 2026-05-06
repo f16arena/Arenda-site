@@ -3,10 +3,15 @@
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOwner } from "@/lib/permissions"
-import { invalidateAclCache } from "@/lib/acl"
+import { invalidateAclCache, SECTIONS } from "@/lib/acl"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 import { audit } from "@/lib/audit"
 import { requireOrgAccess } from "@/lib/org"
+import {
+  ACTION_CAPABILITY_BY_KEY,
+  capabilityPermissionKey,
+  requireOrgFeature,
+} from "@/lib/capabilities"
 import {
   canManageRoleInOrg,
   isOwnerRole,
@@ -14,12 +19,21 @@ import {
   makeOrgRoleCode,
 } from "@/lib/role-capabilities"
 
+async function assertRoleBuilderEnabled(orgId: string) {
+  await requireOrgFeature(orgId, "roleBuilder")
+}
+
 export async function setPermission(role: string, section: string, canView: boolean, canEdit: boolean) {
   await requireOwner()
   const { orgId } = await requireOrgAccess()
+  await assertRoleBuilderEnabled(orgId)
 
   if (!canManageRoleInOrg(role, orgId)) {
     throw new Error("Эту должность нельзя менять в текущей организации")
+  }
+
+  if (!SECTIONS.includes(section as (typeof SECTIONS)[number])) {
+    throw new Error("Некорректный раздел прав")
   }
 
   if (isOwnerRole(role)) {
@@ -46,9 +60,53 @@ export async function setPermission(role: string, section: string, canView: bool
   revalidatePath("/admin/roles", "layout")
 }
 
+export async function setCapability(role: string, capabilityKey: string, enabled: boolean) {
+  await requireOwner()
+  const { orgId } = await requireOrgAccess()
+  await assertRoleBuilderEnabled(orgId)
+
+  if (!canManageRoleInOrg(role, orgId)) {
+    throw new Error("Эту должность нельзя менять в текущей организации")
+  }
+
+  if (isOwnerRole(role)) {
+    throw new Error("Владелец всегда имеет полный доступ")
+  }
+
+  const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
+  if (!capability) {
+    throw new Error("Некорректное точное право")
+  }
+
+  const section = capabilityPermissionKey(capabilityKey)
+  await db.rolePermission.upsert({
+    where: { role_section: { role, section } },
+    update: { canView: enabled, canEdit: enabled },
+    create: { role, section, canView: enabled, canEdit: enabled },
+  })
+
+  await audit({
+    action: "UPDATE",
+    entity: "user",
+    entityId: role,
+    details: {
+      scope: "role_capability",
+      capability: capabilityKey,
+      label: capability.label,
+      enabled,
+      orgId,
+    },
+  })
+
+  invalidateAclCache()
+  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidatePath("/admin/roles", "layout")
+}
+
 export async function createRole(formData: FormData) {
   await requireOwner()
   const { orgId } = await requireOrgAccess()
+  await assertRoleBuilderEnabled(orgId)
 
   const label = String(formData.get("label") ?? "").trim()
   const sourceRole = String(formData.get("sourceRole") ?? "").trim()
@@ -97,6 +155,7 @@ export async function createRole(formData: FormData) {
 export async function deleteRole(role: string) {
   await requireOwner()
   const { orgId } = await requireOrgAccess()
+  await assertRoleBuilderEnabled(orgId)
 
   if (isSystemRole(role)) throw new Error("Системную роль удалить нельзя")
   if (!canManageRoleInOrg(role, orgId)) throw new Error("Эту должность нельзя удалить в текущей организации")

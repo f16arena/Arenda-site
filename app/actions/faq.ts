@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import {
   isFaqAudience,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/faq-db"
 
 export async function saveFaqArticle(formData: FormData) {
-  await requireSection("settings", "edit")
+  await requireCapabilityAndFeature("faq.manage")
   const { orgId } = await requireOrgAccess()
 
   const id = readString(formData, "id")
@@ -62,7 +62,7 @@ export async function saveFaqArticle(formData: FormData) {
 }
 
 export async function archiveFaqArticle(formData: FormData) {
-  await requireSection("settings", "edit")
+  await requireCapabilityAndFeature("faq.manage")
   const { orgId } = await requireOrgAccess()
   const id = readString(formData, "id")
   if (!id) throw new Error("FAQ-запись не передана")
@@ -76,7 +76,7 @@ export async function archiveFaqArticle(formData: FormData) {
 }
 
 export async function restoreDefaultFaqArticles() {
-  await requireSection("settings", "edit")
+  await requireCapabilityAndFeature("faq.manage")
   const { orgId } = await requireOrgAccess()
   await restoreMissingFaqDefaults(orgId)
   revalidateFaq()

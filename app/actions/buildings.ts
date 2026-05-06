@@ -2,8 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
-import { requireOwner } from "@/lib/permissions"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
 import { ALL_BUILDINGS_COOKIE, assertBuildingAccess } from "@/lib/building-access"
 import { requireOrgAccess, checkLimit } from "@/lib/org"
@@ -13,7 +12,7 @@ import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validatio
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function createBuilding(formData: FormData) {
-  await requireOwner()
+  await requireCapabilityAndFeature("buildings.create")
   const { orgId } = await requireOrgAccess()
   await checkLimit(orgId, "buildings")
 
@@ -53,7 +52,7 @@ export async function createBuilding(formData: FormData) {
 }
 
 export async function updateBuildingDetails(buildingId: string, formData: FormData) {
-  await requireSection("buildings", "edit")
+  await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -119,7 +118,7 @@ function readOptionalNumber(formData: FormData, name: string) {
 }
 
 export async function toggleBuildingActive(buildingId: string, isActive: boolean) {
-  await requireOwner()
+  await requireCapabilityAndFeature("buildings.toggle")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -133,7 +132,7 @@ export async function toggleBuildingActive(buildingId: string, isActive: boolean
 }
 
 export async function deleteBuilding(buildingId: string) {
-  await requireOwner()
+  await requireCapabilityAndFeature("buildings.delete")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -165,7 +164,7 @@ export async function switchBuilding(buildingId: string) {
 }
 
 export async function createFloor(buildingId: string, formData: FormData) {
-  await requireSection("buildings", "edit")
+  await requireCapabilityAndFeature("floors.create")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -203,7 +202,7 @@ export async function createFloor(buildingId: string, formData: FormData) {
  * Если cascade=true — также удаляет все помещения, но только если ни одно не занято арендатором.
  */
 export async function deleteFloor(floorId: string, opts?: { cascade?: boolean }) {
-  await requireOwner()
+  await requireCapabilityAndFeature("floors.delete")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 

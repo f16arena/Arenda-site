@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 import { assertBuildingAccess } from "@/lib/building-access"
 import { assertSpaceAssignable } from "@/lib/full-floor-guards"
@@ -16,6 +17,7 @@ import { parseTenantSpaceIds } from "@/lib/tenant-spaces"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 
 export async function createTenant(formData: FormData) {
+  await requireCapabilityAndFeature("tenants.create")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "tenants")

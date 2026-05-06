@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg, assertRequestInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 import {
   REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES,
@@ -16,7 +16,7 @@ import {
 } from "@/lib/storage"
 
 export async function createRequestAdmin(formData: FormData) {
-  await requireSection("requests", "edit")
+  await requireCapabilityAndFeature("requests.manage")
   const { orgId } = await requireOrgAccess()
 
   const tenantId = formData.get("tenantId") as string
@@ -50,7 +50,7 @@ export async function createRequestAdmin(formData: FormData) {
 }
 
 export async function updateRequestStatus(requestId: string, status: string, assigneeId?: string) {
-  await requireSection("requests", "edit")
+  await requireCapabilityAndFeature("requests.manage")
   const { orgId } = await requireOrgAccess()
   await assertRequestInOrg(requestId, orgId)
 
@@ -91,7 +91,7 @@ export async function updateRequestStatus(requestId: string, status: string, ass
 }
 
 export async function addRequestComment(requestId: string, formData: FormData) {
-  await requireSection("requests", "edit")
+  await requireCapabilityAndFeature("requests.manage")
   const session = await auth()
   if (!session) return { error: "Не авторизован" }
 
@@ -113,7 +113,7 @@ export async function addRequestComment(requestId: string, formData: FormData) {
 }
 
 export async function deleteRequest(requestId: string) {
-  await requireSection("requests", "edit")
+  await requireCapabilityAndFeature("requests.manage")
   const { orgId } = await requireOrgAccess()
   await assertRequestInOrg(requestId, orgId)
 

@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
@@ -41,7 +41,7 @@ function parseDateOrNull(value: FormDataEntryValue | null) {
 }
 
 export async function recordPayment(formData: FormData) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.recordPayment")
   const { orgId } = await requireOrgAccess()
   const tenantId = formData.get("tenantId") as string
   await assertTenantInOrg(tenantId, orgId)
@@ -145,7 +145,7 @@ export async function recordPayment(formData: FormData) {
 }
 
 export async function generateMonthlyCharges(period: string) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -211,7 +211,7 @@ export async function generateMonthlyCharges(period: string) {
 }
 
 export async function addPenalty(tenantId: string, formData: FormData) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
@@ -236,7 +236,7 @@ export async function addPenalty(tenantId: string, formData: FormData) {
 }
 
 export async function addCharge(formData: FormData) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
   const tenantId = formData.get("tenantId") as string
   await assertTenantInOrg(tenantId, orgId)
@@ -265,7 +265,7 @@ export async function addCharge(formData: FormData) {
 }
 
 export async function saveTenantServiceCharges(tenantId: string, formData: FormData) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
@@ -361,7 +361,7 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
 }
 
 export async function deleteCharge(chargeId: string) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.deleteRecords")
   const { orgId } = await requireOrgAccess()
   await assertChargeInOrg(chargeId, orgId)
 
@@ -377,7 +377,7 @@ export async function deleteCharge(chargeId: string) {
 }
 
 export async function deletePayment(paymentId: string) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.deleteRecords")
   const { orgId } = await requireOrgAccess()
   await assertPaymentInOrg(paymentId, orgId)
 
@@ -392,7 +392,7 @@ export async function deletePayment(paymentId: string) {
 }
 
 export async function deleteExpense(expenseId: string) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.deleteRecords")
   const { orgId } = await requireOrgAccess()
   await assertExpenseInOrg(expenseId, orgId)
 
@@ -401,7 +401,7 @@ export async function deleteExpense(expenseId: string) {
 }
 
 export async function addExpense(formData: FormData) {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.manageExpenses")
   const { orgId } = await requireOrgAccess()
   const selectedBuildingId = String(formData.get("buildingId") ?? "").trim()
   const buildingId = (await getCurrentBuildingId()) ?? selectedBuildingId

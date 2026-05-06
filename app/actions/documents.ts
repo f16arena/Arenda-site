@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { audit } from "@/lib/audit"
 import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -20,9 +20,9 @@ type DeleteAdminDocumentResult = {
 }
 
 export async function deleteAdminDocument(input: DeleteAdminDocumentInput): Promise<DeleteAdminDocumentResult> {
-  const session = await requireSection("documents", "edit")
+  const session = await requireCapabilityAndFeature("documents.deleteUnsigned")
   const { orgId } = await requireOrgAccess()
-  const isOwner = session.user.role === "OWNER" || !!session.user.isPlatformOwner
+  const isOwner = session.role === "OWNER" || session.isPlatformOwner
 
   try {
     if (!input.id) return { ok: false, error: "Документ не найден." }
@@ -63,6 +63,7 @@ async function deleteContractDocument(contractId: string, orgId: string, isOwner
   if (signed && !isOwner) {
     return { ok: false, error: "Подписанный документ может удалить только владелец." }
   }
+  if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
   await db.$transaction([
     db.documentSignature.deleteMany({
@@ -118,6 +119,7 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
   if (signed && !isOwner) {
     return { ok: false, error: "Подписанный документ может удалить только владелец." }
   }
+  if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
   await db.$transaction([
     db.documentSignature.deleteMany({

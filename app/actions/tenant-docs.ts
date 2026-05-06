@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg, assertTenantDocumentInOrg } from "@/lib/scope-guards"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import {
   TENANT_DOCUMENT_ALLOWED_MIME_TYPES,
   TENANT_DOCUMENT_MAX_BYTES,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/storage"
 
 export async function addTenantDocument(tenantId: string, formData: FormData) {
-  await requireSection("tenants", "edit")
+  await requireCapabilityAndFeature("storage.upload")
   const { orgId, userId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 
@@ -76,7 +76,7 @@ export async function addTenantDocument(tenantId: string, formData: FormData) {
 }
 
 export async function deleteTenantDocument(documentId: string) {
-  await requireSection("tenants", "edit")
+  await requireCapabilityAndFeature("storage.delete")
   const { orgId } = await requireOrgAccess()
   await assertTenantDocumentInOrg(documentId, orgId)
 

@@ -21,7 +21,7 @@ const checks = [
   },
   {
     file: "app/actions/finance.ts",
-    tokens: ["requireSection(\"finances\", \"edit\")", "assertTenantInOrg", "assertTenantBuildingAccess"],
+    tokens: ["requireCapabilityAndFeature(\"finance.", "assertTenantInOrg", "assertTenantBuildingAccess"],
     message: "finance mutations must be role-protected and tenant/building scoped",
   },
   {

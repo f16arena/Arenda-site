@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { assertMeterInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingAccess } from "@/lib/building-access"
 
 const TARIFF_TYPE_BY_METER: Record<string, string> = {
@@ -93,7 +93,7 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
 }
 
 export async function saveMeterReading(formData: FormData) {
-  await requireSection("meters", "edit")
+  await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
   const meterId = formData.get("meterId") as string
   await assertMeterInOrg(meterId, orgId)
@@ -138,7 +138,7 @@ export async function submitTenantMeterReading(formData: FormData) {
 }
 
 export async function createMeter(formData: FormData) {
-  await requireSection("meters", "edit")
+  await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
   const spaceId = formData.get("spaceId") as string
   await assertSpaceInOrg(spaceId, orgId)
@@ -177,7 +177,7 @@ export async function createMeter(formData: FormData) {
 }
 
 export async function deleteMeter(meterId: string) {
-  await requireSection("meters", "edit")
+  await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
 
   const meter = await db.meter.findFirst({
@@ -201,7 +201,7 @@ export async function deleteMeter(meterId: string) {
 }
 
 export async function deleteMeterReading(readingId: string) {
-  await requireSection("meters", "edit")
+  await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
   // Проверка через scope: meter → space → floor → building → org
   const reading = await db.meterReading.findFirst({

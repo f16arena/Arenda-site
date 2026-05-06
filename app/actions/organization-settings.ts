@@ -6,11 +6,11 @@ import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validatio
 import { assertKazakhstanIin } from "@/lib/kz-iin"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { requireOrgAccess } from "@/lib/org"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
-  await requireSection("settings", "edit")
+  await requireCapabilityAndFeature("settings.updateOrganization")
   const { orgId: scopeOrgId } = await requireOrgAccess()
   if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
 
@@ -33,7 +33,7 @@ export async function updateOrganizationVat(orgId: string, formData: FormData) {
 }
 
 export async function updateOrganizationRequisites(orgId: string, formData: FormData) {
-  await requireSection("settings", "edit")
+  await requireCapabilityAndFeature("settings.updateBankDetails")
   const { orgId: scopeOrgId } = await requireOrgAccess()
   if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
 

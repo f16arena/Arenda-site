@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { notifyUser } from "@/lib/notify"
 import { requireOrgAccess } from "@/lib/org"
 import { paymentReportScope, chargeScope } from "@/lib/tenant-scope"
@@ -217,7 +217,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
 }
 
 export async function confirmPaymentReport(formData: FormData): Promise<ActionResult> {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.confirmPayment")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -248,6 +248,7 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
 
   const method = parsePaymentMethod(requestedMethod || report.method)
   if (!method) return { ok: false, error: "Выберите корректный способ оплаты" }
+  if (method === "CASH") await requireCapabilityAndFeature("finance.cashPayment")
 
   if (cashAccountId) {
     const account = await db.cashAccount.findFirst({
@@ -322,7 +323,7 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
 }
 
 export async function markPaymentReportDisputed(formData: FormData): Promise<ActionResult> {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.disputePayment")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -365,7 +366,7 @@ export async function markPaymentReportDisputed(formData: FormData): Promise<Act
 }
 
 export async function rejectPaymentReport(formData: FormData): Promise<ActionResult> {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.rejectPayment")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()

@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 
@@ -27,7 +27,7 @@ export type BatchBillingResult = {
  * периоде. Идемпотентно — повторный запуск не создаст дубликатов.
  */
 export async function generateMonthlyChargesForOrg(period: string): Promise<BatchBillingResult> {
-  await requireSection("finances", "edit")
+  await requireCapabilityAndFeature("finance.createInvoice")
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
     return { ok: false, error: "Неверный формат периода (ожидается YYYY-MM)" }
   }

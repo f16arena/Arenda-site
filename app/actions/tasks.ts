@@ -6,14 +6,14 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertTaskInOrg, assertUserInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingAccess } from "@/lib/building-access"
 
 const ALLOWED_CATEGORIES = ["MAINTENANCE", "REPAIR", "INSPECTION", "CLEANING", "ADMIN", "PLUMBING", "ELECTRICAL", "SECURITY", "OTHER"]
 const ALLOWED_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 
 export async function createTask(formData: FormData) {
-  await requireSection("tasks", "edit")
+  await requireCapabilityAndFeature("tasks.manage")
   const session = await auth()
   if (!session) return { error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()
@@ -87,7 +87,7 @@ export async function createTask(formData: FormData) {
 }
 
 export async function updateTaskStatus(taskId: string, status: string) {
-  await requireSection("tasks", "edit")
+  await requireCapabilityAndFeature("tasks.manage")
   const { orgId } = await requireOrgAccess()
   await assertTaskInOrg(taskId, orgId)
 
@@ -97,7 +97,7 @@ export async function updateTaskStatus(taskId: string, status: string) {
 }
 
 export async function deleteTask(taskId: string) {
-  await requireSection("tasks", "edit")
+  await requireCapabilityAndFeature("tasks.manage")
   const { orgId } = await requireOrgAccess()
   await assertTaskInOrg(taskId, orgId)
 
@@ -106,7 +106,7 @@ export async function deleteTask(taskId: string) {
 }
 
 export async function updateTask(taskId: string, formData: FormData) {
-  await requireSection("tasks", "edit")
+  await requireCapabilityAndFeature("tasks.manage")
   const { orgId } = await requireOrgAccess()
   await assertTaskInOrg(taskId, orgId)
 

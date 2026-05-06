@@ -2,14 +2,14 @@
 
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import { audit } from "@/lib/audit"
 import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-access"
 import { revalidatePath } from "next/cache"
 
 export async function deleteStoredFile(fileId: string) {
-  await requireSection("documents", "edit")
+  await requireCapabilityAndFeature("storage.delete")
   const session = await auth()
   if (!session?.user) return { error: "Не авторизован" }
   const { orgId } = await requireOrgAccess()

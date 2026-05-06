@@ -3,12 +3,14 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertFloorInOrg, assertSpaceInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { assertSpaceFitsFloor } from "@/lib/area-validation"
 
 const SPACE_STATUSES = new Set(["VACANT", "OCCUPIED", "MAINTENANCE"])
 
 export async function createSpace(formData: FormData) {
+  await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   const floorId = formData.get("floorId") as string
   await assertFloorInOrg(floorId, orgId)
@@ -45,6 +47,7 @@ export async function createSpace(formData: FormData) {
 }
 
 export async function updateSpace(id: string, formData: FormData) {
+  await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   await assertSpaceInOrg(id, orgId)
 
@@ -131,6 +134,7 @@ export async function updateSpace(id: string, formData: FormData) {
   if (finalStatus === "OCCUPIED" && !existing.floor.fullFloorTenantId) {
     if (occupiedTenant) {
       if (tenantId && tenantId !== occupiedTenant.id) {
+        await requireCapabilityAndFeature("spaces.assignTenant")
         throw new Error(
           `Помещение уже занято арендатором «${occupiedTenant.companyName}». ` +
             "Чтобы передать его другому арендатору, сначала снимите текущую привязку в карточке арендатора.",
@@ -140,6 +144,7 @@ export async function updateSpace(id: string, formData: FormData) {
       if (!tenantId) {
         throw new Error("Выберите арендатора, который занимает помещение")
       }
+      await requireCapabilityAndFeature("spaces.assignTenant")
       tenantToAssign = await db.tenant.findFirst({
         where: {
           id: tenantId,
@@ -206,6 +211,7 @@ export async function updateSpace(id: string, formData: FormData) {
 }
 
 export async function deleteSpace(id: string) {
+  await requireCapabilityAndFeature("spaces.delete")
   const { orgId } = await requireOrgAccess()
   await assertSpaceInOrg(id, orgId)
 
@@ -231,6 +237,7 @@ export async function deleteSpace(id: string) {
  * либо если хоть один этаж сдан целиком.
  */
 export async function deleteAllSpacesInBuilding(buildingId: string, confirmation: string) {
+  await requireCapabilityAndFeature("spaces.delete")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 

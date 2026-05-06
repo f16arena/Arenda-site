@@ -6,7 +6,12 @@ import { Shield, AlertTriangle, Lock } from "lucide-react"
 import { db } from "@/lib/db"
 import { SECTIONS, SECTION_LABELS } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
-import { parsePlanFeatures, PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
+import { PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
+import {
+  ACTION_CAPABILITIES,
+  ACTION_CAPABILITY_GROUPS,
+  isFeatureAvailableInPlan,
+} from "@/lib/capabilities"
 import {
   ROLE_SECTION_GROUPS,
   SECTION_REQUIRED_FEATURE,
@@ -34,9 +39,9 @@ export default async function RolesPage() {
     where: { id: orgId },
     select: { plan: { select: { name: true, features: true } } },
   })
-  const planFeatures = parsePlanFeatures(org?.plan?.features)
+  const planFeatureJson = org?.plan?.features
   const featureLabels = new Map(PLAN_CAPABILITIES.map((feature) => [feature.key, feature.label]))
-  const roleBuilderEnabled = planFeatures.flags.roleBuilder === true
+  const roleBuilderEnabled = isFeatureAvailableInPlan(planFeatureJson, "roleBuilder")
 
   let rows: { role: string; section: string; canView: boolean; canEdit: boolean }[] = []
   let migrationMissing = false
@@ -76,7 +81,7 @@ export default async function RolesPage() {
       label: SECTION_LABELS[section],
       requiredFeature: requiredFeature ?? null,
       requiredFeatureLabel: requiredFeature ? featureLabels.get(requiredFeature) ?? requiredFeature : null,
-      locked: !!requiredFeature && planFeatures.flags[requiredFeature] !== true,
+      locked: !!requiredFeature && !isFeatureAvailableInPlan(planFeatureJson, requiredFeature),
     }
   })
 
@@ -86,6 +91,27 @@ export default async function RolesPage() {
   }))
 
   const editable = isOwner && !migrationMissing && roleBuilderEnabled
+
+  const capabilities = ACTION_CAPABILITIES.map((capability) => ({
+    key: capability.key,
+    label: capability.label,
+    description: capability.description,
+    section: capability.section,
+    level: capability.level,
+    risk: capability.risk ?? "normal",
+    requiredFeature: capability.requiredFeature ?? null,
+    requiredFeatureLabel: capability.requiredFeature
+      ? featureLabels.get(capability.requiredFeature) ?? capability.requiredFeature
+      : null,
+    locked: !!capability.requiredFeature && !isFeatureAvailableInPlan(planFeatureJson, capability.requiredFeature),
+  }))
+
+  const capabilityGroups = ACTION_CAPABILITY_GROUPS.map((group) => ({
+    key: group.key,
+    label: group.label,
+    description: group.description,
+    capabilities: group.capabilities.map((capability) => capability.key),
+  }))
 
   return (
     <div className="space-y-5">
@@ -136,6 +162,8 @@ export default async function RolesPage() {
         }))}
         sections={sections}
         groups={groups}
+        capabilities={capabilities}
+        capabilityGroups={capabilityGroups}
         permissions={map}
         editable={editable}
       />

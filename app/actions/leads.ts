@@ -2,14 +2,14 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireSection } from "@/lib/acl"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { audit } from "@/lib/audit"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertLeadInOrg, assertSpaceInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 
 export async function createLead(formData: FormData) {
-  await requireSection("tenants", "edit")
+  await requireCapabilityAndFeature("leads.manage")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "leads")
@@ -44,7 +44,7 @@ export async function createLead(formData: FormData) {
 }
 
 export async function updateLeadStatus(leadId: string, status: string) {
-  await requireSection("tenants", "edit")
+  await requireCapabilityAndFeature("leads.manage")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
 
@@ -54,7 +54,7 @@ export async function updateLeadStatus(leadId: string, status: string) {
 }
 
 export async function bookSpaceForLead(leadId: string, spaceId: string, days = 7) {
-  await requireSection("spaces", "edit")
+  await requireCapabilityAndFeature("leads.bookSpace")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
   await assertSpaceInOrg(spaceId, orgId)
@@ -72,7 +72,7 @@ export async function bookSpaceForLead(leadId: string, spaceId: string, days = 7
 }
 
 export async function unbookSpaceForLead(leadId: string) {
-  await requireSection("spaces", "edit")
+  await requireCapabilityAndFeature("leads.bookSpace")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
 
@@ -86,11 +86,14 @@ export async function unbookSpaceForLead(leadId: string) {
 }
 
 export async function deleteLead(leadId: string) {
-  await requireSection("tenants", "edit")
+  await requireCapabilityAndFeature("leads.manage")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
 
-  await unbookSpaceForLead(leadId).catch(() => {})
+  const lead = await db.lead.findUnique({ where: { id: leadId }, select: { spaceId: true } })
+  if (lead?.spaceId) {
+    await db.space.update({ where: { id: lead.spaceId }, data: { status: "VACANT" } })
+  }
   await db.lead.delete({ where: { id: leadId } })
   await audit({ action: "DELETE", entity: "lead", entityId: leadId })
   revalidatePath("/admin/leads")
