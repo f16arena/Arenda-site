@@ -17,7 +17,7 @@ import { formatMoney, formatDate, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
   Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
-  FileSignature,
+  FileSignature, CheckCircle2, AlertTriangle,
 } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
@@ -44,6 +44,19 @@ import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { safeServerValue } from "@/lib/server-fallback"
 import { TenantContractsSidebar, TenantRecentChargesSidebar } from "./tenant-sidebar-sections"
+
+type TenantHealthItem = {
+  label: string
+  value: string
+  ok: boolean
+  href: string
+}
+
+type TenantPrimaryAction = {
+  label: string
+  description: string
+  href: string
+} | null
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return measureServerRoute("/admin/tenants/[id]", async () => {
@@ -173,7 +186,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     ],
   }
 
-  const [vacantSpaces, vacantSpacesCount, debtAgg] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
+  const [vacantSpaces, vacantSpacesCount, debtAgg, signedContractsCount] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
     db.space.findMany({
       where: vacantSpacesWhere,
       select: {
@@ -192,6 +205,17 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         _count: { _all: true },
       }),
       { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
+    safe(
+      "tenantDetail.signedContractsCount",
+      db.contract.count({
+        where: {
+          tenantId: tenant.id,
+          status: "SIGNED",
+          tenant: { user: { organizationId: orgId } },
+        },
+      }),
+      0,
     ),
   ]))
 
@@ -224,6 +248,73 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       : hasTenantCustomRate
         ? `У арендатора указана индивидуальная ставка аренды: ${formatMoney(tenant.customRate ?? 0)}/м².`
         : null
+  const hasPlacement = assignedSpaces.length > 0 || myFullFloors.length > 0
+  const hasContact = Boolean((tenant.user.phone ?? "").trim() || (tenant.user.email ?? "").trim())
+  const hasBankDetails = tenant.bankAccounts.length > 0 || Boolean((tenant.bankName ?? "").trim() && (tenant.iik ?? "").trim() && (tenant.bik ?? "").trim())
+  const hasSignedContract = signedContractsCount > 0
+  const tenantHealthItems: TenantHealthItem[] = [
+    {
+      label: "Долг",
+      value: totalDebt > 0 ? formatMoney(totalDebt) : "нет",
+      ok: totalDebt <= 0,
+      href: `/admin/finances?tenantId=${tenant.id}`,
+    },
+    {
+      label: "Договор",
+      value: hasSignedContract ? "подписан" : "нет подписанного",
+      ok: hasSignedContract,
+      href: `/admin/documents/new/contract?tenantId=${tenant.id}`,
+    },
+    {
+      label: "Помещение",
+      value: hasPlacement ? "назначено" : "не назначено",
+      ok: hasPlacement,
+      href: "#tenant-placement",
+    },
+    {
+      label: "Контакты",
+      value: hasContact ? "заполнены" : "не заполнены",
+      ok: hasContact,
+      href: "#tenant-contact",
+    },
+    {
+      label: "Реквизиты",
+      value: hasBankDetails ? "заполнены" : "не заполнены",
+      ok: hasBankDetails,
+      href: "#tenant-requisites",
+    },
+  ]
+  const tenantPrimaryAction: TenantPrimaryAction = totalDebt > 0
+    ? {
+        label: "Проверить долг",
+        description: `Есть неоплаченные начисления: ${formatMoney(totalDebt)}.`,
+        href: `/admin/finances?tenantId=${tenant.id}`,
+      }
+    : !hasPlacement
+      ? {
+          label: "Назначить помещение",
+          description: "Без помещения нельзя корректно формировать договоры и начисления.",
+          href: "#tenant-placement",
+        }
+      : !hasSignedContract
+        ? {
+            label: "Создать договор",
+            description: "У арендатора нет подписанного договора в системе.",
+            href: `/admin/documents/new/contract?tenantId=${tenant.id}`,
+          }
+        : !hasBankDetails
+          ? {
+              label: "Заполнить реквизиты",
+              description: "Реквизиты нужны для договоров, счетов и актов.",
+              href: "#tenant-requisites",
+            }
+          : !hasContact
+            ? {
+                label: "Заполнить контакты",
+                description: "Телефон или email нужны для связи и уведомлений.",
+                href: "#tenant-contact",
+              }
+            : null
 
   return (
     <div className="space-y-6">
@@ -260,7 +351,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
       {/* Quick stats + actions */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-slate-100">
+        <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 md:grid-cols-3 md:divide-x md:divide-y-0">
           <QuickStat
             icon={Wallet}
             label="Текущий долг"
@@ -343,15 +434,18 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Left column: forms */}
-        <div className="col-span-2 space-y-5">
+        <div className="space-y-5 xl:col-span-2">
           {/* Contact info */}
-          <CollapsibleCard
-            title="Контактное лицо"
-            icon={User}
-            meta={tenant.user.phone ?? tenant.user.email ?? "контакты не заполнены"}
-          >
+          <div id="tenant-contact">
+            <CollapsibleCard
+              title="Контактное лицо"
+              icon={User}
+              meta={tenant.user.phone ?? tenant.user.email ?? "контакты не заполнены"}
+            >
             <form
               action={async (formData: FormData) => {
                 "use server"
@@ -394,7 +488,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </button>
               </div>
             </form>
-          </CollapsibleCard>
+            </CollapsibleCard>
+          </div>
 
           {/* Company info */}
           <CollapsibleCard
@@ -547,11 +642,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </CollapsibleCard>
 
           {/* Requisites */}
-          <CollapsibleCard
-            title="Банковские реквизиты"
-            icon={CreditCard}
-            meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
-          >
+          <div id="tenant-requisites">
+            <CollapsibleCard
+              title="Банковские реквизиты"
+              icon={CreditCard}
+              meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
+            >
             <RequisitesFormLoader
               tenantId={tenant.id}
               isIin={tenant.legalType === "IP" || tenant.legalType === "CHSI" || tenant.legalType === "PHYSICAL"}
@@ -564,7 +660,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   bankAccounts: tenant.bankAccounts,
                 }}
               />
-          </CollapsibleCard>
+            </CollapsibleCard>
+          </div>
 
           {/* Rental terms */}
           <CollapsibleCard
@@ -637,11 +734,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </Suspense>
 
           {/* Space */}
-          <CollapsibleCard
-            title="Помещения"
-            icon={Building2}
-            meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж. · ${fullFloorArea} м²` : "не назначено"}
-          >
+          <div id="tenant-placement">
+            <CollapsibleCard
+              title="Помещения"
+              icon={Building2}
+              meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж. · ${fullFloorArea} м²` : "не назначено"}
+            >
             <div className="p-4">
               {assignedSpaces.length > 0 ? (
                 <div className="space-y-3">
@@ -758,7 +856,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
             </div>
-          </CollapsibleCard>
+            </CollapsibleCard>
+          </div>
 
           <Suspense fallback={<SectionFallback />}>
             <TenantContractsSidebar tenantId={tenant.id} orgId={orgId} userId={session.user.id} />
@@ -783,6 +882,72 @@ function SectionFallback() {
         <div className="h-9 animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
       </div>
     </div>
+  )
+}
+
+function TenantHealthPanel({
+  items,
+  primaryAction,
+}: {
+  items: TenantHealthItem[]
+  primaryAction: TenantPrimaryAction
+}) {
+  const issueCount = items.filter((item) => !item.ok).length
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            {issueCount === 0 ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            )}
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {issueCount === 0 ? "Карточка арендатора готова" : `Требует внимания: ${issueCount}`}
+            </h2>
+          </div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Быстрая проверка данных, которые влияют на начисления, документы и связь с арендатором.
+          </p>
+        </div>
+        {primaryAction && (
+          <Link
+            href={primaryAction.href}
+            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+          >
+            {primaryAction.label}
+          </Link>
+        )}
+      </div>
+      {primaryAction?.description && (
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          {primaryAction.description}
+        </p>
+      )}
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+        {items.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="rounded-lg border border-slate-200 px-3 py-2 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-800 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{item.label}</span>
+              {item.ok ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              ) : (
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              )}
+            </div>
+            <p className={`mt-1 text-sm font-semibold ${item.ok ? "text-slate-900 dark:text-slate-100" : "text-amber-700 dark:text-amber-300"}`}>
+              {item.value}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }
 

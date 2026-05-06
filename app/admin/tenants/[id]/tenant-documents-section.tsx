@@ -11,6 +11,7 @@ export async function TenantDocumentsSection({
   const documents = await db.tenantDocument.findMany({
     where: { tenantId },
     orderBy: { createdAt: "desc" },
+    take: 50,
     select: {
       id: true,
       type: true,
