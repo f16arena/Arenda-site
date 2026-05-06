@@ -181,11 +181,15 @@ export default function Home() {
     <main className="min-h-screen bg-[#f6f8fb] text-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label="Commrent.kz">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm">
-              <Image src="/commrent-mark.png" alt="" width={27} height={27} className="rounded-md object-contain" priority />
-            </span>
-            <span className="text-base font-semibold tracking-tight">commrent.kz</span>
+          <Link href="/" className="flex items-center" aria-label="Commrent.kz">
+            <Image
+              src="/commrent-logo-navbar.png"
+              alt="Commrent.kz"
+              width={214}
+              height={75}
+              priority
+              className="h-11 w-auto object-contain"
+            />
           </Link>
 
           <nav className="hidden items-center gap-5 text-sm text-slate-600 lg:flex">
@@ -217,14 +221,6 @@ export default function Home() {
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-5 pb-12 pt-12 sm:px-8 lg:pb-16 lg:pt-16">
           <div className="mx-auto max-w-4xl text-center">
-            <Image
-              src="/commrent-logo-hero.png"
-              alt="Commrent.kz"
-              width={699}
-              height={550}
-              priority
-              className="mx-auto mb-6 h-auto w-48 rounded-lg object-contain shadow-xl shadow-slate-900/10 sm:w-64 lg:w-72"
-            />
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
               <Sparkles className="h-3.5 w-3.5" />
               SaaS для коммерческой аренды в Казахстане
