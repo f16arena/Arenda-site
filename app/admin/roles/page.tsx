@@ -1,23 +1,42 @@
 export const dynamic = "force-dynamic"
 
-import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { Shield, AlertTriangle } from "lucide-react"
+import { Shield, AlertTriangle, Lock } from "lucide-react"
+import { db } from "@/lib/db"
 import { SECTIONS, SECTION_LABELS } from "@/lib/acl"
+import { requireOrgAccess } from "@/lib/org"
+import { parsePlanFeatures, PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
+import {
+  ROLE_SECTION_GROUPS,
+  SECTION_REQUIRED_FEATURE,
+  buildRoleOptions,
+  displayRoleLabel,
+} from "@/lib/role-capabilities"
 import { PermissionsMatrix } from "./permissions-matrix"
 
-const ROLES = [
-  { key: "OWNER", label: "Владелец", color: "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300" },
-  { key: "ADMIN", label: "Администратор", color: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-  { key: "ACCOUNTANT", label: "Бухгалтер", color: "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300" },
-  { key: "FACILITY_MANAGER", label: "Завхоз", color: "bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300" },
-] as const
+const ROLE_COLORS: Record<string, string> = {
+  OWNER: "bg-purple-500/10 text-purple-300 border-purple-500/30",
+  ADMIN: "bg-blue-500/10 text-blue-300 border-blue-500/30",
+  ACCOUNTANT: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+  FACILITY_MANAGER: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+  EMPLOYEE: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+}
 
 export default async function RolesPage() {
   const session = await auth()
   if (!session || !["OWNER", "ADMIN"].includes(session.user.role)) redirect("/admin")
+
+  const { orgId } = await requireOrgAccess()
   const isOwner = session.user.role === "OWNER"
+
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { plan: { select: { name: true, features: true } } },
+  })
+  const planFeatures = parsePlanFeatures(org?.plan?.features)
+  const featureLabels = new Map(PLAN_CAPABILITIES.map((feature) => [feature.key, feature.label]))
+  const roleBuilderEnabled = planFeatures.flags.roleBuilder === true
 
   let rows: { role: string; section: string; canView: boolean; canEdit: boolean }[] = []
   let migrationMissing = false
@@ -29,76 +48,126 @@ export default async function RolesPage() {
     migrationMissing = true
   }
 
+  const users = await db.user.findMany({
+    where: { organizationId: orgId },
+    select: { role: true, isActive: true },
+  })
+
+  const roles = buildRoleOptions(
+    [...rows.map((row) => row.role), ...users.map((user) => user.role)],
+    orgId,
+  ).filter((role) => role.value !== "TENANT")
+
+  const userCounts = users.reduce<Record<string, number>>((acc, user) => {
+    if (user.isActive) acc[user.role] = (acc[user.role] ?? 0) + 1
+    return acc
+  }, {})
+
   const map: Record<string, Record<string, { canView: boolean; canEdit: boolean }>> = {}
-  for (const r of rows) {
-    if (!map[r.role]) map[r.role] = {}
-    map[r.role][r.section] = { canView: r.canView, canEdit: r.canEdit }
+  for (const row of rows) {
+    if (!map[row.role]) map[row.role] = {}
+    map[row.role][row.section] = { canView: row.canView, canEdit: row.canEdit }
   }
+
+  const sections = SECTIONS.map((section) => {
+    const requiredFeature = SECTION_REQUIRED_FEATURE[section]
+    return {
+      key: section,
+      label: SECTION_LABELS[section],
+      requiredFeature: requiredFeature ?? null,
+      requiredFeatureLabel: requiredFeature ? featureLabels.get(requiredFeature) ?? requiredFeature : null,
+      locked: !!requiredFeature && planFeatures.flags[requiredFeature] !== true,
+    }
+  })
+
+  const groups = ROLE_SECTION_GROUPS.map((group) => ({
+    ...group,
+    sections: group.sections.filter((section) => SECTIONS.includes(section)),
+  }))
+
+  const editable = isOwner && !migrationMissing && roleBuilderEnabled
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10">
-          <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
+            <Shield className="h-5 w-5 text-purple-300" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-100">Должности и права</h1>
+            <p className="mt-0.5 text-sm text-slate-400">
+              Роль теперь работает как набор разрешений: страницы, кнопки и серверные действия проверяются отдельно.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Роли и доступ</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-            {isOwner ? "Кликайте по ячейкам чтобы изменить права. OWNER всегда имеет полный доступ." : "Просмотр прав доступа (только OWNER может изменять)."}
+        <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+          <p className="font-medium text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
           </p>
         </div>
       </div>
 
       {migrationMissing && (
-        <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-5">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">Таблица прав не создана в базе</p>
-              <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                Запустите миграцию <code className="bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 rounded">migrations/006_role_permissions.sql</code> в Supabase SQL Editor. После этого обновите страницу.
-              </p>
-              <details className="text-xs text-amber-700 dark:text-amber-300">
-                <summary className="cursor-pointer hover:underline">Показать SQL для запуска</summary>
-                <pre className="mt-2 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-500/30 rounded p-3 overflow-x-auto whitespace-pre-wrap">{MIGRATION_SQL}</pre>
-              </details>
-            </div>
-          </div>
-        </div>
+        <Notice
+          tone="amber"
+          title="Таблица прав не создана"
+          text="Система использует старые fallback-права. Запустите миграции или deploy-script, затем обновите страницу."
+        />
+      )}
+
+      {!roleBuilderEnabled && (
+        <Notice
+          tone="blue"
+          title="Функция закрыта тарифом"
+          text="Владелец видит текущие права, но менять должности сможет только после включения возможности «Конструктор должностей» в тарифе."
+          icon={Lock}
+        />
       )}
 
       <PermissionsMatrix
-        roles={ROLES.map((r) => ({ ...r }))}
-        sections={SECTIONS.map((s) => ({ key: s, label: SECTION_LABELS[s] }))}
+        roles={roles.map((role) => ({
+          key: role.value,
+          label: role.label || displayRoleLabel(role.value),
+          color: ROLE_COLORS[role.value] ?? "bg-indigo-500/10 text-indigo-300 border-indigo-500/30",
+          system: role.system,
+          userCount: userCounts[role.value] ?? 0,
+        }))}
+        sections={sections}
+        groups={groups}
         permissions={map}
-        editable={isOwner && !migrationMissing}
+        editable={editable}
       />
-
-      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200">
-        <p className="font-semibold mb-1">Как читать матрицу:</p>
-        <ul className="text-xs space-y-1 list-disc list-inside">
-          <li><b>👁</b> — может просматривать раздел (видит в меню и открывает страницу)</li>
-          <li><b>✏️</b> — может редактировать (создавать/изменять/удалять данные)</li>
-          <li>Клик по иконке переключает: серый → зелёный (видит) → синий (редактирует) → серый</li>
-          <li>Изменения применяются сразу. Кеш ACL обновляется в течение 30 секунд</li>
-        </ul>
-      </div>
     </div>
   )
 }
 
-const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS role_permissions (
-  id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
-  role       TEXT NOT NULL,
-  section    TEXT NOT NULL,
-  can_view   BOOLEAN NOT NULL DEFAULT FALSE,
-  can_edit   BOOLEAN NOT NULL DEFAULT FALSE,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (role, section)
-);
+function Notice({
+  tone,
+  title,
+  text,
+  icon: Icon = AlertTriangle,
+}: {
+  tone: "amber" | "blue"
+  title: string
+  text: string
+  icon?: React.ElementType
+}) {
+  const styles = tone === "amber"
+    ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+    : "border-blue-500/30 bg-blue-500/10 text-blue-200"
+  const iconColor = tone === "amber" ? "text-amber-300" : "text-blue-300"
 
-DROP TRIGGER IF EXISTS role_permissions_updated_at ON role_permissions;
-CREATE TRIGGER role_permissions_updated_at
-  BEFORE UPDATE ON role_permissions
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-`
+  return (
+    <div className={`rounded-xl border p-4 ${styles}`}>
+      <div className="flex items-start gap-3">
+        <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${iconColor}`} />
+        <div>
+          <p className="font-semibold">{title}</p>
+          <p className="mt-1 text-sm opacity-90">{text}</p>
+        </div>
+      </div>
+    </div>
+  )
+}

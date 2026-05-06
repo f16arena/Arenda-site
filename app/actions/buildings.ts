@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
-import { requireOwner, requireAdmin } from "@/lib/permissions"
+import { requireOwner } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { setCurrentBuildingCookie } from "@/lib/current-building"
 import { ALL_BUILDINGS_COOKIE, assertBuildingAccess } from "@/lib/building-access"
 import { requireOrgAccess, checkLimit } from "@/lib/org"
@@ -52,7 +53,7 @@ export async function createBuilding(formData: FormData) {
 }
 
 export async function updateBuildingDetails(buildingId: string, formData: FormData) {
-  await requireAdmin()
+  await requireSection("buildings", "edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -164,7 +165,7 @@ export async function switchBuilding(buildingId: string) {
 }
 
 export async function createFloor(buildingId: string, formData: FormData) {
-  await requireAdmin()
+  await requireSection("buildings", "edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 

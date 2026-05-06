@@ -2,14 +2,14 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireAdmin } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { audit } from "@/lib/audit"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertLeadInOrg, assertSpaceInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 
 export async function createLead(formData: FormData) {
-  await requireAdmin()
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "leads")
@@ -44,7 +44,7 @@ export async function createLead(formData: FormData) {
 }
 
 export async function updateLeadStatus(leadId: string, status: string) {
-  await requireAdmin()
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
 
@@ -54,7 +54,7 @@ export async function updateLeadStatus(leadId: string, status: string) {
 }
 
 export async function bookSpaceForLead(leadId: string, spaceId: string, days = 7) {
-  await requireAdmin()
+  await requireSection("spaces", "edit")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
   await assertSpaceInOrg(spaceId, orgId)
@@ -72,7 +72,7 @@ export async function bookSpaceForLead(leadId: string, spaceId: string, days = 7
 }
 
 export async function unbookSpaceForLead(leadId: string) {
-  await requireAdmin()
+  await requireSection("spaces", "edit")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
 
@@ -86,7 +86,7 @@ export async function unbookSpaceForLead(leadId: string) {
 }
 
 export async function deleteLead(leadId: string) {
-  await requireAdmin()
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertLeadInOrg(leadId, orgId)
 

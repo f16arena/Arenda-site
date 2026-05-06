@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireAdmin } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
@@ -20,7 +20,7 @@ const KIND_TO_FIELD: Record<DocumentKind, "contractPrefix" | "invoicePrefix" | "
 const PREFIX_VALID = /^[A-Za-zА-Яа-яЁё0-9-]{1,10}$/
 
 export async function setDocumentPrefix(buildingId: string, kind: DocumentKind, formData: FormData) {
-  await requireAdmin()
+  await requireSection("contracts", "edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
   const raw = String(formData.get("prefix") ?? "").trim()
@@ -44,6 +44,7 @@ export async function setContractPrefix(buildingId: string, formData: FormData) 
 }
 
 export async function createContract(formData: FormData) {
+  await requireSection("contracts", "edit")
   const { orgId } = await requireOrgAccess()
 
   const tenantId = String(formData.get("tenantId") ?? "")

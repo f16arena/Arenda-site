@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
-import { requireAdmin } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import {
   detectFormat,
   extractDocxPlaceholders,
@@ -35,7 +35,7 @@ export interface UploadTemplateResult {
  * Деактивирует предыдущий шаблон того же типа (но не удаляет — для истории).
  */
 export async function uploadDocumentTemplate(documentType: DocumentType, formData: FormData): Promise<UploadTemplateResult> {
-  await requireAdmin()
+  await requireSection("documents", "edit")
   const session = await auth()
   const { orgId } = await requireOrgAccess()
 
@@ -127,7 +127,7 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
 }
 
 export async function removeDocumentTemplate(documentType: DocumentType): Promise<{ ok: boolean }> {
-  await requireAdmin()
+  await requireSection("documents", "edit")
   const { orgId } = await requireOrgAccess()
   await db.documentTemplate.updateMany({
     where: { organizationId: orgId, documentType, isActive: true },

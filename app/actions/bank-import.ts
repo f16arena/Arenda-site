@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireAdmin } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { audit } from "@/lib/audit"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
@@ -107,7 +107,7 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
 export async function applyBankImport(
   rows: { date: string; amount: number; tenantId: string; description: string }[],
 ) {
-  await requireAdmin()
+  await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
 
   let created = 0

@@ -2,13 +2,13 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireAdmin } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { assertFloorAssignableToOneTenant } from "@/lib/full-floor-guards"
 
 export async function assignFullFloor(floorId: string, tenantId: string, fixedRent: number) {
-  await requireAdmin()
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
   await assertTenantInOrg(tenantId, orgId)
@@ -187,7 +187,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
 }
 
 export async function unassignFullFloor(floorId: string) {
-  await requireAdmin()
+  await requireSection("tenants", "edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 

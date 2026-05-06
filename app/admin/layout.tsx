@@ -25,8 +25,7 @@ import {
   getCachedAdminShellUser,
   getCachedUnreadNotificationCount,
 } from "@/lib/admin-shell-cache"
-
-const ALLOWED_ROLES = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"]
+import { isTenantRole } from "@/lib/role-capabilities"
 
 export default async function AdminLayout({
   children,
@@ -41,7 +40,7 @@ async function renderAdminLayout(children: React.ReactNode) {
   if (!session) redirect("/login")
   const isPlatformOwner = session.user.isPlatformOwner ?? false
   // Платформенному админу разрешаем доступ к /admin независимо от role.
-  if (!isPlatformOwner && !ALLOWED_ROLES.includes(session.user.role)) {
+  if (!isPlatformOwner && isTenantRole(session.user.role)) {
     redirect("/cabinet")
   }
   const impersonate = isPlatformOwner ? await getValidatedImpersonateData().catch(() => null) : null

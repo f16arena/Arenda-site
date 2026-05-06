@@ -9,16 +9,25 @@ import { assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
-
-const BUILDING_SCOPED_ROLES = new Set(["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"])
+import {
+  canManageRoleInOrg,
+  displayRoleLabel,
+  isStaffLikeRole,
+} from "@/lib/role-capabilities"
 
 function parseBuildingIds(formData: FormData) {
   return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
 }
 
 function assertBuildingSelection(role: string, buildingIds: string[]) {
-  if (BUILDING_SCOPED_ROLES.has(role) && buildingIds.length === 0) {
+  if (isStaffLikeRole(role) && buildingIds.length === 0) {
     throw new Error("Назначьте сотруднику хотя бы одно здание")
+  }
+}
+
+function assertAssignableRole(role: string, orgId: string) {
+  if (!canManageRoleInOrg(role, orgId)) {
+    throw new Error("Эту должность нельзя назначить в текущей организации")
   }
 }
 
@@ -40,6 +49,7 @@ export async function createUserAdmin(formData: FormData) {
   if (!name) throw new Error("Имя обязательно")
   if (!phone && !email) throw new Error("Укажите телефон или email")
   if (password.length < 6) throw new Error("Пароль минимум 6 символов")
+  assertAssignableRole(role, orgId)
   assertBuildingSelection(role, buildingIds)
 
   const hash = await bcrypt.hash(password, 10)
@@ -55,16 +65,16 @@ export async function createUserAdmin(formData: FormData) {
     },
   })
 
-  if (["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER"].includes(role)) {
+  if (isStaffLikeRole(role)) {
     await db.staff.create({
       data: {
         userId: user.id,
-        position: position || role,
+        position: position || displayRoleLabel(role),
         salary: salaryStr ? parseFloat(salaryStr) : 0,
       },
     })
   }
-  await replaceUserBuildingAccess(user.id, BUILDING_SCOPED_ROLES.has(role) ? buildingIds : [], orgId)
+  await replaceUserBuildingAccess(user.id, isStaffLikeRole(role) ? buildingIds : [], orgId)
 
   revalidatePath("/admin/users")
   revalidatePath("/admin/staff")
@@ -84,7 +94,10 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
   const buildingIds = parseBuildingIds(formData)
 
   if (!name) throw new Error("Имя обязательно")
-  if (role) assertBuildingSelection(role, buildingIds)
+  if (role) {
+    assertAssignableRole(role, orgId)
+    assertBuildingSelection(role, buildingIds)
+  }
 
   await db.user.update({
     where: { id: userId },
@@ -97,7 +110,18 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
     },
   })
   if (role) {
-    await replaceUserBuildingAccess(userId, BUILDING_SCOPED_ROLES.has(role) ? buildingIds : [], orgId)
+    await replaceUserBuildingAccess(userId, isStaffLikeRole(role) ? buildingIds : [], orgId)
+    if (isStaffLikeRole(role)) {
+      await db.staff.upsert({
+        where: { userId },
+        update: {},
+        create: {
+          userId,
+          position: displayRoleLabel(role),
+          salary: 0,
+        },
+      })
+    }
   }
 
   revalidatePath("/admin/users")

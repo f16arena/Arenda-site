@@ -2,174 +2,198 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { requireOwner } from "@/lib/permissions"
-import { ROLES, ROLE_COLORS, formatDate } from "@/lib/utils"
-import { cn } from "@/lib/utils"
+import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
 import { Shield, Users as UsersIcon } from "lucide-react"
-import { CreateUserDialog, EditUserDialog, ToggleActiveButton, ResetPasswordDialog, DeleteUserButton } from "./user-actions"
 import { requireOrgAccess } from "@/lib/org"
+import {
+  buildRoleOptions,
+  displayRoleLabel,
+  isStaffLikeRole,
+} from "@/lib/role-capabilities"
+import { safeServerValue } from "@/lib/server-fallback"
+import {
+  CreateUserDialog,
+  DeleteUserButton,
+  EditUserDialog,
+  ResetPasswordDialog,
+  ToggleActiveButton,
+} from "./user-actions"
 
 export default async function UsersPage() {
   const session = await requireOwner()
   const { orgId } = await requireOrgAccess()
 
-  const users = await db.user.findMany({
-    where: { organizationId: orgId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      createdAt: true,
-      tenant: { select: { id: true, companyName: true } },
-      staff: { select: { id: true, position: true, salary: true } },
-      buildingAccess: {
-        select: { buildingId: true, building: { select: { name: true } } },
-        orderBy: { building: { createdAt: "asc" } },
+  const [users, buildings, roleRows] = await Promise.all([
+    db.user.findMany({
+      where: { organizationId: orgId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        tenant: { select: { id: true, companyName: true } },
+        staff: { select: { id: true, position: true, salary: true } },
+        buildingAccess: {
+          select: { buildingId: true, building: { select: { name: true } } },
+          orderBy: { building: { createdAt: "asc" } },
+        },
       },
-    },
-    orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
-  })
-  const buildings = await db.building.findMany({
-    where: { organizationId: orgId, isActive: true },
-    select: { id: true, name: true },
-    orderBy: { createdAt: "asc" },
-  })
+      orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
+    }),
+    db.building.findMany({
+      where: { organizationId: orgId, isActive: true },
+      select: { id: true, name: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    safeServerValue(
+      db.rolePermission.findMany({
+        select: { role: true },
+        distinct: ["role"],
+      }),
+      [] as Array<{ role: string }>,
+      { source: "admin.users.roleOptions", route: "/admin/users", orgId, userId: session.id },
+    ),
+  ])
 
-  const byRole = users.reduce<Record<string, number>>((acc, u) => {
-    if (u.isActive) acc[u.role] = (acc[u.role] ?? 0) + 1
+  const roleOptions = buildRoleOptions(
+    [...roleRows.map((row) => row.role), ...users.map((user) => user.role)],
+    orgId,
+  )
+
+  const byRole = users.reduce<Record<string, number>>((acc, user) => {
+    if (user.isActive) acc[user.role] = (acc[user.role] ?? 0) + 1
     return acc
   }, {})
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10">
-            <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
+            <Shield className="h-5 w-5 text-purple-300" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Управление пользователями</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-              Все аккаунты системы · доступно только владельцу
+            <h1 className="text-2xl font-semibold text-slate-100">Пользователи и доступ</h1>
+            <p className="mt-0.5 text-sm text-slate-400">
+              Назначайте должности, здания и доступы. Свои должности создаются в разделе «Должности и права».
             </p>
           </div>
         </div>
-        <CreateUserDialog buildings={buildings} />
+        <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {[
-          { role: "OWNER", label: "Владельцы" },
-          { role: "ADMIN", label: "Админы" },
-          { role: "ACCOUNTANT", label: "Бухгалтеры" },
-          { role: "FACILITY_MANAGER", label: "Завхозы" },
-          { role: "TENANT", label: "Арендаторы" },
-        ].map((r) => (
-          <div key={r.role} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{byRole[r.role] ?? 0}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{r.label}</p>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {roleOptions.slice(0, 10).map((role) => (
+          <div key={role.value} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+            <p className="text-2xl font-bold text-slate-100">{byRole[role.value] ?? 0}</p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{role.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Пользователь</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Роль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Контакты</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Здания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Профиль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Создан</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действия</th>
+            <tr className="border-b border-slate-800 bg-slate-800/50">
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Пользователь</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Должность</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Контакты</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Здания</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Профиль</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Создан</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Действия</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => {
-              const isSelf = u.id === session.id
+            {users.map((user) => {
+              const isSelf = user.id === session.id
               return (
                 <tr
-                  key={u.id}
+                  key={user.id}
                   className={cn(
-                    "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors",
-                    !u.isActive && "opacity-50"
+                    "border-b border-slate-800/70 transition-colors hover:bg-slate-800/50",
+                    !user.isActive && "opacity-50",
                   )}
                 >
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">{u.name[0]?.toUpperCase()}</span>
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800">
+                        <span className="text-xs font-bold text-slate-300">{user.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                          {u.name}
+                        <p className="flex items-center gap-2 font-medium text-slate-100">
+                          {user.name}
                           {isSelf && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold">ВЫ</span>
+                            <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-purple-300">вы</span>
                           )}
-                          {!u.isActive && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 font-semibold">НЕАКТИВЕН</span>
+                          {!user.isActive && (
+                            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
                           )}
                         </p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{u.id}</p>
+                        <p className="font-mono text-xs text-slate-500">{user.id}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLORS[u.role] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
-                      {ROLES[u.role as keyof typeof ROLES] ?? u.role}
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium",
+                      ROLE_COLORS[user.role] ?? "bg-indigo-500/10 text-indigo-300",
+                    )}>
+                      {displayRoleLabel(user.role)}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                  <td className="px-5 py-3.5 text-slate-400">
                     <div className="space-y-0.5">
-                      {u.email && <p className="text-xs">{u.email}</p>}
-                      {u.phone && <p className="text-xs font-mono">{u.phone}</p>}
-                      {!u.email && !u.phone && <span className="text-slate-400 dark:text-slate-500">—</span>}
+                      {user.email && <p className="text-xs">{user.email}</p>}
+                      {user.phone && <p className="font-mono text-xs">{user.phone}</p>}
+                      {!user.email && !user.phone && <span className="text-slate-500">-</span>}
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                    {u.role === "OWNER" ? (
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400">Все здания</span>
-                    ) : ["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"].includes(u.role) ? (
-                      u.buildingAccess.length > 0 ? (
-                        <span className="text-xs">{u.buildingAccess.map((a) => a.building.name).join(", ")}</span>
+                  <td className="px-5 py-3.5 text-slate-400">
+                    {user.role === "OWNER" ? (
+                      <span className="text-xs text-emerald-400">Все здания</span>
+                    ) : isStaffLikeRole(user.role) ? (
+                      user.buildingAccess.length > 0 ? (
+                        <span className="text-xs">{user.buildingAccess.map((access) => access.building.name).join(", ")}</span>
                       ) : (
-                        <span className="text-xs text-amber-600 dark:text-amber-400">Не назначено</span>
+                        <span className="text-xs text-amber-400">Не назначено</span>
                       )
                     ) : (
-                      <span className="text-xs text-slate-400 dark:text-slate-500">По профилю</span>
+                      <span className="text-xs text-slate-500">По профилю</span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
-                    {u.tenant ? (
-                      <span className="text-xs">Арендатор: {u.tenant.companyName}</span>
-                    ) : u.staff ? (
-                      <span className="text-xs">{u.staff.position}</span>
+                  <td className="px-5 py-3.5 text-slate-400">
+                    {user.tenant ? (
+                      <span className="text-xs">Арендатор: {user.tenant.companyName}</span>
+                    ) : user.staff ? (
+                      <span className="text-xs">{user.staff.position}</span>
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>
+                      <span className="text-xs text-slate-500">-</span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-400 dark:text-slate-500 text-xs">
-                    {formatDate(u.createdAt)}
+                  <td className="px-5 py-3.5 text-xs text-slate-500">
+                    {formatDate(user.createdAt)}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-2">
                       <EditUserDialog
                         user={{
-                          id: u.id,
-                          name: u.name,
-                          email: u.email,
-                          phone: u.phone,
-                          role: u.role,
-                          buildingIds: u.buildingAccess.map((a) => a.buildingId),
+                          id: user.id,
+                          name: user.name,
+                          email: user.email,
+                          phone: user.phone,
+                          role: user.role,
+                          buildingIds: user.buildingAccess.map((access) => access.buildingId),
                         }}
                         buildings={buildings}
+                        roleOptions={roleOptions}
                       />
-                      <ResetPasswordDialog userId={u.id} userName={u.name} />
-                      <ToggleActiveButton userId={u.id} isActive={u.isActive} disabled={isSelf} />
-                      <DeleteUserButton userId={u.id} userName={u.name} disabled={isSelf} />
+                      <ResetPasswordDialog userId={user.id} userName={user.name} />
+                      <ToggleActiveButton userId={user.id} isActive={user.isActive} disabled={isSelf} />
+                      <DeleteUserButton userId={user.id} userName={user.name} disabled={isSelf} />
                     </div>
                   </td>
                 </tr>
@@ -178,8 +202,8 @@ export default async function UsersPage() {
             {users.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-5 py-16 text-center">
-                  <UsersIcon className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">Нет пользователей</p>
+                  <UsersIcon className="mx-auto mb-2 h-8 w-8 text-slate-700" />
+                  <p className="text-sm text-slate-500">Нет пользователей</p>
                 </td>
               </tr>
             )}

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { requireAdmin } from "@/lib/permissions"
+import { requireSection } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { tariffScope } from "@/lib/tenant-scope"
@@ -16,7 +16,7 @@ async function assertTariffInOrg(id: string, orgId: string) {
 }
 
 export async function createTariff(buildingId: string, formData: FormData) {
-  await requireAdmin()
+  await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -45,7 +45,7 @@ export async function createTariff(buildingId: string, formData: FormData) {
 }
 
 export async function updateTariff(tariffId: string, formData: FormData) {
-  await requireAdmin()
+  await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTariffInOrg(tariffId, orgId)
 
@@ -74,7 +74,7 @@ export async function updateTariff(tariffId: string, formData: FormData) {
 }
 
 export async function deleteTariff(tariffId: string) {
-  await requireAdmin()
+  await requireSection("finances", "edit")
   const { orgId } = await requireOrgAccess()
   await assertTariffInOrg(tariffId, orgId)
 
