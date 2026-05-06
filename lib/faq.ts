@@ -1,16 +1,6 @@
-export type FaqAudience = "owner" | "admin" | "tenant"
+import type { FaqAudience, FaqItem } from "@/lib/faq-types"
 
-export type FaqItem = {
-  id: string
-  audience: FaqAudience
-  category: string
-  question: string
-  answer: string
-  steps?: string[]
-  tags: string[]
-  href?: string
-  hrefLabel?: string
-}
+export type { FaqAudience, FaqItem } from "@/lib/faq-types"
 
 export const faqAudienceLabels: Record<FaqAudience, string> = {
   owner: "Владелец",

@@ -3,8 +3,8 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { BookOpen, ChevronRight, Search, X } from "lucide-react"
-import type { FaqAudience, FaqItem } from "@/lib/faq"
-import { faqAudienceLabels } from "@/lib/faq"
+import type { FaqAudience, FaqItem } from "@/lib/faq-types"
+import { faqAudienceLabels } from "@/lib/faq-types"
 
 type FaqSearchProps = {
   items: FaqItem[]

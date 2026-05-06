@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { faqItems, type FaqAudience, type FaqItem } from "@/lib/faq"
+import type { FaqAudience, FaqItem } from "@/lib/faq-types"
 
 const AUDIENCES: FaqAudience[] = ["owner", "admin", "tenant"]
 
@@ -47,6 +47,7 @@ export async function getFaqItemsFromDb(orgId: string, audiences: FaqAudience[])
     })
     return rows.map(toFaqItem)
   } catch {
+    const { faqItems } = await import("@/lib/faq")
     const allowed = new Set(audiences)
     return faqItems.filter((item) => allowed.has(item.audience))
   }
@@ -67,6 +68,7 @@ export async function getFaqArticlesForAdmin(orgId: string): Promise<FaqArticleF
     })
     return rows.map(toFaqArticleForAdmin)
   } catch {
+    const { faqItems } = await import("@/lib/faq")
     return faqItems.map((item, index) => ({
       ...item,
       slug: item.id,
@@ -87,6 +89,7 @@ export async function restoreMissingFaqDefaults(orgId: string) {
 }
 
 async function createMissingFaqDefaults(orgId: string) {
+  const { faqItems } = await import("@/lib/faq")
   const defaultSlugs = faqItems.map((item) => item.id)
   const existing = await db.faqArticle.findMany({
     where: {
