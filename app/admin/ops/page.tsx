@@ -4,8 +4,14 @@ import Link from "next/link"
 import {
   AlertTriangle,
   ArrowRight,
+  CheckSquare,
+  ClipboardList,
   FileSignature,
+  MessageSquare,
+  PlusCircle,
+  Receipt,
   ShieldCheck,
+  Users,
   Wallet,
 } from "lucide-react"
 import { db } from "@/lib/db"
@@ -217,6 +223,8 @@ export default async function AdminOpsPage() {
           </p>
         </div>
 
+        <AdminQuickActions />
+
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             href="/admin/finances?filter=overdue"
@@ -328,6 +336,42 @@ export default async function AdminOpsPage() {
       </div>
     )
   })
+}
+
+function AdminQuickActions() {
+  const actions = [
+    { href: "/admin/finances", label: "Принять оплату", sub: "наличные, Kaspi/QR, чек", icon: Wallet },
+    { href: "/admin/documents/new/invoice", label: "Создать счет", sub: "выставить начисление", icon: Receipt },
+    { href: "/admin/requests", label: "Заявки", sub: "новые и в работе", icon: ClipboardList },
+    { href: "/admin/tasks", label: "Задачи", sub: "назначить или закрыть", icon: CheckSquare },
+    { href: "/admin/messages", label: "Написать", sub: "арендатору или команде", icon: MessageSquare },
+    { href: "/admin/tenants", label: "Арендаторы", sub: "карточки и действия", icon: Users },
+  ]
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-3 flex items-center gap-2">
+        <PlusCircle className="h-4 w-4 text-blue-500" />
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Быстрые действия администратора</h2>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
+        {actions.map((action) => {
+          const Icon = action.icon
+          return (
+            <Link
+              key={action.href}
+              href={action.href}
+              className="rounded-lg border border-slate-200 bg-slate-50 p-3 transition hover:border-blue-300 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10"
+            >
+              <Icon className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{action.label}</p>
+              <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{action.sub}</p>
+            </Link>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 function MetricCard({
