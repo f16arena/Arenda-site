@@ -8,7 +8,7 @@ import { getRequiredDocs, DOC_TYPE_LABELS } from "@/lib/required-docs"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
-type Doc = { id: string; type: string; name: string; fileUrl: string | null; storageFileId?: string | null; createdAt: Date }
+type Doc = { id: string; type: string; name: string; fileUrl: string | null; storageFileId?: string | null; createdAt: Date | string }
 
 export function DocumentsChecklist({
   tenantId,

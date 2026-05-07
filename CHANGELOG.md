@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.138 - 2026-05-07
+
+- `/admin/tenants/[id]` разделён на быстрый верх карточки и lazy-секции: документы, email-лог, история, аренда целых этажей, договоры и последние начисления больше не грузятся в первичном Server Components render.
+- Добавлен защищённый endpoint `/api/admin/tenants/[id]/sections`, который подгружает вторичные данные одной порцией после открытия карточки арендатора и сохраняет org-scope/building-scope/capability checks.
+- Секции карточки арендатора теперь показывают skeleton/error state, а затем подставляют реальные данные без блокировки первого отображения страницы.
+- `EmailLog` и `DocumentsChecklist` принимают даты из JSON как строки, чтобы lazy API не ломал типизацию.
+- Проверки: `npm run quality:audit`, `npm run test:mobile:typecheck`, `SKIP_DEPLOY_MIGRATIONS=1 npm run build`.
+- Rollback-точка: `rollback/pre-tenant-detail-lazy-sections-1.3.138`.
+
 ## 1.3.137 - 2026-05-07
 
 - `/cabinet` больше не тянет 12 месяцев начислений и платежей в первом Server Components render: мини-календарь оплат загружается после открытия страницы через `/api/cabinet/payment-calendar`.

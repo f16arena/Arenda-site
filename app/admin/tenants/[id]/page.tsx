@@ -1,7 +1,6 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
-import { Suspense } from "react"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -35,16 +34,20 @@ import { AddressAutocompleteInput } from "@/components/forms/address-autocomplet
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import type { Prisma } from "@/app/generated/prisma/client"
-import { TenantDocumentsSection } from "./tenant-documents-section"
-import { TenantEmailLogSection } from "./tenant-email-log-section"
-import { TenantFullFloorSection } from "./tenant-full-floor-section"
-import { TenantHistorySection } from "./tenant-history-section"
-import { TenantServiceChargesSection } from "./tenant-service-charges-section"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { safeServerValue } from "@/lib/server-fallback"
-import { TenantContractsSidebar, TenantRecentChargesSidebar } from "./tenant-sidebar-sections"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import {
+  TenantLazyContractsSidebar,
+  TenantLazyDocumentsChecklist,
+  TenantLazyEmailLog,
+  TenantLazyFullFloor,
+  TenantLazyHistory,
+  TenantLazyRecentChargesSidebar,
+  TenantLazySectionsProvider,
+  TenantLazyServiceCharges,
+} from "./tenant-lazy-sections"
 
 type TenantHealthItem = {
   label: string
@@ -463,6 +466,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
       <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
 
+      <TenantLazySectionsProvider
+        tenantId={tenant.id}
+        legalType={tenant.legalType}
+        period={currentPeriod}
+        defaultDueDate={defaultServiceDueDate}
+      >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Left column: forms */}
         <div className="space-y-5 xl:col-span-2">
@@ -735,13 +744,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             icon={Zap}
             meta={`за ${currentPeriod}`}
           >
-            <Suspense fallback={<SectionFallback />}>
-              <TenantServiceChargesSection
-                tenantId={tenant.id}
-                period={currentPeriod}
-                defaultDueDate={defaultServiceDueDate}
-              />
-            </Suspense>
+            <TenantLazyServiceCharges />
           </CollapsibleCard>
 
           {/* Documents actions: invoice, act, contract, handover */}
@@ -753,33 +756,20 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           )}
 
           {/* Email log */}
-          <Suspense fallback={<SectionFallback />}>
-            <TenantEmailLogSection tenantId={tenant.id} />
-          </Suspense>
+          <TenantLazyEmailLog />
 
           {/* Documents checklist */}
-          <Suspense fallback={<SectionFallback />}>
-            <TenantDocumentsSection tenantId={tenant.id} legalType={tenant.legalType} />
-          </Suspense>
+          <TenantLazyDocumentsChecklist />
 
           {/* История изменений */}
-          <Suspense fallback={<SectionFallback />}>
-            <TenantHistorySection tenantId={tenant.id} userId={tenant.userId} />
-          </Suspense>
+          <TenantLazyHistory />
         </div>
 
         {/* Right column: info cards */}
         <div className="space-y-5">
           {/* Full floor assign */}
           {canAssignTenantSpaces && (
-            <Suspense fallback={<SectionFallback />}>
-              <TenantFullFloorSection
-                tenantId={tenant.id}
-                orgId={orgId}
-                visibleBuildingIds={visibleBuildingIds}
-                currentFloors={myFullFloors}
-              />
-            </Suspense>
+            <TenantLazyFullFloor />
           )}
 
           {/* Space */}
@@ -916,30 +906,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             </CollapsibleCard>
           </div>
 
-          <Suspense fallback={<SectionFallback />}>
-            <TenantContractsSidebar tenantId={tenant.id} orgId={orgId} userId={session.user.id} />
-          </Suspense>
+          <TenantLazyContractsSidebar />
 
-          <Suspense fallback={<SectionFallback />}>
-            <TenantRecentChargesSidebar tenantId={tenant.id} orgId={orgId} userId={session.user.id} />
-          </Suspense>
+          <TenantLazyRecentChargesSidebar />
         </div>
       </div>
+      </TenantLazySectionsProvider>
     </div>
   )
   })
-}
-
-function SectionFallback() {
-  return (
-    <div className="p-5">
-      <div className="h-4 w-36 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
-      <div className="mt-4 space-y-2">
-        <div className="h-9 animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
-        <div className="h-9 animate-pulse rounded bg-slate-100 dark:bg-slate-800/70" />
-      </div>
-    </div>
-  )
 }
 
 function TenantHealthPanel({

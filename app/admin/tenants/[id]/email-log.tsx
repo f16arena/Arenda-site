@@ -10,9 +10,9 @@ export type EmailLogItem = {
   status: string
   externalId: string | null
   error: string | null
-  openedAt: Date | null
+  openedAt: Date | string | null
   openCount: number
-  sentAt: Date
+  sentAt: Date | string
 }
 
 const TYPE_LABELS: Record<string, string> = {
