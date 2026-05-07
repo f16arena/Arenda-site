@@ -8,6 +8,7 @@ import {
   BarChart3,
   Clock,
   Gauge,
+  Server,
   ShieldCheck,
   TrendingUp,
 } from "lucide-react"
@@ -53,6 +54,24 @@ type WebVitalSample = {
   createdAt: Date
 }
 
+type ServerRouteGroup = {
+  route: string
+  _avg: { durationMs: number | null }
+  _max: { durationMs: number | null }
+  _count: { _all: number }
+}
+
+type ServerPerformanceRow = {
+  id: string
+  route: string
+  step: string | null
+  kind: string
+  durationMs: number
+  status: string
+  error: string | null
+  createdAt: Date
+}
+
 export default async function SuperadminPerformancePage({
   searchParams,
 }: {
@@ -68,7 +87,18 @@ export default async function SuperadminPerformancePage({
     const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
       safeServerValue(promise, fallback, { source, route: "/superadmin/performance", userId })
 
-    const [metric24h, rating24h, slowSamples, clsSamples, recentRows, recentTotal] = await measureServerStep(
+    const [
+      metric24h,
+      rating24h,
+      slowSamples,
+      clsSamples,
+      recentRows,
+      recentTotal,
+      serverRouteGroups,
+      serverSlowRows,
+      serverLogTotal24h,
+      serverErrorTotal24h,
+    ] = await measureServerStep(
       "/superadmin/performance",
       "web-vital-summary",
       Promise.all([
@@ -131,10 +161,46 @@ export default async function SuperadminPerformancePage({
           [] as WebVitalSample[],
         ),
         safe("superadmin.performance.recentTotal", db.webVitalMetric.count(), 0),
+        safe(
+          "superadmin.performance.serverRouteGroups",
+          db.serverPerformanceLog.groupBy({
+            by: ["route"],
+            where: {
+              kind: "ROUTE",
+              createdAt: { gte: since24h },
+            },
+            _avg: { durationMs: true },
+            _max: { durationMs: true },
+            _count: { _all: true },
+          }),
+          [] as ServerRouteGroup[],
+        ),
+        safe(
+          "superadmin.performance.serverSlowRows",
+          db.serverPerformanceLog.findMany({
+            where: { createdAt: { gte: since7d } },
+            orderBy: [{ durationMs: "desc" }, { createdAt: "desc" }],
+            take: 20,
+            select: serverPerformanceSelect,
+          }),
+          [] as ServerPerformanceRow[],
+        ),
+        safe(
+          "superadmin.performance.serverLogTotal24h",
+          db.serverPerformanceLog.count({ where: { createdAt: { gte: since24h } } }),
+          0,
+        ),
+        safe(
+          "superadmin.performance.serverErrorTotal24h",
+          db.serverPerformanceLog.count({ where: { createdAt: { gte: since24h }, status: "error" } }),
+          0,
+        ),
       ]),
     )
 
     const slowByPath = aggregateSlowPages([...slowSamples, ...clsSamples])
+    const serverRouteSummary = [...serverRouteGroups]
+      .sort((a, b) => (b._max.durationMs ?? 0) - (a._max.durationMs ?? 0) || b._count._all - a._count._all)
     const total24h = metric24h.reduce((sum, item) => sum + item._count._all, 0)
     const bad24h = rating24h
       .filter((item) => item.rating === "poor" || item.rating === "needs-improvement")
@@ -174,11 +240,12 @@ export default async function SuperadminPerformancePage({
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-5">
           <StatCard icon={Activity} label="Метрик за 24 часа" value={formatInteger(total24h)} hint="LCP, INP, CLS, TTFB, FCP" />
           <StatCard icon={AlertTriangle} label="Требуют внимания" value={`${badShare}%`} hint={`${formatInteger(bad24h)} плохих или средних замеров`} tone={badShare > 20 ? "red" : badShare > 0 ? "amber" : "emerald"} />
           <StatCard icon={Clock} label="Цель LCP" value="до 2.5 с" hint="первый крупный контент" tone="blue" />
           <StatCard icon={TrendingUp} label="Цель INP" value="до 200 мс" hint="отклик интерфейса" tone="purple" />
+          <StatCard icon={Server} label="Server logs 24ч" value={formatInteger(serverLogTotal24h)} hint={`ошибок: ${formatInteger(serverErrorTotal24h)}`} tone={serverErrorTotal24h > 0 ? "red" : "cyan"} />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
@@ -271,6 +338,78 @@ export default async function SuperadminPerformancePage({
           </div>
         </section>
 
+        <section className="grid gap-4 xl:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Server routes за 24 часа</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Сколько занял Server Components render по ключевым страницам.</p>
+              </div>
+              <Server className="h-4 w-4 text-slate-400" />
+            </div>
+            {serverRouteSummary.length === 0 ? (
+              <EmptyState text="Медленных server-route логов пока нет. Они пишутся при превышении порога или при ROUTE_PERF_LOG_ALL=1." />
+            ) : (
+              <div className="space-y-2">
+                {serverRouteSummary.slice(0, 10).map((item) => (
+                  <div key={item.route} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-xs text-slate-900 dark:text-slate-100">{item.route}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {item._count._all} замеров · среднее {formatDurationMs(item._avg.durationMs)}
+                        </p>
+                      </div>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", durationToneClass(item._max.durationMs ?? 0))}>
+                        max {formatDurationMs(item._max.durationMs)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Самые дорогие server steps за 7 дней</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Показывает, какой route или query-блок тормозит до того, как это почувствует браузер.</p>
+            </div>
+            {serverSlowRows.length === 0 ? (
+              <EmptyState text="Медленных server steps за последние 7 дней не найдено." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950/70 dark:text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Route</th>
+                      <th className="px-3 py-2">Step</th>
+                      <th className="px-3 py-2">Время</th>
+                      <th className="px-3 py-2">Статус</th>
+                      <th className="px-3 py-2">Когда</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {serverSlowRows.slice(0, 12).map((row) => (
+                      <tr key={row.id} className="text-slate-700 dark:text-slate-300">
+                        <td className="max-w-[220px] truncate px-3 py-2 font-mono text-xs">{row.route}</td>
+                        <td className="max-w-[180px] truncate px-3 py-2 text-xs text-slate-500">{row.step ?? row.kind}</td>
+                        <td className="px-3 py-2 font-semibold">{formatDurationMs(row.durationMs)}</td>
+                        <td className="px-3 py-2">
+                          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", serverStatusClass(row.status))}>
+                            {row.status === "error" ? "ошибка" : "ok"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-slate-500">{formatDateTime(row.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="border-b border-slate-100 p-5 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние замеры</h2>
@@ -344,6 +483,17 @@ const sampleSelect = {
   path: true,
   url: true,
   navigationType: true,
+  createdAt: true,
+} as const
+
+const serverPerformanceSelect = {
+  id: true,
+  route: true,
+  step: true,
+  kind: true,
+  durationMs: true,
+  status: true,
+  error: true,
   createdAt: true,
 } as const
 
@@ -568,6 +718,12 @@ function formatMetricValue(name: string, value: number) {
   return `${Math.round(value)} мс`
 }
 
+function formatDurationMs(value: number | null) {
+  if (value == null) return "-"
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} с`
+  return `${Math.round(value)} мс`
+}
+
 function formatInteger(value: number) {
   return new Intl.NumberFormat("ru-RU").format(value)
 }
@@ -594,6 +750,17 @@ function ratingClass(value: string | null) {
   if (value === "needs-improvement") return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
   if (value === "poor") return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
   return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+}
+
+function durationToneClass(value: number) {
+  if (value >= 1500) return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+  if (value >= 900) return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+  return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+}
+
+function serverStatusClass(value: string) {
+  if (value === "error") return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+  return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
 }
 
 function priorityClass(value: string) {

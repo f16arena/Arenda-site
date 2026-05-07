@@ -1,4 +1,21 @@
+import { db } from "@/lib/db"
+
 const DEFAULT_SLOW_ROUTE_MS = 900
+const ERROR_MESSAGE_LIMIT = 500
+
+type ServerPerformanceContext = {
+  organizationId?: string | null
+  userId?: string | null
+}
+
+type ServerPerformanceLogInput = ServerPerformanceContext & {
+  route: string
+  step?: string | null
+  kind: "ROUTE" | "STEP"
+  durationMs: number
+  status: "ok" | "error"
+  error?: string | null
+}
 
 function getSlowRouteMs() {
   const parsed = Number.parseInt(process.env.ROUTE_PERF_SLOW_MS ?? "", 10)
@@ -17,20 +34,31 @@ function isNextDynamicServerSignal(error: unknown) {
 export async function measureServerRoute<T>(
   route: string,
   render: () => Promise<T>,
+  context?: ServerPerformanceContext,
 ): Promise<T> {
   const start = performance.now()
   let didError = false
+  let errorMessage: string | null = null
   try {
     return await render()
   } catch (error) {
     didError = true
+    errorMessage = error instanceof Error ? error.message : "unknown"
     const durationMs = Math.round(performance.now() - start)
     if (!isNextDynamicServerSignal(error)) {
       console.error("[route-performance]", {
         route,
         durationMs,
         status: "error",
-        error: error instanceof Error ? error.message : "unknown",
+        error: errorMessage,
+      })
+      await persistServerPerformanceLog({
+        ...context,
+        route,
+        kind: "ROUTE",
+        durationMs,
+        status: "error",
+        error: errorMessage,
       })
     }
     throw error
@@ -39,6 +67,13 @@ export async function measureServerRoute<T>(
     if (!didError && (shouldLogAllRoutes() || durationMs >= getSlowRouteMs())) {
       console.info("[route-performance]", {
         route,
+        durationMs,
+        status: "ok",
+      })
+      await persistServerPerformanceLog({
+        ...context,
+        route,
+        kind: "ROUTE",
         durationMs,
         status: "ok",
       })
@@ -51,18 +86,58 @@ export async function measureServerStep<T>(
   step: string,
   promise: Promise<T>,
   slowMs = Math.max(250, Math.round(getSlowRouteMs() / 3)),
+  context?: ServerPerformanceContext,
 ): Promise<T> {
   const start = performance.now()
+  let status: "ok" | "error" = "ok"
+  let errorMessage: string | null = null
   try {
     return await promise
+  } catch (error) {
+    status = "error"
+    errorMessage = error instanceof Error ? error.message : "unknown"
+    throw error
   } finally {
     const durationMs = Math.round(performance.now() - start)
-    if (shouldLogAllRoutes() || durationMs >= slowMs) {
+    if (shouldLogAllRoutes() || durationMs >= slowMs || status === "error") {
       console.info("[route-performance-step]", {
         route,
         step,
         durationMs,
+        status,
+      })
+      await persistServerPerformanceLog({
+        ...context,
+        route,
+        step,
+        kind: "STEP",
+        durationMs,
+        status,
+        error: errorMessage,
       })
     }
+  }
+}
+
+async function persistServerPerformanceLog(input: ServerPerformanceLogInput) {
+  try {
+    await db.serverPerformanceLog.create({
+      data: {
+        organizationId: input.organizationId ?? null,
+        userId: input.userId ?? null,
+        route: input.route,
+        step: input.step ?? null,
+        kind: input.kind,
+        durationMs: input.durationMs,
+        status: input.status,
+        error: input.error ? input.error.slice(0, ERROR_MESSAGE_LIMIT) : null,
+      },
+    })
+  } catch (error) {
+    console.error("[route-performance/persist-failed]", {
+      route: input.route,
+      step: input.step,
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 }

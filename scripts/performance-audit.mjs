@@ -43,6 +43,11 @@ const ROUTE_TIMING_CHECKS = [
     stepToken: "measureServerStep",
   },
   {
+    file: "app/admin/calendar/page.tsx",
+    routeToken: 'measureServerRoute("/admin/calendar"',
+    stepToken: "measureServerStep",
+  },
+  {
     file: "app/admin/tenants/[id]/page.tsx",
     routeToken: 'measureServerRoute("/admin/tenants/[id]"',
     stepToken: "measureServerStep",
@@ -55,6 +60,11 @@ const ROUTE_TIMING_CHECKS = [
   {
     file: "app/superadmin/performance/page.tsx",
     routeToken: 'measureServerRoute("/superadmin/performance"',
+    stepToken: "measureServerStep",
+  },
+  {
+    file: "app/superadmin/subscriptions/page.tsx",
+    routeToken: 'measureServerRoute("/superadmin/subscriptions"',
     stepToken: "measureServerStep",
   },
 ]

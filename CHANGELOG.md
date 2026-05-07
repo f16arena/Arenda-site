@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.141 - 2026-05-07
+
+- Добавлен внутренний журнал server performance: медленные Server Components routes и steps теперь сохраняются в `server_performance_logs`, а не только уходят в консоль.
+- `measureServerRoute` и `measureServerStep` пишут в БД только ошибки, медленные операции и полный лог при `ROUTE_PERF_LOG_ALL=1`, чтобы не раздувать хранилище.
+- `/superadmin/performance` теперь показывает server-side картину: routes за 24 часа, самые дорогие server steps за 7 дней, среднее/максимум и ошибки.
+- `/admin/calendar` и `/superadmin/subscriptions` подключены к server timing с отдельными измеряемыми шагами.
+- `perf:audit` теперь проверяет timing coverage для `/admin/calendar` и `/superadmin/subscriptions`.
+- Добавлена idempotent Prisma migration `20260507153000_server_performance_logs` с RLS deny-by-default.
+- Проверки: `npm run quality:audit`, `npm run test:mobile:typecheck`, `SKIP_DEPLOY_MIGRATIONS=1 npm run build`.
+- Rollback-точка: `rollback/pre-server-performance-logs-1.3.141`.
+
 ## 1.3.140 - 2026-05-07
 
 - `/admin/calendar` больше не тянет безлимитные события месяца: платежи, оплаты, истекающие договоры и задачи получают отдельные безопасные лимиты, сортировку по датам и `count`.

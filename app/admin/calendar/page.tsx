@@ -12,10 +12,19 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 
 const CALENDAR_EVENT_SOURCE_LIMIT = 80
 
 export default async function CalendarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>
+}) {
+  return measureServerRoute("/admin/calendar", () => renderCalendarPage({ searchParams }))
+}
+
+async function renderCalendarPage({
   searchParams,
 }: {
   searchParams: Promise<{ month?: string }>
@@ -80,7 +89,7 @@ export default async function CalendarPage({
     totalPayments,
     totalExpiringContracts,
     totalTasks,
-  ] = await Promise.all([
+  ] = await measureServerStep("/admin/calendar", "calendar-data", Promise.all([
     safe(
       "admin.calendar.charges",
       db.charge.findMany({
@@ -147,7 +156,7 @@ export default async function CalendarPage({
     safe("admin.calendar.payments.count", db.payment.count({ where: paymentWhere }), 0),
     safe("admin.calendar.expiringContracts.count", db.tenant.count({ where: contractWhere }), 0),
     safe("admin.calendar.tasks.count", db.task.count({ where: taskWhere }), 0),
-  ])
+  ]))
 
   const events: CalendarEvent[] = []
 

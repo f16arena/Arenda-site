@@ -173,6 +173,26 @@ model WebVitalMetric {
   @@map("web_vital_metrics")
 }
 
+model ServerPerformanceLog {
+  id             String   @id @default(cuid())
+  organizationId String?  @map("organization_id")
+  userId         String?  @map("user_id")
+  route          String
+  step           String?
+  kind           String   @default("ROUTE")
+  durationMs     Int      @map("duration_ms")
+  status         String   @default("ok")
+  error          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId, route, createdAt])
+  @@index([route, createdAt])
+  @@index([kind, createdAt])
+  @@index([status, createdAt])
+  @@index([durationMs, createdAt])
+  @@map("server_performance_logs")
+}
+
 // Денежные счета организации (банковские счета, касса, карты).
 // Используются для отслеживания баланса (сколько денег где).
 model FaqArticle {

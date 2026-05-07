@@ -18,6 +18,7 @@ import { ROOT_HOST } from "@/lib/host"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { requirePlatformOwner } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
+import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 30
@@ -40,6 +41,14 @@ type SearchParams = {
 type PlanGroup = { planId: string | null; _count: { _all: number } }
 
 export default async function SubscriptionsTimelinePage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
+  return measureServerRoute("/superadmin/subscriptions", () => renderSubscriptionsTimelinePage({ searchParams }))
+}
+
+async function renderSubscriptionsTimelinePage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
@@ -101,7 +110,7 @@ export default async function SubscriptionsTimelinePage({
     activePlanGroups,
     expiredPlanGroups,
     expiring7PlanGroups,
-  ] = await Promise.all([
+  ] = await measureServerStep("/superadmin/subscriptions", "subscription-data", Promise.all([
     safe(
       "superadmin.subscriptions.organizations.page",
       db.organization.findMany({
@@ -149,7 +158,7 @@ export default async function SubscriptionsTimelinePage({
       db.organization.groupBy({ by: ["planId"], where: expiring7Where, _count: { _all: true } }),
       [],
     ),
-  ])
+  ]))
 
   const planIds = uniquePlanIds(allPlanGroups, activePlanGroups, expiredPlanGroups, expiring7PlanGroups)
   const plans = await safe(
