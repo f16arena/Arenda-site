@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { Plus, X, Edit2 } from "lucide-react"
 import { toast } from "sonner"
 import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
@@ -175,15 +175,61 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
   )
 }
 
-export function EditSpaceDialog({ space, tenants }: { space: EditableSpace; tenants: TenantOption[] }) {
+export function EditSpaceDialog({
+  space,
+  tenants,
+  buildingId,
+}: {
+  space: EditableSpace
+  tenants: TenantOption[]
+  buildingId?: string
+}) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useState(space.status)
   const [tenantId, setTenantId] = useState(space.tenant?.id ?? "")
+  const [tenantQuery, setTenantQuery] = useState("")
+  const [tenantOptions, setTenantOptions] = useState<TenantOption[]>(tenants)
+  const [tenantsLoading, setTenantsLoading] = useState(false)
+  const [tenantsError, setTenantsError] = useState<string | null>(null)
   const occupiedTenant = space.tenant ?? null
   const requiresTenant = status === "OCCUPIED" && !occupiedTenant
   const cannotRelease = !!occupiedTenant && status !== "OCCUPIED"
   const cannotSave = cannotRelease || (requiresTenant && !tenantId)
+
+  useEffect(() => {
+    if (!open || !requiresTenant || !buildingId) return
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => {
+      setTenantsLoading(true)
+      setTenantsError(null)
+      const params = new URLSearchParams({ buildingId, limit: "50" })
+      if (tenantQuery.trim()) params.set("q", tenantQuery.trim())
+
+      fetch(`/api/admin/spaces/assignable-tenants?${params.toString()}`, { signal: controller.signal })
+        .then((response) => {
+          if (!response.ok) throw new Error("Не удалось загрузить арендаторов")
+          return response.json()
+        })
+        .then((payload) => {
+          setTenantOptions(Array.isArray(payload.tenants) ? payload.tenants : [])
+        })
+        .catch((error) => {
+          if (controller.signal.aborted) return
+          setTenantsError(error instanceof Error ? error.message : "Не удалось загрузить арендаторов")
+          setTenantOptions(tenants)
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setTenantsLoading(false)
+        })
+    }, tenantQuery.trim() ? 180 : 0)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timer)
+    }
+  }, [buildingId, open, requiresTenant, tenantQuery, tenants])
 
   return (
     <>
@@ -249,6 +295,13 @@ export function EditSpaceDialog({ space, tenants }: { space: EditableSpace; tena
                       <label className="block text-xs font-medium text-blue-900 dark:text-blue-200 mb-1.5">
                         Кем занято *
                       </label>
+                      <input
+                        type="search"
+                        value={tenantQuery}
+                        onChange={(event) => setTenantQuery(event.target.value)}
+                        placeholder="Поиск по названию, БИН или ИИН"
+                        className="mb-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-blue-500/30 dark:bg-slate-950 dark:text-slate-100"
+                      />
                       <select
                         name="tenantId"
                         required
@@ -257,12 +310,23 @@ export function EditSpaceDialog({ space, tenants }: { space: EditableSpace; tena
                         className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-blue-500/30 dark:bg-slate-950 dark:text-slate-100"
                       >
                         <option value="">Выберите арендатора</option>
-                        {tenants.map((tenant) => (
+                        {tenantOptions.map((tenant) => (
                           <option key={tenant.id} value={tenant.id}>
                             {tenant.companyName}{tenant.placement ? ` · ${tenant.placement}` : ""}
                           </option>
                         ))}
                       </select>
+                      {tenantsLoading && (
+                        <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">Загрузка арендаторов...</p>
+                      )}
+                      {tenantsError && (
+                        <p className="mt-1 text-[11px] text-red-600 dark:text-red-300">{tenantsError}</p>
+                      )}
+                      {!tenantsLoading && tenantOptions.length === 0 && !tenantsError && (
+                        <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                          Подходящие арендаторы не найдены. Проверьте здание или создайте арендатора.
+                        </p>
+                      )}
                       <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
                         Статус “занято” сохраняется только вместе с привязкой арендатора.
                       </p>

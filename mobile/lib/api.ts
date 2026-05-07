@@ -4,6 +4,7 @@ import * as LocalAuthentication from "expo-local-authentication"
 import * as Notifications from "expo-notifications"
 import * as SecureStore from "expo-secure-store"
 import Constants from "expo-constants"
+import { Platform } from "react-native"
 import { captureMobileException } from "@/lib/sentry"
 import type {
   BuildingNotice,
@@ -34,7 +35,8 @@ import type {
   TenantRequestsPayload,
 } from "@/types/mobile"
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? "https://commrent.kz"
+const DEFAULT_API_BASE_URL = __DEV__ && Platform.OS === "web" ? "http://localhost:3000" : "https://commrent.kz"
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL
 const ACCESS_TOKEN_KEY = "commrent.mobile.accessToken"
 const REFRESH_TOKEN_KEY = "commrent.mobile.refreshToken"
 const ACCESS_EXPIRES_KEY = "commrent.mobile.accessExpiresAt"

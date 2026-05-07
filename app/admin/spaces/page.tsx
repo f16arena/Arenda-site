@@ -19,7 +19,6 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { switchBuilding } from "@/app/actions/buildings"
-import { tenantScope } from "@/lib/tenant-scope"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
@@ -77,13 +76,6 @@ type SelectedBuildingInfo = {
   address: string
   totalArea: number | null
   floors: SelectedFloorInfo[]
-}
-
-type AssignableTenantInfo = {
-  id: string
-  companyName: string
-  space: { number: string; floor: { buildingId: string; name: string } } | null
-  tenantSpaces: Array<{ space: { number: string; floor: { buildingId: string; name: string } } }>
 }
 
 export default async function SpacesPage() {
@@ -307,13 +299,12 @@ export default async function SpacesPage() {
     )
   }
 
-  const [building, hasFloorEditor, tenantOptionsRaw] = buildingId
+  const [building, hasFloorEditor] = buildingId
     ? await measureServerStep("/admin/spaces", "selected-building", Promise.all([
         getSelectedBuilding(buildingId, safe),
         hasFeature(orgId, "floorEditor"),
-        getAssignableTenants(orgId, buildingId, safe),
       ]))
-    : [null, await hasFeature(orgId, "floorEditor"), [] as AssignableTenantInfo[]]
+    : [null, await hasFeature(orgId, "floorEditor")]
   const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
   // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
   const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
@@ -350,28 +341,7 @@ export default async function SpacesPage() {
     totalArea: f.totalArea,
     usedArea: f.spaces.reduce((s, sp) => s + sp.area, 0),
   }))
-  const assignableTenants = tenantOptionsRaw.flatMap((tenant) => {
-    const buildingIds = new Set<string>()
-    const placements = new Set<string>()
-
-    if (tenant.space?.floor.buildingId) {
-      buildingIds.add(tenant.space.floor.buildingId)
-      if (tenant.space.floor.buildingId === buildingId) placements.add(`Каб. ${tenant.space.number}`)
-    }
-    for (const item of tenant.tenantSpaces) {
-      buildingIds.add(item.space.floor.buildingId)
-      if (item.space.floor.buildingId === buildingId) placements.add(`Каб. ${item.space.number}`)
-    }
-
-    const assignedToOtherBuilding = buildingIds.size > 0 && !!buildingId && !buildingIds.has(buildingId)
-    if (assignedToOtherBuilding) return []
-
-    return [{
-      id: tenant.id,
-      companyName: tenant.companyName,
-      placement: placements.size > 0 ? Array.from(placements).join(", ") : null,
-    }]
-  })
+  const assignableTenants: Array<{ id: string; companyName: string; placement: string | null }> = []
 
   return (
     <div className="space-y-5">
@@ -679,6 +649,7 @@ export default async function SpacesPage() {
                                       tenant: occupancyTenant,
                                     }}
                                     tenants={canAssignSpaces ? assignableTenants : []}
+                                    buildingId={building?.id}
                                   />
                                 )}
                                 {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
@@ -880,84 +851,6 @@ async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise
       },
     }).then((building) => building ? normalizeLegacySelectedBuilding(building) : null),
     null as SelectedBuildingInfo | null,
-  )
-}
-
-async function getAssignableTenants(
-  orgId: string,
-  buildingId: string,
-  safe: SafeQuery,
-): Promise<AssignableTenantInfo[]> {
-  const full = await safe(
-    "admin.spaces.assignableTenants.full",
-    db.tenant.findMany({
-      where: {
-        AND: [
-          tenantScope(orgId),
-          { fullFloors: { none: {} } },
-          {
-            OR: [
-              { spaceId: null },
-              { space: { floor: { buildingId } } },
-            ],
-          },
-          {
-            tenantSpaces: {
-              none: { space: { floor: { buildingId: { not: buildingId } } } },
-            },
-          },
-        ],
-      },
-      orderBy: { companyName: "asc" },
-      select: {
-        id: true,
-        companyName: true,
-        space: {
-          select: {
-            number: true,
-            floor: { select: { buildingId: true, name: true } },
-          },
-        },
-        tenantSpaces: {
-          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-          select: {
-            space: {
-              select: {
-                number: true,
-                floor: { select: { buildingId: true, name: true } },
-              },
-            },
-          },
-        },
-      },
-    }) as unknown as Promise<AssignableTenantInfo[]>,
-    null as AssignableTenantInfo[] | null,
-  )
-  if (full) return full
-
-  return safe(
-    "admin.spaces.assignableTenants.legacy",
-    db.tenant.findMany({
-      where: {
-        user: { organizationId: orgId },
-        OR: [
-          { spaceId: null },
-          { space: { floor: { buildingId } } },
-        ],
-      },
-      orderBy: { companyName: "asc" },
-      select: {
-        id: true,
-        companyName: true,
-        space: {
-          select: {
-            number: true,
-            floor: { select: { buildingId: true, name: true } },
-          },
-        },
-      },
-    }).then((rows) => rows.map((tenant) => ({ ...tenant, tenantSpaces: [] }))),
-    [] as AssignableTenantInfo[],
   )
 }
 

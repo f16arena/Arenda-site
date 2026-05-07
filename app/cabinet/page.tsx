@@ -16,8 +16,6 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { formatPersonShortName } from "@/lib/display-name"
 
-const PAYMENT_CALENDAR_LIMIT = 120
-
 export default async function CabinetDashboard() {
   return measureServerRoute("/cabinet", async () => {
   const session = await auth()
@@ -60,48 +58,6 @@ export default async function CabinetDashboard() {
       },
     },
   })
-
-  // Для календаря — все charges и payments за последние 12 месяцев + следующие 3
-  const calendarStart = new Date()
-  calendarStart.setMonth(calendarStart.getMonth() - 12)
-  const calendarEnd = new Date()
-  calendarEnd.setMonth(calendarEnd.getMonth() + 3)
-  const [allCharges, allPayments] = tenant ? await measureServerStep(
-    "/cabinet",
-    "calendar-window",
-    Promise.all([
-      safe(
-        "cabinet.dashboard.calendarCharges",
-        db.charge.findMany({
-          where: {
-            tenantId: tenant.id,
-            OR: [
-              { dueDate: { gte: calendarStart, lt: calendarEnd } },
-              { dueDate: null, createdAt: { gte: calendarStart } },
-            ],
-          },
-          select: {
-            id: true, amount: true, type: true, period: true,
-            isPaid: true, dueDate: true,
-          },
-          take: PAYMENT_CALENDAR_LIMIT,
-        }),
-        [],
-      ),
-      safe(
-        "cabinet.dashboard.calendarPayments",
-        db.payment.findMany({
-          where: {
-            tenantId: tenant.id,
-            paymentDate: { gte: calendarStart, lt: calendarEnd },
-          },
-          select: { id: true, amount: true, paymentDate: true },
-          take: PAYMENT_CALENDAR_LIMIT,
-        }),
-        [],
-      ),
-    ]),
-  ) : [[], []]
 
   if (!tenant) {
     return (
@@ -425,22 +381,7 @@ export default async function CabinetDashboard() {
       </div>
 
       {/* Календарь оплат */}
-      <PaymentsMiniCalendarLoader
-        charges={allCharges.map((c) => ({
-          id: c.id,
-          amount: c.amount,
-          type: c.type,
-          period: c.period,
-          isPaid: c.isPaid,
-          dueDate: c.dueDate ? c.dueDate.toISOString() : null,
-        }))}
-        payments={allPayments.map((p) => ({
-          id: p.id,
-          amount: p.amount,
-          paymentDate: p.paymentDate.toISOString(),
-        }))}
-        paymentDueDay={tenant.paymentDueDay ?? 10}
-      />
+      <PaymentsMiniCalendarLoader paymentDueDay={tenant.paymentDueDay ?? 10} />
 
       {/* Двухколоночный блок */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
