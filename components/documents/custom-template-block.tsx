@@ -9,6 +9,7 @@ import {
   type UploadTemplateResult,
 } from "@/app/actions/document-templates"
 import { PLACEHOLDER_DOCS, type DocumentType } from "@/lib/template-placeholders"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 interface ActiveTemplate {
   id: string
@@ -52,7 +53,6 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
   }
 
   function remove() {
-    if (!confirm("Удалить кастомный шаблон? Будет использоваться стандартный.")) return
     startTransition(async () => {
       await removeDocumentTemplate(documentType)
       toast.success("Шаблон удалён, используется стандартный")
@@ -95,10 +95,19 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             >
               <Download className="h-3 w-3" />
             </a>
-            <button onClick={remove} disabled={pending} className="rounded-md border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1">
-              <X className="h-3 w-3" />
-              Удалить
-            </button>
+            <ConfirmDialog
+              variant="danger"
+              title="Удалить кастомный шаблон?"
+              description="Будет использоваться стандартный шаблон системы."
+              confirmLabel="Удалить"
+              onConfirm={remove}
+              trigger={
+                <button disabled={pending} className="rounded-md border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1">
+                  <X className="h-3 w-3" />
+                  Удалить
+                </button>
+              }
+            />
           </div>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">

@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { createLead, updateLeadStatus, bookSpaceForLead, unbookSpaceForLead, deleteLead } from "@/app/actions/leads"
 import { LEAD_STATUSES, LEAD_SOURCES } from "@/lib/lead-constants"
 import { cn } from "@/lib/utils"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Lead = {
   id: string
@@ -106,7 +107,6 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
                       })
                     }}
                     onDelete={() => {
-                      if (!confirm(`Удалить лида "${l.name}"?`)) return
                       startTransition(async () => {
                         try {
                           await deleteLead(l.id)
@@ -157,9 +157,17 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           {lead.companyName && <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{lead.companyName}</p>}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-          <button onClick={onDelete} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400">
-            <Trash2 className="h-3 w-3" />
-          </button>
+          <ConfirmDialog
+            variant="danger"
+            title={`Удалить лида «${lead.name}»?`}
+            confirmLabel="Удалить"
+            onConfirm={onDelete}
+            trigger={
+              <button className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            }
+          />
         </div>
       </div>
 

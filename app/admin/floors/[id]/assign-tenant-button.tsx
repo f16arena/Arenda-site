@@ -5,6 +5,7 @@ import { UserPlus, X, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { assignTenantSpace } from "@/app/actions/tenant"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Candidate = {
   id: string
@@ -32,13 +33,7 @@ export function AssignTenantButton({
       )
     : candidates
 
-  const apply = (tenantId: string, companyName: string, currentSpace: Candidate["currentSpace"]) => {
-    if (currentSpace) {
-      if (!window.confirm(
-        `«${companyName}» сейчас занимает Каб. ${currentSpace.number} (${currentSpace.floorName}).\n\n` +
-        `Переселить в кабинет ${spaceNumber}? Старый кабинет освободится.`,
-      )) return
-    }
+  const performAssign = (tenantId: string, companyName: string) => {
     startTransition(async () => {
       try {
         await assignTenantSpace(tenantId, spaceId)
@@ -99,23 +94,50 @@ export function AssignTenantButton({
                   </Link>
                 </div>
               ) : (
-                filtered.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => apply(c.id, c.companyName, c.currentSpace)}
-                    disabled={pending}
-                    className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-500/10 border-b border-slate-100 dark:border-slate-800 last:border-0 disabled:opacity-50"
-                  >
-                    <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
-                      {c.companyName}
-                    </p>
-                    {c.currentSpace && (
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
-                        Сейчас: Каб. {c.currentSpace.number} · {c.currentSpace.floorName} (переедет)
+                filtered.map((c) => {
+                  const buttonContent = (
+                    <>
+                      <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {c.companyName}
                       </p>
-                    )}
-                  </button>
-                ))
+                      {c.currentSpace && (
+                        <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                          Сейчас: Каб. {c.currentSpace.number} · {c.currentSpace.floorName} (переедет)
+                        </p>
+                      )}
+                    </>
+                  )
+                  if (c.currentSpace) {
+                    const cs = c.currentSpace
+                    return (
+                      <ConfirmDialog
+                        key={c.id}
+                        title={`Переселить «${c.companyName}» в кабинет ${spaceNumber}?`}
+                        description={`Сейчас занимает Каб. ${cs.number} (${cs.floorName}). Старый кабинет освободится.`}
+                        confirmLabel="Переселить"
+                        onConfirm={() => performAssign(c.id, c.companyName)}
+                        trigger={
+                          <button
+                            disabled={pending}
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-500/10 border-b border-slate-100 dark:border-slate-800 last:border-0 disabled:opacity-50"
+                          >
+                            {buttonContent}
+                          </button>
+                        }
+                      />
+                    )
+                  }
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => performAssign(c.id, c.companyName)}
+                      disabled={pending}
+                      className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-500/10 border-b border-slate-100 dark:border-slate-800 last:border-0 disabled:opacity-50"
+                    >
+                      {buttonContent}
+                    </button>
+                  )
+                })
               )}
             </div>
           </div>

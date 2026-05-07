@@ -5,6 +5,7 @@ import { Upload, Check, AlertTriangle, Save } from "lucide-react"
 import { toast } from "sonner"
 import { parseBankCsv, applyBankImport, type ParsedRow } from "@/app/actions/bank-import"
 import { useRouter } from "next/navigation"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Tenant = { id: string; companyName: string; bin: string | null; iin: string | null }
 
@@ -47,11 +48,6 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
 
   function handleApply() {
     const matched = rows.filter((r) => r.matchedTenantId)
-    if (matched.length === 0) {
-      toast.error("Нет сопоставленных платежей")
-      return
-    }
-    if (!confirm(`Импортировать ${matched.length} платежей?`)) return
 
     startTransition(async () => {
       try {
@@ -71,6 +67,8 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
       }
     })
   }
+
+  const matchedCount = rows.filter((r) => r.matchedTenantId).length
 
   return (
     <div className="space-y-4">
@@ -114,14 +112,21 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
               >
                 Очистить
               </button>
-              <button
-                onClick={handleApply}
-                disabled={pending || rows.filter((r) => r.matchedTenantId).length === 0}
-                className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-              >
-                <Save className="h-3.5 w-3.5" />
-                {pending ? "..." : "Применить"}
-              </button>
+              <ConfirmDialog
+                title={`Импортировать ${matchedCount} платеж${matchedCount === 1 ? "" : matchedCount < 5 ? "а" : "ей"}?`}
+                description="Будут созданы платежи и автоматически закрыты совпадающие начисления."
+                confirmLabel="Импортировать"
+                onConfirm={handleApply}
+                trigger={
+                  <button
+                    disabled={pending || matchedCount === 0}
+                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {pending ? "..." : "Применить"}
+                  </button>
+                }
+              />
             </div>
           </div>
 

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { Building2, Eye, LogIn, Shield, Sparkles } from "lucide-react"
 import { impersonateOrg, viewOrgAsPlatformOwner } from "@/app/actions/organizations"
 import { cn } from "@/lib/utils"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Org = {
   id: string
@@ -120,13 +121,15 @@ function OrgCard({ org }: { org: Org }) {
         </div>
 
         <div className="flex gap-2">
-          <button
-            onClick={() => {
+          <ConfirmDialog
+            title={`Войти как клиент в «${org.name}»?`}
+            description="Все ваши действия будут залогированы."
+            confirmLabel="Войти"
+            onConfirm={() => {
               if (!org.hasOwner) {
                 toast.error("В организации нет Owner-а")
                 return
               }
-              if (!confirm(`Войти как клиент в «${org.name}»? Все ваши действия будут залогированы.`)) return
               startTransition(async () => {
                 try {
                   await impersonateOrg(org.id)
@@ -138,12 +141,16 @@ function OrgCard({ org }: { org: Org }) {
                 }
               })
             }}
-            disabled={pending || !org.isActive}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 px-3 py-2 text-xs font-medium text-white transition"
-          >
-            <LogIn className="h-3.5 w-3.5" />
-            Войти как клиент
-          </button>
+            trigger={
+              <button
+                disabled={pending || !org.isActive}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 px-3 py-2 text-xs font-medium text-white transition"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                Войти как клиент
+              </button>
+            }
+          />
           <button
             onClick={() => {
               startTransition(async () => {

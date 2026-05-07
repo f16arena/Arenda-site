@@ -85,7 +85,18 @@ export const TenantRequisitesSchema = z.object({
 // ── Charge / Payment ────────────────────────────────────────────────────────
 export const ChargeCreateSchema = z.object({
   tenantId: z.string().min(1),
-  type: z.enum(["RENT", "CLEANING", "ELECTRICITY", "WATER", "HEATING", "PENALTY", "OTHER"]),
+  type: z.enum([
+    "RENT",
+    "CLEANING",
+    "ELECTRICITY",
+    "WATER",
+    "HEATING",
+    "GARBAGE",
+    "SECURITY",
+    "INTERNET",
+    "PENALTY",
+    "OTHER",
+  ]),
   amount: PositiveMoneySchema,
   period: PeriodSchema,
   description: z.string().trim().max(500).optional().nullable(),
@@ -116,6 +127,23 @@ export const BuildingUpdateSchema = z.object({
   email: EmailSchema.optional().or(z.literal("")),
   responsible: z.string().trim().max(200).optional().nullable(),
   totalArea: NonNegativeMoneySchema.optional().nullable(),
+  // Описание здания
+  description: z.string().trim().max(2000).optional().nullable(),
+  // Адресные поля (детальная разбивка адреса)
+  addressCountry: z.string().trim().max(120).optional().nullable(),
+  addressRegion: z.string().trim().max(200).optional().nullable(),
+  addressCity: z.string().trim().max(200).optional().nullable(),
+  addressDistrict: z.string().trim().max(200).optional().nullable(),
+  addressStreet: z.string().trim().max(300).optional().nullable(),
+  addressBuilding: z.string().trim().max(50).optional().nullable(),
+  addressApartment: z.string().trim().max(50).optional().nullable(),
+  addressPostalCode: z.string().trim().max(20).optional().nullable(),
+  addressLat: z.coerce.number().finite().optional().nullable(),
+  addressLng: z.coerce.number().finite().optional().nullable(),
+  addressNote: z.string().trim().max(500).optional().nullable(),
+  // Контакты ответственного
+  responsibleEmail: EmailSchema.optional().or(z.literal("")),
+  responsiblePhone: PhoneSchema.optional().or(z.literal("")),
 })
 
 export const FloorUpdateSchema = z.object({
@@ -127,4 +155,16 @@ export const FloorUpdateSchema = z.object({
 // ── Хелпер: первое сообщение об ошибке ──────────────────────────────────────
 export function firstZodError(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Ошибка валидации"
+}
+
+// ── Хелпер: валидация email с DNS-проверкой домена ─────────────────────────
+// Используется для дополнительной DNS-валидации email.
+// Возвращает нормализованный email при успехе или null при ошибке/пустом значении.
+export async function validateEmailWithDns(email: string): Promise<string | null> {
+  const { normalizeEmailWithDns } = await import("@/lib/contact-validation")
+  try {
+    return await normalizeEmailWithDns(email)
+  } catch {
+    return null
+  }
 }

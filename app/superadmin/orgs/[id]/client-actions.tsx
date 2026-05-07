@@ -13,6 +13,7 @@ import {
   reactivateOrganization,
   deleteOrganization,
 } from "@/app/actions/organizations"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boolean }) {
   const router = useRouter()
@@ -21,9 +22,11 @@ export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boole
   return (
     <div className="flex gap-2">
       {hasOwner && (
-        <button
-          onClick={() => {
-            if (!confirm("Войти под этим клиентом? Все ваши действия будут залогированы.")) return
+        <ConfirmDialog
+          title="Войти под этим клиентом?"
+          description="Все ваши действия будут залогированы."
+          confirmLabel="Войти"
+          onConfirm={() =>
             startTransition(async () => {
               try {
                 await impersonateOrg(orgId)
@@ -33,13 +36,17 @@ export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boole
                 toast.error(e instanceof Error ? e.message : "Ошибка")
               }
             })
-          }}
-          disabled={pending}
-          className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-2 text-xs font-medium text-white"
-        >
-          <LogIn className="h-3.5 w-3.5" />
-          Войти как клиент
-        </button>
+          }
+          trigger={
+            <button
+              disabled={pending}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-2 text-xs font-medium text-white"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              Войти как клиент
+            </button>
+          }
+        />
       )}
     </div>
   )
@@ -202,10 +209,11 @@ export function DangerZone({
               : "Клиент снова сможет войти и работать."}
           </p>
         </div>
-        <button
-          onClick={() => {
-            const action = isActive ? "Деактивировать" : "Активировать"
-            if (!confirm(`${action} организацию «${orgName}»?`)) return
+        <ConfirmDialog
+          variant={isActive ? "danger" : "default"}
+          title={`${isActive ? "Деактивировать" : "Активировать"} организацию «${orgName}»?`}
+          confirmLabel={isActive ? "Деактивировать" : "Активировать"}
+          onConfirm={() =>
             startTransition(async () => {
               try {
                 if (isActive) await deactivateOrganization(orgId)
@@ -216,15 +224,19 @@ export function DangerZone({
                 toast.error(e instanceof Error ? e.message : "Ошибка")
               }
             })
-          }}
-          disabled={pending}
-          className={`shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-white disabled:opacity-60 ${
-            isActive ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"
-          }`}
-        >
-          {isActive ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-          {isActive ? "Деактивировать" : "Активировать"}
-        </button>
+          }
+          trigger={
+            <button
+              disabled={pending}
+              className={`shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-white disabled:opacity-60 ${
+                isActive ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              {isActive ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
+              {isActive ? "Деактивировать" : "Активировать"}
+            </button>
+          }
+        />
       </div>
 
       {/* Удаление */}
@@ -261,13 +273,12 @@ export function DangerZone({
                 placeholder={orgSlug}
                 className="flex-1 rounded-lg border border-red-300 dark:border-red-500/40 px-3 py-2 text-xs font-mono bg-white dark:bg-slate-900"
               />
-              <button
-                onClick={() => {
-                  if (confirmInput.trim() !== orgSlug) {
-                    toast.error("Slug не совпадает")
-                    return
-                  }
-                  if (!confirm(`УДАЛИТЬ ${orgName} НАВСЕГДА? Это необратимо.`)) return
+              <ConfirmDialog
+                variant="danger"
+                title={`УДАЛИТЬ ${orgName} НАВСЕГДА?`}
+                description="Это необратимо. Все данные организации будут удалены каскадно."
+                confirmLabel="Удалить навсегда"
+                onConfirm={() =>
                   startTransition(async () => {
                     try {
                       await deleteOrganization(orgId, confirmInput)
@@ -278,12 +289,16 @@ export function DangerZone({
                       toast.error(e instanceof Error ? e.message : "Ошибка")
                     }
                   })
-                }}
-                disabled={pending || confirmInput.trim() !== orgSlug}
-                className="rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-300 px-3 py-2 text-xs font-medium text-white"
-              >
-                Удалить навсегда
-              </button>
+                }
+                trigger={
+                  <button
+                    disabled={pending || confirmInput.trim() !== orgSlug}
+                    className="rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-300 px-3 py-2 text-xs font-medium text-white"
+                  >
+                    Удалить навсегда
+                  </button>
+                }
+              />
               <button
                 onClick={() => {
                   setShowDelete(false)

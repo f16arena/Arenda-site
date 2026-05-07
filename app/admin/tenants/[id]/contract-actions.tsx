@@ -32,9 +32,6 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
     : "Договор подписан со стороны арендодателя"
 
   const send = () => {
-    if (contract.status === "SENT" || contract.status === "VIEWED") {
-      if (!window.confirm(`${docNameTitle} уже отправлялся. Сгенерировать новую ссылку (старая перестанет работать)?`)) return
-    }
     startTransition(async () => {
       const r = await sendContractForSignature(contract.id)
       if (r.ok) {
@@ -45,6 +42,8 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
       }
     })
   }
+
+  const isResend = contract.status === "SENT" || contract.status === "VIEWED"
 
   const markSigned = () => {
     startTransition(async () => {
@@ -89,15 +88,34 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
           }
         />
       )}
-      <button
-        onClick={send}
-        disabled={pending}
-        title="Сгенерировать ссылку и отправить email арендатору"
-        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
-      >
-        <Send className="h-3 w-3" />
-        {contract.status === "SENT" || contract.status === "VIEWED" ? "Переотправить" : "На подпись"}
-      </button>
+      {isResend ? (
+        <ConfirmDialog
+          title={`${docNameTitle} уже отправлялся`}
+          description="Сгенерировать новую ссылку? Старая перестанет работать."
+          confirmLabel="Сгенерировать"
+          onConfirm={send}
+          trigger={
+            <button
+              disabled={pending}
+              title="Сгенерировать ссылку и отправить email арендатору"
+              className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
+            >
+              <Send className="h-3 w-3" />
+              Переотправить
+            </button>
+          }
+        />
+      ) : (
+        <button
+          onClick={send}
+          disabled={pending}
+          title="Сгенерировать ссылку и отправить email арендатору"
+          className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50"
+        >
+          <Send className="h-3 w-3" />
+          На подпись
+        </button>
+      )}
       {signUrl && (
         <button
           onClick={copyUrl}

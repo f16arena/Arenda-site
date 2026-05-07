@@ -5,6 +5,7 @@ import { EyeOff, Plus, RotateCcw, Save } from "lucide-react"
 import { archiveFaqArticle, restoreDefaultFaqArticles, saveFaqArticle } from "@/app/actions/faq"
 import { faqAudienceLabels, type FaqAudience } from "@/lib/faq"
 import type { FaqArticleForAdmin } from "@/lib/faq-db"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type FaqManagerProps = {
   articles: FaqArticleForAdmin[]
@@ -256,24 +257,28 @@ function FaqArticleForm({
       </form>
 
       {!isNew && (
-        <form
-          action={archiveFaqArticle}
-          onSubmit={(event) => {
-            if (!confirm("Скрыть этот вопрос из FAQ? Его можно будет снова включить галочкой.")) {
-              event.preventDefault()
+        <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
+          <ConfirmDialog
+            variant="danger"
+            title="Скрыть вопрос из FAQ?"
+            description="Его можно будет снова включить галочкой «Показывать в FAQ»."
+            confirmLabel="Скрыть"
+            onConfirm={async () => {
+              const formData = new FormData()
+              formData.set("id", article.id)
+              await archiveFaqArticle(formData)
+            }}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
+              >
+                <EyeOff className="h-4 w-4" />
+                Скрыть вопрос
+              </button>
             }
-          }}
-          className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800"
-        >
-          <input type="hidden" name="id" value={article.id} />
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
-          >
-            <EyeOff className="h-4 w-4" />
-            Скрыть вопрос
-          </button>
-        </form>
+          />
+        </div>
       )}
     </div>
   )

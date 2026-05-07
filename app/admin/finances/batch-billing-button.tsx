@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Zap, Check } from "lucide-react"
 import { toast } from "sonner"
 import { generateMonthlyChargesForOrg } from "@/app/actions/billing-batch"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string }) {
   const [open, setOpen] = useState(false)
@@ -12,11 +13,6 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
   const [result, setResult] = useState<{ rent: number; cleaning: number; skipped: number; total: number } | null>(null)
 
   const run = () => {
-    if (!window.confirm(
-      `Сгенерировать начисления аренды (и уборки) за период ${period}?\n\n` +
-      `Идемпотентно: уже созданные начисления за этот месяц пропускаются.\n` +
-      `Арендаторам отправится in-app уведомление о начислении.`,
-    )) return
     startTransition(async () => {
       const r = await generateMonthlyChargesForOrg(period)
       if (!r.ok) { toast.error(r.error); return }
@@ -90,14 +86,24 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
           </p>
         </div>
       )}
-      <button
-        type="button"
-        onClick={run}
-        disabled={pending}
-        className="w-full rounded-lg bg-purple-600 hover:bg-purple-700 text-white py-2 text-sm font-medium disabled:opacity-60"
-      >
-        {pending ? "Генерация..." : "Запустить"}
-      </button>
+      <ConfirmDialog
+        title={`Сгенерировать начисления за период ${period}?`}
+        description={
+          "Идемпотентно: уже созданные начисления за этот месяц пропускаются. " +
+          "Арендаторам отправится in-app уведомление о начислении."
+        }
+        confirmLabel="Запустить"
+        onConfirm={run}
+        trigger={
+          <button
+            type="button"
+            disabled={pending}
+            className="w-full rounded-lg bg-purple-600 hover:bg-purple-700 text-white py-2 text-sm font-medium disabled:opacity-60"
+          >
+            {pending ? "Генерация..." : "Запустить"}
+          </button>
+        }
+      />
       <p className="text-[10px] text-slate-400 dark:text-slate-500">
         Также автоматически запускается 1-го числа каждого месяца через cron.
       </p>

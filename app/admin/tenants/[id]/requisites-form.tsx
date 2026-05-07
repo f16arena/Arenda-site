@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/tenant"
 import { validateRequisites } from "@/lib/kz-validators"
 import { findBankByBik, findBankByName, findSingleBankSuggestion, isKnownBankName, KZ_BANKS } from "@/lib/kz-banks"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type BankAccount = {
   id: string
@@ -287,7 +288,6 @@ function ExistingAccount({ account }: { account: BankAccount }) {
   }
 
   const remove = () => {
-    if (!window.confirm("Удалить этот банковский счёт арендатора?")) return
     startTransition(async () => {
       try {
         const result = await deleteTenantBankAccount(account.id)
@@ -327,14 +327,21 @@ function ExistingAccount({ account }: { account: BankAccount }) {
               <Star className="h-3.5 w-3.5" /> Сделать основным
             </button>
           )}
-          <button
-            type="button"
-            disabled={pending}
-            onClick={remove}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Удалить
-          </button>
+          <ConfirmDialog
+            variant="danger"
+            title="Удалить этот банковский счёт арендатора?"
+            confirmLabel="Удалить"
+            onConfirm={remove}
+            trigger={
+              <button
+                type="button"
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Удалить
+              </button>
+            }
+          />
         </div>
       </div>
 

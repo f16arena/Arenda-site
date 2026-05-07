@@ -20,6 +20,7 @@ import {
   uid,
 } from "@/lib/floor-layout"
 import { RenderElement, type FloorEditorSpaceLite as SpaceLite } from "./floor-render-element"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Tool = "select" | "rect" | "polygon" | "door" | "window" | "label" | "wall" | "stairs" | "elevator" | "toilet"
 
@@ -747,13 +748,6 @@ export function FloorEditor({
       toast.error("AI работает только с подложкой, загруженной как файл (PDF / картинка), не URL")
       return
     }
-    if (layout.elements.length > 0) {
-      const ok = window.confirm(
-        `На плане уже ${layout.elements.length} элементов. AI добавит распознанные помещения сверх существующих. Продолжить?\n\n` +
-          `(Если хотите начать с чистого плана — отмените, удалите все элементы вручную, и попробуйте снова.)`,
-      )
-      if (!ok) return
-    }
     setRecognizing(true)
     const t0 = Date.now()
     try {
@@ -1241,70 +1235,114 @@ export function FloorEditor({
             >
               <Maximize2 className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (layout.elements.length === 0) {
-                  toast.message("На плане нет элементов")
-                  return
-                }
-                if (!window.confirm(
-                  `Удалить все ${layout.elements.length} элемент${layout.elements.length === 1 ? "" : "ов"} с плана?\n\n` +
-                  `Подложка, общая площадь и сетка останутся.\n` +
-                  `Можно отменить через Ctrl+Z до сохранения.`,
-                )) return
+            <ConfirmDialog
+              variant="danger"
+              title={`Удалить все ${layout.elements.length} элемент${layout.elements.length === 1 ? "" : "ов"} с плана?`}
+              description="Подложка, общая площадь и сетка останутся. Можно отменить через Ctrl+Z до сохранения."
+              confirmLabel="Стереть"
+              onConfirm={() => {
                 setLayout((p) => ({ ...p, elements: [] }))
                 setSelectedId(null)
                 setPolygonInProgress(null)
                 toast.success("Все элементы стёрты. Не забудьте сохранить.")
               }}
-              disabled={layout.elements.length === 0}
-              aria-label="Очистить план"
-              title="Очистить все нарисованные элементы"
-              className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent"
-            >
-              <Eraser className="h-4 w-4" />
-            </button>
+              trigger={
+                <button
+                  type="button"
+                  disabled={layout.elements.length === 0}
+                  aria-label="Очистить план"
+                  title="Очистить все нарисованные элементы"
+                  className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent"
+                >
+                  <Eraser className="h-4 w-4" />
+                </button>
+              }
+            />
             <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{Math.round(zoom * 100)}%</span>
-            {f16Template && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (layout.elements.length > 0) {
-                    if (!window.confirm("Текущий план будет заменён шаблоном БЦ F16. Продолжить?")) return
-                  }
-                  setLayout(f16Template)
-                  setSelectedId(null)
-                  toast.success(`Шаблон этажа ${floorNumber} загружен — теперь сохраните`)
-                }}
-                className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
-                title="Импорт готового плана этажа из отсканированных документов БЦ F16"
-              >
-                <Sparkles className="h-4 w-4" />
-                Шаблон F16
-              </button>
-            )}
-            {layout.underlayUrl?.startsWith("data:image/") && (
-              <button
-                type="button"
-                onClick={handleRecognize}
-                disabled={recognizing}
-                title="Прислать подложку Claude AI и автоматически расставить прямоугольники помещений"
-                className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-4 py-2 text-sm font-medium text-white shadow-sm disabled:opacity-60"
-              >
-                {recognizing ? (
-                  <>
-                    <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                    Распознавание...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    AI распознать
-                  </>
-                )}
-              </button>
-            )}
+            {f16Template && (() => {
+              const applyTemplate = () => {
+                setLayout(f16Template)
+                setSelectedId(null)
+                toast.success(`Шаблон этажа ${floorNumber} загружен — теперь сохраните`)
+              }
+              const className = "flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+              if (layout.elements.length > 0) {
+                return (
+                  <ConfirmDialog
+                    title="Заменить текущий план?"
+                    description="Текущий план будет заменён шаблоном БЦ F16."
+                    confirmLabel="Заменить"
+                    onConfirm={applyTemplate}
+                    trigger={
+                      <button
+                        type="button"
+                        className={className}
+                        title="Импорт готового плана этажа из отсканированных документов БЦ F16"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Шаблон F16
+                      </button>
+                    }
+                  />
+                )
+              }
+              return (
+                <button
+                  type="button"
+                  onClick={applyTemplate}
+                  className={className}
+                  title="Импорт готового плана этажа из отсканированных документов БЦ F16"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Шаблон F16
+                </button>
+              )
+            })()}
+            {layout.underlayUrl?.startsWith("data:image/") && (() => {
+              const buttonInner = recognizing ? (
+                <>
+                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  Распознавание...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  AI распознать
+                </>
+              )
+              const className = "flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 px-4 py-2 text-sm font-medium text-white shadow-sm disabled:opacity-60"
+              if (layout.elements.length > 0) {
+                return (
+                  <ConfirmDialog
+                    title={`На плане уже ${layout.elements.length} элементов`}
+                    description="AI добавит распознанные помещения сверх существующих. Если хотите начать с чистого плана — отмените, удалите все элементы вручную, и попробуйте снова."
+                    confirmLabel="Продолжить"
+                    onConfirm={handleRecognize}
+                    trigger={
+                      <button
+                        type="button"
+                        disabled={recognizing}
+                        title="Прислать подложку Claude AI и автоматически расставить прямоугольники помещений"
+                        className={className}
+                      >
+                        {buttonInner}
+                      </button>
+                    }
+                  />
+                )
+              }
+              return (
+                <button
+                  type="button"
+                  onClick={handleRecognize}
+                  disabled={recognizing}
+                  title="Прислать подложку Claude AI и автоматически расставить прямоугольники помещений"
+                  className={className}
+                >
+                  {buttonInner}
+                </button>
+              )
+            })()}
             <button
               type="button"
               onClick={handleSave}

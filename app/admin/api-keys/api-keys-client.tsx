@@ -5,6 +5,7 @@ import { Plus, Copy, Check, Ban, AlertTriangle, Key } from "lucide-react"
 import { toast } from "sonner"
 import { createApiKey, revokeApiKey } from "@/app/actions/api-keys"
 import { useRouter } from "next/navigation"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Key = {
   id: string
@@ -42,8 +43,7 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
     })
   }
 
-  const handleRevoke = (id: string, name: string) => {
-    if (!window.confirm(`Отозвать ключ "${name}"?\n\nПриложения, использующие этот токен, перестанут работать.`)) return
+  const handleRevoke = (id: string) => {
     startTransition(async () => {
       const r = await revokeApiKey(id)
       if (r.ok) { toast.success("Ключ отозван"); router.refresh() }
@@ -211,13 +211,21 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       {!inactive && (
-                        <button
-                          onClick={() => handleRevoke(k.id, k.name)}
-                          className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline"
-                        >
-                          <Ban className="h-3 w-3" />
-                          Отозвать
-                        </button>
+                        <ConfirmDialog
+                          variant="danger"
+                          title={`Отозвать ключ "${k.name}"?`}
+                          description="Приложения, использующие этот токен, перестанут работать."
+                          confirmLabel="Отозвать"
+                          onConfirm={() => handleRevoke(k.id)}
+                          trigger={
+                            <button
+                              className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline"
+                            >
+                              <Ban className="h-3 w-3" />
+                              Отозвать
+                            </button>
+                          }
+                        />
                       )}
                     </td>
                   </tr>

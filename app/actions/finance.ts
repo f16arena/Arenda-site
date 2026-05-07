@@ -20,6 +20,7 @@ import {
   assertExpenseInOrg,
 } from "@/lib/scope-guards"
 import { assertBuildingAccess, assertTenantBuildingAccess, getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { PaymentCreateSchema, firstZodError } from "@/lib/schemas"
 
 function parseChargeAmount(value: FormDataEntryValue | null) {
   const amount = Number(String(value ?? "").trim().replace(",", "."))
@@ -43,23 +44,35 @@ function parseDateOrNull(value: FormDataEntryValue | null) {
 export async function recordPayment(formData: FormData) {
   await requireCapabilityAndFeature("finance.recordPayment")
   const { orgId } = await requireOrgAccess()
-  const tenantId = formData.get("tenantId") as string
+
+  // Валидация формы через Zod-схему. Пустые значения формы не должны попадать
+  // в Zod как "" — приводим их к undefined чтобы оптиональные поля прошли.
+  const rawTenantId = formData.get("tenantId")
+  const rawAmount = formData.get("amount")
+  const rawMethod = formData.get("method")
+  const rawDate = formData.get("paymentDate")
+  const rawNote = formData.get("note")
+
+  const parsed = PaymentCreateSchema.safeParse({
+    tenantId: typeof rawTenantId === "string" ? rawTenantId : "",
+    amount: rawAmount != null && String(rawAmount).trim() !== "" ? Number(rawAmount) : NaN,
+    method: typeof rawMethod === "string" && rawMethod ? rawMethod : "TRANSFER",
+    paymentDate:
+      typeof rawDate === "string" && rawDate.trim() !== "" ? rawDate : undefined,
+    note: typeof rawNote === "string" && rawNote.trim() !== "" ? rawNote : undefined,
+  })
+  if (!parsed.success) {
+    throw new Error(firstZodError(parsed.error))
+  }
+
+  const { tenantId, amount, method, paymentDate, note } = parsed.data
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
 
-  const amountStr = formData.get("amount") as string
-  const method = formData.get("method") as string
-  const note = formData.get("note") as string
-  const dateStr = formData.get("paymentDate") as string
   const chargeIds = formData.getAll("chargeIds") as string[]
   // Опционально: на какой счёт пришли деньги (банк/касса/карта).
   // Если указан — автоматически создаём транзакцию и увеличиваем баланс.
   const cashAccountId = (formData.get("cashAccountId") as string)?.trim() || null
-
-  const amount = parseFloat(amountStr)
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Сумма платежа должна быть положительным числом")
-  }
 
   // Если указан счёт — проверяем что он принадлежит нашей организации
   if (cashAccountId) {
@@ -84,9 +97,9 @@ export async function recordPayment(formData: FormData) {
       data: {
         tenantId,
         amount,
-        method: method || "TRANSFER",
-        note: note || null,
-        paymentDate: dateStr ? new Date(dateStr) : new Date(),
+        method,
+        note: note ?? null,
+        paymentDate: paymentDate ?? new Date(),
       },
     }),
   ]

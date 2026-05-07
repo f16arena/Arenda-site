@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react"
 import { clearFloorPlan } from "@/app/actions/floor-layout"
 import { deleteAllSpacesOnFloor } from "@/app/actions/spaces"
 import { deleteFloor } from "@/app/actions/buildings"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export function DangerZone({
   floorId,
@@ -28,24 +29,10 @@ export function DangerZone({
   const [busy, setBusy] = useState<string | null>(null)
 
   const handleClearElements = () => {
-    if (elementsCount === 0) {
-      toast.message("На плане нет элементов")
-      return
-    }
-    if (!window.confirm(
-      `Удалить все элементы с плана?\n\n` +
-      `Помещения в базе не удаляются. Стираются только нарисованные комнаты, двери, иконки и подписи.\n\n` +
-      `До сохранения это можно отменить через Ctrl+Z.`,
-    )) return
     onClearElements()
   }
 
   const handleClearPlan = async () => {
-    if (!window.confirm(
-      `Очистить нарисованный план «${floorName}»?\n\n` +
-      `Будут стерты рисунок, подложка и общая площадь этажа.\n` +
-      `Помещения в базе останутся на месте.`,
-    )) return
     setBusy("plan")
     try {
       await clearFloorPlan(floorId)
@@ -59,15 +46,6 @@ export function DangerZone({
   }
 
   const handleDeleteAllSpaces = async () => {
-    if (spacesCount === 0) {
-      toast.message("На этаже нет помещений")
-      return
-    }
-    if (!window.confirm(
-      `Удалить все помещения этажа «${floorName}»?\n\n` +
-      `Помещения с активными арендаторами удалить нельзя. Если есть привязка к арендатору, система остановит действие.\n\n` +
-      `Это действие необратимо.`,
-    )) return
     setBusy("spaces")
     try {
       const result = await deleteAllSpacesOnFloor(floorId)
@@ -81,14 +59,6 @@ export function DangerZone({
 
   const handleDeleteFloor = async () => {
     const cascade = spacesCount > 0
-    const cascadeNote = cascade
-      ? `\n\nНа этаже есть помещения. Они тоже будут удалены, если ни одно не занято арендатором.`
-      : ""
-    if (!window.confirm(
-      `Удалить этаж «${floorName}» полностью?${cascadeNote}\n\n` +
-      `План, помещения и сам этаж исчезнут без возврата.`,
-    )) return
-    if (!window.confirm("Точно удалить? Это последнее предупреждение.")) return
     setBusy("floor")
     try {
       await deleteFloor(floorId, { cascade })
@@ -99,6 +69,10 @@ export function DangerZone({
       setBusy(null)
     }
   }
+
+  const cascadeNote = spacesCount > 0
+    ? "\n\nНа этаже есть помещения. Они тоже будут удалены, если ни одно не занято арендатором."
+    : ""
 
   return (
     <details
@@ -111,33 +85,74 @@ export function DangerZone({
         Опасная зона
       </summary>
       <div className="space-y-2 border-t border-red-100 px-4 py-3 dark:border-red-500/20">
-        <DangerButton
-          tone="yellow"
-          title={`Очистить элементы (${elementsCount})`}
-          description="Стирает только визуальные элементы плана. Помещения в базе не затрагиваются."
-          disabled={elementsCount === 0}
-          onClick={handleClearElements}
+        <ConfirmDialog
+          variant="danger"
+          title="Удалить все элементы с плана?"
+          description={
+            "Помещения в базе не удаляются. Стираются только нарисованные комнаты, двери, иконки и подписи. " +
+            "До сохранения это можно отменить через Ctrl+Z."
+          }
+          confirmLabel="Удалить элементы"
+          onConfirm={handleClearElements}
+          trigger={
+            <DangerButton
+              tone="yellow"
+              title={`Очистить элементы (${elementsCount})`}
+              description="Стирает только визуальные элементы плана. Помещения в базе не затрагиваются."
+              disabled={elementsCount === 0}
+            />
+          }
         />
-        <DangerButton
-          tone="amber"
-          title={busy === "plan" ? "Очистка..." : "Очистить план"}
-          description="Стирает рисунок, подложку и общую площадь. Помещения остаются."
-          disabled={!!busy}
-          onClick={handleClearPlan}
+        <ConfirmDialog
+          variant="danger"
+          title={`Очистить нарисованный план «${floorName}»?`}
+          description="Будут стерты рисунок, подложка и общая площадь этажа. Помещения в базе останутся на месте."
+          confirmLabel="Очистить план"
+          onConfirm={handleClearPlan}
+          trigger={
+            <DangerButton
+              tone="amber"
+              title={busy === "plan" ? "Очистка..." : "Очистить план"}
+              description="Стирает рисунок, подложку и общую площадь. Помещения остаются."
+              disabled={!!busy}
+            />
+          }
         />
-        <DangerButton
-          tone="orange"
-          title={busy === "spaces" ? "Удаление..." : `Удалить все помещения (${spacesCount})`}
-          description="Удаляет Space-записи только если они не заняты арендаторами."
-          disabled={!!busy || spacesCount === 0}
-          onClick={handleDeleteAllSpaces}
+        <ConfirmDialog
+          variant="danger"
+          title={`Удалить все помещения этажа «${floorName}»?`}
+          description={
+            "Помещения с активными арендаторами удалить нельзя. Если есть привязка к арендатору, система остановит действие. " +
+            "Это действие необратимо."
+          }
+          confirmLabel="Удалить помещения"
+          onConfirm={handleDeleteAllSpaces}
+          trigger={
+            <DangerButton
+              tone="orange"
+              title={busy === "spaces" ? "Удаление..." : `Удалить все помещения (${spacesCount})`}
+              description="Удаляет Space-записи только если они не заняты арендаторами."
+              disabled={!!busy || spacesCount === 0}
+            />
+          }
         />
-        <DangerButton
-          tone="red"
-          title={busy === "floor" ? "Удаление..." : "Удалить этаж целиком"}
-          description="Удаляет этаж вместе с помещениями, если это разрешено связями."
-          disabled={!!busy}
-          onClick={handleDeleteFloor}
+        <ConfirmDialog
+          variant="danger"
+          title={`Удалить этаж «${floorName}» полностью?`}
+          description={
+            `План, помещения и сам этаж исчезнут без возврата.${cascadeNote}` +
+            " Это последнее предупреждение."
+          }
+          confirmLabel="Удалить этаж"
+          onConfirm={handleDeleteFloor}
+          trigger={
+            <DangerButton
+              tone="red"
+              title={busy === "floor" ? "Удаление..." : "Удалить этаж целиком"}
+              description="Удаляет этаж вместе с помещениями, если это разрешено связями."
+              disabled={!!busy}
+            />
+          }
         />
       </div>
     </details>
@@ -155,7 +170,7 @@ function DangerButton({
   title: string
   description: string
   disabled?: boolean
-  onClick: () => void
+  onClick?: () => void
 }) {
   const toneClass = {
     yellow: "border-yellow-200 bg-yellow-50/50 text-yellow-700 hover:bg-yellow-100 dark:border-yellow-500/30 dark:bg-yellow-500/5 dark:text-yellow-300 dark:hover:bg-yellow-500/10",

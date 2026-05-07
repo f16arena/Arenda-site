@@ -14,14 +14,30 @@ import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validatio
 import { isStaffScopedRole } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
-import { FloorUpdateSchema, firstZodError } from "@/lib/schemas"
+import { BuildingUpdateSchema, FloorUpdateSchema, firstZodError } from "@/lib/schemas"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
-  const name = String(formData.get("name") ?? "").trim()
+  // Валидация формата (Zod) выполняется до нормализации.
+  // Нормализация (normalizeKzPhone / normalizeEmailWithDns) происходит после
+  // — она может ходить в DNS и возвращать нормализованные значения, поэтому
+  // её результат и используется при записи в БД.
+  const rawPhone = formData.get("phone")
+  const rawEmail = formData.get("email")
+  const parsed = BuildingUpdateSchema.safeParse({
+    name: formData.get("name"),
+    address: formData.get("address"),
+    phone: typeof rawPhone === "string" ? rawPhone : "",
+    email: typeof rawEmail === "string" ? rawEmail : "",
+    responsible: formData.get("responsible"),
+    description: formData.get("description"),
+  })
+  if (!parsed.success) throw new Error(firstZodError(parsed.error))
+
+  const name = parsed.data.name
   const address = String(formData.get("address") ?? "").trim()
   const addressFields = readAddressFields(formData)
   const description = String(formData.get("description") ?? "").trim()
@@ -29,7 +45,6 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
   const responsible = String(formData.get("responsible") ?? "").trim()
 
-  if (!name) throw new Error("Название здания обязательно")
   if (!address) throw new Error("Адрес здания обязателен")
 
   // totalArea не редактируется вручную — пересчитывается из этажей
