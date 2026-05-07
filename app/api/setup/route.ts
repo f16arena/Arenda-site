@@ -6,14 +6,28 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 
 // POST /api/setup — одноразовая инициализация БД
 // Защищён секретом: /api/setup?secret=SETUP_SECRET
+//
+// В production эндпоинт ОТКЛЮЧЁН по умолчанию. Чтобы временно включить:
+//   1. Установить SETUP_ENABLED=true в Vercel env
+//   2. Выполнить инициализацию
+//   3. Убрать SETUP_ENABLED обратно (или поставить false)
 export async function POST(request: Request) {
-  // Rate limit: 5 попыток за час с одного IP — защита от brute-force перебора SETUP_SECRET
   const reqHeaders = await headers()
-  const rl = checkRateLimit(getClientKey(reqHeaders, "setup"), { max: 5, window: 60 * 60_000 })
+  const clientKey = getClientKey(reqHeaders, "setup")
+
+  // Feature flag: в production требуется явное SETUP_ENABLED=true
+  if (process.env.NODE_ENV === "production" && process.env.SETUP_ENABLED !== "true") {
+    console.warn(`[setup] BLOCKED — SETUP_ENABLED не установлен. Источник: ${clientKey}`)
+    return NextResponse.json({ error: "Setup disabled" }, { status: 403 })
+  }
+
+  // Rate limit: 3 попытки за час с одного IP — защита от brute-force перебора SETUP_SECRET
+  const rl = checkRateLimit(clientKey, { max: 3, window: 60 * 60_000 })
   if (!rl.ok) {
+    console.warn(`[setup] RATE LIMITED ${clientKey}, retry через ${rl.retryAfterSec}с`)
     return NextResponse.json(
       { error: "Слишком много попыток. Попробуйте позже." },
-      { status: 429 },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } },
     )
   }
 
@@ -21,6 +35,7 @@ export async function POST(request: Request) {
   const origin = reqHeaders.get("origin") ?? ""
   const host = reqHeaders.get("host") ?? ""
   if (origin && host && !origin.includes(host) && !origin.endsWith("commrent.kz")) {
+    console.warn(`[setup] CSRF blocked: origin=${origin} host=${host}`)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -34,7 +49,17 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const secret = searchParams.get("secret")
 
-  if (secret !== expectedSecret) {
+  if (!secret || secret.length !== expectedSecret.length) {
+    console.warn(`[setup] FAIL secret format from ${clientKey}`)
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  // Constant-time сравнение — защищает от timing-attacks
+  const { timingSafeEqual } = await import("crypto")
+  const a = Buffer.from(secret)
+  const b = Buffer.from(expectedSecret)
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    console.warn(`[setup] FAIL wrong secret from ${clientKey}`)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -88,6 +113,8 @@ export async function POST(request: Request) {
   ])
 
   // ── Пользователи ─────────────────────────────────────────────
+  // mustChangePassword: true — стартовые пароли одноразовые, надо сменить при
+  // первом входе (см. middleware-проверку в app/admin/layout.tsx).
   const [owner, admin, accountant, manager] = await Promise.all([
     db.user.create({
       data: {
@@ -95,6 +122,8 @@ export async function POST(request: Request) {
         email: "f16arena@gmail.com",
         password: await hash(ownerPw),
         role: "OWNER",
+        mustChangePassword: true,
+        organizationId: org.id,
       },
     }),
     db.user.create({
@@ -104,6 +133,8 @@ export async function POST(request: Request) {
         email: "admin@f16arena.kz",
         password: await hash(adminPw),
         role: "ADMIN",
+        mustChangePassword: true,
+        organizationId: org.id,
       },
     }),
     db.user.create({
@@ -113,6 +144,8 @@ export async function POST(request: Request) {
         email: "buh@f16arena.kz",
         password: await hash(accountantPw),
         role: "ACCOUNTANT",
+        mustChangePassword: true,
+        organizationId: org.id,
       },
     }),
     db.user.create({
@@ -121,6 +154,8 @@ export async function POST(request: Request) {
         phone: "+77000000004",
         password: await hash(managerPw),
         role: "FACILITY_MANAGER",
+        mustChangePassword: true,
+        organizationId: org.id,
       },
     }),
   ])
@@ -166,14 +201,18 @@ export async function POST(request: Request) {
   })
 }
 
-// GET — показать инструкцию
+// GET — показать инструкцию (только если SETUP_ENABLED либо вне production)
 export async function GET() {
+  if (process.env.NODE_ENV === "production" && process.env.SETUP_ENABLED !== "true") {
+    return NextResponse.json({ error: "Setup disabled" }, { status: 403 })
+  }
+
   const initialized = await db.user.findFirst({ where: { role: "OWNER" } })
 
   if (initialized) {
     return NextResponse.json({
       status: "initialized",
-      owner: initialized.email ?? initialized.phone,
+      // НЕ возвращаем email владельца — может быть использован для атак
       message: "Система уже настроена. Войдите через /login",
     })
   }

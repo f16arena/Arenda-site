@@ -130,7 +130,11 @@ export async function resetPassword(formData: FormData): Promise<Result> {
   await db.$transaction([
     db.user.update({
       where: { id: t.userId },
-      data: { password: hash },
+      data: {
+        password: hash,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
+      },
     }),
     db.verificationToken.update({
       where: { id: t.id },

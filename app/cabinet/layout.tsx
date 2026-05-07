@@ -31,9 +31,14 @@ export default async function CabinetLayout({
     }).catch(() => 0),
     db.user.findUnique({
       where: { id: session.user.id },
-      select: { email: true, emailVerifiedAt: true },
+      select: { email: true, emailVerifiedAt: true, mustChangePassword: true },
     }).catch(() => null),
   ])
+
+  // Принудительная смена пароля при первом входе.
+  if (userMail?.mustChangePassword) {
+    redirect("/change-password")
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">

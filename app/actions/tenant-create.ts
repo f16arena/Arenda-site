@@ -154,6 +154,8 @@ export async function createTenant(formData: FormData) {
         password: hash,
         role: "TENANT",
         organizationId: orgId,
+        // Пароль задан администратором (или сгенерирован) — арендатор обязан сменить.
+        mustChangePassword: true,
       },
       select: { id: true },
     })

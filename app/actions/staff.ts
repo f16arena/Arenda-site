@@ -42,6 +42,8 @@ export async function createStaff(formData: FormData) {
       password: hash,
       role,
       organizationId: orgId,
+      // Пароль выдан администратором — сотрудник обязан сменить при первом входе.
+      mustChangePassword: true,
     },
   })
 

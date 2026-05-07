@@ -45,6 +45,15 @@ async function renderAdminLayout(children: React.ReactNode) {
   if (!isPlatformOwner && isTenantRole(session.user.role)) {
     redirect("/cabinet")
   }
+  // Принудительная смена пароля при первом входе.
+  // Проверяем актуальное значение из БД, а не из JWT (флаг сбрасывается без релогина).
+  const passwordCheck = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { mustChangePassword: true },
+  }).catch(() => null)
+  if (passwordCheck?.mustChangePassword) {
+    redirect("/change-password")
+  }
   const impersonate = isPlatformOwner ? await getValidatedImpersonateData().catch(() => null) : null
   const currentOrgId = isPlatformOwner
     ? (impersonate?.orgId ?? await getCurrentOrgId().catch(() => null))

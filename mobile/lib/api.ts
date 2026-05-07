@@ -4,6 +4,7 @@ import * as LocalAuthentication from "expo-local-authentication"
 import * as Notifications from "expo-notifications"
 import * as SecureStore from "expo-secure-store"
 import Constants from "expo-constants"
+import { Platform } from "react-native"
 import { captureMobileException } from "@/lib/sentry"
 import type {
   BuildingNotice,
@@ -227,6 +228,71 @@ export async function getTenantFinances() {
   return authFetch<TenantFinances>("/api/mobile/tenant/finances")
 }
 
+// Сообщения арендатора <-> администратор. Бэкенд: /api/mobile/tenant/messages
+type TenantMessageDto = {
+  id: string
+  subject: string
+  body: string
+  isRead: boolean
+  attachmentUrl?: string | null
+  createdAt: string
+  from: { id: string; name: string; role: string }
+  to: { id: string; name: string; role: string }
+  direction: "in" | "out"
+}
+
+type TenantAdminContact = {
+  id: string
+  name: string
+  role: string
+}
+
+export async function getTenantMessages() {
+  return authFetch<{ unread: number; admins: TenantAdminContact[]; data: TenantMessageDto[] }>(
+    "/api/mobile/tenant/messages",
+  )
+}
+
+export async function sendTenantMessage(input: {
+  toUserId: string
+  subject?: string
+  body: string
+}) {
+  const res = await authFetch<{ data: Omit<TenantMessageDto, "from" | "direction"> }>(
+    "/api/mobile/tenant/messages",
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  )
+  return res.data
+}
+
+// Документы на подпись (контракты, доп. соглашения, акты).
+// Бэкенд: /api/mobile/document-signature-requests
+type DocumentSignatureRequestDto = {
+  id: string
+  documentType: string
+  documentId: string | null
+  documentRef: string | null
+  title: string
+  message: string | null
+  status: string
+  channel?: string
+  allowedMethods: string[]
+  preferredMethod: string
+  expiresAt: string | null
+  viewedAt?: string | null
+  createdAt: string
+  webUrl?: string
+}
+
+export async function getDocumentSignatureRequests() {
+  return authFetch<{ data: DocumentSignatureRequestDto[] }>(
+    "/api/mobile/document-signature-requests",
+  )
+}
+
 export async function reportTenantPayment(input: {
   amount: number
   paymentDate?: string
@@ -242,7 +308,7 @@ export async function reportTenantPayment(input: {
     form.append("method", input.method)
     if (input.paymentPurpose) form.append("paymentPurpose", input.paymentPurpose)
     if (input.note) form.append("note", input.note)
-    appendUploadFile(form, "receipt", input.receipt)
+    await appendUploadFile(form, "receipt", input.receipt)
 
     const res = await authFetch<{ data: TenantPaymentReport }>("/api/mobile/tenant/finances", {
       method: "POST",
@@ -281,7 +347,7 @@ export async function createTenantRequest(input: {
     form.append("description", input.description)
     form.append("type", input.type)
     form.append("priority", input.priority)
-    appendUploadFile(form, "attachment", input.attachment)
+    await appendUploadFile(form, "attachment", input.attachment)
 
     const res = await authFetch<{ data: TenantRequest }>("/api/mobile/tenant/requests", {
       method: "POST",
@@ -741,7 +807,19 @@ function getDeviceMeta() {
   }
 }
 
-function appendUploadFile(form: FormData, key: string, file: PickedUploadFile) {
+async function appendUploadFile(form: FormData, key: string, file: PickedUploadFile) {
+  // На native (iOS/Android) FormData принимает специальный объект { uri, name, type }
+  // и собирает multipart-запрос на нативном слое. На web нужен реальный Blob/File,
+  // иначе body отправляется как "[object Object]" и сервер получает 0-байт файл.
+  if (Platform.OS === "web") {
+    const response = await fetch(file.uri)
+    const blob = await response.blob()
+    // Используем глобальный File из DOM (не expo-file-system, который переопределил имя).
+    const WebFile = (globalThis as unknown as { File: typeof globalThis.File }).File
+    const webFile = new WebFile([blob], file.name, { type: file.mimeType })
+    form.append(key, webFile)
+    return
+  }
   form.append(key, {
     uri: file.uri,
     name: file.name,

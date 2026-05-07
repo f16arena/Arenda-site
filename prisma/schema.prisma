@@ -25,6 +25,10 @@ model User {
   isPlatformOwner         Boolean   @default(false) @map("is_platform_owner")
   emailVerifiedAt         DateTime? @map("email_verified_at")
   phoneVerifiedAt         DateTime? @map("phone_verified_at")
+  // Принудительная смена пароля при первом входе. true — пользователь не сможет
+  // работать в системе, пока не задаст собственный пароль.
+  mustChangePassword      Boolean   @default(false) @map("must_change_password")
+  passwordChangedAt       DateTime? @map("password_changed_at")
   // Настройки каналов уведомлений (true = включён, по умолчанию всё включено)
   notifyEmail             Boolean   @default(true) @map("notify_email")
   notifyTelegram          Boolean   @default(true) @map("notify_telegram")

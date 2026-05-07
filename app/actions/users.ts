@@ -78,6 +78,8 @@ export async function createUserAdmin(formData: FormData) {
       password: hash,
       role,
       organizationId: orgId,
+      // Пароль задан администратором — пользователь обязан сменить при первом входе.
+      mustChangePassword: true,
     },
   })
 

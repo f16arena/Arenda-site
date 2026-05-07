@@ -92,6 +92,7 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   })
 
   // 2. Owner-пользователь
+  // mustChangePassword: пароль выдан платформой — клиент обязан сменить.
   const ownerUser = await db.user.create({
     data: {
       name: ownerName,
@@ -100,6 +101,7 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
       password: hash,
       role: "OWNER",
       organizationId: org.id,
+      mustChangePassword: true,
     },
     select: { id: true },
   })

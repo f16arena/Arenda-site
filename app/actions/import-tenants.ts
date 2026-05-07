@@ -306,6 +306,8 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
             password: hash,
             role: "TENANT",
             organizationId: orgId,
+            // Временный пароль из импорта — обязательная смена при первом входе.
+            mustChangePassword: true,
           },
           select: { id: true },
         })
@@ -319,6 +321,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
             password: hash,
             role: "TENANT",
             organizationId: orgId,
+            mustChangePassword: true,
           },
           select: { id: true },
         })

@@ -314,22 +314,23 @@
 
 ---
 
-## 6. Учётные записи (после инициализации)
+## 6. Учётные записи
 
-| Роль | Логин | Пароль |
-|------|-------|--------|
-| Владелец | `f16arena@gmail.com` | `F16arena2024!` |
-| Администратор | `admin@f16arena.kz` | `admin2024!` |
-| Бухгалтер | `buh@f16arena.kz` | `buh2024!` |
-| Завхоз | `+77000000004` | `manager2024!` |
+Стартовые учётные записи создаются автоматически при первом запуске `/api/setup`.
+Логины и одноразовые пароли возвращаются в ответе эндпоинта и должны быть сохранены
+в безопасном хранилище (1Password / Bitwarden / Vault).
 
-> **Сменить все пароли при первом входе.** Текущие — стартовые для деплоя.
+> **Принудительная смена пароля** включена при первом входе — пользователь не сможет
+> работать в системе, пока не задаст собственный пароль.
+
+Если стартовые пароли утеряны — администратор БД может выпустить
+сброс через server action `requestPasswordReset`.
 
 ---
 
 ## 7. Контакты и ссылки
 
-- **Production:** https://arenda-site-two.vercel.app
-- **Repository:** https://github.com/f16arena/Arenda-site
-- **Database:** Supabase project `axbewlrmwabqjpmxedps`
+- **Production:** см. переменную `NEXT_PUBLIC_APP_URL` в Vercel
+- **Repository:** см. `package.json` → `repository`
+- **Database:** Supabase (id проекта в `DATABASE_URL`, не публикуется)
 - **Health-check:** `/api/health`
