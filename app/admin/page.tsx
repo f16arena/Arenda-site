@@ -11,16 +11,15 @@ import {
   FileSignature,
 } from "lucide-react"
 import Link from "next/link"
-import { CashflowChart, type MonthData } from "@/components/dashboard/cashflow-chart"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
-import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
-import { Prisma } from "@/app/generated/prisma/client"
+import type { Prisma } from "@/app/generated/prisma/client"
+import { DashboardLazySections } from "./dashboard-lazy-sections"
 
 type AttentionItem = {
   href: string
@@ -29,11 +28,6 @@ type AttentionItem = {
   sub: string
   tone: "red" | "amber" | "blue" | "emerald"
   active: boolean
-}
-
-type MonthlyTotalRow = {
-  period: string
-  amount: number | null
 }
 
 export default async function AdminDashboard() {
@@ -78,22 +72,10 @@ export default async function AdminDashboard() {
   }
 
   const now = new Date()
-  const pastMonths: { period: string; start: Date; end: Date }[] = []
-  for (let i = -5; i <= 0; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    pastMonths.push({
-      period: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      start: new Date(d.getFullYear(), d.getMonth(), 1),
-      end: new Date(d.getFullYear(), d.getMonth() + 1, 1),
-    })
-  }
-
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
   const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
   const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
   const baseMetricsPromise = Promise.all([
     safe("admin.dashboard.tenantsCount", db.tenant.count({ where: tenantWhereInBuilding }), 0),
@@ -144,69 +126,6 @@ export default async function AdminDashboard() {
       }),
       { _sum: { amount: 0 }, _count: { _all: 0 } },
     ),
-    safe(
-      "admin.dashboard.recentRequests",
-      db.request.findMany({
-        where: {
-          status: { in: ["NEW", "IN_PROGRESS"] },
-          tenant: tenantWhereInBuilding,
-        },
-        select: { id: true, title: true, status: true },
-        take: 5,
-        orderBy: { createdAt: "desc" },
-      }),
-      [] as Array<{ id: string; title: string; status: string }>,
-    ),
-    safe(
-      "admin.dashboard.recentTasks",
-      db.task.findMany({
-        where: {
-          status: { in: ["NEW", "IN_PROGRESS"] },
-          OR: [
-            { buildingId: { in: visibleBuildingIds } },
-            { buildingId: null, createdBy: { organizationId: orgId } },
-          ],
-        },
-        select: { id: true, title: true, status: true },
-        take: 5,
-        orderBy: { createdAt: "desc" },
-      }),
-      [] as Array<{ id: string; title: string; status: string }>,
-    ),
-    safe(
-      "admin.dashboard.debtsByTenant",
-      db.charge.groupBy({
-        by: ["tenantId"],
-        where: {
-          isPaid: false,
-          tenant: tenantWhereInBuilding,
-        },
-        _sum: { amount: true },
-      }),
-      [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
-    ),
-    safe(
-      "admin.dashboard.topTenants",
-      db.tenant.findMany({
-        where: tenantWhereInBuilding,
-        select: {
-          id: true,
-          companyName: true,
-          space: { select: { number: true } },
-          tenantSpaces: { select: { space: { select: { number: true } } }, take: 3, orderBy: { createdAt: "asc" } },
-          fullFloors: { select: { number: true, name: true }, take: 3, orderBy: { number: "asc" } },
-        },
-        take: 6,
-        orderBy: { createdAt: "desc" },
-      }),
-      [] as Array<{
-        id: string
-        companyName: string
-        space: { number: string } | null
-        tenantSpaces: { space: { number: string } }[]
-        fullFloors: { number: number; name: string }[]
-      }>,
-    ),
     safe("admin.dashboard.onboarding", getOnboardingState(orgId), {
       allDone: true,
       nextStep: null,
@@ -221,74 +140,6 @@ export default async function AdminDashboard() {
       percent: 100,
     }),
   ])
-
-  const historyStart = pastMonths[0]?.start ?? currentMonthStart
-  const historyEnd = pastMonths[pastMonths.length - 1]?.end ?? nextMonthStart
-  const floorIdList = floorIds.length > 0 ? Prisma.join(floorIds) : Prisma.sql`NULL`
-  const buildingIdList = Prisma.join(visibleBuildingIds)
-
-  const pastDataPromise = Promise.all([
-    safe(
-      "admin.dashboard.monthlyPaymentsGrouped",
-      db.$queryRaw<MonthlyTotalRow[]>(Prisma.sql`
-        SELECT
-          to_char(date_trunc('month', p.payment_date), 'YYYY-MM') AS period,
-          COALESCE(SUM(p.amount), 0)::double precision AS amount
-        FROM payments p
-        JOIN tenants t ON t.id = p.tenant_id
-        JOIN users u ON u.id = t.user_id
-        WHERE u.organization_id = ${orgId}
-          AND p.payment_date >= ${historyStart}
-          AND p.payment_date < ${historyEnd}
-          AND (
-            t.space_id IN (
-              SELECT s.id
-              FROM spaces s
-              WHERE s.floor_id IN (${floorIdList})
-            )
-            OR EXISTS (
-              SELECT 1
-              FROM tenant_spaces ts
-              JOIN spaces s ON s.id = ts.space_id
-              WHERE ts.tenant_id = t.id
-                AND s.floor_id IN (${floorIdList})
-            )
-            OR EXISTS (
-              SELECT 1
-              FROM floors f
-              WHERE f.full_floor_tenant_id = t.id
-                AND f.building_id IN (${buildingIdList})
-            )
-          )
-        GROUP BY 1
-        ORDER BY 1
-      `),
-      [] as MonthlyTotalRow[],
-    ),
-    safe(
-      "admin.dashboard.monthlyExpensesGrouped",
-      db.$queryRaw<MonthlyTotalRow[]>(Prisma.sql`
-        SELECT
-          to_char(date_trunc('month', e.date), 'YYYY-MM') AS period,
-          COALESCE(SUM(e.amount), 0)::double precision AS amount
-        FROM expenses e
-        WHERE e.building_id IN (${buildingIdList})
-          AND e.date >= ${historyStart}
-          AND e.date < ${historyEnd}
-        GROUP BY 1
-        ORDER BY 1
-      `),
-      [] as MonthlyTotalRow[],
-    ),
-  ]).then(([paymentRows, expenseRows]) => {
-    const paymentsByPeriod = new Map(paymentRows.map((row) => [row.period, row.amount ?? 0]))
-    const expensesByPeriod = new Map(expenseRows.map((row) => [row.period, row.amount ?? 0]))
-
-    return pastMonths.map((m) => ({
-      income: paymentsByPeriod.get(m.period) ?? 0,
-      expense: expensesByPeriod.get(m.period) ?? 0,
-    }))
-  })
 
   const todayMetricsPromise = Promise.all([
     safe(
@@ -451,29 +302,14 @@ export default async function AdminDashboard() {
     ),
   ])
 
-  const buildingBreakdownPromise = safe(
-    "admin.dashboard.buildingBreakdown",
-    getOwnerBuildingMetrics({
-      buildingIds: visibleBuildingIds,
-      from: currentMonthStart,
-      to: nextMonthStart,
-    }),
-    [],
-  )
-
   const [
     [
       tenantsCount,
       activeTenants,
       spacesGroup,
       chargesAgg,
-      recentRequests,
-      recentTasks,
-      debtsByTenant,
-      topTenants,
       onboarding,
     ],
-    pastData,
     [
       overdueCharges,
       pendingPaymentReports,
@@ -485,12 +321,9 @@ export default async function AdminDashboard() {
       openTasksCount,
       documentsOnSignature,
     ],
-    buildingBreakdown,
   ] = await Promise.all([
     measureServerStep("/admin", "base-metrics", baseMetricsPromise),
-    measureServerStep("/admin", "cashflow-history", pastDataPromise),
     measureServerStep("/admin", "today-metrics", todayMetricsPromise),
-    measureServerStep("/admin", "building-breakdown", buildingBreakdownPromise),
   ])
 
   const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
@@ -500,37 +333,30 @@ export default async function AdminDashboard() {
   const monthlyRevenue = activeTenants.reduce((sum, t) => {
     return sum + calculateTenantMonthlyRent(t)
   }, 0)
-  const debtMap = new Map(debtsByTenant.map((d) => [d.tenantId, d._sum.amount ?? 0]))
-  const portfolioTotals = buildingBreakdown.reduce(
-    (acc, building) => ({
-      income: acc.income + building.income,
-      expenses: acc.expenses + building.expenses,
-      profit: acc.profit + building.profit,
-      debt: acc.debt + building.debt,
-      vacantArea: acc.vacantArea + building.vacantArea,
-      totalArea: acc.totalArea + building.totalArea,
-      occupiedArea: acc.occupiedArea + building.occupiedArea,
-    }),
-    { income: 0, expenses: 0, profit: 0, debt: 0, vacantArea: 0, totalArea: 0, occupiedArea: 0 },
-  )
-  const portfolioOccupancy = portfolioTotals.totalArea > 0
-    ? Math.round((portfolioTotals.occupiedArea / portfolioTotals.totalArea) * 100)
-    : null
-  const mostDebtBuilding = [...buildingBreakdown].sort((a, b) => b.debt - a.debt)[0] ?? null
-  const bestProfitBuilding = [...buildingBreakdown].sort((a, b) => b.profit - a.profit)[0] ?? null
 
-  const months: MonthData[] = []
-
-  pastMonths.forEach((m, i) => {
-    months.push({ period: m.period, income: pastData[i].income, expense: pastData[i].expense })
-  })
-
-  // Будущие месяцы — прогноз
-  for (let i = 1; i <= 6; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    months.push({ period, income: monthlyRevenue, expense: monthlyRevenue * 0.3, forecast: true })
-  }
+  const buildingBreakdown: Array<{
+    id: string
+    name: string
+    address: string
+    tenantCount: number
+    income: number
+    expenses: number
+    profit: number
+    debt: number
+    debtCount: number
+    vacantArea: number
+    occupancyPercent: number | null
+  }> = []
+  const recentRequests: Array<{ id: string; title: string; status: string }> = []
+  const recentTasks: Array<{ id: string; title: string; status: string }> = []
+  const topTenants: Array<{
+    id: string
+    companyName: string
+    space: { number: string } | null
+    tenantSpaces: { space: { number: string } }[]
+    fullFloors: { number: number; name: string }[]
+  }> = []
+  const debtMap = new Map<string, number>()
 
   const attentionItems: AttentionItem[] = [
     {
@@ -605,21 +431,6 @@ export default async function AdminDashboard() {
             </div>
           </div>
         </Link>
-      )}
-
-      {/* Сегодня */}
-      {!buildingId && buildingBreakdown.length > 0 && (
-        <OwnerPortfolioSummary
-          buildingsCount={buildingBreakdown.length}
-          income={portfolioTotals.income}
-          expenses={portfolioTotals.expenses}
-          profit={portfolioTotals.profit}
-          debt={portfolioTotals.debt}
-          vacantArea={portfolioTotals.vacantArea}
-          occupancyPercent={portfolioOccupancy}
-          bestProfitBuilding={bestProfitBuilding ? { name: bestProfitBuilding.name, amount: bestProfitBuilding.profit } : null}
-          mostDebtBuilding={mostDebtBuilding && mostDebtBuilding.debt > 0 ? { name: mostDebtBuilding.name, amount: mostDebtBuilding.debt } : null}
-        />
       )}
 
       <OwnerNextActionCard action={ownerPrimaryAction} />
@@ -708,9 +519,6 @@ export default async function AdminDashboard() {
         openTasksCount={openTasksCount}
         documentsOnSignature={documentsOnSignature}
       />
-
-      {/* Cashflow chart */}
-      <CashflowChart months={months} />
 
       {!buildingId && buildingBreakdown.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -811,6 +619,9 @@ export default async function AdminDashboard() {
         />
       </div>
 
+      <DashboardLazySections forecastMonthlyRevenue={monthlyRevenue} showPortfolio={!buildingId} />
+
+      {(recentRequests.length > 0 || recentTasks.length > 0) && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <div className="flex items-center justify-between mb-4">
@@ -860,7 +671,9 @@ export default async function AdminDashboard() {
           )}
         </div>
       </div>
+      )}
 
+      {topTenants.length > 0 && (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Арендаторы</h2>
@@ -898,11 +711,14 @@ export default async function AdminDashboard() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
   })
 }
 
+// Kept temporarily as a server-side fallback while the portfolio section is lazy-loaded.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function OwnerPortfolioSummary({
   buildingsCount,
   income,

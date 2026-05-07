@@ -10,9 +10,7 @@ import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-acti
 import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
-import type { SpaceInfo } from "@/components/floor/floor-view"
-import { FloorViewLoader } from "@/components/floor/floor-view-loader"
-import { isLayoutV2 } from "@/lib/floor-layout"
+import { FloorPlanLazy } from "./floor-plan-lazy"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -65,7 +63,6 @@ type SelectedFloorInfo = {
   name: string
   ratePerSqm: number
   totalArea: number | null
-  layoutJson: string | null
   fullFloorTenant: { id: string; companyName: string; contractEnd: Date | null } | null
   spaces: SelectedSpaceInfo[]
 }
@@ -314,24 +311,6 @@ export default async function SpacesPage() {
   const rentableArea = rentableSpaces.reduce((s, sp) => s + sp.area, 0)
   const buildingTotalArea = building?.totalArea ?? 0
   const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
-  const tenantIds = Array.from(new Set(allSpaces.flatMap((space) => {
-    return [
-      space.tenant?.id,
-      ...space.tenantSpaces.map((item) => item.tenant.id),
-    ].filter((value): value is string => Boolean(value))
-  })))
-  const tenantDebtRows = tenantIds.length > 0
-    ? await measureServerStep("/admin/spaces", "tenant-debts", safe(
-        "admin.spaces.tenantDebts",
-        db.charge.groupBy({
-          by: ["tenantId"],
-          where: { tenantId: { in: tenantIds }, isPaid: false },
-          _sum: { amount: true },
-        }),
-        [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
-      ))
-    : []
-  const debtByTenant = new Map(tenantDebtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 
   const floors = building?.floors ?? []
   const floorOptions = floors.map((f) => ({
@@ -479,33 +458,6 @@ export default async function SpacesPage() {
         const floorOccupied = floor.spaces.filter((s) => s.status === "OCCUPIED").length
         const floorArea = floor.spaces.reduce((s, sp) => s + sp.area, 0)
 
-        // Парсим план этажа
-        let layout = null
-        if (floor.layoutJson) {
-          try {
-            const parsed = JSON.parse(floor.layoutJson)
-            if (isLayoutV2(parsed)) layout = parsed
-          } catch {}
-        }
-
-        // Готовим данные о помещениях для FloorView
-        const spaceInfos: SpaceInfo[] = floor.spaces.map((s) => {
-          const tenant = s.tenantSpaces[0]?.tenant ?? s.tenant
-          return {
-            id: s.id,
-            number: s.number,
-            area: s.area,
-            status: s.status,
-            description: s.description,
-            tenant: tenant ? {
-              id: tenant.id,
-              companyName: tenant.companyName,
-              contractEnd: tenant.contractEnd,
-              debt: debtByTenant.get(tenant.id) ?? 0,
-            } : null,
-          }
-        })
-
         const fullFloorTenant = floor.fullFloorTenant
         return (
           <div key={floor.id} id={`floor-${floor.id}`} className={cn(
@@ -565,24 +517,7 @@ export default async function SpacesPage() {
                 <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Нет помещений на этом этаже</p>
               ) : (
                 <div className="space-y-3">
-                  {/* Visual map — показываем только если фича включена и план задан */}
-                  {hasFloorEditor && layout && (
-                    <FloorViewLoader layout={layout} spaces={spaceInfos} />
-                  )}
-                  {hasFloorEditor && !layout && (
-                    <div className="relative border-2 border-dashed border-purple-200 dark:border-purple-500/30 rounded-lg p-4 bg-purple-50/30 dark:bg-purple-500/5 text-center">
-                      <div className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[9px] font-bold uppercase tracking-wider mb-1">
-                        BETA
-                      </div>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Визуализация помещения не настроена</p>
-                      <Link
-                        href={`/admin/floors/${floor.id}/visualization`}
-                        className="inline-flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                      >
-                        Загрузить PDF плана →
-                      </Link>
-                    </div>
-                  )}
+                  {hasFloorEditor && <FloorPlanLazy floorId={floor.id} />}
 
                   {/* Table */}
                   <table className="w-full text-xs border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
@@ -747,7 +682,6 @@ async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise
             name: true,
             ratePerSqm: true,
             totalArea: true,
-            layoutJson: true,
             fullFloorTenant: {
               select: { id: true, companyName: true, contractEnd: true },
             },
@@ -884,7 +818,6 @@ function normalizeLegacySelectedBuilding(building: {
       name: floor.name,
       ratePerSqm: floor.ratePerSqm,
       totalArea: null,
-      layoutJson: null,
       fullFloorTenant: null,
       spaces: floor.spaces.map((space) => ({
         id: space.id,

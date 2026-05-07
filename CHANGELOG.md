@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.139 - 2026-05-07
+
+- `/admin/spaces` больше не тянет `layoutJson` и долги арендаторов для всех этажей в первичном Server Components render: визуальный план этажа загружается отдельно через `/api/admin/floors/[id]/layout`.
+- Таблица помещений на `/admin/spaces` отдается быстрее: основной запрос оставлен для цифр, статусов, аренды и действий, а тяжелый FloorView появляется через skeleton после открытия страницы.
+- `/admin` вынес вторичные блоки в lazy-секцию `/api/admin/dashboard/secondary`: cashflow, сравнение зданий, последние заявки/задачи и топ арендаторов больше не блокируют первый экран дашборда.
+- Новый lazy endpoint дашборда сохраняет org/building scope и не доступен арендаторам.
+- Проверки: `npm run quality:audit`, `npm run test:mobile:typecheck`, `SKIP_DEPLOY_MIGRATIONS=1 npm run build`.
+- Rollback-точка: `rollback/pre-dashboard-spaces-lazy-1.3.139`.
+
 ## 1.3.138 - 2026-05-07
 
 - `/admin/tenants/[id]` разделён на быстрый верх карточки и lazy-секции: документы, email-лог, история, аренда целых этажей, договоры и последние начисления больше не грузятся в первичном Server Components render.
