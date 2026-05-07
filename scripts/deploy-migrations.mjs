@@ -1,12 +1,17 @@
 import { spawnSync } from "node:child_process"
-import { readdir } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import path from "node:path"
 import process from "node:process"
 import { Pool } from "pg"
 import "dotenv/config"
 
 const migrationsDir = path.join(process.cwd(), "prisma", "migrations")
+const customSqlDir = path.join(process.cwd(), "migrations")
 const prismaCli = path.join(process.cwd(), "node_modules", "prisma", "build", "index.js")
+const customSqlPatches = [
+  "013_mobile_foundation.sql",
+  "014_mobile_beta_readiness.sql",
+]
 
 function runPrisma(args) {
   const result = spawnSync(process.execPath, [prismaCli, ...args], {
@@ -52,6 +57,13 @@ function isLocalDatabaseUrl(url) {
   }
 }
 
+function poolConfig(url) {
+  return {
+    connectionString: url,
+    ssl: isLocalDatabaseUrl(url) ? false : { rejectUnauthorized: false },
+  }
+}
+
 function shouldSkipDeployMigrations(url) {
   if (process.env.SKIP_DEPLOY_MIGRATIONS === "1") return true
   if (process.env.FORCE_DEPLOY_MIGRATIONS === "1") return false
@@ -68,7 +80,7 @@ async function getMigrationHistory(url) {
     throw new Error("DATABASE_URL or DIRECT_URL is required for deploy migrations.")
   }
 
-  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } })
+  const pool = new Pool(poolConfig(url))
   try {
     const table = await pool.query("select to_regclass('public._prisma_migrations') as reg")
     if (!table.rows[0]?.reg) return { exists: false, appliedCount: 0 }
@@ -88,7 +100,7 @@ async function getMigrationHistory(url) {
 async function enableDenyByDefaultRls(url) {
   if (!url) throw new Error("DATABASE_URL or DIRECT_URL is required for RLS baseline.")
 
-  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } })
+  const pool = new Pool(poolConfig(url))
   try {
     await pool.query(`
       DO $$
@@ -140,7 +152,7 @@ async function enableDenyByDefaultRls(url) {
 async function hardenPrismaMigrationsTable(url) {
   if (!url) throw new Error("DATABASE_URL or DIRECT_URL is required for Prisma migration RLS hardening.")
 
-  const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } })
+  const pool = new Pool(poolConfig(url))
   try {
     await pool.query(`
       DO $$
@@ -173,6 +185,27 @@ async function hardenPrismaMigrationsTable(url) {
   }
 }
 
+async function applyCustomSqlPatches(url) {
+  if (!url) throw new Error("DATABASE_URL or DIRECT_URL is required for custom SQL patches.")
+
+  const pool = new Pool(poolConfig(url))
+  try {
+    for (const fileName of customSqlPatches) {
+      const filePath = path.join(customSqlDir, fileName)
+      const sql = await readFile(filePath, "utf8").catch(() => null)
+      if (!sql?.trim()) {
+        console.warn(`[deploy-migrations] Custom SQL patch not found or empty: ${fileName}`)
+        continue
+      }
+
+      console.log(`[deploy-migrations] Applying custom SQL patch: ${fileName}`)
+      await pool.query(sql)
+    }
+  } finally {
+    await pool.end()
+  }
+}
+
 async function localMigrations() {
   const entries = await readdir(migrationsDir, { withFileTypes: true })
   return entries
@@ -184,6 +217,7 @@ async function localMigrations() {
 async function baselineCurrentSchema(url) {
   console.log("[deploy-migrations] No Prisma migration history found. Running safe baseline.")
   runPrisma(["db", "push"])
+  await applyCustomSqlPatches(url)
   await enableDenyByDefaultRls(url)
 
   for (const migration of await localMigrations()) {
@@ -204,6 +238,8 @@ async function main() {
   const history = await getMigrationHistory(url)
   if (history.exists && history.appliedCount > 0) {
     runPrisma(["migrate", "deploy"])
+    await applyCustomSqlPatches(url)
+    await enableDenyByDefaultRls(url)
     await hardenPrismaMigrationsTable(url)
     return
   }

@@ -1,8 +1,10 @@
 import * as Device from "expo-device"
+import { Directory, File, Paths } from "expo-file-system"
 import * as LocalAuthentication from "expo-local-authentication"
 import * as Notifications from "expo-notifications"
 import * as SecureStore from "expo-secure-store"
 import Constants from "expo-constants"
+import { captureMobileException } from "@/lib/sentry"
 import type {
   BuildingNotice,
   AdminBuildingsPayload,
@@ -14,6 +16,7 @@ import type {
   MobileBootstrap,
   MobileNotificationSettingsPayload,
   MobileNotificationsPayload,
+  MobileSessionsPayload,
   MobileTokens,
   OwnerOverviewPayload,
   PickedUploadFile,
@@ -274,6 +277,34 @@ export async function getTenantDocuments() {
   return authFetch<TenantDocumentsPayload>("/api/mobile/tenant/documents")
 }
 
+export async function downloadAuthorizedFile(url: string, fileName: string) {
+  const accessToken = await getValidAccessToken()
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`
+  const res = await fetch(fullUrl, {
+    headers: {
+      Authorization: accessToken ? `Bearer ${accessToken}` : "",
+    },
+  })
+
+  if (!res.ok) {
+    throw new ApiError(`Не удалось скачать документ: HTTP ${res.status}`, res.status)
+  }
+
+  const directory = new Directory(Paths.cache, "commrent-documents")
+  directory.create({ intermediates: true, idempotent: true })
+
+  const safeName = safeFileName(fileName)
+  const file = new File(directory, safeName)
+  file.create({ intermediates: true, overwrite: true })
+  file.write(new Uint8Array(await res.arrayBuffer()))
+
+  return {
+    uri: file.uri,
+    name: safeName,
+    mimeType: res.headers.get("content-type") ?? undefined,
+  }
+}
+
 export async function startDocumentSignatureDraft(input: {
   requestId: string
   method: "SMS_OTP_DRAFT" | "NCA_LAYER_DRAFT"
@@ -370,11 +401,25 @@ export async function updateMobileNotificationSettings(input: {
   notifyTelegram?: boolean
   notifyInApp?: boolean
   notifySms?: boolean
+  quietHoursEnabled?: boolean
+  quietFrom?: string
+  quietTo?: string
   mutedTypes?: string[]
 }) {
   return authFetch<Pick<MobileNotificationSettingsPayload, "settings">>("/api/mobile/notification-settings", {
     method: "PATCH",
     body: JSON.stringify(input),
+  })
+}
+
+export async function getMobileSessions() {
+  return authFetch<MobileSessionsPayload>("/api/mobile/security/sessions")
+}
+
+export async function revokeMobileSession(sessionId: string) {
+  return authFetch<{ ok: boolean }>("/api/mobile/security/sessions", {
+    method: "DELETE",
+    body: JSON.stringify({ sessionId }),
   })
 }
 
@@ -412,14 +457,20 @@ export async function unregisterPushDevice() {
 async function authFetch<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const accessToken = await getValidAccessToken()
   const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
-      ...(options.headers ?? {}),
-      Authorization: accessToken ? `Bearer ${accessToken}` : "",
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(isMultipart ? {} : { "Content-Type": "application/json" }),
+        ...(options.headers ?? {}),
+        Authorization: accessToken ? `Bearer ${accessToken}` : "",
+      },
+    })
+  } catch (error) {
+    captureMobileException(error, { path, method: options.method ?? "GET" })
+    throw error
+  }
 
   if (res.status === 401 && retry) {
     await refreshMobileSession()
@@ -434,7 +485,7 @@ async function getExpoPushToken() {
     throw new Error("Push notifications require a physical device")
   }
 
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId
+  const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId
   const token = await Notifications.getExpoPushTokenAsync(
     projectId ? { projectId } : undefined,
   )
@@ -442,24 +493,34 @@ async function getExpoPushToken() {
 }
 
 async function plainFetch<T>(path: string, options: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers ?? {}),
+      },
+    })
+  } catch (error) {
+    captureMobileException(error, { path, method: options.method ?? "GET" })
+    throw error
+  }
   return parseResponse<T>(res)
 }
 
 async function parseResponse<T>(res: Response): Promise<T> {
   const payload = await res.json().catch(() => null)
   if (!res.ok) {
-    throw new ApiError(
+    const error = new ApiError(
       payload?.error ?? `HTTP ${res.status}`,
       res.status,
       payload?.code,
     )
+    if (res.status >= 500) {
+      captureMobileException(error, { status: res.status, code: payload?.code })
+    }
+    throw error
   }
   return payload as T
 }
@@ -526,6 +587,12 @@ function appendUploadFile(form: FormData, key: string, file: PickedUploadFile) {
     name: file.name,
     type: file.mimeType,
   } as unknown as Blob)
+}
+
+function safeFileName(value: string) {
+  const trimmed = value.trim() || `commrent-document-${Date.now()}`
+  const normalized = trimmed.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_").slice(0, 120)
+  return normalized.includes(".") ? normalized : `${normalized}.pdf`
 }
 
 function getDeviceAuthLabel(

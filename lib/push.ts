@@ -22,6 +22,7 @@ type ExpoPushMessage = {
 type PushDeviceRow = {
   id: string
   token: string
+  timezone?: string | null
 }
 
 export function isExpoPushToken(token: string) {
@@ -29,28 +30,44 @@ export function isExpoPushToken(token: string) {
 }
 
 export async function sendPushToUser(userId: string, payload: PushPayload) {
-  const devices = await safeServerValue<PushDeviceRow[]>(
-    db.pushDevice.findMany({
-      where: {
-        userId,
-        provider: "EXPO",
-        isActive: true,
-        revokedAt: null,
+  const [user, devices] = await Promise.all([
+    db.user.findUnique({
+      where: { id: userId },
+      select: {
+        notifyQuietHoursEnabled: true,
+        notifyQuietFrom: true,
+        notifyQuietTo: true,
       },
-      select: { id: true, token: true },
-    }),
-    [],
-    {
-      source: "push.devices.lookup",
-      route: "/server/push",
-      userId,
-      entity: "pushDevice",
-      extra: { provider: "EXPO", activeOnly: true },
-    },
-  )
+    }).catch(() => null),
+    safeServerValue<PushDeviceRow[]>(
+      db.pushDevice.findMany({
+        where: {
+          userId,
+          provider: "EXPO",
+          isActive: true,
+          revokedAt: null,
+        },
+        select: { id: true, token: true, timezone: true },
+      }),
+      [],
+      {
+        source: "push.devices.lookup",
+        route: "/server/push",
+        userId,
+        entity: "pushDevice",
+        extra: { provider: "EXPO", activeOnly: true },
+      },
+    ),
+  ])
 
   const messages = devices
     .filter((device) => isExpoPushToken(device.token))
+    .filter((device) => !isQuietHoursForDevice({
+      enabled: user?.notifyQuietHoursEnabled ?? false,
+      from: user?.notifyQuietFrom ?? "22:00",
+      to: user?.notifyQuietTo ?? "08:00",
+      timezone: device.timezone,
+    }))
     .map((device): ExpoPushMessage => ({
       to: device.token,
       title: payload.title,
@@ -62,6 +79,48 @@ export async function sendPushToUser(userId: string, payload: PushPayload) {
 
   if (messages.length === 0) return { sent: 0, failed: 0 }
   return sendExpoPushMessages(messages)
+}
+
+function isQuietHoursForDevice(input: {
+  enabled: boolean
+  from: string
+  to: string
+  timezone?: string | null
+}) {
+  if (!input.enabled) return false
+
+  const current = minutesNow(input.timezone)
+  const from = parseClock(input.from)
+  const to = parseClock(input.to)
+  if (from === to) return false
+
+  return from < to
+    ? current >= from && current < to
+    : current >= from || current < to
+}
+
+function minutesNow(timezone?: string | null) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: timezone || "Asia/Qyzylorda",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date())
+
+    const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0")
+    const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0")
+    return hour * 60 + minute
+  } catch {
+    const now = new Date()
+    return now.getHours() * 60 + now.getMinutes()
+  }
+}
+
+function parseClock(value: string) {
+  const [hours, minutes] = value.split(":").map((part) => Number(part))
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return 0
+  return Math.min(23, Math.max(0, hours)) * 60 + Math.min(59, Math.max(0, minutes))
 }
 
 async function sendExpoPushMessages(messages: ExpoPushMessage[]) {

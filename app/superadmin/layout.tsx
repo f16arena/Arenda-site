@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import Link from "next/link"
 import {
+  Activity,
   ArrowLeft,
   BarChart3,
   Bug,
@@ -40,6 +41,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
           <SideLink href="/superadmin/plans" icon={Package} label="Тарифы" />
           <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
           <SideLink href="/superadmin/errors" icon={Bug} label="Ошибки сайта" />
+          <SideLink href="/superadmin/system-health" icon={Activity} label="Проверка системы" />
           <SideLink href="/superadmin/profile" icon={UserCircle} label="Профиль" />
 
           <div className="my-3 border-t border-purple-800" />

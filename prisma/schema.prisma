@@ -25,6 +25,9 @@ model User {
   notifyTelegram   Boolean   @default(true) @map("notify_telegram")
   notifyInApp      Boolean   @default(true) @map("notify_in_app")
   notifySms        Boolean   @default(false) @map("notify_sms") // SMS дороже — выключено по умолчанию
+  notifyQuietHoursEnabled Boolean @default(false) @map("notify_quiet_hours_enabled")
+  notifyQuietFrom         String  @default("22:00") @map("notify_quiet_from")
+  notifyQuietTo           String  @default("08:00") @map("notify_quiet_to")
   // Какие типы событий присылать (JSON-объект с булевыми полями)
   // Если null — все типы включены. Иначе ключ с false выключает уведомления этого типа.
   notifyMutedTypes Json?     @map("notify_muted_types")

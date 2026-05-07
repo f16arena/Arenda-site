@@ -17,6 +17,9 @@ export async function GET(req: Request) {
         notifyTelegram: true,
         notifyInApp: true,
         notifySms: true,
+        notifyQuietHoursEnabled: true,
+        notifyQuietFrom: true,
+        notifyQuietTo: true,
         notifyMutedTypes: true,
       },
     }),
@@ -48,6 +51,9 @@ export async function GET(req: Request) {
       notifyTelegram: user.notifyTelegram,
       notifyInApp: user.notifyInApp,
       notifySms: user.notifySms,
+      quietHoursEnabled: user.notifyQuietHoursEnabled,
+      quietFrom: user.notifyQuietFrom,
+      quietTo: user.notifyQuietTo,
       mutedTypes: normalizeMutedTypes(user.notifyMutedTypes),
       eventTypes: MOBILE_NOTIFICATION_TYPES,
     },
@@ -64,6 +70,9 @@ export async function PATCH(req: Request) {
     notifyTelegram?: boolean
     notifyInApp?: boolean
     notifySms?: boolean
+    quietHoursEnabled?: boolean
+    quietFrom?: string
+    quietTo?: string
     mutedTypes?: unknown
   } | null
 
@@ -74,6 +83,9 @@ export async function PATCH(req: Request) {
     notifyTelegram?: boolean
     notifyInApp?: boolean
     notifySms?: boolean
+    notifyQuietHoursEnabled?: boolean
+    notifyQuietFrom?: string
+    notifyQuietTo?: string
     notifyMutedTypes?: string[]
   } = {}
 
@@ -81,6 +93,9 @@ export async function PATCH(req: Request) {
   if (typeof body.notifyTelegram === "boolean") data.notifyTelegram = body.notifyTelegram
   if (typeof body.notifyInApp === "boolean") data.notifyInApp = body.notifyInApp
   if (typeof body.notifySms === "boolean") data.notifySms = body.notifySms
+  if (typeof body.quietHoursEnabled === "boolean") data.notifyQuietHoursEnabled = body.quietHoursEnabled
+  if (typeof body.quietFrom === "string" && isClockValue(body.quietFrom)) data.notifyQuietFrom = body.quietFrom
+  if (typeof body.quietTo === "string" && isClockValue(body.quietTo)) data.notifyQuietTo = body.quietTo
   if ("mutedTypes" in body) data.notifyMutedTypes = normalizeMutedTypes(body.mutedTypes)
 
   const updated = await db.user.update({
@@ -91,6 +106,9 @@ export async function PATCH(req: Request) {
       notifyTelegram: true,
       notifyInApp: true,
       notifySms: true,
+      notifyQuietHoursEnabled: true,
+      notifyQuietFrom: true,
+      notifyQuietTo: true,
       notifyMutedTypes: true,
     },
   })
@@ -101,8 +119,15 @@ export async function PATCH(req: Request) {
       notifyTelegram: updated.notifyTelegram,
       notifyInApp: updated.notifyInApp,
       notifySms: updated.notifySms,
+      quietHoursEnabled: updated.notifyQuietHoursEnabled,
+      quietFrom: updated.notifyQuietFrom,
+      quietTo: updated.notifyQuietTo,
       mutedTypes: normalizeMutedTypes(updated.notifyMutedTypes),
       eventTypes: MOBILE_NOTIFICATION_TYPES,
     },
   })
+}
+
+function isClockValue(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
 }

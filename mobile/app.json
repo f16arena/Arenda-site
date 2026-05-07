@@ -3,6 +3,7 @@
     "name": "Commrent",
     "slug": "commrent-mobile",
     "version": "1.0.0",
+    "runtimeVersion": "1.0.0",
     "scheme": "commrent",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -15,6 +16,7 @@
     },
     "ios": {
       "supportsTablet": true,
+      "buildNumber": "1",
       "bundleIdentifier": "kz.commrent.app",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Commrent использует Face ID для быстрого входа в мобильный кабинет.",
@@ -24,9 +26,13 @@
     },
     "android": {
       "package": "kz.commrent.app",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
         "READ_MEDIA_IMAGES"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -55,7 +61,8 @@
           "cameraPermission": "Commrent использует камеру для фото чеков и заявок."
         }
       ],
-      "expo-document-picker"
+      "expo-document-picker",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

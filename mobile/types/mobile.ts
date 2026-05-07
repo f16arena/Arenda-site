@@ -326,6 +326,9 @@ export type MobileNotificationSettings = {
   notifyTelegram: boolean
   notifyInApp: boolean
   notifySms: boolean
+  quietHoursEnabled: boolean
+  quietFrom: string
+  quietTo: string
   mutedTypes: string[]
   eventTypes: MobileNotificationEventType[]
 }
@@ -333,6 +336,23 @@ export type MobileNotificationSettings = {
 export type MobileNotificationSettingsPayload = {
   settings: MobileNotificationSettings
   devices: MobilePushDevice[]
+}
+
+export type MobileSessionInfo = {
+  id: string
+  deviceId?: string | null
+  deviceName?: string | null
+  platform?: string | null
+  appVersion?: string | null
+  ip?: string | null
+  expiresAt: string
+  refreshExpiresAt: string
+  lastUsedAt: string
+  createdAt: string
+}
+
+export type MobileSessionsPayload = {
+  data: MobileSessionInfo[]
 }
 
 export type AdminTodayPayload = {

@@ -1,0 +1,71 @@
+name: Full Site Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 2 * * 1"
+
+jobs:
+  full-site-audit:
+    name: Full site Playwright audit
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      SKIP_DEPLOY_MIGRATIONS: "1"
+      AUTH_SECRET: ci-auth-secret-change-in-production
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      ROOT_HOST: 127.0.0.1:3000
+      SETUP_SECRET: ci-setup-secret
+      CRON_SECRET: ci-cron-secret
+      RESEND_API_KEY: ""
+      EMAIL_FROM: "Commrent <noreply@example.com>"
+      SENTRY_DSN: ""
+      NEXT_PUBLIC_SENTRY_DSN: ""
+      E2E_PORT: "3000"
+      PORT: "3000"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prepare Prisma schema
+        run: |
+          npx prisma generate
+          npx prisma db push --skip-generate
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run full site audit
+        run: npm run audit:site
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-site-audit-artifacts
+          path: |
+            test-results/e2e-artifacts
+            playwright-report
+          if-no-files-found: ignore

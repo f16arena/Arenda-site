@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.133 - 2026-05-07
+
+- Добавлена отдельная страница `/superadmin/system-health`: суперпользователь видит production readiness по базе, миграциям, RLS, env, cron, storage, SEO, observability и performance budget.
+- В меню суперпользователя добавлен пункт “Проверка системы”, рядом с журналом и ошибками сайта.
+- `lib/system-health.ts` обновлен под текущую схему: проверяются mobile sessions, push devices, building notices, document signature requests, quiet hours, VAT, addendum workflow и `_prisma_migrations` RLS.
+- CI усилился: public smoke теперь поднимает PostgreSQL и применяет Prisma schema перед Playwright, добавлен отдельный `Mobile typecheck`.
+- Добавлен отдельный GitHub Actions workflow `Full Site Audit` для ручного/еженедельного полного обхода публичных и защищенных страниц с Playwright-артефактами.
+- Mobile beta readiness усилен: EAS profiles/workflow, Sentry shell, quiet hours для уведомлений, список/revoke mobile sessions, document download/share flow и rate limit для mobile login.
+- `scripts/deploy-migrations.mjs` теперь применяет idempotent SQL-патчи mobile foundation/beta readiness и повторно включает deny-by-default RLS, чтобы production не отставал от Prisma-схемы.
+- Добавлен rollback-тег `rollback/pre-superadmin-health-mobile-ci-1.3.133`.
+
 ## 1.3.132 - 2026-05-07
 
 - Добавлен большой mobile foundation: bearer-auth для мобильного API, mobile sessions, bootstrap, tenant/admin/owner endpoints, push-devices, building notices и draft-заявки на подписание документов.

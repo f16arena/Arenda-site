@@ -5,6 +5,11 @@ import {
   MobileAuthError,
   verifyMobileCredentials,
 } from "@/lib/mobile-auth"
+import {
+  checkMobileAuthRateLimit,
+  clearMobileAuthFailures,
+  recordMobileAuthFailure,
+} from "@/lib/mobile-rate-limit"
 
 export const dynamic = "force-dynamic"
 
@@ -23,6 +28,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Login and password are required" }, { status: 400 })
   }
 
+  const rateLimitKey = getRateLimitKey(req, body.login)
+  const rateLimit = checkMobileAuthRateLimit(rateLimitKey)
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: "Too many login attempts", code: "RATE_LIMITED" },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+      },
+    )
+  }
+
   try {
     const user = await verifyMobileCredentials({
       login: body.login,
@@ -37,11 +54,14 @@ export async function POST(req: Request) {
       appVersion: body.appVersion,
     })
 
+    clearMobileAuthFailures(rateLimitKey)
+
     return NextResponse.json({
       user: publicUser(user),
       tokens,
     })
   } catch (e) {
+    recordMobileAuthFailure(rateLimitKey)
     if (e instanceof MobileAuthError) {
       return NextResponse.json(
         { error: e.message, code: e.code },
@@ -50,6 +70,12 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: "Login failed" }, { status: 500 })
   }
+}
+
+function getRateLimitKey(req: Request, login: string) {
+  const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+  const ip = forwardedFor || req.headers.get("x-real-ip") || "unknown"
+  return `${ip}:${login.trim().toLowerCase()}`
 }
 
 function publicUser(user: {

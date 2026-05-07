@@ -2,6 +2,7 @@ import { Image } from "expo-image"
 import * as DocumentPicker from "expo-document-picker"
 import * as ImagePicker from "expo-image-picker"
 import * as Notifications from "expo-notifications"
+import * as Sharing from "expo-sharing"
 import type { ComponentProps } from "react"
 import { useEffect, useMemo, useState } from "react"
 import {
@@ -21,6 +22,7 @@ import {
   ApiError,
   createBuildingNotice,
   createTenantRequest,
+  downloadAuthorizedFile,
   getAdminBuildings,
   getAdminPaymentReports,
   getAdminRequests,
@@ -30,6 +32,7 @@ import {
   getMobileBootstrap,
   getMobileNotificationSettings,
   getMobileNotifications,
+  getMobileSessions,
   getOwnerOverview,
   getTenantDocuments,
   getTenantFinances,
@@ -43,6 +46,7 @@ import {
   registerPushDevice,
   reportTenantPayment,
   reviewAdminPaymentReport,
+  revokeMobileSession,
   startDocumentSignatureDraft,
   submitTenantMeterReading,
   unregisterPushDevice,
@@ -52,6 +56,7 @@ import {
 } from "@/lib/api"
 import { clearMobileCache, readCache, writeCache } from "@/lib/cache"
 import { getLocalPushPreferences, isQuietHoursNow, saveLocalPushPreferences, type LocalPushPreferences } from "@/lib/preferences"
+import { setMobileSentryUser } from "@/lib/sentry"
 import type {
   AdminBuildingsPayload,
   AdminPaymentReportsPayload,
@@ -62,6 +67,7 @@ import type {
   MobileNotification,
   MobileNotificationSettingsPayload,
   MobileNotificationsPayload,
+  MobileSessionInfo,
   OwnerOverviewPayload,
   PickedUploadFile,
   TenantDocumentsPayload,
@@ -214,6 +220,11 @@ export default function HomeScreen() {
 
       setBootstrap(next)
       setData(nextData)
+      setMobileSentryUser({
+        id: next.user.id,
+        role: next.user.role,
+        organizationId: next.organization.id,
+      })
       setCacheState({ fromCache: false, savedAt: new Date().toISOString() })
       await writeCache<CachedDashboard>(DASHBOARD_CACHE_KEY, { bootstrap: next, data: nextData })
 
@@ -225,6 +236,11 @@ export default function HomeScreen() {
         if (cached) {
           setBootstrap(cached.value.bootstrap)
           setData(cached.value.data)
+          setMobileSentryUser({
+            id: cached.value.bootstrap.user.id,
+            role: cached.value.bootstrap.user.role,
+            organizationId: cached.value.bootstrap.organization.id,
+          })
           setCacheState({
             fromCache: true,
             savedAt: cached.savedAt,
@@ -299,6 +315,7 @@ export default function HomeScreen() {
     setActiveTab("home")
     setHasSavedSession(false)
     setCanUseDeviceAuth(false)
+    setMobileSentryUser(null)
     setCacheState({ fromCache: false })
     await clearMobileCache()
   }
@@ -824,19 +841,46 @@ function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
 }
 
 function DocumentRow({ title, subtitle, url }: { title: string; subtitle: string; url?: string | null }) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function openDocument() {
+    if (!url || busy) return
+    setBusy(true)
+    setMessage(null)
+    try {
+      const file = await downloadAuthorizedFile(url, title)
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: file.mimeType,
+          dialogTitle: title,
+        })
+      } else {
+        await Linking.openURL(file.uri)
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось открыть документ")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <Pressable
-      disabled={!url}
-      onPress={() => url ? Linking.openURL(url) : null}
-      style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5, opacity: url ? 1 : 0.55 }}
-    >
-      <Image source="sf:doc.text.fill" style={{ width: 19, height: 19, tintColor: colors.blue }} />
-      <View style={{ flex: 1 }}>
-        <Text selectable numberOfLines={1} style={{ color: colors.text, fontWeight: "800" }}>{title}</Text>
-        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text>
-      </View>
-      <Image source="sf:arrow.up.right.square" style={{ width: 17, height: 17, tintColor: colors.muted }} />
-    </Pressable>
+    <View style={{ gap: 6 }}>
+      <Pressable
+        disabled={!url || busy}
+        onPress={openDocument}
+        style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5, opacity: url ? 1 : 0.55 }}
+      >
+        <Image source="sf:doc.text.fill" style={{ width: 19, height: 19, tintColor: colors.blue }} />
+        <View style={{ flex: 1 }}>
+          <Text selectable numberOfLines={1} style={{ color: colors.text, fontWeight: "800" }}>{title}</Text>
+          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{busy ? "Скачиваем..." : subtitle}</Text>
+        </View>
+        <Image source={busy ? "sf:arrow.down.circle" : "sf:square.and.arrow.up"} style={{ width: 17, height: 17, tintColor: colors.muted }} />
+      </Pressable>
+      {message ? <InlineMessage message={message} tone="error" /> : null}
+    </View>
   )
 }
 
@@ -1118,13 +1162,23 @@ function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: Mobile
   const [pushState, setPushState] = useState<string | null>(null)
   const [localSettings, setLocalSettings] = useState<MobileNotificationSettingsPayload | null>(settings)
   const [pushPreferences, setPushPreferences] = useState<LocalPushPreferences | null>(null)
+  const [sessions, setSessions] = useState<MobileSessionInfo[]>([])
+  const [sessionsBusy, setSessionsBusy] = useState(false)
 
   useEffect(() => {
     setLocalSettings(settings)
+    if (settings) {
+      setPushPreferences({
+        quietHoursEnabled: settings.settings.quietHoursEnabled,
+        quietFrom: settings.settings.quietFrom,
+        quietTo: settings.settings.quietTo,
+      })
+    }
   }, [settings])
 
   useEffect(() => {
-    getLocalPushPreferences().then(setPushPreferences).catch(() => null)
+    if (!settings) getLocalPushPreferences().then(setPushPreferences).catch(() => null)
+    loadSessions()
   }, [])
 
   async function enablePush() {
@@ -1181,6 +1235,53 @@ function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: Mobile
   async function updateQuietHours(next: LocalPushPreferences) {
     setPushPreferences(next)
     await saveLocalPushPreferences(next)
+    setLocalSettings((current) => current
+      ? {
+          ...current,
+          settings: {
+            ...current.settings,
+            quietHoursEnabled: next.quietHoursEnabled,
+            quietFrom: next.quietFrom,
+            quietTo: next.quietTo,
+          },
+        }
+      : current)
+    try {
+      await updateMobileNotificationSettings({
+        quietHoursEnabled: next.quietHoursEnabled,
+        quietFrom: next.quietFrom,
+        quietTo: next.quietTo,
+      })
+      onChanged()
+    } catch (e) {
+      setPushState(e instanceof Error ? e.message : "Не удалось сохранить тихие часы")
+    }
+  }
+
+  async function loadSessions() {
+    setSessionsBusy(true)
+    try {
+      const payload = await getMobileSessions()
+      setSessions(payload.data)
+    } catch {
+      setSessions([])
+    } finally {
+      setSessionsBusy(false)
+    }
+  }
+
+  async function revokeSession(sessionId: string) {
+    setSessionsBusy(true)
+    setPushState(null)
+    try {
+      await revokeMobileSession(sessionId)
+      await loadSessions()
+      setPushState("Сессия отключена")
+    } catch (e) {
+      setPushState(e instanceof Error ? e.message : "Не удалось отключить сессию")
+    } finally {
+      setSessionsBusy(false)
+    }
   }
 
   return (
@@ -1222,6 +1323,21 @@ function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: Mobile
             />
           )
         })}
+      </Card>
+      <SectionTitle title="Безопасность" />
+      <Card>
+        <ActionRow icon="lock.shield.fill" title="Активные входы" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} />
+        {sessions.map((session) => (
+          <View key={session.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 8 }}>
+            <CompactRow
+              title={session.deviceName ?? session.platform ?? "Мобильное устройство"}
+              subtitle={`${session.platform ?? "APP"} · ${session.ip ?? "IP скрыт"} · ${formatDateTime(session.lastUsedAt)}`}
+              tone={colors.slate}
+            />
+            <SecondaryButton title="Отключить вход" icon="xmark.circle.fill" onPress={() => revokeSession(session.id)} />
+          </View>
+        ))}
+        {sessions.length === 0 && !sessionsBusy ? <EmptyState title="Активных мобильных входов нет" /> : null}
       </Card>
       <SectionTitle title="Объекты" />
       <Card>

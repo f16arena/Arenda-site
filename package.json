@@ -1,6 +1,6 @@
 {
   "name": "arenda-pro",
-  "version": "1.3.132",
+  "version": "1.3.133",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,6 +14,7 @@
     "test:e2e:web": "playwright test",
     "test:e2e:web:headed": "playwright test --headed",
     "test:e2e:web:report": "playwright show-report",
+    "test:mobile:typecheck": "npm --prefix mobile run typecheck",
     "audit:site": "playwright test tests/e2e/full-site-audit.spec.ts --project=chromium-desktop --workers=1",
     "quality:audit": "npm run lint && npm run perf:audit && npm run security:audit && npm run test:e2e:payment && npm run test:e2e:isolation"
   },

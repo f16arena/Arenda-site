@@ -51,6 +51,8 @@ const REQUIRED_TABLES = [
   "tenant_spaces",
   "tenant_bank_accounts",
   "tenants",
+  "tariffs",
+  "staff",
   "cash_accounts",
   "cash_transactions",
   "charges",
@@ -70,14 +72,28 @@ const REQUIRED_TABLES = [
   "requests",
   "request_comments",
   "tasks",
+  "expenses",
+  "salary_payments",
   "messages",
+  "emergency_contacts",
   "notifications",
+  "leads",
+  "complaints",
   "audit_logs",
   "email_logs",
   "role_permissions",
+  "verification_tokens",
+  "push_devices",
+  "mobile_sessions",
+  "building_notices",
+  "document_signature_requests",
 ] as const
 
 const REQUIRED_COLUMNS = [
+  {
+    table: "users",
+    columns: ["notify_quiet_hours_enabled", "notify_quiet_from", "notify_quiet_to"],
+  },
   {
     table: "organizations",
     columns: [
@@ -109,7 +125,7 @@ const REQUIRED_COLUMNS = [
   },
   {
     table: "tenants",
-    columns: ["space_id", "custom_rate", "fixed_monthly_rent", "legal_type", "iin"],
+    columns: ["space_id", "custom_rate", "fixed_monthly_rent", "legal_type", "iin", "is_vat_payer", "vat_rate"],
   },
   {
     table: "tenant_spaces",
@@ -143,6 +159,26 @@ const REQUIRED_COLUMNS = [
     table: "web_vital_metrics",
     columns: ["organization_id", "name", "value", "path", "created_at"],
   },
+  {
+    table: "contracts",
+    columns: ["parent_contract_id", "change_kind", "change_payload", "effective_date", "applied_at"],
+  },
+  {
+    table: "push_devices",
+    columns: ["user_id", "organization_id", "provider", "token", "platform", "is_active", "last_seen_at"],
+  },
+  {
+    table: "mobile_sessions",
+    columns: ["user_id", "organization_id", "access_token_hash", "refresh_token_hash", "expires_at", "refresh_expires_at", "revoked_at"],
+  },
+  {
+    table: "building_notices",
+    columns: ["organization_id", "building_id", "title", "message", "severity", "starts_at", "ends_at"],
+  },
+  {
+    table: "document_signature_requests",
+    columns: ["organization_id", "recipient_user_id", "document_type", "status", "channel", "allowed_methods", "sign_token", "signed_at"],
+  },
 ] as const
 
 const RECENT_REQUIRED_MIGRATIONS = [
@@ -158,7 +194,13 @@ const RECENT_REQUIRED_MIGRATIONS = [
   "20260505003000_performance_indexes",
   "20260505004000_web_vital_metrics",
   "20260505010000_tenant_bank_accounts",
+  "20260505013000_tenant_vat_rate",
+  "20260505030000_contract_addendum_workflow",
+  "20260506060000_harden_prisma_migrations_rls",
+  "20260506100000_chat_and_document_performance_indexes",
   "20260506110000_task_building_relation",
+  "20260507120000_push_devices",
+  "20260507133000_mobile_beta_readiness",
 ] as const
 
 const EXPECTED_CRONS = [
@@ -620,7 +662,6 @@ async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "
       AND g.grantee IN ('anon', 'authenticated')
     WHERE n.nspname = 'public'
       AND c.relkind = 'r'
-      AND c.relname <> '_prisma_migrations'
     GROUP BY c.relname, c.relrowsecurity
     ORDER BY c.relname
   `

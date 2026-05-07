@@ -151,6 +151,14 @@ Mobile API:
 - Admin/owner/facility-manager notice composer for building events.
 - Notifications screen: in-app notification history, unread counter, mark-all-read action, and building notice history.
 - Push settings: active devices, enable/disable push for the current device, local quiet hours, and event-type muting.
+- Beta readiness:
+  - EAS preview/production profiles;
+  - manual EAS workflow for iOS/Android preview builds;
+  - mobile Sentry integration;
+  - server-side quiet hours for push delivery;
+  - mobile session revoke screen;
+  - authenticated document download/share;
+  - mobile auth rate limiting.
 - Tenant sections on the main mobile screen:
   - debt/rent/placement summary;
   - requisites and "I paid" payment report draft;
