@@ -148,6 +148,44 @@ export async function loginMobile(input: {
   return res
 }
 
+export async function registerMobile(input: {
+  companyName: string
+  slug: string
+  ownerName: string
+  ownerEmail?: string
+  ownerPhone?: string
+  password: string
+  agreed: boolean
+}) {
+  const res = await plainFetch<MobileAuthResponse & {
+    organization?: {
+      id: string
+      name: string
+      slug: string
+      trialExpiresAt: string
+    }
+  }>("/api/mobile/auth/register", {
+    method: "POST",
+    body: JSON.stringify({
+      ...input,
+      ...getDeviceMeta(),
+    }),
+  })
+  await saveTokens(res.tokens)
+  return res
+}
+
+export async function requestMobilePasswordReset(email: string) {
+  return plainFetch<{
+    ok: boolean
+    message: string
+    previewLink?: string
+  }>("/api/mobile/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  })
+}
+
 export async function logoutMobile() {
   const refreshToken = await getStoredSecret(REFRESH_TOKEN_KEY)
   await authFetch("/api/mobile/auth/logout", {

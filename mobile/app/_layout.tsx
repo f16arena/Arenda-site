@@ -2,26 +2,24 @@ import { Stack } from "expo-router/stack"
 import { StatusBar } from "expo-status-bar"
 import * as Sentry from "@sentry/react-native"
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  Inter_800ExtraBold,
-  Inter_900Black,
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
   useFonts,
-} from "@expo-google-fonts/inter"
+} from "@expo-google-fonts/manrope"
 import { initMobileSentry } from "@/lib/sentry"
 
 initMobileSentry()
 
 function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    Inter_800ExtraBold,
-    Inter_900Black,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
   })
 
   if (!fontsLoaded) return null
@@ -38,7 +36,7 @@ function RootLayout() {
           contentStyle: { backgroundColor: "#f6f8fb" },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "Commrent" }} />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
       </Stack>
     </>
   )

@@ -90,7 +90,9 @@ import {
   logoutMobile,
   markMobileNotificationsRead,
   registerPushDevice,
+  registerMobile,
   reportTenantPayment,
+  requestMobilePasswordReset,
   reviewAdminPaymentReport,
   revokeMobileSession,
   startDocumentSignatureDraft,
@@ -132,26 +134,31 @@ import type {
 } from "@/types/mobile"
 
 const colors = {
-  background: "#f6f8fb",
+  background: "#f4f7fb",
   surface: "#ffffff",
+  surfaceMuted: "#f8fafc",
   text: "#0f172a",
   muted: "#64748b",
-  border: "#e2e8f0",
-  blue: "#2563eb",
+  faint: "#94a3b8",
+  border: "#dbe4ef",
+  blue: "#1d4ed8",
+  blueSoft: "#eff6ff",
   teal: "#0f766e",
+  tealSoft: "#ecfdf5",
   orange: "#ea580c",
   red: "#dc2626",
   green: "#059669",
   slate: "#0f172a",
+  disabled: "#737b89",
 }
 
 const fonts = {
-  regular: "Inter_400Regular",
-  medium: "Inter_500Medium",
-  semibold: "Inter_600SemiBold",
-  bold: "Inter_700Bold",
-  extraBold: "Inter_800ExtraBold",
-  black: "Inter_900Black",
+  regular: "Manrope_400Regular",
+  medium: "Manrope_500Medium",
+  semibold: "Manrope_600SemiBold",
+  bold: "Manrope_700Bold",
+  extraBold: "Manrope_800ExtraBold",
+  black: "Manrope_800ExtraBold",
 }
 
 type AppIconComponent = typeof Bell
@@ -345,7 +352,7 @@ export default function HomeScreen() {
       await writeCache<CachedDashboard>(DASHBOARD_CACHE_KEY, { bootstrap: next, data: nextData })
 
       const tabs = tabsForRole(role)
-      if (!tabs.some((tab) => tab.key === rootTab(activeTab))) setActiveTab(tabs[0]?.key ?? "home")
+      if (!isReachableTab(tabs, activeTab)) setActiveTab(tabs[0]?.key ?? "home")
     } catch (e) {
       if (allowCache) {
         const cached = await readCache<CachedDashboard>(DASHBOARD_CACHE_KEY)
@@ -369,7 +376,7 @@ export default function HomeScreen() {
           })
 
           const tabs = tabsForRole(cached.value.bootstrap.user.role)
-          if (!tabs.some((tab) => tab.key === rootTab(activeTab))) setActiveTab(tabs[0]?.key ?? "home")
+          if (!isReachableTab(tabs, activeTab)) setActiveTab(tabs[0]?.key ?? "home")
           return
         }
       }
@@ -574,17 +581,43 @@ function LoginScreen({
   onLoggedIn: () => Promise<void>
   onDeviceAuthLogin: () => Promise<void>
 }) {
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login")
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")
   const [totp, setTotp] = useState("")
   const [needsTotp, setNeedsTotp] = useState(false)
+  const [companyName, setCompanyName] = useState("")
+  const [slug, setSlug] = useState("")
+  const [slugTouched, setSlugTouched] = useState(false)
+  const [ownerName, setOwnerName] = useState("")
+  const [ownerEmail, setOwnerEmail] = useState("")
+  const [ownerPhone, setOwnerPhone] = useState("")
+  const [registerPassword, setRegisterPassword] = useState("")
+  const [agreed, setAgreed] = useState(false)
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1)
+  const [forgotEmail, setForgotEmail] = useState("")
   const [busy, setBusy] = useState(false)
   const [deviceAuthBusy, setDeviceAuthBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(error)
+  const [messageTone, setMessageTone] = useState<"error" | "success">("error")
 
   useEffect(() => {
     setMessage(error)
+    setMessageTone("error")
   }, [error])
+
+  function changeMode(nextMode: "login" | "register" | "forgot") {
+    setMode(nextMode)
+    setMessage(null)
+    setMessageTone("error")
+    setNeedsTotp(false)
+    if (nextMode === "register") setRegisterStep(1)
+  }
+
+  function updateCompanyName(value: string) {
+    setCompanyName(value)
+    if (!slugTouched) setSlug(makeMobileSlug(value))
+  }
 
   async function submitDeviceAuth() {
     setDeviceAuthBusy(true)
@@ -593,6 +626,7 @@ function LoginScreen({
       await onDeviceAuthLogin()
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Не удалось подтвердить быстрый вход")
+      setMessageTone("error")
     } finally {
       setDeviceAuthBusy(false)
     }
@@ -608,57 +642,226 @@ function LoginScreen({
       if (e instanceof ApiError && e.code === "TOTP_REQUIRED") {
         setNeedsTotp(true)
         setMessage("Введите код 2FA")
+        setMessageTone("error")
       } else {
         setMessage(e instanceof Error ? e.message : "Не удалось войти")
+        setMessageTone("error")
       }
     } finally {
       setBusy(false)
     }
   }
 
+  async function submitRegister() {
+    if (registerDisabled) {
+      setMessage(registerStep === 1 ? registerFirstStepHint : registerSecondStepHint)
+      setMessageTone("error")
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      await registerMobile({
+        companyName,
+        slug,
+        ownerName,
+        ownerEmail,
+        ownerPhone,
+        password: registerPassword,
+        agreed,
+      })
+      setMessage("Аккаунт создан. Открываем мобильный кабинет...")
+      setMessageTone("success")
+      await onLoggedIn()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось зарегистрироваться")
+      setMessageTone("error")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitForgotPassword() {
+    if (!forgotEmailValid) {
+      setMessage("Введите корректный email для восстановления")
+      setMessageTone("error")
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await requestMobilePasswordReset(forgotEmail)
+      setMessage(result.previewLink ? `${result.message}\n${result.previewLink}` : result.message)
+      setMessageTone("success")
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось отправить письмо")
+      setMessageTone("error")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const registerFirstStepDisabled = busy
+    || companyName.trim().length < 2
+    || slug.trim().length < 5
+  const ownerEmailValid = !ownerEmail.trim() || isEmailLike(ownerEmail.trim())
+  const forgotEmailValid = isEmailLike(forgotEmail.trim())
+  const registerFirstStepHint = companyName.trim().length < 2
+    ? "Введите название организации"
+    : slug.trim().length < 5
+      ? "Поддомен минимум 5 символов"
+      : "Организация готова, можно перейти дальше"
+  const registerSecondStepHint = ownerName.trim().length < 2
+    ? "Введите ФИО владельца"
+    : (!ownerEmail.trim() && !ownerPhone.trim())
+      ? "Укажите email или телефон владельца"
+      : !ownerEmailValid
+        ? "Проверьте формат email"
+        : registerPassword.length < 8
+          ? "Пароль минимум 8 символов"
+          : !agreed
+            ? "Подтвердите оферту и политику"
+            : "Все данные заполнены"
+
+  const registerDisabled = registerFirstStepDisabled
+    || ownerName.trim().length < 2
+    || (!ownerEmail.trim() && !ownerPhone.trim())
+    || !ownerEmailValid
+    || registerPassword.length < 8
+    || !agreed
+
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 18, gap: 14 }}>
-        <Card>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-start", padding: 18, paddingTop: 28, gap: 14 }}
+      >
+        <View style={{ width: "100%", maxWidth: 460, alignSelf: "center", gap: 14 }}>
+          <View style={{ paddingHorizontal: 4, gap: 6 }}>
+            <Text style={{ color: colors.text, fontSize: 30, fontFamily: fonts.black, fontWeight: "900" }}>Commrent</Text>
+            <Text style={{ color: colors.muted, fontSize: 15, lineHeight: 22, fontFamily: fonts.medium }}>Рабочий доступ к Commrent</Text>
+          </View>
+          <Card>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <IconBox icon="building.2.fill" color={colors.blue} />
             <View>
-              <Text style={{ color: colors.text, fontSize: 25, fontWeight: "900" }}>Commrent</Text>
-              <Text style={{ color: colors.muted, fontSize: 13 }}>Мобильный кабинет</Text>
+              <Text style={{ color: colors.text, fontSize: 22, fontFamily: fonts.black, fontWeight: "900" }}>{mode === "register" ? "Создание аккаунта" : mode === "forgot" ? "Восстановление" : "Добро пожаловать"}</Text>
+              <Text style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.medium }}>{mode === "register" ? "14 дней пробного доступа" : mode === "forgot" ? "Ссылка придет на email" : "Войдите в рабочий кабинет"}</Text>
             </View>
           </View>
-          {hasSavedSession ? (
-            <DeviceAuthButton
-              title={deviceAuthBusy ? "Проверяем..." : `Войти через ${deviceAuthLabel}`}
-              disabled={deviceAuthBusy || busy || !canUseDeviceAuth}
-              onPress={submitDeviceAuth}
-            />
+          <AuthModeTabs mode={mode} onChange={changeMode} />
+
+          {mode === "login" ? (
+            <>
+              {hasSavedSession ? (
+                <DeviceAuthButton
+                  title={deviceAuthBusy ? "Проверяем..." : `Войти через ${deviceAuthLabel}`}
+                  disabled={deviceAuthBusy || busy || !canUseDeviceAuth}
+                  onPress={submitDeviceAuth}
+                />
+              ) : null}
+              <Field
+                label="Телефон или email"
+                value={login}
+                onChangeText={setLogin}
+                autoCapitalize="none"
+                autoComplete="username"
+                importantForAutofill="yes"
+                keyboardType="email-address"
+                placeholder="+7 700 000 00 00"
+                textContentType="username"
+              />
+              <Field
+                label="Пароль"
+                value={password}
+                onChangeText={setPassword}
+                autoComplete="current-password"
+                importantForAutofill="yes"
+                secureTextEntry
+                placeholder="Введите пароль"
+                textContentType="password"
+              />
+              {needsTotp ? <Field label="Код 2FA" value={totp} onChangeText={setTotp} keyboardType="number-pad" placeholder="000000" /> : null}
+              {message ? <InlineMessage message={message} tone={messageTone} /> : null}
+              <PrimaryButton title={busy ? "Входим..." : "Войти"} disabled={busy || !login.trim() || !password.trim()} onPress={submit} />
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                <TextButton title="Забыли пароль?" onPress={() => changeMode("forgot")} />
+                <TextButton title="Создать аккаунт" onPress={() => changeMode("register")} />
+              </View>
+            </>
           ) : null}
-          <Field
-            label="Телефон или email"
-            value={login}
-            onChangeText={setLogin}
-            autoCapitalize="none"
-            autoComplete="username"
-            importantForAutofill="yes"
-            keyboardType="email-address"
-            placeholder="+7 700 000 00 00"
-            textContentType="username"
-          />
-          <Field
-            label="Пароль"
-            value={password}
-            onChangeText={setPassword}
-            autoComplete="current-password"
-            importantForAutofill="yes"
-            secureTextEntry
-            placeholder="Введите пароль"
-            textContentType="password"
-          />
-          {needsTotp ? <Field label="Код 2FA" value={totp} onChangeText={setTotp} keyboardType="number-pad" placeholder="000000" /> : null}
-          {message ? <InlineMessage message={message} tone="error" /> : null}
-          <PrimaryButton title={busy ? "Входим..." : "Войти"} disabled={busy || !login.trim() || !password.trim()} onPress={submit} />
-        </Card>
+
+          {mode === "register" ? (
+            <>
+              <RegisterStepHeader step={registerStep} />
+              {registerStep === 1 ? (
+                <>
+                  <Field label="Название организации" value={companyName} onChangeText={updateCompanyName} placeholder="Например, БЦ Комфорт" textContentType="organizationName" />
+                  <Field
+                    label="Поддомен"
+                    value={slug}
+                    onChangeText={(value) => {
+                      setSlugTouched(true)
+                      setSlug(makeMobileSlug(value))
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="comfort"
+                  />
+                  <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.medium }}>
+                    Адрес кабинета будет: {slug || "company"}.commrent.kz
+                  </Text>
+                  <HelperText tone={registerFirstStepDisabled ? "warning" : "success"} text={registerFirstStepHint} />
+                  {message ? <InlineMessage message={message} tone={messageTone} /> : null}
+                  <PrimaryButton title="Дальше" disabled={registerFirstStepDisabled} onPress={() => setRegisterStep(2)} />
+                </>
+              ) : (
+                <>
+                  <Field label="ФИО владельца" value={ownerName} onChangeText={setOwnerName} placeholder="Арыстан Нурланов" textContentType="name" />
+                  <Field label="Email владельца" value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="owner@company.kz" textContentType="emailAddress" />
+                  <Field label="Телефон владельца" value={ownerPhone} onChangeText={setOwnerPhone} autoComplete="tel" keyboardType="phone-pad" placeholder="+7 700 000 00 00" textContentType="telephoneNumber" />
+                  <Field label="Пароль" value={registerPassword} onChangeText={setRegisterPassword} autoComplete="new-password" secureTextEntry placeholder="Минимум 8 символов" textContentType="newPassword" />
+                  <ToggleRow
+                    title="Принимаю оферту и политику"
+                    subtitle="Без этого регистрация недоступна"
+                    value={agreed}
+                    onValueChange={setAgreed}
+                  />
+                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                    <TextButton title="Оферта" onPress={() => openExternalUrl("https://commrent.kz/offer").catch(() => null)} />
+                    <TextButton title="Конфиденциальность" onPress={() => openExternalUrl("https://commrent.kz/privacy").catch(() => null)} />
+                  </View>
+                  <HelperText tone={registerDisabled ? "warning" : "success"} text={registerSecondStepHint} />
+                  {message ? <InlineMessage message={message} tone={messageTone} /> : null}
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <SecondaryButton title="Назад" icon="chevron.left" onPress={() => setRegisterStep(1)} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton title={busy ? "Создаем..." : "Создать"} disabled={registerDisabled} onPress={submitRegister} />
+                    </View>
+                  </View>
+                </>
+              )}
+              <TextButton title="Уже есть аккаунт? Войти" onPress={() => changeMode("login")} />
+            </>
+          ) : null}
+
+          {mode === "forgot" ? (
+            <>
+              <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20, fontFamily: fonts.medium }}>
+                Укажите email, и мы отправим ссылку для восстановления пароля.
+              </Text>
+              <Field label="Email" value={forgotEmail} onChangeText={setForgotEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="you@company.kz" textContentType="emailAddress" />
+              {forgotEmail.trim() && !forgotEmailValid ? <HelperText tone="warning" text="Проверьте формат email" /> : null}
+              {message ? <InlineMessage message={message} tone={messageTone} /> : null}
+              <PrimaryButton title={busy ? "Отправляем..." : "Отправить ссылку"} disabled={busy || !forgotEmailValid} onPress={submitForgotPassword} />
+              <TextButton title="Вернуться ко входу" onPress={() => changeMode("login")} />
+            </>
+          ) : null}
+          </Card>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
@@ -818,11 +1021,38 @@ function TenantHome({ overview, notices, onNavigate }: { overview: TenantOvervie
       <SectionTitle title="Объявления" />
       <NoticeList notices={notices.slice(0, 6)} />
       <SectionTitle title="Ближайшие действия" />
-      <Card>
-        <ActionRow icon="creditcard.fill" title="К оплате" value={formatMoney(overview.finances.totalDebt)} color={overview.finances.totalDebt > 0 ? colors.red : colors.green} onPress={() => onNavigate("payments")} />
-        <ActionRow icon="signature" title="На подпись" value={`${overview.counters.pendingDocuments}`} color={colors.blue} onPress={() => onNavigate("documents")} />
-        <ActionRow icon="gauge.with.dots.needle.50percent" title="Счетчики" value={`${overview.counters.meters}`} color={colors.teal} onPress={() => onNavigate("meters")} />
-      </Card>
+      <QuickActionGrid
+        actions={[
+          {
+            icon: "creditcard.fill",
+            title: overview.finances.totalDebt > 0 ? "Оплатить" : "Оплаты",
+            subtitle: formatMoney(overview.finances.totalDebt),
+            color: overview.finances.totalDebt > 0 ? colors.red : colors.green,
+            onPress: () => onNavigate("payments"),
+          },
+          {
+            icon: "signature",
+            title: "Подпись",
+            subtitle: `${overview.counters.pendingDocuments} документов`,
+            color: overview.counters.pendingDocuments > 0 ? colors.orange : colors.blue,
+            onPress: () => onNavigate("documents"),
+          },
+          {
+            icon: "tray.full.fill",
+            title: "Заявка",
+            subtitle: `${overview.counters.activeRequests} активных`,
+            color: colors.teal,
+            onPress: () => onNavigate("requests"),
+          },
+          {
+            icon: "gauge.with.dots.needle.50percent",
+            title: "Счетчики",
+            subtitle: `${overview.counters.meters} приборов`,
+            color: colors.blue,
+            onPress: () => onNavigate("meters"),
+          },
+        ]}
+      />
     </>
   )
 }
@@ -897,7 +1127,7 @@ function TenantPayments({ finances, onChanged }: { finances: TenantFinances; onC
         {finances.paymentReports.slice(0, 8).map((report) => (
           <CompactRow key={report.id} title={formatMoney(report.amount)} subtitle={`${formatDate(report.paymentDate)} · ${report.method} · ${report.status}${report.receiptName ? " · чек" : ""}`} tone={report.status === "REJECTED" ? colors.red : report.status === "CONFIRMED" ? colors.green : colors.blue} />
         ))}
-        {finances.paymentReports.length === 0 ? <EmptyState title="Отправленных оплат пока нет" /> : null}
+        {finances.paymentReports.length === 0 ? <EmptyState inline icon="creditcard.fill" title="Отправленных оплат пока нет" subtitle="Когда арендатор отправит чек, он появится в истории." /> : null}
       </Card>
       <SectionTitle title="Начисления" />
       <Card>
@@ -1002,7 +1232,7 @@ function MeterCard({ meter, period, onChanged }: { meter: TenantMetersPayload["d
       ) : (
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder="Текущее" placeholderTextColor="#94a3b8" style={{ flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, color: colors.text }} />
-          <Pressable disabled={busy || !value.trim()} onPress={submit} style={{ minHeight: 44, borderRadius: 8, paddingHorizontal: 16, backgroundColor: colors.teal, alignItems: "center", justifyContent: "center", opacity: busy ? 0.7 : 1 }}>
+          <Pressable focusable={false} accessibilityRole="button" accessibilityLabel="Отправить показание" accessibilityState={{ disabled: busy || !value.trim() }} disabled={busy || !value.trim()} onPress={submit} style={{ minHeight: 44, borderRadius: 8, paddingHorizontal: 16, backgroundColor: colors.teal, alignItems: "center", justifyContent: "center", opacity: busy ? 0.7 : 1 }}>
             <Text style={{ color: "#ffffff", fontWeight: "900" }}>ОК</Text>
           </Pressable>
         </View>
@@ -1013,22 +1243,57 @@ function MeterCard({ meter, period, onChanged }: { meter: TenantMetersPayload["d
 }
 
 function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
+  const [documentFilter, setDocumentFilter] = useState("ALL")
   const pendingRequests = documents.signatureRequests.filter((item) => ["PENDING", "VIEWED"].includes(item.status))
   const pendingContracts = documents.contractLinks.filter((item) => ["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(item.status))
   const pending = pendingRequests.length + pendingContracts.length
+  const visibleGenerated = documents.generated.filter((document) => documentFilter === "ALL" || documentTypeCategory(document.documentType) === documentFilter)
+  const invoices = documents.generated.filter((document) => documentTypeCategory(document.documentType) === "INVOICE").length
+  const acts = documents.generated.filter((document) => documentTypeCategory(document.documentType) === "ACT").length
+  const reconciliations = documents.generated.filter((document) => documentTypeCategory(document.documentType) === "RECONCILIATION").length
 
   return (
     <>
       <SectionTitle title="Документы" />
       <Card>
-        <ActionRow icon="signature" title="Ожидают подписи" value={String(pending)} color={pending > 0 ? colors.orange : colors.green} />
-        {pendingRequests.map((request) => <SignatureRequestCard key={request.id} request={request} />)}
-        {documents.contractLinks.map((contract) => <ContractSignPrompt key={contract.id} contract={contract} />)}
-        {pending === 0 ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Документов на подпись нет</Text> : null}
+        <MetricGrid
+          items={[
+            { label: "На подпись", value: String(pending), color: pending > 0 ? colors.orange : colors.green },
+            { label: "Договоры", value: String(documents.contractLinks.length), color: colors.blue },
+            { label: "Счета", value: String(invoices), color: colors.teal },
+            { label: "АВР", value: String(acts), color: colors.orange },
+            { label: "Сверки", value: String(reconciliations), color: colors.slate },
+            { label: "Файлы", value: String(documents.tenantDocuments.length), color: colors.blue },
+          ]}
+        />
       </Card>
-      <SectionTitle title="Счета и акты" />
+      <SectionTitle title="На подпись" />
+      {pending > 0 ? (
+        <Card>
+          {pendingRequests.map((request) => <SignatureRequestCard key={request.id} request={request} />)}
+          {pendingContracts.map((contract) => <ContractSignPrompt key={contract.id} contract={contract} />)}
+        </Card>
+      ) : (
+        <EmptyState icon="signature" title="Документов на подпись нет" subtitle="Когда появится договор, АВР или другой документ, кнопка подписи будет здесь." />
+      )}
+      <SectionTitle title="Договоры" />
       <Card>
-        {documents.generated.map((document) => (
+        {documents.contractLinks.map((contract) => <ContractSignPrompt key={contract.id} contract={contract} />)}
+        {documents.contractLinks.length === 0 ? <EmptyState inline icon="doc.on.doc.fill" title="Договоров пока нет" subtitle="После отправки договора он появится в этом разделе." /> : null}
+      </Card>
+      <SectionTitle title="Счета, АВР и сверки" />
+      <Card>
+        <ChoiceRow
+          options={[
+            ["ALL", "Все"],
+            ["INVOICE", "Счета"],
+            ["ACT", "АВР"],
+            ["RECONCILIATION", "Сверки"],
+          ]}
+          value={documentFilter}
+          onChange={setDocumentFilter}
+        />
+        {visibleGenerated.map((document) => (
           <DocumentRow
             key={document.id}
             title={document.fileName}
@@ -1036,9 +1301,9 @@ function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
             url={document.downloadUrl}
           />
         ))}
-        {documents.generated.length === 0 ? <EmptyState title="Счетов и актов пока нет" /> : null}
+        {visibleGenerated.length === 0 ? <EmptyState inline icon="doc.text.fill" title="Документов по фильтру нет" subtitle="Счет, АВР или акт сверки появится здесь после генерации на сайте." /> : null}
       </Card>
-      <SectionTitle title="Архив арендатора" />
+      <SectionTitle title="Файлы арендатора" />
       <Card>
         {documents.tenantDocuments.map((document) => (
           <DocumentRow
@@ -1048,7 +1313,7 @@ function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
             url={document.downloadUrl ?? document.fileUrl}
           />
         ))}
-        {documents.tenantDocuments.length === 0 ? <EmptyState title="Файлов пока нет" /> : null}
+        {documents.tenantDocuments.length === 0 ? <EmptyState inline icon="paperclip" title="Файлов пока нет" subtitle="Сюда попадут загруженные договоры, приложения и вложения арендатора." /> : null}
       </Card>
     </>
   )
@@ -1082,9 +1347,23 @@ function DocumentRow({ title, subtitle, url }: { title: string; subtitle: string
   return (
     <View style={{ gap: 6 }}>
       <Pressable
+        focusable={false}
+        accessibilityRole="button"
+        accessibilityLabel={url ? `Открыть документ ${title}` : `Документ ${title} недоступен`}
+        accessibilityState={{ disabled: !url || busy }}
         disabled={!url || busy}
         onPress={openDocument}
-        style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5, opacity: url ? 1 : 0.55 }}
+        style={({ pressed }) => ({
+          minHeight: 54,
+          borderRadius: 8,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 10,
+          paddingHorizontal: pressed ? 8 : 0,
+          paddingVertical: 6,
+          backgroundColor: pressed ? colors.surfaceMuted : "transparent",
+          opacity: url ? 1 : 0.55,
+        })}
       >
         <AppIcon name="doc.text.fill" size={20} color={colors.blue} />
         <View style={{ flex: 1 }}>
@@ -1155,9 +1434,12 @@ function SignatureRequestCard({ request }: { request: TenantSignatureRequest }) 
         <StatusPill label={signatureStatusLabel(request.status)} color={colors.orange} />
       </View>
       {request.message ? <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{request.message}</Text> : null}
+      <Text selectable style={{ color: colors.orange, fontSize: 13, lineHeight: 18, fontFamily: fonts.bold, fontWeight: "700" }}>
+        SMS и ЭЦП сейчас работают как черновик: приложение подготовит заявку на подпись, финальная интеграция подключается позже.
+      </Text>
       <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-        <SecondaryButton title="Подписать SMS" icon="message.fill" onPress={() => startDraft("SMS_OTP_DRAFT")} />
-        <SecondaryButton title="ЭЦП draft" icon="checkmark.seal.fill" onPress={() => startDraft("NCA_LAYER_DRAFT")} />
+        <SecondaryButton title="SMS черновик" icon="message.fill" onPress={() => startDraft("SMS_OTP_DRAFT")} />
+        <SecondaryButton title="ЭЦП черновик" icon="checkmark.seal.fill" onPress={() => startDraft("NCA_LAYER_DRAFT")} />
       </View>
       {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
     </View>
@@ -1248,7 +1530,7 @@ function AdminTenants({ payload, buildingId, onNavigate }: { payload: AdminTenan
       </Card>
       {localPayload.data.length === 0 && !busy ? <EmptyState title="Арендаторы не найдены" /> : null}
       {localPayload.data.map((tenant) => (
-        <Pressable key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть арендатора ${tenant.companyName}`} key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="person.2.fill" color={tenant.totalDebt > 0 ? colors.orange : colors.teal} />
@@ -1524,7 +1806,7 @@ function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { payload
   const showContracts = category === "ALL" || category === "CONTRACT"
   const visibleContracts = showContracts
     ? localPayload.contracts.filter((contract) => {
-        if (stage === "SIGN") return isPendingContractStatus(contract.status)
+        if (stage === "SIGN") return false
         if (stage === "SIGNED") return contract.status === "SIGNED"
         if (stage === "DRAFT") return contract.status === "DRAFT"
         return true
@@ -1536,6 +1818,7 @@ function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { payload
     ? localPayload.contracts.filter((contract) => isPendingContractStatus(contract.status))
     : []
   const signatureCount = signatureRequests.length + signatureContracts.length
+  const showSignatureSection = (stage === "ALL" || stage === "SIGN") && signatureCount > 0
 
   return (
     <>
@@ -1573,7 +1856,7 @@ function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { payload
         <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, номер, период" />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
-      {signatureRequests.length > 0 || signatureContracts.length > 0 ? (
+      {showSignatureSection ? (
         <>
           <SectionTitle title="На подпись" />
           <Card>
@@ -1582,7 +1865,7 @@ function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { payload
           </Card>
         </>
       ) : null}
-      {visibleCount + signatureCount === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
+      {visibleCount + (showSignatureSection ? signatureCount : 0) === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
       {showContracts && localPayload.contracts.length > 0 ? (
         <>
           <SectionTitle title="Договоры" />
@@ -1635,14 +1918,18 @@ function ContractRow({ contract, onNavigate }: { contract: MobileContractSummary
       {canOpen ? <SecondaryButton title={isPendingContractStatus(contract.status) ? "Открыть подписание" : "Открыть"} icon="arrow.up.right.square" onPress={() => openExternalUrl(contract.webUrl!)} /> : null}
     </Card>
   )
-  return onNavigate ? <Pressable onPress={() => onNavigate(`contract:${contract.id}`)}>{content}</Pressable> : content
+  return onNavigate ? (
+    <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть договор ${contract.number}`} onPress={() => onNavigate(`contract:${contract.id}`)}>
+      {content}
+    </Pressable>
+  ) : content
 }
 
 function GeneratedDocumentList({ documents, onNavigate }: { documents: MobileGeneratedDocumentSummary[]; onNavigate?: (tab: string) => void }) {
   return (
     <>
       {documents.map((document) => (
-        <Pressable key={document.id} onPress={() => onNavigate ? onNavigate(`document:generated:${document.id}`) : null}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть документ ${document.fileName}`} key={document.id} onPress={() => onNavigate ? onNavigate(`document:generated:${document.id}`) : null}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="doc.text.fill" color={colors.blue} />
@@ -1740,7 +2027,7 @@ function AdminDocumentDetail({
           <OpenAuthorizedFileButton title={document.fileName} url={document.downloadUrl} />
           {document.tenantId ? <ActionRow icon="person.2.fill" title="Арендатор" value="открыть" color={colors.teal} onPress={() => onNavigate(`tenant:${document.tenantId}`)} /> : null}
           {document.tenantId ? <ActionRow icon="doc.text.fill" title="Документы арендатора" value="открыть" color={colors.blue} onPress={() => onNavigate(`documents:tenant:${document.tenantId}`)} /> : null}
-          <ActionRow icon="signature" title="Подписание" value="SMS/ЭЦП draft" color={colors.orange} onPress={() => onNavigate("documents")} />
+          <ActionRow icon="signature" title="Подписание" value="черновик" color={colors.orange} onPress={() => onNavigate("documents")} />
         </Card>
       </>
     )
@@ -1764,12 +2051,39 @@ function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { pa
           ]}
         />
       </Card>
-      <Card>
-        <ActionRow icon="building.2.fill" title="Объекты" value={String(payload.buildings.length)} color={colors.blue} onPress={() => onNavigate("buildings")} />
-        <ActionRow icon="person.2.fill" title="Арендаторы" value="список" color={colors.teal} onPress={() => onNavigate("tenants")} />
-        <ActionRow icon="doc.on.doc.fill" title="Документы" value={String(payload.counters.pendingSignatures)} color={colors.orange} onPress={() => onNavigate("documents")} />
-        <ActionRow icon="creditcard.fill" title="Оплаты" value={String(payload.counters.pendingPayments)} color={colors.green} onPress={() => onNavigate("payments")} />
-      </Card>
+      <SectionTitle title="Быстрый доступ" />
+      <QuickActionGrid
+        actions={[
+          {
+            icon: "building.2.fill",
+            title: "Объекты",
+            subtitle: `${payload.buildings.length} зданий`,
+            color: colors.blue,
+            onPress: () => onNavigate("buildings"),
+          },
+          {
+            icon: "person.2.fill",
+            title: "Арендаторы",
+            subtitle: "список и долги",
+            color: colors.teal,
+            onPress: () => onNavigate("tenants"),
+          },
+          {
+            icon: "doc.on.doc.fill",
+            title: "Документы",
+            subtitle: `${payload.counters.pendingSignatures} на подпись`,
+            color: payload.counters.pendingSignatures > 0 ? colors.orange : colors.blue,
+            onPress: () => onNavigate("documents"),
+          },
+          {
+            icon: "creditcard.fill",
+            title: "Оплаты",
+            subtitle: `${payload.counters.pendingPayments} на проверке`,
+            color: colors.green,
+            onPress: () => onNavigate("payments"),
+          },
+        ]}
+      />
       <StaffQuickSearch onNavigate={onNavigate} />
       {canNotice ? <NoticeComposer buildings={payload.buildings} onChanged={onChanged} /> : null}
       <SectionTitle title="Последние заявки" />
@@ -1779,7 +2093,7 @@ function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { pa
         {payload.recent.paymentReports.map((report) => (
           <CompactRow key={report.id} title={report.tenant.companyName} subtitle={`${formatMoney(report.amount)} · ${report.method} · ${formatDate(report.paymentDate)}`} tone={colors.green} />
         ))}
-        {payload.recent.paymentReports.length === 0 ? <EmptyState title="Оплат на проверке нет" /> : null}
+        {payload.recent.paymentReports.length === 0 ? <EmptyState inline icon="creditcard.fill" title="Оплат на проверке нет" subtitle="Новые подтверждения оплат появятся здесь." /> : null}
       </Card>
       <SectionTitle title="Объявления" />
       <NoticeList notices={notices.slice(0, 4)} />
@@ -1836,13 +2150,13 @@ function StaffQuickSearch({ onNavigate }: { onNavigate: (tab: string) => void })
         {busy ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ищем...</Text> : null}
         {message ? <InlineMessage message={message} tone="error" /> : null}
         {tenants.slice(0, 3).map((tenant) => (
-          <ActionRow key={tenant.id} icon="person.2.fill" title={tenant.companyName} value={formatMoney(tenant.totalDebt)} color={tenant.totalDebt > 0 ? colors.orange : colors.teal} onPress={() => onNavigate("tenants")} />
+          <ActionRow key={tenant.id} icon="person.2.fill" title={tenant.companyName} value={formatMoney(tenant.totalDebt)} color={tenant.totalDebt > 0 ? colors.orange : colors.teal} onPress={() => onNavigate(`tenant:${tenant.id}`)} />
         ))}
         {contracts.slice(0, 2).map((contract) => (
-          <ActionRow key={contract.id} icon="doc.on.doc.fill" title={`${contractTypeLabel(contract.type)} № ${contract.number}`} value={contractStatusLabel(contract.status)} color={contractStatusColor(contract.status)} onPress={() => onNavigate("documents")} />
+          <ActionRow key={contract.id} icon="doc.on.doc.fill" title={`${contractTypeLabel(contract.type)} № ${contract.number}`} value={contractStatusLabel(contract.status)} color={contractStatusColor(contract.status)} onPress={() => onNavigate(`contract:${contract.id}`)} />
         ))}
         {documents.slice(0, 2).map((document) => (
-          <ActionRow key={document.id} icon="doc.text.fill" title={document.fileName} value={documentTypeLabel(document.documentType)} color={colors.blue} onPress={() => onNavigate("documents")} />
+          <ActionRow key={document.id} icon="doc.text.fill" title={document.fileName} value={documentTypeLabel(document.documentType)} color={colors.blue} onPress={() => onNavigate(`document:generated:${document.id}`)} />
         ))}
         {query.trim().length >= 2 && !busy && !hasResults ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Ничего не найдено</Text> : null}
       </Card>
@@ -1926,7 +2240,7 @@ function AdminRequests({ payload, buildingId, onChanged, onNavigate }: { payload
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
       {visibleRequests.map((request) => (
-        <Pressable key={request.id} onPress={() => onNavigate(`request:${request.id}`)}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть заявку ${request.title}`} key={request.id} onPress={() => onNavigate(`request:${request.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="tray.full.fill" color={requestPriorityColor(request.priority)} />
@@ -2033,6 +2347,13 @@ function AdminRequestDetail({
 
 function AdminPayments({ payload, buildingId, onChanged }: { payload: AdminPaymentReportsPayload; buildingId?: string; onChanged: () => void }) {
   const [mode, setMode] = useState("ALL")
+  const [pendingReview, setPendingReview] = useState<{
+    report: AdminPaymentReportsPayload["data"][number]
+    action: "confirm" | "dispute" | "reject"
+  } | null>(null)
+  const [reviewReason, setReviewReason] = useState("")
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null)
   const expectedPayments = payload.expectedPayments ?? []
   const expectedAmount = payload.counters.expectedAmount ?? expectedPayments.reduce((sum, payment) => sum + payment.amount, 0)
   const overdueAmount = payload.counters.overdueAmount ?? expectedPayments.filter((payment) => payment.isOverdue).reduce((sum, payment) => sum + payment.amount, 0)
@@ -2046,6 +2367,39 @@ function AdminPayments({ payload, buildingId, onChanged }: { payload: AdminPayme
     if (mode === "DISPUTED") return report.status === "DISPUTED"
     return true
   })
+
+  function openPaymentReview(report: AdminPaymentReportsPayload["data"][number], action: "confirm" | "dispute" | "reject") {
+    setPendingReview({ report, action })
+    setReviewReason(action === "confirm" ? "Поступление найдено" : action === "dispute" ? "Уточнить оплату" : "Не найдено поступление")
+    setReviewMessage(null)
+  }
+
+  async function submitPaymentReview() {
+    if (!pendingReview || reviewBusy) return
+    setReviewBusy(true)
+    setReviewMessage(null)
+    try {
+      if (pendingReview.action === "confirm") {
+        await reviewAdminPaymentReport({
+          reportId: pendingReview.report.id,
+          action: "confirm",
+          method: pendingReview.report.method,
+        })
+      } else {
+        await reviewAdminPaymentReport({
+          reportId: pendingReview.report.id,
+          action: pendingReview.action,
+          reason: reviewReason.trim() || paymentReviewDefaultReason(pendingReview.action),
+        })
+      }
+      setPendingReview(null)
+      onChanged()
+    } catch (e) {
+      setReviewMessage(e instanceof Error ? e.message : "Не удалось сохранить решение")
+    } finally {
+      setReviewBusy(false)
+    }
+  }
 
   return (
     <>
@@ -2098,10 +2452,31 @@ function AdminPayments({ payload, buildingId, onChanged }: { payload: AdminPayme
           {report.note ? <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{report.note}</Text> : null}
           {report.receiptUrl ? <SecondaryButton title="Открыть чек" icon="doc.richtext" onPress={() => Linking.openURL(report.receiptUrl!)} /> : null}
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            <SecondaryButton title="Подтвердить" icon="checkmark.circle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "confirm", method: report.method }); onChanged() }} />
-            <SecondaryButton title="Уточнить" icon="exclamationmark.triangle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "dispute", reason: "Уточнить оплату" }); onChanged() }} />
-            <SecondaryButton title="Отклонить" icon="xmark.circle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "reject", reason: "Не найдено поступление" }); onChanged() }} />
+            <SecondaryButton title="Подтвердить" icon="checkmark.circle.fill" onPress={() => openPaymentReview(report, "confirm")} />
+            <SecondaryButton title="Уточнить" icon="exclamationmark.triangle.fill" onPress={() => openPaymentReview(report, "dispute")} />
+            <SecondaryButton title="Отклонить" icon="xmark.circle.fill" onPress={() => openPaymentReview(report, "reject")} />
           </View>
+          {pendingReview?.report.id === report.id ? (
+            <View style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, padding: 10, gap: 8 }}>
+              <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{paymentReviewTitle(pendingReview.action)}</Text>
+              {pendingReview.action === "confirm" ? (
+                <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.medium }}>
+                  Проверьте чек и банковское поступление. После подтверждения платеж закроет ожидание по арендатору.
+                </Text>
+              ) : (
+                <Field label="Комментарий" value={reviewReason} onChangeText={setReviewReason} multiline placeholder="Коротко укажите причину" />
+              )}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <SecondaryButton title="Отмена" icon="xmark" onPress={() => setPendingReview(null)} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton title={reviewBusy ? "Сохраняем..." : "Сохранить"} disabled={reviewBusy} onPress={submitPaymentReview} />
+                </View>
+              </View>
+              {reviewMessage ? <InlineMessage message={reviewMessage} tone="error" /> : null}
+            </View>
+          ) : null}
         </Card>
       ))}
       {visibleReports.length === 0 ? <EmptyState title="Оплат на проверке по фильтру нет" /> : null}
@@ -2147,7 +2522,7 @@ function AdminBuildings({ payload, onNavigate }: { payload: AdminBuildingsPayloa
     <>
       <SectionTitle title="Объекты" />
       {payload.data.map((building) => (
-        <Pressable key={building.id} onPress={() => onNavigate(`building:${building.id}`)}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть объект ${building.name}`} key={building.id} onPress={() => onNavigate(`building:${building.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="building.2.fill" color={colors.blue} />
@@ -2230,7 +2605,7 @@ function AdminBuildingDetail({
       </Card>
       <SectionTitle title="Арендаторы объекта" />
       {tenants.map((tenant) => (
-        <Pressable key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть арендатора ${tenant.companyName}`} key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="person.2.fill" color={colors.teal} />
@@ -2274,9 +2649,42 @@ function OwnerOverview({ data, onNavigate }: { data: OwnerOverviewPayload; onNav
           ]}
         />
       </Card>
+      <SectionTitle title="Работа" />
+      <QuickActionGrid
+        actions={[
+          {
+            icon: "building.2.fill",
+            title: "Объекты",
+            subtitle: "карточки зданий",
+            color: colors.blue,
+            onPress: () => onNavigate("buildings"),
+          },
+          {
+            icon: "person.2.fill",
+            title: "Арендаторы",
+            subtitle: `${data.counters.tenants} в базе`,
+            color: colors.teal,
+            onPress: () => onNavigate("tenants"),
+          },
+          {
+            icon: "doc.on.doc.fill",
+            title: "Документы",
+            subtitle: `${data.counters.pendingSignatures} на подпись`,
+            color: data.counters.pendingSignatures > 0 ? colors.orange : colors.blue,
+            onPress: () => onNavigate("documents"),
+          },
+          {
+            icon: "creditcard.fill",
+            title: "Оплаты",
+            subtitle: `${data.counters.pendingPayments} на проверке`,
+            color: colors.green,
+            onPress: () => onNavigate("payments"),
+          },
+        ]}
+      />
       <SectionTitle title="Здания" />
       {data.buildings.map((building) => (
-        <Pressable key={building.id} onPress={() => onNavigate(`building:${building.id}`)}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть объект ${building.name}`} key={building.id} onPress={() => onNavigate(`building:${building.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="building.2.fill" color={colors.blue} />
@@ -2417,7 +2825,7 @@ function NotificationsScreen({
         {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
       </Card>
       <SectionTitle title="История" />
-      {payload.data.length === 0 ? <Card><EmptyState title="Уведомлений пока нет" /></Card> : null}
+      {payload.data.length === 0 ? <EmptyState icon="bell.fill" title="Уведомлений пока нет" subtitle="Сюда попадут push, документы, оплаты и заявки." /> : null}
       {payload.data.map((notification) => (
         <NotificationRow
           key={notification.id}
@@ -2434,7 +2842,7 @@ function NotificationsScreen({
 
 function NotificationRow({ notification, label, onPress }: { notification: MobileNotification; label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress}>
+    <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть уведомление ${notification.title}`} onPress={onPress}>
       <Card>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <AppIcon name={notification.isRead ? "bell" : "bell.badge.fill"} size={21} color={notification.isRead ? colors.muted : colors.orange} />
@@ -2473,6 +2881,9 @@ function More({
   const [pushPreferences, setPushPreferences] = useState<LocalPushPreferences | null>(null)
   const [sessions, setSessions] = useState<MobileSessionInfo[]>([])
   const [sessionsBusy, setSessionsBusy] = useState(false)
+  const [pendingRevokeSession, setPendingRevokeSession] = useState<MobileSessionInfo | null>(null)
+  const [pushPermissionStatus, setPushPermissionStatus] = useState<string | null>(null)
+  const [openSettings, setOpenSettings] = useState<"profile" | "channels" | "push" | "security" | "help" | null>(null)
 
   useEffect(() => {
     setLocalSettings(settings)
@@ -2488,13 +2899,16 @@ function More({
   useEffect(() => {
     if (!settings) getLocalPushPreferences().then(setPushPreferences).catch(() => null)
     loadSessions()
+    refreshPushPermissionState().catch(() => null)
   }, [])
 
   async function enablePush() {
+    if (pushBusy) return
     setPushBusy(true)
     setPushState(null)
     try {
       await registerPushDevice()
+      await refreshPushPermissionState()
       setPushState("Уведомления подключены")
       onChanged()
     } catch (e) {
@@ -2505,10 +2919,12 @@ function More({
   }
 
   async function disablePush() {
+    if (pushBusy) return
     setPushBusy(true)
     setPushState(null)
     try {
       await unregisterPushDevice()
+      await refreshPushPermissionState()
       setPushState("Push отключен на этом устройстве")
       onChanged()
     } catch (e) {
@@ -2535,6 +2951,27 @@ function More({
 
     try {
       await updateMobileNotificationSettings({ mutedTypes: nextMutedTypes })
+      onChanged()
+    } catch (e) {
+      setPushState(e instanceof Error ? e.message : "Не удалось сохранить настройки")
+    }
+  }
+
+  async function updateNotificationChannel(
+    key: "notifyEmail" | "notifyTelegram" | "notifyInApp" | "notifySms",
+    value: boolean,
+  ) {
+    if (!localSettings) return
+    setLocalSettings({
+      ...localSettings,
+      settings: {
+        ...localSettings.settings,
+        [key]: value,
+      },
+    })
+
+    try {
+      await updateMobileNotificationSettings({ [key]: value })
       onChanged()
     } catch (e) {
       setPushState(e instanceof Error ? e.message : "Не удалось сохранить настройки")
@@ -2579,6 +3016,11 @@ function More({
     }
   }
 
+  async function refreshPushPermissionState() {
+    const permission = await Notifications.getPermissionsAsync()
+    setPushPermissionStatus(permission.status)
+  }
+
   async function revokeSession(sessionId: string) {
     setSessionsBusy(true)
     setPushState(null)
@@ -2590,6 +3032,7 @@ function More({
       setPushState(e instanceof Error ? e.message : "Не удалось отключить сессию")
     } finally {
       setSessionsBusy(false)
+      setPendingRevokeSession(null)
     }
   }
 
@@ -2602,6 +3045,7 @@ function More({
         {!settingsOnly ? (
           <View style={{ gap: 8 }}>
             <SecondaryButton title="Настройки" icon="settings" onPress={() => onNavigate("settings")} />
+            <SecondaryButton title="Уведомления" icon="bell.fill" onPress={() => onNavigate("notifications")} />
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Сегодня" icon="list.bullet.rectangle.fill" onPress={() => onNavigate("home")} /> : null}
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Арендаторы" icon="person.2.fill" onPress={() => onNavigate("tenants")} /> : null}
             <SecondaryButton title="Документы" icon="doc.text.fill" onPress={() => onNavigate("documents")} />
@@ -2613,42 +3057,74 @@ function More({
       </Card>
       {settingsOnly ? (
         <>
-          <SectionTitle title="Push" />
+          <SectionTitle title="Разделы" />
           <Card>
-            <ActionRow icon="iphone" title="Активные устройства" value={String(localSettings?.devices.length ?? 0)} color={colors.blue} />
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <SecondaryButton title={pushBusy ? "Подключаем..." : "Включить"} icon="bell.fill" onPress={enablePush} />
-              <SecondaryButton title="Отключить" icon="bell.slash.fill" onPress={disablePush} />
-            </View>
-            {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
-            {pushPreferences ? (
-              <>
-                <ToggleRow
-                  title="Тихие часы"
-                  subtitle={`${pushPreferences.quietFrom} - ${pushPreferences.quietTo}`}
-                  value={pushPreferences.quietHoursEnabled}
-                  onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
-                />
-                <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
-                <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
-                <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
-                <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
-              </>
-            ) : null}
-            {localSettings?.settings.eventTypes.map((eventType) => {
-              const enabled = !localSettings.settings.mutedTypes.includes(eventType.key)
-              return (
-                <ToggleRow
-                  key={eventType.key}
-                  title={eventType.label}
-                  subtitle={enabled ? "Push включен" : "Push выключен"}
-                  value={enabled}
-                  onValueChange={() => toggleMutedType(eventType.key)}
-                />
-              )
-            })}
+            <ActionRow icon="person.fill" title="Профиль и организация" value={openSettings === "profile" ? "открыто" : "открыть"} color={colors.teal} onPress={() => setOpenSettings(openSettings === "profile" ? null : "profile")} />
+            <ActionRow icon="bell.fill" title="Каналы уведомлений" value={openSettings === "channels" ? "открыто" : "email/sms"} color={colors.blue} onPress={() => setOpenSettings(openSettings === "channels" ? null : "channels")} />
+            <ActionRow icon="iphone" title="Push на устройстве" value={String(localSettings?.devices.length ?? 0)} color={colors.orange} onPress={() => setOpenSettings(openSettings === "push" ? null : "push")} />
+            <ActionRow icon="lock.shield.fill" title="Безопасность" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} onPress={() => setOpenSettings(openSettings === "security" ? null : "security")} />
+            <ActionRow icon="doc.text.fill" title="Документы и поддержка" value={openSettings === "help" ? "открыто" : "ссылки"} color={colors.green} onPress={() => setOpenSettings(openSettings === "help" ? null : "help")} />
           </Card>
-          <SectionTitle title="Безопасность" />
+
+          {openSettings === "profile" ? (
+            <Card>
+              <ActionRow icon="building.2.fill" title="Организация" value={bootstrap.organization.name} color={colors.blue} />
+              <ActionRow icon="person.fill" title="Пользователь" value={bootstrap.user.name ?? "профиль"} color={colors.teal} />
+              {bootstrap.user.email ? <ActionRow icon="message.fill" title="Email" value={bootstrap.user.email} color={colors.blue} onPress={() => Linking.openURL(`mailto:${bootstrap.user.email}`)} /> : null}
+              {bootstrap.user.phone ? <ActionRow icon="iphone" title="Телефон" value={bootstrap.user.phone} color={colors.teal} onPress={() => Linking.openURL(`tel:${bootstrap.user.phone}`)} /> : null}
+              <SecondaryButton title="Открыть web-кабинет" icon="arrow.up.right.square" onPress={() => openExternalUrl("/admin/profile").catch(() => null)} />
+            </Card>
+          ) : null}
+
+          {openSettings === "channels" && localSettings ? (
+            <Card>
+              <ToggleRow title="In-app уведомления" subtitle="Лента уведомлений внутри приложения" value={localSettings.settings.notifyInApp} onValueChange={(value) => updateNotificationChannel("notifyInApp", value)} />
+              <ToggleRow title="Email" subtitle="Письма по важным событиям" value={localSettings.settings.notifyEmail} onValueChange={(value) => updateNotificationChannel("notifyEmail", value)} />
+              <ToggleRow title="SMS" subtitle="Черновик для будущего платного канала" value={localSettings.settings.notifySms} onValueChange={(value) => updateNotificationChannel("notifySms", value)} />
+              <ToggleRow title="Telegram" subtitle="Если подключен бот" value={localSettings.settings.notifyTelegram} onValueChange={(value) => updateNotificationChannel("notifyTelegram", value)} />
+              {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
+            </Card>
+          ) : null}
+
+          {openSettings === "push" ? (
+            <Card>
+              <ActionRow icon="iphone" title="Активные устройства" value={String(localSettings?.devices.length ?? 0)} color={colors.blue} />
+              <ActionRow icon="bell.fill" title="Разрешение телефона" value={pushPermissionStatus ? pushPermissionLabel(pushPermissionStatus) : "проверяем"} color={pushPermissionStatus === "granted" ? colors.green : colors.orange} />
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                <SecondaryButton title={pushBusy ? "Подключаем..." : "Включить"} icon="bell.fill" onPress={enablePush} />
+                <SecondaryButton title={pushBusy ? "Ждем..." : "Отключить"} icon="bell.slash.fill" onPress={disablePush} />
+              </View>
+              {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
+              {pushPreferences ? (
+                <>
+                  <ToggleRow
+                    title="Тихие часы"
+                    subtitle={`${pushPreferences.quietFrom} - ${pushPreferences.quietTo}`}
+                    value={pushPreferences.quietHoursEnabled}
+                    onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
+                  />
+                  <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
+                  <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
+                  <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
+                  <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
+                </>
+              ) : null}
+              {localSettings?.settings.eventTypes.map((eventType) => {
+                const enabled = !localSettings.settings.mutedTypes.includes(eventType.key)
+                return (
+                  <ToggleRow
+                    key={eventType.key}
+                    title={eventType.label}
+                    subtitle={enabled ? "Push включен" : "Push выключен"}
+                    value={enabled}
+                    onValueChange={() => toggleMutedType(eventType.key)}
+                  />
+                )
+              })}
+            </Card>
+          ) : null}
+
+          {openSettings === "security" ? (
           <Card>
             <ActionRow icon="lock.shield.fill" title="Активные входы" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} />
             {sessions.map((session) => (
@@ -2658,11 +3134,34 @@ function More({
                   subtitle={`${session.platform ?? "APP"} · ${session.ip ?? "IP скрыт"} · ${formatDateTime(session.lastUsedAt)}`}
                   tone={colors.slate}
                 />
-                <SecondaryButton title="Отключить вход" icon="xmark.circle.fill" onPress={() => revokeSession(session.id)} />
+                <SecondaryButton title="Отключить вход" icon="xmark.circle.fill" onPress={() => setPendingRevokeSession(session)} />
+                {pendingRevokeSession?.id === session.id ? (
+                  <View style={{ borderRadius: 8, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 8 }}>
+                    <Text selectable style={{ color: colors.text, fontSize: 14, fontFamily: fonts.black, fontWeight: "900" }}>Отключить этот вход?</Text>
+                    <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.medium }}>Пользователю придется войти заново на этом устройстве.</Text>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <SecondaryButton title="Отмена" icon="xmark" onPress={() => setPendingRevokeSession(null)} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <PrimaryButton title={sessionsBusy ? "Отключаем..." : "Отключить"} disabled={sessionsBusy} onPress={() => revokeSession(session.id)} />
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
               </View>
             ))}
             {sessions.length === 0 && !sessionsBusy ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Активных мобильных входов нет</Text> : null}
           </Card>
+          ) : null}
+
+          {openSettings === "help" ? (
+            <Card>
+              <SecondaryButton title="Публичная оферта" icon="doc.text.fill" onPress={() => openExternalUrl("https://commrent.kz/offer").catch(() => null)} />
+              <SecondaryButton title="Политика конфиденциальности" icon="lock.fill" onPress={() => openExternalUrl("https://commrent.kz/privacy").catch(() => null)} />
+              <SecondaryButton title="Сайт Commrent" icon="arrow.up.right.square" onPress={() => openExternalUrl("https://commrent.kz").catch(() => null)} />
+            </Card>
+          ) : null}
         </>
       ) : null}
       {!settingsOnly ? (
@@ -2683,7 +3182,25 @@ function More({
 
 function BackButton({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ alignSelf: "flex-start", minHeight: 40, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: "#ffffff", paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
+    <Pressable
+      focusable={false}
+      accessibilityRole="button"
+      accessibilityLabel="Назад"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        alignSelf: "flex-start",
+        minHeight: 42,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: pressed ? colors.blueSoft : colors.surface,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        transform: [{ scale: pressed ? 0.99 : 1 }],
+      })}
+    >
       <AppIcon name="chevron.left" size={18} color={colors.blue} />
       <Text style={{ color: colors.blue, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>Назад</Text>
     </Pressable>
@@ -2699,8 +3216,23 @@ function HeaderCard({ bootstrap, onLogout }: { bootstrap: MobileBootstrap; onLog
           <Text selectable style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{bootstrap.organization.name}</Text>
           <Text selectable style={{ color: colors.text, fontSize: 23, fontFamily: fonts.black, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
         </View>
-        <Pressable onPress={onLogout} style={{ padding: 8 }}>
+        <Pressable
+          focusable={false}
+          accessibilityRole="button"
+          accessibilityLabel="Выйти из аккаунта"
+          onPress={onLogout}
+          style={({ pressed }) => ({
+            minHeight: 40,
+            borderRadius: 8,
+            paddingHorizontal: 10,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: pressed ? colors.surfaceMuted : "transparent",
+          })}
+        >
           <AppIcon name="rectangle.portrait.and.arrow.right" size={23} color={colors.muted} />
+          <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.black, fontWeight: "900" }}>Выйти</Text>
         </Pressable>
       </View>
     </Card>
@@ -2712,7 +3244,7 @@ function RequestList({ requests, onNavigate }: { requests: Array<{ id: string; t
   return (
     <>
       {requests.map((request) => (
-        <Pressable key={request.id} onPress={() => onNavigate ? onNavigate(`request:${request.id}`) : null}>
+        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть заявку ${request.title}`} key={request.id} onPress={() => onNavigate ? onNavigate(`request:${request.id}`) : null}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Text selectable style={{ flex: 1, color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
@@ -2728,7 +3260,7 @@ function RequestList({ requests, onNavigate }: { requests: Array<{ id: string; t
 }
 
 function NoticeList({ notices }: { notices: BuildingNotice[] }) {
-  if (notices.length === 0) return <EmptyState title="Активных объявлений нет" />
+  if (notices.length === 0) return <EmptyState icon="bell.fill" title="Активных объявлений нет" subtitle="Push по свету, воде, ремонту и проверкам появятся здесь." />
   return (
     <>
       {notices.map((notice) => (
@@ -2747,11 +3279,29 @@ function NoticeList({ notices }: { notices: BuildingNotice[] }) {
 
 function BottomTabs({ tabs, activeTab, onChange }: { tabs: Array<{ key: string; label: string; icon: string }>; activeTab: string; onChange: (tab: string) => void }) {
   return (
-    <View style={{ position: "absolute", left: 12, right: 12, bottom: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: "#ffffff", flexDirection: "row", padding: 8, gap: 4 }}>
+    <View style={{ position: "absolute", left: 12, right: 12, bottom: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: "row", padding: 8, gap: 4, boxShadow: "0 8px 28px rgba(15, 23, 42, 0.10)" }}>
       {tabs.map((tab) => {
         const active = tab.key === activeTab || activeTab.startsWith(`${tab.key}:`)
         return (
-          <Pressable key={tab.key} onPress={() => onChange(tab.key)} style={{ flex: 1, minHeight: 54, borderRadius: 8, alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: active ? "#eff6ff" : "transparent" }}>
+          <Pressable
+            key={tab.key}
+            focusable={false}
+            accessibilityRole="tab"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: active }}
+            testID={`bottom-tab-${tab.key}`}
+            onPress={() => onChange(tab.key)}
+            style={({ pressed }) => ({
+              flex: 1,
+              minHeight: 56,
+              borderRadius: 8,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              backgroundColor: active ? colors.blueSoft : pressed ? colors.surfaceMuted : "transparent",
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            })}
+          >
             <AppIcon name={tab.icon} size={22} color={active ? colors.blue : colors.muted} />
             <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: active ? colors.blue : colors.muted, fontSize: 12, fontFamily: active ? fonts.black : fonts.bold, fontWeight: active ? "900" : "700" }}>{tab.label}</Text>
           </Pressable>
@@ -2764,24 +3314,24 @@ function BottomTabs({ tabs, activeTab, onChange }: { tabs: Array<{ key: string; 
 function OfflineBanner({ savedAt, error }: { savedAt?: string; error?: string | null }) {
   return (
     <View style={{ borderRadius: 8, borderWidth: 1, borderColor: "#fed7aa", backgroundColor: "#fff7ed", padding: 12, gap: 4 }}>
-      <Text style={{ color: colors.orange, fontSize: 14, fontWeight: "900" }}>Офлайн-режим</Text>
+      <Text style={{ color: colors.orange, fontSize: 14, fontWeight: "900" }}>Показаны сохраненные данные</Text>
       <Text selectable style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
-        Показаны сохраненные данные{savedAt ? ` от ${formatDateTime(savedAt)}` : ""}{error ? `. ${error}` : ""}
+        Сервер сейчас недоступен, поэтому открыт последний сохраненный кабинет{savedAt ? ` от ${formatDateTime(savedAt)}` : ""}{error ? `. ${error}` : ""}. Потяните экран вниз, чтобы повторить.
       </Text>
     </View>
   )
 }
 
 function Card({ children }: { children: ReactNode }) {
-  return <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 8, padding: 14, gap: 12 }}>{children}</View>
+  return <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 10, padding: 15, gap: 13, boxShadow: "0 1px 3px rgba(15, 23, 42, 0.05)" }}>{children}</View>
 }
 
 function ToggleRow({ title, subtitle, value, onValueChange }: { title: string; subtitle?: string; value: boolean; onValueChange: (value: boolean) => void }) {
   return (
     <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10 }}>
       <View style={{ flex: 1 }}>
-        <Text selectable style={{ color: colors.text, fontSize: 14, fontWeight: "900" }}>{title}</Text>
-        {subtitle ? <Text style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text> : null}
+        <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+        {subtitle ? <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.medium }}>{subtitle}</Text> : null}
       </View>
       <Switch value={value} onValueChange={onValueChange} trackColor={{ false: "#cbd5e1", true: "#bfdbfe" }} thumbColor={value ? colors.blue : "#f8fafc"} />
     </View>
@@ -2791,7 +3341,7 @@ function ToggleRow({ title, subtitle, value, onValueChange }: { title: string; s
 function Field({ label, ...props }: { label: string } & ComponentProps<typeof TextInput>) {
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>{label}</Text>
+      <Text style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.extraBold, fontWeight: "800" }}>{label}</Text>
       <TextInput
         {...props}
         placeholderTextColor="#94a3b8"
@@ -2804,7 +3354,7 @@ function Field({ label, ...props }: { label: string } & ComponentProps<typeof Te
           color: colors.text,
           paddingHorizontal: 12,
           paddingVertical: 10,
-          fontSize: 16,
+          fontSize: 17,
           fontFamily: fonts.regular,
           textAlignVertical: props.multiline ? "top" : "center",
         }, props.style]}
@@ -2822,10 +3372,16 @@ function SearchField({ value, onChangeText, placeholder }: { value: string; onCh
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor="#94a3b8"
-        style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
+        style={{ flex: 1, color: colors.text, fontSize: 17, fontFamily: fonts.regular }}
       />
       {value ? (
-        <Pressable onPress={() => onChangeText("")} style={{ padding: 4 }}>
+        <Pressable
+          focusable={false}
+          accessibilityRole="button"
+          accessibilityLabel="Очистить поиск"
+          onPress={() => onChangeText("")}
+          style={{ padding: 4 }}
+        >
           <AppIcon name="xmark" size={16} color={colors.muted} />
         </Pressable>
       ) : null}
@@ -2836,6 +3392,10 @@ function SearchField({ value, onChangeText, placeholder }: { value: string; onCh
 function DeviceAuthButton({ title, disabled, onPress }: { title: string; disabled?: boolean; onPress: () => void }) {
   return (
     <Pressable
+      focusable={false}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
       style={{
@@ -2853,24 +3413,146 @@ function DeviceAuthButton({ title, disabled, onPress }: { title: string; disable
       }}
     >
       <AppIcon name="lock.fill" size={17} color={colors.blue} />
-      <Text numberOfLines={2} style={{ color: colors.blue, fontSize: 15, fontFamily: fonts.black, fontWeight: "900", textAlign: "center" }}>{title}</Text>
+      <Text numberOfLines={2} style={{ color: colors.blue, fontSize: 16, fontFamily: fonts.black, fontWeight: "900", textAlign: "center" }}>{title}</Text>
     </Pressable>
+  )
+}
+
+function AuthModeTabs({ mode, onChange }: { mode: "login" | "register" | "forgot"; onChange: (mode: "login" | "register" | "forgot") => void }) {
+  const items: Array<{ key: "login" | "register" | "forgot"; label: string }> = [
+    { key: "login", label: "Вход" },
+    { key: "register", label: "Регистрация" },
+    { key: "forgot", label: "Пароль" },
+  ]
+
+  return (
+    <View style={{ flexDirection: "row", borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, padding: 4, gap: 4 }}>
+      {items.map((item) => {
+        const active = mode === item.key
+        return (
+          <Pressable
+            key={item.key}
+            focusable={false}
+            accessibilityRole="tab"
+            accessibilityLabel={item.label}
+            accessibilityState={{ selected: active }}
+            testID={`auth-tab-${item.key}`}
+            onPress={() => onChange(item.key)}
+            style={({ pressed }) => ({
+              flex: 1,
+              minHeight: 40,
+              borderRadius: 8,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: active ? colors.surface : pressed ? "#eef2f7" : "transparent",
+              transform: [{ scale: pressed ? 0.99 : 1 }],
+              outlineStyle: "none",
+            } as unknown as ComponentProps<typeof View>["style"])}
+          >
+            <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: active ? colors.blue : colors.muted, fontSize: 14, fontFamily: fonts.black, fontWeight: "900" }}>
+              {item.label}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
+function RegisterStepHeader({ step }: { step: 1 | 2 }) {
+  const items: Array<{ value: 1 | 2; title: string; subtitle: string }> = [
+    { value: 1, title: "Организация", subtitle: "Кабинет" },
+    { value: 2, title: "Владелец", subtitle: "Доступ" },
+  ]
+
+  return (
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      {items.map((item) => {
+        const active = item.value === step
+        const done = item.value < step
+        return (
+          <View
+            key={item.value}
+            style={{
+              flex: 1,
+              minHeight: 58,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: active ? "#bfdbfe" : colors.border,
+              backgroundColor: active ? colors.blueSoft : colors.surfaceMuted,
+              paddingHorizontal: 10,
+              paddingVertical: 8,
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: done || active ? colors.blue : "#dbe4ef" }}>
+                <Text style={{ color: done || active ? "#ffffff" : colors.muted, fontSize: 12, fontFamily: fonts.black, fontWeight: "900" }}>{item.value}</Text>
+              </View>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={{ flex: 1, color: active ? colors.blue : colors.text, fontSize: 14, fontFamily: fonts.black, fontWeight: "900" }}>{item.title}</Text>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 12, fontFamily: fonts.medium }}>{item.subtitle}</Text>
+          </View>
+        )
+      })}
+    </View>
   )
 }
 
 function PrimaryButton({ title, disabled, onPress }: { title: string; disabled?: boolean; onPress: () => void }) {
   return (
-    <Pressable disabled={disabled} onPress={onPress} style={{ minHeight: 48, borderRadius: 8, backgroundColor: colors.slate, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.6 : 1 }}>
-      <Text style={{ color: "#ffffff", fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+    <Pressable
+      focusable={false}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 50,
+        borderRadius: 8,
+        backgroundColor: disabled ? colors.disabled : pressed ? "#1e293b" : colors.slate,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: disabled ? 0.75 : 1,
+        transform: [{ scale: pressed && !disabled ? 0.99 : 1 }],
+      })}
+    >
+      <Text style={{ color: "#ffffff", fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+    </Pressable>
+  )
+}
+
+function TextButton({ title, onPress }: { title: string; onPress: () => void }) {
+  return (
+    <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={title} onPress={onPress} style={({ pressed }) => ({ minHeight: 34, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, opacity: pressed ? 0.65 : 1 })}>
+      <Text style={{ color: colors.blue, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
     </Pressable>
   )
 }
 
 function SecondaryButton({ title, icon, onPress }: { title: string; icon: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#ffffff" }}>
+    <Pressable
+      focusable={false}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 42,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: pressed ? "#bfdbfe" : colors.border,
+        paddingHorizontal: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: pressed ? colors.blueSoft : colors.surface,
+        transform: [{ scale: pressed ? 0.99 : 1 }],
+      })}
+    >
       <AppIcon name={icon} size={16} color={colors.blue} />
-      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
+      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 15, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
     </Pressable>
   )
 }
@@ -2879,7 +3561,15 @@ function ChoiceRow({ options, value, onChange }: { options: Array<[string, strin
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
       {options.map(([key, label]) => (
-        <Pressable key={key} onPress={() => onChange(key)} style={{ borderRadius: 999, borderWidth: 1, borderColor: value === key ? colors.blue : colors.border, backgroundColor: value === key ? "#eff6ff" : "#ffffff", paddingHorizontal: 12, paddingVertical: 8 }}>
+        <Pressable
+          focusable={false}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          accessibilityState={{ selected: value === key }}
+          key={key}
+          onPress={() => onChange(key)}
+          style={{ borderRadius: 999, borderWidth: 1, borderColor: value === key ? colors.blue : colors.border, backgroundColor: value === key ? colors.blueSoft : colors.surface, paddingHorizontal: 12, paddingVertical: 8 }}
+        >
           <Text numberOfLines={1} style={{ color: value === key ? colors.blue : colors.muted, fontSize: 14, fontFamily: fonts.black, fontWeight: "900" }}>{label}</Text>
         </Pressable>
       ))}
@@ -2891,9 +3581,9 @@ function MetricGrid({ items }: { items: Array<{ label: string; value: string; co
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
       {items.map((item) => (
-        <View key={item.label} style={{ flexGrow: 1, flexBasis: "42%", minHeight: 78, borderRadius: 8, backgroundColor: "#f8fafc", padding: 10, justifyContent: "space-between" }}>
-          <Text style={{ color: colors.muted, fontSize: 12, fontFamily: fonts.medium }}>{item.label}</Text>
-          <Text selectable adjustsFontSizeToFit numberOfLines={1} style={{ color: item.color, fontSize: 20, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
+        <View key={item.label} style={{ flexGrow: 1, flexBasis: "42%", minHeight: 82, borderRadius: 8, backgroundColor: colors.surfaceMuted, padding: 11, justifyContent: "space-between", borderWidth: 1, borderColor: "#edf2f7" }}>
+          <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.medium }}>{item.label}</Text>
+          <Text selectable adjustsFontSizeToFit numberOfLines={1} style={{ color: item.color, fontSize: 21, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
         </View>
       ))}
     </View>
@@ -2904,21 +3594,73 @@ function ActionRow({ icon, title, value, color, onPress }: { icon: string; title
   const content = (
     <>
       <IconBox icon={icon} color={color} />
-      <Text selectable style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
-      <Text selectable style={{ color, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{value}</Text>
+      <Text selectable numberOfLines={2} style={{ flex: 1, color: colors.text, fontSize: 17, lineHeight: 22, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+      <Text selectable numberOfLines={1} adjustsFontSizeToFit style={{ maxWidth: "42%", color, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{value}</Text>
       {onPress ? <AppIcon name="chevron.right" size={18} color={colors.muted} /> : null}
     </>
   )
   if (onPress) {
     return (
-      <Pressable onPress={onPress} style={{ minHeight: 46, flexDirection: "row", alignItems: "center", gap: 12 }}>
+      <Pressable
+        focusable={false}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. ${value}`}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          minHeight: 52,
+          borderRadius: 8,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          paddingHorizontal: pressed ? 8 : 0,
+          backgroundColor: pressed ? colors.surfaceMuted : "transparent",
+        })}
+      >
         {content}
       </Pressable>
     )
   }
   return (
-    <View style={{ minHeight: 46, flexDirection: "row", alignItems: "center", gap: 12 }}>
+    <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 12 }}>
       {content}
+    </View>
+  )
+}
+
+function QuickActionGrid({ actions }: { actions: Array<{ icon: string; title: string; subtitle: string; color: string; onPress: () => void }> }) {
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+      {actions.map((action) => (
+        <Pressable
+          key={action.title}
+          focusable={false}
+          accessibilityRole="button"
+          accessibilityLabel={`${action.title}. ${action.subtitle}`}
+          onPress={action.onPress}
+          style={({ pressed }) => ({
+            flexGrow: 1,
+            flexBasis: "42%",
+            minHeight: 98,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: pressed ? `${action.color}55` : colors.border,
+            backgroundColor: pressed ? `${action.color}10` : colors.surface,
+            padding: 12,
+            justifyContent: "space-between",
+            boxShadow: "0 1px 3px rgba(15, 23, 42, 0.05)",
+            transform: [{ scale: pressed ? 0.99 : 1 }],
+          })}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <IconBox icon={action.icon} color={action.color} />
+            <AppIcon name="chevron.right" size={18} color={colors.faint} />
+          </View>
+          <View style={{ gap: 2 }}>
+            <Text selectable numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{action.title}</Text>
+            <Text selectable numberOfLines={2} style={{ color: colors.muted, fontSize: 13, lineHeight: 17, fontFamily: fonts.medium }}>{action.subtitle}</Text>
+          </View>
+        </Pressable>
+      ))}
     </View>
   )
 }
@@ -2928,8 +3670,8 @@ function CompactRow({ title, subtitle, value, tone }: { title: string; subtitle?
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 3 }}>
       <View style={{ width: 8, height: 36, borderRadius: 4, backgroundColor: tone }} />
       <View style={{ flex: 1 }}>
-        <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
-        {subtitle ? <Text selectable style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{subtitle}</Text> : null}
+        <Text selectable style={{ color: colors.text, fontSize: 16, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
+        {subtitle ? <Text selectable style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.regular }}>{subtitle}</Text> : null}
       </View>
       {value ? <Text selectable style={{ color: tone, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{value}</Text> : null}
     </View>
@@ -2953,15 +3695,36 @@ function IconBox({ icon, color }: { icon: string; color: string }) {
 }
 
 function SectionTitle({ title }: { title: string }) {
-  return <Text style={{ color: colors.text, fontSize: 20, fontFamily: fonts.black, fontWeight: "900", marginTop: 2 }}>{title}</Text>
+  return <Text style={{ color: colors.text, fontSize: 21, fontFamily: fonts.black, fontWeight: "900", marginTop: 2 }}>{title}</Text>
 }
 
-function EmptyState({ title }: { title: string }) {
-  return (
-    <Card>
-      <Text selectable style={{ color: colors.muted, fontSize: 15, fontFamily: fonts.medium, textAlign: "center" }}>{title}</Text>
-    </Card>
+function EmptyState({
+  title,
+  subtitle,
+  icon = "doc.text.fill",
+  actionLabel,
+  onAction,
+  inline = false,
+}: {
+  title: string
+  subtitle?: string
+  icon?: string
+  actionLabel?: string
+  onAction?: () => void
+  inline?: boolean
+}) {
+  const content = (
+    <View style={{ alignItems: "center", gap: 10, paddingVertical: inline ? 8 : 4 }}>
+      <IconBox icon={icon} color={colors.faint} />
+      <View style={{ gap: 4 }}>
+        <Text selectable style={{ color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900", textAlign: "center" }}>{title}</Text>
+        {subtitle ? <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20, fontFamily: fonts.medium, textAlign: "center" }}>{subtitle}</Text> : null}
+      </View>
+      {actionLabel && onAction ? <SecondaryButton title={actionLabel} icon="chevron.right" onPress={onAction} /> : null}
+    </View>
   )
+
+  return inline ? content : <Card>{content}</Card>
 }
 
 function NoAccess({ title }: { title: string }) {
@@ -2977,11 +3740,22 @@ function InlineMessage({ message, tone }: { message: string; tone: "error" | "su
   )
 }
 
+function HelperText({ text, tone }: { text: string; tone: "warning" | "success" }) {
+  const color = tone === "success" ? colors.green : colors.orange
+  return <Text selectable style={{ color, fontSize: 13, lineHeight: 18, fontFamily: fonts.bold, fontWeight: "700" }}>{text}</Text>
+}
+
 function CenteredLoader() {
   return (
-    <View style={{ minHeight: 180, alignItems: "center", justifyContent: "center" }}>
-      <ActivityIndicator color={colors.blue} />
-    </View>
+    <>
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <ActivityIndicator color={colors.blue} />
+          <Text style={{ color: colors.muted, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>Загружаем кабинет...</Text>
+        </View>
+      </Card>
+      <SkeletonList />
+    </>
   )
 }
 
@@ -2990,10 +3764,11 @@ function TabLoading({ error, loading }: { error?: string | null; loading?: boole
     return (
       <Card>
         <InlineMessage message={error} tone="error" />
+        <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20, fontFamily: fonts.medium }}>Потяните экран вниз, чтобы повторить загрузку раздела.</Text>
       </Card>
     )
   }
-  if (loading === false) return <EmptyState title="Данные раздела пока не загружены" />
+  if (loading === false) return <EmptyState icon="tray.full.fill" title="Данные раздела пока не загружены" subtitle="Потяните экран вниз для обновления." />
   return <SkeletonList />
 }
 
@@ -3023,6 +3798,11 @@ function rootTab(tab: string) {
   return tab.split(":")[0] || "home"
 }
 
+function isReachableTab(tabs: Array<{ key: string }>, tab: string) {
+  const key = rootTab(tab)
+  return tabs.some((item) => item.key === key) || ["notifications", "settings"].includes(key)
+}
+
 function backTargetForTab(tab: string) {
   const [tabKey, tabParam, tabSubParam] = tab.split(":")
   if (tabKey === "tenant") return "tenants"
@@ -3033,6 +3813,7 @@ function backTargetForTab(tab: string) {
   if (tabKey === "documents" && tabParam === "building" && tabSubParam) return `building:${tabSubParam}`
   if (tabKey === "documents" && tabParam === "tenant" && tabSubParam) return `tenant:${tabSubParam}`
   if (tabKey === "documents" && tabParam) return `tenant:${tabParam}`
+  if (tabKey === "notifications") return "more"
   if (tabKey === "settings") return "more"
   return null
 }
@@ -3074,7 +3855,6 @@ function tabsForRole(role?: string | null) {
       { key: "payments", label: "Оплата", icon: "creditcard.fill" },
       { key: "requests", label: "Заявки", icon: "wrench.and.screwdriver.fill" },
       { key: "documents", label: "Документы", icon: "doc.text.fill" },
-      { key: "notifications", label: "Увед.", icon: "bell.fill" },
       { key: "more", label: "Еще", icon: "ellipsis" },
     ]
   }
@@ -3085,7 +3865,6 @@ function tabsForRole(role?: string | null) {
       { key: "tenants", label: "Аренд.", icon: "person.2.fill" },
       { key: "documents", label: "Док.", icon: "doc.text.fill" },
       { key: "payments", label: "Оплаты", icon: "creditcard.fill" },
-      { key: "notifications", label: "Увед.", icon: "bell.fill" },
       { key: "more", label: "Еще", icon: "ellipsis" },
     ]
   }
@@ -3095,7 +3874,6 @@ function tabsForRole(role?: string | null) {
     { key: "tenants", label: "Аренд.", icon: "person.2.fill" },
     { key: "documents", label: "Док.", icon: "doc.text.fill" },
     { key: "requests", label: "Заявки", icon: "tray.full.fill" },
-    { key: "notifications", label: "Увед.", icon: "bell.fill" },
     { key: "more", label: "Еще", icon: "ellipsis" },
   ]
 }
@@ -3160,6 +3938,72 @@ function formatFileSize(value?: number | null) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
+const mobileSlugMap: Record<string, string> = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "yo",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "y",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "h",
+  ц: "ts",
+  ч: "ch",
+  ш: "sh",
+  щ: "sch",
+  ы: "y",
+  э: "e",
+  ю: "yu",
+  я: "ya",
+  ә: "a",
+  ғ: "g",
+  қ: "q",
+  ң: "n",
+  ө: "o",
+  ұ: "u",
+  ү: "u",
+  һ: "h",
+  і: "i",
+}
+
+function makeMobileSlug(value: string) {
+  return value
+    .toLowerCase()
+    .split("")
+    .map((char) => mobileSlugMap[char] ?? char)
+    .join("")
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 20)
+}
+
+function isEmailLike(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}
+
+function pushPermissionLabel(status: string) {
+  if (status === "granted") return "разрешено"
+  if (status === "denied") return "запрещено"
+  if (status === "undetermined") return "не выбрано"
+  return status
+}
+
 function legalTypeLabel(type: string) {
   const labels: Record<string, string> = {
     IP: "ИП",
@@ -3192,6 +4036,14 @@ function categoryTitle(category: string) {
     RECONCILIATION: "Акты сверки",
   }
   return labels[category] ?? "Файлы"
+}
+
+function documentTypeCategory(type: string) {
+  if (type === "INVOICE") return "INVOICE"
+  if (type === "RECONCILIATION") return "RECONCILIATION"
+  if (["ACT", "ACCEPTANCE"].includes(type)) return "ACT"
+  if (["CONTRACT", "ADDENDUM"].includes(type)) return "CONTRACT"
+  return "ALL"
 }
 
 function isPendingSignatureStatus(status: string) {
@@ -3322,6 +4174,16 @@ function paymentStatusColor(status: string) {
   if (status === "DISPUTED") return colors.orange
   if (status === "REJECTED") return colors.red
   return colors.blue
+}
+
+function paymentReviewTitle(action: "confirm" | "dispute" | "reject") {
+  if (action === "confirm") return "Подтвердить оплату?"
+  if (action === "dispute") return "Отправить на уточнение?"
+  return "Отклонить оплату?"
+}
+
+function paymentReviewDefaultReason(action: "dispute" | "reject") {
+  return action === "dispute" ? "Уточнить оплату" : "Не найдено поступление"
 }
 
 function tabForNotification(notification: MobileNotification) {
