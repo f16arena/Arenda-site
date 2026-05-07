@@ -8,6 +8,7 @@ import { Send, User } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
 import { NotificationSettingsForm } from "@/components/profile/notification-settings"
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
+import { formatPersonShortName } from "@/lib/display-name"
 
 export default async function CabinetProfilePage() {
   const session = await auth()
@@ -35,7 +36,7 @@ export default async function CabinetProfilePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-            {user.name}{user.tenant ? ` · ${user.tenant.companyName}` : ""}
+            {formatPersonShortName(user.name)}{user.tenant ? ` · ${user.tenant.companyName}` : ""}
           </p>
         </div>
       </div>

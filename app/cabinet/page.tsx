@@ -14,6 +14,7 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
+import { formatPersonShortName } from "@/lib/display-name"
 
 const PAYMENT_CALENDAR_LIMIT = 120
 
@@ -222,7 +223,7 @@ export default async function CabinetDashboard() {
     <div className="space-y-5 pb-20 sm:space-y-6 sm:pb-0">
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
-          Здравствуйте, {session?.user.name?.split(" ")[0] ?? session?.user.name}
+          Здравствуйте, {formatPersonShortName(session?.user.name)}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
           {tenant.companyName}{building?.name ? ` · ${building.name}` : ""}

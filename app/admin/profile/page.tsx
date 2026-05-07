@@ -12,6 +12,7 @@ import { TwoFactorCard } from "@/components/two-factor-card"
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
+import { formatPersonShortName } from "@/lib/display-name"
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: "Владелец",
@@ -64,7 +65,7 @@ export default async function ProfilePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-            {user.name} · {ROLE_LABELS[user.role] ?? user.role}
+            {formatPersonShortName(user.name)} · {ROLE_LABELS[user.role] ?? user.role}
           </p>
         </div>
       </div>

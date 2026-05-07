@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { Shield } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
+import { formatPersonShortName } from "@/lib/display-name"
 
 export default async function SuperadminProfilePage() {
   const session = await auth()
@@ -26,7 +27,7 @@ export default async function SuperadminProfilePage() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{user.name} · Платформенный администратор</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatPersonShortName(user.name)} · Платформенный администратор</p>
         </div>
       </div>
 

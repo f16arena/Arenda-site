@@ -18,6 +18,7 @@ import { isOwnerLike } from "@/lib/building-access"
 import { getValidatedImpersonateData, getCurrentOrgId } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
+import { formatPersonShortName, getDisplayInitial } from "@/lib/display-name"
 import {
   getCachedAdminShellBuildings,
   getCachedAdminShellCapabilities,
@@ -76,7 +77,7 @@ async function renderAdminLayout(children: React.ReactNode) {
       hasOwner: !!o.ownerUserId,
     }))
 
-    return <AdminSelectOrg orgs={mapped} userName={session.user.name ?? "Платформа"} />
+    return <AdminSelectOrg orgs={mapped} userName={formatPersonShortName(session.user.name, "Платформа")} />
   }
 
   const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections, allowedCapabilities] = await measureServerStep("/admin/layout", "admin-shell-data", Promise.all([
@@ -120,7 +121,9 @@ async function renderAdminLayout(children: React.ReactNode) {
   const organizationOwnerName = session.user.role === "OWNER"
     ? currentOrg?.directorName?.trim() || currentOrg?.shortName?.trim() || null
     : null
-  const displayUserName = organizationOwnerName || freshUser?.name?.trim() || session.user.name || "Профиль"
+  const displayUserName = formatPersonShortName(
+    organizationOwnerName || freshUser?.name?.trim() || session.user.name,
+  )
 
   const now = new Date()
   const planExpiresAt = currentOrg?.planExpiresAtIso ? new Date(currentOrg.planExpiresAtIso) : null
@@ -177,7 +180,7 @@ async function renderAdminLayout(children: React.ReactNode) {
             >
               <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
                 <span className="text-[11px] font-semibold text-white">
-                  {displayUserName[0]?.toUpperCase()}
+                  {getDisplayInitial(displayUserName)}
                 </span>
               </div>
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">

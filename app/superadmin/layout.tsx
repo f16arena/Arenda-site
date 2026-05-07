@@ -17,11 +17,13 @@ import {
   UserCircle,
 } from "lucide-react"
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
+import { formatPersonShortName, getDisplayInitial } from "@/lib/display-name"
 
 export default async function SuperadminLayout({ children }: { children: ReactNode }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   if (!session.user.isPlatformOwner) redirect("/admin")
+  const displayUserName = formatPersonShortName(session.user.name)
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50">
@@ -59,7 +61,7 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
         </nav>
 
         <div className="border-t border-purple-800 p-3">
-          <p className="mb-2 px-2 text-[10px] text-purple-300">{session.user.name}</p>
+          <p className="mb-2 px-2 text-[10px] text-purple-300">{displayUserName}</p>
           <form action="/api/logout" method="post">
             <button
               type="submit"
@@ -88,10 +90,10 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-purple-600">
                 <span className="text-[11px] font-semibold text-white">
-                  {session.user.name?.[0]?.toUpperCase()}
+                  {getDisplayInitial(displayUserName)}
                 </span>
               </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{session.user.name}</span>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{displayUserName}</span>
             </Link>
           </div>
         </header>

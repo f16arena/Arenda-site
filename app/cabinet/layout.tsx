@@ -6,6 +6,7 @@ import { NotificationBell } from "@/components/layout/notification-bell"
 import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { db } from "@/lib/db"
+import { formatPersonShortName, getDisplayInitial } from "@/lib/display-name"
 
 export default async function CabinetLayout({
   children,
@@ -18,6 +19,7 @@ export default async function CabinetLayout({
   // даже если у него role=TENANT в БД.
   if (session.user.isPlatformOwner) redirect("/superadmin")
   if (session.user.role !== "TENANT") redirect("/admin")
+  const displayUserName = formatPersonShortName(session.user.name)
 
   const [tenant, unreadNotifications, userMail] = await Promise.all([
     db.tenant.findUnique({
@@ -52,11 +54,11 @@ export default async function CabinetLayout({
             >
               <div className="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center">
                 <span className="text-[11px] font-semibold text-white">
-                  {session.user.name?.[0]?.toUpperCase()}
+                  {getDisplayInitial(displayUserName)}
                 </span>
               </div>
               <span className="hidden max-w-[180px] truncate text-sm font-medium text-slate-700 dark:text-slate-200 sm:inline">
-                {session.user.name}
+                {displayUserName}
               </span>
             </Link>
           </div>
