@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { PasswordChangeSchema, firstZodError } from "@/lib/schemas"
 import bcrypt from "bcryptjs"
 import type { Result } from "./my-account"
 
@@ -36,16 +37,15 @@ export async function changeOwnPassword(formData: FormData): Promise<Result> {
     }
   }
 
-  const currentPassword = String(formData.get("currentPassword") ?? "")
-  const newPassword = String(formData.get("newPassword") ?? "")
-  const confirmPassword = String(formData.get("confirmPassword") ?? "")
-
-  if (!currentPassword) return { ok: false, error: "Введите текущий пароль" }
-  if (newPassword.length < 8) return { ok: false, error: "Новый пароль должен быть минимум 8 символов" }
-  if (newPassword === currentPassword) {
-    return { ok: false, error: "Новый пароль должен отличаться от текущего" }
+  const parsed = PasswordChangeSchema.safeParse({
+    currentPassword: formData.get("currentPassword") ?? "",
+    newPassword: formData.get("newPassword") ?? "",
+    confirmPassword: formData.get("confirmPassword") ?? "",
+  })
+  if (!parsed.success) {
+    return { ok: false, error: firstZodError(parsed.error) }
   }
-  if (newPassword !== confirmPassword) return { ok: false, error: "Пароли не совпадают" }
+  const { currentPassword, newPassword } = parsed.data
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },

@@ -440,7 +440,8 @@ async function renderFinancesPage({
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Расходы</h2>
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
         </div>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Категория</th>
@@ -487,6 +488,7 @@ async function renderFinancesPage({
             )}
           </tbody>
         </table>
+        </div>
         <PaginationControls
           basePath="/admin/finances"
           page={expensesPage}

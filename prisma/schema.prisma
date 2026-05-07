@@ -625,6 +625,9 @@ model Payment {
   paymentDate DateTime @map("payment_date")
   method      String   @default("TRANSFER")
   note        String?
+  // Идентификатор из внешней системы (Kaspi txnId, импортированная строка
+  // банковской выписки и т.п.) для идемпотентности webhook'ов / повторных импортов.
+  externalRef String?  @unique @map("external_ref")
   createdAt   DateTime @default(now()) @map("created_at")
 
   tenant  Tenant          @relation(fields: [tenantId], references: [id])
