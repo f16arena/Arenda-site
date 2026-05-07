@@ -57,6 +57,9 @@ export async function recordPayment(formData: FormData) {
   const cashAccountId = (formData.get("cashAccountId") as string)?.trim() || null
 
   const amount = parseFloat(amountStr)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Сумма платежа должна быть положительным числом")
+  }
 
   // Если указан счёт — проверяем что он принадлежит нашей организации
   if (cashAccountId) {
@@ -221,12 +224,17 @@ export async function addPenalty(tenantId: string, formData: FormData) {
   const description = formData.get("description") as string
   const period = new Date().toISOString().slice(0, 7)
 
+  const amount = parseFloat(amountStr)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Сумма пени должна быть положительным числом")
+  }
+
   await db.charge.create({
     data: {
       tenantId,
       period,
       type: "PENALTY",
-      amount: parseFloat(amountStr),
+      amount,
       description: description || "Пеня за просрочку",
     },
   })
@@ -249,12 +257,17 @@ export async function addCharge(formData: FormData) {
   const period = formData.get("period") as string
   const dueDateStr = formData.get("dueDate") as string
 
+  const amount = parseFloat(amountStr)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Сумма начисления должна быть положительным числом")
+  }
+
   await db.charge.create({
     data: {
       tenantId,
       period,
       type,
-      amount: parseFloat(amountStr),
+      amount,
       description: description || null,
       dueDate: dueDateStr ? new Date(dueDateStr) : null,
     },

@@ -59,10 +59,15 @@ export async function recordSalaryPayment(formData: FormData) {
   const amountStr = formData.get("amount") as string
   const period = formData.get("period") as string
 
+  const amount = parseFloat(amountStr)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Сумма зарплаты должна быть положительным числом")
+  }
+
   await db.salaryPayment.create({
     data: {
       staffId,
-      amount: parseFloat(amountStr),
+      amount,
       period,
       status: "PAID",
       paidAt: new Date(),

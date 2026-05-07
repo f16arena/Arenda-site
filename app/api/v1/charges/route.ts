@@ -34,8 +34,8 @@ export async function GET(req: Request) {
     const period = url.searchParams.get("period")
     const unpaid = url.searchParams.get("unpaid") === "true"
     const tenantId = url.searchParams.get("tenantId")
-    const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get("limit") ?? "100")))
-    const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0"))
+    const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get("limit") ?? "100", 10) || 100))
+    const offset = Math.max(0, parseInt(url.searchParams.get("offset") ?? "0", 10) || 0)
 
     const where: Record<string, unknown> = { ...chargeScope(auth.organizationId) }
     if (period && /^\d{4}-(0[1-9]|1[0-2])$/.test(period)) where.period = period
