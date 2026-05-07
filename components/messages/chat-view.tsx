@@ -85,6 +85,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
         <div className="flex-1 overflow-y-auto">
           {showBroadcast && (
             <button
+              type="button"
               onClick={() => setSelectedId(BROADCAST_ID)}
               className={cn(
                 "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
@@ -108,6 +109,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
           {contacts.map((c) => (
             <button
               key={c.id}
+              type="button"
               onClick={() => setSelectedId(c.id)}
               className={cn(
                 "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
@@ -225,6 +227,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                         </div>
                         {isMine && (
                           <button
+                            type="button"
                             onClick={() => {
                               if (!confirm("Удалить сообщение?")) return
                               deleteMessage(m.id).catch((e) => toast.error(e.message))
@@ -273,6 +276,8 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                 <button
                   type="submit"
                   disabled={pending}
+                  aria-label="Отправить сообщение"
+                  title="Отправить сообщение"
                   className="rounded-lg bg-slate-900 text-white px-4 py-2.5 hover:bg-slate-800 disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />

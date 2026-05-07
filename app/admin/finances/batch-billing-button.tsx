@@ -40,6 +40,7 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
   if (!open) {
     return (
       <button
+        type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 px-3 py-1.5 text-xs font-medium"
       >
@@ -53,7 +54,15 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
     <div className="rounded-xl border border-purple-200 dark:border-purple-500/30 bg-white dark:bg-slate-900 p-4 space-y-3 max-w-md">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Массовое начисление</p>
-        <button onClick={() => { setOpen(false); setResult(null) }} className="text-xs text-slate-400 hover:text-slate-600">×</button>
+        <button
+          type="button"
+          onClick={() => { setOpen(false); setResult(null) }}
+          aria-label="Закрыть массовое начисление"
+          title="Закрыть"
+          className="text-xs text-slate-400 hover:text-slate-600"
+        >
+          ×
+        </button>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Создаст начисления RENT (и CLEANING для арендаторов с включённой уборкой) за указанный период.
@@ -82,6 +91,7 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
         </div>
       )}
       <button
+        type="button"
         onClick={run}
         disabled={pending}
         className="w-full rounded-lg bg-purple-600 hover:bg-purple-700 text-white py-2 text-sm font-medium disabled:opacity-60"

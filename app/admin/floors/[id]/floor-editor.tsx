@@ -1055,7 +1055,9 @@ export function FloorEditor({
         {tools.map((t) => (
           <button
             key={t.id}
+            type="button"
             onClick={() => { setTool(t.id); setPolygonInProgress(null) }}
+            aria-label={t.label}
             title={t.label}
             className={`flex h-10 items-center justify-center rounded-lg transition ${
               tool === t.id ? "bg-blue-600 text-white" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
@@ -1066,7 +1068,9 @@ export function FloorEditor({
         ))}
         <div className="h-px bg-slate-200 my-1" />
         <button
+          type="button"
           onClick={() => setShowGrid(!showGrid)}
+          aria-label="Сетка"
           title="Сетка (G)"
           className={`flex h-10 items-center justify-center rounded-lg transition ${
             showGrid ? "bg-slate-200" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
@@ -1075,21 +1079,27 @@ export function FloorEditor({
           <GridIcon className="h-4 w-4" />
         </button>
         <button
+          type="button"
           onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z * 1.2))}
+          aria-label="Увеличить"
           title="Увеличить"
           className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
         <button
+          type="button"
           onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z / 1.2))}
+          aria-label="Уменьшить"
           title="Уменьшить"
           className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
         <button
+          type="button"
           onClick={() => fitToView()}
+          aria-label="Подогнать план"
           title="Подогнать (вместить весь план в экран)"
           className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
@@ -1115,6 +1125,7 @@ export function FloorEditor({
               <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide">Тип:</span>
               <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
                 <button
+                  type="button"
                   onClick={() => setDrawKind("rentable")}
                   className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                     drawKind === "rentable"
@@ -1125,6 +1136,7 @@ export function FloorEditor({
                   Арендуемое
                 </button>
                 <button
+                  type="button"
                   onClick={() => setDrawKind("common")}
                   className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                     drawKind === "common"
@@ -1141,6 +1153,7 @@ export function FloorEditor({
             {/* Режимы отображения */}
             <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
               <button
+                type="button"
                 onClick={() => setDisplayMode("full")}
                 title="Полный вид"
                 className={`px-2 py-1 rounded text-xs ${displayMode === "full" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
@@ -1148,6 +1161,7 @@ export function FloorEditor({
                 Полный
               </button>
               <button
+                type="button"
                 onClick={() => setDisplayMode("outline")}
                 title="Только контур"
                 className={`px-2 py-1 rounded text-xs ${displayMode === "outline" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
@@ -1156,6 +1170,7 @@ export function FloorEditor({
               </button>
               {layout.underlayUrl && (
                 <button
+                  type="button"
                   onClick={() => setDisplayMode("underlay-only")}
                   title="Только подложка"
                   className={`px-2 py-1 rounded text-xs ${displayMode === "underlay-only" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
@@ -1166,7 +1181,9 @@ export function FloorEditor({
             </div>
 
             <button
+              type="button"
               onClick={() => setView3D(!view3D)}
+              aria-label="3D-вид"
               title="Изометрический 3D-вид"
               className={`p-2 rounded-lg ${view3D ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
@@ -1174,7 +1191,9 @@ export function FloorEditor({
             </button>
 
             <button
+              type="button"
               onClick={() => setCalibration({ active: !calibration.active, first: null, second: null })}
+              aria-label="Калибровка масштаба"
               title="Калибровка масштаба (клик 2 точки)"
               className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
@@ -1184,7 +1203,9 @@ export function FloorEditor({
             <span className="w-px h-5 bg-slate-200 mx-1" />
 
             <button
+              type="button"
               onClick={undo}
+              aria-label="Отменить"
               disabled={history.length === 0}
               title="Отменить (Ctrl+Z)"
               className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
@@ -1192,7 +1213,9 @@ export function FloorEditor({
               <Undo2 className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={redo}
+              aria-label="Повторить"
               disabled={future.length === 0}
               title="Повторить (Ctrl+Y)"
               className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
@@ -1200,7 +1223,9 @@ export function FloorEditor({
               <Redo2 className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={copySelected}
+              aria-label="Копировать"
               disabled={!selectedId}
               title="Копировать (Ctrl+C)"
               className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
@@ -1208,13 +1233,16 @@ export function FloorEditor({
               <Copy className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => fitToView()}
+              aria-label="Подогнать вид"
               title="Подогнать вид (вместить весь план в экран)"
               className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
             >
               <Maximize2 className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => {
                 if (layout.elements.length === 0) {
                   toast.message("На плане нет элементов")
@@ -1231,6 +1259,7 @@ export function FloorEditor({
                 toast.success("Все элементы стёрты. Не забудьте сохранить.")
               }}
               disabled={layout.elements.length === 0}
+              aria-label="Очистить план"
               title="Очистить все нарисованные элементы"
               className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-30 disabled:hover:bg-transparent"
             >
@@ -1239,6 +1268,7 @@ export function FloorEditor({
             <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{Math.round(zoom * 100)}%</span>
             {f16Template && (
               <button
+                type="button"
                 onClick={() => {
                   if (layout.elements.length > 0) {
                     if (!window.confirm("Текущий план будет заменён шаблоном БЦ F16. Продолжить?")) return
@@ -1256,6 +1286,7 @@ export function FloorEditor({
             )}
             {layout.underlayUrl?.startsWith("data:image/") && (
               <button
+                type="button"
                 onClick={handleRecognize}
                 disabled={recognizing}
                 title="Прислать подложку Claude AI и автоматически расставить прямоугольники помещений"
@@ -1275,6 +1306,7 @@ export function FloorEditor({
               </button>
             )}
             <button
+              type="button"
               onClick={handleSave}
               disabled={saving}
               className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
@@ -1292,7 +1324,7 @@ export function FloorEditor({
               {!calibration.first
                 ? "📍 Кликните по первой точке известного расстояния"
                 : "📍 Теперь кликните по второй точке"}
-              <button onClick={() => setCalibration({ active: false, first: null, second: null })}
+              <button type="button" onClick={() => setCalibration({ active: false, first: null, second: null })}
                 className="ml-3 text-orange-600 dark:text-orange-400 underline">Отмена</button>
             </div>
           )}
@@ -1467,6 +1499,7 @@ export function FloorEditor({
                 />
               </div>
               <button
+                type="button"
                 onClick={() => setLayout((p) => ({ ...p, underlayUrl: null }))}
                 className="flex items-center gap-1 text-xs text-red-500 hover:underline"
               >

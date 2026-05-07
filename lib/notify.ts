@@ -2,6 +2,8 @@ import { db } from "@/lib/db"
 import { sendTelegram } from "@/lib/telegram"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { sendSms } from "@/lib/sms"
+import { sendPushToUser } from "@/lib/push"
+import { isNotificationTypeMuted } from "@/lib/notification-preferences"
 
 export interface NotifyOpts {
   userId: string
@@ -16,6 +18,8 @@ export interface NotifyOpts {
   sendEmail?: boolean
   /** По умолчанию false (SMS платное) — true только для критичных уведомлений */
   sendSms?: boolean
+  sendPush?: boolean
+  pushData?: Record<string, unknown>
   /** Опционально — кастомный HTML письма (иначе генерируем basicEmailTemplate) */
   emailHtml?: string
   /** Текст кнопки в письме (по умолчанию "Открыть в кабинете") */
@@ -47,7 +51,7 @@ export async function notifyUser(opts: NotifyOpts) {
     console.warn("[notify] in-app create failed:", e instanceof Error ? e.message : e)
   }
 
-  if (opts.sendTelegram === false && opts.sendEmail === false && !opts.sendSms) return
+  if (opts.sendTelegram === false && opts.sendEmail === false && !opts.sendSms && opts.sendPush === false) return
 
   const user = await db.user.findUnique({
     where: { id: opts.userId },
@@ -61,10 +65,7 @@ export async function notifyUser(opts: NotifyOpts) {
 
   // Если этот тип события у юзера в muted — ни telegram, ни email не шлём
   // (in-app уведомление уже создано выше).
-  const mutedTypes = Array.isArray(user.notifyMutedTypes)
-    ? user.notifyMutedTypes.filter((x): x is string => typeof x === "string")
-    : []
-  const isMuted = mutedTypes.includes(opts.type)
+  const isMuted = isNotificationTypeMuted(user.notifyMutedTypes, opts.type)
 
   // 2. Telegram
   if (opts.sendTelegram !== false && user.telegramChatId && (user.notifyTelegram ?? true) && !isMuted) {
@@ -75,7 +76,24 @@ export async function notifyUser(opts: NotifyOpts) {
     }
   }
 
-  // 3. Email
+  // 3. Push
+  if (opts.sendPush !== false && !isMuted) {
+    try {
+      await sendPushToUser(opts.userId, {
+        title: opts.title,
+        body: opts.message,
+        data: {
+          type: opts.type,
+          link: opts.link,
+          ...opts.pushData,
+        },
+      })
+    } catch (e) {
+      console.warn("[notify] push failed:", e instanceof Error ? e.message : e)
+    }
+  }
+
+  // 4. Email
   if (opts.sendEmail !== false && user.email && (user.notifyEmail ?? true) && !isMuted) {
     try {
       const rootHost = process.env.ROOT_HOST || "commrent.kz"
@@ -117,7 +135,7 @@ export async function notifyUser(opts: NotifyOpts) {
     }
   }
 
-  // 4. SMS (только если явно запрошено и пользователь его включил)
+  // 5. SMS (только если явно запрошено и пользователь его включил)
   if (opts.sendSms && user.phone && (user.notifySms ?? false) && !isMuted) {
     try {
       const rootHost = process.env.ROOT_HOST || "commrent.kz"

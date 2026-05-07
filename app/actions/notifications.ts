@@ -5,9 +5,11 @@ import { auth } from "@/auth"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { sendTelegram } from "@/lib/telegram"
 import { sendSms } from "@/lib/sms"
+import { sendPushToUser } from "@/lib/push"
 import { requireOrgAccess } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { ADMIN_NOTIFICATION_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { isNotificationTypeMuted } from "@/lib/notification-preferences"
 
 export async function createNotification(opts: {
   userId: string
@@ -17,6 +19,8 @@ export async function createNotification(opts: {
   link?: string
   sendTelegram?: boolean
   sendSms?: boolean   // явный triple для срочных уведомлений (платёж, расторжение)
+  sendPush?: boolean
+  pushData?: Record<string, unknown>
 }) {
   // Уведомления может создавать как server-action (вызов от admin)
   // так и серверный код (cron). Если есть сессия — проверяем org-scope.
@@ -50,12 +54,22 @@ export async function createNotification(opts: {
   if (!user) return created
 
   // Если тип уведомления заглушён — пропускаем все каналы кроме in-app
-  const muted = user.notifyMutedTypes as Record<string, boolean> | null
-  const isMuted = muted && muted[opts.type] === false
+  const isMuted = isNotificationTypeMuted(user.notifyMutedTypes, opts.type)
 
   if (!isMuted) {
     if (opts.sendTelegram !== false && user.notifyTelegram && user.telegramChatId) {
       await sendTelegram(user.telegramChatId, `<b>${opts.title}</b>\n\n${opts.message}`).catch(() => {})
+    }
+    if (opts.sendPush !== false) {
+      await sendPushToUser(opts.userId, {
+        title: opts.title,
+        body: opts.message,
+        data: {
+          type: opts.type,
+          link: opts.link,
+          ...opts.pushData,
+        },
+      }).catch(() => {})
     }
     if (opts.sendSms && user.notifySms && user.phone) {
       // SMS — короткий формат: "Title: message ссылка"

@@ -38,9 +38,9 @@ export function Clause({
   children: React.ReactNode
 }) {
   return (
-    <p>
+    <div>
       <span className="font-medium text-slate-900 dark:text-slate-100">{num}.</span> {children}
-    </p>
+    </div>
   )
 }
 

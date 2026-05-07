@@ -143,13 +143,31 @@ export function FloorView({
 
       {/* Zoom controls */}
       <div className="absolute top-3 right-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-1 flex flex-col gap-0.5">
-        <button onClick={() => setZoom((z) => Math.min(3, z * 1.2))} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded">
+        <button
+          type="button"
+          onClick={() => setZoom((z) => Math.min(3, z * 1.2))}
+          aria-label="Увеличить план"
+          title="Увеличить план"
+          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded"
+        >
           <ZoomIn className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
         </button>
-        <button onClick={() => setZoom((z) => Math.max(0.3, z / 1.2))} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded">
+        <button
+          type="button"
+          onClick={() => setZoom((z) => Math.max(0.3, z / 1.2))}
+          aria-label="Уменьшить план"
+          title="Уменьшить план"
+          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded"
+        >
           <ZoomOut className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
         </button>
-        <button onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded">
+        <button
+          type="button"
+          onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
+          aria-label="Сбросить масштаб и позицию плана"
+          title="Сбросить масштаб и позицию плана"
+          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded"
+        >
           <Move className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
         </button>
       </div>
@@ -167,7 +185,13 @@ export function FloorView({
         <div className="absolute right-3 bottom-3 w-72 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100 dark:border-slate-800">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Каб. {selectedSpace.number}</p>
-            <button onClick={() => setSelected(null)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              aria-label="Закрыть карточку помещения"
+              title="Закрыть"
+              className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>

@@ -107,7 +107,10 @@ export function CalendarView({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => navigateMonth(-1)}
+              aria-label="Предыдущий месяц"
+              title="Предыдущий месяц"
               className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 p-2"
             >
               <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
@@ -116,13 +119,17 @@ export function CalendarView({
               {MONTHS[currentMonth - 1]} {currentYear}
             </h2>
             <button
+              type="button"
               onClick={() => navigateMonth(1)}
+              aria-label="Следующий месяц"
+              title="Следующий месяц"
               className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 p-2"
             >
               <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
             </button>
           </div>
           <button
+            type="button"
             onClick={() => router.push("?")}
             className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300"
           >
@@ -137,6 +144,7 @@ export function CalendarView({
               return (
                 <button
                   key={type}
+                  type="button"
                   onClick={() => toggleFilter(type)}
                   className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
                     isActive
@@ -182,6 +190,7 @@ export function CalendarView({
               return (
                 <button
                   key={i}
+                  type="button"
                   onClick={() => setSelectedDate(isSelected ? null : dateKey)}
                   className={`h-16 border-b border-r border-slate-100 dark:border-slate-800 px-1 py-0.5 flex flex-col items-start hover:bg-slate-50 dark:hover:bg-slate-800/50 transition text-left relative ${
                     isSelected ? "bg-blue-50 dark:bg-blue-500/10 ring-1 ring-blue-500 ring-inset" : ""
@@ -226,7 +235,10 @@ export function CalendarView({
                   })}
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setSelectedDate(null)}
+                  aria-label="Закрыть выбранную дату"
+                  title="Закрыть"
                   className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400"
                 >
                   <X className="h-4 w-4" />

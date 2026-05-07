@@ -1039,3 +1039,84 @@ model PushDevice {
   @@index([organizationId, isActive])
   @@map("push_devices")
 }
+
+model MobileSession {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  organizationId     String    @map("organization_id")
+  accessTokenHash    String    @unique @map("access_token_hash")
+  refreshTokenHash   String    @unique @map("refresh_token_hash")
+  deviceId           String?   @map("device_id")
+  deviceName         String?   @map("device_name")
+  platform           String?
+  appVersion         String?   @map("app_version")
+  userAgent          String?   @map("user_agent")
+  ip                 String?
+  expiresAt          DateTime  @map("expires_at")
+  refreshExpiresAt   DateTime  @map("refresh_expires_at")
+  revokedAt          DateTime? @map("revoked_at")
+  lastUsedAt         DateTime  @default(now()) @map("last_used_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, revokedAt])
+  @@index([organizationId, revokedAt])
+  @@index([refreshExpiresAt])
+  @@map("mobile_sessions")
+}
+
+model BuildingNotice {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  buildingId     String    @map("building_id")
+  createdById    String?   @map("created_by_id")
+  type           String    @default("INFO")
+  severity       String    @default("INFO")
+  title          String
+  message        String
+  startsAt       DateTime? @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  sentAt         DateTime? @map("sent_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([organizationId, buildingId, createdAt])
+  @@index([buildingId, startsAt, endsAt])
+  @@map("building_notices")
+}
+
+model DocumentSignatureRequest {
+  id              String    @id @default(cuid())
+  organizationId  String    @map("organization_id")
+  requestedById   String?   @map("requested_by_id")
+  recipientUserId String    @map("recipient_user_id")
+  documentType    String    @map("document_type")
+  documentId      String?   @map("document_id")
+  documentRef     String?   @map("document_ref")
+  title           String
+  message         String?
+  status          String    @default("PENDING")
+  channel         String    @default("MOBILE")
+  allowedMethods  Json?     @map("allowed_methods")
+  preferredMethod String?   @map("preferred_method")
+  signToken       String?   @unique @map("sign_token")
+  expiresAt       DateTime? @map("expires_at")
+  viewedAt        DateTime? @map("viewed_at")
+  signedAt        DateTime? @map("signed_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectionReason String?   @map("rejection_reason")
+  signatureId     String?   @map("signature_id")
+  smsPhoneMasked  String?   @map("sms_phone_masked")
+  otpHash         String?   @map("otp_hash")
+  otpExpiresAt    DateTime? @map("otp_expires_at")
+  otpVerifiedAt   DateTime? @map("otp_verified_at")
+  metadata        Json?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([organizationId, status, createdAt])
+  @@index([recipientUserId, status, createdAt])
+  @@index([requestedById, createdAt])
+  @@index([documentType, documentId])
+  @@map("document_signature_requests")
+}

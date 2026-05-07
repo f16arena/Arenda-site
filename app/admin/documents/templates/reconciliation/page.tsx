@@ -6,6 +6,7 @@ import { TenantSelector, PrintButton } from "../tenant-selector"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { requireOrgAccess } from "@/lib/org"
 import { DocumentArchive } from "@/components/documents/document-archive"
+import { ReconciliationYearSelect } from "./year-select"
 
 const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода",
@@ -106,15 +107,7 @@ export default async function ReconciliationPage({
           <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Взаиморасчёты за {selectedYear} год</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={selectedYear}
-            onChange={undefined}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
-          >
-            {[currentYear - 1, currentYear].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          <ReconciliationYearSelect value={selectedYear} years={[currentYear - 1, currentYear]} />
           <div className="w-64">
             <TenantSelector tenants={tenantOptions} selectedId={tenantId} />
           </div>

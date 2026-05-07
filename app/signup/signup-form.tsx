@@ -45,6 +45,10 @@ export function SignupForm() {
   const checkResult = slugCheck.status === "result" ? slugCheck.result : undefined
   const isSlugOk = checkResult?.ok === true
   const isSlugBad = checkResult && !checkResult.ok
+  const updateSlug = (value: string) => {
+    setSlugTouched(true)
+    setSlug(slugify(value, { trimEnd: false }))
+  }
 
   return (
     <form action={action} className="space-y-5">
@@ -65,8 +69,9 @@ export function SignupForm() {
           </label>
           <div className="relative">
             <input
+              name="slug"
               value={slug}
-              onChange={(e) => { setSlugTouched(true); setSlug(slugify(e.target.value)) }}
+              onChange={(e) => updateSlug(e.currentTarget.value)}
               required
               maxLength={20}
               placeholder="bc-almaty"
@@ -80,7 +85,6 @@ export function SignupForm() {
               .commrent.kz
             </span>
           </div>
-          <input type="hidden" name="slug" value={slug} />
           {!slug && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница, цифры, дефис</p>}
           {slugCheck.status === "checking" && (
             <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
@@ -188,7 +192,7 @@ function Field({ label, name, type = "text", value, onChange, required, placehol
         name={name}
         type={type}
         value={value}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        onChange={onChange ? (e) => onChange(e.currentTarget.value) : undefined}
         required={required}
         placeholder={placeholder}
         className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.132 - 2026-05-07
+
+- Добавлен большой mobile foundation: bearer-auth для мобильного API, mobile sessions, bootstrap, tenant/admin/owner endpoints, push-devices, building notices и draft-заявки на подписание документов.
+- Добавлен Expo/React Native shell в `mobile/`: логин, secure token refresh, offline cache, role-aware dashboard, push-настройки, tenant/admin/owner вкладки и базовые экраны.
+- Уведомления теперь поддерживают push-канал через Expo push tokens и единый helper muted preferences.
+- Добавлены модели `MobileSession`, `BuildingNotice`, `DocumentSignatureRequest` и SQL-патч `migrations/013_mobile_foundation.sql`.
+- Добавлены Playwright smoke/audit тесты публичного сайта, проверка главной, логина, регистрации, юридических страниц, protected redirects, ссылок, изображений и безопасных раскрывающихся элементов.
+- CI получил отдельный job `Public web smoke`, который устанавливает Chromium и гоняет публичные Playwright smoke-тесты.
+- Исправлены мелкие UX/a11y guardrails: icon-only buttons получили `type`, `aria-label`/`title`, slug регистрации теперь реально отправляется одним полем и поддерживает аккуратный ввод с дефисом в конце.
+- Добавлена rollback-точка `rollback/pre-mobile-web-audit-foundation-1.3.132`.
+
 ## 1.3.131 - 2026-05-07
 
 - `/superadmin/orgs` стал устойчивее к React hydration/render `#418`: интерактивные кнопки строк теперь появляются только после монтирования клиента, а первый HTML таблицы остается стабильным.

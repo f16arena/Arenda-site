@@ -26,7 +26,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
+      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
         <DollarSign className="h-4 w-4" />
         Внести оплату
       </button>
@@ -36,7 +36,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Зафиксировать платёж</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть окно оплаты" title="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form action={(fd) => startTransition(async () => { await recordPayment(fd); setOpen(false) })} className="p-6 space-y-4">
               <div>
@@ -131,7 +131,7 @@ export function ExpenseDialog({
 
   return (
     <>
-      <button onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
+      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
         <TrendingDown className="h-4 w-4" />
         Добавить расход
       </button>
@@ -141,7 +141,7 @@ export function ExpenseDialog({
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Новый расход</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть окно расхода" title="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form action={(fd) => startTransition(async () => { await addExpense(fd); setOpen(false) })} className="p-6 space-y-4">
               {currentBuildingId ? (
@@ -229,6 +229,7 @@ export function PenaltyButton() {
     <div className="flex items-center gap-3">
       {result && <span className="text-xs text-amber-600 dark:text-amber-400">{result}</span>}
       <button
+        type="button"
         onClick={() => startTransition(async () => {
           const r = await calculatePenalties()
           setResult(`✓ Пеней начислено: ${r.penaltiesCreated}`)
@@ -253,6 +254,7 @@ export function GenerateChargesButton() {
     <div className="flex items-center gap-3">
       {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
       <button
+        type="button"
         onClick={() => startTransition(async () => {
           const r = await generateMonthlyCharges(period)
           setResult(r.created > 0 ? `✓ Создано ${r.created} начислений за ${period}` : "Начисления за этот месяц уже существуют")

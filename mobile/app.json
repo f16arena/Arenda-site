@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Commrent",
+    "slug": "commrent-mobile",
+    "version": "1.0.0",
+    "scheme": "commrent",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "kz.commrent.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Commrent использует Face ID для быстрого входа в мобильный кабинет.",
+        "NSPhotoLibraryUsageDescription": "Commrent использует фото для загрузки чеков и вложений к заявкам.",
+        "NSCameraUsageDescription": "Commrent использует камеру для фото чеков и заявок."
+      }
+    },
+    "android": {
+      "package": "kz.commrent.app",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Commrent использует Face ID для быстрого входа в мобильный кабинет."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Commrent использует фото для загрузки чеков и вложений к заявкам.",
+          "cameraPermission": "Commrent использует камеру для фото чеков и заявок."
+        }
+      ],
+      "expo-document-picker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

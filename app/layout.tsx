@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Manrope } from "next/font/google"
+import Script from "next/script"
 import { Toaster } from "sonner"
 import { ClientErrorMonitor } from "@/components/errors/client-error-monitor"
 import { WebVitalsReporter } from "@/components/performance/web-vitals-reporter"
@@ -49,7 +50,11 @@ export default function RootLayout({
   return (
     <html lang="ru" className={`${manrope.variable} h-full`} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
       </head>
       <body className="h-full font-sans antialiased">
         {children}

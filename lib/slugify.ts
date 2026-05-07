@@ -27,14 +27,16 @@ const TRANSLIT: Record<string, string> = {
  * - сжимает несколько дефисов в один
  * - убирает дефисы по краям
  */
-export function slugify(input: string): string {
+export function slugify(input: string, options: { trimEnd?: boolean } = {}): string {
   if (!input) return ""
-  return input
+  const slug = input
     .toLowerCase()
     .replace(/[а-яёәғқңəҗһөұүһі]/g, (c) => TRANSLIT[c] ?? c)
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
+    .replace(/^-+/g, "")
+
+  return options.trimEnd === false ? slug : slug.replace(/-+$/g, "")
 }
 
 /**
