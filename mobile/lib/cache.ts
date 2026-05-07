@@ -5,7 +5,7 @@ type CacheEnvelope<T> = {
   value: T
 }
 
-const cacheDirectory = new Directory(Paths.cache, "commrent-mobile")
+const CACHE_PREFIX = "commrent-mobile:"
 
 export type CachedValue<T> = {
   value: T
@@ -14,6 +14,17 @@ export type CachedValue<T> = {
 
 export async function readCache<T>(key: string): Promise<CachedValue<T> | null> {
   try {
+    if (isWebRuntime()) {
+      const raw = globalThis.localStorage?.getItem(cacheStorageKey(key))
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as CacheEnvelope<T>
+      if (!parsed || typeof parsed.savedAt !== "string" || !("value" in parsed)) return null
+      return {
+        value: parsed.value,
+        savedAt: parsed.savedAt,
+      }
+    }
+
     const file = cacheFile(key)
     if (!file.exists) return null
 
@@ -32,10 +43,16 @@ export async function readCache<T>(key: string): Promise<CachedValue<T> | null> 
 
 export async function writeCache<T>(key: string, value: T) {
   try {
-    cacheDirectory.create({ intermediates: true, idempotent: true })
+    const envelope = JSON.stringify({ savedAt: new Date().toISOString(), value })
+    if (isWebRuntime()) {
+      globalThis.localStorage?.setItem(cacheStorageKey(key), envelope)
+      return
+    }
+
+    cacheDirectory().create({ intermediates: true, idempotent: true })
     const file = cacheFile(key)
     file.create({ intermediates: true, overwrite: true })
-    file.write(JSON.stringify({ savedAt: new Date().toISOString(), value }))
+    file.write(envelope)
   } catch {
     // Cache failures must never block the mobile cabinet.
   }
@@ -43,6 +60,11 @@ export async function writeCache<T>(key: string, value: T) {
 
 export async function removeCache(key: string) {
   try {
+    if (isWebRuntime()) {
+      globalThis.localStorage?.removeItem(cacheStorageKey(key))
+      return
+    }
+
     const file = cacheFile(key)
     if (file.exists) file.delete()
   } catch {}
@@ -50,11 +72,32 @@ export async function removeCache(key: string) {
 
 export async function clearMobileCache() {
   try {
-    if (cacheDirectory.exists) cacheDirectory.delete()
+    if (isWebRuntime()) {
+      for (let index = globalThis.localStorage.length - 1; index >= 0; index -= 1) {
+        const key = globalThis.localStorage.key(index)
+        if (key?.startsWith(CACHE_PREFIX)) globalThis.localStorage.removeItem(key)
+      }
+      return
+    }
+
+    const directory = cacheDirectory()
+    if (directory.exists) directory.delete()
   } catch {}
 }
 
 function cacheFile(key: string) {
   const safeKey = key.replace(/[^a-z0-9_.-]/gi, "_").slice(0, 90)
-  return new File(cacheDirectory, `${safeKey}.json`)
+  return new File(cacheDirectory(), `${safeKey}.json`)
+}
+
+function cacheDirectory() {
+  return new Directory(Paths.cache, "commrent-mobile")
+}
+
+function cacheStorageKey(key: string) {
+  return `${CACHE_PREFIX}${key.replace(/[^a-z0-9_.-]/gi, "_").slice(0, 90)}`
+}
+
+function isWebRuntime() {
+  return process.env.EXPO_OS === "web"
 }

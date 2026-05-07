@@ -436,14 +436,35 @@ export type AdminPaymentReport = TenantPaymentReport & {
   }
 }
 
+export type AdminExpectedPayment = {
+  id: string
+  amount: number
+  period: string
+  type: string
+  description?: string | null
+  dueDate?: string | null
+  createdAt: string
+  isOverdue: boolean
+  tenant: {
+    id: string
+    companyName: string
+    userId?: string
+  }
+}
+
 export type AdminPaymentReportsPayload = {
   counters: {
     total: number
     pending: number
     disputed: number
     amount: number
+    expected: number
+    expectedAmount: number
+    overdue: number
+    overdueAmount: number
   }
   data: AdminPaymentReport[]
+  expectedPayments: AdminExpectedPayment[]
 }
 
 export type AdminBuildingsPayload = {
@@ -455,7 +476,34 @@ export type AdminBuildingsPayload = {
       openRequests: number
       openTasks: number
       activeNotices: number
+      totalArea: number
+      occupiedArea: number
+      vacantArea: number
+      occupancyPercent: number
     }
+    floors: Array<{
+      id: string
+      name: string
+      number: number
+      totalArea: number
+      fixedMonthlyRent?: number | null
+      occupiedArea: number
+      vacantArea: number
+      occupiedSpaces: number
+      vacantSpaces: number
+      spaces: number
+      occupancyPercent: number
+    }>
+    recentTenants: Array<{
+      id: string
+      companyName: string
+      placement: string
+      area: number
+      monthlyRent: number
+      paymentDueDay: number
+      contractEnd?: string | null
+    }>
+    notices: BuildingNotice[]
   }>
 }
 

@@ -28,6 +28,38 @@ const METRIC_TARGETS: Record<string, number> = {
   FCP: 1800,
   TTFB: 800,
 }
+const CODE_WATCH_TARGETS = [
+  {
+    file: "app/admin/floors/[id]/floor-editor.tsx",
+    budget: "75 KB",
+    action: "Разрезать редактор этажа на lazy-инструменты: AI распознавание, подложка, свойства и опасные действия.",
+  },
+  {
+    file: "lib/faq.ts",
+    budget: "55 KB",
+    action: "Не раздувать статический FAQ: крупные инструкции хранить в БД и отдавать постранично.",
+  },
+  {
+    file: "app/admin/tenants/[id]/page.tsx",
+    budget: "55 KB",
+    action: "Держать быстрый верх карточки арендатора, документы/историю/начисления оставлять lazy-секциями.",
+  },
+  {
+    file: "app/admin/page.tsx",
+    budget: "55 KB",
+    action: "Не возвращать вторичные отчеты в первый render dashboard, сравнение зданий и cashflow держать отдельно.",
+  },
+  {
+    file: "app/admin/spaces/page.tsx",
+    budget: "45 KB",
+    action: "Не тянуть layout JSON, tenant picker и тяжелый floor view до явного действия пользователя.",
+  },
+  {
+    file: "app/superadmin/performance/page.tsx",
+    budget: "40 KB",
+    action: "Показывать метрики и подсказки компактно, без превращения страницы скорости в тяжелую страницу.",
+  },
+] as const
 
 type MetricGroup = {
   name: string
@@ -273,6 +305,31 @@ export default async function SuperadminPerformancePage({
                     {action.path}
                   </p>
                 ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Файлы под наблюдением CI</h2>
+              <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
+                Это текущие тяжелые места. `npm run perf:audit` и CI performance gate теперь падают, если эти файлы снова начнут расти сверх отдельного лимита.
+              </p>
+            </div>
+            <ShieldCheck className="h-4 w-4 shrink-0 text-slate-400" />
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {CODE_WATCH_TARGETS.map((target) => (
+              <div key={target.file} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="min-w-0 truncate font-mono text-xs text-slate-900 dark:text-slate-100">{target.file}</p>
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                    ≤ {target.budget}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{target.action}</p>
               </div>
             ))}
           </div>

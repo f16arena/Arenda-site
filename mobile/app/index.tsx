@@ -105,6 +105,7 @@ import { setMobileSentryUser } from "@/lib/sentry"
 import type {
   AdminBuildingsPayload,
   AdminDocumentsPayload,
+  AdminExpectedPayment,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
   AdminTenantListItem,
@@ -392,7 +393,7 @@ export default function HomeScreen() {
         else if (tabKey === "documents") patch = { adminDocuments: await getAdminDocuments() }
         else if (tabKey === "requests") patch = { adminRequests: await getAdminRequests() }
         else if (tabKey === "payments" && canReviewPayments) patch = { adminPayments: await getAdminPaymentReports() }
-        else if (tabKey === "buildings") patch = { adminBuildings: await getAdminBuildings() }
+        else if (tabKey === "buildings" || tabKey === "building") patch = { adminBuildings: await getAdminBuildings() }
       }
 
       if (Object.keys(patch).length > 0) {
@@ -728,7 +729,12 @@ function TabContent({
   }
 
   if (role === "OWNER" && tabKey === "owner") {
-    return data.ownerOverview ? <OwnerOverview data={data.ownerOverview} /> : <CenteredLoader />
+    return data.ownerOverview ? <OwnerOverview data={data.ownerOverview} onNavigate={onNavigate} /> : <CenteredLoader />
+  }
+  if (tabKey === "building") {
+    const building = data.adminBuildings?.data.find((item) => item.id === tabParam)
+    if (!data.adminBuildings) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return building ? <AdminBuildingDetail building={building} onNavigate={onNavigate} /> : <EmptyState title="Объект не найден в загруженном списке" />
   }
   if (tabKey === "tenant") {
     const tenant = data.adminTenants?.data.find((item) => item.id === tabParam)
@@ -742,7 +748,7 @@ function TabContent({
     if (!["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)) return <NoAccess title="Оплаты доступны владельцу, админу и бухгалтеру" />
     return data.adminPayments ? <AdminPayments payload={data.adminPayments} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   }
-  if (tabKey === "buildings") return data.adminBuildings ? <AdminBuildings payload={data.adminBuildings} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "buildings") return data.adminBuildings ? <AdminBuildings payload={data.adminBuildings} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />
   if (tabKey === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} />
   return data.adminToday ? <AdminToday payload={data.adminToday} notices={data.notices} bootstrap={bootstrap} onChanged={onChanged} onNavigate={onNavigate} /> : <CenteredLoader />
@@ -1464,6 +1470,7 @@ function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { pa
         />
       </Card>
       <Card>
+        <ActionRow icon="building.2.fill" title="Объекты" value={String(payload.buildings.length)} color={colors.blue} onPress={() => onNavigate("buildings")} />
         <ActionRow icon="person.2.fill" title="Арендаторы" value="список" color={colors.teal} onPress={() => onNavigate("tenants")} />
         <ActionRow icon="doc.on.doc.fill" title="Документы" value={String(payload.counters.pendingSignatures)} color={colors.orange} onPress={() => onNavigate("documents")} />
         <ActionRow icon="creditcard.fill" title="Оплаты" value={String(payload.counters.pendingPayments)} color={colors.green} onPress={() => onNavigate("payments")} />
@@ -1514,6 +1521,10 @@ function AdminRequests({ payload, onChanged }: { payload: AdminRequestsPayload; 
 }
 
 function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPayload; onChanged: () => void }) {
+  const expectedPayments = payload.expectedPayments ?? []
+  const expectedAmount = payload.counters.expectedAmount ?? expectedPayments.reduce((sum, payment) => sum + payment.amount, 0)
+  const overdueAmount = payload.counters.overdueAmount ?? expectedPayments.filter((payment) => payment.isOverdue).reduce((sum, payment) => sum + payment.amount, 0)
+
   return (
     <>
       <SectionTitle title="Оплаты" />
@@ -1523,9 +1534,17 @@ function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPay
             { label: "Ожидают", value: String(payload.counters.pending), color: colors.blue },
             { label: "Уточнить", value: String(payload.counters.disputed), color: colors.orange },
             { label: "Сумма", value: formatMoney(payload.counters.amount), color: colors.green },
+            { label: "Ожидается", value: formatMoney(expectedAmount), color: colors.teal },
+            { label: "Просрочено", value: formatMoney(overdueAmount), color: overdueAmount > 0 ? colors.red : colors.green },
           ]}
         />
       </Card>
+      <SectionTitle title="Календарь оплат" />
+      {expectedPayments.slice(0, 8).map((payment) => (
+        <ExpectedPaymentCard key={payment.id} payment={payment} />
+      ))}
+      {expectedPayments.length === 0 ? <EmptyState title="Ожидаемых оплат на ближайшие недели нет" /> : null}
+      <SectionTitle title="На проверке" />
       {payload.data.map((report) => (
         <Card key={report.id}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -1557,28 +1576,155 @@ function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPay
   )
 }
 
-function AdminBuildings({ payload }: { payload: AdminBuildingsPayload }) {
+function ExpectedPaymentCard({ payment }: { payment: AdminExpectedPayment }) {
+  const dueDate = payment.dueDate ? new Date(payment.dueDate) : null
+  const today = new Date()
+  const isToday = dueDate ? dueDate.toDateString() === today.toDateString() : false
+  const tone = payment.isOverdue ? colors.red : isToday ? colors.orange : colors.blue
+  const status = payment.isOverdue ? "Просрочено" : isToday ? "Сегодня" : "Ожидается"
+
+  return (
+    <Card>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <IconBox icon="calendar" color={tone} />
+        <View style={{ flex: 1 }}>
+          <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{payment.tenant.companyName}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{payment.period} · {payment.type}</Text>
+        </View>
+        <StatusPill label={status} color={tone} />
+      </View>
+      <MetricGrid
+        items={[
+          { label: "Сумма", value: formatMoney(payment.amount), color: colors.green },
+          { label: "Когда", value: payment.dueDate ? formatDateFull(payment.dueDate) : "без срока", color: tone },
+        ]}
+      />
+      <CompactRow
+        title={payment.description ?? "Начисление"}
+        subtitle={payment.isOverdue ? "Требует контроля администратора" : "Ожидаем поступление или подтверждение"}
+        value={payment.dueDate ? formatDate(payment.dueDate) : undefined}
+        tone={tone}
+      />
+    </Card>
+  )
+}
+
+function AdminBuildings({ payload, onNavigate }: { payload: AdminBuildingsPayload; onNavigate: (tab: string) => void }) {
   return (
     <>
       <SectionTitle title="Объекты" />
       {payload.data.map((building) => (
-        <Card key={building.id}>
-          <Text selectable style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>{building.name}</Text>
-          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{building.address}</Text>
-          <MetricGrid
-            items={[
-              { label: "Арендаторы", value: String(building.counters.tenants), color: colors.blue },
-              { label: "Долг", value: formatMoney(building.counters.debtAmount), color: building.counters.debtAmount > 0 ? colors.red : colors.green },
-              { label: "Заявки", value: String(building.counters.openRequests), color: colors.orange },
-            ]}
-          />
-        </Card>
+        <Pressable key={building.id} onPress={() => onNavigate(`building:${building.id}`)}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconBox icon="building.2.fill" color={colors.blue} />
+              <View style={{ flex: 1 }}>
+                <Text selectable style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>{building.name}</Text>
+                <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{building.address}</Text>
+              </View>
+              <AppIcon name="chevron.right" size={18} color={colors.muted} />
+            </View>
+            <MetricGrid
+              items={[
+                { label: "Арендаторы", value: String(building.counters.tenants), color: colors.blue },
+                { label: "Заполнено", value: `${building.counters.occupancyPercent ?? 0}%`, color: colors.teal },
+                { label: "Занято", value: formatArea(building.counters.occupiedArea ?? 0), color: colors.slate },
+                { label: "Долг", value: formatMoney(building.counters.debtAmount), color: building.counters.debtAmount > 0 ? colors.red : colors.green },
+                { label: "Заявки", value: String(building.counters.openRequests), color: colors.orange },
+                { label: "Push", value: String(building.counters.activeNotices), color: colors.blue },
+              ]}
+            />
+          </Card>
+        </Pressable>
       ))}
     </>
   )
 }
 
-function OwnerOverview({ data }: { data: OwnerOverviewPayload }) {
+function AdminBuildingDetail({
+  building,
+  onNavigate,
+}: {
+  building: AdminBuildingsPayload["data"][number]
+  onNavigate: (tab: string) => void
+}) {
+  const floors = building.floors ?? []
+  const tenants = building.recentTenants ?? []
+  const notices = building.notices ?? []
+
+  return (
+    <>
+      <SectionTitle title="Объект" />
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <IconBox icon="building.2.fill" color={colors.blue} />
+          <View style={{ flex: 1 }}>
+            <Text selectable style={{ color: colors.text, fontSize: 20, fontFamily: fonts.black, fontWeight: "900" }}>{building.name}</Text>
+            <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{building.address}</Text>
+          </View>
+        </View>
+        <MetricGrid
+          items={[
+            { label: "Площадь", value: formatArea(building.counters.totalArea ?? 0), color: colors.slate },
+            { label: "Занято", value: formatArea(building.counters.occupiedArea ?? 0), color: colors.teal },
+            { label: "Свободно", value: formatArea(building.counters.vacantArea ?? 0), color: colors.blue },
+            { label: "Заполнено", value: `${building.counters.occupancyPercent ?? 0}%`, color: colors.green },
+            { label: "Арендаторы", value: String(building.counters.tenants), color: colors.blue },
+            { label: "Долг", value: formatMoney(building.counters.debtAmount), color: building.counters.debtAmount > 0 ? colors.red : colors.green },
+          ]}
+        />
+      </Card>
+      <SectionTitle title="Быстрые действия" />
+      <Card>
+        <ActionRow icon="person.2.fill" title="Арендаторы" value={String(building.counters.tenants)} color={colors.teal} onPress={() => onNavigate("tenants")} />
+        <ActionRow icon="doc.text.fill" title="Документы" value="открыть" color={colors.blue} onPress={() => onNavigate("documents")} />
+        <ActionRow icon="tray.full.fill" title="Заявки" value={String(building.counters.openRequests)} color={colors.orange} onPress={() => onNavigate("requests")} />
+        <ActionRow icon="bell.fill" title="Push объявления" value={String(building.counters.activeNotices)} color={colors.blue} onPress={() => onNavigate("home")} />
+      </Card>
+      <SectionTitle title="Этажи" />
+      <Card>
+        {floors.map((floor) => (
+          <CompactRow
+            key={floor.id}
+            title={floor.name}
+            subtitle={`${formatArea(floor.occupiedArea)} занято · ${formatArea(floor.vacantArea)} свободно · ${floor.spaces} помещений`}
+            value={`${floor.occupancyPercent}%`}
+            tone={floor.occupancyPercent >= 90 ? colors.green : floor.occupancyPercent >= 60 ? colors.blue : colors.orange}
+          />
+        ))}
+        {floors.length === 0 ? <Text selectable style={{ color: colors.muted, fontSize: 14 }}>Этажи и помещения пока не заведены</Text> : null}
+      </Card>
+      <SectionTitle title="Арендаторы объекта" />
+      {tenants.map((tenant) => (
+        <Pressable key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconBox icon="person.2.fill" color={colors.teal} />
+              <View style={{ flex: 1 }}>
+                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{tenant.companyName}</Text>
+                <Text selectable numberOfLines={2} style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{tenant.placement}</Text>
+              </View>
+              <AppIcon name="chevron.right" size={18} color={colors.muted} />
+            </View>
+            <MetricGrid
+              items={[
+                { label: "Площадь", value: formatArea(tenant.area), color: colors.slate },
+                { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
+                { label: "Оплата до", value: `${tenant.paymentDueDay} числа`, color: colors.teal },
+                { label: "Договор", value: tenant.contractEnd ? formatDate(tenant.contractEnd) : "без даты", color: colors.orange },
+              ]}
+            />
+          </Card>
+        </Pressable>
+      ))}
+      {tenants.length === 0 ? <EmptyState title="По объекту пока нет арендаторов" /> : null}
+      <SectionTitle title="Активные push" />
+      <NoticeList notices={notices} />
+    </>
+  )
+}
+
+function OwnerOverview({ data, onNavigate }: { data: OwnerOverviewPayload; onNavigate: (tab: string) => void }) {
   return (
     <>
       <SectionTitle title="Объекты" />
@@ -1596,24 +1742,39 @@ function OwnerOverview({ data }: { data: OwnerOverviewPayload }) {
       </Card>
       <SectionTitle title="Здания" />
       {data.buildings.map((building) => (
-        <Card key={building.id}>
-          <Text selectable style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>{building.name}</Text>
-          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{building.address}</Text>
-          <MetricGrid
-            items={[
-              { label: "Арендаторы", value: String(building.tenants), color: colors.blue },
-              { label: "Долг", value: formatMoney(building.debtAmount), color: building.debtAmount > 0 ? colors.red : colors.green },
-              { label: "Заявки", value: String(building.openRequests), color: colors.orange },
-            ]}
-          />
-        </Card>
+        <Pressable key={building.id} onPress={() => onNavigate(`building:${building.id}`)}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconBox icon="building.2.fill" color={colors.blue} />
+              <View style={{ flex: 1 }}>
+                <Text selectable style={{ color: colors.text, fontSize: 17, fontWeight: "900" }}>{building.name}</Text>
+                <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{building.address}</Text>
+              </View>
+              <AppIcon name="chevron.right" size={18} color={colors.muted} />
+            </View>
+            <MetricGrid
+              items={[
+                { label: "Арендаторы", value: String(building.tenants), color: colors.blue },
+                { label: "Долг", value: formatMoney(building.debtAmount), color: building.debtAmount > 0 ? colors.red : colors.green },
+                { label: "Заявки", value: String(building.openRequests), color: colors.orange },
+              ]}
+            />
+          </Card>
+        </Pressable>
       ))}
     </>
   )
 }
 
 function NoticeComposer({ buildings, onChanged }: { buildings: MobileBootstrap["buildings"]; onChanged: () => void }) {
+  const noticeTemplates = [
+    { key: "LIGHT_OFF", label: "Свет", type: "ELECTRICITY", severity: "CRITICAL", title: "Отключение света", message: "Сегодня будет временное отключение электроэнергии. Просим заранее сохранить работу и отключить чувствительное оборудование." },
+    { key: "HOT_WATER_OFF", label: "Горячая вода", type: "HOT_WATER", severity: "WARNING", title: "Отключение горячей воды", message: "По зданию ожидается временное отключение горячей воды. После завершения работ направим отдельное уведомление." },
+    { key: "REPAIR", label: "Ремонт", type: "REPAIR", severity: "INFO", title: "Ремонтные работы", message: "В здании будут проводиться ремонтные работы. Возможны кратковременный шум и ограничение доступа к отдельным зонам." },
+    { key: "CHECK", label: "Проверка", type: "INFO", severity: "INFO", title: "Плановая проверка", message: "Запланирована проверка инженерных систем здания. При необходимости администратор свяжется с арендаторами дополнительно." },
+  ]
   const [buildingId, setBuildingId] = useState(buildings[0]?.id ?? "")
+  const [templateKey, setTemplateKey] = useState("")
   const [type, setType] = useState("ELECTRICITY")
   const [severity, setSeverity] = useState("WARNING")
   const [title, setTitle] = useState("")
@@ -1621,11 +1782,22 @@ function NoticeComposer({ buildings, onChanged }: { buildings: MobileBootstrap["
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
 
+  function applyTemplate(key: string) {
+    const template = noticeTemplates.find((item) => item.key === key)
+    setTemplateKey(key)
+    if (!template) return
+    setType(template.type)
+    setSeverity(template.severity)
+    setTitle(template.title)
+    setMessage(template.message)
+  }
+
   async function submit() {
     setBusy(true)
     setResult(null)
     try {
       await createBuildingNotice({ buildingId, type, severity, title, message })
+      setTemplateKey("")
       setTitle("")
       setMessage("")
       setResult("Push отправлен")
@@ -1642,6 +1814,7 @@ function NoticeComposer({ buildings, onChanged }: { buildings: MobileBootstrap["
       <SectionTitle title="Push по зданию" />
       <Card>
         <ChoiceRow options={buildings.map((building) => [building.id, building.name])} value={buildingId} onChange={setBuildingId} />
+        <ChoiceRow options={noticeTemplates.map((template) => [template.key, template.label])} value={templateKey} onChange={applyTemplate} />
         <ChoiceRow options={[["ELECTRICITY", "Свет"], ["HOT_WATER", "Гор. вода"], ["REPAIR", "Ремонт"], ["INFO", "Инфо"]]} value={type} onChange={setType} />
         <ChoiceRow options={[["INFO", "Обыч."], ["WARNING", "Важно"], ["CRITICAL", "Критично"]]} value={severity} onChange={setSeverity} />
         <Field label="Заголовок" value={title} onChangeText={setTitle} placeholder="Отключение света" />
@@ -1963,7 +2136,9 @@ function More({
           <SectionTitle title="Объекты" />
           <Card>
             {buildings.map((building) => (
-              <CompactRow key={building.id} title={building.name} subtitle={building.address} tone={colors.blue} />
+              bootstrap.user.role === "TENANT"
+                ? <CompactRow key={building.id} title={building.name} subtitle={building.address} tone={colors.blue} />
+                : <ActionRow key={building.id} icon="building.2.fill" title={building.name} value="открыть" color={colors.blue} onPress={() => onNavigate(`building:${building.id}`)} />
             ))}
           </Card>
         </>
@@ -2263,7 +2438,29 @@ function TabLoading({ error, loading }: { error?: string | null; loading?: boole
     )
   }
   if (loading === false) return <EmptyState title="Данные раздела пока не загружены" />
-  return <CenteredLoader />
+  return <SkeletonList />
+}
+
+function SkeletonList() {
+  return (
+    <>
+      {[0, 1, 2].map((item) => (
+        <Card key={item}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: "#e2e8f0" }} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <View style={{ height: 16, width: "70%", borderRadius: 8, backgroundColor: "#e2e8f0" }} />
+              <View style={{ height: 12, width: "45%", borderRadius: 8, backgroundColor: "#eef2f7" }} />
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flex: 1, height: 68, borderRadius: 8, backgroundColor: "#f1f5f9" }} />
+            <View style={{ flex: 1, height: 68, borderRadius: 8, backgroundColor: "#f1f5f9" }} />
+          </View>
+        </Card>
+      ))}
+    </>
+  )
 }
 
 function rootTab(tab: string) {
@@ -2273,6 +2470,7 @@ function rootTab(tab: string) {
 function backTargetForTab(tab: string) {
   const [tabKey, tabParam] = tab.split(":")
   if (tabKey === "tenant") return "tenants"
+  if (tabKey === "building") return "buildings"
   if (tabKey === "documents" && tabParam) return `tenant:${tabParam}`
   if (tabKey === "settings") return "more"
   return null
@@ -2293,6 +2491,7 @@ function hasTabData(data: AppData, role: string, tabKey: string) {
   if (tabKey === "requests") return !!data.adminRequests
   if (tabKey === "payments") return !!data.adminPayments
   if (tabKey === "buildings") return !!data.adminBuildings
+  if (tabKey === "building") return !!data.adminBuildings
   return true
 }
 

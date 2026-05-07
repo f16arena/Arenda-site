@@ -68,6 +68,38 @@ const ROUTE_TIMING_CHECKS = [
     stepToken: "measureServerStep",
   },
 ]
+const WATCHED_FILE_BUDGETS = [
+  {
+    file: path.join("app", "admin", "floors", "[id]", "floor-editor.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_FLOOR_EDITOR_KB", 75),
+    reason: "Floor editor is the heaviest client module; keep it from growing until it is split into smaller editor tools.",
+  },
+  {
+    file: path.join("lib", "faq.ts"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_FAQ_KB", 55),
+    reason: "FAQ content should not become a large always-imported server module; move oversized content to DB/seeded rows.",
+  },
+  {
+    file: path.join("app", "admin", "tenants", "[id]", "page.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_TENANT_DETAIL_KB", 55),
+    reason: "Tenant detail must stay a fast shell with lazy sections, not a single expanding server component.",
+  },
+  {
+    file: path.join("app", "admin", "page.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_ADMIN_DASHBOARD_KB", 55),
+    reason: "Admin dashboard first screen must remain light; secondary analytics should stay lazy.",
+  },
+  {
+    file: path.join("app", "admin", "spaces", "page.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_SPACES_KB", 45),
+    reason: "Spaces must not pull floor layout JSON or tenant pickers into initial render.",
+  },
+  {
+    file: path.join("app", "superadmin", "performance", "page.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_PERFORMANCE_PAGE_KB", 40),
+    reason: "Performance dashboard should explain bottlenecks without becoming a bottleneck itself.",
+  },
+]
 
 const files = []
 
@@ -119,12 +151,20 @@ const silentFallbackMatches = enriched.flatMap((file) =>
   })),
 )
 const routeTimingViolations = await findRouteTimingViolations()
+const watchBudgetViolations = findWatchBudgetViolations(enriched)
 
 printSection(
   "Performance budget",
   budgetViolations.length > 0
     ? budgetViolations.map((violation) => violation.message)
     : [`OK: client <= ${formatKb(CLIENT_FILE_BUDGET)}, server <= ${formatKb(SERVER_FILE_BUDGET)}`],
+)
+
+printSection(
+  "Watched heavy-file targets",
+  watchBudgetViolations.length > 0
+    ? watchBudgetViolations.map((violation) => violation.message)
+    : WATCHED_FILE_BUDGETS.map((target) => `OK: ${target.file} <= ${formatKb(target.maxKb * 1024)} (${target.reason})`),
 )
 
 printSection(
@@ -179,12 +219,14 @@ if (silentFallbackMatches.length > 25) {
 
 if (STRICT && (
   budgetViolations.length > 0
+  || watchBudgetViolations.length > 0
   || takeViolations.length > 0
   || routeTimingViolations.length > 0
   || (FAIL_SILENT_FALLBACKS && silentFallbackMatches.length > 0)
 )) {
   for (const violation of [
     ...budgetViolations,
+    ...watchBudgetViolations,
     ...takeViolations,
     ...routeTimingViolations,
     ...(FAIL_SILENT_FALLBACKS ? silentFallbackMatches : []),
@@ -215,6 +257,24 @@ async function findRouteTimingViolations() {
   return violations
 }
 
+function findWatchBudgetViolations(rows) {
+  return WATCHED_FILE_BUDGETS.flatMap((target) => {
+    const row = rows.find((file) => normalizeRel(file.rel) === normalizeRel(target.file))
+    if (!row) {
+      return [{
+        file: target.file,
+        message: `${target.file} is missing from performance scan; verify the watch target path`,
+      }]
+    }
+    const maxBytes = target.maxKb * 1024
+    if (row.size <= maxBytes) return []
+    return [{
+      file: row.rel,
+      message: `${formatFile(row)} exceeds watched target ${target.maxKb} KB. ${target.reason}`,
+    }]
+  })
+}
+
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
@@ -237,6 +297,10 @@ function formatFile(file) {
 
 function formatKb(size) {
   return `${Math.round(size / 1024)} KB`
+}
+
+function normalizeRel(value) {
+  return value.replaceAll("\\", "/")
 }
 
 function importsPackage(content, packageName) {

@@ -61,7 +61,7 @@ export class ApiError extends Error {
 }
 
 export async function hasStoredSession() {
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+  const refreshToken = await getStoredSecret(REFRESH_TOKEN_KEY)
   return !!refreshToken
 }
 
@@ -102,7 +102,7 @@ export async function getDeviceAuthAvailability(): Promise<DeviceAuthAvailabilit
 }
 
 export async function unlockStoredSessionWithDeviceAuth(options: { refreshSession?: boolean } = {}) {
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+  const refreshToken = await getStoredSecret(REFRESH_TOKEN_KEY)
   if (!refreshToken) {
     throw new ApiError("Сначала войдите по логину и паролю", 401, "NO_STORED_SESSION")
   }
@@ -147,7 +147,7 @@ export async function loginMobile(input: {
 }
 
 export async function logoutMobile() {
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+  const refreshToken = await getStoredSecret(REFRESH_TOKEN_KEY)
   await authFetch("/api/mobile/auth/logout", {
     method: "POST",
     body: JSON.stringify({ refreshToken }),
@@ -568,8 +568,8 @@ async function parseResponse<T>(res: Response): Promise<T> {
 
 async function getValidAccessToken() {
   const [accessToken, expiresAt] = await Promise.all([
-    SecureStore.getItemAsync(ACCESS_TOKEN_KEY),
-    SecureStore.getItemAsync(ACCESS_EXPIRES_KEY),
+    getStoredSecret(ACCESS_TOKEN_KEY),
+    getStoredSecret(ACCESS_EXPIRES_KEY),
   ])
 
   if (accessToken && expiresAt && new Date(expiresAt).getTime() > Date.now() + 30_000) {
@@ -581,7 +581,7 @@ async function getValidAccessToken() {
 }
 
 async function refreshMobileSession() {
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
+  const refreshToken = await getStoredSecret(REFRESH_TOKEN_KEY)
   if (!refreshToken) throw new ApiError("Session expired", 401, "NO_REFRESH_TOKEN")
 
   const res = await plainFetch<MobileAuthResponse>("/api/mobile/auth/refresh", {
@@ -597,20 +597,45 @@ async function refreshMobileSession() {
 
 async function saveTokens(tokens: MobileTokens) {
   await Promise.all([
-    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
-    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
-    SecureStore.setItemAsync(ACCESS_EXPIRES_KEY, tokens.expiresAt),
-    SecureStore.setItemAsync(REFRESH_EXPIRES_KEY, tokens.refreshExpiresAt),
+    setStoredSecret(ACCESS_TOKEN_KEY, tokens.accessToken),
+    setStoredSecret(REFRESH_TOKEN_KEY, tokens.refreshToken),
+    setStoredSecret(ACCESS_EXPIRES_KEY, tokens.expiresAt),
+    setStoredSecret(REFRESH_EXPIRES_KEY, tokens.refreshExpiresAt),
   ])
 }
 
 async function clearTokens() {
   await Promise.all([
-    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
-    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
-    SecureStore.deleteItemAsync(ACCESS_EXPIRES_KEY),
-    SecureStore.deleteItemAsync(REFRESH_EXPIRES_KEY),
+    deleteStoredSecret(ACCESS_TOKEN_KEY),
+    deleteStoredSecret(REFRESH_TOKEN_KEY),
+    deleteStoredSecret(ACCESS_EXPIRES_KEY),
+    deleteStoredSecret(REFRESH_EXPIRES_KEY),
   ])
+}
+
+async function getStoredSecret(key: string) {
+  if (isWebRuntime()) return globalThis.localStorage?.getItem(key) ?? null
+  return SecureStore.getItemAsync(key)
+}
+
+async function setStoredSecret(key: string, value: string) {
+  if (isWebRuntime()) {
+    globalThis.localStorage?.setItem(key, value)
+    return
+  }
+  return SecureStore.setItemAsync(key, value)
+}
+
+async function deleteStoredSecret(key: string) {
+  if (isWebRuntime()) {
+    globalThis.localStorage?.removeItem(key)
+    return
+  }
+  return SecureStore.deleteItemAsync(key)
+}
+
+function isWebRuntime() {
+  return process.env.EXPO_OS === "web"
 }
 
 function getDeviceMeta() {

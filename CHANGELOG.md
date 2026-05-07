@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.143 - 2026-05-07
+
+- `perf:audit` получил отдельные watch-бюджеты для самых тяжелых мест: floor editor, FAQ, карточка арендатора, admin dashboard, помещения и performance dashboard.
+- CI теперь падает не только при общем превышении client/server budget, но и если конкретный тяжелый модуль снова начнет расти выше своего лимита.
+- `/superadmin/performance` показывает блок “Файлы под наблюдением CI”: видно, какой файл контролируется, какой у него лимит и какое следующее действие по оптимизации.
+- `/superadmin/system-health` учитывает те же watch-бюджеты и объясняет, почему конкретный файл держится под лимитом.
+- Mobile admin API расширен для владельца/админа: объект теперь отдает этажи, заполняемость, свободную площадь, активные объявления и ближайших арендаторов.
+- Mobile admin payments показывает не только чеки на проверке, но и календарь ожидаемых/просроченных оплат на ближайшие недели.
+- Mobile web session/cache стал безопаснее: Expo Web использует `localStorage` вместо `SecureStore`/filesystem cache, чтобы web-сборка не падала на браузерной платформе.
+- Проверки: `npm.cmd run perf:audit`, `npm.cmd run quality:audit`, `npm.cmd run test:mobile:typecheck`, `cmd /c "set SKIP_DEPLOY_MIGRATIONS=1&& npm run build"`.
+- Rollback-точка: `rollback/pre-performance-watch-targets-1.3.143`.
+
 ## 1.3.142 - 2026-05-07
 
 - Добавлен явный CI performance gate: `npm run ci:performance-gate`.

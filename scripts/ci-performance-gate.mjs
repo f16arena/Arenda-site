@@ -107,6 +107,7 @@ function writeGithubSummary(items) {
     `- Client file: ${DEFAULT_ENV.PERF_AUDIT_CLIENT_KB} KB`,
     `- Server file: ${DEFAULT_ENV.PERF_AUDIT_SERVER_KB} KB`,
     `- Prisma take limit: ${DEFAULT_ENV.PERF_AUDIT_TAKE_LIMIT}`,
+    "- Watched heavy files: floor editor, FAQ, tenant detail, admin dashboard, spaces, performance dashboard",
     "- Silent `catch(() => [])`: forbidden",
     "- Key heavy routes must use `measureServerRoute` and `measureServerStep`",
     "",

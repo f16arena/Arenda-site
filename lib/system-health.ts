@@ -212,14 +212,54 @@ const EXPECTED_CRONS = [
 const CLIENT_FILE_BUDGET = 140 * 1024
 const SERVER_FILE_BUDGET = 80 * 1024
 const PERFORMANCE_WATCH_FILES = [
-  { rel: path.join("app", "admin", "floors", "[id]", "floor-editor.tsx"), isClient: true },
-  { rel: path.join("app", "admin", "tenants", "[id]", "page.tsx"), isClient: false },
-  { rel: path.join("app", "admin", "data-quality", "page.tsx"), isClient: false },
-  { rel: path.join("app", "admin", "spaces", "page.tsx"), isClient: false },
-  { rel: path.join("app", "admin", "page.tsx"), isClient: false },
-  { rel: path.join("app", "cabinet", "page.tsx"), isClient: false },
-  { rel: path.join("app", "superadmin", "performance", "page.tsx"), isClient: false },
-  { rel: path.join("lib", "system-health.ts"), isClient: false },
+  {
+    rel: path.join("app", "admin", "floors", "[id]", "floor-editor.tsx"),
+    isClient: true,
+    maxKb: 75,
+    reason: "floor editor должен быть следующим кандидатом на разрезание client-кода",
+  },
+  {
+    rel: path.join("lib", "faq.ts"),
+    isClient: false,
+    maxKb: 55,
+    reason: "FAQ не должен разрастаться как всегда импортируемый server-модуль",
+  },
+  {
+    rel: path.join("app", "admin", "tenants", "[id]", "page.tsx"),
+    isClient: false,
+    maxKb: 55,
+    reason: "карточка арендатора должна оставаться быстрым shell с lazy-секциями",
+  },
+  {
+    rel: path.join("app", "admin", "page.tsx"),
+    isClient: false,
+    maxKb: 55,
+    reason: "dashboard не должен снова тянуть вторичные аналитические блоки в первый render",
+  },
+  {
+    rel: path.join("app", "admin", "data-quality", "page.tsx"),
+    isClient: false,
+    maxKb: 50,
+    reason: "центр качества данных должен показывать проблемы через агрегаты, а не большие списки",
+  },
+  {
+    rel: path.join("app", "admin", "spaces", "page.tsx"),
+    isClient: false,
+    maxKb: 45,
+    reason: "страница помещений не должна тянуть layout JSON и списки арендаторов в первый render",
+  },
+  {
+    rel: path.join("app", "cabinet", "page.tsx"),
+    isClient: false,
+    maxKb: 40,
+    reason: "кабинет арендатора должен оставаться mobile-first и быстро открываться с телефона",
+  },
+  {
+    rel: path.join("app", "superadmin", "performance", "page.tsx"),
+    isClient: false,
+    maxKb: 40,
+    reason: "performance dashboard должен показывать узкие места, но не становиться узким местом сам",
+  },
 ] as const
 const SILENT_FALLBACK_SCAN_DIRS = ["app", "components", "lib"] as const
 
@@ -455,11 +495,14 @@ async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label
   const enriched = await Promise.all(PERFORMANCE_WATCH_FILES.map(async (file) => {
     const content = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), file.rel), "utf8").catch(() => "")
     const size = Buffer.byteLength(content)
-    return { rel: file.rel, size, isClient: file.isClient, exists: content.length > 0 }
+    return { rel: file.rel, size, isClient: file.isClient, exists: content.length > 0, maxKb: file.maxKb, reason: file.reason }
   }))
 
   const violations = enriched.flatMap((file) => {
     if (!file.exists) return [`${file.rel} не найден.`]
+    if (file.size > file.maxKb * 1024) {
+      return [`${formatSourceFile(file)} превышает watch budget ${file.maxKb} KB: ${file.reason}.`]
+    }
     if (file.isClient && file.size > CLIENT_FILE_BUDGET) {
       return [`${formatSourceFile(file)} превышает client budget ${formatBytes(CLIENT_FILE_BUDGET)}.`]
     }
@@ -487,8 +530,9 @@ async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label
     details: [
       `Client budget: ${formatBytes(CLIENT_FILE_BUDGET)}.`,
       `Server budget: ${formatBytes(SERVER_FILE_BUDGET)}.`,
+      "Watch budgets держат конкретные тяжелые страницы от регресса до следующего разрезания кода.",
       "Полный scan запускается командой npm run perf:audit.",
-      ...largest.map((line) => `Крупный файл: ${line}.`),
+      ...largest.map((line) => `Крупный файл под наблюдением: ${line}.`),
     ],
   }
 }
