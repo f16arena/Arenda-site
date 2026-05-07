@@ -1,10 +1,51 @@
-import { Image } from "expo-image"
 import * as DocumentPicker from "expo-document-picker"
 import * as ImagePicker from "expo-image-picker"
 import * as Notifications from "expo-notifications"
 import * as Sharing from "expo-sharing"
-import type { ComponentProps } from "react"
+import type { ComponentProps, ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
+import {
+  Bell,
+  BellOff,
+  Building2,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleDollarSign,
+  ClipboardList,
+  CreditCard,
+  Download,
+  Ellipsis,
+  FileSignature,
+  FileText,
+  Gauge,
+  Home,
+  Inbox,
+  KeyRound,
+  ListChecks,
+  Lock,
+  LogOut,
+  MapPinned,
+  MessageCircle,
+  MoreHorizontal,
+  Paperclip,
+  Play,
+  Search,
+  Send,
+  Settings,
+  ShieldCheck,
+  Signature,
+  Smartphone,
+  SquareArrowOutUpRight,
+  TrendingUp,
+  TriangleAlert,
+  UserRound,
+  UsersRound,
+  Wrench,
+  X,
+  XCircle,
+} from "lucide-react-native"
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -24,8 +65,10 @@ import {
   createTenantRequest,
   downloadAuthorizedFile,
   getAdminBuildings,
+  getAdminDocuments,
   getAdminPaymentReports,
   getAdminRequests,
+  getAdminTenants,
   getAdminToday,
   getBuildingNotices,
   getDeviceAuthAvailability,
@@ -59,11 +102,15 @@ import { getLocalPushPreferences, isQuietHoursNow, saveLocalPushPreferences, typ
 import { setMobileSentryUser } from "@/lib/sentry"
 import type {
   AdminBuildingsPayload,
+  AdminDocumentsPayload,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
+  AdminTenantsPayload,
   AdminTodayPayload,
   BuildingNotice,
   MobileBootstrap,
+  MobileContractSummary,
+  MobileGeneratedDocumentSummary,
   MobileNotification,
   MobileNotificationSettingsPayload,
   MobileNotificationsPayload,
@@ -91,6 +138,69 @@ const colors = {
   slate: "#0f172a",
 }
 
+const fonts = {
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+  bold: "Inter_700Bold",
+  extraBold: "Inter_800ExtraBold",
+  black: "Inter_900Black",
+}
+
+type AppIconComponent = typeof Bell
+
+const iconByName: Record<string, AppIconComponent> = {
+  "arrow.down.circle": Download,
+  "arrow.up.right.square": SquareArrowOutUpRight,
+  "bell": Bell,
+  "bell.badge.fill": Bell,
+  "bell.fill": Bell,
+  "bell.slash.fill": BellOff,
+  "building.2": Building2,
+  "building.2.fill": Building2,
+  "calendar": CalendarDays,
+  "chart.line.uptrend.xyaxis": TrendingUp,
+  "checkmark": Check,
+  "checkmark.circle.fill": CheckCircle2,
+  "checkmark.seal.fill": ShieldCheck,
+  "creditcard.fill": CreditCard,
+  "doc.badge.arrow.up.fill": FileSignature,
+  "doc.text.fill": FileText,
+  "ellipsis": MoreHorizontal,
+  "gauge.with.dots.needle.50percent": Gauge,
+  "house.fill": Home,
+  "iphone": Smartphone,
+  "key.fill": KeyRound,
+  "list.bullet.rectangle.fill": ListChecks,
+  "location.fill": MapPinned,
+  "lock.fill": Lock,
+  "lock.shield.fill": ShieldCheck,
+  "message.fill": MessageCircle,
+  "paperclip": Paperclip,
+  "person.2.fill": UsersRound,
+  "person.fill": UserRound,
+  "play.fill": Play,
+  "rectangle.portrait.and.arrow.right": LogOut,
+  "search": Search,
+  "send.fill": Send,
+  "settings": Settings,
+  "signature": Signature,
+  "square.and.arrow.up": SquareArrowOutUpRight,
+  "tray.full.fill": Inbox,
+  "wrench.and.screwdriver.fill": Wrench,
+  "xmark": X,
+  "xmark.circle.fill": XCircle,
+  "dollarsign.circle.fill": CircleDollarSign,
+  "doc.on.doc.fill": ClipboardList,
+  "chevron.right": ChevronRight,
+  "exclamationmark.triangle.fill": TriangleAlert,
+}
+
+function AppIcon({ name, size = 20, color = colors.text, strokeWidth = 2.4 }: { name: string; size?: number; color?: string; strokeWidth?: number }) {
+  const Icon = iconByName[name] ?? Ellipsis
+  return <Icon size={size} color={color} strokeWidth={strokeWidth} />
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => {
     const preferences = await getLocalPushPreferences()
@@ -115,6 +225,8 @@ type AppData = {
   adminRequests: AdminRequestsPayload | null
   adminPayments: AdminPaymentReportsPayload | null
   adminBuildings: AdminBuildingsPayload | null
+  adminTenants: AdminTenantsPayload | null
+  adminDocuments: AdminDocumentsPayload | null
   ownerOverview: OwnerOverviewPayload | null
   notifications: MobileNotificationsPayload | null
   notificationSettings: MobileNotificationSettingsPayload | null
@@ -131,6 +243,8 @@ const emptyData: AppData = {
   adminRequests: null,
   adminPayments: null,
   adminBuildings: null,
+  adminTenants: null,
+  adminDocuments: null,
   ownerOverview: null,
   notifications: null,
   notificationSettings: null,
@@ -160,6 +274,8 @@ export default function HomeScreen() {
   const [canUseDeviceAuth, setCanUseDeviceAuth] = useState(false)
   const [deviceAuthLabel, setDeviceAuthLabel] = useState("Face ID / отпечаток / код телефона")
   const [cacheState, setCacheState] = useState<CacheState>({ fromCache: false })
+  const [loadingTabs, setLoadingTabs] = useState<Record<string, boolean>>({})
+  const [tabErrors, setTabErrors] = useState<Record<string, string | null>>({})
 
   async function load(options: { allowCache?: boolean } = {}) {
     const allowCache = options.allowCache !== false
@@ -170,33 +286,18 @@ export default function HomeScreen() {
       const isTenant = role === "TENANT"
       const isOwner = role === "OWNER"
       const isStaff = !isTenant
-      const canReviewPayments = ["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)
 
       const [
         notices,
         tenantOverview,
-        tenantFinances,
-        tenantRequests,
-        tenantMeters,
-        tenantDocuments,
         adminToday,
-        adminRequests,
-        adminPayments,
-        adminBuildings,
         ownerOverview,
         notifications,
         notificationSettings,
       ] = await Promise.all([
         getBuildingNotices(),
         isTenant ? getTenantOverview() : Promise.resolve(null),
-        isTenant ? getTenantFinances() : Promise.resolve(null),
-        isTenant ? getTenantRequests() : Promise.resolve(null),
-        isTenant ? getTenantMeters() : Promise.resolve(null),
-        isTenant ? getTenantDocuments() : Promise.resolve(null),
         isStaff ? getAdminToday() : Promise.resolve(null),
-        isStaff ? getAdminRequests() : Promise.resolve(null),
-        canReviewPayments ? getAdminPaymentReports() : Promise.resolve(null),
-        isStaff ? getAdminBuildings() : Promise.resolve(null),
         isOwner ? getOwnerOverview() : Promise.resolve(null),
         getMobileNotifications(),
         getMobileNotificationSettings(),
@@ -205,14 +306,16 @@ export default function HomeScreen() {
       const nextData: AppData = {
         notices,
         tenantOverview,
-        tenantFinances,
-        tenantRequests,
-        tenantMeters,
-        tenantDocuments,
+        tenantFinances: null,
+        tenantRequests: null,
+        tenantMeters: null,
+        tenantDocuments: null,
         adminToday,
-        adminRequests,
-        adminPayments,
-        adminBuildings,
+        adminRequests: null,
+        adminPayments: null,
+        adminBuildings: null,
+        adminTenants: null,
+        adminDocuments: null,
         ownerOverview,
         notifications,
         notificationSettings,
@@ -229,7 +332,7 @@ export default function HomeScreen() {
       await writeCache<CachedDashboard>(DASHBOARD_CACHE_KEY, { bootstrap: next, data: nextData })
 
       const tabs = tabsForRole(role)
-      if (!tabs.some((tab) => tab.key === activeTab)) setActiveTab(tabs[0]?.key ?? "home")
+      if (!tabs.some((tab) => tab.key === rootTab(activeTab))) setActiveTab(tabs[0]?.key ?? "home")
     } catch (e) {
       if (allowCache) {
         const cached = await readCache<CachedDashboard>(DASHBOARD_CACHE_KEY)
@@ -248,12 +351,57 @@ export default function HomeScreen() {
           })
 
           const tabs = tabsForRole(cached.value.bootstrap.user.role)
-          if (!tabs.some((tab) => tab.key === activeTab)) setActiveTab(tabs[0]?.key ?? "home")
+          if (!tabs.some((tab) => tab.key === rootTab(activeTab))) setActiveTab(tabs[0]?.key ?? "home")
           return
         }
       }
 
       throw e
+    }
+  }
+
+  async function loadTabData(tab = activeTab, options: { force?: boolean } = {}) {
+    if (!bootstrap) return
+    const tabKey = rootTab(tab)
+    const role = bootstrap.user.role ?? ""
+    const isTenant = role === "TENANT"
+    const canReviewPayments = ["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)
+
+    if (!options.force && hasTabData(data, role, tabKey)) return
+
+    setLoadingTabs((current) => ({ ...current, [tabKey]: true }))
+    setTabErrors((current) => ({ ...current, [tabKey]: null }))
+
+    try {
+      let patch: Partial<AppData> = {}
+
+      if (isTenant) {
+        if (tabKey === "payments") patch = { tenantFinances: await getTenantFinances() }
+        else if (tabKey === "requests") patch = { tenantRequests: await getTenantRequests() }
+        else if (tabKey === "meters") patch = { tenantMeters: await getTenantMeters() }
+        else if (tabKey === "documents") patch = { tenantDocuments: await getTenantDocuments() }
+      } else {
+        if (tabKey === "tenants") patch = { adminTenants: await getAdminTenants() }
+        else if (tabKey === "documents") patch = { adminDocuments: await getAdminDocuments() }
+        else if (tabKey === "requests") patch = { adminRequests: await getAdminRequests() }
+        else if (tabKey === "payments" && canReviewPayments) patch = { adminPayments: await getAdminPaymentReports() }
+        else if (tabKey === "buildings") patch = { adminBuildings: await getAdminBuildings() }
+      }
+
+      if (Object.keys(patch).length > 0) {
+        setData((current) => {
+          const nextData = { ...current, ...patch }
+          void writeCache<CachedDashboard>(DASHBOARD_CACHE_KEY, { bootstrap, data: nextData })
+          return nextData
+        })
+      }
+    } catch (e) {
+      setTabErrors((current) => ({
+        ...current,
+        [tabKey]: e instanceof Error ? e.message : "Не удалось загрузить раздел",
+      }))
+    } finally {
+      setLoadingTabs((current) => ({ ...current, [tabKey]: false }))
     }
   }
 
@@ -290,6 +438,7 @@ export default function HomeScreen() {
     setRefreshing(true)
     try {
       await load()
+      await loadTabData(activeTab, { force: true })
     } finally {
       setRefreshing(false)
     }
@@ -317,6 +466,8 @@ export default function HomeScreen() {
     setCanUseDeviceAuth(false)
     setMobileSentryUser(null)
     setCacheState({ fromCache: false })
+    setLoadingTabs({})
+    setTabErrors({})
     await clearMobileCache()
   }
 
@@ -325,13 +476,25 @@ export default function HomeScreen() {
   }, [])
 
   useEffect(() => {
+    if (!bootstrap) return
+    loadTabData(activeTab).catch(() => null)
+  }, [bootstrap?.user.id, activeTab])
+
+  useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
       const type = response.notification.request.content.data?.type
       if (typeof type !== "string") return
-      if (type.includes("PAYMENT")) setActiveTab("payments")
-      else if (type.includes("REQUEST")) setActiveTab("requests")
-      else if (type.includes("DOCUMENT")) setActiveTab("documents")
-      else setActiveTab("home")
+      const link = response.notification.request.content.data?.link
+      const tab = tabForNotification({
+        id: "",
+        type,
+        title: "",
+        message: "",
+        link: typeof link === "string" ? link : null,
+        isRead: false,
+        createdAt: "",
+      })
+      setActiveTab(tab ?? "home")
     })
     return () => subscription.remove()
   }, [])
@@ -357,6 +520,8 @@ export default function HomeScreen() {
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       cacheState={cacheState}
+      loadingTabs={loadingTabs}
+      tabErrors={tabErrors}
       refreshing={refreshing}
       onRefresh={refresh}
       onLogout={onLogout}
@@ -475,6 +640,8 @@ function Dashboard({
   activeTab,
   setActiveTab,
   cacheState,
+  loadingTabs,
+  tabErrors,
   refreshing,
   onRefresh,
   onLogout,
@@ -484,6 +651,8 @@ function Dashboard({
   activeTab: string
   setActiveTab: (tab: string) => void
   cacheState: CacheState
+  loadingTabs: Record<string, boolean>
+  tabErrors: Record<string, string | null>
   refreshing: boolean
   onRefresh: () => void
   onLogout: () => void
@@ -491,6 +660,8 @@ function Dashboard({
   const role = bootstrap.user.role ?? ""
   const tabs = tabsForRole(role)
   const { width } = useWindowDimensions()
+  const safeTab = activeTab || tabs[0]?.key || "home"
+  const navigate = (tab: string) => setActiveTab(tab)
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -501,9 +672,9 @@ function Dashboard({
       >
         <HeaderCard bootstrap={bootstrap} onLogout={onLogout} />
         {cacheState.fromCache ? <OfflineBanner savedAt={cacheState.savedAt} error={cacheState.error} /> : null}
-        <TabContent role={role} tab={activeTab} bootstrap={bootstrap} data={data} onChanged={onRefresh} />
+        <TabContent role={role} tab={safeTab} bootstrap={bootstrap} data={data} loadingTabs={loadingTabs} tabErrors={tabErrors} onChanged={onRefresh} onNavigate={navigate} />
       </ScrollView>
-      <BottomTabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+      <BottomTabs tabs={tabs} activeTab={safeTab} onChange={navigate} />
     </View>
   )
 }
@@ -513,43 +684,57 @@ function TabContent({
   tab,
   bootstrap,
   data,
+  loadingTabs,
+  tabErrors,
   onChanged,
+  onNavigate,
 }: {
   role: string
   tab: string
   bootstrap: MobileBootstrap
   data: AppData
+  loadingTabs: Record<string, boolean>
+  tabErrors: Record<string, string | null>
   onChanged: () => void
+  onNavigate: (tab: string) => void
 }) {
-  if (tab === "notifications") {
+  const [tabKey, tabParam] = tab.split(":")
+  const tabError = tabErrors[tabKey]
+
+  if (tabKey === "notifications") {
     return data.notifications && data.notificationSettings
-      ? <NotificationsScreen payload={data.notifications} settings={data.notificationSettings} notices={data.notices} onChanged={onChanged} />
+      ? <NotificationsScreen payload={data.notifications} settings={data.notificationSettings} notices={data.notices} onChanged={onChanged} onNavigate={onNavigate} />
       : <CenteredLoader />
   }
 
   if (role === "TENANT") {
-    if (!data.tenantOverview || !data.tenantFinances || !data.tenantRequests || !data.tenantMeters || !data.tenantDocuments) {
-      return <CenteredLoader />
-    }
-    if (tab === "payments") return <TenantPayments finances={data.tenantFinances} onChanged={onChanged} />
-    if (tab === "requests") return <TenantRequests requests={data.tenantRequests} onChanged={onChanged} />
-    if (tab === "meters") return <TenantMeters meters={data.tenantMeters} onChanged={onChanged} />
-    if (tab === "documents") return <TenantDocuments documents={data.tenantDocuments} />
-    if (tab === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} />
-    return <TenantHome overview={data.tenantOverview} notices={data.notices} />
+    if (!data.tenantOverview) return <CenteredLoader />
+    if (tabKey === "payments") return data.tenantFinances ? <TenantPayments finances={data.tenantFinances} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    if (tabKey === "requests") return data.tenantRequests ? <TenantRequests requests={data.tenantRequests} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    if (tabKey === "meters") return data.tenantMeters ? <TenantMeters meters={data.tenantMeters} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    if (tabKey === "documents") return data.tenantDocuments ? <TenantDocuments documents={data.tenantDocuments} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />
+    if (tabKey === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} />
+    return <TenantHome overview={data.tenantOverview} notices={data.notices} onNavigate={onNavigate} />
   }
 
-  if (role === "OWNER" && tab === "owner") {
+  if (role === "OWNER" && tabKey === "owner") {
     return data.ownerOverview ? <OwnerOverview data={data.ownerOverview} /> : <CenteredLoader />
   }
-  if (tab === "requests") return data.adminRequests ? <AdminRequests payload={data.adminRequests} onChanged={onChanged} /> : <CenteredLoader />
-  if (tab === "payments") return data.adminPayments ? <AdminPayments payload={data.adminPayments} onChanged={onChanged} /> : <NoAccess title="Оплаты доступны владельцу, админу и бухгалтеру" />
-  if (tab === "buildings") return data.adminBuildings ? <AdminBuildings payload={data.adminBuildings} /> : <CenteredLoader />
-  if (tab === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} />
-  return data.adminToday ? <AdminToday payload={data.adminToday} notices={data.notices} bootstrap={bootstrap} onChanged={onChanged} /> : <CenteredLoader />
+  if (tabKey === "tenants") return data.adminTenants ? <AdminTenants payload={data.adminTenants} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "documents") return data.adminDocuments ? <AdminDocuments payload={data.adminDocuments} tenantId={tabParam} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "requests") return data.adminRequests ? <AdminRequests payload={data.adminRequests} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "payments") {
+    if (!["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)) return <NoAccess title="Оплаты доступны владельцу, админу и бухгалтеру" />
+    return data.adminPayments ? <AdminPayments payload={data.adminPayments} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  }
+  if (tabKey === "buildings") return data.adminBuildings ? <AdminBuildings payload={data.adminBuildings} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />
+  if (tabKey === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} />
+  return data.adminToday ? <AdminToday payload={data.adminToday} notices={data.notices} bootstrap={bootstrap} onChanged={onChanged} onNavigate={onNavigate} /> : <CenteredLoader />
 }
 
-function TenantHome({ overview, notices }: { overview: TenantOverview; notices: BuildingNotice[] }) {
+function TenantHome({ overview, notices, onNavigate }: { overview: TenantOverview; notices: BuildingNotice[]; onNavigate: (tab: string) => void }) {
   return (
     <>
       <SectionTitle title="Главная" />
@@ -574,9 +759,9 @@ function TenantHome({ overview, notices }: { overview: TenantOverview; notices: 
       <NoticeList notices={notices.slice(0, 6)} />
       <SectionTitle title="Ближайшие действия" />
       <Card>
-        <ActionRow icon="creditcard.fill" title="К оплате" value={formatMoney(overview.finances.totalDebt)} color={overview.finances.totalDebt > 0 ? colors.red : colors.green} />
-        <ActionRow icon="signature" title="На подпись" value={`${overview.counters.pendingDocuments}`} color={colors.blue} />
-        <ActionRow icon="gauge.with.dots.needle.50percent" title="Счетчики" value={`${overview.counters.meters}`} color={colors.teal} />
+        <ActionRow icon="creditcard.fill" title="К оплате" value={formatMoney(overview.finances.totalDebt)} color={overview.finances.totalDebt > 0 ? colors.red : colors.green} onPress={() => onNavigate("payments")} />
+        <ActionRow icon="signature" title="На подпись" value={`${overview.counters.pendingDocuments}`} color={colors.blue} onPress={() => onNavigate("documents")} />
+        <ActionRow icon="gauge.with.dots.needle.50percent" title="Счетчики" value={`${overview.counters.meters}`} color={colors.teal} onPress={() => onNavigate("meters")} />
       </Card>
     </>
   )
@@ -792,8 +977,8 @@ function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
         {pendingRequests.map((request) => (
           <View key={request.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Image source="sf:doc.badge.arrow.up.fill" style={{ width: 18, height: 18, tintColor: colors.orange }} />
-              <Text selectable style={{ flex: 1, color: colors.text, fontWeight: "900" }}>{request.title}</Text>
+              <AppIcon name="doc.badge.arrow.up.fill" size={19} color={colors.orange} />
+              <Text selectable style={{ flex: 1, color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{request.title}</Text>
               <StatusPill label={request.status} color={colors.orange} />
             </View>
             {request.message ? <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{request.message}</Text> : null}
@@ -872,19 +1057,216 @@ function DocumentRow({ title, subtitle, url }: { title: string; subtitle: string
         onPress={openDocument}
         style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 5, opacity: url ? 1 : 0.55 }}
       >
-        <Image source="sf:doc.text.fill" style={{ width: 19, height: 19, tintColor: colors.blue }} />
+        <AppIcon name="doc.text.fill" size={20} color={colors.blue} />
         <View style={{ flex: 1 }}>
-          <Text selectable numberOfLines={1} style={{ color: colors.text, fontWeight: "800" }}>{title}</Text>
-          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 12 }}>{busy ? "Скачиваем..." : subtitle}</Text>
+          <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 15, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
+          <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{busy ? "Скачиваем..." : subtitle}</Text>
         </View>
-        <Image source={busy ? "sf:arrow.down.circle" : "sf:square.and.arrow.up"} style={{ width: 17, height: 17, tintColor: colors.muted }} />
+        <AppIcon name={busy ? "arrow.down.circle" : "square.and.arrow.up"} size={18} color={colors.muted} />
       </Pressable>
       {message ? <InlineMessage message={message} tone="error" /> : null}
     </View>
   )
 }
 
-function AdminToday({ payload, notices, bootstrap, onChanged }: { payload: AdminTodayPayload; notices: BuildingNotice[]; bootstrap: MobileBootstrap; onChanged: () => void }) {
+function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; onNavigate: (tab: string) => void }) {
+  const [query, setQuery] = useState("")
+  const filtered = useMemo(() => {
+    const text = query.trim().toLowerCase()
+    if (!text) return payload.data
+    return payload.data.filter((tenant) => (
+      tenant.companyName.toLowerCase().includes(text)
+      || (tenant.bin ?? "").includes(text)
+      || (tenant.iin ?? "").includes(text)
+      || tenant.placement.toLowerCase().includes(text)
+    ))
+  }, [payload.data, query])
+
+  return (
+    <>
+      <SectionTitle title="Арендаторы" />
+      <Card>
+        <MetricGrid
+          items={[
+            { label: "Всего", value: String(payload.counters.total), color: colors.blue },
+            { label: "С долгом", value: String(payload.counters.withDebt), color: payload.counters.withDebt > 0 ? colors.red : colors.green },
+            { label: "Долг", value: formatMoney(payload.counters.debtAmount), color: payload.counters.debtAmount > 0 ? colors.orange : colors.green },
+            { label: "Истекают", value: String(payload.counters.expiringContracts), color: payload.counters.expiringContracts > 0 ? colors.red : colors.slate },
+          ]}
+        />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46 }}>
+          <AppIcon name="search" size={18} color={colors.muted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Название, БИН, кабинет"
+            placeholderTextColor="#94a3b8"
+            style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
+          />
+        </View>
+      </Card>
+      {filtered.length === 0 ? <EmptyState title="Арендаторы не найдены" /> : null}
+      {filtered.map((tenant) => (
+        <Pressable key={tenant.id} onPress={() => onNavigate(`documents:${tenant.id}`)}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconBox icon="person.2.fill" color={tenant.totalDebt > 0 ? colors.orange : colors.teal} />
+              <View style={{ flex: 1 }}>
+                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{tenant.companyName}</Text>
+                <Text selectable numberOfLines={2} style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.regular }}>{tenant.placement}</Text>
+              </View>
+              <StatusPill label={tenant.totalDebt > 0 ? "Долг" : "ОК"} color={tenant.totalDebt > 0 ? colors.orange : colors.green} />
+            </View>
+            <MetricGrid
+              items={[
+                { label: "Площадь", value: `${tenant.area.toLocaleString("ru-RU")} м2`, color: colors.slate },
+                { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
+                { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
+                { label: "Договоры", value: String(tenant.contracts.total), color: colors.teal },
+              ]}
+            />
+            <CompactRow title="Заявки и документы" subtitle={`${tenant.activeRequests} активных заявок · ${tenant.documents} файлов`} value={tenant.contractEnd ? formatDate(tenant.contractEnd) : undefined} tone={tenant.contracts.expiringSoon > 0 ? colors.red : colors.blue} />
+          </Card>
+        </Pressable>
+      ))}
+    </>
+  )
+}
+
+function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload; tenantId?: string }) {
+  const [query, setQuery] = useState("")
+  const [category, setCategory] = useState("ALL")
+  const tenantName = tenantId
+    ? payload.contracts.find((contract) => contract.tenantId === tenantId)?.tenantName
+      ?? payload.generated.find((document) => document.tenantId === tenantId)?.tenantName
+    : null
+  const scopedContracts = tenantId ? payload.contracts.filter((contract) => contract.tenantId === tenantId) : payload.contracts
+  const scopedGenerated = tenantId ? payload.generated.filter((document) => document.tenantId === tenantId) : payload.generated
+  const filteredContracts = useMemo(() => {
+    const text = query.trim().toLowerCase()
+    if (!text) return scopedContracts
+    return scopedContracts.filter((contract) => (
+      contract.tenantName.toLowerCase().includes(text)
+      || contract.number.toLowerCase().includes(text)
+      || contract.status.toLowerCase().includes(text)
+    ))
+  }, [query, scopedContracts])
+  const filteredGenerated = useMemo(() => {
+    const text = query.trim().toLowerCase()
+    if (!text) return scopedGenerated
+    return scopedGenerated.filter((document) => (
+      document.tenantName.toLowerCase().includes(text)
+      || document.fileName.toLowerCase().includes(text)
+      || (document.number ?? "").toLowerCase().includes(text)
+      || (document.period ?? "").toLowerCase().includes(text)
+    ))
+  }, [query, scopedGenerated])
+  const visibleGenerated = filteredGenerated.filter((document) => category === "ALL" || document.documentType === category)
+  const showContracts = category === "ALL" || category === "CONTRACT"
+  const visibleCount = (showContracts ? filteredContracts.length : 0) + visibleGenerated.length
+
+  return (
+    <>
+      <SectionTitle title={tenantName ? `Документы: ${tenantName}` : "Документы"} />
+      <Card>
+        <MetricGrid
+          items={[
+            { label: "Всего", value: String(scopedContracts.length + scopedGenerated.length), color: colors.blue },
+            { label: "Договоры", value: String(scopedContracts.length), color: colors.teal },
+            { label: "Счета", value: String(scopedGenerated.filter((document) => document.documentType === "INVOICE").length), color: colors.orange },
+            { label: "АВР/сверки", value: String(scopedGenerated.filter((document) => ["ACT", "RECONCILIATION"].includes(document.documentType)).length), color: colors.green },
+          ]}
+        />
+        <ChoiceRow
+          options={[
+            ["ALL", "Все"],
+            ["CONTRACT", "Договор"],
+            ["ACT", "АВР"],
+            ["INVOICE", "Счет"],
+            ["RECONCILIATION", "Сверка"],
+          ]}
+          value={category}
+          onChange={setCategory}
+        />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46 }}>
+          <AppIcon name="search" size={18} color={colors.muted} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Арендатор, номер, период"
+            placeholderTextColor="#94a3b8"
+            style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
+          />
+        </View>
+      </Card>
+      {visibleCount === 0 ? <EmptyState title="Документы не найдены" /> : null}
+      {showContracts && filteredContracts.length > 0 ? (
+        <>
+          <SectionTitle title="Договоры" />
+          <ContractList contracts={filteredContracts} emptyTitle="Договоры не найдены" />
+        </>
+      ) : null}
+      {visibleGenerated.length > 0 ? (
+        <>
+          <SectionTitle title={categoryTitle(category)} />
+          <GeneratedDocumentList documents={visibleGenerated} />
+        </>
+      ) : null}
+    </>
+  )
+}
+
+function ContractList({ contracts, emptyTitle }: { contracts: MobileContractSummary[]; emptyTitle: string }) {
+  if (contracts.length === 0) return <EmptyState title={emptyTitle} />
+  return (
+    <>
+      {contracts.map((contract) => (
+        <ContractRow key={contract.id} contract={contract} />
+      ))}
+    </>
+  )
+}
+
+function ContractRow({ contract }: { contract: MobileContractSummary }) {
+  const color = contractStatusColor(contract.status)
+  const canOpen = !!contract.webUrl
+  return (
+    <Card>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, opacity: canOpen ? 1 : 0.72 }}>
+        <IconBox icon="doc.on.doc.fill" color={color} />
+        <View style={{ flex: 1 }}>
+          <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{contractTypeLabel(contract.type)} № {contract.number}</Text>
+          <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{contract.tenantName}</Text>
+        </View>
+        <StatusPill label={contractStatusLabel(contract.status)} color={color} />
+      </View>
+      <CompactRow
+        title={contract.startDate ? `С ${formatDate(contract.startDate)}` : "Дата начала не указана"}
+        subtitle={contract.endDate ? `до ${formatDate(contract.endDate)}` : "без даты окончания"}
+        value={contract.signedAt ? "подписан" : undefined}
+        tone={color}
+      />
+      {canOpen ? <SecondaryButton title="Открыть" icon="arrow.up.right.square" onPress={() => openExternalUrl(contract.webUrl!)} /> : null}
+    </Card>
+  )
+}
+
+function GeneratedDocumentList({ documents }: { documents: MobileGeneratedDocumentSummary[] }) {
+  return (
+    <Card>
+      {documents.map((document) => (
+        <DocumentRow
+          key={document.id}
+          title={document.fileName}
+          subtitle={`${document.tenantName} · ${documentTypeLabel(document.documentType)}${document.period ? ` · ${document.period}` : ""}${document.totalAmount ? ` · ${formatMoney(document.totalAmount)}` : ""}`}
+          url={document.downloadUrl}
+        />
+      ))}
+    </Card>
+  )
+}
+
+function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { payload: AdminTodayPayload; notices: BuildingNotice[]; bootstrap: MobileBootstrap; onChanged: () => void; onNavigate: (tab: string) => void }) {
   const canNotice = ["OWNER", "ADMIN", "FACILITY_MANAGER"].includes(bootstrap.user.role ?? "")
   return (
     <>
@@ -898,6 +1280,11 @@ function AdminToday({ payload, notices, bootstrap, onChanged }: { payload: Admin
             { label: "Долг", value: formatMoney(payload.counters.overdueAmount), color: colors.orange },
           ]}
         />
+      </Card>
+      <Card>
+        <ActionRow icon="person.2.fill" title="Арендаторы" value="список" color={colors.teal} onPress={() => onNavigate("tenants")} />
+        <ActionRow icon="doc.on.doc.fill" title="Документы" value={String(payload.counters.pendingSignatures)} color={colors.orange} onPress={() => onNavigate("documents")} />
+        <ActionRow icon="creditcard.fill" title="Оплаты" value={String(payload.counters.pendingPayments)} color={colors.green} onPress={() => onNavigate("payments")} />
       </Card>
       {canNotice ? <NoticeComposer buildings={payload.buildings} onChanged={onChanged} /> : null}
       <SectionTitle title="Последние заявки" />
@@ -1076,11 +1463,13 @@ function NotificationsScreen({
   settings,
   notices,
   onChanged,
+  onNavigate,
 }: {
   payload: MobileNotificationsPayload
   settings: MobileNotificationSettingsPayload
   notices: BuildingNotice[]
   onChanged: () => void
+  onNavigate: (tab: string) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -1105,6 +1494,8 @@ function NotificationsScreen({
       await markMobileNotificationsRead({ ids: [notification.id] }).catch(() => null)
       onChanged()
     }
+    const tab = tabForNotification(notification)
+    if (tab) onNavigate(tab)
     if (notification.link) openExternalUrl(notification.link).catch(() => null)
   }
 
@@ -1144,20 +1535,36 @@ function NotificationRow({ notification, label, onPress }: { notification: Mobil
     <Pressable onPress={onPress}>
       <Card>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Image source={notification.isRead ? "sf:bell" : "sf:bell.badge.fill"} style={{ width: 20, height: 20, tintColor: notification.isRead ? colors.muted : colors.orange }} />
+          <AppIcon name={notification.isRead ? "bell" : "bell.badge.fill"} size={21} color={notification.isRead ? colors.muted : colors.orange} />
           <View style={{ flex: 1 }}>
-            <Text selectable style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{notification.title}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{label} · {formatDateTime(notification.createdAt)}</Text>
+            <Text selectable style={{ color: colors.text, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{notification.title}</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{label} · {formatDateTime(notification.createdAt)}</Text>
           </View>
           {!notification.isRead ? <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.orange }} /> : null}
         </View>
-        <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{notification.message}</Text>
+        <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 14, lineHeight: 20, fontFamily: fonts.regular }}>{notification.message}</Text>
       </Card>
     </Pressable>
   )
 }
 
-function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: MobileBootstrap; buildings: MobileBootstrap["buildings"]; settings: MobileNotificationSettingsPayload | null; onChanged: () => void }) {
+function More({
+  bootstrap,
+  buildings,
+  settings,
+  onChanged,
+  onNavigate,
+  title = "Еще",
+  settingsOnly = false,
+}: {
+  bootstrap: MobileBootstrap
+  buildings: MobileBootstrap["buildings"]
+  settings: MobileNotificationSettingsPayload | null
+  onChanged: () => void
+  onNavigate: (tab: string) => void
+  title?: string
+  settingsOnly?: boolean
+}) {
   const [pushBusy, setPushBusy] = useState(false)
   const [pushState, setPushState] = useState<string | null>(null)
   const [localSettings, setLocalSettings] = useState<MobileNotificationSettingsPayload | null>(settings)
@@ -1286,10 +1693,21 @@ function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: Mobile
 
   return (
     <>
-      <SectionTitle title="Еще" />
+      <SectionTitle title={title} />
       <Card>
-        <Text selectable style={{ color: colors.text, fontSize: 18, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
-        <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{bootstrap.organization.name} · {bootstrap.user.role}</Text>
+        <Text selectable style={{ color: colors.text, fontSize: 19, fontFamily: fonts.black, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
+        <Text selectable style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.regular }}>{bootstrap.organization.name} · {bootstrap.user.role}</Text>
+        {!settingsOnly ? (
+          <View style={{ gap: 8 }}>
+            <SecondaryButton title="Настройки" icon="settings" onPress={() => onNavigate("settings")} />
+            {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Сегодня" icon="list.bullet.rectangle.fill" onPress={() => onNavigate("home")} /> : null}
+            {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Арендаторы" icon="person.2.fill" onPress={() => onNavigate("tenants")} /> : null}
+            <SecondaryButton title="Документы" icon="doc.text.fill" onPress={() => onNavigate("documents")} />
+            {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Заявки" icon="tray.full.fill" onPress={() => onNavigate("requests")} /> : null}
+            {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Оплаты" icon="creditcard.fill" onPress={() => onNavigate("payments")} /> : null}
+            {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Объекты" icon="building.2.fill" onPress={() => onNavigate("buildings")} /> : null}
+          </View>
+        ) : null}
         <PrimaryButton title={pushBusy ? "Подключаем..." : "Включить push"} disabled={pushBusy} onPress={enablePush} />
         <SecondaryButton title="Отключить push" icon="bell.slash.fill" onPress={disablePush} />
         {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
@@ -1305,9 +1723,9 @@ function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: Mobile
               value={pushPreferences.quietHoursEnabled}
               onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
             />
-            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>Начало</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
             <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
-            <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>Окончание</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
             <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
           </>
         ) : null}
@@ -1339,12 +1757,16 @@ function More({ bootstrap, buildings, settings, onChanged }: { bootstrap: Mobile
         ))}
         {sessions.length === 0 && !sessionsBusy ? <EmptyState title="Активных мобильных входов нет" /> : null}
       </Card>
-      <SectionTitle title="Объекты" />
-      <Card>
-        {buildings.map((building) => (
-          <CompactRow key={building.id} title={building.name} subtitle={building.address} tone={colors.blue} />
-        ))}
-      </Card>
+      {!settingsOnly ? (
+        <>
+          <SectionTitle title="Объекты" />
+          <Card>
+            {buildings.map((building) => (
+              <CompactRow key={building.id} title={building.name} subtitle={building.address} tone={colors.blue} />
+            ))}
+          </Card>
+        </>
+      ) : null}
     </>
   )
 }
@@ -1355,11 +1777,11 @@ function HeaderCard({ bootstrap, onLogout }: { bootstrap: MobileBootstrap; onLog
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <IconBox icon="building.2.fill" color={bootstrap.user.role === "TENANT" ? colors.teal : colors.blue} />
         <View style={{ flex: 1 }}>
-          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{bootstrap.organization.name}</Text>
-          <Text selectable style={{ color: colors.text, fontSize: 22, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{bootstrap.organization.name}</Text>
+          <Text selectable style={{ color: colors.text, fontSize: 23, fontFamily: fonts.black, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
         </View>
         <Pressable onPress={onLogout} style={{ padding: 8 }}>
-          <Image source="sf:rectangle.portrait.and.arrow.right" style={{ width: 22, height: 22, tintColor: colors.muted }} />
+          <AppIcon name="rectangle.portrait.and.arrow.right" size={23} color={colors.muted} />
         </Pressable>
       </View>
     </Card>
@@ -1391,11 +1813,11 @@ function NoticeList({ notices }: { notices: BuildingNotice[] }) {
       {notices.map((notice) => (
         <Card key={notice.id}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Image source="sf:bell.fill" style={{ width: 20, height: 20, tintColor: notice.severity === "CRITICAL" ? colors.red : notice.severity === "WARNING" ? colors.orange : colors.blue }} />
-            <Text selectable style={{ flex: 1, color: colors.text, fontSize: 16, fontWeight: "900" }}>{notice.title}</Text>
-            <Text style={{ color: colors.muted, fontSize: 11 }}>{formatDate(notice.createdAt)}</Text>
+            <AppIcon name="bell.fill" size={21} color={notice.severity === "CRITICAL" ? colors.red : notice.severity === "WARNING" ? colors.orange : colors.blue} />
+            <Text selectable style={{ flex: 1, color: colors.text, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{notice.title}</Text>
+            <Text style={{ color: colors.muted, fontSize: 12, fontFamily: fonts.regular }}>{formatDate(notice.createdAt)}</Text>
           </View>
-          <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{notice.message}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 15, lineHeight: 21, fontFamily: fonts.regular }}>{notice.message}</Text>
         </Card>
       ))}
     </>
@@ -1406,11 +1828,11 @@ function BottomTabs({ tabs, activeTab, onChange }: { tabs: Array<{ key: string; 
   return (
     <View style={{ position: "absolute", left: 12, right: 12, bottom: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: "#ffffff", flexDirection: "row", padding: 8, gap: 4 }}>
       {tabs.map((tab) => {
-        const active = tab.key === activeTab
+        const active = tab.key === activeTab || activeTab.startsWith(`${tab.key}:`)
         return (
           <Pressable key={tab.key} onPress={() => onChange(tab.key)} style={{ flex: 1, minHeight: 54, borderRadius: 8, alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: active ? "#eff6ff" : "transparent" }}>
-            <Image source={`sf:${tab.icon}`} style={{ width: 21, height: 21, tintColor: active ? colors.blue : colors.muted }} />
-            <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: active ? colors.blue : colors.muted, fontSize: 11, fontWeight: active ? "900" : "700" }}>{tab.label}</Text>
+            <AppIcon name={tab.icon} size={22} color={active ? colors.blue : colors.muted} />
+            <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: active ? colors.blue : colors.muted, fontSize: 12, fontFamily: active ? fonts.black : fonts.bold, fontWeight: active ? "900" : "700" }}>{tab.label}</Text>
           </Pressable>
         )
       })}
@@ -1429,7 +1851,7 @@ function OfflineBanner({ savedAt, error }: { savedAt?: string; error?: string | 
   )
 }
 
-function Card({ children }: { children: React.ReactNode }) {
+function Card({ children }: { children: ReactNode }) {
   return <View style={{ backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 8, padding: 14, gap: 12 }}>{children}</View>
 }
 
@@ -1448,7 +1870,7 @@ function ToggleRow({ title, subtitle, value, onValueChange }: { title: string; s
 function Field({ label, ...props }: { label: string } & ComponentProps<typeof TextInput>) {
   return (
     <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "800" }}>{label}</Text>
+      <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>{label}</Text>
       <TextInput
         {...props}
         placeholderTextColor="#94a3b8"
@@ -1461,7 +1883,8 @@ function Field({ label, ...props }: { label: string } & ComponentProps<typeof Te
           color: colors.text,
           paddingHorizontal: 12,
           paddingVertical: 10,
-          fontSize: 15,
+          fontSize: 16,
+          fontFamily: fonts.regular,
           textAlignVertical: props.multiline ? "top" : "center",
         }, props.style]}
       />
@@ -1488,25 +1911,25 @@ function DeviceAuthButton({ title, disabled, onPress }: { title: string; disable
         opacity: disabled ? 0.55 : 1,
       }}
     >
-      <Image source="sf:lock.fill" style={{ width: 16, height: 16, tintColor: colors.blue }} />
-      <Text numberOfLines={2} style={{ color: colors.blue, fontSize: 14, fontWeight: "900", textAlign: "center" }}>{title}</Text>
+      <AppIcon name="lock.fill" size={17} color={colors.blue} />
+      <Text numberOfLines={2} style={{ color: colors.blue, fontSize: 15, fontFamily: fonts.black, fontWeight: "900", textAlign: "center" }}>{title}</Text>
     </Pressable>
   )
 }
 
 function PrimaryButton({ title, disabled, onPress }: { title: string; disabled?: boolean; onPress: () => void }) {
   return (
-    <Pressable disabled={disabled} onPress={onPress} style={{ minHeight: 46, borderRadius: 8, backgroundColor: colors.slate, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.6 : 1 }}>
-      <Text style={{ color: "#ffffff", fontSize: 15, fontWeight: "900" }}>{title}</Text>
+    <Pressable disabled={disabled} onPress={onPress} style={{ minHeight: 48, borderRadius: 8, backgroundColor: colors.slate, alignItems: "center", justifyContent: "center", opacity: disabled ? 0.6 : 1 }}>
+      <Text style={{ color: "#ffffff", fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
     </Pressable>
   )
 }
 
 function SecondaryButton({ title, icon, onPress }: { title: string; icon: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ minHeight: 38, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#ffffff" }}>
-      <Image source={`sf:${icon}`} style={{ width: 15, height: 15, tintColor: colors.blue }} />
-      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>{title}</Text>
+    <Pressable onPress={onPress} style={{ minHeight: 40, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "#ffffff" }}>
+      <AppIcon name={icon} size={16} color={colors.blue} />
+      <Text numberOfLines={1} style={{ color: colors.text, fontSize: 14, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
     </Pressable>
   )
 }
@@ -1516,7 +1939,7 @@ function ChoiceRow({ options, value, onChange }: { options: Array<[string, strin
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
       {options.map(([key, label]) => (
         <Pressable key={key} onPress={() => onChange(key)} style={{ borderRadius: 999, borderWidth: 1, borderColor: value === key ? colors.blue : colors.border, backgroundColor: value === key ? "#eff6ff" : "#ffffff", paddingHorizontal: 12, paddingVertical: 8 }}>
-          <Text numberOfLines={1} style={{ color: value === key ? colors.blue : colors.muted, fontSize: 13, fontWeight: "900" }}>{label}</Text>
+          <Text numberOfLines={1} style={{ color: value === key ? colors.blue : colors.muted, fontSize: 14, fontFamily: fonts.black, fontWeight: "900" }}>{label}</Text>
         </Pressable>
       ))}
     </ScrollView>
@@ -1528,20 +1951,33 @@ function MetricGrid({ items }: { items: Array<{ label: string; value: string; co
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
       {items.map((item) => (
         <View key={item.label} style={{ flexGrow: 1, flexBasis: "42%", minHeight: 78, borderRadius: 8, backgroundColor: "#f8fafc", padding: 10, justifyContent: "space-between" }}>
-          <Text style={{ color: colors.muted, fontSize: 11 }}>{item.label}</Text>
-          <Text selectable adjustsFontSizeToFit numberOfLines={1} style={{ color: item.color, fontSize: 19, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
+          <Text style={{ color: colors.muted, fontSize: 12, fontFamily: fonts.medium }}>{item.label}</Text>
+          <Text selectable adjustsFontSizeToFit numberOfLines={1} style={{ color: item.color, fontSize: 20, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
         </View>
       ))}
     </View>
   )
 }
 
-function ActionRow({ icon, title, value, color }: { icon: string; title: string; value: string; color: string }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+function ActionRow({ icon, title, value, color, onPress }: { icon: string; title: string; value: string; color: string; onPress?: () => void }) {
+  const content = (
+    <>
       <IconBox icon={icon} color={color} />
-      <Text selectable style={{ flex: 1, color: colors.text, fontSize: 15, fontWeight: "900" }}>{title}</Text>
-      <Text selectable style={{ color, fontSize: 16, fontWeight: "900" }}>{value}</Text>
+      <Text selectable style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+      <Text selectable style={{ color, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{value}</Text>
+      {onPress ? <AppIcon name="chevron.right" size={18} color={colors.muted} /> : null}
+    </>
+  )
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={{ minHeight: 46, flexDirection: "row", alignItems: "center", gap: 12 }}>
+        {content}
+      </Pressable>
+    )
+  }
+  return (
+    <View style={{ minHeight: 46, flexDirection: "row", alignItems: "center", gap: 12 }}>
+      {content}
     </View>
   )
 }
@@ -1551,10 +1987,10 @@ function CompactRow({ title, subtitle, value, tone }: { title: string; subtitle?
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 3 }}>
       <View style={{ width: 8, height: 36, borderRadius: 4, backgroundColor: tone }} />
       <View style={{ flex: 1 }}>
-        <Text selectable style={{ color: colors.text, fontWeight: "800" }}>{title}</Text>
-        {subtitle ? <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{subtitle}</Text> : null}
+        <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.extraBold, fontWeight: "800" }}>{title}</Text>
+        {subtitle ? <Text selectable style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{subtitle}</Text> : null}
       </View>
-      {value ? <Text selectable style={{ color: tone, fontWeight: "900" }}>{value}</Text> : null}
+      {value ? <Text selectable style={{ color: tone, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{value}</Text> : null}
     </View>
   )
 }
@@ -1562,7 +1998,7 @@ function CompactRow({ title, subtitle, value, tone }: { title: string; subtitle?
 function StatusPill({ label, color }: { label: string; color: string }) {
   return (
     <View style={{ borderColor: `${color}40`, borderWidth: 1, borderRadius: 999, backgroundColor: `${color}12`, paddingHorizontal: 9, paddingVertical: 4 }}>
-      <Text style={{ color, fontSize: 11, fontWeight: "900" }}>{label}</Text>
+      <Text style={{ color, fontSize: 12, fontFamily: fonts.black, fontWeight: "900" }}>{label}</Text>
     </View>
   )
 }
@@ -1570,19 +2006,19 @@ function StatusPill({ label, color }: { label: string; color: string }) {
 function IconBox({ icon, color }: { icon: string; color: string }) {
   return (
     <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: `${color}14` }}>
-      <Image source={`sf:${icon}`} style={{ width: 21, height: 21, tintColor: color }} />
+      <AppIcon name={icon} size={22} color={color} />
     </View>
   )
 }
 
 function SectionTitle({ title }: { title: string }) {
-  return <Text style={{ color: colors.text, fontSize: 18, fontWeight: "900", marginTop: 2 }}>{title}</Text>
+  return <Text style={{ color: colors.text, fontSize: 20, fontFamily: fonts.black, fontWeight: "900", marginTop: 2 }}>{title}</Text>
 }
 
 function EmptyState({ title }: { title: string }) {
   return (
     <Card>
-      <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>{title}</Text>
+      <Text selectable style={{ color: colors.muted, fontSize: 15, fontFamily: fonts.medium, textAlign: "center" }}>{title}</Text>
     </Card>
   )
 }
@@ -1595,7 +2031,7 @@ function InlineMessage({ message, tone }: { message: string; tone: "error" | "su
   const color = tone === "error" ? colors.red : colors.green
   return (
     <View style={{ borderRadius: 8, borderColor: `${color}44`, borderWidth: 1, backgroundColor: `${color}10`, padding: 10 }}>
-      <Text selectable style={{ color, fontSize: 13, fontWeight: "700" }}>{message}</Text>
+      <Text selectable style={{ color, fontSize: 14, fontFamily: fonts.bold, fontWeight: "700" }}>{message}</Text>
     </View>
   )
 }
@@ -1606,6 +2042,39 @@ function CenteredLoader() {
       <ActivityIndicator color={colors.blue} />
     </View>
   )
+}
+
+function TabLoading({ error, loading }: { error?: string | null; loading?: boolean }) {
+  if (error) {
+    return (
+      <Card>
+        <InlineMessage message={error} tone="error" />
+      </Card>
+    )
+  }
+  if (loading === false) return <EmptyState title="Данные раздела пока не загружены" />
+  return <CenteredLoader />
+}
+
+function rootTab(tab: string) {
+  return tab.split(":")[0] || "home"
+}
+
+function hasTabData(data: AppData, role: string, tabKey: string) {
+  if (role === "TENANT") {
+    if (tabKey === "payments") return !!data.tenantFinances
+    if (tabKey === "requests") return !!data.tenantRequests
+    if (tabKey === "meters") return !!data.tenantMeters
+    if (tabKey === "documents") return !!data.tenantDocuments
+    return true
+  }
+
+  if (tabKey === "tenants") return !!data.adminTenants
+  if (tabKey === "documents") return !!data.adminDocuments
+  if (tabKey === "requests") return !!data.adminRequests
+  if (tabKey === "payments") return !!data.adminPayments
+  if (tabKey === "buildings") return !!data.adminBuildings
+  return true
 }
 
 function tabsForRole(role?: string | null) {
@@ -1623,8 +2092,8 @@ function tabsForRole(role?: string | null) {
   if (role === "OWNER") {
     return [
       { key: "owner", label: "KPI", icon: "chart.line.uptrend.xyaxis" },
-      { key: "home", label: "Сегодня", icon: "list.bullet.rectangle.fill" },
-      { key: "requests", label: "Заявки", icon: "tray.full.fill" },
+      { key: "tenants", label: "Аренд.", icon: "person.2.fill" },
+      { key: "documents", label: "Док.", icon: "doc.text.fill" },
       { key: "payments", label: "Оплаты", icon: "creditcard.fill" },
       { key: "notifications", label: "Увед.", icon: "bell.fill" },
       { key: "more", label: "Еще", icon: "ellipsis" },
@@ -1633,9 +2102,9 @@ function tabsForRole(role?: string | null) {
 
   return [
     { key: "home", label: "Сегодня", icon: "list.bullet.rectangle.fill" },
+    { key: "tenants", label: "Аренд.", icon: "person.2.fill" },
+    { key: "documents", label: "Док.", icon: "doc.text.fill" },
     { key: "requests", label: "Заявки", icon: "tray.full.fill" },
-    { key: "payments", label: "Оплаты", icon: "creditcard.fill" },
-    { key: "buildings", label: "Объекты", icon: "building.2.fill" },
     { key: "notifications", label: "Увед.", icon: "bell.fill" },
     { key: "more", label: "Еще", icon: "ellipsis" },
   ]
@@ -1703,6 +2172,55 @@ function documentTypeLabel(type: string) {
     ACCEPTANCE: "Акт приема-передачи",
   }
   return labels[type] ?? type
+}
+
+function categoryTitle(category: string) {
+  const labels: Record<string, string> = {
+    ALL: "Файлы",
+    CONTRACT: "Договоры",
+    ACT: "АВР",
+    INVOICE: "Счета на оплату",
+    RECONCILIATION: "Акты сверки",
+  }
+  return labels[category] ?? "Файлы"
+}
+
+function contractTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    STANDARD: "Договор",
+    ADDENDUM: "Доп. соглашение",
+    TERMINATION: "Расторжение",
+  }
+  return labels[type] ?? documentTypeLabel(type)
+}
+
+function contractStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    DRAFT: "Черновик",
+    SENT: "Отправлен",
+    VIEWED: "Просмотрен",
+    SIGNED_BY_TENANT: "Арендатор",
+    SIGNED: "Подписан",
+    REJECTED: "Отклонен",
+    EXPIRED: "Истек",
+  }
+  return labels[status] ?? status
+}
+
+function contractStatusColor(status: string) {
+  if (["SIGNED"].includes(status)) return colors.green
+  if (["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(status)) return colors.orange
+  if (["REJECTED", "EXPIRED"].includes(status)) return colors.red
+  return colors.blue
+}
+
+function tabForNotification(notification: MobileNotification) {
+  const target = `${notification.type} ${notification.link ?? ""}`.toUpperCase()
+  if (target.includes("PAYMENT") || target.includes("PAYMENT-REPORT") || target.includes("FINANCE")) return "payments"
+  if (target.includes("REQUEST")) return "requests"
+  if (target.includes("CONTRACT") || target.includes("DOCUMENT") || target.includes("SIGN")) return "documents"
+  if (target.includes("BUILDING") || target.includes("NOTICE")) return "home"
+  return null
 }
 
 function openExternalUrl(url: string) {

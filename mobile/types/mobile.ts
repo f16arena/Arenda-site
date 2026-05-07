@@ -291,6 +291,31 @@ export type TenantDocumentsPayload = {
   contractLinks: TenantContractLink[]
 }
 
+export type MobileContractSummary = {
+  id: string
+  tenantId: string
+  tenantName: string
+  number: string
+  type: string
+  status: string
+  startDate?: string | null
+  endDate?: string | null
+  signedAt?: string | null
+  sentAt?: string | null
+  webUrl?: string | null
+}
+
+export type TenantContractsPayload = {
+  counters: {
+    total: number
+    active: number
+    pending: number
+    signed: number
+    expiringSoon: number
+  }
+  data: MobileContractSummary[]
+}
+
 export type MobileNotification = {
   id: string
   type: string
@@ -432,6 +457,78 @@ export type AdminBuildingsPayload = {
       activeNotices: number
     }
   }>
+}
+
+export type AdminTenantListItem = {
+  id: string
+  companyName: string
+  legalType: string
+  bin?: string | null
+  iin?: string | null
+  placement: string
+  area: number
+  monthlyRent: number
+  totalDebt: number
+  overdueDebt: number
+  activeRequests: number
+  documents: number
+  contractStart?: string | null
+  contractEnd?: string | null
+  contracts: {
+    total: number
+    active: number
+    signed: number
+    expiringSoon: number
+  }
+}
+
+export type AdminTenantsPayload = {
+  counters: {
+    total: number
+    withDebt: number
+    debtAmount: number
+    expiringContracts: number
+  }
+  data: AdminTenantListItem[]
+}
+
+export type AdminContractsPayload = {
+  counters: {
+    total: number
+    draft: number
+    sent: number
+    signed: number
+    expiringSoon: number
+  }
+  data: MobileContractSummary[]
+}
+
+export type MobileGeneratedDocumentSummary = {
+  id: string
+  tenantId?: string | null
+  tenantName: string
+  documentType: string
+  number?: string | null
+  period?: string | null
+  totalAmount?: number | null
+  fileName: string
+  fileSize: number
+  format: string
+  generatedAt: string
+  downloadUrl: string
+}
+
+export type AdminDocumentsPayload = {
+  counters: {
+    total: number
+    contracts: number
+    invoices: number
+    acts: number
+    reconciliations: number
+    pendingSignatures: number
+  }
+  contracts: MobileContractSummary[]
+  generated: MobileGeneratedDocumentSummary[]
 }
 
 export type OwnerOverviewPayload = {

@@ -218,6 +218,7 @@ const PERFORMANCE_WATCH_FILES = [
   { rel: path.join("app", "admin", "spaces", "page.tsx"), isClient: false },
   { rel: path.join("app", "admin", "page.tsx"), isClient: false },
   { rel: path.join("app", "cabinet", "page.tsx"), isClient: false },
+  { rel: path.join("app", "superadmin", "performance", "page.tsx"), isClient: false },
   { rel: path.join("lib", "system-health.ts"), isClient: false },
 ] as const
 const SILENT_FALLBACK_SCAN_DIRS = ["app", "components", "lib"] as const
@@ -231,6 +232,7 @@ export async function runSystemHealthChecks(): Promise<SystemCheck[]> {
     withTiming("rls", "Supabase RLS", checkSensitiveRls),
     withTiming("security", "Критичные guardrails", checkSecurityGuardrails),
     withTiming("performance", "Performance budget", checkPerformanceBudget),
+    withTiming("web-vitals", "Core Web Vitals", checkWebVitals),
     withTiming("silent-fallbacks", "Silent data fallbacks", checkSilentFallbacks),
     withTiming("migrations", "Миграции", checkMigrations),
     withTiming("cron", "Cron-задачи", checkCron),
@@ -488,6 +490,73 @@ async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label
       "Полный scan запускается командой npm run perf:audit.",
       ...largest.map((line) => `Крупный файл: ${line}.`),
     ],
+  }
+}
+
+async function checkWebVitals(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+  const [last24h, last7d, bad24h, worst] = await Promise.all([
+    db.webVitalMetric.count({ where: { createdAt: { gte: since24h } } }).catch(() => null),
+    db.webVitalMetric.count({ where: { createdAt: { gte: since7d } } }).catch(() => null),
+    db.webVitalMetric.count({
+      where: {
+        createdAt: { gte: since24h },
+        rating: { in: ["poor", "needs-improvement"] },
+      },
+    }).catch(() => null),
+    db.webVitalMetric.findFirst({
+      where: {
+        createdAt: { gte: since7d },
+        name: { in: ["LCP", "INP", "TTFB"] },
+        rating: "poor",
+      },
+      orderBy: { value: "desc" },
+      select: { name: true, value: true, path: true },
+    }).catch(() => null),
+  ])
+
+  if (last24h == null || last7d == null || bad24h == null) {
+    return {
+      status: "warning",
+      message: "Не удалось прочитать web_vital_metrics.",
+      details: ["Проверьте миграцию web_vital_metrics и доступ приложения к базе."],
+    }
+  }
+
+  if (last7d === 0) {
+    return {
+      status: "warning",
+      message: "Core Web Vitals пока не поступают.",
+      details: [
+        "Проверьте, что клиентский сбор метрик подключен на публичном сайте, в админке и кабинете арендатора.",
+        "После реальных визитов данные появятся на /superadmin/performance.",
+      ],
+    }
+  }
+
+  const badShare = last24h > 0 ? Math.round((bad24h / last24h) * 100) : 0
+  const details = [
+    `Замеров за 24 часа: ${last24h}.`,
+    `Замеров за 7 дней: ${last7d}.`,
+    `Плохих/средних за 24 часа: ${bad24h} (${badShare}%).`,
+    "Детали: /superadmin/performance.",
+    worst ? `Худший poor sample: ${worst.name} ${formatWebVitalValue(worst.name, worst.value)} на ${worst.path ?? "unknown"}.` : null,
+  ].filter(Boolean) as string[]
+
+  if (badShare > 25 || worst) {
+    return {
+      status: "warning",
+      message: "Есть страницы с плохими Core Web Vitals.",
+      details,
+    }
+  }
+
+  return {
+    status: "ok",
+    message: "Core Web Vitals собираются, критичных просадок мало.",
+    details,
   }
 }
 
@@ -1109,6 +1178,12 @@ function maskEmail(value: string): string {
 
 function formatSourceFile(file: { rel: string; size: number; isClient: boolean }): string {
   return `${Math.round(file.size / 1024)} KB ${file.rel}${file.isClient ? " [client]" : ""}`
+}
+
+function formatWebVitalValue(name: string, value: number): string {
+  if (name === "CLS") return value.toFixed(3)
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} с`
+  return `${Math.round(value)} мс`
 }
 
 function formatBytes(bytes: number): string {

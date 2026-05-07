@@ -8,9 +8,12 @@ import { captureMobileException } from "@/lib/sentry"
 import type {
   BuildingNotice,
   AdminBuildingsPayload,
+  AdminContractsPayload,
+  AdminDocumentsPayload,
   AdminPaymentReport,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
+  AdminTenantsPayload,
   AdminTodayPayload,
   MobileAuthResponse,
   MobileBootstrap,
@@ -20,6 +23,7 @@ import type {
   MobileTokens,
   OwnerOverviewPayload,
   PickedUploadFile,
+  TenantContractsPayload,
   TenantDocumentsPayload,
   TenantFinances,
   TenantMeter,
@@ -277,6 +281,10 @@ export async function getTenantDocuments() {
   return authFetch<TenantDocumentsPayload>("/api/mobile/tenant/documents")
 }
 
+export async function getTenantContracts() {
+  return authFetch<TenantContractsPayload>("/api/mobile/tenant/contracts")
+}
+
 export async function downloadAuthorizedFile(url: string, fileName: string) {
   const accessToken = await getValidAccessToken()
   const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`
@@ -370,6 +378,18 @@ export async function reviewAdminPaymentReport(input: {
 
 export async function getAdminBuildings() {
   return authFetch<AdminBuildingsPayload>("/api/mobile/admin/buildings")
+}
+
+export async function getAdminTenants() {
+  return authFetch<AdminTenantsPayload>("/api/mobile/admin/tenants")
+}
+
+export async function getAdminContracts() {
+  return authFetch<AdminContractsPayload>("/api/mobile/admin/contracts")
+}
+
+export async function getAdminDocuments() {
+  return authFetch<AdminDocumentsPayload>("/api/mobile/admin/documents")
 }
 
 export async function getOwnerOverview() {

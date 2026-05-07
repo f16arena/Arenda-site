@@ -52,6 +52,11 @@ const ROUTE_TIMING_CHECKS = [
     routeToken: 'measureServerRoute("/cabinet"',
     stepToken: "measureServerStep",
   },
+  {
+    file: "app/superadmin/performance/page.tsx",
+    routeToken: 'measureServerRoute("/superadmin/performance"',
+    stepToken: "measureServerStep",
+  },
 ]
 
 const files = []

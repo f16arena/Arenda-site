@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import Link from "next/link"
+import type { ElementType, ReactNode } from "react"
 import {
   Activity,
   ArrowLeft,
@@ -8,6 +9,7 @@ import {
   Bug,
   Building2,
   Calendar as CalendarIcon,
+  Gauge,
   History,
   LogOut,
   Package,
@@ -16,7 +18,7 @@ import {
 } from "lucide-react"
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 
-export default async function SuperadminLayout({ children }: { children: React.ReactNode }) {
+export default async function SuperadminLayout({ children }: { children: ReactNode }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   if (!session.user.isPlatformOwner) redirect("/admin")
@@ -41,6 +43,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
           <SideLink href="/superadmin/plans" icon={Package} label="Тарифы" />
           <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
           <SideLink href="/superadmin/errors" icon={Bug} label="Ошибки сайта" />
+          <SideLink href="/superadmin/performance" icon={Gauge} label="Скорость сайта" />
           <SideLink href="/superadmin/system-health" icon={Activity} label="Проверка системы" />
           <SideLink href="/superadmin/profile" icon={UserCircle} label="Профиль" />
 
@@ -98,7 +101,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
   )
 }
 
-function SideLink({ href, icon: Icon, label }: { href: string; icon: React.ElementType; label: string }) {
+function SideLink({ href, icon: Icon, label }: { href: string; icon: ElementType; label: string }) {
   return (
     <Link
       href={href}

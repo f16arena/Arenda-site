@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.134 - 2026-05-07
+
+- Добавлена страница `/superadmin/performance`: суперпользователь видит реальные Core Web Vitals, последние замеры, долю плохих LCP/INP/CLS/TTFB и список страниц, которые надо оптимизировать первыми.
+- В меню суперпользователя добавлен пункт “Скорость сайта”; сам layout переписан нормальными русскими подписями вместо поврежденного текста.
+- `/superadmin/system-health` теперь отдельно проверяет поступление Core Web Vitals и подсвечивает проблему, если метрики не собираются или много плохих замеров.
+- Performance audit теперь контролирует наличие route/step timing на новой странице `/superadmin/performance`.
+- Mobile API для администратора расширен списками арендаторов, договоров и документов; лимиты выдачи снижены до безопасного уровня, чтобы guardrail не пропускал тяжелые списки.
+- Mobile shell получил обновленные ассеты, Inter-шрифт, lucide-иконки и новые типы/API для договоров, арендаторов и документов.
+- Проверки: `npm run quality:audit`, `npm run test:mobile:typecheck`, `SKIP_DEPLOY_MIGRATIONS=1 npm run build`.
+- Rollback-точка: `rollback/pre-performance-observability-1.3.134`.
+
 ## 1.3.133 - 2026-05-07
 
 - Добавлена отдельная страница `/superadmin/system-health`: суперпользователь видит production readiness по базе, миграциям, RLS, env, cron, storage, SEO, observability и performance budget.
