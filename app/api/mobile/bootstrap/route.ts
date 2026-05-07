@@ -10,6 +10,7 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { user, org } = result.ctx
+  const userPhone = "phone" in user && typeof user.phone === "string" ? user.phone : null
   const buildings = await getMobileAccessibleBuildings(user, org.id)
   const buildingIds = buildings.map((building) => building.id)
   const now = new Date()
@@ -49,6 +50,7 @@ export async function GET(req: Request) {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: userPhone,
       role: user.role,
     },
     organization: org,

@@ -17,6 +17,7 @@ export async function GET(req: Request) {
 
   const now = new Date()
   const period = now.toISOString().slice(0, 7) // YYYY-MM
+  const previousPeriod = getPreviousPeriod(period)
 
   const tenants = await db.tenant.findMany({
     where: {
@@ -31,7 +32,10 @@ export async function GET(req: Request) {
       space: { include: { floor: true } },
       tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
-      charges: { where: { period, type: "RENT" }, select: { id: true } },
+      charges: {
+        where: { period: { in: [period, previousPeriod] }, type: "RENT" },
+        select: { id: true, period: true },
+      },
     },
   })
 
@@ -45,61 +49,67 @@ export async function GET(req: Request) {
 
   for (const tenant of tenants) {
     try {
-      if (tenant.charges.length > 0) {
-        results.skipped++
-        continue
-      }
+      const chargePeriods = getCronRentPeriods(tenant, period)
+      const existingRentPeriods = new Set(tenant.charges.map((charge) => charge.period))
 
-      const rentSchedule = calculateTenantRentChargeForPeriod(tenant, period)
-      if (!rentSchedule.shouldCreate) {
-        if (rentSchedule.skippedReason !== "NO_RENT") {
+      for (const chargePeriod of chargePeriods) {
+        if (existingRentPeriods.has(chargePeriod)) {
           results.skipped++
+          continue
         }
-        continue
-      }
 
-      const placement = formatTenantPlacement(tenant)
-      const dueDate = rentSchedule.dueDate
+        const rentSchedule = calculateTenantRentChargeForPeriod(tenant, chargePeriod)
+        if (!rentSchedule.shouldCreate) {
+          if (rentSchedule.skippedReason !== "NO_RENT") {
+            results.skipped++
+          }
+          continue
+        }
 
-      await db.charge.create({
-        data: {
-          tenantId: tenant.id,
-          period,
-          type: "RENT",
-          amount: rentSchedule.amount,
-          description: getTenantRentChargeDescription(placement, period, rentSchedule),
-          dueDate,
-        },
-      })
-      results.rentCreated++
+        const placement = formatTenantPlacement(tenant)
+        const dueDate = rentSchedule.dueDate
 
-      if (tenant.needsCleaning && tenant.cleaningFee > 0) {
         await db.charge.create({
           data: {
             tenantId: tenant.id,
-            period,
-            type: "CLEANING",
-            amount: tenant.cleaningFee,
-            description: `Уборка помещения за ${period}`,
+            period: chargePeriod,
+            type: "RENT",
+            amount: rentSchedule.amount,
+            description: getTenantRentChargeDescription(placement, chargePeriod, rentSchedule),
             dueDate,
           },
         })
-        results.cleaningCreated++
-      }
+        results.rentCreated++
+        existingRentPeriods.add(chargePeriod)
 
-      try {
-        const totalCharge = rentSchedule.amount + (tenant.needsCleaning ? tenant.cleaningFee : 0)
-        await db.notification.create({
-          data: {
-            userId: tenant.userId,
-            type: "PAYMENT_DUE",
-            title: `Начислена аренда за ${period}`,
-            message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${dueDate.toLocaleDateString("ru-RU")}.`,
-            link: "/cabinet/finances",
-          },
-        })
-      } catch {
-        // Notifications are best-effort: charge creation should not fail because of them.
+        if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+          await db.charge.create({
+            data: {
+              tenantId: tenant.id,
+              period: chargePeriod,
+              type: "CLEANING",
+              amount: tenant.cleaningFee,
+              description: `Уборка помещения за ${chargePeriod}`,
+              dueDate,
+            },
+          })
+          results.cleaningCreated++
+        }
+
+        try {
+          const totalCharge = rentSchedule.amount + (tenant.needsCleaning ? tenant.cleaningFee : 0)
+          await db.notification.create({
+            data: {
+              userId: tenant.userId,
+              type: "PAYMENT_DUE",
+              title: `Начислена аренда за ${chargePeriod}`,
+              message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${dueDate.toLocaleDateString("ru-RU")}.`,
+              link: "/cabinet/finances",
+            },
+          })
+        } catch {
+          // Notifications are best-effort: charge creation should not fail because of them.
+        }
       }
     } catch (e) {
       results.errors.push(`${tenant.companyName}: ${e instanceof Error ? e.message : "unknown"}`)
@@ -107,4 +117,63 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({ ok: true, period, ...results, ranAt: now.toISOString() })
+}
+
+function getCronRentPeriods(
+  tenant: { contractStart?: Date | string | null; paymentDueDay?: number | null },
+  currentPeriod: string,
+) {
+  const periods = new Set<string>()
+  const startPeriodDueNow = getStartPeriodDueInPeriod(tenant, currentPeriod)
+
+  if (startPeriodDueNow) {
+    periods.add(startPeriodDueNow)
+  }
+
+  periods.add(currentPeriod)
+  return [...periods]
+}
+
+function getStartPeriodDueInPeriod(
+  tenant: { contractStart?: Date | string | null; paymentDueDay?: number | null },
+  currentPeriod: string,
+) {
+  const contractStart = toLocalDate(tenant.contractStart)
+  if (!contractStart || contractStart.getDate() === 1) return null
+
+  const paymentDueDay = normalizePaymentDueDay(tenant.paymentDueDay)
+  const accountingDueDay = Math.min(paymentDueDay, 30)
+  const startDay = Math.min(contractStart.getDate(), 30)
+  const firstDueMonthIndex = startDay >= accountingDueDay
+    ? contractStart.getMonth() + 1
+    : contractStart.getMonth()
+  const firstDuePeriod = formatPeriod(new Date(contractStart.getFullYear(), firstDueMonthIndex, 1))
+
+  if (firstDuePeriod !== currentPeriod) return null
+  return formatPeriod(new Date(contractStart.getFullYear(), contractStart.getMonth(), 1))
+}
+
+function getPreviousPeriod(period: string) {
+  const [year, month] = period.split("-").map(Number)
+  return formatPeriod(new Date(year, month - 2, 1))
+}
+
+function formatPeriod(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
+function normalizePaymentDueDay(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 10
+  return Math.min(Math.max(Math.trunc(value), 1), 31)
+}
+
+function toLocalDate(value: Date | string | null | undefined) {
+  if (!value) return null
+  if (typeof value === "string") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+    if (match) return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  }
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }

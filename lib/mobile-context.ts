@@ -8,6 +8,7 @@ export type MobileUserContext = {
     id: string
     name?: string | null
     email?: string | null
+    phone?: string | null
     role?: string | null
     organizationId?: string | null
     isPlatformOwner?: boolean | null
