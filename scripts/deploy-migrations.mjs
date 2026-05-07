@@ -11,6 +11,8 @@ const prismaCli = path.join(process.cwd(), "node_modules", "prisma", "build", "i
 const customSqlPatches = [
   "013_mobile_foundation.sql",
   "014_mobile_beta_readiness.sql",
+  "015_must_change_password.sql",
+  "016_payment_external_ref.sql",
 ]
 
 function runPrisma(args) {
