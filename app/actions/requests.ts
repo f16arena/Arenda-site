@@ -14,6 +14,7 @@ import {
   getTenantStorageScope,
   storeBufferFile,
 } from "@/lib/storage"
+import { RequestCreateSchema, firstZodError } from "@/lib/schemas"
 
 export async function createRequestAdmin(formData: FormData) {
   await requireCapabilityAndFeature("requests.manage")
@@ -22,10 +23,14 @@ export async function createRequestAdmin(formData: FormData) {
   const tenantId = formData.get("tenantId") as string
   await assertTenantInOrg(tenantId, orgId)
 
-  const title = formData.get("title") as string
-  const description = formData.get("description") as string
-  const type = formData.get("type") as string
-  const priority = formData.get("priority") as string
+  const parsed = RequestCreateSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    type: formData.get("type"),
+    priority: formData.get("priority"),
+  })
+  if (!parsed.success) return { error: firstZodError(parsed.error) }
+  const { title, description, type, priority } = parsed.data
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },

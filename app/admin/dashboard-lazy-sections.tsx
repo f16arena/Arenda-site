@@ -346,14 +346,14 @@ function StatusListCard({
 
 function TopTenantsTable({ tenants }: { tenants: TopTenant[] }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Арендаторы</h2>
         <Link href="/admin/tenants" className="flex items-center gap-0.5 text-xs text-blue-600 hover:underline dark:text-blue-400">
           Все <ArrowUpRight className="h-3 w-3" />
         </Link>
       </div>
-      <table className="w-full text-sm">
+      <table className="w-full min-w-[480px] text-sm">
         <thead>
           <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
             <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Компания</th>

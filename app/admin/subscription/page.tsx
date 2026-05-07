@@ -195,14 +195,14 @@ export default async function SubscriptionPage() {
         })}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
         <div className="border-b border-slate-800 px-5 py-3.5">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
             <Calendar className="h-4 w-4 text-slate-500" />
             История подписок
           </h2>
         </div>
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-800/50">
               <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>

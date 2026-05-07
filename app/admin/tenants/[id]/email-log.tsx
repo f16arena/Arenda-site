@@ -43,7 +43,8 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
 
   return (
     <CollapsibleCard title="История писем" icon={Send} meta={`${items.length} писем`}>
-      <table className="w-full text-xs">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-xs">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
             <th className="px-4 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тип</th>
@@ -88,6 +89,7 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </CollapsibleCard>
   )
 }

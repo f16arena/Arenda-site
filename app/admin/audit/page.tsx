@@ -166,7 +166,7 @@ export default async function AuditPage({
         })}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         {logs.length === 0 ? (
           <div className="py-16 text-center">
             <History className="mx-auto mb-3 h-10 w-10 text-slate-200" />
@@ -176,7 +176,7 @@ export default async function AuditPage({
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[800px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Время</th>

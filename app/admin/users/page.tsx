@@ -383,8 +383,8 @@ export default async function UsersPage() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+        <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-800/50">
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Пользователь</th>

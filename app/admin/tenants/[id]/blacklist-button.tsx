@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Ban, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { setTenantBlacklist } from "@/app/actions/tenant"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export function BlacklistButton({
   tenantId,
@@ -20,12 +21,7 @@ export function BlacklistButton({
   const isBlacklisted = !!blacklistedAt
   const [showAddForm, setShowAddForm] = useState(false)
 
-  const handleAdd = (reason: string) => {
-    if (!window.confirm(
-      `Добавить «${companyName}» в чёрный список?\n\n` +
-      `Причина: ${reason || "Без причины"}\n\n` +
-      `Это не разрывает договор, но при попытке завести нового арендатора с тем же БИН/ИИН система предупредит.`,
-    )) return
+  const performAdd = (reason: string) => {
     startTransition(async () => {
       try {
         await setTenantBlacklist(tenantId, { reason })
@@ -37,8 +33,7 @@ export function BlacklistButton({
     })
   }
 
-  const handleRemove = () => {
-    if (!window.confirm(`Снять «${companyName}» с чёрного списка?`)) return
+  const performRemove = () => {
     startTransition(async () => {
       try {
         await setTenantBlacklist(tenantId, null)
@@ -66,14 +61,21 @@ export function BlacklistButton({
             )}
           </div>
         </div>
-        <button
-          onClick={handleRemove}
-          disabled={pending}
-          className="w-full text-xs rounded-md bg-white dark:bg-slate-900 border border-red-200 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 px-3 py-1.5 font-medium disabled:opacity-50"
-        >
-          <ShieldCheck className="inline h-3.5 w-3.5 mr-1" />
-          {pending ? "Снятие..." : "Снять с чёрного списка"}
-        </button>
+        <ConfirmDialog
+          title={`Снять «${companyName}» с чёрного списка?`}
+          description="Арендатор перестанет помечаться как заблокированный. При попытке завести нового арендатора с тем же БИН/ИИН предупреждение больше не появится."
+          confirmLabel="Снять"
+          onConfirm={performRemove}
+          trigger={
+            <button
+              disabled={pending}
+              className="w-full text-xs rounded-md bg-white dark:bg-slate-900 border border-red-200 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 px-3 py-1.5 font-medium disabled:opacity-50"
+            >
+              <ShieldCheck className="inline h-3.5 w-3.5 mr-1" />
+              {pending ? "Снятие..." : "Снять с чёрного списка"}
+            </button>
+          }
+        />
       </div>
     )
   }
@@ -106,16 +108,24 @@ export function BlacklistButton({
         >
           Отмена
         </button>
-        <button
-          onClick={() => {
+        <ConfirmDialog
+          variant="danger"
+          title={`Добавить «${companyName}» в чёрный список?`}
+          description="Это не разрывает договор, но при попытке завести нового арендатора с тем же БИН/ИИН система предупредит."
+          confirmLabel="В чёрный список"
+          onConfirm={() => {
             const ta = document.getElementById(`bl-reason-${tenantId}`) as HTMLTextAreaElement | null
-            handleAdd(ta?.value ?? "")
+            performAdd(ta?.value ?? "")
           }}
-          disabled={pending}
-          className="flex-1 text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1 font-medium disabled:opacity-50"
-        >
-          {pending ? "..." : "В чёрный список"}
-        </button>
+          trigger={
+            <button
+              disabled={pending}
+              className="flex-1 text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1 font-medium disabled:opacity-50"
+            >
+              {pending ? "..." : "В чёрный список"}
+            </button>
+          }
+        />
       </div>
     </div>
   )

@@ -7,6 +7,7 @@ import {
   sendContractForSignature,
   markContractSignedByLandlord,
 } from "@/app/actions/contract-workflow"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Contract = {
   id: string
@@ -46,8 +47,6 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
   }
 
   const markSigned = () => {
-    if (!window.confirm(`Подтвердите подпись ${docName} № ${contract.number} со стороны арендодателя.\n\n` +
-      `Используйте если ЭЦП НУЦ РК уже поставлена в файле или подпись ручная.`)) return
     startTransition(async () => {
       const r = await markContractSignedByLandlord(contract.id)
       if (r.ok) toast.success(signedToast)
@@ -73,15 +72,22 @@ export function ContractWorkflowActions({ contract }: { contract: Contract }) {
   return (
     <div className="flex items-center gap-2">
       {!contract.signedByLandlordAt && (
-        <button
-          onClick={markSigned}
-          disabled={pending}
-          title="Отметить подпись арендодателя (после ЭЦП или вручную)"
-          className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-800 hover:underline"
-        >
-          <FileSignature className="h-3 w-3" />
-          Я подписал
-        </button>
+        <ConfirmDialog
+          title={`Подтвердить подпись ${docName} № ${contract.number}?`}
+          description="Используйте, если ЭЦП НУЦ РК уже поставлена в файле или подпись ручная. Действие подтверждает подпись со стороны арендодателя."
+          confirmLabel="Подтвердить"
+          onConfirm={markSigned}
+          trigger={
+            <button
+              disabled={pending}
+              title="Отметить подпись арендодателя (после ЭЦП или вручную)"
+              className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-800 hover:underline"
+            >
+              <FileSignature className="h-3 w-3" />
+              Я подписал
+            </button>
+          }
+        />
       )}
       <button
         onClick={send}

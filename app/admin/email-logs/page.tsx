@@ -113,7 +113,7 @@ export default async function EmailLogsPage({
       </div>
 
       {/* Список */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
         {logs.length === 0 ? (
           <div className="px-5 py-16 text-center">
             <Mail className="h-10 w-10 text-slate-200 mx-auto mb-3" />
@@ -123,7 +123,7 @@ export default async function EmailLogsPage({
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>

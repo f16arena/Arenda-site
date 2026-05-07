@@ -14,6 +14,7 @@ import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validatio
 import { isStaffScopedRole } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { FloorUpdateSchema, firstZodError } from "@/lib/schemas"
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
   await requireCapabilityAndFeature("buildings.edit")
@@ -84,11 +85,15 @@ export async function updateFloor(floorId: string, formData: FormData) {
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 
-  const name = formData.get("name") as string
-  const rateStr = formData.get("ratePerSqm") as string
-  const areaStr = formData.get("totalArea") as string
-
-  const newTotalArea = areaStr ? parseFloat(areaStr) : null
+  const rateRaw = String(formData.get("ratePerSqm") ?? "").trim()
+  const areaRaw = String(formData.get("totalArea") ?? "").trim()
+  const parsed = FloorUpdateSchema.safeParse({
+    name: formData.get("name"),
+    ratePerSqm: rateRaw ? Number(rateRaw) : 0,
+    totalArea: areaRaw ? Number(areaRaw) : null,
+  })
+  if (!parsed.success) throw new Error(firstZodError(parsed.error))
+  const { name, ratePerSqm, totalArea: newTotalArea } = parsed.data
 
   const floor = await db.floor.findUnique({
     where: { id: floorId },
@@ -97,14 +102,14 @@ export async function updateFloor(floorId: string, formData: FormData) {
   if (!floor) throw new Error("Этаж не найден")
 
   // Floor.totalArea не может быть меньше Σ Space.area
-  await assertFloorFitsSpaces({ floorId, newTotalArea })
+  await assertFloorFitsSpaces({ floorId, newTotalArea: newTotalArea ?? null })
 
   await db.floor.update({
     where: { id: floorId },
     data: {
       name,
-      ratePerSqm: rateStr ? parseFloat(rateStr) : 0,
-      totalArea: newTotalArea,
+      ratePerSqm,
+      totalArea: newTotalArea ?? null,
     },
   })
 

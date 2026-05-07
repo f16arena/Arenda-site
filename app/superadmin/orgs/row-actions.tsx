@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { ExternalLink, LogIn } from "lucide-react"
 import { toast } from "sonner"
 import { impersonateOrg } from "@/app/actions/organizations"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 export function OrgRowActions({
   id,
@@ -39,10 +40,11 @@ export function OrgRowActions({
   return (
     <div className="flex items-center justify-end gap-1.5">
       {hasOwner && isActive && (
-        <button
-          type="button"
-          onClick={() => {
-            if (!confirm(`Войти как клиент в «${name}»? Действия записываются в журнал.`)) return
+        <ConfirmDialog
+          title={`Войти как клиент в «${name}»?`}
+          description="Все действия в режиме клиента записываются в журнал."
+          confirmLabel="Войти"
+          onConfirm={() => {
             startTransition(async () => {
               try {
                 await impersonateOrg(id)
@@ -54,13 +56,18 @@ export function OrgRowActions({
               }
             })
           }}
-          disabled={pending}
-          className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-blue-700 disabled:bg-slate-300"
-          title="Войти как клиент"
-        >
-          <LogIn className="h-3 w-3" />
-          Войти
-        </button>
+          trigger={
+            <button
+              type="button"
+              disabled={pending}
+              className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-blue-700 disabled:bg-slate-300"
+              title="Войти как клиент"
+            >
+              <LogIn className="h-3 w-3" />
+              Войти
+            </button>
+          }
+        />
       )}
       <Link
         href={`/superadmin/orgs/${id}`}

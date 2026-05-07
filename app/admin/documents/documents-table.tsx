@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner"
 import { deleteAdminDocument } from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 const TYPE_LABELS: Record<string, string> = {
   CONTRACT: "Договор",
@@ -121,17 +122,8 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     })
   }
 
-  function handleDelete(row: DocRow) {
+  function performDelete(row: DocRow) {
     if (!row.deleteId || !row.canDelete) return
-    const number = row.number ? ` № ${row.number}` : ""
-    const signedWarning = row.isSigned
-      ? "Документ уже подписан. Удаление подписанного документа доступно только владельцу.\n\n"
-      : ""
-    const confirmed = window.confirm(
-      `${signedWarning}Удалить ${TYPE_LABELS[row.type] ?? "документ"}${number}?\n\nДействие нельзя отменить. Если документ нужен с изменениями, его нужно будет создать заново.`
-    )
-    if (!confirmed) return
-
     setDeletingRowId(row.id)
     startTransition(async () => {
       const result = await deleteAdminDocument({ source: row.source, id: row.deleteId! })
@@ -172,16 +164,29 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           </Link>
         )}
         {row.deleteId && row.canDelete ? (
-          <button
-            type="button"
-            onClick={() => handleDelete(row)}
-            disabled={isDeleting}
-            className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
-            title={row.isSigned ? "Удалить подписанный документ может только владелец" : "Удалить ошибочно созданный документ"}
-          >
-            {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-            Удалить
-          </button>
+          <ConfirmDialog
+            variant="danger"
+            title={`Удалить ${TYPE_LABELS[row.type] ?? "документ"}${row.number ? ` № ${row.number}` : ""}?`}
+            description={
+              (row.isSigned
+                ? "Документ уже подписан. Удаление подписанного документа доступно только владельцу. "
+                : "") +
+              "Действие нельзя отменить. Если документ нужен с изменениями, его нужно будет создать заново."
+            }
+            confirmLabel="Удалить"
+            onConfirm={() => performDelete(row)}
+            trigger={
+              <button
+                type="button"
+                disabled={isDeleting}
+                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                title={row.isSigned ? "Удалить подписанный документ может только владелец" : "Удалить ошибочно созданный документ"}
+              >
+                {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                Удалить
+              </button>
+            }
+          />
         ) : row.deleteId && row.isSigned ? (
           <span
             className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500"
@@ -249,8 +254,8 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+        <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <th className="w-10 px-3 py-3 text-center">
