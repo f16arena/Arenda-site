@@ -3,7 +3,7 @@ import * as ImagePicker from "expo-image-picker"
 import * as Notifications from "expo-notifications"
 import * as Sharing from "expo-sharing"
 import type { ComponentProps, ReactNode } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Bell,
   BellOff,
@@ -1071,16 +1071,48 @@ function DocumentRow({ title, subtitle, url }: { title: string; subtitle: string
 
 function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; onNavigate: (tab: string) => void }) {
   const [query, setQuery] = useState("")
-  const filtered = useMemo(() => {
-    const text = query.trim().toLowerCase()
-    if (!text) return payload.data
-    return payload.data.filter((tenant) => (
-      tenant.companyName.toLowerCase().includes(text)
-      || (tenant.bin ?? "").includes(text)
-      || (tenant.iin ?? "").includes(text)
-      || tenant.placement.toLowerCase().includes(text)
-    ))
-  }, [payload.data, query])
+  const [localPayload, setLocalPayload] = useState(payload)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const skipFirstSearch = useRef(true)
+
+  useEffect(() => {
+    setLocalPayload(payload)
+  }, [payload])
+
+  useEffect(() => {
+    if (skipFirstSearch.current) {
+      skipFirstSearch.current = false
+      return
+    }
+
+    const timer = setTimeout(() => {
+      fetchPage({ reset: true }).catch(() => null)
+    }, 360)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  async function fetchPage({ reset }: { reset: boolean }) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const pageInfo = localPayload.pageInfo ?? { limit: 25, nextOffset: localPayload.data.length }
+      const nextOffset = reset ? 0 : pageInfo.nextOffset ?? localPayload.data.length
+      const next = await getAdminTenants({
+        q: query.trim(),
+        offset: nextOffset,
+        limit: pageInfo.limit || 25,
+      })
+      setLocalPayload((current) => ({
+        ...next,
+        data: reset ? next.data : dedupeById([...current.data, ...next.data]),
+      }))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось загрузить арендаторов")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <>
@@ -1088,10 +1120,10 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
       <Card>
         <MetricGrid
           items={[
-            { label: "Всего", value: String(payload.counters.total), color: colors.blue },
-            { label: "С долгом", value: String(payload.counters.withDebt), color: payload.counters.withDebt > 0 ? colors.red : colors.green },
-            { label: "Долг", value: formatMoney(payload.counters.debtAmount), color: payload.counters.debtAmount > 0 ? colors.orange : colors.green },
-            { label: "Истекают", value: String(payload.counters.expiringContracts), color: payload.counters.expiringContracts > 0 ? colors.red : colors.slate },
+            { label: "Найдено", value: String(localPayload.counters.total), color: colors.blue },
+            { label: "Загружено", value: String(localPayload.data.length), color: colors.teal },
+            { label: "С долгом", value: String(localPayload.counters.withDebt), color: localPayload.counters.withDebt > 0 ? colors.red : colors.green },
+            { label: "Долг", value: formatMoney(localPayload.counters.debtAmount), color: localPayload.counters.debtAmount > 0 ? colors.orange : colors.green },
           ]}
         />
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46 }}>
@@ -1104,9 +1136,10 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
             style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
           />
         </View>
+        {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
-      {filtered.length === 0 ? <EmptyState title="Арендаторы не найдены" /> : null}
-      {filtered.map((tenant) => (
+      {localPayload.data.length === 0 && !busy ? <EmptyState title="Арендаторы не найдены" /> : null}
+      {localPayload.data.map((tenant) => (
         <Pressable key={tenant.id} onPress={() => onNavigate(`documents:${tenant.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -1119,7 +1152,7 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
             </View>
             <MetricGrid
               items={[
-                { label: "Площадь", value: `${tenant.area.toLocaleString("ru-RU")} м2`, color: colors.slate },
+                { label: "Площадь", value: `${tenant.area.toLocaleString("ru-RU")} м²`, color: colors.slate },
                 { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
                 { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
                 { label: "Договоры", value: String(tenant.contracts.total), color: colors.teal },
@@ -1129,6 +1162,9 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
           </Card>
         </Pressable>
       ))}
+      {localPayload.pageInfo?.hasMore ? (
+        <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
+      ) : null}
     </>
   )
 }
@@ -1136,34 +1172,68 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
 function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload; tenantId?: string }) {
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("ALL")
+  const [localPayload, setLocalPayload] = useState(payload)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const skipFirstFilters = useRef(true)
+  const skipFirstQuery = useRef(true)
+
+  useEffect(() => {
+    setLocalPayload(payload)
+  }, [payload])
+
+  useEffect(() => {
+    if (skipFirstFilters.current) {
+      skipFirstFilters.current = false
+      if (!tenantId) return
+    }
+    fetchPage({ reset: true, nextCategory: category }).catch(() => null)
+  }, [tenantId, category])
+
+  useEffect(() => {
+    if (skipFirstQuery.current) {
+      skipFirstQuery.current = false
+      return
+    }
+
+    const timer = setTimeout(() => {
+      fetchPage({ reset: true }).catch(() => null)
+    }, 360)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  async function fetchPage({ reset, nextCategory = category }: { reset: boolean; nextCategory?: string }) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const pageInfo = localPayload.pageInfo ?? { limit: 30, nextOffset: Math.max(localPayload.contracts.length, localPayload.generated.length) }
+      const nextOffset = reset ? 0 : pageInfo.nextOffset ?? Math.max(localPayload.contracts.length, localPayload.generated.length)
+      const next = await getAdminDocuments({
+        q: query.trim(),
+        category: nextCategory,
+        tenantId,
+        offset: nextOffset,
+        limit: pageInfo.limit || 30,
+      })
+      setLocalPayload((current) => ({
+        ...next,
+        contracts: reset ? next.contracts : dedupeById([...current.contracts, ...next.contracts]),
+        generated: reset ? next.generated : dedupeById([...current.generated, ...next.generated]),
+      }))
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось загрузить документы")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const tenantName = tenantId
-    ? payload.contracts.find((contract) => contract.tenantId === tenantId)?.tenantName
-      ?? payload.generated.find((document) => document.tenantId === tenantId)?.tenantName
+    ? localPayload.contracts.find((contract) => contract.tenantId === tenantId)?.tenantName
+      ?? localPayload.generated.find((document) => document.tenantId === tenantId)?.tenantName
     : null
-  const scopedContracts = tenantId ? payload.contracts.filter((contract) => contract.tenantId === tenantId) : payload.contracts
-  const scopedGenerated = tenantId ? payload.generated.filter((document) => document.tenantId === tenantId) : payload.generated
-  const filteredContracts = useMemo(() => {
-    const text = query.trim().toLowerCase()
-    if (!text) return scopedContracts
-    return scopedContracts.filter((contract) => (
-      contract.tenantName.toLowerCase().includes(text)
-      || contract.number.toLowerCase().includes(text)
-      || contract.status.toLowerCase().includes(text)
-    ))
-  }, [query, scopedContracts])
-  const filteredGenerated = useMemo(() => {
-    const text = query.trim().toLowerCase()
-    if (!text) return scopedGenerated
-    return scopedGenerated.filter((document) => (
-      document.tenantName.toLowerCase().includes(text)
-      || document.fileName.toLowerCase().includes(text)
-      || (document.number ?? "").toLowerCase().includes(text)
-      || (document.period ?? "").toLowerCase().includes(text)
-    ))
-  }, [query, scopedGenerated])
-  const visibleGenerated = filteredGenerated.filter((document) => category === "ALL" || document.documentType === category)
+  const visibleGenerated = localPayload.generated
   const showContracts = category === "ALL" || category === "CONTRACT"
-  const visibleCount = (showContracts ? filteredContracts.length : 0) + visibleGenerated.length
+  const visibleCount = (showContracts ? localPayload.contracts.length : 0) + visibleGenerated.length
 
   return (
     <>
@@ -1171,10 +1241,10 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
       <Card>
         <MetricGrid
           items={[
-            { label: "Всего", value: String(scopedContracts.length + scopedGenerated.length), color: colors.blue },
-            { label: "Договоры", value: String(scopedContracts.length), color: colors.teal },
-            { label: "Счета", value: String(scopedGenerated.filter((document) => document.documentType === "INVOICE").length), color: colors.orange },
-            { label: "АВР/сверки", value: String(scopedGenerated.filter((document) => ["ACT", "RECONCILIATION"].includes(document.documentType)).length), color: colors.green },
+            { label: "Всего", value: String(localPayload.counters.total), color: colors.blue },
+            { label: "Договоры", value: String(localPayload.counters.contracts), color: colors.teal },
+            { label: "Счета", value: String(localPayload.counters.invoices), color: colors.orange },
+            { label: "АВР/сверки", value: String(localPayload.counters.acts + localPayload.counters.reconciliations), color: colors.green },
           ]}
         />
         <ChoiceRow
@@ -1198,12 +1268,13 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
             style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
           />
         </View>
+        {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
-      {visibleCount === 0 ? <EmptyState title="Документы не найдены" /> : null}
-      {showContracts && filteredContracts.length > 0 ? (
+      {visibleCount === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
+      {showContracts && localPayload.contracts.length > 0 ? (
         <>
           <SectionTitle title="Договоры" />
-          <ContractList contracts={filteredContracts} emptyTitle="Договоры не найдены" />
+          <ContractList contracts={localPayload.contracts} emptyTitle="Договоры не найдены" />
         </>
       ) : null}
       {visibleGenerated.length > 0 ? (
@@ -1211,6 +1282,9 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
           <SectionTitle title={categoryTitle(category)} />
           <GeneratedDocumentList documents={visibleGenerated} />
         </>
+      ) : null}
+      {localPayload.pageInfo?.hasMore ? (
+        <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
       ) : null}
     </>
   )
@@ -2075,6 +2149,15 @@ function hasTabData(data: AppData, role: string, tabKey: string) {
   if (tabKey === "payments") return !!data.adminPayments
   if (tabKey === "buildings") return !!data.adminBuildings
   return true
+}
+
+function dedupeById<T extends { id: string }>(items: T[]) {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false
+    seen.add(item.id)
+    return true
+  })
 }
 
 function tabsForRole(role?: string | null) {

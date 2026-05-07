@@ -490,6 +490,12 @@ export type AdminTenantsPayload = {
     expiringContracts: number
   }
   data: AdminTenantListItem[]
+  pageInfo: {
+    limit: number
+    offset: number
+    nextOffset?: number | null
+    hasMore: boolean
+  }
 }
 
 export type AdminContractsPayload = {
@@ -529,6 +535,12 @@ export type AdminDocumentsPayload = {
   }
   contracts: MobileContractSummary[]
   generated: MobileGeneratedDocumentSummary[]
+  pageInfo: {
+    limit: number
+    offset: number
+    nextOffset?: number | null
+    hasMore: boolean
+  }
 }
 
 export type OwnerOverviewPayload = {

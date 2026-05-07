@@ -1,67 +1,89 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileStaffRequest, tenantInBuildingsWhere } from "@/lib/mobile-admin"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { getTenantAreaTotal } from "@/lib/tenant-placement"
 
 export const dynamic = "force-dynamic"
 
 const CLOSED_REQUEST_STATUSES = ["DONE", "CLOSED", "CANCELLED"]
 const INACTIVE_CONTRACT_STATUSES = ["REJECTED", "EXPIRED"]
 const DAY_MS = 24 * 60 * 60 * 1000
+const DEFAULT_LIMIT = 25
+const MAX_LIMIT = 50
 
 export async function GET(req: Request) {
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
   const { ctx, buildingIds } = result
+  const url = new URL(req.url)
+  const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80)
+  const limit = clampNumber(url.searchParams.get("limit"), DEFAULT_LIMIT, MAX_LIMIT)
+  const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0)
   const now = new Date()
   const soon = new Date(now.getTime() + 45 * DAY_MS)
+  const tenantWhere = {
+    user: { organizationId: ctx.org.id },
+    ...tenantInBuildingsWhere(buildingIds),
+    ...(q
+      ? {
+          OR: [
+            { companyName: { contains: q, mode: "insensitive" as const } },
+            { bin: { contains: q } },
+            { iin: { contains: q } },
+          ],
+        }
+      : {}),
+  }
 
-  const tenants = await db.tenant.findMany({
-    where: {
-      user: { organizationId: ctx.org.id },
-      ...tenantInBuildingsWhere(buildingIds),
-    },
-    select: {
-      id: true,
-      companyName: true,
-      legalType: true,
-      bin: true,
-      iin: true,
-      fixedMonthlyRent: true,
-      customRate: true,
-      contractStart: true,
-      contractEnd: true,
-      space: {
-        select: {
-          number: true,
-          area: true,
-          floor: { select: { name: true, building: { select: { name: true } } } },
+  const [total, tenants] = await Promise.all([
+    db.tenant.count({ where: tenantWhere }),
+    db.tenant.findMany({
+      where: tenantWhere,
+      select: {
+        id: true,
+        companyName: true,
+        legalType: true,
+        bin: true,
+        iin: true,
+        fixedMonthlyRent: true,
+        customRate: true,
+        contractStart: true,
+        contractEnd: true,
+        space: {
+          select: {
+            number: true,
+            area: true,
+            floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
+          },
         },
-      },
-      tenantSpaces: {
-        select: {
-          space: {
-            select: {
-              number: true,
-              area: true,
-              floor: { select: { name: true, building: { select: { name: true } } } },
+        tenantSpaces: {
+          select: {
+            space: {
+              select: {
+                number: true,
+                area: true,
+                floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
+              },
             },
           },
         },
-      },
-      fullFloors: {
-        select: {
-          name: true,
-          totalArea: true,
-          building: { select: { name: true } },
-          spaces: { select: { area: true } },
+        fullFloors: {
+          select: {
+            name: true,
+            totalArea: true,
+            fixedMonthlyRent: true,
+            building: { select: { name: true } },
+          },
         },
+        _count: { select: { documents: true } },
       },
-      _count: { select: { documents: true } },
-    },
-    orderBy: { companyName: "asc" },
-    take: 100,
-  })
+      orderBy: { companyName: "asc" },
+      skip: offset,
+      take: limit,
+    }),
+  ])
 
   const tenantIds = tenants.map((tenant) => tenant.id)
   const tenantIdFilter = tenantIds.length > 0 ? tenantIds : ["__none__"]
@@ -110,8 +132,8 @@ export async function GET(req: Request) {
       bin: tenant.bin,
       iin: tenant.iin,
       placement: tenantPlacement(tenant),
-      area: tenantArea(tenant),
-      monthlyRent: tenant.fixedMonthlyRent ?? tenant.customRate ?? 0,
+      area: roundArea(getTenantAreaTotal(tenant)),
+      monthlyRent: calculateTenantMonthlyRent(tenant),
       totalDebt,
       overdueDebt,
       activeRequests: requests.get(tenant.id) ?? 0,
@@ -129,37 +151,53 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     counters: {
-      total: data.length,
+      total,
       withDebt: data.filter((tenant) => tenant.totalDebt > 0).length,
       debtAmount: data.reduce((sum, tenant) => sum + tenant.totalDebt, 0),
       expiringContracts: data.reduce((sum, tenant) => sum + tenant.contracts.expiringSoon, 0),
     },
     data,
+    pageInfo: {
+      limit,
+      offset,
+      nextOffset: offset + data.length < total ? offset + data.length : null,
+      hasMore: offset + data.length < total,
+    },
   })
+}
+
+function clampNumber(raw: string | null, fallback: number, max: number) {
+  const value = Number(raw ?? fallback)
+  if (!Number.isFinite(value) || value <= 0) return fallback
+  return Math.min(Math.floor(value), max)
 }
 
 function isExpiring(endDate: Date | null, now: Date, soon: Date) {
   return !!endDate && endDate >= now && endDate <= soon
 }
 
+function roundArea(value: number) {
+  return Math.round(value * 10) / 10
+}
+
 type TenantForList = {
   space: {
     number: string
     area: number
-    floor: { name: string; building: { name: string } }
+    floor: { name: string; ratePerSqm: number; building: { name: string } }
   } | null
   tenantSpaces: Array<{
     space: {
       number: string
       area: number
-      floor: { name: string; building: { name: string } }
+      floor: { name: string; ratePerSqm: number; building: { name: string } }
     }
   }>
   fullFloors: Array<{
     name: string
     totalArea: number | null
+    fixedMonthlyRent: number | null
     building: { name: string }
-    spaces: Array<{ area: number }>
   }>
 }
 
@@ -180,14 +218,4 @@ function tenantPlacement(tenant: TenantForList) {
 
   const hiddenCount = Math.max(0, tenant.tenantSpaces.length + tenant.fullFloors.length + (tenant.space ? 1 : 0) - labels.length)
   return labels.length > 0 ? `${labels.join(" · ")}${hiddenCount ? ` +${hiddenCount}` : ""}` : "Площадь не назначена"
-}
-
-function tenantArea(tenant: TenantForList) {
-  const direct = tenant.space?.area ?? 0
-  const spaces = tenant.tenantSpaces.reduce((sum, item) => sum + item.space.area, 0)
-  const floors = tenant.fullFloors.reduce((sum, floor) => {
-    const floorArea = floor.totalArea ?? floor.spaces.reduce((nestedSum, space) => nestedSum + space.area, 0)
-    return sum + floorArea
-  }, 0)
-  return Math.round((direct + spaces + floors) * 10) / 10
 }

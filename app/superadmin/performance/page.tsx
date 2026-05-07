@@ -140,6 +140,7 @@ export default async function SuperadminPerformancePage({
       .filter((item) => item.rating === "poor" || item.rating === "needs-improvement")
       .reduce((sum, item) => sum + item._count._all, 0)
     const badShare = total24h > 0 ? Math.round((bad24h / total24h) * 100) : 0
+    const performanceActions = buildPerformanceActions(slowByPath, badShare, total24h)
 
     return (
       <div className="space-y-6">
@@ -178,6 +179,36 @@ export default async function SuperadminPerformancePage({
           <StatCard icon={AlertTriangle} label="Требуют внимания" value={`${badShare}%`} hint={`${formatInteger(bad24h)} плохих или средних замеров`} tone={badShare > 20 ? "red" : badShare > 0 ? "amber" : "emerald"} />
           <StatCard icon={Clock} label="Цель LCP" value="до 2.5 с" hint="первый крупный контент" tone="blue" />
           <StatCard icon={TrendingUp} label="Цель INP" value="до 200 мс" hint="отклик интерфейса" tone="purple" />
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Что оптимизировать первым</h2>
+              <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
+                Система переводит web-vitals в конкретные инженерные действия: какую страницу открыть, какую метрику чинить и какой слой проверить.
+              </p>
+            </div>
+            <Gauge className="h-4 w-4 shrink-0 text-slate-400" />
+          </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {performanceActions.map((action) => (
+              <div key={action.title} className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{action.title}</h3>
+                  <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", priorityClass(action.priority))}>
+                    {action.priority}
+                  </span>
+                </div>
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{action.body}</p>
+                {action.path ? (
+                  <p className="mt-3 truncate rounded-lg bg-white px-2 py-1.5 font-mono text-[11px] text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                    {action.path}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
@@ -438,6 +469,99 @@ function aggregateSlowPages(samples: WebVitalSample[]) {
   return Array.from(map.values()).sort((a, b) => b.worstScore - a.worstScore || b.count - a.count)
 }
 
+function buildPerformanceActions(
+  slowByPath: ReturnType<typeof aggregateSlowPages>,
+  badShare: number,
+  total24h: number,
+) {
+  if (total24h === 0) {
+    return [
+      {
+        title: "Сначала собрать данные",
+        priority: "setup",
+        path: "/api/web-vitals",
+        body: "Откройте сайт в production и пройдите основные страницы. После первых реальных визитов здесь появятся LCP, INP, CLS и TTFB.",
+      },
+      {
+        title: "Проверить скрипт метрик",
+        priority: "setup",
+        path: "components/web-vitals-reporter.tsx",
+        body: "Если замеры не появляются, проверьте подключение reporter в layout и доступность API сохранения web-vitals.",
+      },
+      {
+        title: "Держать бюджет скорости",
+        priority: "guard",
+        path: "npm run perf:audit",
+        body: "Performance audit должен падать при слишком больших client/server файлах, больших Prisma take и страницах без server timing.",
+      },
+    ]
+  }
+
+  const worst = slowByPath[0]
+  const metric = worst?.worstMetric ?? "LCP"
+  const metricAction = actionForMetric(metric, worst?.path)
+  const scopeAction = badShare > 20
+    ? {
+        title: "Много плохих замеров",
+        priority: "high",
+        path: worst?.path,
+        body: `Плохих или средних замеров ${badShare}%. Сначала чините самую верхнюю страницу из списка: там эффект будет заметнее всего для пользователей.`,
+      }
+    : {
+        title: "Точечная оптимизация",
+        priority: "normal",
+        path: worst?.path,
+        body: "Критической деградации нет, но можно убрать самые дорогие запросы и тяжелые client components на страницах из списка.",
+      }
+
+  return [
+    scopeAction,
+    metricAction,
+    {
+      title: "Проверить базу",
+      priority: "guard",
+      path: "prisma/schema.prisma",
+      body: "Для медленных admin-страниц проверьте индексы под organizationId, buildingId, tenantId, status, period и createdAt, затем сравните server timing до и после.",
+    },
+  ]
+}
+
+function actionForMetric(metric: string, path?: string) {
+  if (metric === "INP") {
+    return {
+      title: "Уменьшить JS и клики",
+      priority: "high",
+      path,
+      body: "INP страдает от тяжелого клиентского JavaScript. Вынесите редакторы, графики, поиск и модалки в lazy sections, а кнопки оставьте легкими.",
+    }
+  }
+
+  if (metric === "CLS") {
+    return {
+      title: "Зафиксировать размеры",
+      priority: "medium",
+      path,
+      body: "CLS означает скачки интерфейса. Задайте размеры изображениям, таблицам, карточкам и баннерам, чтобы контент не прыгал при загрузке.",
+    }
+  }
+
+  if (metric === "TTFB") {
+    return {
+      title: "Сократить server work",
+      priority: "high",
+      path,
+      body: "TTFB упирается в сервер. Разбейте большие Prisma запросы, уберите лишние include, добавьте count/groupBy вместо загрузки списков и кешируйте shell.",
+    }
+  }
+
+  return {
+    title: "Ускорить первый экран",
+    priority: "high",
+    path,
+    body: "LCP чинится через быстрый первый экран: меньше server-запросов до render, меньше тяжелых изображений, lazy ниже первого экрана и preload ключевых assets.",
+  }
+}
+
 function formatMetricValue(name: string, value: number) {
   if (name === "CLS") return value.toFixed(3)
   if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} с`
@@ -470,6 +594,14 @@ function ratingClass(value: string | null) {
   if (value === "needs-improvement") return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
   if (value === "poor") return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
   return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+}
+
+function priorityClass(value: string) {
+  if (value === "high") return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+  if (value === "medium") return "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+  if (value === "guard") return "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
+  if (value === "setup") return "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300"
+  return "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
 }
 
 function toneBgClass(tone: "cyan" | "red" | "amber" | "emerald" | "blue" | "purple") {

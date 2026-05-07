@@ -380,16 +380,26 @@ export async function getAdminBuildings() {
   return authFetch<AdminBuildingsPayload>("/api/mobile/admin/buildings")
 }
 
-export async function getAdminTenants() {
-  return authFetch<AdminTenantsPayload>("/api/mobile/admin/tenants")
+export async function getAdminTenants(params: {
+  q?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  return authFetch<AdminTenantsPayload>(`/api/mobile/admin/tenants${queryString(params)}`)
 }
 
 export async function getAdminContracts() {
   return authFetch<AdminContractsPayload>("/api/mobile/admin/contracts")
 }
 
-export async function getAdminDocuments() {
-  return authFetch<AdminDocumentsPayload>("/api/mobile/admin/documents")
+export async function getAdminDocuments(params: {
+  q?: string
+  category?: string
+  tenantId?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  return authFetch<AdminDocumentsPayload>(`/api/mobile/admin/documents${queryString(params)}`)
 }
 
 export async function getOwnerOverview() {
@@ -498,6 +508,16 @@ async function authFetch<T>(path: string, options: RequestInit = {}, retry = tru
   }
 
   return parseResponse<T>(res)
+}
+
+function queryString(params: Record<string, string | number | undefined | null>) {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === "") continue
+    query.set(key, String(value))
+  }
+  const text = query.toString()
+  return text ? `?${text}` : ""
 }
 
 async function getExpoPushToken() {
