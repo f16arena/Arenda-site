@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 
 export const dynamic = "force-dynamic"
 
-// Запускается 1-го числа каждого месяца в 9:00 Алматы
-// Создаёт начисления RENT для всех активных арендаторов
+// Runs on the 1st day of each month and creates RENT/CLEANING charges for active tenants.
+// The rent amount and due date must go through the shared rent schedule helper so cron,
+// manual finance generation, and billing batches stay consistent.
 
 export async function GET(req: Request) {
   if (!authorizeCronRequest(req)) {
@@ -44,32 +45,34 @@ export async function GET(req: Request) {
 
   for (const tenant of tenants) {
     try {
-      // Если на этот период RENT уже создан — пропускаем
       if (tenant.charges.length > 0) {
         results.skipped++
         continue
       }
 
-      const monthlyRent = calculateTenantMonthlyRent(tenant)
-
-      if (monthlyRent <= 0) continue
+      const rentSchedule = calculateTenantRentChargeForPeriod(tenant, period)
+      if (!rentSchedule.shouldCreate) {
+        if (rentSchedule.skippedReason !== "NO_RENT") {
+          results.skipped++
+        }
+        continue
+      }
 
       const placement = formatTenantPlacement(tenant)
-      const dueDate = new Date(now.getFullYear(), now.getMonth(), tenant.paymentDueDay)
+      const dueDate = rentSchedule.dueDate
 
       await db.charge.create({
         data: {
           tenantId: tenant.id,
           period,
           type: "RENT",
-          amount: monthlyRent,
-          description: `Аренда ${placement} за ${period}`,
+          amount: rentSchedule.amount,
+          description: getTenantRentChargeDescription(placement, period, rentSchedule),
           dueDate,
         },
       })
       results.rentCreated++
 
-      // Уборка — если включена
       if (tenant.needsCleaning && tenant.cleaningFee > 0) {
         await db.charge.create({
           data: {
@@ -84,19 +87,20 @@ export async function GET(req: Request) {
         results.cleaningCreated++
       }
 
-      // In-app уведомление + Telegram арендатору
       try {
-        const totalCharge = monthlyRent + (tenant.needsCleaning ? tenant.cleaningFee : 0)
+        const totalCharge = rentSchedule.amount + (tenant.needsCleaning ? tenant.cleaningFee : 0)
         await db.notification.create({
           data: {
             userId: tenant.userId,
             type: "PAYMENT_DUE",
             title: `Начислена аренда за ${period}`,
-            message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${tenant.paymentDueDay} числа.`,
+            message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${dueDate.toLocaleDateString("ru-RU")}.`,
             link: "/cabinet/finances",
           },
         })
-      } catch { /* notifications table may be missing */ }
+      } catch {
+        // Notifications are best-effort: charge creation should not fail because of them.
+      }
     } catch (e) {
       results.errors.push(`${tenant.companyName}: ${e instanceof Error ? e.message : "unknown"}`)
     }
