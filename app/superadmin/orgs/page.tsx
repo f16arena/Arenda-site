@@ -267,9 +267,9 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
       <td className="px-5 py-3.5">
         <div className="min-w-0">
           <Link href={`/superadmin/orgs/${org.id}`} className="block">
-            <p className="font-medium text-slate-900 transition hover:text-purple-600 dark:text-slate-100 dark:hover:text-purple-400">
+            <span className="block font-medium text-slate-900 transition hover:text-purple-600 dark:text-slate-100 dark:hover:text-purple-400">
               {org.name}
-            </p>
+            </span>
           </Link>
           <a
             href={orgUrl}
@@ -296,6 +296,7 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
         {org.planExpiresAt ? (
           <div>
             <p
+              suppressHydrationWarning
               className={cn(
                 org.expired
                   ? "font-medium text-red-600 dark:text-red-400"
@@ -307,7 +308,7 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
               {org.planExpiresAtLabel ?? "—"}
             </p>
             {org.daysLeft !== null && (
-              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+              <p suppressHydrationWarning className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
                 {org.expired ? `просрочен ${-org.daysLeft} дн.` : `${org.daysLeft} дн.`}
               </p>
             )}

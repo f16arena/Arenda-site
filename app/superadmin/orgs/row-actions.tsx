@@ -1,6 +1,6 @@
 "use client"
 
-import { useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ExternalLink, LogIn } from "lucide-react"
@@ -20,6 +20,21 @@ export function OrgRowActions({
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setMounted(true), 0)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center justify-end gap-1.5" suppressHydrationWarning>
+        {hasOwner && isActive && <span className="h-7 w-16 rounded-md bg-slate-100 dark:bg-slate-800" />}
+        <span className="h-7 w-20 rounded-md bg-slate-100 dark:bg-slate-800" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center justify-end gap-1.5">
