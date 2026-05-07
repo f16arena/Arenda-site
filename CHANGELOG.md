@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.142 - 2026-05-07
+
+- Добавлен явный CI performance gate: `npm run ci:performance-gate`.
+- Gate последовательно проверяет Prisma schema, TypeScript, performance audit и security audit, а в GitHub Actions пишет понятный summary с бюджетами и временем каждого шага.
+- `quality:audit` теперь использует общий gate, чтобы локальные проверки и GitHub CI не расходились.
+- `.github/workflows/ci.yml` усилен: отдельный шаг `CI performance gate`, строгие perf budgets, concurrency/cancel-in-progress и build после gate.
+- Gate блокирует deploy при тяжелых client/server файлах, больших Prisma `take`, silent `catch(() => [])`, отсутствии server timing и критичных security guardrails.
+- Зафиксированы mobile-shell/API изменения, без которых `test:mobile:typecheck` падал: карточки арендаторов получают контакты/срок оплаты, документы получают signature requests, Expo web зависимости закреплены в lockfile.
+- Проверки: `npm run quality:audit`, `npm run test:mobile:typecheck`, `SKIP_DEPLOY_MIGRATIONS=1 npm run build`.
+- Rollback-точка: `rollback/pre-ci-performance-gate-1.3.142`.
+
 ## 1.3.141 - 2026-05-07
 
 - Добавлен внутренний журнал server performance: медленные Server Components routes и steps теперь сохраняются в `server_performance_logs`, а не только уходят в консоль.

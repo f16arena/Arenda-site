@@ -79,6 +79,7 @@ export async function GET(req: Request) {
     totalContracts,
     generatedCounts,
     pendingContracts,
+    signatureRequests,
     contracts,
     generated,
   ] = await Promise.all([
@@ -93,6 +94,29 @@ export async function GET(req: Request) {
         ...contractWhere,
         status: { in: CONTRACT_PENDING_STATUSES },
       },
+    }),
+    db.documentSignatureRequest.findMany({
+      where: {
+        organizationId: ctx.org.id,
+        recipientUserId: ctx.user.id,
+        status: { in: ["PENDING", "VIEWED"] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: {
+        id: true,
+        documentType: true,
+        documentId: true,
+        documentRef: true,
+        title: true,
+        message: true,
+        status: true,
+        allowedMethods: true,
+        preferredMethod: true,
+        expiresAt: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20,
     }),
     shouldFetchContracts
       ? db.contract.findMany({
@@ -186,10 +210,11 @@ export async function GET(req: Request) {
       invoices: generatedByType.get("INVOICE") ?? 0,
       acts: generatedByType.get("ACT") ?? 0,
       reconciliations: generatedByType.get("RECONCILIATION") ?? 0,
-      pendingSignatures: pendingContracts,
+      pendingSignatures: pendingContracts + signatureRequests.length,
     },
     contracts: contractItems,
     generated: generatedItems,
+    signatureRequests,
     pageInfo: {
       limit,
       offset,

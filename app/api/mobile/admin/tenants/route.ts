@@ -47,10 +47,19 @@ export async function GET(req: Request) {
         legalType: true,
         bin: true,
         iin: true,
+        category: true,
+        paymentDueDay: true,
         fixedMonthlyRent: true,
         customRate: true,
         contractStart: true,
         contractEnd: true,
+        user: {
+          select: {
+            name: true,
+            phone: true,
+            email: true,
+          },
+        },
         space: {
           select: {
             number: true,
@@ -131,6 +140,13 @@ export async function GET(req: Request) {
       legalType: tenant.legalType,
       bin: tenant.bin,
       iin: tenant.iin,
+      category: tenant.category,
+      paymentDueDay: tenant.paymentDueDay,
+      contact: {
+        name: tenant.user.name,
+        phone: tenant.user.phone,
+        email: tenant.user.email,
+      },
       placement: tenantPlacement(tenant),
       area: roundArea(getTenantAreaTotal(tenant)),
       monthlyRent: calculateTenantMonthlyRent(tenant),

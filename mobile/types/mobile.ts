@@ -465,6 +465,13 @@ export type AdminTenantListItem = {
   legalType: string
   bin?: string | null
   iin?: string | null
+  category?: string | null
+  paymentDueDay: number
+  contact: {
+    name?: string | null
+    phone?: string | null
+    email?: string | null
+  }
   placement: string
   area: number
   monthlyRent: number
@@ -535,6 +542,7 @@ export type AdminDocumentsPayload = {
   }
   contracts: MobileContractSummary[]
   generated: MobileGeneratedDocumentSummary[]
+  signatureRequests: TenantSignatureRequest[]
   pageInfo: {
     limit: number
     offset: number

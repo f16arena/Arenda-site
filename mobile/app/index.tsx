@@ -9,8 +9,10 @@ import {
   BellOff,
   Building2,
   CalendarDays,
+  Camera,
   Check,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
@@ -105,6 +107,7 @@ import type {
   AdminDocumentsPayload,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
+  AdminTenantListItem,
   AdminTenantsPayload,
   AdminTodayPayload,
   BuildingNotice,
@@ -122,6 +125,7 @@ import type {
   TenantMetersPayload,
   TenantOverview,
   TenantRequestsPayload,
+  TenantSignatureRequest,
 } from "@/types/mobile"
 
 const colors = {
@@ -159,6 +163,7 @@ const iconByName: Record<string, AppIconComponent> = {
   "building.2": Building2,
   "building.2.fill": Building2,
   "calendar": CalendarDays,
+  "camera.fill": Camera,
   "chart.line.uptrend.xyaxis": TrendingUp,
   "checkmark": Check,
   "checkmark.circle.fill": CheckCircle2,
@@ -193,6 +198,8 @@ const iconByName: Record<string, AppIconComponent> = {
   "dollarsign.circle.fill": CircleDollarSign,
   "doc.on.doc.fill": ClipboardList,
   "chevron.right": ChevronRight,
+  "chevron.left": ChevronLeft,
+  "doc.richtext": FileText,
   "exclamationmark.triangle.fill": TriangleAlert,
 }
 
@@ -381,7 +388,7 @@ export default function HomeScreen() {
         else if (tabKey === "meters") patch = { tenantMeters: await getTenantMeters() }
         else if (tabKey === "documents") patch = { tenantDocuments: await getTenantDocuments() }
       } else {
-        if (tabKey === "tenants") patch = { adminTenants: await getAdminTenants() }
+        if (tabKey === "tenants" || tabKey === "tenant") patch = { adminTenants: await getAdminTenants() }
         else if (tabKey === "documents") patch = { adminDocuments: await getAdminDocuments() }
         else if (tabKey === "requests") patch = { adminRequests: await getAdminRequests() }
         else if (tabKey === "payments" && canReviewPayments) patch = { adminPayments: await getAdminPaymentReports() }
@@ -662,6 +669,7 @@ function Dashboard({
   const { width } = useWindowDimensions()
   const safeTab = activeTab || tabs[0]?.key || "home"
   const navigate = (tab: string) => setActiveTab(tab)
+  const backTarget = backTargetForTab(safeTab)
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -670,6 +678,7 @@ function Dashboard({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ padding: 16, paddingBottom: 108, gap: 14, maxWidth: width >= 900 ? 860 : undefined, alignSelf: width >= 900 ? "center" : "stretch" }}
       >
+        {backTarget ? <BackButton onPress={() => navigate(backTarget)} /> : null}
         <HeaderCard bootstrap={bootstrap} onLogout={onLogout} />
         {cacheState.fromCache ? <OfflineBanner savedAt={cacheState.savedAt} error={cacheState.error} /> : null}
         <TabContent role={role} tab={safeTab} bootstrap={bootstrap} data={data} loadingTabs={loadingTabs} tabErrors={tabErrors} onChanged={onRefresh} onNavigate={navigate} />
@@ -720,6 +729,11 @@ function TabContent({
 
   if (role === "OWNER" && tabKey === "owner") {
     return data.ownerOverview ? <OwnerOverview data={data.ownerOverview} /> : <CenteredLoader />
+  }
+  if (tabKey === "tenant") {
+    const tenant = data.adminTenants?.data.find((item) => item.id === tabParam)
+    if (!data.adminTenants) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return tenant ? <AdminTenantDetail tenant={tenant} onNavigate={onNavigate} /> : <EmptyState title="Арендатор не найден в загруженном списке" />
   }
   if (tabKey === "tenants") return data.adminTenants ? <AdminTenants payload={data.adminTenants} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "documents") return data.adminDocuments ? <AdminDocuments payload={data.adminDocuments} tenantId={tabParam} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
@@ -953,49 +967,18 @@ function MeterCard({ meter, period, onChanged }: { meter: TenantMetersPayload["d
 }
 
 function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
-  const [message, setMessage] = useState<string | null>(null)
   const pendingRequests = documents.signatureRequests.filter((item) => ["PENDING", "VIEWED"].includes(item.status))
   const pendingContracts = documents.contractLinks.filter((item) => ["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(item.status))
   const pending = pendingRequests.length + pendingContracts.length
-
-  async function startDraft(requestId: string, method: "SMS_OTP_DRAFT" | "NCA_LAYER_DRAFT") {
-    setMessage(null)
-    try {
-      const result = await startDocumentSignatureDraft({ requestId, method })
-      setMessage(result.message ?? "Черновик подписания подготовлен")
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Не удалось подготовить подписание")
-    }
-  }
 
   return (
     <>
       <SectionTitle title="Документы" />
       <Card>
         <ActionRow icon="signature" title="Ожидают подписи" value={String(pending)} color={pending > 0 ? colors.orange : colors.green} />
-        {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
-        {pendingRequests.map((request) => (
-          <View key={request.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <AppIcon name="doc.badge.arrow.up.fill" size={19} color={colors.orange} />
-              <Text selectable style={{ flex: 1, color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{request.title}</Text>
-              <StatusPill label={request.status} color={colors.orange} />
-            </View>
-            {request.message ? <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{request.message}</Text> : null}
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{documentTypeLabel(request.documentType)} · {request.expiresAt ? `до ${formatDate(request.expiresAt)}` : "без срока"}</Text>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <SecondaryButton title="SMS draft" icon="message.fill" onPress={() => startDraft(request.id, "SMS_OTP_DRAFT")} />
-              <SecondaryButton title="ЭЦП draft" icon="checkmark.seal.fill" onPress={() => startDraft(request.id, "NCA_LAYER_DRAFT")} />
-            </View>
-          </View>
-        ))}
-        {documents.contractLinks.map((contract) => (
-          <Pressable key={contract.id} onPress={() => Linking.openURL(contract.webUrl)} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 12, gap: 4 }}>
-            <Text selectable style={{ color: colors.text, fontWeight: "900" }}>{contract.title}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{contract.status} · открыть подписание</Text>
-          </Pressable>
-        ))}
-        {pending === 0 ? <EmptyState title="Документов на подпись нет" /> : null}
+        {pendingRequests.map((request) => <SignatureRequestCard key={request.id} request={request} />)}
+        {documents.contractLinks.map((contract) => <ContractSignPrompt key={contract.id} contract={contract} />)}
+        {pending === 0 ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Документов на подпись нет</Text> : null}
       </Card>
       <SectionTitle title="Счета и акты" />
       <Card>
@@ -1065,6 +1048,60 @@ function DocumentRow({ title, subtitle, url }: { title: string; subtitle: string
         <AppIcon name={busy ? "arrow.down.circle" : "square.and.arrow.up"} size={18} color={colors.muted} />
       </Pressable>
       {message ? <InlineMessage message={message} tone="error" /> : null}
+    </View>
+  )
+}
+
+function SignatureRequestCard({ request }: { request: TenantSignatureRequest }) {
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function startDraft(method: "SMS_OTP_DRAFT" | "NCA_LAYER_DRAFT") {
+    setMessage(null)
+    try {
+      const result = await startDocumentSignatureDraft({ requestId: request.id, method })
+      setMessage(result.message ?? "Черновик подписания подготовлен")
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось подготовить подписание")
+    }
+  }
+
+  return (
+    <View style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: "#fffaf0", padding: 12, gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <AppIcon name="doc.badge.arrow.up.fill" size={19} color={colors.orange} />
+        <View style={{ flex: 1 }}>
+          <Text selectable numberOfLines={2} style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{request.title}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{documentTypeLabel(request.documentType)} · {request.expiresAt ? `до ${formatDateFull(request.expiresAt)}` : "без срока"}</Text>
+        </View>
+        <StatusPill label={signatureStatusLabel(request.status)} color={colors.orange} />
+      </View>
+      {request.message ? <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{request.message}</Text> : null}
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        <SecondaryButton title="Подписать SMS" icon="message.fill" onPress={() => startDraft("SMS_OTP_DRAFT")} />
+        <SecondaryButton title="ЭЦП draft" icon="checkmark.seal.fill" onPress={() => startDraft("NCA_LAYER_DRAFT")} />
+      </View>
+      {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
+    </View>
+  )
+}
+
+function ContractSignPrompt({ contract }: { contract: MobileContractSummary | TenantDocumentsPayload["contractLinks"][number] }) {
+  const webUrl = "webUrl" in contract ? contract.webUrl : null
+  const status = contract.status
+  const color = contractStatusColor(status)
+  const title = "number" in contract ? `${contractTypeLabel(contract.type)} № ${contract.number}` : contract.title
+
+  return (
+    <View style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 12, gap: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <AppIcon name="doc.on.doc.fill" size={19} color={color} />
+        <View style={{ flex: 1 }}>
+          <Text selectable numberOfLines={2} style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{contractStatusLabel(status)}</Text>
+        </View>
+        <StatusPill label={contractStatusLabel(status)} color={color} />
+      </View>
+      {webUrl ? <SecondaryButton title={isPendingContractStatus(status) ? "Открыть подписание" : "Открыть документ"} icon="arrow.up.right.square" onPress={() => openExternalUrl(webUrl)} /> : null}
     </View>
   )
 }
@@ -1140,7 +1177,7 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
       </Card>
       {localPayload.data.length === 0 && !busy ? <EmptyState title="Арендаторы не найдены" /> : null}
       {localPayload.data.map((tenant) => (
-        <Pressable key={tenant.id} onPress={() => onNavigate(`documents:${tenant.id}`)}>
+        <Pressable key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <IconBox icon="person.2.fill" color={tenant.totalDebt > 0 ? colors.orange : colors.teal} />
@@ -1152,7 +1189,7 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
             </View>
             <MetricGrid
               items={[
-                { label: "Площадь", value: `${tenant.area.toLocaleString("ru-RU")} м²`, color: colors.slate },
+                { label: "Площадь", value: formatArea(tenant.area), color: colors.slate },
                 { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
                 { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
                 { label: "Договоры", value: String(tenant.contracts.total), color: colors.teal },
@@ -1165,6 +1202,64 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
       {localPayload.pageInfo?.hasMore ? (
         <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
       ) : null}
+    </>
+  )
+}
+
+function AdminTenantDetail({ tenant, onNavigate }: { tenant: AdminTenantListItem; onNavigate: (tab: string) => void }) {
+  const taxId = tenant.bin ?? tenant.iin ?? "не указан"
+  const contactName = tenant.contact.name ?? "Контакт не указан"
+  const contractPeriod = [
+    tenant.contractStart ? `с ${formatDateFull(tenant.contractStart)}` : null,
+    tenant.contractEnd ? `до ${formatDateFull(tenant.contractEnd)}` : null,
+  ].filter(Boolean).join(" ")
+
+  return (
+    <>
+      <SectionTitle title="Арендатор" />
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <IconBox icon="person.2.fill" color={tenant.totalDebt > 0 ? colors.orange : colors.teal} />
+          <View style={{ flex: 1 }}>
+            <Text selectable style={{ color: colors.text, fontSize: 20, fontFamily: fonts.black, fontWeight: "900" }}>{tenant.companyName}</Text>
+            <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{legalTypeLabel(tenant.legalType)} · {taxId}</Text>
+          </View>
+          <StatusPill label={tenant.totalDebt > 0 ? "Есть долг" : "ОК"} color={tenant.totalDebt > 0 ? colors.orange : colors.green} />
+        </View>
+        <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{tenant.placement}</Text>
+        <MetricGrid
+          items={[
+            { label: "Занимает", value: formatArea(tenant.area), color: colors.slate },
+            { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
+            { label: "К оплате до", value: `${tenant.paymentDueDay} числа`, color: colors.teal },
+            { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
+          ]}
+        />
+      </Card>
+      <SectionTitle title="Контакты" />
+      <Card>
+        <CompactRow title={contactName} subtitle={tenant.category ? `Категория: ${tenant.category}` : "Основной контакт"} tone={colors.blue} />
+        {tenant.contact.phone ? <ActionRow icon="iphone" title="Телефон" value={tenant.contact.phone} color={colors.teal} onPress={() => Linking.openURL(`tel:${tenant.contact.phone}`)} /> : null}
+        {tenant.contact.email ? <ActionRow icon="message.fill" title="Email" value={tenant.contact.email} color={colors.blue} onPress={() => Linking.openURL(`mailto:${tenant.contact.email}`)} /> : null}
+        {!tenant.contact.phone && !tenant.contact.email ? <Text selectable style={{ color: colors.muted, fontSize: 14 }}>Телефон и email не указаны</Text> : null}
+      </Card>
+      <SectionTitle title="Договор и платежи" />
+      <Card>
+        <CompactRow
+          title={contractPeriod || "Период договора не указан"}
+          subtitle={`${tenant.contracts.active} активных · ${tenant.contracts.signed} подписанных · ${tenant.contracts.total} всего`}
+          value={tenant.contracts.expiringSoon > 0 ? "истекает" : undefined}
+          tone={tenant.contracts.expiringSoon > 0 ? colors.red : colors.slate}
+        />
+        <CompactRow title="Просрочено" subtitle="Начисления с прошедшим сроком оплаты" value={formatMoney(tenant.overdueDebt)} tone={tenant.overdueDebt > 0 ? colors.red : colors.green} />
+        <CompactRow title="Активные заявки" subtitle="Открытые обращения арендатора" value={String(tenant.activeRequests)} tone={tenant.activeRequests > 0 ? colors.orange : colors.green} />
+      </Card>
+      <SectionTitle title="Действия" />
+      <Card>
+        <ActionRow icon="doc.text.fill" title="Документы арендатора" value={String(tenant.documents)} color={colors.blue} onPress={() => onNavigate(`documents:${tenant.id}`)} />
+        <ActionRow icon="creditcard.fill" title="Оплаты на проверке" value="открыть" color={colors.green} onPress={() => onNavigate("payments")} />
+        <ActionRow icon="tray.full.fill" title="Заявки" value={String(tenant.activeRequests)} color={colors.orange} onPress={() => onNavigate("requests")} />
+      </Card>
     </>
   )
 }
@@ -1234,6 +1329,10 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
   const visibleGenerated = localPayload.generated
   const showContracts = category === "ALL" || category === "CONTRACT"
   const visibleCount = (showContracts ? localPayload.contracts.length : 0) + visibleGenerated.length
+  const signatureRequests = (localPayload.signatureRequests ?? []).filter((request) => isPendingSignatureStatus(request.status))
+  const signatureContracts = showContracts
+    ? localPayload.contracts.filter((contract) => isPendingContractStatus(contract.status))
+    : []
 
   return (
     <>
@@ -1244,7 +1343,7 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
             { label: "Всего", value: String(localPayload.counters.total), color: colors.blue },
             { label: "Договоры", value: String(localPayload.counters.contracts), color: colors.teal },
             { label: "Счета", value: String(localPayload.counters.invoices), color: colors.orange },
-            { label: "АВР/сверки", value: String(localPayload.counters.acts + localPayload.counters.reconciliations), color: colors.green },
+            { label: "На подпись", value: String(localPayload.counters.pendingSignatures), color: localPayload.counters.pendingSignatures > 0 ? colors.orange : colors.green },
           ]}
         />
         <ChoiceRow
@@ -1270,6 +1369,15 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
         </View>
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
+      {signatureRequests.length > 0 || signatureContracts.length > 0 ? (
+        <>
+          <SectionTitle title="На подпись" />
+          <Card>
+            {signatureRequests.map((request) => <SignatureRequestCard key={request.id} request={request} />)}
+            {signatureContracts.slice(0, 6).map((contract) => <ContractSignPrompt key={contract.id} contract={contract} />)}
+          </Card>
+        </>
+      ) : null}
       {visibleCount === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
       {showContracts && localPayload.contracts.length > 0 ? (
         <>
@@ -1320,7 +1428,7 @@ function ContractRow({ contract }: { contract: MobileContractSummary }) {
         value={contract.signedAt ? "подписан" : undefined}
         tone={color}
       />
-      {canOpen ? <SecondaryButton title="Открыть" icon="arrow.up.right.square" onPress={() => openExternalUrl(contract.webUrl!)} /> : null}
+      {canOpen ? <SecondaryButton title={isPendingContractStatus(contract.status) ? "Открыть подписание" : "Открыть"} icon="arrow.up.right.square" onPress={() => openExternalUrl(contract.webUrl!)} /> : null}
     </Card>
   )
 }
@@ -1412,21 +1520,34 @@ function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPay
       <Card>
         <MetricGrid
           items={[
-            { label: "На проверке", value: String(payload.counters.pending), color: colors.blue },
-            { label: "Спорные", value: String(payload.counters.disputed), color: colors.orange },
+            { label: "Ожидают", value: String(payload.counters.pending), color: colors.blue },
+            { label: "Уточнить", value: String(payload.counters.disputed), color: colors.orange },
             { label: "Сумма", value: formatMoney(payload.counters.amount), color: colors.green },
           ]}
         />
       </Card>
       {payload.data.map((report) => (
         <Card key={report.id}>
-          <Text selectable style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{report.tenant.companyName}</Text>
-          <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{formatMoney(report.amount)} · {report.method} · {formatDate(report.paymentDate)} · {report.status}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <IconBox icon="creditcard.fill" color={paymentStatusColor(report.status)} />
+            <View style={{ flex: 1 }}>
+              <Text selectable style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{report.tenant.companyName}</Text>
+              <Text selectable style={{ color: colors.muted, fontSize: 13 }}>Отправлено {formatDateTime(report.createdAt)}</Text>
+            </View>
+            <StatusPill label={paymentStatusLabel(report.status)} color={paymentStatusColor(report.status)} />
+          </View>
+          <MetricGrid
+            items={[
+              { label: "Ожидаемая оплата", value: formatMoney(report.amount), color: colors.green },
+              { label: "Дата оплаты", value: formatDateFull(report.paymentDate), color: colors.blue },
+            ]}
+          />
+          <CompactRow title="Метод" subtitle={report.paymentPurpose ?? "Назначение не указано"} value={report.method} tone={colors.slate} />
           {report.note ? <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{report.note}</Text> : null}
           {report.receiptUrl ? <SecondaryButton title="Открыть чек" icon="doc.richtext" onPress={() => Linking.openURL(report.receiptUrl!)} /> : null}
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             <SecondaryButton title="Подтвердить" icon="checkmark.circle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "confirm", method: report.method }); onChanged() }} />
-            <SecondaryButton title="Спорная" icon="exclamationmark.triangle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "dispute", reason: "Уточнить оплату" }); onChanged() }} />
+            <SecondaryButton title="Уточнить" icon="exclamationmark.triangle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "dispute", reason: "Уточнить оплату" }); onChanged() }} />
             <SecondaryButton title="Отклонить" icon="xmark.circle.fill" onPress={async () => { await reviewAdminPaymentReport({ reportId: report.id, action: "reject", reason: "Не найдено поступление" }); onChanged() }} />
           </View>
         </Card>
@@ -1460,7 +1581,7 @@ function AdminBuildings({ payload }: { payload: AdminBuildingsPayload }) {
 function OwnerOverview({ data }: { data: OwnerOverviewPayload }) {
   return (
     <>
-      <SectionTitle title="Владелец" />
+      <SectionTitle title="Объекты" />
       <Card>
         <MetricGrid
           items={[
@@ -1782,55 +1903,61 @@ function More({
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Объекты" icon="building.2.fill" onPress={() => onNavigate("buildings")} /> : null}
           </View>
         ) : null}
-        <PrimaryButton title={pushBusy ? "Подключаем..." : "Включить push"} disabled={pushBusy} onPress={enablePush} />
-        <SecondaryButton title="Отключить push" icon="bell.slash.fill" onPress={disablePush} />
-        {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
       </Card>
-      <SectionTitle title="Настройки push" />
-      <Card>
-        <ActionRow icon="iphone" title="Активные устройства" value={String(localSettings?.devices.length ?? 0)} color={colors.blue} />
-        {pushPreferences ? (
-          <>
-            <ToggleRow
-              title="Тихие часы"
-              subtitle={`${pushPreferences.quietFrom} - ${pushPreferences.quietTo}`}
-              value={pushPreferences.quietHoursEnabled}
-              onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
-            />
-            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
-            <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
-            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
-            <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
-          </>
-        ) : null}
-        {localSettings?.settings.eventTypes.map((eventType) => {
-          const enabled = !localSettings.settings.mutedTypes.includes(eventType.key)
-          return (
-            <ToggleRow
-              key={eventType.key}
-              title={eventType.label}
-              subtitle={enabled ? "Push включен" : "Push выключен"}
-              value={enabled}
-              onValueChange={() => toggleMutedType(eventType.key)}
-            />
-          )
-        })}
-      </Card>
-      <SectionTitle title="Безопасность" />
-      <Card>
-        <ActionRow icon="lock.shield.fill" title="Активные входы" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} />
-        {sessions.map((session) => (
-          <View key={session.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 8 }}>
-            <CompactRow
-              title={session.deviceName ?? session.platform ?? "Мобильное устройство"}
-              subtitle={`${session.platform ?? "APP"} · ${session.ip ?? "IP скрыт"} · ${formatDateTime(session.lastUsedAt)}`}
-              tone={colors.slate}
-            />
-            <SecondaryButton title="Отключить вход" icon="xmark.circle.fill" onPress={() => revokeSession(session.id)} />
-          </View>
-        ))}
-        {sessions.length === 0 && !sessionsBusy ? <EmptyState title="Активных мобильных входов нет" /> : null}
-      </Card>
+      {settingsOnly ? (
+        <>
+          <SectionTitle title="Push" />
+          <Card>
+            <ActionRow icon="iphone" title="Активные устройства" value={String(localSettings?.devices.length ?? 0)} color={colors.blue} />
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              <SecondaryButton title={pushBusy ? "Подключаем..." : "Включить"} icon="bell.fill" onPress={enablePush} />
+              <SecondaryButton title="Отключить" icon="bell.slash.fill" onPress={disablePush} />
+            </View>
+            {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
+            {pushPreferences ? (
+              <>
+                <ToggleRow
+                  title="Тихие часы"
+                  subtitle={`${pushPreferences.quietFrom} - ${pushPreferences.quietTo}`}
+                  value={pushPreferences.quietHoursEnabled}
+                  onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
+                />
+                <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
+                <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
+                <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
+                <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
+              </>
+            ) : null}
+            {localSettings?.settings.eventTypes.map((eventType) => {
+              const enabled = !localSettings.settings.mutedTypes.includes(eventType.key)
+              return (
+                <ToggleRow
+                  key={eventType.key}
+                  title={eventType.label}
+                  subtitle={enabled ? "Push включен" : "Push выключен"}
+                  value={enabled}
+                  onValueChange={() => toggleMutedType(eventType.key)}
+                />
+              )
+            })}
+          </Card>
+          <SectionTitle title="Безопасность" />
+          <Card>
+            <ActionRow icon="lock.shield.fill" title="Активные входы" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} />
+            {sessions.map((session) => (
+              <View key={session.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 8 }}>
+                <CompactRow
+                  title={session.deviceName ?? session.platform ?? "Мобильное устройство"}
+                  subtitle={`${session.platform ?? "APP"} · ${session.ip ?? "IP скрыт"} · ${formatDateTime(session.lastUsedAt)}`}
+                  tone={colors.slate}
+                />
+                <SecondaryButton title="Отключить вход" icon="xmark.circle.fill" onPress={() => revokeSession(session.id)} />
+              </View>
+            ))}
+            {sessions.length === 0 && !sessionsBusy ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Активных мобильных входов нет</Text> : null}
+          </Card>
+        </>
+      ) : null}
       {!settingsOnly ? (
         <>
           <SectionTitle title="Объекты" />
@@ -1842,6 +1969,15 @@ function More({
         </>
       ) : null}
     </>
+  )
+}
+
+function BackButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ alignSelf: "flex-start", minHeight: 40, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: "#ffffff", paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <AppIcon name="chevron.left" size={18} color={colors.blue} />
+      <Text style={{ color: colors.blue, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>Назад</Text>
+    </Pressable>
   )
 }
 
@@ -2134,6 +2270,14 @@ function rootTab(tab: string) {
   return tab.split(":")[0] || "home"
 }
 
+function backTargetForTab(tab: string) {
+  const [tabKey, tabParam] = tab.split(":")
+  if (tabKey === "tenant") return "tenants"
+  if (tabKey === "documents" && tabParam) return `tenant:${tabParam}`
+  if (tabKey === "settings") return "more"
+  return null
+}
+
 function hasTabData(data: AppData, role: string, tabKey: string) {
   if (role === "TENANT") {
     if (tabKey === "payments") return !!data.tenantFinances
@@ -2144,6 +2288,7 @@ function hasTabData(data: AppData, role: string, tabKey: string) {
   }
 
   if (tabKey === "tenants") return !!data.adminTenants
+  if (tabKey === "tenant") return !!data.adminTenants
   if (tabKey === "documents") return !!data.adminDocuments
   if (tabKey === "requests") return !!data.adminRequests
   if (tabKey === "payments") return !!data.adminPayments
@@ -2174,7 +2319,7 @@ function tabsForRole(role?: string | null) {
 
   if (role === "OWNER") {
     return [
-      { key: "owner", label: "KPI", icon: "chart.line.uptrend.xyaxis" },
+      { key: "owner", label: "Объекты", icon: "chart.line.uptrend.xyaxis" },
       { key: "tenants", label: "Аренд.", icon: "person.2.fill" },
       { key: "documents", label: "Док.", icon: "doc.text.fill" },
       { key: "payments", label: "Оплаты", icon: "creditcard.fill" },
@@ -2231,8 +2376,16 @@ function formatMoney(value: number) {
   }).format(value)
 }
 
+function formatArea(value: number) {
+  return `${value.toLocaleString("ru-RU")} м²`
+}
+
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })
+}
+
+function formatDateFull(value: string) {
+  return new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
 function formatDateTime(value: string) {
@@ -2243,6 +2396,17 @@ function formatFileSize(value?: number | null) {
   if (!value || value <= 0) return "размер не указан"
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`
   return `${(value / 1024 / 1024).toFixed(1)} MB`
+}
+
+function legalTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    IP: "ИП",
+    TOO: "ТОО",
+    LLP: "ТОО",
+    AO: "АО",
+    PERSON: "Физ. лицо",
+  }
+  return labels[type] ?? type
 }
 
 function documentTypeLabel(type: string) {
@@ -2266,6 +2430,24 @@ function categoryTitle(category: string) {
     RECONCILIATION: "Акты сверки",
   }
   return labels[category] ?? "Файлы"
+}
+
+function isPendingSignatureStatus(status: string) {
+  return ["PENDING", "VIEWED"].includes(status)
+}
+
+function signatureStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    PENDING: "Ожидает",
+    VIEWED: "Просмотрен",
+    SIGNED: "Подписан",
+    REJECTED: "Отклонен",
+  }
+  return labels[status] ?? status
+}
+
+function isPendingContractStatus(status: string) {
+  return ["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(status)
 }
 
 function contractTypeLabel(type: string) {
@@ -2294,6 +2476,23 @@ function contractStatusColor(status: string) {
   if (["SIGNED"].includes(status)) return colors.green
   if (["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(status)) return colors.orange
   if (["REJECTED", "EXPIRED"].includes(status)) return colors.red
+  return colors.blue
+}
+
+function paymentStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    PENDING: "На проверке",
+    DISPUTED: "Требует уточнения",
+    REJECTED: "Отклонено",
+    CONFIRMED: "Подтверждено",
+  }
+  return labels[status] ?? status
+}
+
+function paymentStatusColor(status: string) {
+  if (status === "CONFIRMED") return colors.green
+  if (status === "DISPUTED") return colors.orange
+  if (status === "REJECTED") return colors.red
   return colors.blue
 }
 

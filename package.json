@@ -1,6 +1,6 @@
 {
   "name": "arenda-pro",
-  "version": "1.3.141",
+  "version": "1.3.142",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,6 +9,7 @@
     "lint": "eslint",
     "perf:audit": "node scripts/performance-audit.mjs",
     "security:audit": "node scripts/security-isolation-audit.mjs",
+    "ci:performance-gate": "node scripts/ci-performance-gate.mjs",
     "test:e2e:payment": "tsx scripts/e2e-critical-payment.ts",
     "test:e2e:isolation": "tsx scripts/e2e-isolation.ts",
     "test:e2e:web": "playwright test",
@@ -16,7 +17,7 @@
     "test:e2e:web:report": "playwright show-report",
     "test:mobile:typecheck": "npm --prefix mobile run typecheck",
     "audit:site": "playwright test tests/e2e/full-site-audit.spec.ts --project=chromium-desktop --workers=1",
-    "quality:audit": "npm run lint && npm run perf:audit && npm run security:audit && npm run test:e2e:payment && npm run test:e2e:isolation"
+    "quality:audit": "npm run lint && npm run ci:performance-gate && npm run test:e2e:payment && npm run test:e2e:isolation"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
