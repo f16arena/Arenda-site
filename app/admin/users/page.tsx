@@ -24,10 +24,12 @@ import {
   CreateUserDialog,
   DeleteUserButton,
   EditUserDialog,
+  UserApprovalButtons,
   UserCapabilitiesDialog,
   ResetPasswordDialog,
   ToggleActiveButton,
 } from "./user-actions"
+import { APPROVAL_PENDING, APPROVAL_REJECTED, approvalLabel } from "@/lib/approval"
 
 type EffectiveCapabilityState = {
   allowed: boolean
@@ -67,6 +69,9 @@ export default async function UsersPage() {
         phone: true,
         role: true,
         isActive: true,
+        approvalStatus: true,
+        approvalRequestedAt: true,
+        rejectionReason: true,
         createdAt: true,
         tenant: { select: { id: true, companyName: true } },
         staff: { select: { id: true, position: true, salary: true } },
@@ -247,6 +252,7 @@ export default async function UsersPage() {
     if (user.isActive) acc[user.role] = (acc[user.role] ?? 0) + 1
     return acc
   }, {})
+  const pendingUsers = users.filter((user) => user.approvalStatus === APPROVAL_PENDING)
 
   return (
     <div className="space-y-5">
@@ -284,6 +290,27 @@ export default async function UsersPage() {
           </div>
         ))}
       </div>
+
+      {pendingUsers.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <p className="text-sm font-semibold text-amber-100">Пользователи ожидают подтверждения</p>
+          <p className="mt-1 text-xs text-amber-200/75">
+            Подтвердите только тех администраторов и арендаторов, которых вы реально подключали к организации.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {pendingUsers.slice(0, 6).map((user) => (
+              <span key={user.id} className="rounded-full border border-amber-500/30 bg-slate-950/40 px-3 py-1 text-xs text-amber-100">
+                {user.name} · {displayRoleLabel(user.role)}
+              </span>
+            ))}
+            {pendingUsers.length > 6 && (
+              <span className="rounded-full border border-amber-500/30 px-3 py-1 text-xs text-amber-100">
+                +{pendingUsers.length - 6}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-800 bg-slate-900">
         <div className="flex flex-col gap-3 border-b border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -397,6 +424,14 @@ export default async function UsersPage() {
                           {!user.isActive && (
                             <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
                           )}
+                          {user.approvalStatus === APPROVAL_PENDING && (
+                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200">на подтверждении</span>
+                          )}
+                          {user.approvalStatus === APPROVAL_REJECTED && (
+                            <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-red-200">
+                              {approvalLabel(user.approvalStatus)}
+                            </span>
+                          )}
                         </p>
                         <p className="font-mono text-xs text-slate-500">{user.id}</p>
                       </div>
@@ -451,6 +486,9 @@ export default async function UsersPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-2">
+                      {user.approvalStatus === APPROVAL_PENDING && user.role !== "OWNER" && (
+                        <UserApprovalButtons userId={user.id} userName={user.name} />
+                      )}
                       {currentCapabilities.has("users.edit") && (
                         <EditUserDialog
                           user={{

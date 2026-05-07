@@ -11,15 +11,20 @@ import type { Prisma } from "@/app/generated/prisma/client"
 import { safeServerValue } from "@/lib/server-fallback"
 import { OrgRowActions } from "./row-actions"
 import { cn } from "@/lib/utils"
+import { APPROVAL_PENDING, APPROVAL_REJECTED } from "@/lib/approval"
+import { approveOrganizationRegistration, rejectOrganizationRegistration } from "@/app/actions/approvals"
 
 const PAGE_SIZE = 30
-type StatusFilter = "all" | "active" | "expiring" | "suspended" | "inactive"
+type StatusFilter = "all" | "pending" | "active" | "expiring" | "suspended" | "inactive" | "rejected"
 type OrgListItem = {
   id: string
   name: string
   slug: string
   isActive: boolean
   isSuspended: boolean
+  approvalStatus: string
+  rejectionReason: string | null
+  approvalRequestedAtLabel: string | null
   hasOwner: boolean
   planName: string | null
   planExpiresAt: string | null
@@ -57,9 +62,13 @@ export default async function OrgsListPage({
           }
         : {},
       status === "active"
-        ? { isActive: true, isSuspended: false, OR: [{ planExpiresAt: null }, { planExpiresAt: { gte: now } }] }
+        ? { isActive: true, isSuspended: false, approvalStatus: "APPROVED", OR: [{ planExpiresAt: null }, { planExpiresAt: { gte: now } }] }
+        : status === "pending"
+          ? { approvalStatus: APPROVAL_PENDING }
+          : status === "rejected"
+            ? { approvalStatus: APPROVAL_REJECTED }
         : status === "expiring"
-          ? { isActive: true, isSuspended: false, planExpiresAt: { lte: sevenDays } }
+          ? { isActive: true, isSuspended: false, approvalStatus: "APPROVED", planExpiresAt: { lte: sevenDays } }
           : status === "suspended"
             ? { isSuspended: true }
             : status === "inactive"
@@ -75,6 +84,7 @@ export default async function OrgsListPage({
         where,
         select: {
           id: true, name: true, slug: true, isActive: true, isSuspended: true,
+          approvalStatus: true, approvalRequestedAt: true, rejectionReason: true,
           planExpiresAt: true, createdAt: true, ownerUserId: true,
           plan: { select: { name: true, code: true, priceMonthly: true } },
           _count: { select: { buildings: true, users: true } },
@@ -88,7 +98,8 @@ export default async function OrgsListPage({
     safe("superadmin.orgs.total", db.organization.count({ where }), 0),
     Promise.all([
       safe("superadmin.orgs.stats.total", db.organization.count(), 0),
-      safe("superadmin.orgs.stats.active", db.organization.count({ where: { isActive: true, isSuspended: false } }), 0),
+      safe("superadmin.orgs.stats.active", db.organization.count({ where: { isActive: true, isSuspended: false, approvalStatus: "APPROVED" } }), 0),
+      safe("superadmin.orgs.stats.pending", db.organization.count({ where: { approvalStatus: APPROVAL_PENDING } }), 0),
       safe("superadmin.orgs.stats.suspended", db.organization.count({ where: { isSuspended: true } }), 0),
       safe(
         "superadmin.orgs.stats.expiringSoon",
@@ -96,14 +107,16 @@ export default async function OrgsListPage({
           where: {
             isActive: true,
             isSuspended: false,
+            approvalStatus: "APPROVED",
             planExpiresAt: { gte: now, lte: sevenDays },
           },
         }),
         0,
       ),
-    ]).then(([all, active, suspended, expiringSoon]) => ({
+    ]).then(([all, active, pending, suspended, expiringSoon]) => ({
       total: all,
       active,
+      pending,
       suspended,
       expiringSoon,
     })),
@@ -121,6 +134,9 @@ export default async function OrgsListPage({
       slug: o.slug,
       isActive: o.isActive,
       isSuspended: o.isSuspended,
+      approvalStatus: o.approvalStatus,
+      rejectionReason: o.rejectionReason,
+      approvalRequestedAtLabel: o.approvalRequestedAt ? formatDateRu(o.approvalRequestedAt) : null,
       hasOwner: !!o.ownerUserId,
       planName: o.plan?.name ?? null,
       planExpiresAt: o.planExpiresAt ? o.planExpiresAt.toISOString() : null,
@@ -170,10 +186,12 @@ export default async function OrgsListPage({
         <div className="mt-3 flex flex-wrap gap-1.5">
           {[
             ["all", "Все", stats.total],
+            ["pending", "На подтверждение", stats.pending],
             ["active", "Активные", stats.active],
             ["expiring", "Истекают", stats.expiringSoon],
             ["suspended", "Приостановлено", stats.suspended],
             ["inactive", "Деактивировано", null],
+            ["rejected", "Отклонено", null],
           ].map(([value, label, count]) => {
             const filter = value as StatusFilter
             const active = status === filter
@@ -201,8 +219,9 @@ export default async function OrgsListPage({
       </div>
 
       {/* KPI mini-cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard label="Всего" value={stats.total} icon={Building2} color="slate" />
+        <KpiCard label="На подтверждении" value={stats.pending} icon={Clock} color="amber" />
         <KpiCard label="Активных" value={stats.active} icon={CheckCircle2} color="emerald" />
         <KpiCard label="Истекают за 7 дн." value={stats.expiringSoon} icon={Clock} color="amber" />
         <KpiCard label="Приостановлено" value={stats.suspended} icon={Pause} color="red" />
@@ -255,11 +274,13 @@ function OrgsTable({ items, rootHost }: { items: OrgListItem[]; rootHost: string
 
 function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
   const orgUrl = `https://${org.slug}.${rootHost}`
+  const isPendingApproval = org.approvalStatus === APPROVAL_PENDING
 
   return (
     <tr
       className={cn(
         "border-b border-slate-50 transition hover:bg-slate-50 dark:bg-slate-800/50 dark:hover:bg-slate-800/50",
+        isPendingApproval && "bg-amber-50 dark:bg-amber-500/10",
         org.isSuspended && "bg-red-50 dark:bg-red-500/10",
         !org.isActive && "opacity-60",
       )}
@@ -281,6 +302,16 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
             {org.slug}.{rootHost}
             <ExternalLink className="h-2.5 w-2.5" />
           </a>
+          {isPendingApproval && (
+            <p className="mt-1 text-[10px] font-medium text-amber-600 dark:text-amber-300">
+              Заявка от {org.approvalRequestedAtLabel ?? "сегодня"}
+            </p>
+          )}
+          {org.approvalStatus === APPROVAL_REJECTED && org.rejectionReason && (
+            <p className="mt-1 max-w-64 truncate text-[10px] text-red-500" title={org.rejectionReason}>
+              {org.rejectionReason}
+            </p>
+          )}
         </div>
       </td>
       <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
@@ -320,7 +351,11 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
       <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{org.buildingsCount}</td>
       <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{org.usersCount}</td>
       <td className="px-5 py-3.5">
-        {org.isSuspended ? (
+        {isPendingApproval ? (
+          <Badge color="amber">На подтверждении</Badge>
+        ) : org.approvalStatus === APPROVAL_REJECTED ? (
+          <Badge color="red">Отклонено</Badge>
+        ) : org.isSuspended ? (
           <Badge color="red" icon={AlertTriangle}>Приостановлен</Badge>
         ) : !org.isActive ? (
           <Badge color="slate" icon={Pause}>Деактивирован</Badge>
@@ -333,12 +368,28 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
         )}
       </td>
       <td className="px-5 py-3.5">
-        <OrgRowActions
-          id={org.id}
-          name={org.name}
-          hasOwner={org.hasOwner}
-          isActive={org.isActive}
-        />
+        {isPendingApproval ? (
+          <div className="flex items-center justify-end gap-1.5">
+            <form action={approveOrganizationRegistration.bind(null, org.id)}>
+              <button className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-emerald-700">
+                Подтвердить
+              </button>
+            </form>
+            <form action={rejectOrganizationRegistration.bind(null, org.id)}>
+              <input type="hidden" name="reason" value="Отклонено суперадмином" />
+              <button className="rounded-md border border-red-300 px-2.5 py-1.5 text-[11px] font-medium text-red-600 transition hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10">
+                Отклонить
+              </button>
+            </form>
+          </div>
+        ) : (
+          <OrgRowActions
+            id={org.id}
+            name={org.name}
+            hasOwner={org.hasOwner}
+            isActive={org.isActive}
+          />
+        )}
       </td>
     </tr>
   )
@@ -385,7 +436,7 @@ function one(value: string | string[] | undefined) {
 }
 
 function normalizeStatus(value: string): StatusFilter {
-  return value === "active" || value === "expiring" || value === "suspended" || value === "inactive"
+  return value === "pending" || value === "active" || value === "expiring" || value === "suspended" || value === "inactive" || value === "rejected"
     ? value
     : "all"
 }

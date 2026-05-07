@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
 import { getLoginIdentifiers } from "@/lib/contact-validation"
+import { loginBlockReason } from "@/lib/approval"
 import bcrypt from "bcryptjs"
 
 const isProduction = process.env.NODE_ENV === "production"
@@ -42,6 +43,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               ]),
               isActive: true,
             },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              password: true,
+              role: true,
+              organizationId: true,
+              isPlatformOwner: true,
+              approvalStatus: true,
+              rejectionReason: true,
+              totpEnabledAt: true,
+              totpSecret: true,
+              organization: {
+                select: {
+                  approvalStatus: true,
+                  rejectionReason: true,
+                  isActive: true,
+                  isSuspended: true,
+                },
+              },
+            },
           })
 
           if (!user) return null
@@ -51,6 +73,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             user.password
           )
           if (!isValid) return null
+
+          if (!user.isPlatformOwner) {
+            if (!user.organization?.isActive || user.organization.isSuspended) return null
+            const blockReason = loginBlockReason({
+              userStatus: user.approvalStatus,
+              orgStatus: user.organization.approvalStatus,
+              userRejectionReason: user.rejectionReason,
+              orgRejectionReason: user.organization.rejectionReason,
+            })
+            if (blockReason) return null
+          }
 
           // Если у пользователя включена 2FA — требуем код
           if (user.totpEnabledAt && user.totpSecret) {

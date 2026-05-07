@@ -1,9 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { redirect } from "next/navigation"
 import { headers } from "next/headers"
-import { signIn } from "@/auth"
 import { validateSlug } from "@/lib/reserved-slugs"
 import { slugify, suggestSlugs } from "@/lib/slugify"
 import { ROOT_HOST } from "@/lib/host"
@@ -11,13 +9,15 @@ import { audit } from "@/lib/audit"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { APPROVAL_PENDING } from "@/lib/approval"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 
-const TRIAL_DAYS = 14
-
 export interface SignupResult {
   ok: boolean
+  pendingApproval?: boolean
+  message?: string
+  orgSlug?: string
   error?: string
   details?: { step: string; ms: number; ok: boolean; note?: string }[]
 }
@@ -124,22 +124,24 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   }
   step("user.checkUnique", t0, true)
 
-  // ── Создание организации + владельца + подписки ──────────────
+  // ── Создание заявки организации + владельца ──────────────────
   t0 = Date.now()
-  const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + TRIAL_DAYS)
 
   let orgId: string
   let userId: string
   try {
     const hash = await bcrypt.hash(password, 10)
+    const requestedAt = new Date()
 
     const org = await db.organization.create({
       data: {
         name: companyName,
         slug,
         planId: trialPlan.id,
-        planExpiresAt: expiresAt,
+        planExpiresAt: null,
+        isActive: false,
+        approvalStatus: APPROVAL_PENDING,
+        approvalRequestedAt: requestedAt,
       },
     })
     orgId = org.id
@@ -152,6 +154,9 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
         password: hash,
         role: "OWNER",
         organizationId: org.id,
+        isActive: true,
+        approvalStatus: APPROVAL_PENDING,
+        approvalRequestedAt: requestedAt,
       },
       select: { id: true },
     })
@@ -160,16 +165,6 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     await db.organization.update({
       where: { id: org.id },
       data: { ownerUserId: user.id },
-    })
-
-    await db.subscription.create({
-      data: {
-        organizationId: org.id,
-        planId: trialPlan.id,
-        expiresAt,
-        paymentMethod: "TRIAL",
-        notes: "Самостоятельная регистрация · 14-дневный триал",
-      },
     })
 
     step("create.all", t0, true, `org=${org.id} user=${user.id}`)
@@ -183,7 +178,7 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     action: "CREATE",
     entity: "tenant",
     entityId: orgId,
-    details: { type: "organization", source: "signup", slug, name: companyName },
+    details: { type: "organization", source: "signup", slug, name: companyName, approvalStatus: APPROVAL_PENDING },
   })
 
   // ── Welcome-письмо + ссылка для подтверждения email ─────────────
@@ -207,15 +202,13 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
       const h = await headers()
       const proto = h.get("x-forwarded-proto") ?? "https"
       const verifyLink = `${proto}://${ROOT_HOST}/verify-email?token=${token}`
-      const adminLink = `${proto}://${slug}.${ROOT_HOST}/admin`
 
       const html = basicEmailTemplate({
-        title: "Добро пожаловать в Commrent!",
+        title: "Заявка в Commrent принята",
         body: `<p>Здравствуйте, ${ownerName}!</p>
-<p>Ваша организация <b>${companyName}</b> успешно зарегистрирована в Commrent.</p>
-<p>Доступ к рабочему кабинету: <a href="${adminLink}">${slug}.commrent.kz</a></p>
+<p>Ваша организация <b>${companyName}</b> отправлена на подтверждение.</p>
+<p>После подтверждения суперадмином вам будет открыт кабинет <b>${slug}.commrent.kz</b>, а 14-дневный триал начнется этой датой.</p>
 <p>Логин: <b>${ownerEmail}</b></p>
-<p>14 дней бесплатно — все функции тарифа «Бизнес». После пробного периода — выбор тарифа в кабинете.</p>
 <p>Подтвердите email, чтобы получать важные уведомления (договоры, счета, напоминания):</p>`,
         buttonText: "Подтвердить email",
         buttonUrl: verifyLink,
@@ -224,35 +217,20 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
 
       await sendEmail({
         to: ownerEmail,
-        subject: `Добро пожаловать в Commrent · ${companyName}`,
+        subject: `Заявка Commrent принята · ${companyName}`,
         html,
-        text: `Здравствуйте, ${ownerName}!\n\nВаша организация ${companyName} зарегистрирована.\nКабинет: ${adminLink}\n\nПодтвердите email: ${verifyLink}`,
+        text: `Здравствуйте, ${ownerName}!\n\nЗаявка организации ${companyName} отправлена на подтверждение. Кабинет ${slug}.commrent.kz и 14-дневный триал будут открыты после подтверждения суперадмином.\n\nПодтвердите email: ${verifyLink}`,
       })
     } catch (e) {
       console.warn("[signup] welcome email failed:", e instanceof Error ? e.message : e)
     }
   }
 
-  // ── Автологин ─────────────────────────────────────────────────
-  t0 = Date.now()
-  try {
-    await signIn("credentials", {
-      login: ownerEmail || ownerPhone,
-      password,
-      redirect: false,
-    })
-    step("signIn", t0, true)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    step("signIn", t0, false, msg)
-    // Если автологин упал — не страшно, перенаправим на /login
-    const h = await headers()
-    const proto = h.get("x-forwarded-proto") ?? "https"
-    redirect(`${proto}://${ROOT_HOST}/login`)
+  return {
+    ok: true,
+    pendingApproval: true,
+    orgSlug: slug,
+    message: `Заявка ${companyName} отправлена на подтверждение. После подтверждения суперадмином владелец сможет войти в ${slug}.${ROOT_HOST}.`,
+    details,
   }
-
-  // ── Редирект на slug-поддомен → onboarding wizard ────────────
-  const h = await headers()
-  const proto = h.get("x-forwarded-proto") ?? "https"
-  redirect(`${proto}://${slug}.${ROOT_HOST}/admin/onboarding`)
 }

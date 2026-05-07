@@ -8,6 +8,7 @@ import { db } from "@/lib/db"
 import { parseHost, ROOT_HOST } from "@/lib/host"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { getLoginIdentifiers } from "@/lib/contact-validation"
+import { loginBlockReason } from "@/lib/approval"
 
 export interface LoginState {
   error?: string
@@ -64,8 +65,16 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     role: string
     isActive: boolean
     isPlatformOwner: boolean
+    approvalStatus: string
+    rejectionReason: string | null
     organizationId: string | null
-    organization: { slug: string } | null
+    organization: {
+      slug: string
+      isActive: boolean
+      isSuspended: boolean
+      approvalStatus: string
+      rejectionReason: string | null
+    } | null
   } | null = null
   t0 = Date.now()
   try {
@@ -81,8 +90,18 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
         role: true,
         isActive: true,
         isPlatformOwner: true,
+        approvalStatus: true,
+        rejectionReason: true,
         organizationId: true,
-        organization: { select: { slug: true } },
+        organization: {
+          select: {
+            slug: true,
+            isActive: true,
+            isSuspended: true,
+            approvalStatus: true,
+            rejectionReason: true,
+          },
+        },
       },
     })
     step("db.findUser", t0, true, user ? `id=${user.id} role=${user.role} active=${user.isActive}` : "not_found")
@@ -97,6 +116,20 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
 
   if (!user) {
     return { error: genericAuthError, details }
+  }
+  if (!user.isPlatformOwner) {
+    const blockReason = loginBlockReason({
+      userStatus: user.approvalStatus,
+      orgStatus: user.organization?.approvalStatus,
+      userRejectionReason: user.rejectionReason,
+      orgRejectionReason: user.organization?.rejectionReason,
+    })
+    if (blockReason) {
+      return { error: blockReason, details }
+    }
+    if (!user.organization?.isActive || user.organization.isSuspended) {
+      return { error: "Организация не активна или приостановлена. Обратитесь к владельцу или поддержке.", details }
+    }
   }
   if (!user.isActive) {
     return { error: genericAuthError, details }

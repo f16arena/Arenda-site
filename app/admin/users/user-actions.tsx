@@ -4,6 +4,10 @@ import { useMemo, useState, useTransition } from "react"
 import { Edit2, Key, Lock, Plus, Power, Search, ShieldCheck, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
 import {
+  approveUserRegistration,
+  rejectUserRegistration,
+} from "@/app/actions/approvals"
+import {
   createUserAdmin,
   deleteUserAdmin,
   resetUserPassword,
@@ -85,6 +89,53 @@ export function CreateUserDialog({
           </form>
         </Modal>
       )}
+    </>
+  )
+}
+
+export function UserApprovalButtons({ userId, userName }: { userId: string; userName: string }) {
+  const [pending, startTransition] = useTransition()
+
+  return (
+    <>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          startTransition(async () => {
+            try {
+              await approveUserRegistration(userId)
+              toast.success(`Пользователь ${userName} подтвержден`)
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Не удалось подтвердить пользователя")
+            }
+          })
+        }}
+        className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
+      >
+        Подтвердить
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => {
+          const reason = prompt(`Почему отклоняем заявку ${userName}?`)?.trim()
+          if (reason === undefined) return
+          const formData = new FormData()
+          formData.set("reason", reason || "Отклонено владельцем")
+          startTransition(async () => {
+            try {
+              await rejectUserRegistration(userId, formData)
+              toast.success(`Заявка ${userName} отклонена`)
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Не удалось отклонить пользователя")
+            }
+          })
+        }}
+        className="rounded-md border border-red-500/40 px-2.5 py-1.5 text-[11px] font-medium text-red-300 transition hover:bg-red-500/10 disabled:opacity-60"
+      >
+        Отклонить
+      </button>
     </>
   )
 }

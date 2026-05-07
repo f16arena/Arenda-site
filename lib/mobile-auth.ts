@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { getLoginIdentifiers } from "@/lib/contact-validation"
+import { loginBlockReason } from "@/lib/approval"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 
@@ -63,8 +64,18 @@ export async function verifyMobileCredentials(input: {
       role: true,
       organizationId: true,
       isPlatformOwner: true,
+      approvalStatus: true,
+      rejectionReason: true,
       totpSecret: true,
       totpEnabledAt: true,
+      organization: {
+        select: {
+          isActive: true,
+          isSuspended: true,
+          approvalStatus: true,
+          rejectionReason: true,
+        },
+      },
     },
   })
 
@@ -75,6 +86,19 @@ export async function verifyMobileCredentials(input: {
   const passwordOk = await bcrypt.compare(input.password, user.password)
   if (!passwordOk) {
     throw new MobileAuthError("Invalid credentials", 401, "INVALID_CREDENTIALS")
+  }
+
+  if (!user.isPlatformOwner) {
+    const blockReason = loginBlockReason({
+      userStatus: user.approvalStatus,
+      orgStatus: user.organization?.approvalStatus,
+      userRejectionReason: user.rejectionReason,
+      orgRejectionReason: user.organization?.rejectionReason,
+    })
+    if (blockReason) throw new MobileAuthError(blockReason, 403, "APPROVAL_REQUIRED")
+    if (!user.organization?.isActive || user.organization.isSuspended) {
+      throw new MobileAuthError("Организация не активна или приостановлена", 403, "ORG_INACTIVE")
+    }
   }
 
   if (user.totpEnabledAt && user.totpSecret) {
@@ -162,15 +186,16 @@ export async function verifyMobileBearer(req: Request) {
         role: true,
         organizationId: true,
         isPlatformOwner: true,
+        approvalStatus: true,
       },
     }),
     db.organization.findUnique({
       where: { id: session.organizationId },
-      select: { id: true, name: true, slug: true, isActive: true, isSuspended: true },
+      select: { id: true, name: true, slug: true, isActive: true, isSuspended: true, approvalStatus: true },
     }),
   ])
 
-  if (!user?.organizationId || !org?.isActive) return null
+  if (!user?.organizationId || !org?.isActive || org.isSuspended || user.approvalStatus !== "APPROVED" || org.approvalStatus !== "APPROVED") return null
 
   await db.mobileSession.update({
     where: { id: session.id },
@@ -210,10 +235,18 @@ export async function refreshMobileSession(refreshToken: string, meta: DeviceMet
       role: true,
       organizationId: true,
       isPlatformOwner: true,
+      approvalStatus: true,
     },
   })
 
-  if (!user?.organizationId) {
+  const org = user?.organizationId
+    ? await db.organization.findUnique({
+        where: { id: user.organizationId },
+        select: { isActive: true, isSuspended: true, approvalStatus: true },
+      })
+    : null
+
+  if (!user?.organizationId || user.approvalStatus !== "APPROVED" || !org?.isActive || org.isSuspended || org.approvalStatus !== "APPROVED") {
     throw new MobileAuthError("User is not active", 401, "USER_INACTIVE")
   }
 

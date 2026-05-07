@@ -50,6 +50,35 @@ export function SignupForm() {
     setSlug(slugify(value, { trimEnd: false }))
   }
 
+  if (state?.pendingApproval) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+            <Check className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-semibold">Заявка отправлена на подтверждение</p>
+            <p className="mt-1 leading-6">
+              {state.message ?? "Суперадмин проверит заявку. После подтверждения можно будет войти в кабинет."}
+            </p>
+            {state.orgSlug && (
+              <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 font-mono text-xs text-emerald-800 dark:bg-slate-950/50 dark:text-emerald-200">
+                {state.orgSlug}.commrent.kz
+              </p>
+            )}
+          </div>
+        </div>
+        <Link
+          href="/login"
+          className="inline-flex w-full items-center justify-center rounded-lg border border-emerald-300 bg-white px-4 py-2.5 font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-slate-950/50 dark:text-emerald-100"
+        >
+          Перейти ко входу
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <form action={action} className="space-y-5">
       <Section title="О вашей компании">

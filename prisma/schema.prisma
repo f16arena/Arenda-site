@@ -8,36 +8,41 @@ datasource db {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  name             String
-  phone            String?   @unique
-  email            String?   @unique
-  password         String
-  role             String    @default("TENANT")
-  isActive         Boolean   @default(true) @map("is_active")
-  telegramChatId   String?   @map("telegram_chat_id")
-  organizationId   String?   @map("organization_id") // null только для PLATFORM_OWNER
-  isPlatformOwner  Boolean   @default(false) @map("is_platform_owner")
-  emailVerifiedAt  DateTime? @map("email_verified_at")
-  phoneVerifiedAt  DateTime? @map("phone_verified_at")
+  id                      String    @id @default(cuid())
+  name                    String
+  phone                   String?   @unique
+  email                   String?   @unique
+  password                String
+  role                    String    @default("TENANT")
+  isActive                Boolean   @default(true) @map("is_active")
+  approvalStatus          String    @default("APPROVED") @map("approval_status")
+  approvalRequestedAt     DateTime? @map("approval_requested_at")
+  approvedAt              DateTime? @map("approved_at")
+  approvedById            String?   @map("approved_by_id")
+  rejectionReason         String?   @map("rejection_reason")
+  telegramChatId          String?   @map("telegram_chat_id")
+  organizationId          String?   @map("organization_id") // null только для PLATFORM_OWNER
+  isPlatformOwner         Boolean   @default(false) @map("is_platform_owner")
+  emailVerifiedAt         DateTime? @map("email_verified_at")
+  phoneVerifiedAt         DateTime? @map("phone_verified_at")
   // Настройки каналов уведомлений (true = включён, по умолчанию всё включено)
-  notifyEmail      Boolean   @default(true) @map("notify_email")
-  notifyTelegram   Boolean   @default(true) @map("notify_telegram")
-  notifyInApp      Boolean   @default(true) @map("notify_in_app")
-  notifySms        Boolean   @default(false) @map("notify_sms") // SMS дороже — выключено по умолчанию
-  notifyQuietHoursEnabled Boolean @default(false) @map("notify_quiet_hours_enabled")
-  notifyQuietFrom         String  @default("22:00") @map("notify_quiet_from")
-  notifyQuietTo           String  @default("08:00") @map("notify_quiet_to")
+  notifyEmail             Boolean   @default(true) @map("notify_email")
+  notifyTelegram          Boolean   @default(true) @map("notify_telegram")
+  notifyInApp             Boolean   @default(true) @map("notify_in_app")
+  notifySms               Boolean   @default(false) @map("notify_sms") // SMS дороже — выключено по умолчанию
+  notifyQuietHoursEnabled Boolean   @default(false) @map("notify_quiet_hours_enabled")
+  notifyQuietFrom         String    @default("22:00") @map("notify_quiet_from")
+  notifyQuietTo           String    @default("08:00") @map("notify_quiet_to")
   // Какие типы событий присылать (JSON-объект с булевыми полями)
   // Если null — все типы включены. Иначе ключ с false выключает уведомления этого типа.
-  notifyMutedTypes Json?     @map("notify_muted_types")
+  notifyMutedTypes        Json?     @map("notify_muted_types")
   // 2FA (TOTP) — base32 secret для Google Authenticator. enabledAt = когда включена.
-  totpSecret       String?   @map("totp_secret")
-  totpEnabledAt    DateTime? @map("totp_enabled_at")
+  totpSecret              String?   @map("totp_secret")
+  totpEnabledAt           DateTime? @map("totp_enabled_at")
   // Резервные коды для входа без приложения (хешированные)
-  totpBackupCodes  Json?     @map("totp_backup_codes")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  totpBackupCodes         Json?     @map("totp_backup_codes")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
 
   organization           Organization?        @relation(fields: [organizationId], references: [id])
   tenant                 Tenant?
@@ -58,6 +63,8 @@ model User {
 
   @@index([organizationId])
   @@index([organizationId, role, isActive])
+  @@index([organizationId, approvalStatus, role])
+  @@index([approvalStatus, createdAt])
   @@map("users")
 }
 
@@ -83,38 +90,43 @@ model ApiKey {
 }
 
 model Organization {
-  id               String    @id @default(cuid())
-  name             String
-  slug             String    @unique
-  legalType        String?   @map("legal_type")
-  legalName        String?   @map("legal_name")
-  shortName        String?   @map("short_name")
-  bin              String?
-  iin              String?
-  directorName     String?   @map("director_name")
-  directorPosition String?   @map("director_position")
-  basis            String?
-  legalAddress     String?   @map("legal_address")
-  actualAddress    String?   @map("actual_address")
-  bankName         String?   @map("bank_name")
-  iik              String?
-  bik              String?
-  secondBankName   String?   @map("second_bank_name")
-  secondIik        String?   @map("second_iik")
-  secondBik        String?   @map("second_bik")
-  phone            String?
-  email            String?
-  isActive         Boolean   @default(true) @map("is_active")
-  isSuspended      Boolean   @default(false) @map("is_suspended")
-  ownerUserId      String?   @map("owner_user_id")
-  planId           String?   @map("plan_id")
-  planExpiresAt    DateTime? @map("plan_expires_at")
+  id                  String    @id @default(cuid())
+  name                String
+  slug                String    @unique
+  legalType           String?   @map("legal_type")
+  legalName           String?   @map("legal_name")
+  shortName           String?   @map("short_name")
+  bin                 String?
+  iin                 String?
+  directorName        String?   @map("director_name")
+  directorPosition    String?   @map("director_position")
+  basis               String?
+  legalAddress        String?   @map("legal_address")
+  actualAddress       String?   @map("actual_address")
+  bankName            String?   @map("bank_name")
+  iik                 String?
+  bik                 String?
+  secondBankName      String?   @map("second_bank_name")
+  secondIik           String?   @map("second_iik")
+  secondBik           String?   @map("second_bik")
+  phone               String?
+  email               String?
+  isActive            Boolean   @default(true) @map("is_active")
+  isSuspended         Boolean   @default(false) @map("is_suspended")
+  approvalStatus      String    @default("APPROVED") @map("approval_status")
+  approvalRequestedAt DateTime? @map("approval_requested_at")
+  approvedAt          DateTime? @map("approved_at")
+  approvedById        String?   @map("approved_by_id")
+  rejectionReason     String?   @map("rejection_reason")
+  ownerUserId         String?   @map("owner_user_id")
+  planId              String?   @map("plan_id")
+  planExpiresAt       DateTime? @map("plan_expires_at")
   // НДС: для арендодателя — выставляются ли документы с НДС
-  isVatPayer       Boolean   @default(false) @map("is_vat_payer")
-  vatRate          Float     @default(16) @map("vat_rate")
-  vatNumber        String?   @map("vat_number")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  isVatPayer          Boolean   @default(false) @map("is_vat_payer")
+  vatRate             Float     @default(16) @map("vat_rate")
+  vatNumber           String?   @map("vat_number")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   plan          Plan?          @relation(fields: [planId], references: [id])
   buildings     Building[]
@@ -125,27 +137,29 @@ model Organization {
   faqArticles   FaqArticle[]
   storedFiles   StoredFile[]
 
+  @@index([approvalStatus, createdAt])
+  @@index([isActive, approvalStatus])
   @@map("organizations")
 }
 
 model AddressCache {
-  id           String   @id @default(cuid())
-  countryCode  String   @default("kz") @map("country_code")
-  queryKey     String   @map("query_key")
-  displayName  String   @map("display_name")
-  region       String?
-  city         String?
-  settlement   String?
-  street       String?
-  houseNumber  String?  @map("house_number")
-  postcode     String?
-  latitude     Float?
-  longitude    Float?
-  source       String   @default("PHOTON")
-  sourceId     String?  @map("source_id")
-  raw          Json?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  countryCode String   @default("kz") @map("country_code")
+  queryKey    String   @map("query_key")
+  displayName String   @map("display_name")
+  region      String?
+  city        String?
+  settlement  String?
+  street      String?
+  houseNumber String?  @map("house_number")
+  postcode    String?
+  latitude    Float?
+  longitude   Float?
+  source      String   @default("PHOTON")
+  sourceId    String?  @map("source_id")
+  raw         Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@unique([source, sourceId])
   @@index([countryCode, queryKey])
@@ -478,8 +492,8 @@ model Tenant {
   blacklistReason  String?   @map("blacklist_reason")
   createdAt        DateTime  @default(now()) @map("created_at")
 
-  user           User             @relation(fields: [userId], references: [id])
-  space          Space?           @relation(fields: [spaceId], references: [id])
+  user           User                @relation(fields: [userId], references: [id])
+  space          Space?              @relation(fields: [spaceId], references: [id])
   tenantSpaces   TenantSpace[]
   charges        Charge[]
   payments       Payment[]
@@ -488,7 +502,7 @@ model Tenant {
   documents      TenantDocument[]
   storedFiles    StoredFile[]
   requests       Request[]
-  fullFloors     Floor[]          @relation("FullFloorTenant")
+  fullFloors     Floor[]             @relation("FullFloorTenant")
   bankAccounts   TenantBankAccount[]
 
   @@map("tenants")
@@ -1064,23 +1078,23 @@ model PushDevice {
 }
 
 model MobileSession {
-  id                 String    @id @default(cuid())
-  userId             String    @map("user_id")
-  organizationId     String    @map("organization_id")
-  accessTokenHash    String    @unique @map("access_token_hash")
-  refreshTokenHash   String    @unique @map("refresh_token_hash")
-  deviceId           String?   @map("device_id")
-  deviceName         String?   @map("device_name")
-  platform           String?
-  appVersion         String?   @map("app_version")
-  userAgent          String?   @map("user_agent")
-  ip                 String?
-  expiresAt          DateTime  @map("expires_at")
-  refreshExpiresAt   DateTime  @map("refresh_expires_at")
-  revokedAt          DateTime? @map("revoked_at")
-  lastUsedAt         DateTime  @default(now()) @map("last_used_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  organizationId   String    @map("organization_id")
+  accessTokenHash  String    @unique @map("access_token_hash")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  deviceId         String?   @map("device_id")
+  deviceName       String?   @map("device_name")
+  platform         String?
+  appVersion       String?   @map("app_version")
+  userAgent        String?   @map("user_agent")
+  ip               String?
+  expiresAt        DateTime  @map("expires_at")
+  refreshExpiresAt DateTime  @map("refresh_expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   @@index([userId, revokedAt])
   @@index([organizationId, revokedAt])
