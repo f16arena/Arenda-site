@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 
 export type BatchBillingResult = {
@@ -61,9 +61,6 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
     errors: [],
   }
 
-  // Дата платежа = paymentDueDay числа в указанном месяце
-  const [year, month] = period.split("-").map(Number)
-
   for (const t of tenants) {
     try {
       if (t.charges.length > 0) {
@@ -71,24 +68,29 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
         continue
       }
 
-      const monthlyRent = calculateTenantMonthlyRent(t)
-      if (monthlyRent <= 0) continue
+      const rentSchedule = calculateTenantRentChargeForPeriod(t, period)
+      if (!rentSchedule.shouldCreate) {
+        if (rentSchedule.skippedReason !== "NO_RENT") {
+          (result as { skipped: number }).skipped++
+        }
+        continue
+      }
 
       const placement = formatTenantPlacement(t)
-      const dueDate = new Date(year, month - 1, t.paymentDueDay)
+      const dueDate = rentSchedule.dueDate
 
       await db.charge.create({
         data: {
           tenantId: t.id,
           period,
           type: "RENT",
-          amount: monthlyRent,
-          description: `Аренда ${placement} за ${period}`,
+          amount: rentSchedule.amount,
+          description: getTenantRentChargeDescription(placement, period, rentSchedule),
           dueDate,
         },
       })
       ;(result as { rentCreated: number }).rentCreated++
-      ;(result as { totalAmount: number }).totalAmount += monthlyRent
+      ;(result as { totalAmount: number }).totalAmount += rentSchedule.amount
 
       if (t.needsCleaning && t.cleaningFee > 0) {
         await db.charge.create({
@@ -107,13 +109,13 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
 
       // In-app уведомление
       try {
-        const total = monthlyRent + (t.needsCleaning ? t.cleaningFee : 0)
+        const total = rentSchedule.amount + (t.needsCleaning ? t.cleaningFee : 0)
         await db.notification.create({
           data: {
             userId: t.userId,
             type: "PAYMENT_DUE",
             title: `Начислена аренда за ${period}`,
-            message: `Сумма к оплате: ${total.toLocaleString("ru-RU")} ₸. Срок — до ${t.paymentDueDay} числа.`,
+            message: `Сумма к оплате: ${total.toLocaleString("ru-RU")} ₸. Срок — до ${dueDate.toLocaleDateString("ru-RU")}.`,
             link: "/cabinet/finances",
           },
         })

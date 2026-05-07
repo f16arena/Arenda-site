@@ -70,6 +70,7 @@ import {
   getAdminDocuments,
   getAdminPaymentReports,
   getAdminRequests,
+  getAdminTenantDetail,
   getAdminTenants,
   getAdminToday,
   getBuildingNotices,
@@ -108,6 +109,7 @@ import type {
   AdminExpectedPayment,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
+  AdminTenantDetailPayload,
   AdminTenantListItem,
   AdminTenantsPayload,
   AdminTodayPayload,
@@ -234,6 +236,7 @@ type AppData = {
   adminPayments: AdminPaymentReportsPayload | null
   adminBuildings: AdminBuildingsPayload | null
   adminTenants: AdminTenantsPayload | null
+  adminTenantDetails: Record<string, AdminTenantDetailPayload>
   adminDocuments: AdminDocumentsPayload | null
   ownerOverview: OwnerOverviewPayload | null
   notifications: MobileNotificationsPayload | null
@@ -252,6 +255,7 @@ const emptyData: AppData = {
   adminPayments: null,
   adminBuildings: null,
   adminTenants: null,
+  adminTenantDetails: {},
   adminDocuments: null,
   ownerOverview: null,
   notifications: null,
@@ -323,6 +327,7 @@ export default function HomeScreen() {
         adminPayments: null,
         adminBuildings: null,
         adminTenants: null,
+        adminTenantDetails: {},
         adminDocuments: null,
         ownerOverview,
         notifications,
@@ -345,8 +350,13 @@ export default function HomeScreen() {
       if (allowCache) {
         const cached = await readCache<CachedDashboard>(DASHBOARD_CACHE_KEY)
         if (cached) {
+          const cachedData = {
+            ...emptyData,
+            ...cached.value.data,
+            adminTenantDetails: cached.value.data.adminTenantDetails ?? {},
+          }
           setBootstrap(cached.value.bootstrap)
-          setData(cached.value.data)
+          setData(cachedData)
           setMobileSentryUser({
             id: cached.value.bootstrap.user.id,
             role: cached.value.bootstrap.user.role,
@@ -371,11 +381,13 @@ export default function HomeScreen() {
   async function loadTabData(tab = activeTab, options: { force?: boolean } = {}) {
     if (!bootstrap) return
     const tabKey = rootTab(tab)
+    const [, tabParam, tabSubParam] = tab.split(":")
     const role = bootstrap.user.role ?? ""
     const isTenant = role === "TENANT"
     const canReviewPayments = ["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)
+    const scopedStaffTab = !isTenant && !!tabParam && ["tenants", "documents", "requests", "payments"].includes(tabKey)
 
-    if (!options.force && hasTabData(data, role, tabKey)) return
+    if (!options.force && !scopedStaffTab && hasTabData(data, role, tabKey, tabParam)) return
 
     setLoadingTabs((current) => ({ ...current, [tabKey]: true }))
     setTabErrors((current) => ({ ...current, [tabKey]: null }))
@@ -389,10 +401,20 @@ export default function HomeScreen() {
         else if (tabKey === "meters") patch = { tenantMeters: await getTenantMeters() }
         else if (tabKey === "documents") patch = { tenantDocuments: await getTenantDocuments() }
       } else {
-        if (tabKey === "tenants" || tabKey === "tenant") patch = { adminTenants: await getAdminTenants() }
-        else if (tabKey === "documents") patch = { adminDocuments: await getAdminDocuments() }
-        else if (tabKey === "requests") patch = { adminRequests: await getAdminRequests() }
-        else if (tabKey === "payments" && canReviewPayments) patch = { adminPayments: await getAdminPaymentReports() }
+        if (tabKey === "tenant" && tabParam) {
+          const detail = await getAdminTenantDetail(tabParam)
+          patch = {
+            adminTenantDetails: { ...data.adminTenantDetails, [tabParam]: detail },
+            adminTenants: data.adminTenants ?? await getAdminTenants(),
+          }
+        } else if (tabKey === "tenants") patch = { adminTenants: await getAdminTenants({ buildingId: tabParam }) }
+        else if (tabKey === "documents" || tabKey === "document" || tabKey === "contract") {
+          const buildingId = tabKey === "documents" && tabParam === "building" ? tabSubParam : undefined
+          const tenantId = tabKey === "documents" && tabParam && tabParam !== "building" && tabParam !== "tenant" ? tabParam : tabParam === "tenant" ? tabSubParam : undefined
+          patch = { adminDocuments: await getAdminDocuments({ buildingId, tenantId }) }
+        }
+        else if (tabKey === "requests" || tabKey === "request") patch = { adminRequests: await getAdminRequests({ buildingId: tabKey === "requests" ? tabParam : undefined }) }
+        else if (tabKey === "payments" && canReviewPayments) patch = { adminPayments: await getAdminPaymentReports({ buildingId: tabParam }) }
         else if (tabKey === "buildings" || tabKey === "building") patch = { adminBuildings: await getAdminBuildings() }
       }
 
@@ -708,7 +730,7 @@ function TabContent({
   onChanged: () => void
   onNavigate: (tab: string) => void
 }) {
-  const [tabKey, tabParam] = tab.split(":")
+  const [tabKey, tabParam, tabSubParam] = tab.split(":")
   const tabError = tabErrors[tabKey]
 
   if (tabKey === "notifications") {
@@ -737,16 +759,34 @@ function TabContent({
     return building ? <AdminBuildingDetail building={building} onNavigate={onNavigate} /> : <EmptyState title="Объект не найден в загруженном списке" />
   }
   if (tabKey === "tenant") {
-    const tenant = data.adminTenants?.data.find((item) => item.id === tabParam)
-    if (!data.adminTenants) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
-    return tenant ? <AdminTenantDetail tenant={tenant} onNavigate={onNavigate} /> : <EmptyState title="Арендатор не найден в загруженном списке" />
+    const detail = tabParam ? data.adminTenantDetails[tabParam] : null
+    const tenant = detail?.tenant ?? data.adminTenants?.data.find((item) => item.id === tabParam)
+    if (!tenant) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return <AdminTenantDetail tenant={tenant} detail={detail ?? null} onNavigate={onNavigate} />
   }
-  if (tabKey === "tenants") return data.adminTenants ? <AdminTenants payload={data.adminTenants} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
-  if (tabKey === "documents") return data.adminDocuments ? <AdminDocuments payload={data.adminDocuments} tenantId={tabParam} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
-  if (tabKey === "requests") return data.adminRequests ? <AdminRequests payload={data.adminRequests} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "tenants") return data.adminTenants ? <AdminTenants payload={data.adminTenants} buildingId={tabParam} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "document") {
+    if (!data.adminDocuments) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return <AdminDocumentDetail payload={data.adminDocuments} kind={tabParam} id={tabSubParam} onNavigate={onNavigate} />
+  }
+  if (tabKey === "contract") {
+    if (!data.adminDocuments) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return <AdminDocumentDetail payload={data.adminDocuments} kind="contract" id={tabParam} onNavigate={onNavigate} />
+  }
+  if (tabKey === "documents") {
+    const tenantId = tabParam === "tenant" ? tabSubParam : tabParam && tabParam !== "building" ? tabParam : undefined
+    const buildingId = tabParam === "building" ? tabSubParam : undefined
+    return data.adminDocuments ? <AdminDocuments payload={data.adminDocuments} tenantId={tenantId} buildingId={buildingId} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  }
+  if (tabKey === "request") {
+    const request = data.adminRequests?.data.find((item) => item.id === tabParam)
+    if (!data.adminRequests) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return request ? <AdminRequestDetail request={request} onChanged={onChanged} onNavigate={onNavigate} /> : <EmptyState title="Заявка не найдена в загруженном списке" />
+  }
+  if (tabKey === "requests") return data.adminRequests ? <AdminRequests payload={data.adminRequests} buildingId={tabParam} onChanged={onChanged} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "payments") {
     if (!["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)) return <NoAccess title="Оплаты доступны владельцу, админу и бухгалтеру" />
-    return data.adminPayments ? <AdminPayments payload={data.adminPayments} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return data.adminPayments ? <AdminPayments payload={data.adminPayments} buildingId={tabParam} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   }
   if (tabKey === "buildings") return data.adminBuildings ? <AdminBuildings payload={data.adminBuildings} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />
@@ -1058,6 +1098,39 @@ function DocumentRow({ title, subtitle, url }: { title: string; subtitle: string
   )
 }
 
+function OpenAuthorizedFileButton({ title, url }: { title: string; url?: string | null }) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function openDocument() {
+    if (!url || busy) return
+    setBusy(true)
+    setMessage(null)
+    try {
+      const file = await downloadAuthorizedFile(url, title)
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: file.mimeType,
+          dialogTitle: title,
+        })
+      } else {
+        await Linking.openURL(file.uri)
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось открыть документ")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      <SecondaryButton title={busy ? "Скачиваем..." : "Открыть / поделиться"} icon="square.and.arrow.up" onPress={openDocument} />
+      {message ? <InlineMessage message={message} tone="error" /> : null}
+    </View>
+  )
+}
+
 function SignatureRequestCard({ request }: { request: TenantSignatureRequest }) {
   const [message, setMessage] = useState<string | null>(null)
 
@@ -1112,7 +1185,7 @@ function ContractSignPrompt({ contract }: { contract: MobileContractSummary | Te
   )
 }
 
-function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; onNavigate: (tab: string) => void }) {
+function AdminTenants({ payload, buildingId, onNavigate }: { payload: AdminTenantsPayload; buildingId?: string; onNavigate: (tab: string) => void }) {
   const [query, setQuery] = useState("")
   const [localPayload, setLocalPayload] = useState(payload)
   const [busy, setBusy] = useState(false)
@@ -1143,6 +1216,7 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
       const nextOffset = reset ? 0 : pageInfo.nextOffset ?? localPayload.data.length
       const next = await getAdminTenants({
         q: query.trim(),
+        buildingId,
         offset: nextOffset,
         limit: pageInfo.limit || 25,
       })
@@ -1159,7 +1233,7 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
 
   return (
     <>
-      <SectionTitle title="Арендаторы" />
+      <SectionTitle title={buildingId ? "Арендаторы объекта" : "Арендаторы"} />
       <Card>
         <MetricGrid
           items={[
@@ -1169,16 +1243,7 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
             { label: "Долг", value: formatMoney(localPayload.counters.debtAmount), color: localPayload.counters.debtAmount > 0 ? colors.orange : colors.green },
           ]}
         />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46 }}>
-          <AppIcon name="search" size={18} color={colors.muted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Название, БИН, кабинет"
-            placeholderTextColor="#94a3b8"
-            style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
-          />
-        </View>
+        <SearchField value={query} onChangeText={setQuery} placeholder="Название, БИН, кабинет" />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
       {localPayload.data.length === 0 && !busy ? <EmptyState title="Арендаторы не найдены" /> : null}
@@ -1212,7 +1277,8 @@ function AdminTenants({ payload, onNavigate }: { payload: AdminTenantsPayload; o
   )
 }
 
-function AdminTenantDetail({ tenant, onNavigate }: { tenant: AdminTenantListItem; onNavigate: (tab: string) => void }) {
+function AdminTenantDetail({ tenant, detail, onNavigate }: { tenant: AdminTenantListItem; detail?: AdminTenantDetailPayload | null; onNavigate: (tab: string) => void }) {
+  const [mode, setMode] = useState("INFO")
   const taxId = tenant.bin ?? tenant.iin ?? "не указан"
   const contactName = tenant.contact.name ?? "Контакт не указан"
   const contractPeriod = [
@@ -1242,27 +1308,147 @@ function AdminTenantDetail({ tenant, onNavigate }: { tenant: AdminTenantListItem
           ]}
         />
       </Card>
-      <SectionTitle title="Контакты" />
       <Card>
-        <CompactRow title={contactName} subtitle={tenant.category ? `Категория: ${tenant.category}` : "Основной контакт"} tone={colors.blue} />
-        {tenant.contact.phone ? <ActionRow icon="iphone" title="Телефон" value={tenant.contact.phone} color={colors.teal} onPress={() => Linking.openURL(`tel:${tenant.contact.phone}`)} /> : null}
-        {tenant.contact.email ? <ActionRow icon="message.fill" title="Email" value={tenant.contact.email} color={colors.blue} onPress={() => Linking.openURL(`mailto:${tenant.contact.email}`)} /> : null}
-        {!tenant.contact.phone && !tenant.contact.email ? <Text selectable style={{ color: colors.muted, fontSize: 14 }}>Телефон и email не указаны</Text> : null}
-      </Card>
-      <SectionTitle title="Договор и платежи" />
-      <Card>
-        <CompactRow
-          title={contractPeriod || "Период договора не указан"}
-          subtitle={`${tenant.contracts.active} активных · ${tenant.contracts.signed} подписанных · ${tenant.contracts.total} всего`}
-          value={tenant.contracts.expiringSoon > 0 ? "истекает" : undefined}
-          tone={tenant.contracts.expiringSoon > 0 ? colors.red : colors.slate}
+        <ChoiceRow
+          options={[
+            ["INFO", "Инфо"],
+            ["PAYMENTS", "Оплаты"],
+            ["DOCS", "Документы"],
+            ["REQUESTS", "Заявки"],
+            ["CONTACTS", "Контакты"],
+          ]}
+          value={mode}
+          onChange={setMode}
         />
-        <CompactRow title="Просрочено" subtitle="Начисления с прошедшим сроком оплаты" value={formatMoney(tenant.overdueDebt)} tone={tenant.overdueDebt > 0 ? colors.red : colors.green} />
-        <CompactRow title="Активные заявки" subtitle="Открытые обращения арендатора" value={String(tenant.activeRequests)} tone={tenant.activeRequests > 0 ? colors.orange : colors.green} />
       </Card>
+      {mode === "INFO" ? (
+        <>
+          <SectionTitle title="Договор и платежи" />
+          <Card>
+            <CompactRow
+              title={contractPeriod || "Период договора не указан"}
+              subtitle={`${tenant.contracts.active} активных · ${tenant.contracts.signed} подписанных · ${tenant.contracts.total} всего`}
+              value={tenant.contracts.expiringSoon > 0 ? "истекает" : undefined}
+              tone={tenant.contracts.expiringSoon > 0 ? colors.red : colors.slate}
+            />
+            <CompactRow title="Просрочено" subtitle="Начисления с прошедшим сроком оплаты" value={formatMoney(tenant.overdueDebt)} tone={tenant.overdueDebt > 0 ? colors.red : colors.green} />
+            <CompactRow title="Активные заявки" subtitle="Открытые обращения арендатора" value={String(tenant.activeRequests)} tone={tenant.activeRequests > 0 ? colors.orange : colors.green} />
+          </Card>
+        </>
+      ) : null}
+      {mode === "PAYMENTS" ? (
+        <>
+          <SectionTitle title="Оплаты" />
+          <Card>
+            <MetricGrid
+              items={[
+                { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
+                { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
+                { label: "Просрочено", value: formatMoney(tenant.overdueDebt), color: tenant.overdueDebt > 0 ? colors.red : colors.green },
+                { label: "Срок", value: `${tenant.paymentDueDay} числа`, color: colors.teal },
+              ]}
+            />
+            <ActionRow icon="creditcard.fill" title="Открыть оплаты" value="проверка" color={colors.green} onPress={() => onNavigate("payments")} />
+          </Card>
+          {detail ? (
+            <>
+              <SectionTitle title="Начисления" />
+              {detail.charges.slice(0, 8).map((charge) => (
+                <Card key={charge.id}>
+                  <CompactRow
+                    title={`${charge.period} · ${charge.type}`}
+                    subtitle={charge.description ?? (charge.isPaid ? "Оплачено" : "Ожидает оплаты")}
+                    value={formatMoney(charge.amount)}
+                    tone={charge.isPaid ? colors.green : charge.dueDate && new Date(charge.dueDate) < new Date() ? colors.red : colors.blue}
+                  />
+                  <CompactRow title="Срок" subtitle={charge.dueDate ? formatDateFull(charge.dueDate) : "без срока"} tone={colors.slate} />
+                </Card>
+              ))}
+              <SectionTitle title="Платежи и чеки" />
+              {detail.paymentReports.slice(0, 6).map((report) => (
+                <Card key={report.id}>
+                  <CompactRow title={formatMoney(report.amount)} subtitle={`${paymentStatusLabel(report.status)} · ${formatDateFull(report.paymentDate)}`} value={report.method} tone={paymentStatusColor(report.status)} />
+                  {report.receiptUrl ? <OpenAuthorizedFileButton title={report.receiptName ?? "Чек оплаты"} url={report.receiptUrl} /> : null}
+                </Card>
+              ))}
+            </>
+          ) : <EmptyState title="Детальные оплаты загружаются" />}
+        </>
+      ) : null}
+      {mode === "DOCS" ? (
+        <>
+          <SectionTitle title="Документы" />
+          <Card>
+            <MetricGrid
+              items={[
+                { label: "Файлы", value: String(tenant.documents), color: colors.blue },
+                { label: "Договоры", value: String(tenant.contracts.total), color: colors.teal },
+                { label: "Подписано", value: String(tenant.contracts.signed), color: colors.green },
+                { label: "Истекает", value: String(tenant.contracts.expiringSoon), color: tenant.contracts.expiringSoon > 0 ? colors.red : colors.green },
+              ]}
+            />
+            <ActionRow icon="doc.text.fill" title="Документы арендатора" value={String(tenant.documents)} color={colors.blue} onPress={() => onNavigate(`documents:tenant:${tenant.id}`)} />
+          </Card>
+          {detail ? (
+            <>
+              {detail.signatureRequests.length > 0 ? (
+                <>
+                  <SectionTitle title="На подпись" />
+                  <Card>
+                    {detail.signatureRequests.map((request) => <SignatureRequestCard key={request.id} request={request} />)}
+                  </Card>
+                </>
+              ) : null}
+              <SectionTitle title="Договоры" />
+              <ContractList contracts={detail.contracts} emptyTitle="Договоры не найдены" onNavigate={onNavigate} />
+              <SectionTitle title="АВР, счета, сверки" />
+              {detail.generatedDocuments.slice(0, 8).map((document) => (
+                <Card key={document.id}>
+                  <DocumentRow
+                    title={document.fileName}
+                    subtitle={`${documentTypeLabel(document.documentType)} · ${document.period ?? "без периода"}${document.totalAmount ? ` · ${formatMoney(document.totalAmount)}` : ""}`}
+                    url={document.downloadUrl}
+                  />
+                </Card>
+              ))}
+              {detail.generatedDocuments.length === 0 ? <EmptyState title="Сгенерированных документов пока нет" /> : null}
+              {detail.tenantDocuments.length > 0 ? (
+                <>
+                  <SectionTitle title="Файлы арендатора" />
+                  <Card>
+                    {detail.tenantDocuments.map((document) => (
+                      <DocumentRow key={document.id} title={document.name} subtitle={`${document.type} · ${formatDateFull(document.createdAt)}`} url={document.downloadUrl ?? document.fileUrl} />
+                    ))}
+                  </Card>
+                </>
+              ) : null}
+            </>
+          ) : <EmptyState title="Детальные документы загружаются" />}
+        </>
+      ) : null}
+      {mode === "REQUESTS" ? (
+        <>
+          <SectionTitle title="Заявки" />
+          <Card>
+            <ActionRow icon="tray.full.fill" title="Активные заявки" value={String(tenant.activeRequests)} color={tenant.activeRequests > 0 ? colors.orange : colors.green} onPress={() => onNavigate("requests")} />
+          </Card>
+          {detail ? <RequestList requests={detail.requests} onNavigate={onNavigate} /> : <EmptyState title="Детальные заявки загружаются" />}
+        </>
+      ) : null}
+      {mode === "CONTACTS" ? (
+        <>
+          <SectionTitle title="Контакты" />
+          <Card>
+            <CompactRow title={contactName} subtitle={tenant.category ? `Категория: ${tenant.category}` : "Основной контакт"} tone={colors.blue} />
+            {tenant.contact.phone ? <ActionRow icon="iphone" title="Телефон" value={tenant.contact.phone} color={colors.teal} onPress={() => Linking.openURL(`tel:${tenant.contact.phone}`)} /> : null}
+            {tenant.contact.email ? <ActionRow icon="message.fill" title="Email" value={tenant.contact.email} color={colors.blue} onPress={() => Linking.openURL(`mailto:${tenant.contact.email}`)} /> : null}
+            {!tenant.contact.phone && !tenant.contact.email ? <Text selectable style={{ color: colors.muted, fontSize: 14 }}>Телефон и email не указаны</Text> : null}
+          </Card>
+        </>
+      ) : null}
       <SectionTitle title="Действия" />
       <Card>
-        <ActionRow icon="doc.text.fill" title="Документы арендатора" value={String(tenant.documents)} color={colors.blue} onPress={() => onNavigate(`documents:${tenant.id}`)} />
+        <ActionRow icon="doc.text.fill" title="Документы арендатора" value={String(tenant.documents)} color={colors.blue} onPress={() => onNavigate(`documents:tenant:${tenant.id}`)} />
         <ActionRow icon="creditcard.fill" title="Оплаты на проверке" value="открыть" color={colors.green} onPress={() => onNavigate("payments")} />
         <ActionRow icon="tray.full.fill" title="Заявки" value={String(tenant.activeRequests)} color={colors.orange} onPress={() => onNavigate("requests")} />
       </Card>
@@ -1270,9 +1456,10 @@ function AdminTenantDetail({ tenant, onNavigate }: { tenant: AdminTenantListItem
   )
 }
 
-function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload; tenantId?: string }) {
+function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { payload: AdminDocumentsPayload; tenantId?: string; buildingId?: string; onNavigate: (tab: string) => void }) {
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("ALL")
+  const [stage, setStage] = useState("ALL")
   const [localPayload, setLocalPayload] = useState(payload)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -1313,6 +1500,7 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
         q: query.trim(),
         category: nextCategory,
         tenantId,
+        buildingId,
         offset: nextOffset,
         limit: pageInfo.limit || 30,
       })
@@ -1332,17 +1520,26 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
     ? localPayload.contracts.find((contract) => contract.tenantId === tenantId)?.tenantName
       ?? localPayload.generated.find((document) => document.tenantId === tenantId)?.tenantName
     : null
-  const visibleGenerated = localPayload.generated
+  const visibleGenerated = stage === "SIGN" ? [] : localPayload.generated
   const showContracts = category === "ALL" || category === "CONTRACT"
-  const visibleCount = (showContracts ? localPayload.contracts.length : 0) + visibleGenerated.length
+  const visibleContracts = showContracts
+    ? localPayload.contracts.filter((contract) => {
+        if (stage === "SIGN") return isPendingContractStatus(contract.status)
+        if (stage === "SIGNED") return contract.status === "SIGNED"
+        if (stage === "DRAFT") return contract.status === "DRAFT"
+        return true
+      })
+    : []
+  const visibleCount = visibleContracts.length + visibleGenerated.length
   const signatureRequests = (localPayload.signatureRequests ?? []).filter((request) => isPendingSignatureStatus(request.status))
   const signatureContracts = showContracts
     ? localPayload.contracts.filter((contract) => isPendingContractStatus(contract.status))
     : []
+  const signatureCount = signatureRequests.length + signatureContracts.length
 
   return (
     <>
-      <SectionTitle title={tenantName ? `Документы: ${tenantName}` : "Документы"} />
+      <SectionTitle title={tenantName ? `Документы: ${tenantName}` : buildingId ? "Документы объекта" : "Документы"} />
       <Card>
         <MetricGrid
           items={[
@@ -1363,16 +1560,17 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
           value={category}
           onChange={setCategory}
         />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46 }}>
-          <AppIcon name="search" size={18} color={colors.muted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Арендатор, номер, период"
-            placeholderTextColor="#94a3b8"
-            style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
-          />
-        </View>
+        <ChoiceRow
+          options={[
+            ["ALL", "Все статусы"],
+            ["SIGN", "На подпись"],
+            ["SIGNED", "Подписано"],
+            ["DRAFT", "Черновики"],
+          ]}
+          value={stage}
+          onChange={setStage}
+        />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, номер, период" />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
       {signatureRequests.length > 0 || signatureContracts.length > 0 ? (
@@ -1384,17 +1582,17 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
           </Card>
         </>
       ) : null}
-      {visibleCount === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
+      {visibleCount + signatureCount === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
       {showContracts && localPayload.contracts.length > 0 ? (
         <>
           <SectionTitle title="Договоры" />
-          <ContractList contracts={localPayload.contracts} emptyTitle="Договоры не найдены" />
+          <ContractList contracts={visibleContracts} emptyTitle="Договоры не найдены" onNavigate={onNavigate} />
         </>
       ) : null}
       {visibleGenerated.length > 0 ? (
         <>
           <SectionTitle title={categoryTitle(category)} />
-          <GeneratedDocumentList documents={visibleGenerated} />
+          <GeneratedDocumentList documents={visibleGenerated} onNavigate={onNavigate} />
         </>
       ) : null}
       {localPayload.pageInfo?.hasMore ? (
@@ -1404,21 +1602,21 @@ function AdminDocuments({ payload, tenantId }: { payload: AdminDocumentsPayload;
   )
 }
 
-function ContractList({ contracts, emptyTitle }: { contracts: MobileContractSummary[]; emptyTitle: string }) {
+function ContractList({ contracts, emptyTitle, onNavigate }: { contracts: MobileContractSummary[]; emptyTitle: string; onNavigate?: (tab: string) => void }) {
   if (contracts.length === 0) return <EmptyState title={emptyTitle} />
   return (
     <>
       {contracts.map((contract) => (
-        <ContractRow key={contract.id} contract={contract} />
+        <ContractRow key={contract.id} contract={contract} onNavigate={onNavigate} />
       ))}
     </>
   )
 }
 
-function ContractRow({ contract }: { contract: MobileContractSummary }) {
+function ContractRow({ contract, onNavigate }: { contract: MobileContractSummary; onNavigate?: (tab: string) => void }) {
   const color = contractStatusColor(contract.status)
   const canOpen = !!contract.webUrl
-  return (
+  const content = (
     <Card>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, opacity: canOpen ? 1 : 0.72 }}>
         <IconBox icon="doc.on.doc.fill" color={color} />
@@ -1437,21 +1635,118 @@ function ContractRow({ contract }: { contract: MobileContractSummary }) {
       {canOpen ? <SecondaryButton title={isPendingContractStatus(contract.status) ? "Открыть подписание" : "Открыть"} icon="arrow.up.right.square" onPress={() => openExternalUrl(contract.webUrl!)} /> : null}
     </Card>
   )
+  return onNavigate ? <Pressable onPress={() => onNavigate(`contract:${contract.id}`)}>{content}</Pressable> : content
 }
 
-function GeneratedDocumentList({ documents }: { documents: MobileGeneratedDocumentSummary[] }) {
+function GeneratedDocumentList({ documents, onNavigate }: { documents: MobileGeneratedDocumentSummary[]; onNavigate?: (tab: string) => void }) {
   return (
-    <Card>
+    <>
       {documents.map((document) => (
-        <DocumentRow
-          key={document.id}
-          title={document.fileName}
-          subtitle={`${document.tenantName} · ${documentTypeLabel(document.documentType)}${document.period ? ` · ${document.period}` : ""}${document.totalAmount ? ` · ${formatMoney(document.totalAmount)}` : ""}`}
-          url={document.downloadUrl}
-        />
+        <Pressable key={document.id} onPress={() => onNavigate ? onNavigate(`document:generated:${document.id}`) : null}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconBox icon="doc.text.fill" color={colors.blue} />
+              <View style={{ flex: 1 }}>
+                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{document.fileName}</Text>
+                <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{document.tenantName} · {documentTypeLabel(document.documentType)}</Text>
+              </View>
+              <AppIcon name="chevron.right" size={18} color={colors.muted} />
+            </View>
+            <MetricGrid
+              items={[
+                { label: "Период", value: document.period ?? "без периода", color: colors.slate },
+                { label: "Сумма", value: document.totalAmount ? formatMoney(document.totalAmount) : "без суммы", color: colors.green },
+              ]}
+            />
+          </Card>
+        </Pressable>
       ))}
-    </Card>
+    </>
   )
+}
+
+function AdminDocumentDetail({
+  payload,
+  kind,
+  id,
+  onNavigate,
+}: {
+  payload: AdminDocumentsPayload
+  kind?: string
+  id?: string
+  onNavigate: (tab: string) => void
+}) {
+  const contract = kind === "contract" ? payload.contracts.find((item) => item.id === id) : null
+  const document = kind === "generated" ? payload.generated.find((item) => item.id === id) : null
+
+  if (contract) {
+    const color = contractStatusColor(contract.status)
+    return (
+      <>
+        <SectionTitle title="Документ" />
+        <Card>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <IconBox icon="doc.on.doc.fill" color={color} />
+            <View style={{ flex: 1 }}>
+              <Text selectable style={{ color: colors.text, fontSize: 19, fontFamily: fonts.black, fontWeight: "900" }}>{contractTypeLabel(contract.type)} № {contract.number}</Text>
+              <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{contract.tenantName}</Text>
+            </View>
+            <StatusPill label={contractStatusLabel(contract.status)} color={color} />
+          </View>
+          <MetricGrid
+            items={[
+              { label: "Начало", value: contract.startDate ? formatDateFull(contract.startDate) : "не указано", color: colors.slate },
+              { label: "Окончание", value: contract.endDate ? formatDateFull(contract.endDate) : "без даты", color: colors.blue },
+              { label: "Статус", value: contractStatusLabel(contract.status), color },
+              { label: "Подписан", value: contract.signedAt ? formatDateFull(contract.signedAt) : "нет", color: contract.signedAt ? colors.green : colors.orange },
+            ]}
+          />
+        </Card>
+        <SectionTitle title="Действия" />
+        <Card>
+          {contract.webUrl ? <ActionRow icon="arrow.up.right.square" title={isPendingContractStatus(contract.status) ? "Открыть подписание" : "Открыть документ"} value="web" color={colors.blue} onPress={() => openExternalUrl(contract.webUrl!)} /> : null}
+          <ActionRow icon="person.2.fill" title="Арендатор" value="открыть" color={colors.teal} onPress={() => onNavigate(`tenant:${contract.tenantId}`)} />
+          <ActionRow icon="doc.text.fill" title="Все документы арендатора" value="открыть" color={colors.blue} onPress={() => onNavigate(`documents:tenant:${contract.tenantId}`)} />
+        </Card>
+      </>
+    )
+  }
+
+  if (document) {
+    return (
+      <>
+        <SectionTitle title="Документ" />
+        <Card>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <IconBox icon="doc.text.fill" color={colors.blue} />
+            <View style={{ flex: 1 }}>
+              <Text selectable style={{ color: colors.text, fontSize: 19, fontFamily: fonts.black, fontWeight: "900" }}>{documentTypeLabel(document.documentType)}</Text>
+              <Text selectable numberOfLines={2} style={{ color: colors.muted, fontSize: 13 }}>{document.fileName}</Text>
+            </View>
+            <StatusPill label={document.format.toUpperCase()} color={colors.blue} />
+          </View>
+          <MetricGrid
+            items={[
+              { label: "Арендатор", value: document.tenantName, color: colors.teal },
+              { label: "Период", value: document.period ?? "не указан", color: colors.slate },
+              { label: "Сумма", value: document.totalAmount ? formatMoney(document.totalAmount) : "без суммы", color: colors.green },
+              { label: "Дата", value: formatDateFull(document.generatedAt), color: colors.blue },
+            ]}
+          />
+          <CompactRow title="Номер" subtitle={document.number ?? "номер не указан"} value={formatFileSize(document.fileSize)} tone={colors.slate} />
+        </Card>
+        <SectionTitle title="Действия" />
+        <Card>
+          <OpenAuthorizedFileButton title={document.fileName} url={document.downloadUrl} />
+          {document.tenantId ? <ActionRow icon="person.2.fill" title="Арендатор" value="открыть" color={colors.teal} onPress={() => onNavigate(`tenant:${document.tenantId}`)} /> : null}
+          {document.tenantId ? <ActionRow icon="doc.text.fill" title="Документы арендатора" value="открыть" color={colors.blue} onPress={() => onNavigate(`documents:tenant:${document.tenantId}`)} /> : null}
+          <ActionRow icon="signature" title="Подписание" value="SMS/ЭЦП draft" color={colors.orange} onPress={() => onNavigate("documents")} />
+        </Card>
+      </>
+    )
+  }
+
+  return <EmptyState title="Документ не найден в загруженном списке" />
 }
 
 function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { payload: AdminTodayPayload; notices: BuildingNotice[]; bootstrap: MobileBootstrap; onChanged: () => void; onNavigate: (tab: string) => void }) {
@@ -1475,9 +1770,10 @@ function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { pa
         <ActionRow icon="doc.on.doc.fill" title="Документы" value={String(payload.counters.pendingSignatures)} color={colors.orange} onPress={() => onNavigate("documents")} />
         <ActionRow icon="creditcard.fill" title="Оплаты" value={String(payload.counters.pendingPayments)} color={colors.green} onPress={() => onNavigate("payments")} />
       </Card>
+      <StaffQuickSearch onNavigate={onNavigate} />
       {canNotice ? <NoticeComposer buildings={payload.buildings} onChanged={onChanged} /> : null}
       <SectionTitle title="Последние заявки" />
-      <RequestList requests={payload.recent.requests} />
+      <RequestList requests={payload.recent.requests} onNavigate={onNavigate} />
       <SectionTitle title="Оплаты на проверке" />
       <Card>
         {payload.recent.paymentReports.map((report) => (
@@ -1491,43 +1787,269 @@ function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { pa
   )
 }
 
-function AdminRequests({ payload, onChanged }: { payload: AdminRequestsPayload; onChanged: () => void }) {
+function StaffQuickSearch({ onNavigate }: { onNavigate: (tab: string) => void }) {
+  const [query, setQuery] = useState("")
+  const [tenants, setTenants] = useState<AdminTenantListItem[]>([])
+  const [contracts, setContracts] = useState<MobileContractSummary[]>([])
+  const [documents, setDocuments] = useState<MobileGeneratedDocumentSummary[]>([])
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      setTenants([])
+      setContracts([])
+      setDocuments([])
+      setMessage(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setBusy(true)
+      setMessage(null)
+      try {
+        const [tenantResult, documentResult] = await Promise.all([
+          getAdminTenants({ q: trimmed, limit: 5 }),
+          getAdminDocuments({ q: trimmed, limit: 6 }),
+        ])
+        setTenants(tenantResult.data)
+        setContracts(documentResult.contracts)
+        setDocuments(documentResult.generated)
+      } catch (e) {
+        setMessage(e instanceof Error ? e.message : "Не удалось выполнить поиск")
+      } finally {
+        setBusy(false)
+      }
+    }, 320)
+
+    return () => clearTimeout(timer)
+  }, [query])
+
+  const hasResults = tenants.length > 0 || contracts.length > 0 || documents.length > 0
+
   return (
     <>
-      <SectionTitle title="Заявки" />
+      <SectionTitle title="Быстрый поиск" />
       <Card>
-        <MetricGrid
-          items={[
-            { label: "Открыто", value: String(payload.counters.open), color: colors.blue },
-            { label: "Срочно", value: String(payload.counters.urgent), color: colors.red },
-            { label: "Закрыто", value: String(payload.counters.done), color: colors.green },
-          ]}
-        />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, БИН, договор, счет" />
+        {busy ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ищем...</Text> : null}
+        {message ? <InlineMessage message={message} tone="error" /> : null}
+        {tenants.slice(0, 3).map((tenant) => (
+          <ActionRow key={tenant.id} icon="person.2.fill" title={tenant.companyName} value={formatMoney(tenant.totalDebt)} color={tenant.totalDebt > 0 ? colors.orange : colors.teal} onPress={() => onNavigate("tenants")} />
+        ))}
+        {contracts.slice(0, 2).map((contract) => (
+          <ActionRow key={contract.id} icon="doc.on.doc.fill" title={`${contractTypeLabel(contract.type)} № ${contract.number}`} value={contractStatusLabel(contract.status)} color={contractStatusColor(contract.status)} onPress={() => onNavigate("documents")} />
+        ))}
+        {documents.slice(0, 2).map((document) => (
+          <ActionRow key={document.id} icon="doc.text.fill" title={document.fileName} value={documentTypeLabel(document.documentType)} color={colors.blue} onPress={() => onNavigate("documents")} />
+        ))}
+        {query.trim().length >= 2 && !busy && !hasResults ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Ничего не найдено</Text> : null}
       </Card>
-      {payload.data.map((request) => (
-        <Card key={request.id}>
-          <Text selectable style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
-          <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{request.tenant.companyName} · {request.priority} · {request.status}</Text>
-          <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{request.description}</Text>
-          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            <SecondaryButton title="В работу" icon="play.fill" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "IN_PROGRESS" }); onChanged() }} />
-            <SecondaryButton title="Готово" icon="checkmark" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "DONE" }); onChanged() }} />
-            <SecondaryButton title="Закрыть" icon="xmark" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "CLOSED" }); onChanged() }} />
-          </View>
-        </Card>
-      ))}
     </>
   )
 }
 
-function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPayload; onChanged: () => void }) {
-  const expectedPayments = payload.expectedPayments ?? []
-  const expectedAmount = payload.counters.expectedAmount ?? expectedPayments.reduce((sum, payment) => sum + payment.amount, 0)
-  const overdueAmount = payload.counters.overdueAmount ?? expectedPayments.filter((payment) => payment.isOverdue).reduce((sum, payment) => sum + payment.amount, 0)
+function AdminRequests({ payload, buildingId, onChanged, onNavigate }: { payload: AdminRequestsPayload; buildingId?: string; onChanged: () => void; onNavigate: (tab: string) => void }) {
+  const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState("ACTIVE")
+  const [priorityFilter, setPriorityFilter] = useState("ALL")
+  const [localPayload, setLocalPayload] = useState(payload)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLocalPayload(payload)
+  }, [payload])
+
+  useEffect(() => {
+    fetchFilteredRequests().catch(() => null)
+  }, [statusFilter, priorityFilter])
+
+  async function fetchFilteredRequests() {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const next = await getAdminRequests({
+        status: exactRequestStatus(statusFilter),
+        priority: exactRequestPriority(priorityFilter),
+        buildingId,
+      })
+      setLocalPayload(next)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось загрузить заявки")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const visibleRequests = localPayload.data.filter((request) => {
+    const haystack = `${request.title} ${request.description} ${request.tenant.companyName} ${request.type}`.toLowerCase()
+    const matchesQuery = !query.trim() || haystack.includes(query.trim().toLowerCase())
+    return matchesQuery && matchesRequestStatus(request.status, statusFilter) && matchesRequestPriority(request.priority, priorityFilter)
+  })
 
   return (
     <>
-      <SectionTitle title="Оплаты" />
+      <SectionTitle title={buildingId ? "Заявки объекта" : "Заявки"} />
+      <Card>
+        <MetricGrid
+          items={[
+            { label: "Открыто", value: String(localPayload.counters.open), color: colors.blue },
+            { label: "Срочно", value: String(localPayload.counters.urgent), color: colors.red },
+            { label: "Закрыто", value: String(localPayload.counters.done), color: colors.green },
+          ]}
+        />
+        <ChoiceRow
+          options={[
+            ["ACTIVE", "Активные"],
+            ["NEW", "Новые"],
+            ["IN_PROGRESS", "В работе"],
+            ["DONE", "Готово"],
+            ["ALL", "Все"],
+          ]}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
+        <ChoiceRow
+          options={[
+            ["ALL", "Все"],
+            ["URGENT", "Срочные"],
+            ["HIGH", "Высокий"],
+            ["NORMAL", "Обычные"],
+            ["LOW", "Низкий"],
+          ]}
+          value={priorityFilter}
+          onChange={setPriorityFilter}
+        />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, заявка, описание" />
+        {message ? <InlineMessage message={message} tone="error" /> : null}
+      </Card>
+      {visibleRequests.map((request) => (
+        <Pressable key={request.id} onPress={() => onNavigate(`request:${request.id}`)}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <IconBox icon="tray.full.fill" color={requestPriorityColor(request.priority)} />
+              <View style={{ flex: 1 }}>
+                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
+                <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{request.tenant.companyName} · {requestStatusLabel(request.status)}</Text>
+              </View>
+              <StatusPill label={requestPriorityLabel(request.priority)} color={requestPriorityColor(request.priority)} />
+            </View>
+            <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{request.description}</Text>
+            <CompactRow title="Локация" subtitle={requestLocation(request)} value={`${request._count?.comments ?? 0}`} tone={colors.blue} />
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              <SecondaryButton title="В работу" icon="play.fill" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "IN_PROGRESS" }); onChanged(); await fetchFilteredRequests() }} />
+              <SecondaryButton title="Готово" icon="checkmark" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "DONE" }); onChanged(); await fetchFilteredRequests() }} />
+            </View>
+          </Card>
+        </Pressable>
+      ))}
+      {visibleRequests.length === 0 && !busy ? <EmptyState title="Заявки не найдены" /> : null}
+    </>
+  )
+}
+
+function AdminRequestDetail({
+  request,
+  onChanged,
+  onNavigate,
+}: {
+  request: AdminRequestsPayload["data"][number]
+  onChanged: () => void
+  onNavigate: (tab: string) => void
+}) {
+  const [comment, setComment] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function changeStatus(status: string) {
+    setBusy(true)
+    setMessage(null)
+    try {
+      await updateAdminRequest({ requestId: request.id, status, comment: comment.trim() || undefined })
+      setComment("")
+      setMessage("Заявка обновлена")
+      onChanged()
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось обновить заявку")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <SectionTitle title="Заявка" />
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <IconBox icon="tray.full.fill" color={requestPriorityColor(request.priority)} />
+          <View style={{ flex: 1 }}>
+            <Text selectable style={{ color: colors.text, fontSize: 19, fontFamily: fonts.black, fontWeight: "900" }}>{request.title}</Text>
+            <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{formatDateTime(request.createdAt)} · {request.type}</Text>
+          </View>
+          <StatusPill label={requestStatusLabel(request.status)} color={requestStatusColor(request.status)} />
+        </View>
+        <MetricGrid
+          items={[
+            { label: "Приоритет", value: requestPriorityLabel(request.priority), color: requestPriorityColor(request.priority) },
+            { label: "Комментарии", value: String(request._count?.comments ?? 0), color: colors.blue },
+            { label: "Обновлена", value: formatDate(request.updatedAt), color: colors.teal },
+          ]}
+        />
+        <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{request.description}</Text>
+      </Card>
+      <SectionTitle title="Арендатор" />
+      <Card>
+        <ActionRow icon="person.2.fill" title={request.tenant.companyName} value="открыть" color={colors.teal} onPress={() => onNavigate(`tenant:${request.tenant.id}`)} />
+        <CompactRow title="Локация" subtitle={requestLocation(request)} tone={colors.blue} />
+      </Card>
+      <SectionTitle title="Работа" />
+      <Card>
+        <Field label="Комментарий" value={comment} onChangeText={setComment} placeholder="Что сделали или что нужно уточнить" multiline />
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          <SecondaryButton title={busy ? "..." : "В работу"} icon="play.fill" onPress={() => changeStatus("IN_PROGRESS")} />
+          <SecondaryButton title={busy ? "..." : "Готово"} icon="checkmark" onPress={() => changeStatus("DONE")} />
+          <SecondaryButton title={busy ? "..." : "Закрыть"} icon="xmark" onPress={() => changeStatus("CLOSED")} />
+        </View>
+        {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
+      </Card>
+      <SectionTitle title="Комментарии" />
+      <Card>
+        {(request.comments ?? []).map((item) => (
+          <CompactRow
+            key={item.id}
+            title={item.author.name ?? item.author.email ?? "Сотрудник"}
+            subtitle={item.text}
+            value={formatDate(item.createdAt)}
+            tone={colors.blue}
+          />
+        ))}
+        {(request.comments ?? []).length === 0 ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Комментариев пока нет</Text> : null}
+      </Card>
+    </>
+  )
+}
+
+function AdminPayments({ payload, buildingId, onChanged }: { payload: AdminPaymentReportsPayload; buildingId?: string; onChanged: () => void }) {
+  const [mode, setMode] = useState("ALL")
+  const expectedPayments = payload.expectedPayments ?? []
+  const expectedAmount = payload.counters.expectedAmount ?? expectedPayments.reduce((sum, payment) => sum + payment.amount, 0)
+  const overdueAmount = payload.counters.overdueAmount ?? expectedPayments.filter((payment) => payment.isOverdue).reduce((sum, payment) => sum + payment.amount, 0)
+  const visibleExpectedPayments = expectedPayments.filter((payment) => {
+    if (mode === "OVERDUE") return payment.isOverdue
+    if (mode === "EXPECTED") return !payment.isOverdue
+    return true
+  })
+  const visibleReports = payload.data.filter((report) => {
+    if (mode === "PENDING") return report.status === "PENDING"
+    if (mode === "DISPUTED") return report.status === "DISPUTED"
+    return true
+  })
+
+  return (
+    <>
+      <SectionTitle title={buildingId ? "Оплаты объекта" : "Оплаты"} />
       <Card>
         <MetricGrid
           items={[
@@ -1538,14 +2060,25 @@ function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPay
             { label: "Просрочено", value: formatMoney(overdueAmount), color: overdueAmount > 0 ? colors.red : colors.green },
           ]}
         />
+        <ChoiceRow
+          options={[
+            ["ALL", "Все"],
+            ["OVERDUE", "Просрочено"],
+            ["EXPECTED", "Ожидается"],
+            ["PENDING", "На проверке"],
+            ["DISPUTED", "Уточнить"],
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
       </Card>
       <SectionTitle title="Календарь оплат" />
-      {expectedPayments.slice(0, 8).map((payment) => (
+      {visibleExpectedPayments.slice(0, 8).map((payment) => (
         <ExpectedPaymentCard key={payment.id} payment={payment} />
       ))}
-      {expectedPayments.length === 0 ? <EmptyState title="Ожидаемых оплат на ближайшие недели нет" /> : null}
+      {visibleExpectedPayments.length === 0 ? <EmptyState title="Ожидаемых оплат по фильтру нет" /> : null}
       <SectionTitle title="На проверке" />
-      {payload.data.map((report) => (
+      {visibleReports.map((report) => (
         <Card key={report.id}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <IconBox icon="creditcard.fill" color={paymentStatusColor(report.status)} />
@@ -1571,7 +2104,7 @@ function AdminPayments({ payload, onChanged }: { payload: AdminPaymentReportsPay
           </View>
         </Card>
       ))}
-      {payload.data.length === 0 ? <EmptyState title="Оплат на проверке нет" /> : null}
+      {visibleReports.length === 0 ? <EmptyState title="Оплат на проверке по фильтру нет" /> : null}
     </>
   )
 }
@@ -1676,9 +2209,10 @@ function AdminBuildingDetail({
       </Card>
       <SectionTitle title="Быстрые действия" />
       <Card>
-        <ActionRow icon="person.2.fill" title="Арендаторы" value={String(building.counters.tenants)} color={colors.teal} onPress={() => onNavigate("tenants")} />
-        <ActionRow icon="doc.text.fill" title="Документы" value="открыть" color={colors.blue} onPress={() => onNavigate("documents")} />
-        <ActionRow icon="tray.full.fill" title="Заявки" value={String(building.counters.openRequests)} color={colors.orange} onPress={() => onNavigate("requests")} />
+        <ActionRow icon="person.2.fill" title="Арендаторы" value={String(building.counters.tenants)} color={colors.teal} onPress={() => onNavigate(`tenants:${building.id}`)} />
+        <ActionRow icon="doc.text.fill" title="Документы" value="открыть" color={colors.blue} onPress={() => onNavigate(`documents:building:${building.id}`)} />
+        <ActionRow icon="tray.full.fill" title="Заявки" value={String(building.counters.openRequests)} color={colors.orange} onPress={() => onNavigate(`requests:${building.id}`)} />
+        <ActionRow icon="creditcard.fill" title="Оплаты" value="открыть" color={colors.green} onPress={() => onNavigate(`payments:${building.id}`)} />
         <ActionRow icon="bell.fill" title="Push объявления" value={String(building.counters.activeNotices)} color={colors.blue} onPress={() => onNavigate("home")} />
       </Card>
       <SectionTitle title="Этажи" />
@@ -2173,19 +2707,21 @@ function HeaderCard({ bootstrap, onLogout }: { bootstrap: MobileBootstrap; onLog
   )
 }
 
-function RequestList({ requests }: { requests: Array<{ id: string; title: string; description: string; status: string; priority: string; createdAt: string; tenant?: { companyName: string } }> }) {
+function RequestList({ requests, onNavigate }: { requests: Array<{ id: string; title: string; description: string; status: string; priority: string; createdAt: string; tenant?: { companyName: string } }>; onNavigate?: (tab: string) => void }) {
   if (requests.length === 0) return <EmptyState title="Заявок пока нет" />
   return (
     <>
       {requests.map((request) => (
-        <Card key={request.id}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text selectable style={{ flex: 1, color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
-            <StatusPill label={request.status} color={["DONE", "CLOSED"].includes(request.status) ? colors.green : colors.blue} />
-          </View>
-          <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{request.tenant?.companyName ? `${request.tenant.companyName} · ` : ""}{request.priority} · {formatDate(request.createdAt)}</Text>
-          <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{request.description}</Text>
-        </Card>
+        <Pressable key={request.id} onPress={() => onNavigate ? onNavigate(`request:${request.id}`) : null}>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text selectable style={{ flex: 1, color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
+              <StatusPill label={requestStatusLabel(request.status)} color={requestStatusColor(request.status)} />
+            </View>
+            <Text selectable style={{ color: colors.muted, fontSize: 13 }}>{request.tenant?.companyName ? `${request.tenant.companyName} · ` : ""}{requestPriorityLabel(request.priority)} · {formatDate(request.createdAt)}</Text>
+            <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{request.description}</Text>
+          </Card>
+        </Pressable>
       ))}
     </>
   )
@@ -2273,6 +2809,26 @@ function Field({ label, ...props }: { label: string } & ComponentProps<typeof Te
           textAlignVertical: props.multiline ? "top" : "center",
         }, props.style]}
       />
+    </View>
+  )
+}
+
+function SearchField({ value, onChangeText, placeholder }: { value: string; onChangeText: (value: string) => void; placeholder: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46, backgroundColor: "#ffffff" }}>
+      <AppIcon name="search" size={18} color={colors.muted} />
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#94a3b8"
+        style={{ flex: 1, color: colors.text, fontSize: 16, fontFamily: fonts.regular }}
+      />
+      {value ? (
+        <Pressable onPress={() => onChangeText("")} style={{ padding: 4 }}>
+          <AppIcon name="xmark" size={16} color={colors.muted} />
+        </Pressable>
+      ) : null}
     </View>
   )
 }
@@ -2468,15 +3024,20 @@ function rootTab(tab: string) {
 }
 
 function backTargetForTab(tab: string) {
-  const [tabKey, tabParam] = tab.split(":")
+  const [tabKey, tabParam, tabSubParam] = tab.split(":")
   if (tabKey === "tenant") return "tenants"
   if (tabKey === "building") return "buildings"
+  if ((tabKey === "tenants" || tabKey === "requests" || tabKey === "payments") && tabParam) return `building:${tabParam}`
+  if (tabKey === "request") return "requests"
+  if (tabKey === "document" || tabKey === "contract") return "documents"
+  if (tabKey === "documents" && tabParam === "building" && tabSubParam) return `building:${tabSubParam}`
+  if (tabKey === "documents" && tabParam === "tenant" && tabSubParam) return `tenant:${tabSubParam}`
   if (tabKey === "documents" && tabParam) return `tenant:${tabParam}`
   if (tabKey === "settings") return "more"
   return null
 }
 
-function hasTabData(data: AppData, role: string, tabKey: string) {
+function hasTabData(data: AppData, role: string, tabKey: string, tabParam?: string) {
   if (role === "TENANT") {
     if (tabKey === "payments") return !!data.tenantFinances
     if (tabKey === "requests") return !!data.tenantRequests
@@ -2486,9 +3047,11 @@ function hasTabData(data: AppData, role: string, tabKey: string) {
   }
 
   if (tabKey === "tenants") return !!data.adminTenants
-  if (tabKey === "tenant") return !!data.adminTenants
+  if (tabKey === "tenant") return !!(tabParam && data.adminTenantDetails[tabParam])
   if (tabKey === "documents") return !!data.adminDocuments
+  if (tabKey === "document" || tabKey === "contract") return !!data.adminDocuments
   if (tabKey === "requests") return !!data.adminRequests
+  if (tabKey === "request") return !!data.adminRequests
   if (tabKey === "payments") return !!data.adminPayments
   if (tabKey === "buildings") return !!data.adminBuildings
   if (tabKey === "building") return !!data.adminBuildings
@@ -2676,6 +3239,72 @@ function contractStatusColor(status: string) {
   if (["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(status)) return colors.orange
   if (["REJECTED", "EXPIRED"].includes(status)) return colors.red
   return colors.blue
+}
+
+function exactRequestStatus(filter: string) {
+  if (["NEW", "IN_PROGRESS", "DONE", "CLOSED", "POSTPONED", "CANCELLED"].includes(filter)) return filter
+  return undefined
+}
+
+function exactRequestPriority(filter: string) {
+  if (["LOW", "NORMAL", "HIGH", "URGENT"].includes(filter)) return filter
+  return undefined
+}
+
+function matchesRequestStatus(status: string, filter: string) {
+  if (filter === "ALL") return true
+  if (filter === "ACTIVE") return !["DONE", "CLOSED", "CANCELLED"].includes(status)
+  if (filter === "DONE") return ["DONE", "CLOSED"].includes(status)
+  return status === filter
+}
+
+function matchesRequestPriority(priority: string, filter: string) {
+  if (filter === "ALL") return true
+  if (filter === "URGENT") return ["HIGH", "URGENT"].includes(priority)
+  return priority === filter
+}
+
+function requestStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    NEW: "Новая",
+    OPEN: "Открыта",
+    IN_PROGRESS: "В работе",
+    DONE: "Готово",
+    CLOSED: "Закрыта",
+    POSTPONED: "Отложена",
+    CANCELLED: "Отменена",
+  }
+  return labels[status] ?? status
+}
+
+function requestStatusColor(status: string) {
+  if (["DONE", "CLOSED"].includes(status)) return colors.green
+  if (status === "IN_PROGRESS") return colors.blue
+  if (status === "CANCELLED") return colors.red
+  return colors.orange
+}
+
+function requestPriorityLabel(priority: string) {
+  const labels: Record<string, string> = {
+    LOW: "Низкий",
+    NORMAL: "Обычный",
+    HIGH: "Высокий",
+    URGENT: "Срочно",
+  }
+  return labels[priority] ?? priority
+}
+
+function requestPriorityColor(priority: string) {
+  if (priority === "URGENT" || priority === "HIGH") return colors.red
+  if (priority === "LOW") return colors.teal
+  return colors.blue
+}
+
+function requestLocation(request: AdminRequestsPayload["data"][number]) {
+  const firstExtraSpace = request.tenant.tenantSpaces?.[0]?.space
+  const space = request.tenant.space ?? firstExtraSpace
+  if (!space) return "Помещение не указано"
+  return `${space.floor.building.name}, ${space.floor.name}, каб. ${space.number}`
 }
 
 function paymentStatusLabel(status: string) {

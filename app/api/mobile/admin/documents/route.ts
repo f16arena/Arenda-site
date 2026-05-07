@@ -18,18 +18,22 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80)
   const tenantId = (url.searchParams.get("tenantId") ?? "").trim() || null
+  const buildingId = (url.searchParams.get("buildingId") ?? "").trim() || null
   const category = normalizeCategory(url.searchParams.get("category"))
   const limit = clampNumber(url.searchParams.get("limit"), DEFAULT_LIMIT, MAX_LIMIT)
   const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0)
   const perListLimit = category === "ALL" ? Math.ceil(limit / 2) : limit
+  const scopedBuildingIds = buildingId
+    ? buildingIds.includes(buildingId) ? [buildingId] : ["__none__"]
+    : buildingIds
   const tenantScope = {
     user: { organizationId: ctx.org.id },
-    ...tenantInBuildingsWhere(buildingIds),
+    ...tenantInBuildingsWhere(scopedBuildingIds),
     ...(tenantId ? { id: tenantId } : {}),
   }
 
   const hasRestrictedBuildingScope = ctx.user.role !== "OWNER"
-  const needsGeneratedTenantScope = category !== "CONTRACT" && (hasRestrictedBuildingScope || tenantId)
+  const needsGeneratedTenantScope = category !== "CONTRACT" && (hasRestrictedBuildingScope || tenantId || buildingId)
   const scopedTenantIds = needsGeneratedTenantScope
     ? await db.tenant.findMany({
         where: tenantScope,

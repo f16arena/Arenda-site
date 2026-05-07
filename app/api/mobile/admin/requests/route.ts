@@ -15,12 +15,16 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const status = url.searchParams.get("status")
   const priority = url.searchParams.get("priority")
+  const buildingId = (url.searchParams.get("buildingId") ?? "").trim() || null
+  const scopedBuildingIds = buildingId
+    ? result.buildingIds.includes(buildingId) ? [buildingId] : ["__none__"]
+    : result.buildingIds
 
   const requests = await db.request.findMany({
     where: {
       ...(status ? { status } : {}),
       ...(priority ? { priority } : {}),
-      ...requestInBuildingsWhere(result.buildingIds),
+      ...requestInBuildingsWhere(scopedBuildingIds),
     },
     select: {
       id: true,
@@ -43,6 +47,16 @@ export async function GET(req: Request) {
             select: { space: { select: { number: true, floor: { select: { name: true, building: { select: { id: true, name: true } } } } } } },
           },
         },
+      },
+      comments: {
+        select: {
+          id: true,
+          text: true,
+          createdAt: true,
+          author: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
       },
       _count: { select: { comments: true } },
     },

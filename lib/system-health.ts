@@ -225,6 +225,12 @@ const PERFORMANCE_WATCH_FILES = [
     reason: "FAQ не должен разрастаться как всегда импортируемый server-модуль",
   },
   {
+    rel: path.join("lib", "relationship-integrity.ts"),
+    isClient: false,
+    maxKb: 60,
+    reason: "карта связей SaaS должна оставаться агрегированной диагностикой, а не новым тяжелым отчетом",
+  },
+  {
     rel: path.join("app", "admin", "tenants", "[id]", "page.tsx"),
     isClient: false,
     maxKb: 55,

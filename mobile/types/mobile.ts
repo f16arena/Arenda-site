@@ -416,6 +416,16 @@ export type AdminRequest = TenantRequest & {
       }
     }>
   }
+  comments?: Array<{
+    id: string
+    text: string
+    createdAt: string
+    author: {
+      id: string
+      name?: string | null
+      email?: string | null
+    }
+  }>
 }
 
 export type AdminRequestsPayload = {
@@ -551,6 +561,18 @@ export type AdminTenantsPayload = {
     nextOffset?: number | null
     hasMore: boolean
   }
+}
+
+export type AdminTenantDetailPayload = {
+  tenant: AdminTenantListItem
+  charges: TenantCharge[]
+  payments: TenantPayment[]
+  paymentReports: AdminPaymentReport[]
+  contracts: MobileContractSummary[]
+  generatedDocuments: MobileGeneratedDocumentSummary[]
+  tenantDocuments: TenantDocument[]
+  requests: AdminRequest[]
+  signatureRequests: TenantSignatureRequest[]
 }
 
 export type AdminContractsPayload = {

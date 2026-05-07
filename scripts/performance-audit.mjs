@@ -80,6 +80,11 @@ const WATCHED_FILE_BUDGETS = [
     reason: "FAQ content should not become a large always-imported server module; move oversized content to DB/seeded rows.",
   },
   {
+    file: path.join("lib", "relationship-integrity.ts"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_RELATIONSHIP_INTEGRITY_KB", 60),
+    reason: "Relationship checks must stay as an aggregate diagnostic layer; split contour checkers if this file keeps growing.",
+  },
+  {
     file: path.join("app", "admin", "tenants", "[id]", "page.tsx"),
     maxKb: readKbEnv("PERF_AUDIT_WATCH_TENANT_DETAIL_KB", 55),
     reason: "Tenant detail must stay a fast shell with lazy sections, not a single expanding server component.",
@@ -93,6 +98,16 @@ const WATCHED_FILE_BUDGETS = [
     file: path.join("app", "admin", "spaces", "page.tsx"),
     maxKb: readKbEnv("PERF_AUDIT_WATCH_SPACES_KB", 45),
     reason: "Spaces must not pull floor layout JSON or tenant pickers into initial render.",
+  },
+  {
+    file: path.join("app", "admin", "data-quality", "page.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_DATA_QUALITY_KB", 50),
+    reason: "Data Quality Center should render aggregate diagnostics instead of large unpaginated lists.",
+  },
+  {
+    file: path.join("app", "cabinet", "page.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_TENANT_CABINET_KB", 40),
+    reason: "Tenant cabinet should remain mobile-first and fast on phones.",
   },
   {
     file: path.join("app", "superadmin", "performance", "page.tsx"),

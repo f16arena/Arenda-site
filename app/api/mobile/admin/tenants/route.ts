@@ -19,13 +19,17 @@ export async function GET(req: Request) {
   const { ctx, buildingIds } = result
   const url = new URL(req.url)
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80)
+  const buildingId = (url.searchParams.get("buildingId") ?? "").trim() || null
   const limit = clampNumber(url.searchParams.get("limit"), DEFAULT_LIMIT, MAX_LIMIT)
   const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0)
   const now = new Date()
   const soon = new Date(now.getTime() + 45 * DAY_MS)
+  const scopedBuildingIds = buildingId
+    ? buildingIds.includes(buildingId) ? [buildingId] : ["__none__"]
+    : buildingIds
   const tenantWhere = {
     user: { organizationId: ctx.org.id },
-    ...tenantInBuildingsWhere(buildingIds),
+    ...tenantInBuildingsWhere(scopedBuildingIds),
     ...(q
       ? {
           OR: [

@@ -6,7 +6,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import {
   getServiceChargeDescription,
@@ -177,8 +177,8 @@ export async function generateMonthlyCharges(period: string) {
   for (const tenant of tenants) {
     if (tenant.charges.length > 0) continue // already has rent for this period
 
-    const rentAmount = calculateTenantMonthlyRent(tenant)
-    if (rentAmount <= 0) continue
+    const rentSchedule = calculateTenantRentChargeForPeriod(tenant, period)
+    if (!rentSchedule.shouldCreate) continue
     const placement = formatTenantPlacement(tenant, { includeFloorName: false })
 
     await db.charge.create({
@@ -186,9 +186,9 @@ export async function generateMonthlyCharges(period: string) {
         tenantId: tenant.id,
         period,
         type: "RENT",
-        amount: rentAmount,
-        description: `Аренда ${placement} за ${period}`,
-        dueDate: new Date(parseInt(period.split("-")[0]), parseInt(period.split("-")[1]) - 1, 10),
+        amount: rentSchedule.amount,
+        description: getTenantRentChargeDescription(placement, period, rentSchedule),
+        dueDate: rentSchedule.dueDate,
       },
     })
 
@@ -199,6 +199,7 @@ export async function generateMonthlyCharges(period: string) {
           period,
           type: "CLEANING",
           amount: tenant.cleaningFee,
+          dueDate: rentSchedule.dueDate,
           description: "Уборка помещения",
         },
       })

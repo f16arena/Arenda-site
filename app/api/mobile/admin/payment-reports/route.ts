@@ -15,13 +15,18 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const origin = new URL(req.url).origin
+  const url = new URL(req.url)
+  const buildingId = (url.searchParams.get("buildingId") ?? "").trim() || null
+  const scopedBuildingIds = buildingId
+    ? result.buildingIds.includes(buildingId) ? [buildingId] : ["__none__"]
+    : result.buildingIds
   const now = new Date()
   const dueSoon = new Date(now.getTime() + 21 * DAY_MS)
   const [reports, expectedPayments] = await Promise.all([
     db.paymentReport.findMany({
       where: {
         status: { in: ["PENDING", "DISPUTED", "REJECTED"] },
-        ...paymentReportInBuildingsWhere(result.buildingIds),
+        ...paymentReportInBuildingsWhere(scopedBuildingIds),
       },
       select: {
         id: true,
@@ -50,7 +55,7 @@ export async function GET(req: Request) {
       where: {
         isPaid: false,
         dueDate: { lte: dueSoon },
-        tenant: tenantInBuildingsWhere(result.buildingIds),
+        tenant: tenantInBuildingsWhere(scopedBuildingIds),
       },
       select: {
         id: true,

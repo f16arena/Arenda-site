@@ -13,6 +13,7 @@ import type {
   AdminPaymentReport,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
+  AdminTenantDetailPayload,
   AdminTenantsPayload,
   AdminTodayPayload,
   MobileAuthResponse,
@@ -40,6 +41,7 @@ const ACCESS_TOKEN_KEY = "commrent.mobile.accessToken"
 const REFRESH_TOKEN_KEY = "commrent.mobile.refreshToken"
 const ACCESS_EXPIRES_KEY = "commrent.mobile.accessExpiresAt"
 const REFRESH_EXPIRES_KEY = "commrent.mobile.refreshExpiresAt"
+const RETRYABLE_HTTP_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
 export type DeviceAuthAvailability = {
   available: boolean
@@ -342,8 +344,12 @@ export async function getAdminToday() {
   return authFetch<AdminTodayPayload>("/api/mobile/admin/today")
 }
 
-export async function getAdminRequests() {
-  return authFetch<AdminRequestsPayload>("/api/mobile/admin/requests")
+export async function getAdminRequests(params: {
+  status?: string
+  priority?: string
+  buildingId?: string
+} = {}) {
+  return authFetch<AdminRequestsPayload>(`/api/mobile/admin/requests${queryString(params)}`)
 }
 
 export async function updateAdminRequest(input: {
@@ -358,8 +364,10 @@ export async function updateAdminRequest(input: {
   return res.data
 }
 
-export async function getAdminPaymentReports() {
-  return authFetch<AdminPaymentReportsPayload>("/api/mobile/admin/payment-reports")
+export async function getAdminPaymentReports(params: {
+  buildingId?: string
+} = {}) {
+  return authFetch<AdminPaymentReportsPayload>(`/api/mobile/admin/payment-reports${queryString(params)}`)
 }
 
 export async function reviewAdminPaymentReport(input: {
@@ -383,10 +391,15 @@ export async function getAdminBuildings() {
 
 export async function getAdminTenants(params: {
   q?: string
+  buildingId?: string
   limit?: number
   offset?: number
 } = {}) {
   return authFetch<AdminTenantsPayload>(`/api/mobile/admin/tenants${queryString(params)}`)
+}
+
+export async function getAdminTenantDetail(tenantId: string) {
+  return authFetch<AdminTenantDetailPayload>(`/api/mobile/admin/tenants/${encodeURIComponent(tenantId)}`)
 }
 
 export async function getAdminContracts() {
@@ -397,6 +410,7 @@ export async function getAdminDocuments(params: {
   q?: string
   category?: string
   tenantId?: string
+  buildingId?: string
   limit?: number
   offset?: number
 } = {}) {
@@ -488,20 +502,18 @@ export async function unregisterPushDevice() {
 async function authFetch<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const accessToken = await getValidAccessToken()
   const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData
-  let res: Response
-  try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetchWithRetry(
+    `${API_BASE_URL}${path}`,
+    {
       ...options,
       headers: {
         ...(isMultipart ? {} : { "Content-Type": "application/json" }),
         ...(options.headers ?? {}),
         Authorization: accessToken ? `Bearer ${accessToken}` : "",
       },
-    })
-  } catch (error) {
-    captureMobileException(error, { path, method: options.method ?? "GET" })
-    throw error
-  }
+    },
+    { path, method: options.method ?? "GET" },
+  )
 
   if (res.status === 401 && retry) {
     await refreshMobileSession()
@@ -534,20 +546,64 @@ async function getExpoPushToken() {
 }
 
 async function plainFetch<T>(path: string, options: RequestInit): Promise<T> {
-  let res: Response
-  try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetchWithRetry(
+    `${API_BASE_URL}${path}`,
+    {
       ...options,
       headers: {
         "Content-Type": "application/json",
         ...(options.headers ?? {}),
       },
-    })
-  } catch (error) {
-    captureMobileException(error, { path, method: options.method ?? "GET" })
-    throw error
-  }
+    },
+    { path, method: options.method ?? "GET" },
+  )
   return parseResponse<T>(res)
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  meta: { path: string; method: string },
+) {
+  const attempts = isRetryableRequest(init) ? 3 : 1
+  let lastError: unknown = null
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const res = await fetch(url, init)
+      if (attempt < attempts - 1 && RETRYABLE_HTTP_STATUSES.has(res.status)) {
+        await delay(getRetryDelay(attempt))
+        continue
+      }
+      return res
+    } catch (error) {
+      lastError = error
+      if (attempt < attempts - 1) {
+        await delay(getRetryDelay(attempt))
+        continue
+      }
+    }
+  }
+
+  captureMobileException(lastError, meta)
+  throw new ApiError(
+    "Нет связи с сервером. Проверьте интернет или попробуйте обновить экран через несколько секунд.",
+    0,
+    "NETWORK_ERROR",
+  )
+}
+
+function isRetryableRequest(init: RequestInit) {
+  const method = String(init.method ?? "GET").toUpperCase()
+  return method === "GET" || method === "HEAD" || method === "OPTIONS"
+}
+
+function getRetryDelay(attempt: number) {
+  return 350 * 2 ** attempt
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function parseResponse<T>(res: Response): Promise<T> {

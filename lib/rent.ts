@@ -1,6 +1,9 @@
 type TenantRentInput = {
   fixedMonthlyRent?: number | null
   customRate?: number | null
+  contractStart?: Date | string | null
+  contractEnd?: Date | string | null
+  paymentDueDay?: number | null
   space?: {
     area: number
     floor: {
@@ -21,6 +24,18 @@ type TenantRentInput = {
 }
 
 export type RentMode = "FLOOR" | "RATE" | "FIXED"
+
+export type TenantRentChargeSchedule = {
+  shouldCreate: boolean
+  amount: number
+  monthlyRent: number
+  dueDate: Date
+  isProrated: boolean
+  prorationDays: number | null
+  prorationStart: Date | null
+  prorationEnd: Date | null
+  skippedReason?: "NO_RENT" | "BEFORE_CONTRACT_START" | "AFTER_CONTRACT_END" | "FIRST_PERIOD_ALREADY_COVERED"
+}
 
 function positiveAmount(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null
@@ -51,10 +66,183 @@ export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
   }, 0)
 }
 
+export function calculateTenantRentChargeForPeriod(
+  tenant: TenantRentInput,
+  period: string,
+): TenantRentChargeSchedule {
+  const monthlyRent = calculateTenantMonthlyRent(tenant)
+  const { year, monthIndex } = parseRentPeriod(period)
+  const paymentDueDay = normalizePaymentDueDay(tenant.paymentDueDay)
+  const accountingDueDay = normalizeThirtyDay(paymentDueDay)
+  const regularDueDate = getDueDate(year, monthIndex, paymentDueDay)
+
+  if (monthlyRent <= 0) {
+    return skippedRentSchedule(monthlyRent, regularDueDate, "NO_RENT")
+  }
+
+  const contractStart = toLocalDate(tenant.contractStart)
+  const contractEnd = toLocalDate(tenant.contractEnd)
+  const periodMonth = monthKey(year, monthIndex)
+
+  if (contractStart && periodMonth < monthKey(contractStart.getFullYear(), contractStart.getMonth())) {
+    return skippedRentSchedule(monthlyRent, regularDueDate, "BEFORE_CONTRACT_START")
+  }
+
+  if (contractEnd && periodMonth > monthKey(contractEnd.getFullYear(), contractEnd.getMonth())) {
+    return skippedRentSchedule(monthlyRent, regularDueDate, "AFTER_CONTRACT_END")
+  }
+
+  if (!contractStart || contractStart.getDate() === 1) {
+    return fullRentSchedule(monthlyRent, regularDueDate)
+  }
+
+  const startMonth = monthKey(contractStart.getFullYear(), contractStart.getMonth())
+  const startDay = normalizeThirtyDay(contractStart.getDate())
+
+  if (periodMonth === startMonth) {
+    const firstDueMonthIndex = startDay >= accountingDueDay ? contractStart.getMonth() + 1 : contractStart.getMonth()
+    const firstDueDate = getDueDate(contractStart.getFullYear(), firstDueMonthIndex, paymentDueDay)
+    const prorationDays = getThirtyDayProrationDays(startDay, accountingDueDay)
+    const amount = roundMoney((monthlyRent / 30) * prorationDays)
+
+    return {
+      shouldCreate: true,
+      amount,
+      monthlyRent,
+      dueDate: firstDueDate,
+      isProrated: prorationDays !== 30,
+      prorationDays,
+      prorationStart: contractStart,
+      prorationEnd: addDays(firstDueDate, -1),
+    }
+  }
+
+  if (startDay >= accountingDueDay) {
+    const firstDueDate = getDueDate(contractStart.getFullYear(), contractStart.getMonth() + 1, paymentDueDay)
+    if (periodMonth === monthKey(firstDueDate.getFullYear(), firstDueDate.getMonth())) {
+      return skippedRentSchedule(monthlyRent, regularDueDate, "FIRST_PERIOD_ALREADY_COVERED")
+    }
+  }
+
+  return fullRentSchedule(monthlyRent, regularDueDate)
+}
+
+export function getTenantRentChargeDescription(
+  placement: string,
+  period: string,
+  schedule: TenantRentChargeSchedule,
+) {
+  if (!schedule.isProrated || !schedule.prorationStart || !schedule.prorationDays) {
+    return `Аренда ${placement} за ${period}`
+  }
+
+  return [
+    `Аренда ${placement}: первый неполный период`,
+    `с ${formatRentDate(schedule.prorationStart)} до ${formatRentDate(schedule.dueDate)}`,
+    `(${schedule.prorationDays} дн., расчет /30)`,
+  ].join(" ")
+}
+
 export function calculateTenantRatePerSqm(tenant: Pick<TenantRentInput, "customRate" | "space" | "tenantSpaces">) {
   const spaces = rentableSpaces(tenant)
   if (spaces.length === 0) return null
   return tenant.customRate ?? spaces[0].floor.ratePerSqm
+}
+
+function fullRentSchedule(monthlyRent: number, dueDate: Date): TenantRentChargeSchedule {
+  return {
+    shouldCreate: true,
+    amount: monthlyRent,
+    monthlyRent,
+    dueDate,
+    isProrated: false,
+    prorationDays: null,
+    prorationStart: null,
+    prorationEnd: null,
+  }
+}
+
+function skippedRentSchedule(
+  monthlyRent: number,
+  dueDate: Date,
+  skippedReason: TenantRentChargeSchedule["skippedReason"],
+): TenantRentChargeSchedule {
+  return {
+    shouldCreate: false,
+    amount: 0,
+    monthlyRent,
+    dueDate,
+    isProrated: false,
+    prorationDays: null,
+    prorationStart: null,
+    prorationEnd: null,
+    skippedReason,
+  }
+}
+
+function parseRentPeriod(period: string) {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(period)
+  if (!match) {
+    throw new Error("Неверный формат периода (ожидается YYYY-MM)")
+  }
+  return {
+    year: Number(match[1]),
+    monthIndex: Number(match[2]) - 1,
+  }
+}
+
+function normalizePaymentDueDay(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 10
+  return Math.min(Math.max(Math.trunc(value), 1), 31)
+}
+
+function normalizeThirtyDay(value: number) {
+  return Math.min(Math.max(Math.trunc(value), 1), 30)
+}
+
+function getDueDate(year: number, monthIndex: number, paymentDueDay: number) {
+  const normalized = new Date(year, monthIndex, 1)
+  const lastDayOfMonth = new Date(normalized.getFullYear(), normalized.getMonth() + 1, 0).getDate()
+  return new Date(
+    normalized.getFullYear(),
+    normalized.getMonth(),
+    Math.min(paymentDueDay, lastDayOfMonth),
+  )
+}
+
+function getThirtyDayProrationDays(startDay: number, paymentDueDay: number) {
+  if (startDay === paymentDueDay) return 30
+  if (startDay < paymentDueDay) return paymentDueDay - startDay
+  return (30 - startDay) + paymentDueDay
+}
+
+function monthKey(year: number, monthIndex: number) {
+  return year * 12 + monthIndex
+}
+
+function addDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function toLocalDate(value: Date | string | null | undefined) {
+  if (!value) return null
+  if (typeof value === "string") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    }
+  }
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function formatRentDate(date: Date) {
+  return date.toLocaleDateString("ru-RU")
 }
 
 export function hasFixedTenantRent(value: number | null | undefined) {
