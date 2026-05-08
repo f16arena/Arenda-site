@@ -21,6 +21,7 @@ import {
   signatureStatusLabel,
 } from "@/app/utils/colors"
 import { formatDate, formatDateFull, formatFileSize, formatMoney, todayDate } from "@/app/utils/formatters"
+import { haptic } from "@/app/utils/haptics"
 import { pickUploadFile } from "@/app/utils/types"
 import {
   AppIcon,
@@ -143,6 +144,7 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
   const [message, setMessage] = useState<string | null>(null)
 
   async function submit() {
+    haptic.medium()
     setBusy(true)
     setMessage(null)
     try {
@@ -157,8 +159,10 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
       setReceipt(null)
       setNote("")
       setMessage("Оплата отправлена на проверку")
+      haptic.success()
       onChanged()
     } catch (e) {
+      haptic.error()
       setMessage(e instanceof Error ? e.message : "Не удалось отправить оплату")
     } finally {
       setBusy(false)
@@ -231,6 +235,7 @@ export function TenantRequests({ requests, onChanged }: { requests: TenantReques
   const [message, setMessage] = useState<string | null>(null)
 
   async function submit() {
+    haptic.medium()
     setBusy(true)
     setMessage(null)
     try {
@@ -239,8 +244,10 @@ export function TenantRequests({ requests, onChanged }: { requests: TenantReques
       setDescription("")
       setAttachment(null)
       setMessage("Заявка создана")
+      haptic.success()
       onChanged()
     } catch (e) {
+      haptic.error()
       setMessage(e instanceof Error ? e.message : "Не удалось создать заявку")
     } finally {
       setBusy(false)
@@ -290,14 +297,17 @@ function MeterCard({ meter, period, onChanged }: { meter: TenantMetersPayload["d
   const [message, setMessage] = useState<string | null>(null)
 
   async function submit() {
+    haptic.medium()
     setBusy(true)
     setMessage(null)
     try {
       await submitTenantMeterReading({ meterId: meter.id, value: Number(value.replace(",", ".")), period })
       setValue("")
       setMessage("Показание принято")
+      haptic.success()
       onChanged()
     } catch (e) {
+      haptic.error()
       setMessage(e instanceof Error ? e.message : "Не удалось передать показание")
     } finally {
       setBusy(false)

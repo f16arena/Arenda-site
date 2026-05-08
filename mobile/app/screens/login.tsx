@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from "react-n
 import { ApiError, loginMobile, registerMobile, requestMobilePasswordReset } from "@/lib/api"
 import { colors, fonts, openExternalUrl } from "@/app/utils/colors"
 import { isEmailLike, makeMobileSlug } from "@/app/utils/formatters"
+import { haptic } from "@/app/utils/haptics"
 import {
   AuthModeTabs,
   Card,
@@ -89,10 +90,12 @@ export function LoginScreen({
   }
 
   async function submit() {
+    haptic.medium()
     setBusy(true)
     setMessage(null)
     try {
       await loginMobile({ login, password, totp: needsTotp ? totp : undefined })
+      haptic.success()
       await onLoggedIn()
     } catch (e) {
       if (e instanceof ApiError && e.code === "TOTP_REQUIRED") {
@@ -100,6 +103,7 @@ export function LoginScreen({
         setMessage("Введите код 2FA")
         setMessageTone("error")
       } else {
+        haptic.error()
         setMessage(e instanceof Error ? e.message : "Не удалось войти")
         setMessageTone("error")
       }

@@ -22,9 +22,20 @@ const ROLE_LABELS: Record<string, string> = {
   EMPLOYEE: "Сотрудник",
 }
 
-export default async function ProfilePage() {
+type ProfileSearchParams = { tab?: string | string[] }
+
+export default async function ProfilePage({ searchParams }: { searchParams?: Promise<ProfileSearchParams> }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
+
+  const resolvedSearchParams = (await searchParams) ?? {}
+  const tabParamRaw = resolvedSearchParams.tab
+  const tabParam = Array.isArray(tabParamRaw) ? tabParamRaw[0] : tabParamRaw
+  const allowedTabs = ["general", "security", "email", "notifications", "management"] as const
+  type AllowedTab = typeof allowedTabs[number]
+  const initialTab: AllowedTab | undefined = allowedTabs.includes(tabParam as AllowedTab)
+    ? (tabParam as AllowedTab)
+    : undefined
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
@@ -75,6 +86,7 @@ export default async function ProfilePage() {
         currentEmail={user.email}
         emailVerified={!!user.emailVerifiedAt}
         phone={user.phone}
+        initialTab={initialTab}
         notificationsSlot={
           <div className="space-y-5">
             <TwoFactorCard enabled={!!user.totpEnabledAt} />

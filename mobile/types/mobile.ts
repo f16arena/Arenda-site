@@ -14,6 +14,7 @@ export type MobileBootstrap = {
     email?: string | null
     phone?: string | null
     role?: MobileRole | null
+    totpEnabled?: boolean
   }
   organization: {
     id: string
