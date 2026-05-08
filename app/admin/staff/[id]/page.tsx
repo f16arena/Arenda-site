@@ -80,7 +80,7 @@ export default async function StaffDetailPage({
       <div className="flex items-center gap-3">
         <Link
           href="/admin/staff"
-          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100"
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
         >
           <ArrowLeft className="h-4 w-4" />
           Сотрудники
@@ -100,7 +100,7 @@ export default async function StaffDetailPage({
               {ROLES[user.role as keyof typeof ROLES] ?? user.role}
             </span>
             {user.staff?.position && (
-              <span className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">· {user.staff.position}</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">· {user.staff.position}</span>
             )}
             {!user.isActive && (
               <span className="text-xs text-red-600 dark:text-red-400 font-medium">УВОЛЕН</span>
@@ -171,10 +171,10 @@ export default async function StaffDetailPage({
               <table className="w-full min-w-[480px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
-                    <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Период</th>
-                    <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
-                    <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
-                    <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>
+                    <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Период</th>
+                    <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
+                    <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
+                    <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -190,7 +190,7 @@ export default async function StaffDetailPage({
                           {p.status === "PAID" ? "Выплачено" : "Ожидает"}
                         </span>
                       </td>
-                      <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                      <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400">
                         {p.paidAt
                           ? new Date(p.paidAt).toLocaleDateString("ru-RU")
                           : new Date(p.createdAt).toLocaleDateString("ru-RU")}
@@ -211,7 +211,7 @@ export default async function StaffDetailPage({
             </div>
             <div className="p-5 space-y-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Email подтверждён</span>
+                <span className="text-slate-500 dark:text-slate-400">Email подтверждён</span>
                 {user.emailVerifiedAt ? (
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs">
                     <CheckCircle className="h-3.5 w-3.5" />
@@ -227,7 +227,7 @@ export default async function StaffDetailPage({
                 )}
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Telegram</span>
+                <span className="text-slate-500 dark:text-slate-400">Telegram</span>
                 {user.telegramChatId ? (
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs">
                     <CheckCircle className="h-3.5 w-3.5" />
@@ -238,11 +238,11 @@ export default async function StaffDetailPage({
                 )}
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Непрочитанных сообщений</span>
+                <span className="text-slate-500 dark:text-slate-400">Непрочитанных сообщений</span>
                 <span className="text-slate-900 dark:text-slate-100 font-medium">{unreadMessages}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Непрочитанных уведомлений</span>
+                <span className="text-slate-500 dark:text-slate-400">Непрочитанных уведомлений</span>
                 <span className="text-slate-900 dark:text-slate-100 font-medium">{totalNotifications}</span>
               </div>
             </div>
@@ -287,7 +287,7 @@ function Stat({ icon: Icon, label, value, muted }: {
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
+      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>

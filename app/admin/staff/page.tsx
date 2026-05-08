@@ -36,7 +36,7 @@ export default async function StaffPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Сотрудники</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{active.length} активных · {inactive.length} уволенных</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{active.length} активных · {inactive.length} уволенных</p>
         </div>
         <div className="flex gap-2">
           <GenerateSalaryButton period={currentPeriod} />
@@ -52,14 +52,14 @@ export default async function StaffPage() {
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сотрудник</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Роль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Должность</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Здания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Телефон</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Оклад</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Зарплата</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Действия</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Сотрудник</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Роль</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Должность</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здания</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Телефон</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Оклад</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Зарплата</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -70,7 +70,7 @@ export default async function StaffPage() {
                   <td className="px-5 py-3.5">
                     <Link href={`/admin/staff/${u.id}`} className="flex items-center gap-3 group">
                       <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 group-hover:bg-blue-100 dark:hover:bg-blue-500/20 dark:bg-blue-500/20 transition">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:text-blue-400">{u.name[0]?.toUpperCase()}</span>
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:text-blue-400">{u.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
                         <p className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:text-blue-400 transition">{u.name}</p>
@@ -83,8 +83,8 @@ export default async function StaffPage() {
                       {ROLES[u.role as keyof typeof ROLES] ?? u.role}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">{u.staff?.position ?? "—"}</td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{u.staff?.position ?? "—"}</td>
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
                     {u.role === "OWNER" ? (
                       <span className="text-xs text-emerald-600 dark:text-emerald-400">Все здания</span>
                     ) : u.buildingAccess.length > 0 ? (
@@ -93,7 +93,7 @@ export default async function StaffPage() {
                       <span className="text-xs text-amber-600 dark:text-amber-400">Не назначено</span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">{u.phone ?? "—"}</td>
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{u.phone ?? "—"}</td>
                   <td className="px-5 py-3.5 text-right font-medium text-slate-900 dark:text-slate-100">
                     {u.staff ? formatMoney(u.staff.salary) : "—"}
                   </td>
@@ -142,7 +142,7 @@ export default async function StaffPage() {
       {inactive.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto opacity-70">
           <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Уволенные</p>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Уволенные</p>
           </div>
           <table className="w-full min-w-[640px] text-sm">
             <tbody>

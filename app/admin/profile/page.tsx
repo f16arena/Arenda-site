@@ -64,7 +64,7 @@ export default async function ProfilePage() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {formatPersonShortName(user.name)} · {ROLE_LABELS[user.role] ?? user.role}
           </p>
         </div>

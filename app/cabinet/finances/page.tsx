@@ -81,7 +81,7 @@ export default async function CabinetFinances() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Финансы</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Начисления и оплаты</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Начисления и оплаты</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -89,18 +89,18 @@ export default async function CabinetFinances() {
           <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {formatMoney(totalDebt)}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Задолженность</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Задолженность</p>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{area} м²</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Площадь</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Площадь</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
             {hasFixedTenantRent(tenant.fixedMonthlyRent) || hasFullFloorFixedRent ? "Фикс. сумма" : `Ставка: ${formatMoney(rate)}/м²`}
           </p>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatMoney(monthlyRent)}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Аренда в месяц</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Аренда в месяц</p>
         </div>
       </div>
 
@@ -181,7 +181,7 @@ export default async function CabinetFinances() {
               <div key={period} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatPeriod(period)}</h3>
-                  <div className="text-right text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <div className="text-right text-xs text-slate-500 dark:text-slate-400">
                     {formatMoney(periodPaid)} / {formatMoney(periodTotal)}
                   </div>
                 </div>

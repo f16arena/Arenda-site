@@ -130,12 +130,12 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
     <div className="space-y-5 print:space-y-0">
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3">
-          <Link href="/admin/documents" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
+          <Link href="/admin/documents" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Договор аренды</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Автозаполнение из карточки арендатора</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Автозаполнение из карточки арендатора</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -146,7 +146,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
       {!tenant ? (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
-          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Выберите арендатора чтобы сформировать договор</p>
+          <p className="text-slate-500 dark:text-slate-400">Выберите арендатора чтобы сформировать договор</p>
         </div>
       ) : (
         <>
@@ -288,7 +288,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
               <p>Email: {landlord.email}</p>
               <div className="mt-6 border-t border-slate-300 pt-2 text-center">
                 ___________________ {landlord.directorShort}
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">М.П.</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">М.П.</p>
               </div>
             </div>
             <div>
@@ -304,7 +304,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
               {tenant.user.email && <p>Email: {tenant.user.email}</p>}
               <div className="mt-6 border-t border-slate-300 pt-2 text-center">
                 ___________________ {shortName(tenant.directorName ?? tenant.user.name)}
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">М.П.</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">М.П.</p>
               </div>
             </div>
           </div>

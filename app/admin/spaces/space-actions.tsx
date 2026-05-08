@@ -57,7 +57,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Новое помещение</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -75,7 +75,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Этаж *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Этаж *</label>
                 <select
                   name="floorId"
                   required
@@ -103,11 +103,11 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Номер кабинета *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер кабинета *</label>
                   <input name="number" required placeholder="101" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Площадь, м² *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м² *</label>
                   <input
                     name="area"
                     type="number"
@@ -131,7 +131,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тип помещения *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип помещения *</label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="cursor-pointer">
                     <input type="radio" name="kind" value="RENTABLE" defaultChecked className="peer sr-only" />
@@ -153,11 +153,11 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
                 <input name="description" placeholder="Угловой офис, окна на юг…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
                 <button
                   type="submit"
                   disabled={pending || exceeds}
@@ -243,7 +243,7 @@ export function EditSpaceDialog({
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Редактировать помещение</h2>
-              <button onClick={() => setOpen(false)}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -261,16 +261,16 @@ export function EditSpaceDialog({
             >
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Номер</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер</label>
                   <input name="number" defaultValue={space.number} required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Площадь, м²</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м²</label>
                   <input name="area" type="number" step="0.1" defaultValue={space.area} required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Статус</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Статус</label>
                 <select
                   name="status"
                   value={status}
@@ -341,11 +341,11 @@ export function EditSpaceDialog({
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
                 <input name="description" defaultValue={space.description ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
                 <button
                   type="submit"
                   disabled={pending || cannotSave}

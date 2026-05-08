@@ -76,7 +76,7 @@ export function OrgEditForm({
       className="space-y-3"
     >
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Название</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Название</label>
         <input
           name="name"
           defaultValue={initial.name}
@@ -85,7 +85,7 @@ export function OrgEditForm({
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Тариф</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Тариф</label>
         <select
           name="planId"
           defaultValue={initial.planId}
@@ -126,7 +126,7 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Срок (месяцев)</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Срок (месяцев)</label>
           <input
             type="number"
             min={1}
@@ -141,7 +141,7 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Оплачено ₸</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Оплачено ₸</label>
           <input
             type="number"
             value={paid}
@@ -203,7 +203,7 @@ export function DangerZone({
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
             {isActive ? "Деактивировать организацию" : "Активировать организацию"}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isActive
               ? "Клиент не сможет войти. Данные сохранятся, можно восстановить."
               : "Клиент снова сможет войти и работать."}
@@ -244,7 +244,7 @@ export function DangerZone({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-red-900 dark:text-red-200">Удалить организацию навсегда</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Удалит {buildingsCount} зданий и каскадно все связанные данные (этажи, помещения,
               арендаторы, договора, платежи). Пользователи останутся в системе как
               неактивные. Действие необратимо.
@@ -347,7 +347,7 @@ export function ChangeOwnerForm({
 
   return (
     <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сменить владельца</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">Сменить владельца</label>
       <div className="flex gap-2">
         <select
           value={selected}

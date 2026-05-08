@@ -279,7 +279,7 @@ async function renderFinancesPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Финансы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatPeriod(currentPeriod)}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{formatPeriod(currentPeriod)}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link
@@ -339,7 +339,7 @@ async function renderFinancesPage({
         ].map((s) => (
           <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{s.sub}</p>
           </div>
         ))}
@@ -444,11 +444,11 @@ async function renderFinancesPage({
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Категория</th>
-              {!currentBuildingId && <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Здание</th>}
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Описание</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Категория</th>
+              {!currentBuildingId && <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>}
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Описание</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -459,8 +459,8 @@ async function renderFinancesPage({
                 {!currentBuildingId && (
                   <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.building.name}</td>
                 )}
-                <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">{e.description ?? "—"}</td>
-                <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">{e.date.toLocaleDateString("ru-RU")}</td>
+                <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.description ?? "—"}</td>
+                <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.date.toLocaleDateString("ru-RU")}</td>
                 <td className="px-5 py-3 text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(e.amount)}</td>
                 <td className="px-5 py-3 text-right">
                   <DeleteAction

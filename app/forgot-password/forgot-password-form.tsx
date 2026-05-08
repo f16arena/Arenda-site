@@ -46,7 +46,7 @@ export function ForgotPasswordForm() {
           </div>
         )}
 
-        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Если письмо не пришло за 5 минут — проверь папку «Спам» или попробуй ещё раз.
         </p>
 

@@ -53,11 +53,12 @@ export function ConfirmDialog({
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
                 {description && (
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{description}</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
                 )}
               </div>
               <button
                 onClick={() => setOpen(false)}
+                aria-label="Закрыть"
                 className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400"
               >
                 <X className="h-5 w-5" />
@@ -67,7 +68,7 @@ export function ConfirmDialog({
               <button
                 onClick={() => setOpen(false)}
                 disabled={pending}
-                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 disabled:opacity-60"
+                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 disabled:opacity-60"
               >
                 {cancelLabel}
               </button>

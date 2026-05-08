@@ -338,14 +338,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       <div className="flex items-center gap-4">
         <Link
           href="/admin/tenants"
-          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Назад
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{tenant.companyName}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType}
             {tenant.category ? ` · ${tenant.category}` : ""}
           </p>
@@ -391,7 +391,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             label="До конца договора"
             value={daysToContractEnd === null ? "—" : daysToContractEnd < 0 ? "Истёк" : `${daysToContractEnd} дн.`}
             valueClass={
-              daysToContractEnd === null ? "text-slate-500 dark:text-slate-400 dark:text-slate-500"
+              daysToContractEnd === null ? "text-slate-500 dark:text-slate-400"
                 : daysToContractEnd < 0 ? "text-red-600 dark:text-red-400"
                 : daysToContractEnd < 30 ? "text-amber-600 dark:text-amber-400"
                 : "text-slate-900 dark:text-slate-100"
@@ -491,7 +491,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             >
               <fieldset disabled={!canEditContacts} className="contents">
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО</label>
                 <input
                   name="name"
                   defaultValue={tenant.user.name}
@@ -501,7 +501,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Телефон</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
                 <KzPhoneInput
                   name="phone"
                   defaultValue={tenant.user.phone}
@@ -509,7 +509,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Email</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
                 <AsciiEmailInput
                   name="email"
                   defaultValue={tenant.user.email}
@@ -553,7 +553,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
               <fieldset disabled={!canEditCompany} className="contents">
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название компании</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название компании</label>
                 <input
                   name="companyName"
                   defaultValue={tenant.companyName}
@@ -567,7 +567,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 initialIin={tenant.iin}
               />
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
                 <input
                   name="category"
                   defaultValue={tenant.category ?? ""}
@@ -610,7 +610,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Юридический адрес</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>
                 <AddressAutocompleteInput
                   name="legalAddress"
                   defaultValue={tenant.legalAddress ?? ""}
@@ -620,7 +620,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Фактический адрес</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Фактический адрес</label>
                 <AddressAutocompleteInput
                   name="actualAddress"
                   defaultValue={tenant.actualAddress ?? ""}
@@ -630,7 +630,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО руководителя</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО руководителя</label>
                 <input
                   name="directorName"
                   defaultValue={tenant.directorName ?? ""}
@@ -639,7 +639,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Должность руководителя</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Должность руководителя</label>
                 <input
                   name="directorPosition"
                   defaultValue={tenant.directorPosition ?? ""}
@@ -648,7 +648,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Начало договора</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Начало договора</label>
                 <input
                   name="contractStart"
                   type="date"
@@ -657,7 +657,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Конец договора</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Конец договора</label>
                 <input
                   name="contractEnd"
                   type="date"
@@ -795,8 +795,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                                 </span>
                               )}
                             </p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{space.floor.name}</p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">{space.area} м²</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{space.floor.name}</p>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{space.area} м²</p>
                           </div>
                           {canAssignTenantSpaces && (
                           <form
@@ -832,7 +832,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   {canCreateDocuments && (
                   <Link
                     href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
-                    className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
+                    className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
                   >
                     Сформировать договор
                   </Link>
@@ -870,7 +870,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               )}
               {canAssignTenantSpaces && (
               <div className={assignedSpaces.length > 0 ? "mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" : ""}>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2 font-medium">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">
                   {assignedSpaces.length > 0 ? "Добавить ещё помещение:" : "Свободные помещения:"}
                 </p>
                 <div className="space-y-2">
@@ -994,7 +994,7 @@ function QuickStat({
 }) {
   return (
     <div className="px-5 py-4">
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>

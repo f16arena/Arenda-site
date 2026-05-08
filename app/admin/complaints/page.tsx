@@ -76,7 +76,7 @@ export default async function ComplaintsPage({
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Жалобы и предложения</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           {filterCounts.new} новых · {filterCounts.reviewed} рассмотрено
         </p>
       </div>
@@ -113,13 +113,13 @@ export default async function ComplaintsPage({
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                     {c.user?.name ?? c.name ?? "Аноним"}
                   </p>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[c.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500"}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[c.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
                     {statusLabel[c.status] ?? c.status}
                   </span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{c.text}</p>
                 {c.response && (
-                  <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 border-l-2 border-slate-300">
+                  <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-600 dark:text-slate-400 border-l-2 border-slate-300">
                     <span className="text-xs text-slate-400 dark:text-slate-500 block mb-1">Ответ администратора:</span>
                     {c.response}
                   </div>

@@ -99,12 +99,12 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
     <div className="space-y-5">
       <div className="flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
+          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счёт на оплату</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -134,8 +134,8 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 print-area">
           <div className="text-center mb-6">
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">СЧЁТ НА ОПЛАТУ № {invoiceNumber}</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
-            {tenant.contracts[0] && <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">по договору № {tenant.contracts[0].number}</p>}
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
+            {tenant.contracts[0] && <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">по договору № {tenant.contracts[0].number}</p>}
             {dueDate && <p className="text-sm text-slate-700 dark:text-slate-300 font-medium mt-2">Срок оплаты: до {dueDate.toLocaleDateString("ru-RU")}</p>}
           </div>
 
@@ -143,27 +143,27 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
             <div>
               <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Поставщик:</p>
               <p className="text-slate-700 dark:text-slate-300">{landlord.fullName}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{landlord.legalAddress}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{landlord.taxIdLabel}: {landlord.taxId}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {landlord.bank}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {landlord.iik}</p>
-              <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {landlord.bik}</p>
+              <p className="text-slate-500 dark:text-slate-400">{landlord.legalAddress}</p>
+              <p className="text-slate-500 dark:text-slate-400">{landlord.taxIdLabel}: {landlord.taxId}</p>
+              <p className="text-slate-500 dark:text-slate-400">Банк: {landlord.bank}</p>
+              <p className="text-slate-500 dark:text-slate-400">ИИК: {landlord.iik}</p>
+              <p className="text-slate-500 dark:text-slate-400">БИК: {landlord.bik}</p>
               {landlord.secondIik && (
                 <>
-                  <p className="mt-2 text-slate-500 dark:text-slate-400 dark:text-slate-500">Второй банк: {landlord.secondBank}</p>
-                  <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК 2: {landlord.secondIik}</p>
-                  <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК 2: {landlord.secondBik}</p>
+                  <p className="mt-2 text-slate-500 dark:text-slate-400">Второй банк: {landlord.secondBank}</p>
+                  <p className="text-slate-500 dark:text-slate-400">ИИК 2: {landlord.secondIik}</p>
+                  <p className="text-slate-500 dark:text-slate-400">БИК 2: {landlord.secondBik}</p>
                 </>
               )}
             </div>
             <div>
               <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Получатель:</p>
               <p className="text-slate-700 dark:text-slate-300">{tenant.companyName}</p>
-              {tenant.legalAddress && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">{tenant.legalAddress}</p>}
-              {tenant.bin && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИН: {tenant.bin}</p>}
-              {tenant.bankName && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Банк: {tenant.bankName}</p>}
-              {tenant.iik && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИК: {tenant.iik}</p>}
-              {tenant.bik && <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">БИК: {tenant.bik}</p>}
+              {tenant.legalAddress && <p className="text-slate-500 dark:text-slate-400">{tenant.legalAddress}</p>}
+              {tenant.bin && <p className="text-slate-500 dark:text-slate-400">БИН: {tenant.bin}</p>}
+              {tenant.bankName && <p className="text-slate-500 dark:text-slate-400">Банк: {tenant.bankName}</p>}
+              {tenant.iik && <p className="text-slate-500 dark:text-slate-400">ИИК: {tenant.iik}</p>}
+              {tenant.bik && <p className="text-slate-500 dark:text-slate-400">БИК: {tenant.bik}</p>}
             </div>
           </div>
 
@@ -204,7 +204,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
             </tbody>
           </table>
 
-          {!withVat && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Без НДС (поставщик не плательщик НДС).</p>}
+          {!withVat && <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Без НДС (поставщик не плательщик НДС).</p>}
 
           <p className="text-sm text-slate-700 dark:text-slate-300 mb-2"><b>Назначение платежа:</b> «Оплата за аренду по счёту № {invoiceNumber} от {today.toLocaleDateString("ru-RU")}{tenant.contracts[0] ? `, договор № ${tenant.contracts[0].number}` : ""}»</p>
 
@@ -212,7 +212,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
             <div>
               <p className="font-semibold mb-8">Поставщик:</p>
               <p className="border-b border-slate-400 pb-1 text-center">_____________ {landlord.directorShort}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1">подпись · М.П.</p>
             </div>
           </div>
         </div>

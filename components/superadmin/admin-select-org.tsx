@@ -31,7 +31,7 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
             <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Платформенный режим</span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">· {userName}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">· {userName}</span>
           </div>
           <Link href="/superadmin" className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:text-purple-300">
             ← Вернуться в супер-админ
@@ -46,7 +46,7 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
             <Sparkles className="h-6 w-6 text-purple-600 dark:text-purple-400" />
           </div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Выберите организацию</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1.5 max-w-md mx-auto">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 max-w-md mx-auto">
             Вы вошли как платформенный администратор. Чтобы открыть админку клиента —
             выберите организацию ниже.
           </p>
@@ -55,7 +55,7 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
         {orgs.length === 0 ? (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center">
             <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Пока нет организаций.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Пока нет организаций.</p>
             <Link href="/superadmin/orgs/new" className="inline-block mt-4 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm font-medium text-white">
               Создать первую
             </Link>
@@ -83,7 +83,7 @@ function OrgCard({ org }: { org: Org }) {
     : null
 
   const status: { label: string; className: string } = !org.isActive
-    ? { label: "Деактивирована", className: "bg-slate-200 text-slate-600 dark:text-slate-400 dark:text-slate-500" }
+    ? { label: "Деактивирована", className: "bg-slate-200 text-slate-600 dark:text-slate-400" }
     : org.isSuspended
     ? { label: "Приостановлена", className: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" }
     : isExpired
@@ -98,7 +98,7 @@ function OrgCard({ org }: { org: Org }) {
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 truncate">{org.name}</h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono mt-0.5">{org.slug}</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">{org.slug}</p>
           </div>
           <span className={cn("shrink-0 text-[10px] font-medium px-2 py-1 rounded-full", status.className)}>
             {status.label}
@@ -107,15 +107,15 @@ function OrgCard({ org }: { org: Org }) {
 
         <div className="grid grid-cols-3 gap-2 mb-4 text-center">
           <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Тариф</p>
             <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{org.planName ?? "—"}</p>
           </div>
           <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Зданий</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Зданий</p>
             <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{org.buildingsCount}</p>
           </div>
           <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 py-2">
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">Юзеров</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Юзеров</p>
             <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-0.5">{org.usersCount}</p>
           </div>
         </div>

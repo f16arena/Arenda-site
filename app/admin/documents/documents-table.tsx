@@ -204,13 +204,13 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     <div className="space-y-3">
       {/* View mode toggle */}
       <div className="flex items-center justify-end gap-2">
-        <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Вид:</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Вид:</span>
         <button
           onClick={() => setGroupBy("none")}
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
             groupBy === "none"
               ? "bg-slate-900 text-white"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
           }`}
         >
           <List className="h-3.5 w-3.5" />
@@ -221,7 +221,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
             groupBy === "tenant"
               ? "bg-slate-900 text-white"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
           }`}
         >
           <Folder className="h-3.5 w-3.5" />
@@ -271,14 +271,14 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                   />
                 )}
               </th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тип</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Номер</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тип</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Номер</th>
               {groupBy !== "tenant" && (
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Контрагент</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Контрагент</th>
               )}
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Период</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Создан</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Период</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Создан</th>
               <th className="px-5 py-3 text-right" />
             </tr>
           </thead>
@@ -308,7 +308,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                         ) : (
                           <span>{groupName}</span>
                         )}
-                        <span className="ml-auto flex items-center gap-3 text-xs font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        <span className="ml-auto flex items-center gap-3 text-xs font-normal text-slate-500 dark:text-slate-400">
                           <span>{group.rows.length} док.</span>
                           {groupTotal > 0 && <span>{formatMoney(groupTotal)}</span>}
                         </span>
@@ -338,11 +338,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                           </span>
                         </td>
                         <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
-                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.period ?? "—"}</td>
+                        <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{r.period ?? "—"}</td>
                         <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">
                           {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
                         </td>
-                        <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                        <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
                           {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
                         </td>
                         <td className="px-5 py-3 text-right">{renderActions(r)}</td>
@@ -385,11 +385,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                       r.tenantName
                     )}
                   </td>
-                  <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.period ?? "—"}</td>
+                  <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{r.period ?? "—"}</td>
                   <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">
                     {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
                   </td>
-                  <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
                     {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
                   </td>
                   <td className="px-5 py-3 text-right">{renderActions(r)}</td>

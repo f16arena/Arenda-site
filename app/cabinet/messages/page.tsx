@@ -89,7 +89,7 @@ export default async function CabinetMessages() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Сообщения</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Связь с администрацией здания</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Связь с администрацией здания</p>
       </div>
       <ChatViewLoader
         currentUserId={me}

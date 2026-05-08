@@ -45,7 +45,7 @@ export default async function AdminDashboard() {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
         <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
         <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">Нет доступных зданий</p>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-4">Создайте здание или назначьте пользователя на нужные здания</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Создайте здание или назначьте пользователя на нужные здания</p>
         <Link href="/admin/buildings" className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
           К списку зданий
         </Link>
@@ -398,7 +398,7 @@ export default async function AdminDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Дашборд</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           {buildingId ? "Обзор выбранного здания" : `Обзор всех доступных зданий · ${visibleBuildingIds.length}`}
         </p>
       </div>
@@ -684,9 +684,9 @@ export default async function AdminDashboard() {
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Компания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Помещение</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Долг</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Компания</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Помещение</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Долг</th>
             </tr>
           </thead>
           <tbody>
@@ -695,7 +695,7 @@ export default async function AdminDashboard() {
               return (
                 <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
-                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
                     {describeTenantPlacement(t)}
                   </td>
                   <td className="px-5 py-3 text-right">
@@ -962,7 +962,7 @@ function WorkdayAction({
   return (
     <Link
       href={href}
-      className={`rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${
+      className={`rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 ${
         urgent
           ? "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
           : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50"
@@ -1004,7 +1004,7 @@ function AttentionRow({
   return (
     <Link
       href={href}
-      className={`rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${
+      className={`rounded-lg border p-3 transition hover:-translate-y-0.5 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 ${
         active ? colors[tone] : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300"
       }`}
     >
@@ -1040,7 +1040,7 @@ function TodayCard({
   return (
     <Link
       href={href}
-      className={`block bg-white dark:bg-slate-900 rounded-xl border p-4 transition hover:shadow-sm ${urgent ? "border-red-200 dark:border-red-500/30 ring-1 ring-red-100" : "border-slate-200 dark:border-slate-800"}`}
+      className={`block bg-white dark:bg-slate-900 rounded-xl border p-4 transition hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 ${urgent ? "border-red-200 dark:border-red-500/30 ring-1 ring-red-100" : "border-slate-200 dark:border-slate-800"}`}
     >
       <div className="flex items-start justify-between mb-2">
         <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${colors[color]}`}>
@@ -1076,7 +1076,7 @@ function StatCard({
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
   )
@@ -1116,7 +1116,7 @@ function StatusBadge({ status }: { status: string }) {
     DONE: "Готово",
   }
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500"}`}>
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
       {label[status] ?? status}
     </span>
   )

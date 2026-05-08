@@ -154,7 +154,7 @@ export default async function OrgsListPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Организации</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {stats.total} клиентов на платформе · показано {items.length} из {total}
           </p>
         </div>
@@ -231,7 +231,7 @@ export default async function OrgsListPage({
         <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center">
           <Building2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Пока нет организаций</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Создайте первую через кнопку выше</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Создайте первую через кнопку выше</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -460,7 +460,7 @@ function KpiCard({ label, value, icon: Icon, color }: {
   color: "slate" | "emerald" | "amber" | "red"
 }) {
   const colors = {
-    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
+    slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
     emerald: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
     amber: "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
     red: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
@@ -472,7 +472,7 @@ function KpiCard({ label, value, icon: Icon, color }: {
           <Icon className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
           <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
         </div>
       </div>

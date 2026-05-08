@@ -88,7 +88,7 @@ export function ImportTenantsClient() {
               <>
                 <Upload className="h-10 w-10 text-slate-400 dark:text-slate-500" />
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Перетащите файл сюда или нажмите чтобы выбрать</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Поддерживаются .xlsx, .xls, .csv до 10 МБ</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Поддерживаются .xlsx, .xls, .csv до 10 МБ</p>
               </>
             )}
           </div>
@@ -125,7 +125,7 @@ export function ImportTenantsClient() {
             <div className="flex items-center gap-2 text-sm">
               <FileSpreadsheet className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <span className="font-medium text-slate-900 dark:text-slate-100">{fileName}</span>
-              <button onClick={reset} className="text-slate-400 dark:text-slate-500 hover:text-red-500"><X className="h-4 w-4" /></button>
+              <button onClick={reset} aria-label="Сбросить" className="text-slate-400 dark:text-slate-500 hover:text-red-500"><X className="h-4 w-4" /></button>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -162,15 +162,15 @@ export function ImportTenantsClient() {
                     <tr key={r.rowIndex} className="border-t border-slate-50">
                       <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{r.rowIndex}</td>
                       <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{r.data.companyName}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.legalType}</td>
-                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.bin || "—"}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{r.data.legalType}</td>
+                      <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">{r.data.bin || "—"}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                         {r.data.contactName}
                         {r.data.phone && <div className="text-[10px] text-slate-400 dark:text-slate-500">{r.data.phone}</div>}
                         {r.data.email && <div className="text-[10px] text-slate-400 dark:text-slate-500">{r.data.email}</div>}
                       </td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.spaceNumber || "—"}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.data.rate ? `${r.data.rate} ₸` : "—"}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{r.data.spaceNumber || "—"}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{r.data.rate ? `${r.data.rate} ₸` : "—"}</td>
                       <td className="px-3 py-2 text-amber-600 dark:text-amber-400">
                         {r.warnings.length > 0 && (
                           <span title={r.warnings.join("\n")}>
@@ -226,7 +226,7 @@ export function ImportTenantsClient() {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
         <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 mx-auto mb-3 animate-spin" />
         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Сохраняем в БД...</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Не закрывайте страницу</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Не закрывайте страницу</p>
       </div>
     )
   }
@@ -284,12 +284,12 @@ function Stat({ label, value, color }: { label: string; value: number; color?: "
   const tone = color === "emerald" ? "text-emerald-700 dark:text-emerald-300" : color === "red" ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300"
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 dark:text-slate-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</p>
       <p className={`text-2xl font-bold ${tone}`}>{value}</p>
     </div>
   )
 }
 
 function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-3 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">{children}</th>
+  return <th className="px-3 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">{children}</th>
 }

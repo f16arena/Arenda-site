@@ -199,7 +199,7 @@ export function CommandPalette({ openSignal = 0 }: CommandPaletteProps) {
                     <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{item.title}</p>
-                      {item.subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{item.subtitle}</p>}
+                      {item.subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.subtitle}</p>}
                     </div>
                   </Command.Item>
                 ))}

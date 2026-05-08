@@ -62,7 +62,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
             className="w-full rounded-lg border border-slate-200 dark:border-slate-800 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Минимум 8 символов</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Минимум 8 символов</p>
       </div>
 
       <div>
@@ -81,7 +81,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 cursor-pointer">
+      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
         <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
         Показать пароль
       </label>

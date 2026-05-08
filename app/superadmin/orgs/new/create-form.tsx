@@ -131,7 +131,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
         {/* Slug с live-проверкой */}
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
             Поддомен (slug) *
           </label>
           <div className="relative">
@@ -174,7 +174,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
             <div className="mt-1 space-y-1">
               <p className="text-[11px] text-red-600 dark:text-red-400">{checkResult.reason}</p>
               {checkResult.suggestions && checkResult.suggestions.length > 0 && (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   Свободные варианты:{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
@@ -196,7 +196,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тариф *</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тариф *</label>
             <select name="planId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -238,7 +238,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">{title}</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{title}</p>
       {children}
     </div>
   )
@@ -259,7 +259,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}

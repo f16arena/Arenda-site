@@ -1054,7 +1054,7 @@ export function FloorEditor({
             aria-label={t.label}
             title={t.label}
             className={`flex h-10 items-center justify-center rounded-lg transition ${
-              tool === t.id ? "bg-blue-600 text-white" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+              tool === t.id ? "bg-blue-600 text-white" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
             }`}
           >
             <t.icon className="h-4 w-4" />
@@ -1067,7 +1067,7 @@ export function FloorEditor({
           aria-label="Сетка"
           title="Сетка (G)"
           className={`flex h-10 items-center justify-center rounded-lg transition ${
-            showGrid ? "bg-slate-200" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+            showGrid ? "bg-slate-200" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
           }`}
         >
           <GridIcon className="h-4 w-4" />
@@ -1077,7 +1077,7 @@ export function FloorEditor({
           onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z * 1.2))}
           aria-label="Увеличить"
           title="Увеличить"
-          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <ZoomIn className="h-4 w-4" />
         </button>
@@ -1086,7 +1086,7 @@ export function FloorEditor({
           onClick={() => setZoom((z) => Math.max(MIN_ZOOM, z / 1.2))}
           aria-label="Уменьшить"
           title="Уменьшить"
-          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <ZoomOut className="h-4 w-4" />
         </button>
@@ -1095,7 +1095,7 @@ export function FloorEditor({
           onClick={() => fitToView()}
           aria-label="Подогнать план"
           title="Подогнать (вместить весь план в экран)"
-          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+          className="flex h-10 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
         >
           <Maximize2 className="h-4 w-4" />
         </button>
@@ -1104,7 +1104,7 @@ export function FloorEditor({
       {/* Canvas */}
       <div className="flex-1 flex flex-col gap-3 min-w-0">
         <div className="flex items-center justify-between text-sm">
-          <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-slate-500 dark:text-slate-400">
             <span className="font-medium text-slate-700 dark:text-slate-300">{floorName}</span>
             {" · "}
             {tool === "rect" && "Растяните прямоугольник"}
@@ -1150,7 +1150,7 @@ export function FloorEditor({
                 type="button"
                 onClick={() => setDisplayMode("full")}
                 title="Полный вид"
-                className={`px-2 py-1 rounded text-xs ${displayMode === "full" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
+                className={`px-2 py-1 rounded text-xs ${displayMode === "full" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300"}`}
               >
                 Полный
               </button>
@@ -1158,7 +1158,7 @@ export function FloorEditor({
                 type="button"
                 onClick={() => setDisplayMode("outline")}
                 title="Только контур"
-                className={`px-2 py-1 rounded text-xs ${displayMode === "outline" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
+                className={`px-2 py-1 rounded text-xs ${displayMode === "outline" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300"}`}
               >
                 Контур
               </button>
@@ -1167,7 +1167,7 @@ export function FloorEditor({
                   type="button"
                   onClick={() => setDisplayMode("underlay-only")}
                   title="Только подложка"
-                  className={`px-2 py-1 rounded text-xs ${displayMode === "underlay-only" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300"}`}
+                  className={`px-2 py-1 rounded text-xs ${displayMode === "underlay-only" ? "bg-white dark:bg-slate-900 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300"}`}
                 >
                   Подложка
                 </button>
@@ -1179,7 +1179,7 @@ export function FloorEditor({
               onClick={() => setView3D(!view3D)}
               aria-label="3D-вид"
               title="Изометрический 3D-вид"
-              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
+              className={`p-2 rounded-lg ${view3D ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Box className="h-4 w-4" />
             </button>
@@ -1189,7 +1189,7 @@ export function FloorEditor({
               onClick={() => setCalibration({ active: !calibration.active, first: null, second: null })}
               aria-label="Калибровка масштаба"
               title="Калибровка масштаба (клик 2 точки)"
-              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300" : "text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
+              className={`p-2 rounded-lg ${calibration.active ? "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Ruler className="h-4 w-4" />
             </button>
@@ -1202,7 +1202,7 @@ export function FloorEditor({
               aria-label="Отменить"
               disabled={history.length === 0}
               title="Отменить (Ctrl+Z)"
-              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Undo2 className="h-4 w-4" />
             </button>
@@ -1212,7 +1212,7 @@ export function FloorEditor({
               aria-label="Повторить"
               disabled={future.length === 0}
               title="Повторить (Ctrl+Y)"
-              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Redo2 className="h-4 w-4" />
             </button>
@@ -1222,7 +1222,7 @@ export function FloorEditor({
               aria-label="Копировать"
               disabled={!selectedId}
               title="Копировать (Ctrl+C)"
-              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
             >
               <Copy className="h-4 w-4" />
             </button>
@@ -1231,7 +1231,7 @@ export function FloorEditor({
               onClick={() => fitToView()}
               aria-label="Подогнать вид"
               title="Подогнать вид (вместить весь план в экран)"
-              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
             >
               <Maximize2 className="h-4 w-4" />
             </button>
@@ -1504,7 +1504,7 @@ export function FloorEditor({
           </svg>
 
           {/* Scale indicator */}
-          <div className="absolute bottom-3 right-3 bg-white dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 flex items-center gap-2">
+          <div className="absolute bottom-3 right-3 bg-white dark:bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2">
             <div style={{ width: px, height: 6, background: "linear-gradient(to right, black 50%, white 50%)", border: "1px solid black" }} />
             1 метр
           </div>
@@ -1515,7 +1515,7 @@ export function FloorEditor({
       <div className="w-72 shrink-0 flex flex-col gap-3">
         {/* Underlay image */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
             <ImageIcon className="h-3.5 w-3.5" />
             Подложка (фото плана)
           </p>
@@ -1648,10 +1648,10 @@ export function FloorEditor({
             onDelete={() => deleteElement(selected.id)}
           />
         ) : (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400">
             <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Выделите элемент</p>
             <p>Кликните по элементу на плане чтобы редактировать его свойства.</p>
-            <div className="mt-3 space-y-1 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <div className="mt-3 space-y-1 text-slate-500 dark:text-slate-400">
               <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">V</kbd> — выбор</p>
               <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">R</kbd> — прямоугольник</p>
               <p><kbd className="bg-slate-100 dark:bg-slate-800 px-1 rounded">P</kbd> — многоугольник</p>

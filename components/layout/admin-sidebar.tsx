@@ -187,7 +187,7 @@ export function AdminSidebar({
         {visibleNav.map((section, si) => (
           <div key={si}>
             {section.title && (
-              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase">
+              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                 {section.title}
               </p>
             )}

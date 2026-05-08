@@ -64,7 +64,7 @@ export default async function CabinetDashboard() {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 dark:text-slate-400 dark:text-slate-500">Данные арендатора не найдены.</p>
+          <p className="text-slate-600 dark:text-slate-400">Данные арендатора не найдены.</p>
           <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Обратитесь к администратору.</p>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default async function CabinetDashboard() {
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
           Здравствуйте, {formatPersonShortName(session?.user.name)}
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           {tenant.companyName}{building?.name ? ` · ${building.name}` : ""}
         </p>
       </div>
@@ -196,7 +196,7 @@ export default async function CabinetDashboard() {
       }`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
               {overdueTotal > 0 ? "Просрочка платежа" : totalDebt > 0 ? "К оплате" : "Состояние счёта"}
             </p>
             <p className={`text-3xl md:text-4xl font-bold mt-2 ${
@@ -412,7 +412,7 @@ export default async function CabinetDashboard() {
                       {docTypeLabels[d.documentType] ?? d.documentType}
                       {d.number && ` № ${d.number}`}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {d.period && <>{d.period} · </>}
                       {d.totalAmount && <b>{formatMoney(d.totalAmount)}</b>}
                       {!d.totalAmount && <>{new Date(d.generatedAt).toLocaleDateString("ru-RU")}</>}
@@ -473,7 +473,7 @@ export default async function CabinetDashboard() {
                     {m.subject && (
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{m.subject}</p>
                     )}
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 line-clamp-1">{m.body}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{m.body}</p>
                   </div>
                 </Link>
               ))
@@ -500,7 +500,7 @@ export default async function CabinetDashboard() {
                     <p className="text-sm text-slate-900 dark:text-slate-100 font-medium">
                       {CHARGE_TYPES[c.type] ?? c.type}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {c.period}
                       {c.dueDate && (
                         <span className={isOverdue ? "text-red-600 dark:text-red-400 font-medium ml-1" : "ml-1"}>
@@ -540,7 +540,7 @@ export default async function CabinetDashboard() {
               <div key={p.id} className="flex items-center justify-between px-5 py-3">
                 <div>
                   <p className="text-sm text-slate-900 dark:text-slate-100 font-medium">{p.method}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     {new Date(p.paymentDate).toLocaleDateString("ru-RU")}
                   </p>
                 </div>
@@ -672,11 +672,18 @@ function InfoCard({
     <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 transition ${highlight ? "border-amber-200 dark:border-amber-500/30 ring-1 ring-amber-100" : "border-slate-200 dark:border-slate-800"} ${href ? "hover:shadow-sm" : ""}`}>
       <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500 mb-2" />
       <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5 font-medium">{label}</p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">{label}</p>
       {sub && <p className={`text-[11px] mt-0.5 ${highlight ? "text-amber-600 dark:text-amber-400 font-medium" : "text-slate-400 dark:text-slate-500"}`}>{sub}</p>}
     </div>
   )
-  return href ? <Link href={href}>{inner}</Link> : inner
+  return href ? (
+    <Link
+      href={href}
+      className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2"
+    >
+      {inner}
+    </Link>
+  ) : inner
 }
 
 function MobileTenantActionBar({

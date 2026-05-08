@@ -45,7 +45,7 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
         <Hash className="h-4 w-4 text-slate-400 dark:text-slate-500" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Нумерация документов</h2>
       </div>
-      <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 border-b border-slate-50">
+      <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-50">
         Префикс — это короткое обозначение здания (например, F16). Система добавляет к нему тип документа,
         год и порядковый номер. Если оставить поле пустым, префикс сгенерируется автоматически из названия здания.
       </div>
@@ -65,13 +65,13 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
               className="px-5 py-4 grid grid-cols-[1.2fr_1fr_1.2fr_auto] gap-3 items-end"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
                   {DOC_KIND_LABEL[kind]}
                 </label>
                 <p className="text-xs text-slate-400 dark:text-slate-500">Тип документа</p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Префикс</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Префикс</label>
                 <input
                   name="prefix"
                   defaultValue={userPrefix ?? ""}
@@ -81,7 +81,7 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Следующий номер</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Следующий номер</label>
                 <p className="px-3 py-2 text-sm font-mono bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                   {preview}
                 </p>

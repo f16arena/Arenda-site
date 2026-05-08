@@ -28,7 +28,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
   return (
     <>
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Правовая форма
         </label>
         <select
@@ -49,7 +49,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           {taxIdLabel} <span className="text-slate-300 dark:text-slate-600">12 цифр</span>
         </label>
         <input
@@ -64,6 +64,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
                 : "ИИН для ИП/физлица"
           }
           inputMode="numeric"
+          pattern="\d{12}"
           maxLength={12}
           className={[
             "w-full rounded-lg border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2",
@@ -72,6 +73,9 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
               : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20",
           ].join(" ")}
         />
+        {!iinValidation && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">12 цифр без пробелов</p>
+        )}
         {iinValidation && (
           <p className={[
             "mt-1 text-[11px]",

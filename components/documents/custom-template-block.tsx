@@ -83,7 +83,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             <FileText className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{active.fileName}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 {active.format} · {Math.round(active.fileSize / 1024)} КБ · загружен {new Date(active.uploadedAt).toLocaleDateString("ru-RU")}
               </p>
             </div>
@@ -110,7 +110,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
             />
           </div>
         ) : (
-          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Сейчас используется <b>стандартный шаблон</b>. Загрузите свой <b>DOCX</b> или <b>XLSX</b> с метками вида <code className="px-1 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-mono">{`{tenant_name}`}</code> — и все документы будут формироваться по нему. PDF принимается как образец-превью.
           </p>
         )}
@@ -153,7 +153,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
                   Перетащите файл или нажмите чтобы выбрать
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">DOCX, XLSX или PDF · до 10 МБ</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">DOCX, XLSX или PDF · до 10 МБ</p>
               </div>
             )}
           </label>

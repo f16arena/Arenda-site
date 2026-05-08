@@ -57,7 +57,7 @@ export function DocumentsChecklist({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{r.label}</p>
                 {r.description && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{r.description}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{r.description}</p>
                 )}
                 {uploaded && (
                   <div className="flex items-center gap-2 mt-1.5">
@@ -88,7 +88,7 @@ export function DocumentsChecklist({
             <CheckCircle2 className="h-4 w-4 text-slate-400 dark:text-slate-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{d.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{DOC_TYPE_LABELS[d.type] ?? d.type}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{DOC_TYPE_LABELS[d.type] ?? d.type}</p>
               <div className="flex items-center gap-2 mt-1.5">
                 <a
                   href={d.fileUrl ?? "#"}
@@ -133,7 +133,7 @@ export function DocumentsChecklist({
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тип документа *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип документа *</label>
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value)}
@@ -149,7 +149,7 @@ export function DocumentsChecklist({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название *</label>
                 <input
                   name="name"
                   required
@@ -158,7 +158,7 @@ export function DocumentsChecklist({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Файл *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Файл *</label>
                 <input
                   name="file"
                   required
@@ -171,7 +171,7 @@ export function DocumentsChecklist({
                 </p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
                   {pending ? "Сохранение..." : "Добавить"}
                 </button>

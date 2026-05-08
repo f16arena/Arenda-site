@@ -92,12 +92,12 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
     <div className="space-y-5">
       <div className="flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
+          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Акт оказанных услуг</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -127,8 +127,8 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 print-area">
           <div className="text-center mb-6">
             <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">АКТ ОКАЗАННЫХ УСЛУГ № {actNumber}</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
-            {tenant.contracts[0] && <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-1">к договору № {tenant.contracts[0].number}{tenant.contracts[0].startDate ? ` от ${new Date(tenant.contracts[0].startDate).toLocaleDateString("ru-RU")}` : ""}</p>}
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">от {today.toLocaleDateString("ru-RU")}</p>
+            {tenant.contracts[0] && <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">к договору № {tenant.contracts[0].number}{tenant.contracts[0].startDate ? ` от ${new Date(tenant.contracts[0].startDate).toLocaleDateString("ru-RU")}` : ""}</p>}
             <p className="text-sm text-slate-700 dark:text-slate-300 mt-1">Период: с {periodStart.toLocaleDateString("ru-RU")} по {periodEnd.toLocaleDateString("ru-RU")}</p>
           </div>
 
@@ -183,17 +183,17 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
             <div>
               <p className="font-semibold mb-1">Исполнитель:</p>
               <p>{landlord.fullName}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{landlord.taxIdLabel}: {landlord.taxId}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{landlord.taxIdLabel}: {landlord.taxId}</p>
               <p className="border-b border-slate-400 mt-12 pb-1 text-center">_____________ {landlord.directorShort}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1">подпись · М.П.</p>
             </div>
             <div>
               <p className="font-semibold mb-1">Заказчик:</p>
               <p>{tenant.companyName}</p>
-              {tenant.bin && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">БИН: {tenant.bin}</p>}
-              {tenant.iin && <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">ИИН: {tenant.iin}</p>}
+              {tenant.bin && <p className="text-xs text-slate-500 dark:text-slate-400">БИН: {tenant.bin}</p>}
+              {tenant.iin && <p className="text-xs text-slate-500 dark:text-slate-400">ИИН: {tenant.iin}</p>}
               <p className="border-b border-slate-400 mt-12 pb-1 text-center">_____________ {tenant.directorName ?? tenant.user.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center mt-1">подпись · М.П.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1">подпись · М.П.</p>
             </div>
           </div>
         </div>

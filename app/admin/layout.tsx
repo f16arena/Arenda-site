@@ -177,7 +177,7 @@ async function renderAdminLayout(children: React.ReactNode) {
             aggregateSubtitle={aggregateSubtitle}
           />
           <div className="flex items-center gap-4">
-            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
+            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
               Ctrl+K — поиск
             </kbd>
             <ThemeIconToggle />

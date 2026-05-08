@@ -150,7 +150,7 @@ export function FloorView({
           title="Увеличить план"
           className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded"
         >
-          <ZoomIn className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+          <ZoomIn className="h-4 w-4 text-slate-600 dark:text-slate-400" />
         </button>
         <button
           type="button"
@@ -159,7 +159,7 @@ export function FloorView({
           title="Уменьшить план"
           className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded"
         >
-          <ZoomOut className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+          <ZoomOut className="h-4 w-4 text-slate-600 dark:text-slate-400" />
         </button>
         <button
           type="button"
@@ -168,7 +168,7 @@ export function FloorView({
           title="Сбросить масштаб и позицию плана"
           className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 rounded"
         >
-          <Move className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-500" />
+          <Move className="h-4 w-4 text-slate-600 dark:text-slate-400" />
         </button>
       </div>
 
@@ -197,11 +197,11 @@ export function FloorView({
           </div>
           <div className="p-4 text-sm space-y-2">
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Площадь:</span>
+              <span className="text-slate-500 dark:text-slate-400">Площадь:</span>
               <span className="font-medium text-slate-900 dark:text-slate-100">{selectedSpace.area} м²</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус:</span>
+              <span className="text-slate-500 dark:text-slate-400">Статус:</span>
               <span className="font-medium">{detectStatus(selectedSpace)}</span>
             </div>
             {selectedSpace.tenant ? (
@@ -214,13 +214,13 @@ export function FloorView({
                 </div>
                 {selectedSpace.tenant.contractEnd && (
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Договор до:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Договор до:</span>
                     <span>{new Date(selectedSpace.tenant.contractEnd).toLocaleDateString("ru-RU")}</span>
                   </div>
                 )}
                 {selectedSpace.tenant.debt > 0 ? (
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Долг:</span>
+                    <span className="text-slate-500 dark:text-slate-400">Долг:</span>
                     <span className="font-bold text-red-600 dark:text-red-400">{selectedSpace.tenant.debt.toLocaleString("ru-RU")} ₸</span>
                   </div>
                 ) : (
@@ -231,7 +231,7 @@ export function FloorView({
               <p className="text-xs text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-2">Помещение свободно</p>
             )}
             {selectedSpace.description && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-2">{selectedSpace.description}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 italic border-t border-slate-100 dark:border-slate-800 pt-2">{selectedSpace.description}</p>
             )}
           </div>
         </div>

@@ -104,7 +104,7 @@ export default async function RequestsPage({
     <div className="space-y-5">
       <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Заявки арендаторов</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           {filterCounts.new} новых · {filterCounts.active} в работе
         </p>
       </div>
@@ -137,12 +137,12 @@ export default async function RequestsPage({
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Заявка</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тип</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Приоритет</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Дата</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Заявка</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тип</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Приоритет</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -155,8 +155,8 @@ export default async function RequestsPage({
                     <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-xs">{r.description}</p>
                   </Link>
                 </td>
-                <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">{r.tenant.companyName}</td>
-                <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+                <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{r.tenant.companyName}</td>
+                <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">
                   {REQUEST_TYPE_LABELS[r.type] ?? r.type}
                 </td>
                 <td className="px-5 py-3.5">

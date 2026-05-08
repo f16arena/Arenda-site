@@ -62,7 +62,7 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Воронка лидов</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{leads.length} потенциальных арендаторов</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{leads.length} потенциальных арендаторов</p>
         </div>
         <button
           onClick={() => setOpen(true)}
@@ -81,7 +81,7 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
             <div key={status} className={cn("rounded-xl border-2 overflow-hidden", STATUS_COLORS[status])}>
               <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm">
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{STATUS_LABELS[status]}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">{items.length} лидов · {total.toLocaleString("ru-RU")} ₸</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{items.length} лидов · {total.toLocaleString("ru-RU")} ₸</p>
               </div>
               <div className="p-2 space-y-2 min-h-[200px]">
                 {items.map((l) => (
@@ -154,7 +154,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{lead.name}</p>
-          {lead.companyName && <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{lead.companyName}</p>}
+          {lead.companyName && <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{lead.companyName}</p>}
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
           <ConfirmDialog
@@ -171,7 +171,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
         </div>
       </div>
 
-      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
         {lead.contactType === "EMAIL" ? <Mail className="h-3 w-3" /> : <Phone className="h-3 w-3" />}
         <span className="truncate">{lead.contact}</span>
       </div>
@@ -179,7 +179,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       {(lead.desiredArea || lead.budget) && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {lead.desiredArea && (
-            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500 rounded px-1.5 py-0.5">{lead.desiredArea} м²</span>
+            <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded px-1.5 py-0.5">{lead.desiredArea} м²</span>
           )}
           {lead.budget && (
             <span className="text-[10px] bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded px-1.5 py-0.5">
@@ -200,7 +200,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
       </div>
 
       <div className="mt-2 flex items-center gap-1">
-        <button onClick={() => onMove(-1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <button onClick={() => onMove(-1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
           <ArrowLeft className="h-3 w-3 inline" />
         </button>
         {!lead.spaceId && lead.status !== "LOST" && lead.status !== "SIGNED" && (
@@ -209,11 +209,11 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           </button>
         )}
         {lead.spaceId && (
-          <button onClick={onUnbook} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <button onClick={onUnbook} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
             Снять
           </button>
         )}
-        <button onClick={() => onMove(1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <button onClick={() => onMove(1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
           <ArrowRight className="h-3 w-3 inline" />
         </button>
       </div>
@@ -231,7 +231,7 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-base font-semibold">Новый лид</h2>
-          <button onClick={onClose}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+          <button onClick={onClose} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
         </div>
         <form
           action={(fd) => {
@@ -252,7 +252,7 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Компания" name="companyName" />
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Тип</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип</label>
               <select name="legalType" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                 <option value="">—</option>
                 <option value="IP">ИП</option>
@@ -268,7 +268,7 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
             <Field label="Бюджет ₸/мес" name="budget" type="number" step="100" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Источник</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Источник</label>
             <select name="source" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
               {LEAD_SOURCES.map((s) => (
                 <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
@@ -276,7 +276,7 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Заметки</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Заметки</label>
             <textarea name="notes" rows={2} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
           </div>
           <div className="flex gap-3 pt-2">
@@ -306,11 +306,11 @@ function BookSpaceDialog({ lead, vacantSpaces, onClose, startTransition }: {
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-base font-semibold">Бронь для {lead.name}</h2>
-          <button onClick={onClose}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+          <button onClick={onClose} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Помещение</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Помещение</label>
             <select
               value={spaceId}
               onChange={(e) => setSpaceId(e.target.value)}
@@ -325,7 +325,7 @@ function BookSpaceDialog({ lead, vacantSpaces, onClose, startTransition }: {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Срок брони (дни)</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Срок брони (дни)</label>
             <input
               type="number"
               value={days}
@@ -366,7 +366,7 @@ function Field({ label, name, type = "text", placeholder, required, step }: {
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">{label}</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}

@@ -39,7 +39,7 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Новый арендатор</h2>
-              <button onClick={() => setOpen(false)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
+              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -62,7 +62,7 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
               {buildingId && <input type="hidden" name="buildingId" value={buildingId} />}
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Контактное лицо</p>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО *</label>
                 <input name="name" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -99,14 +99,14 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
 
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Компания</p>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название компании *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название компании *</label>
                 <input name="companyName" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <TenantIdentityFields initialLegalType="IP" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Вид деятельности</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
                 <input name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
@@ -150,7 +150,7 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
 
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Помещение и договор</p>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
                   Помещения <span className="text-slate-400">(можно выбрать несколько)</span>
                 </label>
                 {selectedSpaceIds.map((id) => (
@@ -193,17 +193,17 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Начало договора</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Начало договора</label>
                   <input name="contractStart" type="date" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Конец договора</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Конец договора</label>
                   <input name="contractEnd" type="date" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60">
                   {pending ? "Создание..." : "Создать"}
                 </button>

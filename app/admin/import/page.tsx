@@ -8,7 +8,7 @@ export default function ImportHomePage() {
     <div className="space-y-5 max-w-4xl">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Импорт данных</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           Загрузите данные из Excel или 1С — арендаторов, начисления, договоры
         </p>
       </div>
@@ -90,7 +90,7 @@ function ImportCard({ href, title, description, icon: Icon, color, available }: 
         </div>
         {available && <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-relaxed">{description}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{description}</p>
     </div>
   )
 

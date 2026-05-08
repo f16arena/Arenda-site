@@ -41,7 +41,7 @@ export function TaskDialog({
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Новая задача</h2>
-              <button onClick={() => setOpen(false)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
+              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -53,7 +53,7 @@ export function TaskDialog({
                 <input type="hidden" name="buildingId" value={buildings[0].id} />
               ) : buildings.length > 1 ? (
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Здание *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Здание *</label>
                   <select name="buildingId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
                     <option value="">Выберите здание</option>
                     {buildings.map((b) => (
@@ -63,7 +63,7 @@ export function TaskDialog({
                 </div>
               ) : null}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Название *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название *</label>
                 <input
                   name="title"
                   required
@@ -73,7 +73,7 @@ export function TaskDialog({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
                 <textarea
                   name="description"
                   rows={3}
@@ -84,7 +84,7 @@ export function TaskDialog({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Категория</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Категория</label>
                   <select name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
                     <option value="REPAIR">Ремонт</option>
                     <option value="PLUMBING">Сантехника</option>
@@ -95,7 +95,7 @@ export function TaskDialog({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Приоритет</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Приоритет</label>
                   <select name="priority" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
                     <option value="LOW">Низкий</option>
                     <option value="MEDIUM">Средний</option>
@@ -107,7 +107,7 @@ export function TaskDialog({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Этаж</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Этаж</label>
                   <select name="floorNumber" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
                     <option value="">—</option>
                     <option value="-1">Подвал</option>
@@ -117,14 +117,14 @@ export function TaskDialog({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Кабинет</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Кабинет</label>
                   <input name="spaceNumber" placeholder="101, 202..." className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Исполнитель</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Исполнитель</label>
                   <select name="assignedToId" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
                     <option value="">Не назначен</option>
                     {staffUsers.map((u) => (
@@ -133,13 +133,13 @@ export function TaskDialog({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Срок</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Срок</label>
                   <input name="dueDate" type="date" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Планируемые расходы, ₸</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Планируемые расходы, ₸</label>
                 <input name="estimatedCost" type="number" step="0.01" placeholder="0" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
 
@@ -147,7 +147,7 @@ export function TaskDialog({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
                 >
                   Отмена
                 </button>

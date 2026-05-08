@@ -21,7 +21,7 @@ export function LimitsCard({
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Использование тарифа</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Использование тарифа</p>
       <Row label="Зданий" current={buildings} max={maxBuildings} icon={Building2} />
       <Row label="Арендаторов" current={tenants} max={maxTenants} icon={Briefcase} />
       <Row label="Пользователей" current={users} max={maxUsers} icon={Users} />
@@ -55,7 +55,7 @@ function Row({
           <Icon className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           {label}
         </div>
-        <div className="text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-500">
+        <div className="text-xs font-mono text-slate-600 dark:text-slate-400">
           <span className="font-semibold text-slate-900 dark:text-slate-100">{current}</span>
           <span className="text-slate-400 dark:text-slate-500"> / {isUnlimited ? "∞" : max}</span>
           {!isUnlimited && <span className="ml-1.5 text-slate-400 dark:text-slate-500">({percent}%)</span>}

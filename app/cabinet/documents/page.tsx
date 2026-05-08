@@ -42,7 +42,7 @@ export default async function CabinetDocuments() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Договоры и ваши документы</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Договоры и ваши документы</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">

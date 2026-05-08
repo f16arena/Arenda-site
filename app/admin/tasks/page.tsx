@@ -144,7 +144,7 @@ export default async function TasksPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Задачи</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{stats.total} задач · {stats.inProgress} в работе</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{stats.total} задач · {stats.inProgress} в работе</p>
         </div>
         <TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
       </div>
@@ -183,25 +183,25 @@ export default async function TasksPage({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[task.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
+                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[task.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                     {STATUS_LABELS[task.status] ?? task.status}
                   </span>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PRIORITY_COLORS[task.priority] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
+                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PRIORITY_COLORS[task.priority] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                     {PRIORITY_LABELS[task.priority] ?? task.priority}
                   </span>
                   {task.category && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                       {CATEGORY_LABELS[task.category] ?? task.category}
                     </span>
                   )}
                 </div>
                 {task.description && (
-                  <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">{task.description}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{task.description}</p>
                 )}
                 <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
                   {task.floorNumber !== null && <span>Этаж {task.floorNumber}</span>}
                   {task.spaceNumber && <span>Каб. {task.spaceNumber}</span>}
-                  {task.assignedTo && <span>Исполнитель: <span className="text-slate-600 dark:text-slate-400 dark:text-slate-500">{task.assignedTo.name}</span></span>}
+                  {task.assignedTo && <span>Исполнитель: <span className="text-slate-600 dark:text-slate-400">{task.assignedTo.name}</span></span>}
                   <span>Создал: {task.createdBy.name}</span>
                   {task.dueDate && (
                     <span className="flex items-center gap-1">

@@ -29,7 +29,7 @@ export default function Error({
           <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
         </div>
         <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Что-то пошло не так</h2>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Мы записали ошибку. Сообщите код поддержке или разработчику.
         </p>
         <div className="mt-3 space-y-1">

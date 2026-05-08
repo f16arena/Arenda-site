@@ -3,7 +3,8 @@
 import { useActionState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { changeOwnPassword } from "@/app/actions/change-password"
-import { ShieldCheck, Loader2, AlertCircle, CheckCircle2, KeyRound } from "lucide-react"
+import { ShieldCheck, AlertCircle, CheckCircle2, KeyRound } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 type FormState = { ok: boolean; message?: string; error?: string } | undefined
 
@@ -118,14 +119,15 @@ export function ChangePasswordForm({
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={isPending || state?.ok}
-            className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+            size="lg"
+            loading={isPending}
+            disabled={state?.ok}
+            className="w-full font-semibold"
           >
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {isPending ? "Сохранение..." : state?.ok ? "Готово" : "Сменить пароль"}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

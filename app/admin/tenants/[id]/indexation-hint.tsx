@@ -96,6 +96,7 @@ export function IndexationHint({ initialContractEnd, initialRate, monthlyRent }:
         </div>
         <button
           onClick={() => setDismissed(true)}
+          aria-label="Закрыть подсказку"
           className="text-amber-600 dark:text-amber-400 hover:text-amber-800 shrink-0"
           title="Закрыть подсказку"
         >

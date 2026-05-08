@@ -74,7 +74,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         </Link>
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{request.title}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {request.tenant.companyName} · {new Date(request.createdAt).toLocaleDateString("ru-RU")}
           </p>
         </div>
@@ -113,7 +113,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                 <div key={c.id} className="px-5 py-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="h-6 w-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">{c.author.name[0]?.toUpperCase()}</span>
+                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">{c.author.name[0]?.toUpperCase()}</span>
                     </div>
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{c.author.name}</span>
                     <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(c.createdAt).toLocaleDateString("ru-RU")}</span>
@@ -195,7 +195,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <button type="submit" className="mt-1.5 w-full rounded-lg border border-slate-200 dark:border-slate-800 py-1 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
+                <button type="submit" className="mt-1.5 w-full rounded-lg border border-slate-200 dark:border-slate-800 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
                   Назначить
                 </button>
               </form>
@@ -205,7 +205,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
           {/* Status transitions */}
           {nextStatuses.length > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-2">Изменить статус</p>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Изменить статус</p>
               {nextStatuses.map((s) => (
                 <form key={s} action={async () => {
                   "use server"

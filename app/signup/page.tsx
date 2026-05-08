@@ -28,14 +28,14 @@ export default async function SignupPage() {
             </div>
             <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Commrent</span>
           </Link>
-          <Link href="/login" className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100">
+          <Link href="/login" className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
             Уже есть аккаунт? <span className="font-medium text-blue-600 dark:text-blue-400">Войти</span>
           </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-12">
-        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:text-slate-100 mb-6">
+        <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 mb-6">
           <ArrowLeft className="h-4 w-4" />
           На главную
         </Link>
@@ -45,7 +45,7 @@ export default async function SignupPage() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8">
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Создать аккаунт</h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">14 дней бесплатно. Без оплаты, без карты.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">14 дней бесплатно. Без оплаты, без карты.</p>
             </div>
             <SignupForm />
           </div>
@@ -72,7 +72,7 @@ export default async function SignupPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 mt-4 pt-4 border-t border-blue-200 dark:border-blue-500/30">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-4 pt-4 border-t border-blue-200 dark:border-blue-500/30">
                 После 14 дней выберете тариф (от 9 990 ₸/мес). Если не выберете — данные сохраним 30 дней
                 в режиме просмотра, без потери.
               </p>

@@ -79,8 +79,8 @@ export default function SlaPage() {
                 <tr key={t.plan} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 font-medium">{t.plan}</td>
                   <td className="px-3 py-2 font-mono">{t.uptime}</td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{t.maxDowntime}</td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{t.reaction}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{t.maxDowntime}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{t.reaction}</td>
                 </tr>
               ))}
             </tbody>
@@ -130,9 +130,9 @@ export default function SlaPage() {
               {incidentLevels.map((i) => (
                 <tr key={i.level} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2 font-medium whitespace-nowrap">{i.level}</td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{i.desc}</td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{i.reaction}</td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500 whitespace-nowrap">{i.resolve}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{i.desc}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">{i.reaction}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">{i.resolve}</td>
                 </tr>
               ))}
             </tbody>
@@ -156,7 +156,7 @@ export default function SlaPage() {
             <tbody>
               {compensation.map((c) => (
                 <tr key={c.actual} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{c.actual}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{c.actual}</td>
                   <td className="px-3 py-2 font-medium">{c.percent} стоимости месячной подписки</td>
                 </tr>
               ))}

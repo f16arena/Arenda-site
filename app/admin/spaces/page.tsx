@@ -327,7 +327,7 @@ export default async function SpacesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{building?.name} · {building?.address}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
         <div className="flex items-center gap-2">
           {canDeleteSpaces && building && allSpaces.length > 0 && (
@@ -351,7 +351,7 @@ export default async function SpacesPage() {
         ].map((s) => (
           <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
             <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
@@ -474,7 +474,7 @@ export default async function SpacesPage() {
                 <span className="text-xs text-slate-400 dark:text-slate-500">Ставка: {formatMoney(floor.ratePerSqm)}/м²</span>
                 {floor.totalArea && <span className="text-xs text-slate-400 dark:text-slate-500">· {floor.totalArea} м²</span>}
               </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                 <span><span className="font-medium text-blue-600 dark:text-blue-400">{floorOccupied}</span> / {floor.spaces.length} занято</span>
                 <span>{floorArea} м²</span>
                 <Link
@@ -524,12 +524,12 @@ export default async function SpacesPage() {
                   <table className="w-full min-w-[720px] text-xs">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Кабинет</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Площадь</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Аренда/мес</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Статус</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Описание</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Кабинет</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Площадь</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Аренда/мес</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Статус</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Описание</th>
                         <th className="px-3 py-2" />
                       </tr>
                     </thead>
@@ -555,11 +555,11 @@ export default async function SpacesPage() {
                         return (
                           <tr key={space.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
                             <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">{space.area} м²</td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{space.area} м²</td>
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                               {tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
                             </td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                               {displayTenant ? (
                                 <Link href={`/admin/tenants/${displayTenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
                                   {displayTenant.companyName}{!tenant && fullFloorTenant ? " · этаж целиком" : ""}

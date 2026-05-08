@@ -20,7 +20,7 @@ export default async function LeadsPage() {
   if (!buildingId) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
-        <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500">Сначала выберите здание</p>
+        <p className="text-slate-500 dark:text-slate-400">Сначала выберите здание</p>
       </div>
     )
   }

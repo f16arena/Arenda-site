@@ -62,7 +62,7 @@ export function ManagementHub({ stats }: { stats?: Stats }) {
       icon: Settings,
       label: "Настройки организации",
       description: "Реквизиты, НДС, банковские данные",
-      color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500",
+      color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
     },
     {
       href: "/admin/meters",
@@ -143,9 +143,9 @@ export function ManagementHub({ stats }: { stats?: Stats }) {
                     <span className="ml-1.5 text-xs font-medium text-slate-400 dark:text-slate-500">· {c.count}</span>
                   )}
                 </p>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-600 dark:text-slate-400 dark:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-600 dark:text-slate-400 group-hover:translate-x-0.5 transition-all" />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{c.description}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.description}</p>
             </div>
           </Link>
         )

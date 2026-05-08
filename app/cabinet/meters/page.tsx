@@ -58,7 +58,7 @@ export default async function CabinetMetersPage() {
     <div className="space-y-5 max-w-xl">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счётчики</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           {assignedSpaces.length > 1 ? `${assignedSpaces.length} помещений` : `Кабинет ${assignedSpaces[0].number}`} · {currentPeriod}
         </p>
       </div>
@@ -77,10 +77,10 @@ export default async function CabinetMetersPage() {
         return (
           <div key={meter.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
             <div className="flex items-center gap-2 mb-4">
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[meter.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-500"}`}>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[meter.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
                 {typeLabel[meter.type] ?? meter.type}
               </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono">#{meter.number}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">#{meter.number}</span>
               <span className="text-xs text-slate-400 dark:text-slate-500">Каб. {meter.spaceNumber}</span>
               {hasCurrent && (
                 <span className="ml-auto text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Показания внесены</span>
@@ -105,7 +105,7 @@ export default async function CabinetMetersPage() {
 
             {hasCurrent && (
               <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-4 py-3">
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Расход за период: <span className="font-semibold text-slate-900 dark:text-slate-100">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Расход за период: <span className="font-semibold text-slate-900 dark:text-slate-100">
                   {(latest.value - latest.previous).toLocaleString("ru-RU")} {meter.type === "ELECTRICITY" ? "кВт·ч" : "м³"}
                 </span></p>
               </div>

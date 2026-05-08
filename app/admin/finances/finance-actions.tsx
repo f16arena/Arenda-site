@@ -40,7 +40,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
             </div>
             <form action={(fd) => startTransition(async () => { await recordPayment(fd); setOpen(false) })} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Арендатор *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Арендатор *</label>
                 <select name="tenantId" required value={selectedTenant} onChange={(e) => setSelectedTenant(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-emerald-500 focus:outline-none">
                   <option value="">Выберите арендатора</option>
@@ -49,16 +49,16 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Сумма, ₸ *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма, ₸ *</label>
                   <input name="amount" type="number" step="0.01" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Дата</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата</label>
                   <input name="paymentDate" type="date" defaultValue={today} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:outline-none" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Метод оплаты</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Метод оплаты</label>
                 <select name="method" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none">
                   <option value="TRANSFER">Банковский перевод</option>
                   <option value="CASH">Наличные</option>
@@ -85,7 +85,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
               )}
               {tenantCharges.length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Отметить долги как оплаченные</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Отметить долги как оплаченные</label>
                   <div className="space-y-1.5 max-h-32 overflow-y-auto">
                     {tenantCharges.map((c) => (
                       <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -97,11 +97,11 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Примечание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Примечание</label>
                 <input name="note" placeholder="Необязательно" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:outline-none" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60">
                   {pending ? "Сохранение..." : "Зафиксировать"}
                 </button>
@@ -150,7 +150,7 @@ export function ExpenseDialog({
                 <input type="hidden" name="buildingId" value={buildings[0].id} />
               ) : shouldChooseBuilding ? (
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Здание *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Здание *</label>
                   <select name="buildingId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                     <option value="">Выберите здание</option>
                     {buildings.map((b) => (
@@ -160,7 +160,7 @@ export function ExpenseDialog({
                 </div>
               ) : null}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Категория</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Категория</label>
                 <select name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                   <option value="ELECTRICITY">Электроэнергия</option>
                   <option value="WATER">Водоснабжение</option>
@@ -174,20 +174,20 @@ export function ExpenseDialog({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Сумма, ₸ *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма, ₸ *</label>
                   <input name="amount" type="number" step="0.01" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Период</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Период</label>
                   <input name="period" defaultValue={period} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Дата</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата</label>
                 <input name="date" type="date" defaultValue={today} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Описание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
                 <input name="description" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
               </div>
               {cashAccounts && cashAccounts.length > 0 && (
@@ -208,7 +208,7 @@ export function ExpenseDialog({
                 </div>
               )}
               <div className="flex gap-3">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
                   {pending ? "Сохранение..." : "Добавить"}
                 </button>

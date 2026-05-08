@@ -114,7 +114,7 @@ export default async function MetersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счётчики</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{meters.length} счётчиков · {currentPeriod}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{meters.length} счётчиков · {currentPeriod}</p>
         </div>
         <div className="flex gap-2">
           <AddMeterDialog spaces={spaces} />
@@ -126,14 +126,14 @@ export default async function MetersPage() {
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Счётчик</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Помещение</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Пред. период</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тек. период</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Расход</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Тариф</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">К оплате</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Счётчик</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Помещение</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Пред. период</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Тек. период</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Расход</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Тариф</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">К оплате</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -150,20 +150,20 @@ export default async function MetersPage() {
                 <tr key={meter.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[meter.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500"}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[meter.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
                         {typeLabel[meter.type] ?? meter.type}
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono text-xs">#{meter.number}</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-mono text-xs">#{meter.number}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-slate-700 dark:text-slate-300">
                     Каб. {meter.space.number}
                     <span className="text-slate-400 dark:text-slate-500 ml-1">· {meter.space.floor.name}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                  <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
                     {tenantName ?? <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
                   </td>
-                  <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 dark:text-slate-500">
+                  <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">
                     {prev ? prev.value.toLocaleString("ru-RU") : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right">
@@ -178,7 +178,7 @@ export default async function MetersPage() {
                       <span className="font-medium text-slate-900 dark:text-slate-100">{consumption.toLocaleString("ru-RU")}</span>
                     ) : "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-right text-slate-500 dark:text-slate-400 dark:text-slate-500 text-xs">
+                  <td className="px-5 py-3.5 text-right text-slate-500 dark:text-slate-400 text-xs">
                     {tariff ? `${tariff.rate} ₸/${tariff.unit}` : <span className="text-amber-500">не задан</span>}
                   </td>
                   <td className="px-5 py-3.5 text-right">

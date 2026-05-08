@@ -10,6 +10,7 @@ import {
   requestEmailVerification,
 } from "@/app/actions/my-account"
 import { AsciiEmailInput } from "@/components/forms/contact-inputs"
+import { Button } from "@/components/ui/button"
 
 interface Props {
   currentName: string
@@ -37,7 +38,7 @@ function NameBlock({ currentName }: { currentName: string }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <UserCircle className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+        <UserCircle className="h-4 w-4 text-slate-500 dark:text-slate-400" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Имя</h2>
       </div>
       <form
@@ -58,13 +59,13 @@ function NameBlock({ currentName }: { currentName: string }) {
           required
           className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
-        <button
+        <Button
           type="submit"
-          disabled={pending || name.trim() === currentName}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          loading={pending}
+          disabled={name.trim() === currentName}
         >
           {pending ? "..." : "Сохранить"}
-        </button>
+        </Button>
       </form>
     </div>
   )
@@ -78,7 +79,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <Mail className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+        <Mail className="h-4 w-4 text-slate-500 dark:text-slate-400" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Email</h2>
       </div>
 
@@ -126,7 +127,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
             )}
           </div>
         ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Email не указан</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Email не указан</p>
         )}
 
         <form
@@ -148,7 +149,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
           }
           className="space-y-2"
         >
-          <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Сменить email на новый</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">Сменить email на новый</label>
           <div className="flex gap-2">
             <AsciiEmailInput
               name="newEmail"
@@ -200,7 +201,7 @@ function PasswordBlock() {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <Lock className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+        <Lock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Пароль</h2>
       </div>
 
@@ -220,7 +221,7 @@ function PasswordBlock() {
         className="p-5 space-y-3"
       >
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Текущий пароль</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Текущий пароль</label>
           <input
             type={show ? "text" : "password"}
             name="oldPassword"
@@ -229,7 +230,7 @@ function PasswordBlock() {
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Новый пароль (минимум 8 символов)</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Новый пароль (минимум 8 символов)</label>
           <input
             type={show ? "text" : "password"}
             name="newPassword"
@@ -239,7 +240,7 @@ function PasswordBlock() {
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1">Повторите новый пароль</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Повторите новый пароль</label>
           <input
             type={show ? "text" : "password"}
             name="confirmPassword"
@@ -250,7 +251,7 @@ function PasswordBlock() {
         </div>
 
         <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500 cursor-pointer">
+          <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
             <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
             Показать пароль
           </label>

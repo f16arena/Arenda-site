@@ -116,7 +116,7 @@ export function SignupForm() {
           </div>
           {!slug && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница, цифры, дефис</p>}
           {slugCheck.status === "checking" && (
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> Проверяем...
             </p>
           )}
@@ -130,7 +130,7 @@ export function SignupForm() {
             <div className="mt-1">
               <p className="text-[11px] text-red-600 dark:text-red-400">{checkResult.reason}</p>
               {checkResult.suggestions && (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                   Свободные:{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
@@ -188,7 +188,7 @@ export function SignupForm() {
         {isPending ? "Создаём..." : "Начать 14-дневный триал бесплатно"}
       </button>
 
-      <p className="text-center text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
+      <p className="text-center text-xs text-slate-500 dark:text-slate-400">
         Без оплаты, без карты. После триала — выберете тариф или продолжите смотреть в режиме чтения.
       </p>
     </form>
@@ -198,7 +198,7 @@ export function SignupForm() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-widest">{title}</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{title}</p>
       {children}
     </div>
   )

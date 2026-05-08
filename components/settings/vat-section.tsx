@@ -35,7 +35,7 @@ export function VatSection({ organization }: Props) {
           />
           <div className="flex-1">
             <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Организация — плательщик НДС</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Если включено, НДС будет добавляться к суммам в счетах на оплату и актах
               оказанных услуг. Также включает поддержку ЭСФ (когда будет интегрирована).
             </p>
@@ -44,7 +44,7 @@ export function VatSection({ organization }: Props) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Ставка НДС, %</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ставка НДС, %</label>
             <select
               name="vatRate"
               defaultValue={String(selectedRate)}
@@ -61,7 +61,7 @@ export function VatSection({ organization }: Props) {
             </p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Серия по НДС</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Серия по НДС</label>
             <input
               name="vatNumber"
               defaultValue={organization.vatNumber ?? ""}
@@ -81,7 +81,7 @@ export function VatSection({ organization }: Props) {
           </button>
         </div>
 
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-3">
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-lg p-3">
           <b className="text-amber-800 dark:text-amber-200">Важно про РК:</b> с 2019 года плательщики НДС обязаны выписывать{" "}
           <b>электронные счёт-фактуры (ЭСФ)</b> через государственный портал{" "}
           <a href="https://esf.gov.kz/" target="_blank" rel="noopener" className="underline text-amber-700 dark:text-amber-300">esf.gov.kz</a>.

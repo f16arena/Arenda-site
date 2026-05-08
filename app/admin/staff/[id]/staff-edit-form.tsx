@@ -53,7 +53,7 @@ export function StaffEditForm({
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">ФИО *</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО *</label>
           <input
             name="name"
             defaultValue={initial.name}
@@ -62,7 +62,7 @@ export function StaffEditForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Телефон</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
           <input
             name="phone"
             type="tel"
@@ -73,7 +73,7 @@ export function StaffEditForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Email</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
           <input
             type="email"
             name="email"
@@ -82,12 +82,12 @@ export function StaffEditForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Роль</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Роль</label>
           <select
             name="role"
             defaultValue={initial.role}
             disabled={isCurrentUser}
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 disabled:bg-slate-50 dark:bg-slate-800/50 disabled:text-slate-500 dark:text-slate-400 dark:text-slate-500"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 disabled:bg-slate-50 dark:bg-slate-800/50 disabled:text-slate-500 dark:text-slate-400"
           >
             {ROLES.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -100,7 +100,7 @@ export function StaffEditForm({
           )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Должность</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Должность</label>
           <input
             name="position"
             defaultValue={initial.position}
@@ -108,7 +108,7 @@ export function StaffEditForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Оклад, ₸</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Оклад, ₸</label>
           <input
             name="salary"
             type="number"
@@ -119,7 +119,7 @@ export function StaffEditForm({
           />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
             Новый пароль (оставьте пустым, чтобы не менять)
           </label>
           <input

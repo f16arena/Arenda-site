@@ -223,7 +223,7 @@ export default async function BuildingsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Здания</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {active.length} активных
               {inactive.length > 0 && ` · ${inactive.length} неактивных`}
             </p>
@@ -235,7 +235,7 @@ export default async function BuildingsPage() {
       {buildings.length === 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
           <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">Нет зданий</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Нет зданий</p>
           {canCreateBuildings && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
         </div>
       )}
@@ -264,7 +264,7 @@ export default async function BuildingsPage() {
                       </span>
                     )}
                     {!b.isActive && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">
                         Неактивно
                       </span>
                     )}
@@ -421,7 +421,7 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-0.5">
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-0.5">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {label}
       </div>

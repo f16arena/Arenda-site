@@ -152,14 +152,16 @@ function BankFields({
           {bik && <StatusIcon ok={checks.bik?.ok ?? null} />}
         </div>
         <input
+          name="bik"
           value={bik}
           onChange={(event) => handleBikChange(event.target.value)}
           onBlur={() => {
             const bank = findBankByBik(bik)
             if (bank && shouldReplaceBankName(bankName, initialBankName)) setBankName(bank.name)
           }}
-          placeholder="CASPKZKA, HSBKKZKX..."
+          placeholder="HSBKKZKX"
           list={bikListId}
+          pattern="[A-Z]{8,11}"
           maxLength={8}
           className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
             !bik
@@ -174,6 +176,9 @@ function BankFields({
             <option key={bank.bik} value={bank.bik} label={`${bank.short} — ${bank.name}`} />
           ))}
         </datalist>
+        {!bik && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">8-11 латинских букв в верхнем регистре</p>
+        )}
         {bankFromBik && (
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">{bankFromBik.name}</p>
         )}
@@ -216,9 +221,11 @@ function BankFields({
           {iik && <StatusIcon ok={checks.iik?.ok ?? null} />}
         </div>
         <input
+          name="iik"
           value={iik}
           onChange={(event) => setIik(normalizeIikInput(event.target.value))}
-          placeholder="KZ86125KZT1001300335"
+          placeholder="KZ123456789012345678"
+          pattern="^KZ\d{18}$"
           maxLength={20}
           className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
             !iik
@@ -228,7 +235,7 @@ function BankFields({
                 : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
           }`}
         />
-        <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Длина: {iik.length}/20</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Начинается с KZ, всего 20 символов · Длина: {iik.length}/20</p>
         {iik && checks.iik?.warning && (
           <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.iik.warning}</p>
         )}
@@ -509,9 +516,11 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
         {taxId && <StatusIcon ok={taxCheck?.ok ?? null} />}
       </div>
       <input
+        name={isIin ? "iin" : "bin"}
         value={taxId}
         onChange={(event) => setTaxId(event.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
         placeholder="123456789012"
+        pattern="\d{12}"
         maxLength={12}
         inputMode="numeric"
         className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 ${
@@ -522,6 +531,9 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
               : "border-red-300 dark:border-red-500/40"
         }`}
       />
+      {!taxId && (
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">12 цифр без пробелов</p>
+      )}
       {taxId && taxCheck?.warning && (
         <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{taxCheck.warning}</p>
       )}

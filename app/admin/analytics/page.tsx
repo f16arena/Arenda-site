@@ -24,7 +24,7 @@ export default async function AnalyticsPage() {
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
   if (visibleBuildingIds.length === 0) {
-    return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Нет доступных зданий</div>
+    return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400">Нет доступных зданий</div>
   }
 
   const floorIds = await safe(
@@ -174,7 +174,7 @@ export default async function AnalyticsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Аналитика</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Ключевые показатели за {thisYear} год</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Ключевые показатели за {thisYear} год</p>
         </div>
       </div>
 
@@ -192,10 +192,10 @@ export default async function AnalyticsPage() {
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">№</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Сумма</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">% от общей</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">№</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">% от общей</th>
             </tr>
           </thead>
           <tbody>
@@ -209,7 +209,7 @@ export default async function AnalyticsPage() {
                   <td className="px-5 py-2.5 text-slate-400 dark:text-slate-500">#{i + 1}</td>
                   <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
                   <td className="px-5 py-2.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(amount)}</td>
-                  <td className="px-5 py-2.5 text-right text-slate-500 dark:text-slate-400 dark:text-slate-500">{percent}%</td>
+                  <td className="px-5 py-2.5 text-right text-slate-500 dark:text-slate-400">{percent}%</td>
                 </tr>
               )
             })}
@@ -241,7 +241,7 @@ function Kpi({ label, value, icon: Icon, sub, color }: {
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
   )

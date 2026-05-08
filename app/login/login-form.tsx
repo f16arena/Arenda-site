@@ -3,7 +3,8 @@
 import { useActionState } from "react"
 import Link from "next/link"
 import { login } from "@/app/actions/auth"
-import { Building, Loader2, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
+import { Building, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export function LoginForm() {
   const [state, action, isPending] = useActionState(login, undefined)
@@ -16,7 +17,7 @@ export function LoginForm() {
           <Building className="h-6 w-6 text-white" />
         </div>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Commrent</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Войдите в свой аккаунт</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Войдите в свой аккаунт</p>
       </div>
 
       {/* Card */}
@@ -84,21 +85,21 @@ export function LoginForm() {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={isPending}
-            className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+            size="lg"
+            loading={isPending}
+            className="w-full font-semibold"
           >
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {isPending ? "Вход..." : "Войти"}
-          </button>
+          </Button>
         </form>
       </div>
 
       {/* Diagnostic block */}
       {state?.details && state.details.length > 0 && (
         <details className="mt-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 text-xs">
-          <summary className="cursor-pointer text-slate-600 dark:text-slate-400 dark:text-slate-500 font-medium select-none">
+          <summary className="cursor-pointer text-slate-600 dark:text-slate-400 font-medium select-none">
             Диагностика входа ({state.details.length} шагов)
           </summary>
           <ul className="mt-3 space-y-1.5 font-mono">
@@ -113,7 +114,7 @@ export function LoginForm() {
                     <span className="text-slate-400 dark:text-slate-500">{d.ms}ms</span>
                   </div>
                   {d.note && (
-                    <p className={`mt-0.5 break-all ${d.ok ? "text-slate-500 dark:text-slate-400 dark:text-slate-500" : "text-red-600 dark:text-red-400"}`}>
+                    <p className={`mt-0.5 break-all ${d.ok ? "text-slate-500 dark:text-slate-400" : "text-red-600 dark:text-red-400"}`}>
                       {d.note}
                     </p>
                   )}
@@ -121,7 +122,7 @@ export function LoginForm() {
               </li>
             ))}
           </ul>
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
             Подробнее по БД:{" "}
             <a href="/api/health/db" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">/api/health/db</a>
           </div>

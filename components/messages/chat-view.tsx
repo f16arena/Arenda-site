@@ -98,7 +98,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Всем (объявление)</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Отправить всем участникам</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Отправить всем участникам</p>
               </div>
             </button>
           )}
@@ -118,7 +118,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               )}
             >
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 shrink-0">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">{c.name[0]?.toUpperCase()}</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{c.name[0]?.toUpperCase()}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
@@ -129,7 +129,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                   {ROLE_LABELS[c.role] ?? c.role}
                   {c.lastMessage && ` · ${c.lastMessage.slice(0, 30)}`}
                 </p>
@@ -156,17 +156,17 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Объявление всем</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Сообщение придёт каждому участнику</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Сообщение придёт каждому участнику</p>
                   </div>
                 </>
               ) : selectedContact ? (
                 <>
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200">
-                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400 dark:text-slate-500">{selectedContact.name[0]?.toUpperCase()}</span>
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{selectedContact.name[0]?.toUpperCase()}</span>
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedContact.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{ROLE_LABELS[selectedContact.role] ?? selectedContact.role}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[selectedContact.role] ?? selectedContact.role}</p>
                   </div>
                 </>
               ) : null}
@@ -179,7 +179,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                   <div className="text-center max-w-sm">
                     <Megaphone className="h-10 w-10 text-amber-300 mx-auto mb-3" />
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Режим объявления</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       Напишите сообщение и оно будет отправлено всем активным пользователям системы как личное сообщение от вас.
                     </p>
                   </div>
@@ -200,7 +200,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                         )}
                       >
                         {m.subject && (
-                          <p className={cn("text-xs font-semibold mb-1", isMine ? "text-blue-100" : "text-slate-500 dark:text-slate-400 dark:text-slate-500")}>
+                          <p className={cn("text-xs font-semibold mb-1", isMine ? "text-blue-100" : "text-slate-500 dark:text-slate-400")}>
                             {m.subject}
                           </p>
                         )}

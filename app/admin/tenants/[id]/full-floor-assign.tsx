@@ -57,7 +57,7 @@ export function FullFloorAssign({
               <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <div>
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
               </div>
             </div>
             <ConfirmDialog
@@ -94,7 +94,7 @@ export function FullFloorAssign({
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Этаж *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Этаж *</label>
                 <select
                   value={floorId}
                   onChange={(e) => setFloorId(e.target.value)}
@@ -110,7 +110,7 @@ export function FullFloorAssign({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 mb-1.5">Сумма аренды ₸/мес *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма аренды ₸/мес *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -122,7 +122,7 @@ export function FullFloorAssign({
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Фиксированная сумма независимо от площади</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 dark:text-slate-500">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
                 <button
                   type="button"
                   disabled={pending || !floorId || !rent}

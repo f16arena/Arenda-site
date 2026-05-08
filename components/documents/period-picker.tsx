@@ -47,7 +47,7 @@ export function PeriodPicker({ value }: Props) {
         className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-l-lg"
         title="Предыдущий месяц"
       >
-        <ChevronLeft className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+        <ChevronLeft className="h-4 w-4 text-slate-500 dark:text-slate-400" />
       </button>
       <select
         value={month}
@@ -72,7 +72,7 @@ export function PeriodPicker({ value }: Props) {
         className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-r-lg"
         title="Следующий месяц"
       >
-        <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
+        <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400" />
       </button>
     </div>
   )

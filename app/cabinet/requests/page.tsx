@@ -51,7 +51,7 @@ export default async function CabinetRequests() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мои заявки</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{tenant.requests.length} заявок</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{tenant.requests.length} заявок</p>
         </div>
         <RequestDialog />
       </div>
@@ -76,7 +76,7 @@ export default async function CabinetRequests() {
                     {PRIORITY_LABELS[r.priority] ?? r.priority}
                   </span>
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{r.description}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{r.description}</p>
                 {(attachmentsByRequest.get(r.id)?.length ?? 0) > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {attachmentsByRequest.get(r.id)?.map((file) => (
@@ -108,7 +108,7 @@ export default async function CabinetRequests() {
         {tenant.requests.length === 0 && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
             <ClipboardList className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500">Заявок нет</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Заявок нет</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Создайте заявку на замену лампочки, подключение интернета или любой другой вопрос
             </p>

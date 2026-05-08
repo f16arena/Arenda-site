@@ -15,7 +15,7 @@ export function OccupancyHeatmap({ data }: {
           <Flame className="h-4 w-4 text-orange-500" />
           Heatmap занятости помещений
         </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">% времени помещение занято с начала года</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">% времени помещение занято с начала года</p>
       </div>
 
       <div className="p-5">
@@ -37,7 +37,7 @@ export function OccupancyHeatmap({ data }: {
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{s.spaceNumber}</p>
                 <p className={cn(
                   "text-[10px]",
-                  s.percent >= 70 ? "text-white font-bold" : "text-slate-600 dark:text-slate-400 dark:text-slate-500"
+                  s.percent >= 70 ? "text-white font-bold" : "text-slate-600 dark:text-slate-400"
                 )}>
                   {s.percent}%
                 </p>
@@ -46,7 +46,7 @@ export function OccupancyHeatmap({ data }: {
           })}
         </div>
 
-        <div className="mt-4 flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="mt-4 flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded" style={{ background: "hsl(20, 90%, 100%)" }} />
             <span>0%</span>

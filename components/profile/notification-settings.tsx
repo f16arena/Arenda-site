@@ -48,7 +48,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Каналы доставки</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Где получать уведомления</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Где получать уведомления</p>
         </div>
         <div className="divide-y divide-slate-50">
           <ChannelRow
@@ -94,7 +94,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">События</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Снимите галочку чтобы отключить уведомления о выбранных событиях
           </p>
         </div>
@@ -118,7 +118,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t.label}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{t.description}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t.description}</p>
                 </div>
               </button>
             )
@@ -151,7 +151,7 @@ function ChannelRow({
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{label}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{description}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
       </div>
       <button
         type="button"

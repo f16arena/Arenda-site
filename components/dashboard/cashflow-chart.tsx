@@ -27,7 +27,7 @@ export function CashflowChart({ months }: { months: MonthData[] }) {
             <TrendingUp className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             Cashflow за {months.length} месяцев
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             <span className="text-emerald-600 dark:text-emerald-400 font-medium">+{fmt(totalIncome)} ₸</span>
             {" / "}
             <span className="text-red-500 font-medium">−{fmt(totalExpense)} ₸</span>
@@ -68,7 +68,7 @@ export function CashflowChart({ months }: { months: MonthData[] }) {
                 </div>
                 <p className={cn(
                   "text-[10px] font-medium",
-                  m.forecast ? "text-slate-400 dark:text-slate-500" : "text-slate-500 dark:text-slate-400 dark:text-slate-500"
+                  m.forecast ? "text-slate-400 dark:text-slate-500" : "text-slate-500 dark:text-slate-400"
                 )}>
                   {monthLabel}
                 </p>
@@ -76,7 +76,7 @@ export function CashflowChart({ months }: { months: MonthData[] }) {
             )
           })}
         </div>
-        <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+        <div className="flex items-center gap-4 mt-3 text-[11px] text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500" /> Доход</div>
           <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-400" /> Расход</div>
           <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-200 dark:bg-emerald-500/30 border border-emerald-300 dark:border-emerald-500/40 border-dashed" /> Прогноз</div>

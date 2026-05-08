@@ -65,7 +65,7 @@ export default async function ContractsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Договоры</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {tenants.length} арендаторов · {buckets.expiringSoon.length} истекают в ближайшие 20 дней
           </p>
         </div>
@@ -107,7 +107,7 @@ function StatCard({
     emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
     amber: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
     red: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10",
-    slate: "text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50",
+    slate: "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50",
   }
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
@@ -115,7 +115,7 @@ function StatCard({
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{label}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
     </div>
   )
 }
@@ -152,11 +152,11 @@ function Section({
       <table className="w-full min-w-[720px] text-sm">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Арендатор</th>
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Помещение</th>
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Срок договора</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Аренда/мес</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">Долг</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Помещение</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Срок договора</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Аренда/мес</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Долг</th>
             <th className="px-5 py-2" />
           </tr>
         </thead>
@@ -178,8 +178,8 @@ function Section({
                   <p className="font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">{t.legalType}</p>
                 </td>
-                <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500">{placement}</td>
-                <td className="px-5 py-3 text-slate-600 dark:text-slate-400 dark:text-slate-500 text-xs">
+                <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{placement}</td>
+                <td className="px-5 py-3 text-slate-600 dark:text-slate-400 text-xs">
                   {t.contractStart && t.contractEnd ? (
                     <>
                       <p>{t.contractStart.toLocaleDateString("ru-RU")} — {t.contractEnd.toLocaleDateString("ru-RU")}</p>
