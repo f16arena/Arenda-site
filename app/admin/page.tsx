@@ -8,7 +8,7 @@ import {
   ClipboardList, CheckSquare, ArrowUpRight,
   Clock, Calendar as CalendarIcon, Mail, Wallet,
   ClipboardCheck, ShieldCheck, FileSpreadsheet, Printer,
-  FileSignature,
+  FileSignature, ShieldAlert,
 } from "lucide-react"
 import Link from "next/link"
 import { requireOrgAccess } from "@/lib/org"
@@ -32,7 +32,7 @@ type AttentionItem = {
 
 export default async function AdminDashboard() {
   return measureServerRoute("/admin", async () => {
-  const { orgId } = await requireOrgAccess()
+  const { orgId, userId } = await requireOrgAccess()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin", orgId })
   const buildingId = await getCurrentBuildingId()
@@ -139,6 +139,14 @@ export default async function AdminDashboard() {
       doneRecommendedCount: 0,
       percent: 100,
     }),
+    safe(
+      "admin.dashboard.currentUser2fa",
+      db.user.findUnique({
+        where: { id: userId },
+        select: { role: true, totpEnabledAt: true },
+      }),
+      null as { role: string; totpEnabledAt: Date | null } | null,
+    ),
   ])
 
   const todayMetricsPromise = Promise.all([
@@ -309,6 +317,7 @@ export default async function AdminDashboard() {
       spacesGroup,
       chargesAgg,
       onboarding,
+      currentUser2fa,
     ],
     [
       overdueCharges,
@@ -402,6 +411,31 @@ export default async function AdminDashboard() {
           {buildingId ? "Обзор выбранного здания" : `Обзор всех доступных зданий · ${visibleBuildingIds.length}`}
         </p>
       </div>
+
+      {currentUser2fa && currentUser2fa.role === "OWNER" && !currentUser2fa.totpEnabledAt && (
+        <Link
+          href="/admin/profile?tab=notifications"
+          className="block rounded-xl border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:bg-amber-100/70 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/15"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-amber-600 dark:bg-slate-900 dark:text-amber-300">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Настройте двухфакторную аутентификацию</p>
+                <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-200">
+                  Для роли владельца рекомендуется включить 2FA. Это защитит аккаунт даже при компрометации пароля.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 self-start rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white sm:self-auto">
+              Настроить
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </div>
+        </Link>
+      )}
 
       {!onboarding.allDone && onboarding.nextStep && (
         <Link

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const buildingIds = buildings.map((building) => building.id)
   const now = new Date()
 
-  const [unreadNotifications, activeDevices, pendingSignatureRequests, activeNotices, tenantContracts] = await Promise.all([
+  const [unreadNotifications, activeDevices, pendingSignatureRequests, activeNotices, tenantContracts, twoFactor] = await Promise.all([
     db.notification.count({ where: { userId: user.id, isRead: false } }),
     db.pushDevice.count({ where: { userId: user.id, isActive: true, revokedAt: null } }),
     db.documentSignatureRequest.count({
@@ -43,6 +43,10 @@ export async function GET(req: Request) {
           },
         })
       : Promise.resolve(0),
+    db.user.findUnique({
+      where: { id: user.id },
+      select: { totpEnabledAt: true },
+    }).catch(() => null),
   ])
 
   return NextResponse.json({
@@ -52,6 +56,7 @@ export async function GET(req: Request) {
       email: user.email,
       phone: userPhone,
       role: user.role,
+      totpEnabled: !!twoFactor?.totpEnabledAt,
     },
     organization: org,
     buildings,

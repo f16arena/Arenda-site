@@ -23,6 +23,7 @@ import {
   requestPriorityLabel,
 } from "@/app/utils/colors"
 import { formatDate, formatDateTime } from "@/app/utils/formatters"
+import { haptic } from "@/app/utils/haptics"
 import type { BuildingNotice, MobileBootstrap } from "@/types/mobile"
 
 export function AppIcon({
@@ -893,6 +894,35 @@ export function RequestList({
   )
 }
 
+export function TwoFactorWarning({ onPress }: { onPress?: () => void }) {
+  return (
+    <Pressable
+      focusable={false}
+      accessibilityRole="button"
+      accessibilityLabel="Настроить двухфакторную аутентификацию"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "#fcd34d",
+        backgroundColor: pressed ? "#fde68a" : "#fef3c7",
+        padding: 14,
+        gap: 8,
+      })}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <AppIcon name="exclamationmark.shield.fill" size={22} color="#b45309" />
+        <Text selectable style={{ flex: 1, color: "#78350f", fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>
+          Настройте двухфакторную аутентификацию
+        </Text>
+      </View>
+      <Text selectable style={{ color: "#78350f", fontSize: 13, lineHeight: 19, fontFamily: fonts.regular }}>
+        Для роли владельца рекомендуется включить 2FA. Это защитит аккаунт даже при компрометации пароля. Настройка доступна в веб-кабинете → Профиль → Уведомления.
+      </Text>
+    </Pressable>
+  )
+}
+
 export function NoticeList({ notices }: { notices: BuildingNotice[] }) {
   if (notices.length === 0) return <EmptyState icon="bell.fill" title="Активных объявлений нет" subtitle="Push по свету, воде, ремонту и проверкам появятся здесь." />
   return (
@@ -965,7 +995,10 @@ export function FlatListPage<T>({
         onRefresh ? (
           <RefreshControl
             refreshing={!!refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => {
+              haptic.light()
+              onRefresh()
+            }}
             tintColor={colors.blue}
             colors={[colors.blue, colors.teal]}
           />
@@ -1008,7 +1041,10 @@ export function BottomTabs({
             accessibilityLabel={badge > 0 ? `${tab.label}, ${badge} непрочитанных` : tab.label}
             accessibilityState={{ selected: active }}
             testID={`bottom-tab-${tab.key}`}
-            onPress={() => onChange(tab.key)}
+            onPress={() => {
+              if (!active) haptic.selection()
+              onChange(tab.key)
+            }}
             style={({ pressed }) => ({
               flex: 1,
               minHeight: 56,

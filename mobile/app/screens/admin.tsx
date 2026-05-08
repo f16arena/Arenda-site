@@ -43,6 +43,7 @@ import {
   formatMoney,
 } from "@/app/utils/formatters"
 import { dedupeById } from "@/app/utils/types"
+import { haptic } from "@/app/utils/haptics"
 import {
   ActionRow,
   AppIcon,
@@ -63,6 +64,7 @@ import {
   SecondaryButton,
   SectionTitle,
   StatusPill,
+  TwoFactorWarning,
 } from "@/app/components/ui"
 import type { ReactNode } from "react"
 
@@ -782,8 +784,10 @@ export function AdminDocumentDetail({
 
 export function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate }: { payload: AdminTodayPayload; notices: BuildingNotice[]; bootstrap: MobileBootstrap; onChanged: () => void; onNavigate: (tab: string) => void }) {
   const canNotice = ["OWNER", "ADMIN", "FACILITY_MANAGER"].includes(bootstrap.user.role ?? "")
+  const need2fa = bootstrap.user.role === "OWNER" && bootstrap.user.totpEnabled === false
   return (
     <>
+      {need2fa ? <TwoFactorWarning /> : null}
       <SectionTitle title="Сегодня" />
       <Card>
         <MetricGrid
@@ -1171,6 +1175,7 @@ export function AdminPayments({ payload, buildingId, onChanged }: { payload: Adm
   })
 
   function openPaymentReview(report: AdminPaymentReportsPayload["data"][number], action: "confirm" | "dispute" | "reject") {
+    if (action === "reject") haptic.warning()
     setPendingReview({ report, action })
     setReviewReason(action === "confirm" ? "Поступление найдено" : action === "dispute" ? "Уточнить оплату" : "Не найдено поступление")
     setReviewMessage(null)

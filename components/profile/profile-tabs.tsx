@@ -13,12 +13,13 @@ interface Props {
   phone: string | null
   notificationsSlot?: React.ReactNode
   managementSlot?: React.ReactNode
+  initialTab?: TabKey
 }
 
 export function ProfileTabs({
-  currentName, currentEmail, emailVerified, phone, notificationsSlot, managementSlot,
+  currentName, currentEmail, emailVerified, phone, notificationsSlot, managementSlot, initialTab,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("general")
+  const [tab, setTab] = useState<TabKey>(initialTab ?? "general")
 
   return (
     <div className="space-y-5">
