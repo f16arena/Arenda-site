@@ -453,12 +453,12 @@ function MetricRowItem({ item, isLast }: { item: MetricItem; isLast: boolean }) 
         backgroundColor: pressed ? "#eef2f7" : "transparent",
       }}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.medium }}>{item.label}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1, color: colors.muted, fontSize: 14, fontFamily: fonts.medium }}>{item.label}</Text>
         {item.badge && item.badge > 0 ? <MetricBadge value={item.badge} /> : null}
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Text selectable numberOfLines={1} style={{ color: item.color, fontSize: 16, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        <Text selectable numberOfLines={1} ellipsizeMode="tail" style={{ color: item.color, fontSize: 16, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
         {interactive ? <AppIcon name="chevron.right" size={14} color={colors.faint} /> : null}
       </View>
     </View>

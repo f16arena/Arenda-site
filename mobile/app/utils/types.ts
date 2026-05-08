@@ -129,6 +129,7 @@ export function tabsForRole(role?: string | null) {
       { key: "home", label: "Главная", icon: "house.fill" },
       { key: "payments", label: "Оплата", icon: "creditcard.fill" },
       { key: "requests", label: "Заявки", icon: "wrench.and.screwdriver.fill" },
+      { key: "messages", label: "Чат", icon: "message.fill" },
       { key: "documents", label: "Документы", icon: "doc.text.fill" },
       { key: "more", label: "Еще", icon: "ellipsis" },
     ]

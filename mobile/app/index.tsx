@@ -31,6 +31,7 @@ import { LoginScreen } from "@/app/screens/login"
 import {
   TenantDocuments,
   TenantHome,
+  TenantMessages,
   TenantMeters,
   TenantPayments,
   TenantRequests,
@@ -543,6 +544,7 @@ function TabContent({
     if (!data.tenantOverview) return <CenteredLoader />
     if (tabKey === "payments") return data.tenantFinances ? <TenantPayments finances={data.tenantFinances} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     if (tabKey === "requests") return data.tenantRequests ? <TenantRequests requests={data.tenantRequests} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    if (tabKey === "messages") return <TenantMessages />
     if (tabKey === "meters") return data.tenantMeters ? <TenantMeters meters={data.tenantMeters} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     if (tabKey === "documents") return data.tenantDocuments ? <TenantDocuments documents={data.tenantDocuments} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />

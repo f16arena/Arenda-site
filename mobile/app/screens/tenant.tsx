@@ -1,12 +1,16 @@
-import { useState } from "react"
-import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from "react-native"
+import { useEffect, useState } from "react"
+import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native"
 import * as Sharing from "expo-sharing"
 import {
   createTenantRequest,
   downloadAuthorizedFile,
+  getTenantMessages,
   reportTenantPayment,
+  sendTenantMessage,
   startDocumentSignatureDraft,
   submitTenantMeterReading,
+  type TenantAdminContact,
+  type TenantMessageDto,
 } from "@/lib/api"
 import {
   colors,
@@ -20,7 +24,7 @@ import {
   openExternalUrl,
   signatureStatusLabel,
 } from "@/app/utils/colors"
-import { formatDate, formatDateFull, formatFileSize, formatMoney, todayDate } from "@/app/utils/formatters"
+import { formatDate, formatDateFull, formatDateTime, formatFileSize, formatMoney, todayDate } from "@/app/utils/formatters"
 import { haptic } from "@/app/utils/haptics"
 import { pickUploadFile } from "@/app/utils/types"
 import {
@@ -211,7 +215,7 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
       <SectionTitle title="История" />
       <Card>
         {finances.paymentReports.slice(0, 8).map((report) => (
-          <CompactRow key={report.id} title={formatMoney(report.amount)} subtitle={`${formatDate(report.paymentDate)} · ${report.method} · ${report.status}${report.receiptName ? " · чек" : ""}`} tone={report.status === "REJECTED" ? colors.red : report.status === "CONFIRMED" ? colors.green : colors.blue} />
+          <PaymentReportRow key={report.id} report={report} />
         ))}
         {finances.paymentReports.length === 0 ? <EmptyState inline icon="creditcard.fill" title="Отправленных оплат пока нет" subtitle="Когда арендатор отправит чек, он появится в истории." /> : null}
       </Card>
@@ -222,6 +226,71 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
         ))}
       </Card>
     </>
+  )
+}
+
+function PaymentReportRow({ report }: { report: TenantFinances["paymentReports"][number] }) {
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const tone = report.status === "REJECTED" ? colors.red : report.status === "CONFIRMED" ? colors.green : colors.blue
+  const hasReceipt = !!(report.receiptUrl && report.receiptName)
+  const subtitle = `${formatDate(report.paymentDate)} · ${report.method} · ${report.status}`
+
+  async function openReceipt() {
+    if (!report.receiptUrl || busy) return
+    setBusy(true)
+    setMessage(null)
+    try {
+      const file = await downloadAuthorizedFile(report.receiptUrl, report.receiptName ?? `Чек ${formatDate(report.paymentDate)}`)
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: file.mimeType, dialogTitle: report.receiptName ?? "Чек оплаты" })
+      } else {
+        await Linking.openURL(file.uri)
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Не удалось открыть чек")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <View style={{ gap: 4 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 3 }}>
+        <View style={{ width: 8, height: 36, borderRadius: 4, backgroundColor: tone }} />
+        <View style={{ flex: 1 }}>
+          <Text selectable style={{ color: colors.text, fontSize: 16, fontFamily: fonts.extraBold, fontWeight: "800" }}>{formatMoney(report.amount)}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.regular }}>{subtitle}</Text>
+        </View>
+        {hasReceipt ? (
+          <Pressable
+            focusable={false}
+            accessibilityRole="button"
+            accessibilityLabel={busy ? "Скачиваем чек" : "Открыть чек"}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            onPress={openReceipt}
+            style={({ pressed }) => ({
+              minHeight: 36,
+              borderRadius: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              backgroundColor: pressed ? colors.surfaceMuted : "transparent",
+              borderWidth: 1,
+              borderColor: colors.border,
+              opacity: busy ? 0.6 : 1,
+            })}
+          >
+            <AppIcon name={busy ? "arrow.down.circle" : "doc.richtext"} size={14} color={colors.blue} />
+            <Text style={{ color: colors.blue, fontSize: 13, fontFamily: fonts.bold, fontWeight: "700" }}>{busy ? "..." : "чек"}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {message ? <InlineMessage message={message} tone="error" /> : null}
+    </View>
   )
 }
 
@@ -565,6 +634,255 @@ export function ContractSignPrompt({ contract }: { contract: MobileContractSumma
         <StatusPill label={contractStatusLabel(status)} color={color} />
       </View>
       {webUrl ? <SecondaryButton title={isPendingContractStatus(status) ? "Открыть подписание" : "Открыть документ"} icon="arrow.up.right.square" onPress={() => openExternalUrl(webUrl)} /> : null}
+    </View>
+  )
+}
+
+// Чат-экран арендатора <-> администратор. Использует /api/mobile/tenant/messages.
+// Минимально-рабочая версия: список + поле ввода + выбор адресата.
+export function TenantMessages() {
+  const [text, setText] = useState("")
+  const [sending, setSending] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [messages, setMessages] = useState<TenantMessageDto[]>([])
+  const [admins, setAdmins] = useState<TenantAdminContact[]>([])
+  const [selectedAdminId, setSelectedAdminId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+
+  async function load(silent = false) {
+    if (!silent) setLoading(true)
+    setError(null)
+    try {
+      const res = await getTenantMessages()
+      setMessages(res.data)
+      setAdmins(res.admins)
+      setSelectedAdminId((current) => {
+        if (current && res.admins.some((a) => a.id === current)) return current
+        if (res.admins.length === 1) return res.admins[0].id
+        // Если есть переписка — выбираем "другую сторону" последнего сообщения.
+        const last = res.data[0]
+        if (last) {
+          const otherId = last.direction === "in" ? last.from.id : last.to.id
+          if (res.admins.some((a) => a.id === otherId)) return otherId
+        }
+        return current ?? res.admins[0]?.id ?? null
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось загрузить сообщения")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let mounted = true
+    void (async () => {
+      try {
+        const res = await getTenantMessages()
+        if (!mounted) return
+        setMessages(res.data)
+        setAdmins(res.admins)
+        if (res.admins.length === 1) setSelectedAdminId(res.admins[0].id)
+        else if (res.data[0]) {
+          const otherId = res.data[0].direction === "in" ? res.data[0].from.id : res.data[0].to.id
+          if (res.admins.some((a) => a.id === otherId)) setSelectedAdminId(otherId)
+          else if (res.admins[0]) setSelectedAdminId(res.admins[0].id)
+        }
+      } catch (e) {
+        if (mounted) setError(e instanceof Error ? e.message : "Не удалось загрузить сообщения")
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  async function send() {
+    const body = text.trim()
+    if (!body || !selectedAdminId || sending) return
+    setSending(true)
+    setError(null)
+    setInfo(null)
+    try {
+      await sendTenantMessage({ toUserId: selectedAdminId, body })
+      setText("")
+      haptic.success()
+      setInfo("Сообщение отправлено")
+      await load(true)
+    } catch (e) {
+      haptic.error()
+      setError(e instanceof Error ? e.message : "Не удалось отправить сообщение")
+    } finally {
+      setSending(false)
+    }
+  }
+
+  // Сообщения от API приходят DESC по createdAt — переворачиваем для отображения снизу вверх.
+  const ordered = [...messages].reverse()
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+    >
+      <SectionTitle title="Сообщения" />
+      {admins.length === 0 && !loading ? (
+        <EmptyState
+          icon="message.fill"
+          title="Администратор не назначен"
+          subtitle="Когда здание получит ответственного администратора, вы сможете написать ему отсюда."
+        />
+      ) : (
+        <Card>
+          {admins.length > 1 ? (
+            <ChoiceRow
+              options={admins.map((a) => [a.id, a.name] as [string, string])}
+              value={selectedAdminId ?? admins[0].id}
+              onChange={setSelectedAdminId}
+            />
+          ) : null}
+
+          {loading ? (
+            <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>Загружаем сообщения...</Text>
+          ) : ordered.length === 0 ? (
+            <EmptyState
+              inline
+              icon="message.fill"
+              title="Сообщений пока нет"
+              subtitle="Напишите первым — администратор получит уведомление."
+            />
+          ) : (
+            <ScrollView
+              style={{ maxHeight: 420 }}
+              contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {ordered.map((m) => (
+                <MessageBubble key={m.id} message={m} />
+              ))}
+            </ScrollView>
+          )}
+
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 8 }}>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder={selectedAdminId ? "Сообщение администратору" : "Выберите администратора"}
+              placeholderTextColor="#94a3b8"
+              multiline
+              editable={!!selectedAdminId && !sending}
+              style={{
+                flex: 1,
+                minHeight: 46,
+                maxHeight: 140,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: "#ffffff",
+                color: colors.text,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 16,
+                fontFamily: fonts.regular,
+                textAlignVertical: "top",
+              }}
+            />
+            <Pressable
+              focusable={false}
+              accessibilityRole="button"
+              accessibilityLabel="Отправить сообщение"
+              accessibilityState={{ disabled: !text.trim() || !selectedAdminId || sending }}
+              disabled={!text.trim() || !selectedAdminId || sending}
+              onPress={send}
+              style={({ pressed }) => ({
+                minHeight: 46,
+                paddingHorizontal: 16,
+                borderRadius: 8,
+                backgroundColor: !text.trim() || !selectedAdminId ? colors.faint : colors.blue,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed || sending ? 0.75 : 1,
+              })}
+            >
+              <AppIcon name="send.fill" size={18} color="#ffffff" />
+            </Pressable>
+          </View>
+
+          {error ? <InlineMessage message={error} tone="error" /> : null}
+          {info ? <InlineMessage message={info} tone="success" /> : null}
+        </Card>
+      )}
+    </KeyboardAvoidingView>
+  )
+}
+
+function MessageBubble({ message }: { message: TenantMessageDto }) {
+  const isOut = message.direction === "out"
+  return (
+    <View style={{ alignItems: isOut ? "flex-end" : "flex-start" }}>
+      <View
+        style={{
+          maxWidth: "86%",
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          backgroundColor: isOut ? colors.blue : colors.surfaceMuted,
+          borderWidth: 1,
+          borderColor: isOut ? colors.blue : colors.border,
+          gap: 4,
+        }}
+      >
+        <Text
+          selectable
+          style={{
+            color: isOut ? "#ffffff" : colors.text,
+            fontSize: 11,
+            fontFamily: fonts.bold,
+            fontWeight: "700",
+            opacity: 0.85,
+          }}
+        >
+          {isOut ? "Вы" : message.from.name}
+        </Text>
+        {message.subject ? (
+          <Text
+            selectable
+            style={{
+              color: isOut ? "#ffffff" : colors.text,
+              fontSize: 13,
+              fontFamily: fonts.extraBold,
+              fontWeight: "800",
+            }}
+          >
+            {message.subject}
+          </Text>
+        ) : null}
+        <Text
+          selectable
+          style={{
+            color: isOut ? "#ffffff" : colors.text,
+            fontSize: 15,
+            fontFamily: fonts.regular,
+            lineHeight: 20,
+          }}
+        >
+          {message.body}
+        </Text>
+        <Text
+          style={{
+            color: isOut ? "#ffffff" : colors.muted,
+            fontSize: 11,
+            fontFamily: fonts.medium,
+            opacity: isOut ? 0.85 : 1,
+            alignSelf: "flex-end",
+          }}
+        >
+          {formatDateTime(message.createdAt)}
+        </Text>
+      </View>
     </View>
   )
 }

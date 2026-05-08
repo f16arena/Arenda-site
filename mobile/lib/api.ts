@@ -52,11 +52,22 @@ export type DeviceAuthAvailability = {
   reason?: string
 }
 
+export type ApiErrorCode =
+  | "NETWORK"
+  | "TIMEOUT"
+  | "DNS"
+  | "ABORT"
+  | "SERVER"
+  | "AUTH"
+  | "VALIDATION"
+  | string
+
 export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public code?: string,
+    public code?: ApiErrorCode,
+    public details?: unknown,
   ) {
     super(message)
     this.name = "ApiError"
@@ -229,7 +240,7 @@ export async function getTenantFinances() {
 }
 
 // Сообщения арендатора <-> администратор. Бэкенд: /api/mobile/tenant/messages
-type TenantMessageDto = {
+export type TenantMessageDto = {
   id: string
   subject: string
   body: string
@@ -241,7 +252,7 @@ type TenantMessageDto = {
   direction: "in" | "out"
 }
 
-type TenantAdminContact = {
+export type TenantAdminContact = {
   id: string
   name: string
   role: string
@@ -690,10 +701,35 @@ async function fetchWithRetry(
   }
 
   captureMobileException(lastError, meta)
-  throw new ApiError(
+  throw classifyNetworkError(lastError)
+}
+
+function classifyNetworkError(error: unknown): ApiError {
+  // AbortController/AbortSignal — пользователь или приложение прервали запрос.
+  if (error instanceof Error && (error.name === "AbortError" || (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError"))) {
+    return new ApiError("Запрос отменен", 0, "ABORT", error)
+  }
+
+  // TypeError "Network request failed" / fetch network errors.
+  if (error instanceof TypeError && /network/i.test(error.message)) {
+    return new ApiError("Нет связи с сервером — проверьте интернет", 0, "NETWORK", error)
+  }
+
+  // Тайм-аут (как от RN fetch, так и от serverside).
+  if (error instanceof Error && /timeout|timed out/i.test(error.message)) {
+    return new ApiError("Сервер не отвечает — попробуйте позже", 0, "TIMEOUT", error)
+  }
+
+  // DNS / hostname.
+  if (error instanceof Error && /(getaddrinfo|enotfound|dns)/i.test(error.message)) {
+    return new ApiError("Не удается найти сервер — проверьте подключение", 0, "DNS", error)
+  }
+
+  return new ApiError(
     "Нет связи с сервером. Проверьте интернет или попробуйте обновить экран через несколько секунд.",
     0,
-    "NETWORK_ERROR",
+    "NETWORK",
+    error,
   )
 }
 
@@ -812,8 +848,51 @@ async function appendUploadFile(form: FormData, key: string, file: PickedUploadF
   // и собирает multipart-запрос на нативном слое. На web нужен реальный Blob/File,
   // иначе body отправляется как "[object Object]" и сервер получает 0-байт файл.
   if (Platform.OS === "web") {
-    const response = await fetch(file.uri)
-    const blob = await response.blob()
+    let blob: Blob
+
+    if (file.uri.startsWith("data:")) {
+      // data: URI разбираем вручную — fetch() на data: иногда даёт CORS-warning
+      // и медленнее, чем прямой парсинг base64.
+      const commaIndex = file.uri.indexOf(",")
+      if (commaIndex < 0) {
+        throw new ApiError("Не удалось прочитать файл: неверный data: URI", 0, "VALIDATION")
+      }
+      const header = file.uri.slice(5, commaIndex)
+      const payload = file.uri.slice(commaIndex + 1)
+      const mimeMatch = header.match(/^([^;]+)/)
+      const mime = mimeMatch?.[1] ?? file.mimeType
+      const isBase64 = /;base64$/i.test(header) || /;base64;/i.test(header)
+      try {
+        if (isBase64) {
+          const binary = atob(payload)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          blob = new Blob([bytes], { type: mime })
+        } else {
+          blob = new Blob([decodeURIComponent(payload)], { type: mime })
+        }
+      } catch (e) {
+        throw new ApiError(
+          `Не удалось прочитать файл: ${e instanceof Error ? e.message : "ошибка декодирования"}`,
+          0,
+          "VALIDATION",
+          e,
+        )
+      }
+    } else {
+      try {
+        const response = await fetch(file.uri)
+        blob = await response.blob()
+      } catch (e) {
+        throw new ApiError(
+          `Не удалось прочитать файл: ${e instanceof Error ? e.message : "ошибка чтения"}`,
+          0,
+          "VALIDATION",
+          e,
+        )
+      }
+    }
+
     // Используем глобальный File из DOM (не expo-file-system, который переопределил имя).
     const WebFile = (globalThis as unknown as { File: typeof globalThis.File }).File
     const webFile = new WebFile([blob], file.name, { type: file.mimeType })
