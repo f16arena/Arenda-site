@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import Link from "next/link"
 import { AlertTriangle, Edit2, History, LogIn, PlusCircle, ShieldAlert, Trash2, User } from "lucide-react"
 import type { Prisma } from "@/app/generated/prisma/client"
+import { DataTable } from "@/components/ui/data-table"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
 import { requireOwner } from "@/lib/permissions"
@@ -166,7 +167,7 @@ export default async function AuditPage({
         })}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         {logs.length === 0 ? (
           <div className="py-16 text-center">
             <History className="mx-auto mb-3 h-10 w-10 text-slate-200" />
@@ -176,16 +177,16 @@ export default async function AuditPage({
             </p>
           </div>
         ) : (
-          <table className="w-full min-w-[800px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Время</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Пользователь</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Действие</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Объект</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">ID объекта</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Детали</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">IP</th>
+          <DataTable density="compact" className="min-w-[800px]">
+            <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
+              <tr className="border-b border-slate-100 dark:border-slate-800">
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Время</th>
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Пользователь</th>
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Действие</th>
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Объект</th>
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">ID объекта</th>
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Детали</th>
+                <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">IP</th>
               </tr>
             </thead>
             <tbody>
@@ -193,7 +194,7 @@ export default async function AuditPage({
                 const Icon = ACTION_ICONS[log.action] ?? History
                 return (
                   <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
-                    <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
+                    <td className="text-slate-500 dark:text-slate-400">
                       {new Date(log.createdAt).toLocaleString("ru-RU", {
                         day: "2-digit",
                         month: "2-digit",
@@ -203,7 +204,7 @@ export default async function AuditPage({
                         second: "2-digit",
                       })}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td>
                       {log.userName ? (
                         <div className="flex items-center gap-2">
                           <User className="h-3 w-3 text-slate-400" />
@@ -214,21 +215,21 @@ export default async function AuditPage({
                         <span className="text-slate-400">Система</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td>
                       <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium", ACTION_COLORS[log.action])}>
                         <Icon className="h-3 w-3" />
                         {log.action}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400">{ENTITY_LABELS[log.entity] ?? log.entity}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{log.entityId?.slice(0, 12) ?? "—"}</td>
-                    <td className="max-w-sm px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">{summarizeDetails(log.details)}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{log.ip ?? "—"}</td>
+                    <td className="text-slate-600 dark:text-slate-400">{ENTITY_LABELS[log.entity] ?? log.entity}</td>
+                    <td className="font-mono text-slate-400">{log.entityId?.slice(0, 12) ?? "—"}</td>
+                    <td className="max-w-sm text-slate-500 dark:text-slate-400">{summarizeDetails(log.details)}</td>
+                    <td className="font-mono text-slate-400">{log.ip ?? "—"}</td>
                   </tr>
                 )
               })}
             </tbody>
-          </table>
+          </DataTable>
         )}
         <PaginationControls
           basePath="/admin/audit"

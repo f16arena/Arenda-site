@@ -429,6 +429,107 @@ export async function deleteExpense(expenseId: string) {
   revalidatePath("/admin/finances")
 }
 
+/**
+ * Восстановить soft-deleted начисление. Используется в toast «Отменить» сразу после
+ * `deleteCharge`. Только для записей внутри текущей орг (chargeScope не учитывает
+ * deletedAt — поэтому проверяем явно через withDeleted-вариант).
+ */
+export async function restoreCharge(chargeId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.deleteRecords")
+    const { orgId } = await requireOrgAccess()
+    // Прямой findFirst без chargeScope (тот фильтрует по deletedAt: null).
+    // Нам нужно найти именно удалённую запись текущей организации.
+    const charge = await db.charge.findFirst({
+      where: { id: chargeId, tenant: { user: { organizationId: orgId } } },
+      select: { id: true, tenantId: true, deletedAt: true },
+    })
+    if (!charge) return { ok: false, error: "Начисление не найдено" }
+    if (!charge.deletedAt) return { ok: true } // уже восстановлено
+    await db.charge.update({ where: { id: chargeId }, data: { deletedAt: null } })
+    revalidatePath("/admin/finances")
+    if (charge.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось восстановить" }
+  }
+}
+
+/**
+ * Восстановить soft-deleted платёж.
+ */
+export async function restorePayment(paymentId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.deleteRecords")
+    const { orgId } = await requireOrgAccess()
+    const payment = await db.payment.findFirst({
+      where: { id: paymentId, tenant: { user: { organizationId: orgId } } },
+      select: { id: true, tenantId: true, deletedAt: true },
+    })
+    if (!payment) return { ok: false, error: "Платёж не найден" }
+    if (!payment.deletedAt) return { ok: true }
+    await db.payment.update({ where: { id: paymentId }, data: { deletedAt: null } })
+    revalidatePath("/admin/finances")
+    if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось восстановить" }
+  }
+}
+
+/**
+ * Массово отметить начисления оплаченными. Применяется bulk-bar над таблицей
+ * начислений. Все записи должны принадлежать текущей орг (chargeScope).
+ */
+export async function bulkMarkChargesPaid(
+  ids: string[],
+): Promise<{ ok: true; updated: number } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.recordPayment")
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Не выбрано ни одного начисления" }
+    const { orgId } = await requireOrgAccess()
+    // updateMany с scope защищает от чужих ID.
+    const result = await db.charge.updateMany({
+      where: {
+        AND: [chargeScope(orgId), { id: { in: ids } }, { isPaid: false }],
+      },
+      data: { isPaid: true },
+    })
+    revalidatePath("/admin/finances")
+    return { ok: true, updated: result.count }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось отметить" }
+  }
+}
+
+/**
+ * Массовое soft-delete начислений. Возвращает массив удалённых ID, чтобы клиент
+ * мог предложить undo через `restoreCharge` для каждого.
+ */
+export async function bulkDeleteCharges(
+  ids: string[],
+): Promise<{ ok: true; deleted: string[] } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.deleteRecords")
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Не выбрано ни одного начисления" }
+    const { orgId } = await requireOrgAccess()
+    const eligible = await db.charge.findMany({
+      where: { AND: [chargeScope(orgId), { id: { in: ids } }] },
+      select: { id: true },
+    })
+    const eligibleIds = eligible.map((c) => c.id)
+    if (eligibleIds.length === 0) return { ok: false, error: "Нет доступных для удаления начислений" }
+    await db.charge.updateMany({
+      where: { id: { in: eligibleIds } },
+      data: { deletedAt: new Date() },
+    })
+    revalidatePath("/admin/finances")
+    return { ok: true, deleted: eligibleIds }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось удалить" }
+  }
+}
+
 export async function addExpense(formData: FormData) {
   await requireCapabilityAndFeature("finance.manageExpenses")
   const { orgId } = await requireOrgAccess()

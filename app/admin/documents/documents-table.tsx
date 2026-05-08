@@ -8,7 +8,7 @@ import {
   List, Folder, Trash2, Lock,
 } from "lucide-react"
 import { toast } from "sonner"
-import { deleteAdminDocument } from "@/app/actions/documents"
+import { deleteAdminDocument, restoreAdminDocument } from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
@@ -125,8 +125,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
   function performDelete(row: DocRow) {
     if (!row.deleteId || !row.canDelete) return
     setDeletingRowId(row.id)
+    const deleteId = row.deleteId
+    const source = row.source
+    const isSigned = row.isSigned
     startTransition(async () => {
-      const result = await deleteAdminDocument({ source: row.source, id: row.deleteId! })
+      const result = await deleteAdminDocument({ source, id: deleteId })
       setDeletingRowId(null)
       if (!result.ok) {
         toast.error(result.error ?? "Не удалось удалить документ")
@@ -137,8 +140,28 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         nextSelected.delete(row.generatedId)
         setSelected(nextSelected)
       }
-      toast.success("Документ удалён")
       router.refresh()
+      // Подписанные документы восстанавливать нельзя — подписи удалены безвозвратно.
+      // Для неподписанных предлагаем undo.
+      if (isSigned) {
+        toast.success("Документ удалён")
+      } else {
+        toast.success("Документ удалён", {
+          duration: 6000,
+          action: {
+            label: "Отменить",
+            onClick: async () => {
+              const r = await restoreAdminDocument({ source, id: deleteId })
+              if (!r.ok) {
+                toast.error(r.error ?? "Не удалось восстановить")
+                return
+              }
+              router.refresh()
+              toast.success("Восстановлено")
+            },
+          },
+        })
+      }
     })
   }
 

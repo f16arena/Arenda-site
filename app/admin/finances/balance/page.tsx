@@ -9,6 +9,7 @@ import {
   Wallet, Banknote, CreditCard, ArrowLeft,
 } from "lucide-react"
 import Link from "next/link"
+import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { BalanceClientLoader } from "./balance-client-loader"
 
 export default async function BalancePage() {
@@ -39,6 +40,13 @@ export default async function BalancePage() {
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Главная", href: "/admin" },
+          { label: "Финансы", href: "/admin/finances" },
+          { label: "Баланс" },
+        ]}
+      />
       <div className="flex items-center gap-3">
         <Link
           href="/admin/finances"
