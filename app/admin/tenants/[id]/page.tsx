@@ -33,6 +33,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
@@ -335,6 +336,13 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   return (
     <div className="space-y-6">
+      <Breadcrumbs
+        items={[
+          { label: "Главная", href: "/admin" },
+          { label: "Арендаторы", href: "/admin/tenants" },
+          { label: tenant.companyName },
+        ]}
+      />
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link

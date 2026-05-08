@@ -7,10 +7,13 @@ import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
+import { ChargesBulkActions } from "./charges-bulk-actions"
+import { DataTable } from "@/components/ui/data-table"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { DeleteWithUndo } from "@/components/ui/delete-with-undo"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
-import { deleteCharge, deletePayment, deleteExpense } from "@/app/actions/finance"
+import { deletePayment, deleteExpense, restorePayment } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -443,40 +446,27 @@ async function renderFinancesPage({
               })}
             </div>
           </div>
-          <div className="divide-y divide-slate-50">
-            {charges.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{c.tenant.companyName}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">{CHARGE_TYPES[c.type] ?? c.type}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(c.amount)}</p>
-                    <span className={`text-xs ${c.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
-                      {c.isPaid ? "Оплачено" : "Не оплачено"}
-                    </span>
-                  </div>
-                  <DeleteAction
-                    action={deleteCharge.bind(null, c.id)}
-                    entity="начисление"
-                    successMessage="Начисление удалено"
-                  />
-                </div>
-              </div>
-            ))}
-            {charges.length === 0 && (
-              <EmptyState
-                icon={<FileSpreadsheet className="h-5 w-5" />}
-                title="Начислений за месяц нет"
-                description="Сформируйте начисления за период после проверки арендаторов, ставок и сроков оплаты. Если арендаторов нет, начните с карточек аренды."
-                actions={[
-                  { href: "/admin/tenants", label: "Проверить арендаторов" },
-                  { href: "/admin/data-quality", label: "Качество данных", variant: "secondary" },
-                ]}
-              />
-            )}
-          </div>
+          {charges.length === 0 ? (
+            <EmptyState
+              icon={<FileSpreadsheet className="h-5 w-5" />}
+              title="Начислений за месяц нет"
+              description="Сформируйте начисления за период после проверки арендаторов, ставок и сроков оплаты. Если арендаторов нет, начните с карточек аренды."
+              actions={[
+                { href: "/admin/tenants", label: "Проверить арендаторов" },
+                { href: "/admin/data-quality", label: "Качество данных", variant: "secondary" },
+              ]}
+            />
+          ) : (
+            <ChargesBulkActions
+              charges={charges.map((c) => ({
+                id: c.id,
+                tenantName: c.tenant.companyName,
+                type: c.type,
+                amount: c.amount,
+                isPaid: c.isPaid,
+              }))}
+            />
+          )}
           <PaginationControls
             basePath="/admin/finances"
             page={chargesPage}
@@ -508,8 +498,9 @@ async function renderFinancesPage({
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(p.amount)}</p>
-                  <DeleteAction
-                    action={deletePayment.bind(null, p.id)}
+                  <DeleteWithUndo
+                    deleteAction={deletePayment.bind(null, p.id)}
+                    restoreAction={restorePayment.bind(null, p.id)}
                     entity="платёж"
                     successMessage="Платёж удалён"
                   />
@@ -537,29 +528,28 @@ async function renderFinancesPage({
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Расходы</h2>
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
         </div>
-        <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Категория</th>
-              {!currentBuildingId && <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>}
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Описание</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
-              <th className="px-5 py-3" />
+        <DataTable density="compact" className="min-w-[640px]">
+          <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
+            <tr className="border-b border-slate-100 dark:border-slate-800">
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Категория</th>
+              {!currentBuildingId && <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>}
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Описание</th>
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
+              <th className="text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
+              <th />
             </tr>
           </thead>
           <tbody>
             {expenses.map((e) => (
               <tr key={e.id} className="border-b border-slate-50">
-                <td className="px-5 py-3 text-slate-700 dark:text-slate-300">{e.category}</td>
+                <td className="text-slate-700 dark:text-slate-300">{e.category}</td>
                 {!currentBuildingId && (
-                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.building.name}</td>
+                  <td className="text-slate-500 dark:text-slate-400">{e.building.name}</td>
                 )}
-                <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.description ?? "—"}</td>
-                <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.date.toLocaleDateString("ru-RU")}</td>
-                <td className="px-5 py-3 text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(e.amount)}</td>
-                <td className="px-5 py-3 text-right">
+                <td className="text-slate-500 dark:text-slate-400">{e.description ?? "—"}</td>
+                <td className="text-slate-500 dark:text-slate-400">{e.date.toLocaleDateString("ru-RU")}</td>
+                <td className="text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(e.amount)}</td>
+                <td className="text-right">
                   <DeleteAction
                     action={deleteExpense.bind(null, e.id)}
                     entity="расход"
@@ -584,8 +574,7 @@ async function renderFinancesPage({
               </tr>
             )}
           </tbody>
-        </table>
-        </div>
+        </DataTable>
         <PaginationControls
           basePath="/admin/finances"
           page={expensesPage}

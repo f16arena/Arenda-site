@@ -296,8 +296,8 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
+            <tr className="border-b border-slate-100 dark:border-slate-800">
               <SortHeader k="companyName" label="Компания" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader k="legalType" label="Тип" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader k="space" label="Помещение" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />

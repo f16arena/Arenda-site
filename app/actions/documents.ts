@@ -194,3 +194,43 @@ function revalidateDocumentPaths(tenantId?: string | null) {
   revalidatePath("/admin/contracts")
   if (tenantId) revalidatePath(`/admin/tenants/${tenantId}`)
 }
+
+/**
+ * Восстановить только что soft-deleted документ. Используется для toast «Отменить»
+ * сразу после `deleteAdminDocument`. Подписи (signatures) при удалении уничтожаются
+ * безвозвратно — поэтому восстановление возвращает только сам документ; повторно
+ * подписать придётся вручную (в большинстве случаев документ был неподписан).
+ */
+export async function restoreAdminDocument(input: DeleteAdminDocumentInput): Promise<DeleteAdminDocumentResult> {
+  try {
+    await requireCapabilityAndFeature("documents.deleteUnsigned")
+    const { orgId } = await requireOrgAccess()
+    if (!input.id) return { ok: false, error: "Документ не найден." }
+
+    if (input.source === "contract") {
+      const contract = await db.contract.findFirst({
+        where: { id: input.id, tenant: { user: { organizationId: orgId } } },
+        select: { id: true, deletedAt: true, tenantId: true },
+      })
+      if (!contract) return { ok: false, error: "Договор не найден." }
+      if (!contract.deletedAt) return { ok: true }
+      await db.contract.update({ where: { id: contract.id }, data: { deletedAt: null } })
+      revalidateDocumentPaths(contract.tenantId)
+      return { ok: true }
+    }
+    if (input.source === "generated") {
+      const doc = await db.generatedDocument.findFirst({
+        where: { id: input.id, organizationId: orgId },
+        select: { id: true, deletedAt: true, tenantId: true },
+      })
+      if (!doc) return { ok: false, error: "Документ не найден." }
+      if (!doc.deletedAt) return { ok: true }
+      await db.generatedDocument.update({ where: { id: doc.id }, data: { deletedAt: null } })
+      revalidateDocumentPaths(doc.tenantId)
+      return { ok: true }
+    }
+    return { ok: false, error: "Неизвестный тип документа." }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Не удалось восстановить документ." }
+  }
+}
