@@ -65,11 +65,13 @@ async function deleteContractDocument(contractId: string, orgId: string, isOwner
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
+  // Soft delete (миграция 019): подписи всё-таки удаляем жёстко (они не имеют deletedAt),
+  // а сам контракт помечаем deletedAt.
   await db.$transaction([
     db.documentSignature.deleteMany({
       where: { organizationId: orgId, ...signatureWhere },
     }),
-    db.contract.delete({ where: { id: contract.id } }),
+    db.contract.update({ where: { id: contract.id }, data: { deletedAt: new Date() } }),
   ])
 
   await audit({
@@ -121,11 +123,12 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
+  // Soft delete (миграция 019): подписи удаляются жёстко, документ помечается deletedAt.
   await db.$transaction([
     db.documentSignature.deleteMany({
       where: { organizationId: orgId, ...signatureWhere },
     }),
-    db.generatedDocument.delete({ where: { id: doc.id } }),
+    db.generatedDocument.update({ where: { id: doc.id }, data: { deletedAt: new Date() } }),
   ])
 
   await audit({

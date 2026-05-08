@@ -202,7 +202,11 @@ export async function deleteUserAdmin(userId: string) {
     if (spaceIds.length > 0) {
       await db.space.updateMany({ where: { id: { in: spaceIds } }, data: { status: "VACANT" } })
     }
-    await db.tenant.delete({ where: { id: tenant.id } })
+    // Soft delete (миграция 019). Освобождаем space, помечаем deletedAt.
+    await db.tenant.update({
+      where: { id: tenant.id },
+      data: { deletedAt: new Date(), spaceId: null },
+    })
   }
 
   await db.staff.deleteMany({ where: { userId } })

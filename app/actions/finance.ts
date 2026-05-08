@@ -398,7 +398,8 @@ export async function deleteCharge(chargeId: string) {
     select: { tenantId: true },
   })
   if (!charge) throw new Error("Начисление не найдено или нет доступа")
-  await db.charge.delete({ where: { id: chargeId } })
+  // Soft delete (миграция 019). Восстановление возможно через recycle bin.
+  await db.charge.update({ where: { id: chargeId }, data: { deletedAt: new Date() } })
   revalidatePath("/admin/finances")
   if (charge.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
 }
@@ -413,7 +414,8 @@ export async function deletePayment(paymentId: string) {
     select: { tenantId: true },
   })
   if (!payment) throw new Error("Платёж не найден или нет доступа")
-  await db.payment.delete({ where: { id: paymentId } })
+  // Soft delete (миграция 019). Восстановление возможно через recycle bin.
+  await db.payment.update({ where: { id: paymentId }, data: { deletedAt: new Date() } })
   revalidatePath("/admin/finances")
   if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
 }

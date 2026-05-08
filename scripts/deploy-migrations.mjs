@@ -15,6 +15,7 @@ const customSqlPatches = [
   "016_payment_external_ref.sql",
   "017_tenant_indexes.sql",
   "018_hot_path_indexes.sql",
+  "019_soft_delete.sql",
 ]
 
 function runPrisma(args) {

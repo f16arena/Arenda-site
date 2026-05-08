@@ -66,13 +66,40 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             },
           })
 
-          if (!user) return null
+          if (!user) {
+            // Audit: попытка входа в несуществующий аккаунт.
+            // Пишем напрямую в auditLog (минуя audit() — там используется auth(),
+            // а в callback authorize её ещё нет).
+            await db.auditLog.create({
+              data: {
+                action: "LOGIN",
+                entity: "user",
+                entityId: null,
+                details: JSON.stringify({ result: "fail", reason: "user_not_found", login: String(credentials.login) }),
+              },
+            }).catch(() => null)
+            return null
+          }
 
           const isValid = await bcrypt.compare(
             String(credentials.password),
             user.password
           )
-          if (!isValid) return null
+          if (!isValid) {
+            // Audit: неверный пароль для существующего пользователя.
+            await db.auditLog.create({
+              data: {
+                userId: user.id,
+                userName: user.name,
+                userRole: user.role,
+                action: "LOGIN",
+                entity: "user",
+                entityId: user.id,
+                details: JSON.stringify({ result: "fail", reason: "wrong_password" }),
+              },
+            }).catch(() => null)
+            return null
+          }
 
           if (!user.isPlatformOwner) {
             if (!user.organization?.isActive || user.organization.isSuspended) return null

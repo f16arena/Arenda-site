@@ -8,6 +8,7 @@ import { normalizeEmail } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import type { Result } from "./my-account"
+import { audit } from "@/lib/audit"
 
 /**
  * Шаг 1: пользователь вводит email на /forgot-password.
@@ -152,6 +153,13 @@ export async function resetPassword(formData: FormData): Promise<Result> {
       data: { usedAt: new Date() },
     }),
   ])
+
+  await audit({
+    action: "UPDATE",
+    entity: "user",
+    entityId: t.userId,
+    details: { type: "password_change", source: "reset_token" },
+  })
 
   return { ok: true, message: "Пароль изменён. Теперь вы можете войти с новым паролем." }
 }

@@ -9,6 +9,7 @@ import { normalizeEmailWithDns } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { audit } from "@/lib/audit"
 
 export interface ResultOk { ok: true; message?: string }
 export interface ResultError { ok: false; error: string }
@@ -39,6 +40,13 @@ export async function changeMyPassword(formData: FormData): Promise<Result> {
 
   const hash = await bcrypt.hash(newPassword, 10)
   await db.user.update({ where: { id: session.user.id }, data: { password: hash } })
+
+  await audit({
+    action: "UPDATE",
+    entity: "user",
+    entityId: session.user.id,
+    details: { type: "password_change", source: "self" },
+  })
 
   revalidatePath("/admin/profile")
   revalidatePath("/superadmin/profile")

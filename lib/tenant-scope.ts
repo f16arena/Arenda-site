@@ -44,9 +44,11 @@ export function spaceScope(orgId: string | null) {
 //   3. К Floor целиком (через fullFloors)
 //   4. Без привязки — только через user.organizationId (свежесозданный арендатор)
 // Изоляция: любой из путей должен вести в нашу организацию.
+// Soft delete: фильтруем по deletedAt = null (миграция 019).
 export function tenantScope(orgId: string | null) {
   if (!orgId) return NEVER
   return {
+    deletedAt: null,
     OR: [
       { space: { floor: { building: { organizationId: orgId } } } },
       { tenantSpaces: { some: { space: { floor: { building: { organizationId: orgId } } } } } },
@@ -59,16 +61,17 @@ export function tenantScope(orgId: string | null) {
 // Charge → tenant → ... → org
 export function chargeScope(orgId: string | null) {
   if (!orgId) return NEVER
-  return { tenant: tenantScope(orgId) }
+  return { deletedAt: null, tenant: tenantScope(orgId) }
 }
 
 // Payment → tenant → ... → org
 export function paymentScope(orgId: string | null) {
   if (!orgId) return NEVER
-  return { tenant: tenantScope(orgId) }
+  return { deletedAt: null, tenant: tenantScope(orgId) }
 }
 
 // PaymentReport → tenant → ... → org
+// PaymentReport не имеет soft delete — это отчёты пользователей о платежах.
 export function paymentReportScope(orgId: string | null) {
   if (!orgId) return NEVER
   return { tenant: tenantScope(orgId) }
@@ -77,13 +80,21 @@ export function paymentReportScope(orgId: string | null) {
 // Contract → tenant → ... → org
 export function contractScope(orgId: string | null) {
   if (!orgId) return NEVER
-  return { tenant: tenantScope(orgId) }
+  return { deletedAt: null, tenant: tenantScope(orgId) }
 }
 
 // TenantDocument → tenant
+// TenantDocument не имеет soft delete — это вспомогательные доки.
 export function tenantDocumentScope(orgId: string | null) {
   if (!orgId) return NEVER
   return { tenant: tenantScope(orgId) }
+}
+
+// GeneratedDocument — архив сгенерированных документов.
+// Имеет deletedAt (миграция 019).
+export function generatedDocumentScope(orgId: string | null) {
+  if (!orgId) return NEVER
+  return { organizationId: orgId, deletedAt: null }
 }
 
 // Request → tenant

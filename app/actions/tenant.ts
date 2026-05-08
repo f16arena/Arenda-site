@@ -19,6 +19,7 @@ import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-id
 import { normalizeIik, validateRequisites } from "@/lib/kz-validators"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { actionErrorResult } from "@/lib/action-error"
+import { audit } from "@/lib/audit"
 
 function parseNumberOrNull(value: FormDataEntryValue | null) {
   const raw = String(value ?? "").trim().replace(",", ".")
@@ -902,11 +903,15 @@ export async function deleteTenant(
     }
   }
 
-  // Force-удаление: чистим все зависимости в транзакции
+  // Force-удаление: soft-delete арендатора и связанных финансов/договоров
+  // (миграция 019). TenantSpace/Request/TenantDocument удаляются жёстко —
+  // эти модели не имеют deletedAt и являются техническими связями.
   const spaceIdsToVacate = [...new Set([
     tenant.spaceId,
     ...tenant.tenantSpaces.map((item) => item.spaceId),
   ].filter(Boolean) as string[])]
+
+  const now = new Date()
 
   await db.$transaction([
     // Освобождаем помещения
@@ -924,16 +929,23 @@ export async function deleteTenant(
     // Заявки и комментарии к ним
     db.requestComment.deleteMany({ where: { request: { tenantId } } }),
     db.request.deleteMany({ where: { tenantId } }),
-    // Договоры
-    db.contract.deleteMany({ where: { tenantId } }),
-    // Финансы
-    db.payment.deleteMany({ where: { tenantId } }),
-    db.charge.deleteMany({ where: { tenantId } }),
-    // Сам арендатор
-    db.tenant.delete({ where: { id: tenantId } }),
+    // Договоры — soft delete
+    db.contract.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
+    // Финансы — soft delete
+    db.payment.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
+    db.charge.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
+    // Сам арендатор — soft delete
+    db.tenant.update({ where: { id: tenantId }, data: { deletedAt: now, spaceId: null } }),
     // Деактивируем пользователя — историю не теряем
     db.user.update({ where: { id: tenant.userId }, data: { isActive: false } }),
   ])
+
+  await audit({
+    action: "DELETE",
+    entity: "tenant",
+    entityId: tenantId,
+    details: { companyName: tenant.companyName, force: !!options?.force, softDelete: true },
+  })
 
   revalidatePath("/admin/tenants")
   revalidatePath("/admin/spaces")

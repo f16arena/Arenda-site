@@ -495,6 +495,7 @@ model Tenant {
   blacklistedAt    DateTime? @map("blacklisted_at")
   blacklistReason  String?   @map("blacklist_reason")
   createdAt        DateTime  @default(now()) @map("created_at")
+  deletedAt        DateTime? @map("deleted_at")
 
   user           User                @relation(fields: [userId], references: [id])
   space          Space?              @relation(fields: [spaceId], references: [id])
@@ -512,6 +513,7 @@ model Tenant {
   // userId уже @unique → индекс есть автоматически. Не дублируем.
   // createdAt — для orderBy в /admin/tenants (DESC).
   @@index([createdAt(sort: Desc)])
+  @@index([deletedAt])
   @@map("tenants")
 }
 
@@ -590,6 +592,7 @@ model Contract {
   effectiveDate      DateTime? @map("effective_date")
   appliedAt          DateTime? @map("applied_at")
   createdAt          DateTime  @default(now()) @map("created_at")
+  deletedAt          DateTime? @map("deleted_at")
 
   tenant         Tenant     @relation(fields: [tenantId], references: [id])
   parentContract Contract?  @relation("ContractAddenda", fields: [parentContractId], references: [id], onDelete: SetNull)
@@ -599,6 +602,7 @@ model Contract {
   @@index([tenantId, type, status, createdAt])
   @@index([parentContractId])
   @@index([changeKind, appliedAt])
+  @@index([deletedAt])
   @@map("contracts")
 }
 
@@ -612,6 +616,7 @@ model Charge {
   isPaid      Boolean   @default(false) @map("is_paid")
   dueDate     DateTime? @map("due_date")
   createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -621,25 +626,28 @@ model Charge {
   // Календарь / dashboard часто фильтруют { tenantId, dueDate: { gte, lt } } без isPaid —
   // существующий [tenantId, isPaid, dueDate] для этого пути теряет dueDate-селективность.
   @@index([tenantId, dueDate])
+  @@index([deletedAt])
   @@map("charges")
 }
 
 model Payment {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id")
+  id          String    @id @default(cuid())
+  tenantId    String    @map("tenant_id")
   amount      Float
-  paymentDate DateTime @map("payment_date")
-  method      String   @default("TRANSFER")
+  paymentDate DateTime  @map("payment_date")
+  method      String    @default("TRANSFER")
   note        String?
   // Идентификатор из внешней системы (Kaspi txnId, импортированная строка
   // банковской выписки и т.п.) для идемпотентности webhook'ов / повторных импортов.
-  externalRef String?  @unique @map("external_ref")
-  createdAt   DateTime @default(now()) @map("created_at")
+  externalRef String?   @unique @map("external_ref")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
 
   tenant  Tenant          @relation(fields: [tenantId], references: [id])
   reports PaymentReport[]
 
   @@index([tenantId, paymentDate])
+  @@index([deletedAt])
   @@map("payments")
 }
 
@@ -1012,9 +1020,10 @@ model GeneratedDocument {
   fileBytes      Bytes    @map("file_bytes")
   fileSize       Int      @map("file_size")
   format         String   @default("DOCX")
-  generatedById  String?  @map("generated_by_id")
-  generatedAt    DateTime @default(now()) @map("generated_at")
-  templateUsedId String?  @map("template_used_id")
+  generatedById  String?   @map("generated_by_id")
+  generatedAt    DateTime  @default(now()) @map("generated_at")
+  templateUsedId String?   @map("template_used_id")
+  deletedAt      DateTime? @map("deleted_at")
 
   @@index([organizationId, documentType])
   @@index([organizationId, documentType, generatedAt])
@@ -1026,6 +1035,7 @@ model GeneratedDocument {
   // конкретного арендатора — отдельный индекс на (tenantId) есть, но composite быстрее
   // когда запрос ещё и фильтрует по organizationId.
   @@index([organizationId, tenantId])
+  @@index([deletedAt])
   @@map("generated_documents")
 }
 

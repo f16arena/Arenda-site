@@ -5,6 +5,30 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
   },
+  // Security headers, применяются ко всем routes.
+  // CSP — отдельная задача: требует whitelist для Next.js inline-скриптов и Sentry.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            // 2 года HSTS, включая поддомены, регистрация в preload-list.
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          // Запрет встраивания в iframe — защита от clickjacking.
+          { key: "X-Frame-Options", value: "DENY" },
+          // Запрет MIME-sniffing.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Реферер: оставляем origin при кросс-сайт переходах.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Отключаем чувствительные API по умолчанию.
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ]
+  },
 };
 
 export default withSentryConfig(nextConfig, {
