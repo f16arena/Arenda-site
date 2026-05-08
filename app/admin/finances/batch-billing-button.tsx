@@ -24,7 +24,9 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
       })
       if (r.errors.length > 0) {
         toast.warning(`Создано ${r.rentCreated} начислений. ${r.errors.length} ошибок — см. лог.`)
-        console.warn("[batch billing errors]", r.errors)
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[batch billing errors]", r.errors)
+        }
       } else if (r.rentCreated === 0 && r.skipped > 0) {
         toast.info(`За ${period} все арендаторы уже имеют начисления (${r.skipped} пропущено)`)
       } else {

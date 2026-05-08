@@ -297,7 +297,7 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                     </td>
                     <td className="px-5 py-2.5">
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", STATUS_COLORS[sp.status as keyof typeof STATUS_COLORS])}>
-                        {STATUS_LABELS[sp.status as keyof typeof STATUS_LABELS]}
+                        {STATUS_LABELS[sp.status as keyof typeof STATUS_LABELS] ?? sp.status}
                       </span>
                     </td>
                     <td className="px-5 py-2.5 text-slate-600 dark:text-slate-400">

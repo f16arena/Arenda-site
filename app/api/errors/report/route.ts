@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  console.error("[client-error-report]", payload)
+  if (process.env.NODE_ENV === "development") {
+    console.error("[client-error-report]", payload)
+  }
 
   await db.auditLog.create({
     data: {

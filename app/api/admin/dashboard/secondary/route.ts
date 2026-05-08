@@ -41,13 +41,20 @@ export async function GET() {
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
   if (visibleBuildingIds.length === 0) {
-    return NextResponse.json({
-      months: [],
-      buildingBreakdown: [],
-      recentRequests: [],
-      recentTasks: [],
-      topTenants: [],
-    })
+    return NextResponse.json(
+      {
+        months: [],
+        buildingBreakdown: [],
+        recentRequests: [],
+        recentTasks: [],
+        topTenants: [],
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=300, stale-while-revalidate=60",
+        },
+      },
+    )
   }
 
   const floorIds = await safe(
@@ -235,18 +242,25 @@ export async function GET() {
   const expensesByPeriod = new Map(expenseRows.map((row) => [row.period, row.amount ?? 0]))
   const debtByTenant = new Map(debtsByTenant.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 
-  return NextResponse.json({
-    months: pastMonths.map((month) => ({
-      period: month.period,
-      income: paymentsByPeriod.get(month.period) ?? 0,
-      expense: expensesByPeriod.get(month.period) ?? 0,
-    })),
-    buildingBreakdown,
-    recentRequests,
-    recentTasks,
-    topTenants: topTenants.map((tenant) => ({
-      ...tenant,
-      debt: debtByTenant.get(tenant.id) ?? 0,
-    })),
-  })
+  return NextResponse.json(
+    {
+      months: pastMonths.map((month) => ({
+        period: month.period,
+        income: paymentsByPeriod.get(month.period) ?? 0,
+        expense: expensesByPeriod.get(month.period) ?? 0,
+      })),
+      buildingBreakdown,
+      recentRequests,
+      recentTasks,
+      topTenants: topTenants.map((tenant) => ({
+        ...tenant,
+        debt: debtByTenant.get(tenant.id) ?? 0,
+      })),
+    },
+    {
+      headers: {
+        "Cache-Control": "private, max-age=300, stale-while-revalidate=60",
+      },
+    },
+  )
 }

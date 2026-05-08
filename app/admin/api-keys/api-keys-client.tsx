@@ -98,8 +98,9 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
           <p className="text-sm font-semibold">Новый ключ</p>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Название *</label>
+            <label htmlFor="api-key-name" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Название *</label>
             <input
+              id="api-key-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="1С интеграция / Excel-скрипт / BI"
@@ -109,8 +110,9 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Права</label>
+              <label htmlFor="api-key-scope" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Права</label>
               <select
+                id="api-key-scope"
                 value={scope}
                 onChange={(e) => setScope(e.target.value as "READ" | "WRITE")}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
@@ -120,8 +122,9 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Срок (дни)</label>
+              <label htmlFor="api-key-expires" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Срок (дни)</label>
               <input
+                id="api-key-expires"
                 type="number"
                 min="1"
                 max="365"

@@ -22,6 +22,7 @@ import {
 import { assertBuildingAccess, assertTenantBuildingAccess, getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { PaymentCreateSchema, firstZodError } from "@/lib/schemas"
 import { isUniqueConstraintError } from "@/lib/prisma-errors"
+import type { Prisma } from "@/app/generated/prisma/client"
 
 function parseChargeAmount(value: FormDataEntryValue | null) {
   const amount = Number(String(value ?? "").trim().replace(",", "."))
@@ -131,7 +132,7 @@ export async function recordPayment(formData: FormData) {
 
   // Атомарно: создаём платёж + (опционально) транзакция + обновление баланса +
   // отметка charges как paid.
-  const operations: unknown[] = [
+  const operations: Prisma.PrismaPromise<unknown>[] = [
     db.payment.create({
       data: {
         tenantId,
@@ -197,8 +198,7 @@ export async function recordPayment(formData: FormData) {
     )
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const results = await db.$transaction(operations as any)
+  const results = await db.$transaction(operations)
   const payment = results[0] as { id: string }
 
   revalidatePath("/admin/finances")
@@ -655,8 +655,7 @@ export async function addExpense(formData: FormData) {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const operations: any[] = [
+  const operations: Prisma.PrismaPromise<unknown>[] = [
     db.expense.create({
       data: {
         buildingId,

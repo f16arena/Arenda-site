@@ -8,7 +8,7 @@ import {
   TrendingUp, TrendingDown, Wallet, Building2, AlertTriangle,
   ArrowRight, BarChart3,
 } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+import { formatMoney, CHART_COLORS } from "@/lib/utils"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -188,9 +188,9 @@ export default async function OwnerDashboardPage() {
     return {
       label: periodLabel(p),
       values: [
-        { value: rev, color: "#10b981", legend: "Выручка" },
-        { value: exp, color: "#ef4444", legend: "Расход" },
-        { value: Math.max(rev - exp, 0), color: "#3b82f6", legend: "Прибыль" },
+        { value: rev, color: CHART_COLORS.revenue, legend: "Выручка" },
+        { value: exp, color: CHART_COLORS.expense, legend: "Расход" },
+        { value: Math.max(rev - exp, 0), color: CHART_COLORS.profit, legend: "Прибыль" },
       ],
     }
   })
@@ -208,7 +208,7 @@ export default async function OwnerDashboardPage() {
     }, 0)
     return {
       label: periodLabel(p),
-      values: [{ value: rev, color: "#3b82f6", legend: "Прогноз" }],
+      values: [{ value: rev, color: CHART_COLORS.profit, legend: "Прогноз" }],
     }
   })
 
@@ -327,9 +327,9 @@ export default async function OwnerDashboardPage() {
           data={groupedSeries}
           height={200}
           legend={[
-            { color: "#10b981", label: "Выручка" },
-            { color: "#ef4444", label: "Расходы" },
-            { color: "#3b82f6", label: "Прибыль" },
+            { color: CHART_COLORS.revenue, label: "Выручка" },
+            { color: CHART_COLORS.expense, label: "Расходы" },
+            { color: CHART_COLORS.profit, label: "Прибыль" },
           ]}
         />
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
@@ -356,7 +356,7 @@ export default async function OwnerDashboardPage() {
         <GroupedBarChart
           data={forecastSeries}
           height={160}
-          legend={[{ color: "#3b82f6", label: "Прогнозный доход" }]}
+          legend={[{ color: CHART_COLORS.profit, label: "Прогнозный доход" }]}
         />
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
           Текущие начисления за {currentPeriod}: {formatMoney(totalCharges)}

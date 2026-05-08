@@ -3,10 +3,9 @@ import { db } from "@/lib/db"
 import { mobileError } from "@/lib/mobile-context"
 import { getMobileStaffRequest, requestInBuildingsWhere } from "@/lib/mobile-admin"
 import { notifyUser } from "@/lib/notify"
+import { REQUEST_STATUS_SET } from "@/lib/request-statuses"
 
 export const dynamic = "force-dynamic"
-
-const REQUEST_STATUSES = new Set(["NEW", "OPEN", "IN_PROGRESS", "DONE", "CLOSED", "POSTPONED", "CANCELLED"])
 
 export async function GET(req: Request) {
   const result = await getMobileStaffRequest(req)
@@ -90,7 +89,7 @@ export async function PATCH(req: Request) {
   const comment = String(body?.comment ?? "").trim().slice(0, 1000)
 
   if (!requestId) return mobileError("requestId is required")
-  if (!REQUEST_STATUSES.has(status)) return mobileError("Некорректный статус заявки")
+  if (!REQUEST_STATUS_SET.has(status)) return mobileError("Некорректный статус заявки")
 
   const existing = await db.request.findFirst({
     where: { id: requestId, ...requestInBuildingsWhere(result.buildingIds) },

@@ -34,7 +34,12 @@ export async function POST(request: Request) {
   // Защита от CSRF: только запросы с того же домена
   const origin = reqHeaders.get("origin") ?? ""
   const host = reqHeaders.get("host") ?? ""
-  if (origin && host && !origin.includes(host) && !origin.endsWith("commrent.kz")) {
+  const allowedHosts = (process.env.ALLOWED_ORIGINS ?? "commrent.kz")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean)
+  const isAllowed = origin.includes(host) || allowedHosts.some((h) => origin.endsWith(h))
+  if (origin && host && !isAllowed) {
     console.warn(`[setup] CSRF blocked: origin=${origin} host=${host}`)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }

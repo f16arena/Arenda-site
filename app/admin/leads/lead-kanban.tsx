@@ -80,7 +80,7 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
           return (
             <div key={status} className={cn("rounded-xl border-2 overflow-hidden", STATUS_COLORS[status])}>
               <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm">
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{STATUS_LABELS[status]}</p>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{STATUS_LABELS[status] ?? status}</p>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">{items.length} лидов · {total.toLocaleString("ru-RU")} ₸</p>
               </div>
               <div className="p-2 space-y-2 min-h-[200px]">
@@ -252,8 +252,8 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Компания" name="companyName" />
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип</label>
-              <select name="legalType" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
+              <label htmlFor="lead-legal-type" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип</label>
+              <select id="lead-legal-type" name="legalType" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                 <option value="">—</option>
                 <option value="IP">ИП</option>
                 <option value="CHSI">ЧСИ</option>
@@ -268,16 +268,16 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
             <Field label="Бюджет ₸/мес" name="budget" type="number" step="100" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Источник</label>
-            <select name="source" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
+            <label htmlFor="lead-source" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Источник</label>
+            <select id="lead-source" name="source" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
               {LEAD_SOURCES.map((s) => (
                 <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Заметки</label>
-            <textarea name="notes" rows={2} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+            <label htmlFor="lead-notes" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Заметки</label>
+            <textarea id="lead-notes" name="notes" rows={2} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
           </div>
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">Отмена</Button>

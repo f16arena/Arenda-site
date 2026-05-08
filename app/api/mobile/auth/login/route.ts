@@ -10,6 +10,7 @@ import {
   clearMobileAuthFailures,
   recordMobileAuthFailure,
 } from "@/lib/mobile-rate-limit"
+import { mobileError } from "@/lib/mobile-context"
 
 export const dynamic = "force-dynamic"
 
@@ -24,11 +25,13 @@ export async function POST(req: Request) {
     appVersion?: string
   } | null
 
-  if (!body?.login || !body?.password) {
-    return NextResponse.json({ error: "Login and password are required" }, { status: 400 })
+  const login = typeof body?.login === "string" ? body.login.trim() : ""
+  const password = typeof body?.password === "string" ? body.password : ""
+  if (!login || !password) {
+    return mobileError("Login and password are required")
   }
 
-  const rateLimitKey = getRateLimitKey(req, body.login)
+  const rateLimitKey = getRateLimitKey(req, login)
   const rateLimit = checkMobileAuthRateLimit(rateLimitKey)
   if (!rateLimit.ok) {
     return NextResponse.json(
@@ -42,16 +45,16 @@ export async function POST(req: Request) {
 
   try {
     const user = await verifyMobileCredentials({
-      login: body.login,
-      password: body.password,
-      totp: body.totp,
+      login,
+      password,
+      totp: body?.totp,
     })
     const tokens = await createMobileSession(user, {
       ...getRequestMeta(req),
-      deviceId: body.deviceId,
-      deviceName: body.deviceName,
-      platform: body.platform,
-      appVersion: body.appVersion,
+      deviceId: body?.deviceId,
+      deviceName: body?.deviceName,
+      platform: body?.platform,
+      appVersion: body?.appVersion,
     })
 
     clearMobileAuthFailures(rateLimitKey)

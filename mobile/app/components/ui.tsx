@@ -24,6 +24,7 @@ import {
 } from "@/app/utils/colors"
 import { formatDate, formatDateTime } from "@/app/utils/formatters"
 import { haptic } from "@/app/utils/haptics"
+import { SPACING, FONT_SIZES } from "@/app/utils/spacing"
 import type { BuildingNotice, MobileBootstrap } from "@/types/mobile"
 
 export function AppIcon({
@@ -49,8 +50,8 @@ export function Card({ children }: { children: ReactNode }) {
         borderColor: colors.border,
         borderWidth: 1,
         borderRadius: 10,
-        padding: 15,
-        gap: 13,
+        padding: SPACING.xl,
+        gap: SPACING.lg,
         boxShadow: "0 1px 3px rgba(15, 23, 42, 0.05)",
       }}
     >
@@ -71,9 +72,9 @@ export function ToggleRow({
   onValueChange: (value: boolean) => void
 }) {
   return (
-    <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10 }}>
+    <View style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: SPACING.md }}>
       <View style={{ flex: 1 }}>
-        <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
+        <Text selectable style={{ color: colors.text, fontSize: FONT_SIZES.bodyLarge, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
         {subtitle ? <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.medium }}>{subtitle}</Text> : null}
       </View>
       <Switch value={value} onValueChange={onValueChange} trackColor={{ false: "#cbd5e1", true: "#bfdbfe" }} thumbColor={value ? colors.blue : "#f8fafc"} />
@@ -83,8 +84,8 @@ export function ToggleRow({
 
 export function Field({ label, textInputRef, ...props }: { label: string; textInputRef?: Ref<TextInput> } & ComponentProps<typeof TextInput>) {
   return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.extraBold, fontWeight: "800" }}>{label}</Text>
+    <View style={{ gap: SPACING.sm }}>
+      <Text style={{ color: colors.muted, fontSize: FONT_SIZES.body, fontFamily: fonts.extraBold, fontWeight: "800" }}>{label}</Text>
       <TextInput
         ref={textInputRef}
         {...props}

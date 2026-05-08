@@ -27,7 +27,7 @@ export function PaginationControls({
   return (
     <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 text-sm dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        {from}-{to} из {total}
+        Показано {from}-{to} из {total}
       </p>
       <div className="flex items-center gap-2">
         <PageLink

@@ -805,11 +805,13 @@ export function FloorEditor({
       if (!res.ok) {
         // При ошибке парсинга AI выводим raw в консоль для диагностики
         const dataWithDebug = data as { error?: string; raw?: string; parseError?: string }
-        if (dataWithDebug.raw) {
-          console.warn("[AI recognize] raw response:", dataWithDebug.raw)
-        }
-        if (dataWithDebug.parseError) {
-          console.warn("[AI recognize] parse error:", dataWithDebug.parseError)
+        if (process.env.NODE_ENV === "development") {
+          if (dataWithDebug.raw) {
+            console.warn("[AI recognize] raw response:", dataWithDebug.raw)
+          }
+          if (dataWithDebug.parseError) {
+            console.warn("[AI recognize] parse error:", dataWithDebug.parseError)
+          }
         }
         toast.error(data.error ?? `HTTP ${res.status}`)
         return

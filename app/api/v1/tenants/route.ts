@@ -8,13 +8,17 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 export const dynamic = "force-dynamic"
 
 /**
- * GET /api/v1/tenants?api_key=ck_xxx
- *   Параметры:
- *     limit=100    (1..500)
- *     offset=0
- *     blacklisted=true|false
+ * GET /api/v1/tenants
  *
- * Возвращает массив арендаторов организации.
+ * Параметры запроса:
+ *   limit       — 1..500, default 100
+ *   offset      — default 0
+ *   blacklisted — "true" / "false" (опциональный фильтр по чёрному списку)
+ *
+ * Ответ:
+ *   { data: Tenant[], total: number, limit: number, offset: number }
+ *
+ * Авторизация: Bearer ApiKey (создаётся в /admin/api-keys)
  */
 export async function GET(req: Request) {
   // Rate-limit: 100 запросов в минуту с одного API-ключа

@@ -8,12 +8,19 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 export const dynamic = "force-dynamic"
 
 /**
- * GET /api/v1/charges?api_key=ck_xxx
- *   Параметры:
- *     period=YYYY-MM
- *     unpaid=true     - только неоплаченные
- *     tenantId=xxx
- *     limit / offset
+ * GET /api/v1/charges
+ *
+ * Параметры запроса:
+ *   period   — YYYY-MM (опционально)
+ *   unpaid   — "true" чтобы получить только неоплаченные
+ *   tenantId — id арендатора
+ *   limit    — 1..500, default 100
+ *   offset   — default 0
+ *
+ * Ответ:
+ *   { data: Charge[], total: number, limit: number, offset: number }
+ *
+ * Авторизация: Bearer ApiKey (создаётся в /admin/api-keys)
  */
 export async function GET(req: Request) {
   try {

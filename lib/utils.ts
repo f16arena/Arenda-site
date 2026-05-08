@@ -130,3 +130,11 @@ export const LEGAL_TYPE_LABELS: Record<string, string> = {
   PHYSICAL: "Физическое лицо",
   INDIVIDUAL: "Физическое лицо",
 }
+
+export const CHART_COLORS = {
+  revenue: "#10b981",  // emerald-500
+  expense: "#ef4444",  // red-500
+  profit: "#3b82f6",   // blue-500
+  neutral: "#94a3b8",  // slate-400
+  warning: "#f59e0b",  // amber-500
+} as const
