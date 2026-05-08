@@ -16,8 +16,14 @@ const manrope = Manrope({
   weight: ["400", "500", "600", "700", "800"],
 })
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://commrent.kz"
+
 export const metadata: Metadata = {
-  title: "Commrent — управление коммерческой арендой",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Commrent — управление коммерческой арендой",
+    template: "%s | Commrent",
+  },
   description: "SaaS-платформа для собственников бизнес-центров и коммерческой недвижимости в Казахстане",
   manifest: "/manifest.json",
   verification: {
@@ -34,6 +40,28 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Commrent",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    url: siteUrl,
+    siteName: "Commrent",
+    title: "Commrent — управление коммерческой арендой",
+    description: "Управление арендой, финансами и арендаторами в одном месте",
+    images: [
+      {
+        url: "/commrent-logo-hero.png",
+        width: 1200,
+        height: 630,
+        alt: "Commrent",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Commrent — управление коммерческой арендой",
+    description: "SaaS для управления арендой коммерческой недвижимости",
+    images: ["/commrent-logo-hero.png"],
   },
 }
 

@@ -12,6 +12,24 @@ if (dsn) {
     tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0.05,
     sendDefaultPii: false,
     enableLogs: true,
+    ignoreErrors: [
+      // Browser extensions / ad blockers / network noise
+      "ResizeObserver loop limit exceeded",
+      "ResizeObserver loop completed with undelivered notifications",
+      "Non-Error promise rejection captured",
+      "Network request failed",
+      "Failed to fetch",
+      "Load failed",
+      "AbortError",
+      "TimeoutError",
+      "NEXT_NOT_FOUND",
+      "NEXT_REDIRECT",
+      // Hydration mismatches от расширений браузера
+      /hydrat/i,
+      // Третьи стороны
+      /chrome-extension/,
+      /moz-extension/,
+    ],
     beforeSend(event) {
       return sanitizeSentryEvent(event)
     },

@@ -12,6 +12,18 @@ if (dsn) {
     tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0.05,
     sendDefaultPii: false,
     enableLogs: true,
+    ignoreErrors: [
+      // Network noise
+      "AbortError",
+      "TimeoutError",
+      "NEXT_NOT_FOUND",
+      "NEXT_REDIRECT",
+      // Prisma transient connection retries
+      /P1001/,
+      /P1017/,
+      // Auth — пользователь сам прервал поток
+      "CredentialsSignin",
+    ],
     beforeSend(event) {
       return sanitizeSentryEvent(event)
     },
