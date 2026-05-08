@@ -19,6 +19,9 @@ import { parseHost } from "@/lib/host"
 const PUBLIC_ROOT_PATHS = new Set([
   "/", "/login", "/signup", "/offer", "/privacy", "/terms", "/sla",
   "/verify-email", "/forgot-password", "/reset-password",
+  // Принудительная смена пароля при первом входе. Доступна и до полного admin/cabinet
+  // редиректа: пользователь сюда попадает из admin/layout, гард не должен ронять его на лендинг.
+  "/change-password",
 ])
 // API-роуты разрешены на root-домене: они сами проверяют сессию через auth().
 // Без этого fetch('/api/...') из /admin/* на корневом домене редиректился бы
