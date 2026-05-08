@@ -1,19 +1,19 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "@/lib/utils"
+import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
 import { FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { ChargesBulkActions } from "./charges-bulk-actions"
+import { PaymentsBulkActions } from "./payments-bulk-actions"
 import { DataTable } from "@/components/ui/data-table"
 import { DeleteAction } from "@/components/ui/delete-action"
-import { DeleteWithUndo } from "@/components/ui/delete-with-undo"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
-import { deletePayment, deleteExpense, restorePayment } from "@/app/actions/finance"
+import { deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -487,38 +487,27 @@ async function renderFinancesPage({
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние оплаты</h2>
           </div>
-          <div className="divide-y divide-slate-50">
-            {payments.slice(0, 10).map((p) => (
-              <div key={p.id} className="flex items-center justify-between px-5 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{p.tenant.companyName}</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500">
-                    {p.paymentDate.toLocaleDateString("ru-RU")} · {PAYMENT_METHOD_LABELS[p.method] ?? p.method}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(p.amount)}</p>
-                  <DeleteWithUndo
-                    deleteAction={deletePayment.bind(null, p.id)}
-                    restoreAction={restorePayment.bind(null, p.id)}
-                    entity="платёж"
-                    successMessage="Платёж удалён"
-                  />
-                </div>
-              </div>
-            ))}
-            {payments.length === 0 && (
-              <EmptyState
-                icon={<Wallet className="h-5 w-5" />}
-                title="Оплат пока нет"
-                description="Оплата появится после ручного внесения администратором или после подтверждения сообщения арендатора “Я оплатил”."
-                actions={[
-                  { href: "/admin/finances/balance", label: "Проверить счета" },
-                  { href: "/admin/faq", label: "Инструкция арендатора", variant: "secondary" },
-                ]}
-              />
-            )}
-          </div>
+          {payments.length === 0 ? (
+            <EmptyState
+              icon={<Wallet className="h-5 w-5" />}
+              title="Оплат пока нет"
+              description="Оплата появится после ручного внесения администратором или после подтверждения сообщения арендатора “Я оплатил”."
+              actions={[
+                { href: "/admin/finances/balance", label: "Проверить счета" },
+                { href: "/admin/faq", label: "Инструкция арендатора", variant: "secondary" },
+              ]}
+            />
+          ) : (
+            <PaymentsBulkActions
+              payments={payments.slice(0, 10).map((p) => ({
+                id: p.id,
+                tenantName: p.tenant.companyName,
+                amount: p.amount,
+                method: p.method,
+                paymentDate: p.paymentDate,
+              }))}
+            />
+          )}
         </div>
       </div>
 

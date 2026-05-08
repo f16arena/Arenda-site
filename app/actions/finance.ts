@@ -186,6 +186,13 @@ export async function generateMonthlyCharges(period: string) {
       tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
       charges: { where: { period, type: "RENT" } },
+      // Активный договор для привязки charge.contractId. Если нет SIGNED — null.
+      contracts: {
+        where: { status: "SIGNED", deletedAt: null },
+        orderBy: [{ version: "desc" }, { signedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: { id: true },
+      },
     },
   })
 
@@ -196,10 +203,12 @@ export async function generateMonthlyCharges(period: string) {
     const rentSchedule = calculateTenantRentChargeForPeriod(tenant, period)
     if (!rentSchedule.shouldCreate) continue
     const placement = formatTenantPlacement(tenant, { includeFloorName: false })
+    const activeContractId = tenant.contracts[0]?.id ?? null
 
     await db.charge.create({
       data: {
         tenantId: tenant.id,
+        contractId: activeContractId,
         period,
         type: "RENT",
         amount: rentSchedule.amount,
@@ -212,6 +221,7 @@ export async function generateMonthlyCharges(period: string) {
       await db.charge.create({
         data: {
           tenantId: tenant.id,
+          contractId: activeContractId,
           period,
           type: "CLEANING",
           amount: tenant.cleaningFee,
@@ -499,6 +509,36 @@ export async function bulkMarkChargesPaid(
     return { ok: true, updated: result.count }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось отметить" }
+  }
+}
+
+/**
+ * Массовое soft-delete платежей. Возвращает массив удалённых ID, чтобы клиент
+ * мог предложить undo через `restorePayment` для каждого.
+ */
+export async function bulkDeletePayments(
+  ids: string[],
+): Promise<{ ok: true; deleted: string[] } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.deleteRecords")
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Не выбрано ни одного платежа" }
+    const { orgId } = await requireOrgAccess()
+    // updateMany со scope защитит от чужих ID — paymentScope фильтрует
+    // tenant.user.organizationId.
+    const eligible = await db.payment.findMany({
+      where: { AND: [paymentScope(orgId), { id: { in: ids } }] },
+      select: { id: true },
+    })
+    const eligibleIds = eligible.map((p) => p.id)
+    if (eligibleIds.length === 0) return { ok: false, error: "Нет доступных для удаления платежей" }
+    await db.payment.updateMany({
+      where: { id: { in: eligibleIds } },
+      data: { deletedAt: new Date() },
+    })
+    revalidatePath("/admin/finances")
+    return { ok: true, deleted: eligibleIds }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось удалить" }
   }
 }
 

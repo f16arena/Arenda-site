@@ -4,7 +4,8 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
-import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
+import { assertBuildingInOrg, assertContractInOrg, assertTenantInOrg } from "@/lib/scope-guards"
+import { contractScope } from "@/lib/tenant-scope"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import type { DocumentKind } from "@/lib/document-numbering"
 import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
@@ -107,4 +108,86 @@ export async function createContract(formData: FormData) {
   revalidatePath("/admin/contracts")
   revalidatePath(`/admin/tenants/${tenantId}`)
   return { id: contract.id }
+}
+
+/**
+ * Создать новую версию договора. Применяется когда условия меняются настолько,
+ * что нужен новый подписанный документ (новые startDate/endDate/content), но
+ * сохраняется привязка к арендатору и преемственность номера. Контракт-предок
+ * переходит в статус ARCHIVED, новая запись получает version = parent.version + 1
+ * и parentVersionId = parent.id.
+ *
+ * НЕ путать с ADDENDUM (доп. соглашение через parentContractId/changeKind):
+ * аддендум — это патч поверх действующего договора, версия — это полная замена.
+ */
+export async function createContractVersion(
+  parentId: string,
+  formData: FormData,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.create")
+    const { orgId } = await requireOrgAccess()
+    await assertContractInOrg(parentId, orgId)
+
+    const parent = await db.contract.findFirst({
+      where: { id: parentId, ...contractScope(orgId) },
+      select: {
+        id: true,
+        tenantId: true,
+        number: true,
+        type: true,
+        content: true,
+        version: true,
+        status: true,
+      },
+    })
+    if (!parent) return { ok: false, error: "Договор не найден" }
+    if (parent.status === "ARCHIVED") {
+      return { ok: false, error: "Этот договор уже архивирован" }
+    }
+
+    const startDateRaw = String(formData.get("startDate") ?? "").trim()
+    const endDateRaw = String(formData.get("endDate") ?? "").trim()
+    const content = String(formData.get("content") ?? "").trim() || parent.content
+
+    const startDate = startDateRaw ? new Date(startDateRaw) : null
+    const endDate = endDateRaw ? new Date(endDateRaw) : null
+    if (startDate && Number.isNaN(startDate.getTime())) {
+      return { ok: false, error: "Некорректная дата начала" }
+    }
+    if (endDate && Number.isNaN(endDate.getTime())) {
+      return { ok: false, error: "Некорректная дата окончания" }
+    }
+
+    const result = await db.$transaction(async (tx) => {
+      // Архивируем предка. Не трогаем сам контракт-flow — следующая версия
+      // начнёт собственный жизненный цикл DRAFT→SENT→...
+      await tx.contract.update({
+        where: { id: parent.id },
+        data: { status: "ARCHIVED" },
+      })
+
+      const created = await tx.contract.create({
+        data: {
+          tenantId: parent.tenantId,
+          number: parent.number,
+          type: parent.type,
+          content,
+          status: "DRAFT",
+          startDate,
+          endDate,
+          version: parent.version + 1,
+          parentVersionId: parent.id,
+        },
+        select: { id: true },
+      })
+      return created
+    })
+
+    revalidatePath("/admin/contracts")
+    revalidatePath(`/admin/tenants/${parent.tenantId}`)
+    return { ok: true, id: result.id }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать версию" }
+  }
 }

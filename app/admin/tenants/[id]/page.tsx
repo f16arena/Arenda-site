@@ -50,6 +50,7 @@ import {
   TenantLazySectionsProvider,
   TenantLazyServiceCharges,
 } from "./tenant-lazy-sections"
+import { ChargesByContractSection } from "./charges-by-contract"
 
 type TenantHealthItem = {
   label: string
@@ -757,6 +758,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           >
             <TenantLazyServiceCharges />
           </CollapsibleCard>
+
+          {/* Начисления, сгруппированные по договорам */}
+          <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
 
           {/* Documents actions: invoice, act, contract, handover */}
           {canCreateDocuments && (
