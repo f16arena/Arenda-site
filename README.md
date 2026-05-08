@@ -2,6 +2,15 @@
 
 SaaS-платформа для управления коммерческой арендой: организации, здания, помещения, арендаторы, начисления, платежи, документы, заявки, счетчики, FAQ, роли и tenant portal.
 
+## Документация
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — стек, multi-tenant модель, изоляция, capability permissions, cron, кеши.
+- [`docs/API.md`](docs/API.md) — REST API для интеграторов (`/api/v1/*`), webhooks, mobile API.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Vercel + Supabase, env vars, DNS, init setup, EAS-сборки.
+- [`docs/SECURITY.md`](docs/SECURITY.md) — модель угроз, mitigations, открытые задачи, reporting.
+- [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) — локальная dev-среда, тесты, code style, PR review.
+- [`docs/MOBILE_APP_PLAN.md`](docs/MOBILE_APP_PLAN.md), [`docs/MOBILE_BETA_READINESS.md`](docs/MOBILE_BETA_READINESS.md), [`docs/RELEASE_AND_ROLLBACK.md`](docs/RELEASE_AND_ROLLBACK.md) — операционные доки.
+
 ## Быстрый старт
 
 1. Установить зависимости:
