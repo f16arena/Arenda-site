@@ -32,10 +32,26 @@ function normalizeFilter(value: string | string[] | undefined): RequestFilterKey
   return REQUEST_FILTERS.some((filter) => filter.key === raw) ? raw as RequestFilterKey : "all"
 }
 
+const PRIORITY_VALUES = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"])
+const REQUEST_TYPE_VALUES = new Set([
+  "TECHNICAL", "CLEANING", "ELECTRICAL", "PLUMBING", "HVAC",
+  "SECURITY", "OTHER", "ADMINISTRATIVE", "MAINTENANCE",
+])
+
+function readParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? ""
+  return value ?? ""
+}
+
 export default async function RequestsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
+  searchParams?: Promise<{
+    status?: string | string[]
+    page?: string | string[]
+    priority?: string | string[]
+    type?: string | string[]
+  }>
 }) {
   const { orgId } = await requireOrgAccess()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
@@ -43,6 +59,10 @@ export default async function RequestsPage({
   const resolvedSearchParams = await searchParams
   const selectedFilter = normalizeFilter(resolvedSearchParams?.status)
   const page = normalizePage(resolvedSearchParams?.page)
+  const rawPriority = readParam(resolvedSearchParams?.priority).toUpperCase()
+  const selectedPriority = PRIORITY_VALUES.has(rawPriority) ? rawPriority : ""
+  const rawType = readParam(resolvedSearchParams?.type).toUpperCase()
+  const selectedType = REQUEST_TYPE_VALUES.has(rawType) ? rawType : ""
   const selectedFilterConfig = REQUEST_FILTERS.find((filter) => filter.key === selectedFilter) ?? REQUEST_FILTERS[0]
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
@@ -56,8 +76,12 @@ export default async function RequestsPage({
   }
   const selectedStatuses = selectedFilterConfig.statuses as readonly string[] | null
   const baseWhere: Prisma.RequestWhereInput = { AND: [requestScope(orgId), { tenant: tenantBuildingWhere }] }
-  const requestsWhere: Prisma.RequestWhereInput = selectedStatuses
-    ? { AND: [baseWhere, { status: { in: [...selectedStatuses] } }] }
+  const extraConditions: Prisma.RequestWhereInput[] = []
+  if (selectedStatuses) extraConditions.push({ status: { in: [...selectedStatuses] } })
+  if (selectedPriority) extraConditions.push({ priority: selectedPriority })
+  if (selectedType) extraConditions.push({ type: selectedType })
+  const requestsWhere: Prisma.RequestWhereInput = extraConditions.length > 0
+    ? { AND: [baseWhere, ...extraConditions] }
     : baseWhere
 
   const [requests, totalRequests, statusGroups, totalAllRequests] = await Promise.all([
@@ -110,26 +134,65 @@ export default async function RequestsPage({
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
-        {REQUEST_FILTERS.map((filter) => {
-          const active = selectedFilter === filter.key
-          return (
-          <Link
-            key={filter.key}
-            href={filter.key === "all" ? "/admin/requests" : `/admin/requests?status=${filter.key}`}
-            className={cn(
-              "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
-              active
-                ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
-            )}
-          >
-            {filter.label}
-            <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-              {filterCounts[filter.key]}
-            </span>
-          </Link>
-        )})}
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {REQUEST_FILTERS.map((filter) => {
+            const active = selectedFilter === filter.key
+            const params = new URLSearchParams()
+            if (filter.key !== "all") params.set("status", filter.key)
+            if (selectedPriority) params.set("priority", selectedPriority)
+            if (selectedType) params.set("type", selectedType)
+            const qs = params.toString()
+            return (
+              <Link
+                key={filter.key}
+                href={qs ? `/admin/requests?${qs}` : "/admin/requests"}
+                className={cn(
+                  "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
+                )}
+              >
+                {filter.label}
+                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {filterCounts[filter.key]}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Приоритет:</span>
+          {[
+            { value: "", label: "Все" },
+            { value: "URGENT", label: "Срочно" },
+            { value: "HIGH", label: "Высокий" },
+            { value: "MEDIUM", label: "Средний" },
+            { value: "LOW", label: "Низкий" },
+          ].map((p) => {
+            const active = (selectedPriority || "") === p.value
+            const params = new URLSearchParams()
+            if (selectedFilter !== "all") params.set("status", selectedFilter)
+            if (p.value) params.set("priority", p.value)
+            if (selectedType) params.set("type", selectedType)
+            const qs = params.toString()
+            return (
+              <Link
+                key={p.value || "all-priority"}
+                href={qs ? `/admin/requests?${qs}` : "/admin/requests"}
+                className={cn(
+                  "text-[11px] rounded-full px-2.5 py-0.5 border transition-colors",
+                  active
+                    ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60",
+                )}
+              >
+                {p.label}
+              </Link>
+            )
+          })}
+        </div>
       </div>
 
       {/* Table */}
@@ -214,7 +277,11 @@ export default async function RequestsPage({
           page={page}
           pageSize={DEFAULT_PAGE_SIZE}
           total={totalRequests}
-          params={{ status: selectedFilter }}
+          params={{
+            status: selectedFilter !== "all" ? selectedFilter : null,
+            priority: selectedPriority || null,
+            type: selectedType || null,
+          }}
         />
       </div>
     </div>

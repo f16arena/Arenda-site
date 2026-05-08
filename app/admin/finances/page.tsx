@@ -29,8 +29,30 @@ function readSearchParam(value: string | string[] | undefined) {
 }
 
 type FinancesPageProps = {
-  searchParams?: Promise<{ chargesPage?: string | string[]; expensesPage?: string | string[]; tenantId?: string | string[] }>
+  searchParams?: Promise<{
+    chargesPage?: string | string[]
+    expensesPage?: string | string[]
+    tenantId?: string | string[]
+    chargeType?: string | string[]
+    chargeStatus?: string | string[]
+  }>
 }
+
+const CHARGE_TYPE_FILTERS: { value: string; label: string }[] = [
+  { value: "", label: "Все типы" },
+  { value: "RENT", label: "Аренда" },
+  { value: "ELECTRICITY", label: "Электричество" },
+  { value: "WATER", label: "Вода" },
+  { value: "HEATING", label: "Отопление" },
+  { value: "PARKING", label: "Парковка" },
+  { value: "PENALTY", label: "Пени" },
+  { value: "OTHER", label: "Прочее" },
+]
+const CHARGE_STATUS_FILTERS: { value: string; label: string }[] = [
+  { value: "", label: "Все" },
+  { value: "paid", label: "Оплачено" },
+  { value: "unpaid", label: "Не оплачено" },
+]
 
 export default async function FinancesPage(props: FinancesPageProps) {
   return measureServerRoute("/admin/finances", () => renderFinancesPage(props))
@@ -46,6 +68,11 @@ async function renderFinancesPage({
   const chargesPage = normalizePage(resolvedSearchParams?.chargesPage)
   const expensesPage = normalizePage(resolvedSearchParams?.expensesPage)
   const selectedTenantId = readSearchParam(resolvedSearchParams?.tenantId)
+  const rawChargeType = readSearchParam(resolvedSearchParams?.chargeType).toUpperCase()
+  const validChargeTypes = new Set(CHARGE_TYPE_FILTERS.map((f) => f.value).filter(Boolean))
+  const selectedChargeType = validChargeTypes.has(rawChargeType) ? rawChargeType : ""
+  const rawChargeStatus = readSearchParam(resolvedSearchParams?.chargeStatus).toLowerCase()
+  const selectedChargeStatus = ["paid", "unpaid"].includes(rawChargeStatus) ? rawChargeStatus : ""
   const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
@@ -80,14 +107,27 @@ async function renderFinancesPage({
     ),
   ])
 
-  const chargesWhere: Prisma.ChargeWhereInput = {
+  const baseChargesWhere: Prisma.ChargeWhereInput = {
     AND: [chargeScope(orgId), { period: currentPeriod }, { tenant: tenantBuildingWhere }],
   }
+  const filteredChargesWhere: Prisma.ChargeWhereInput = {
+    AND: [
+      baseChargesWhere,
+      ...(selectedChargeType ? [{ type: selectedChargeType } as Prisma.ChargeWhereInput] : []),
+      ...(selectedChargeStatus === "paid"
+        ? [{ isPaid: true } as Prisma.ChargeWhereInput]
+        : selectedChargeStatus === "unpaid"
+          ? [{ isPaid: false } as Prisma.ChargeWhereInput]
+          : []),
+    ],
+  }
+  // Используем filtered для пагинированного списка, base — для агрегатов и диалогов
+  const chargesWhere = filteredChargesWhere
   const unpaidChargesWhere: Prisma.ChargeWhereInput = {
-    AND: [chargesWhere, { isPaid: false }],
+    AND: [baseChargesWhere, { isPaid: false }],
   }
   const paidChargesWhere: Prisma.ChargeWhereInput = {
-    AND: [chargesWhere, { isPaid: true }],
+    AND: [baseChargesWhere, { isPaid: true }],
   }
   const expensesWhere: Prisma.ExpenseWhereInput = {
     AND: [expenseScope(orgId), { period: currentPeriod }, { buildingId: { in: visibleBuildingIds } }],
@@ -199,7 +239,7 @@ async function renderFinancesPage({
     safe(
       "admin.finances.chargesAggregate",
       db.charge.aggregate({
-        where: chargesWhere,
+        where: filteredChargesWhere,
         _sum: { amount: true },
         _count: { _all: true },
       }),
@@ -348,8 +388,60 @@ async function renderFinancesPage({
       <div className="grid grid-cols-2 gap-5">
         {/* Charges */}
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления за {formatPeriod(currentPeriod)}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Тип:</span>
+              {CHARGE_TYPE_FILTERS.map((f) => {
+                const active = (selectedChargeType || "") === f.value
+                const params = new URLSearchParams()
+                if (f.value) params.set("chargeType", f.value)
+                if (selectedChargeStatus) params.set("chargeStatus", selectedChargeStatus)
+                if (selectedTenantId) params.set("tenantId", selectedTenantId)
+                if (expensesPage > 1) params.set("expensesPage", String(expensesPage))
+                const qs = params.toString()
+                const href = qs ? `/admin/finances?${qs}` : "/admin/finances"
+                return (
+                  <Link
+                    key={f.value || "all-types"}
+                    href={href}
+                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${
+                      active
+                        ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {f.label}
+                  </Link>
+                )
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Статус:</span>
+              {CHARGE_STATUS_FILTERS.map((f) => {
+                const active = (selectedChargeStatus || "") === f.value
+                const params = new URLSearchParams()
+                if (selectedChargeType) params.set("chargeType", selectedChargeType)
+                if (f.value) params.set("chargeStatus", f.value)
+                if (selectedTenantId) params.set("tenantId", selectedTenantId)
+                if (expensesPage > 1) params.set("expensesPage", String(expensesPage))
+                const qs = params.toString()
+                const href = qs ? `/admin/finances?${qs}` : "/admin/finances"
+                return (
+                  <Link
+                    key={f.value || "all-status"}
+                    href={href}
+                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${
+                      active
+                        ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {f.label}
+                  </Link>
+                )
+              })}
+            </div>
           </div>
           <div className="divide-y divide-slate-50">
             {charges.map((c) => (
@@ -391,7 +483,12 @@ async function renderFinancesPage({
             pageSize={FINANCE_PAGE_SIZE}
             total={totalChargeCount}
             pageParam="chargesPage"
-            params={{ expensesPage: expensesPage > 1 ? expensesPage : null }}
+            params={{
+              expensesPage: expensesPage > 1 ? expensesPage : null,
+              chargeType: selectedChargeType || null,
+              chargeStatus: selectedChargeStatus || null,
+              tenantId: selectedTenantId || null,
+            }}
           />
         </div>
 

@@ -128,9 +128,157 @@ export async function POST(req: Request) {
       `/start — приветствие и Chat ID\n` +
       `/myid — показать ваш Chat ID\n` +
       `/status — статус подключения и непрочитанные уведомления\n` +
+      `/balance — текущая задолженность арендатора\n` +
+      `/submit_meter &lt;тип&gt; &lt;показание&gt; — подать показание счётчика\n` +
+      `   тип: electricity / water / heat\n` +
       `/help — эта справка\n\n` +
       `🌐 Сайт: https://commrent.kz`
     )
+    return NextResponse.json({ ok: true })
+  }
+
+  // /balance — текущая задолженность для арендатора, привязанного к этому Telegram
+  if (text.startsWith("/balance")) {
+    try {
+      const user = await db.user.findFirst({
+        where: { telegramChatId: chatId },
+        select: { id: true, role: true, name: true },
+      })
+      if (!user) {
+        await sendTelegram(chatId, `❌ Telegram не привязан к аккаунту. Откройте /admin/profile или /cabinet/profile, чтобы подключить.`)
+        return NextResponse.json({ ok: true })
+      }
+      const tenant = await db.tenant.findUnique({
+        where: { userId: user.id },
+        select: {
+          id: true,
+          companyName: true,
+          charges: {
+            where: { isPaid: false },
+            select: { id: true, type: true, amount: true, period: true, dueDate: true },
+            orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+            take: 10,
+          },
+        },
+      })
+      if (!tenant) {
+        await sendTelegram(chatId, `ℹ️ Этот аккаунт не привязан как арендатор. Команда /balance работает только для арендаторов.`)
+        return NextResponse.json({ ok: true })
+      }
+      if (tenant.charges.length === 0) {
+        await sendTelegram(chatId, `✅ Долг отсутствует — все начисления оплачены.\n\nКомпания: <b>${tenant.companyName}</b>`)
+        return NextResponse.json({ ok: true })
+      }
+      const total = tenant.charges.reduce((s, c) => s + c.amount, 0)
+      const lines = tenant.charges.slice(0, 5).map((c) =>
+        `• ${c.period} · ${c.type} — ${Math.round(c.amount).toLocaleString("ru-RU")} ₸`
+      ).join("\n")
+      const more = tenant.charges.length > 5 ? `\n…и ещё ${tenant.charges.length - 5}` : ""
+      await sendTelegram(chatId,
+        `💳 <b>Задолженность:</b> ${Math.round(total).toLocaleString("ru-RU")} ₸\n` +
+        `Компания: <b>${tenant.companyName}</b>\n\n` +
+        `Открытые начисления:\n${lines}${more}\n\n` +
+        `🌐 Подробнее: https://commrent.kz/cabinet/finances`
+      )
+    } catch (e) {
+      await sendTelegram(chatId, `⚠️ Ошибка получения баланса: ${e instanceof Error ? e.message : "неизвестная"}`)
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  // /submit_meter <тип> <показание>
+  if (text.startsWith("/submit_meter")) {
+    try {
+      const args = text.slice("/submit_meter".length).trim().split(/\s+/).filter(Boolean)
+      const TYPE_MAP: Record<string, string> = {
+        electricity: "ELECTRICITY", свет: "ELECTRICITY", elec: "ELECTRICITY",
+        water: "WATER", вода: "WATER",
+        heat: "HEAT", тепло: "HEAT",
+      }
+      if (args.length < 2) {
+        await sendTelegram(chatId,
+          `ℹ️ Использование: <code>/submit_meter &lt;тип&gt; &lt;показание&gt;</code>\n` +
+          `Типы: electricity, water, heat\n` +
+          `Пример: <code>/submit_meter water 1234.5</code>`
+        )
+        return NextResponse.json({ ok: true })
+      }
+      const typeKey = args[0].toLowerCase()
+      const meterType = TYPE_MAP[typeKey]
+      if (!meterType) {
+        await sendTelegram(chatId, `❌ Неизвестный тип «${args[0]}». Используйте: electricity, water, heat.`)
+        return NextResponse.json({ ok: true })
+      }
+      const value = parseFloat(args[1].replace(",", "."))
+      if (!Number.isFinite(value) || value < 0) {
+        await sendTelegram(chatId, `❌ Показание должно быть неотрицательным числом, получено «${args[1]}».`)
+        return NextResponse.json({ ok: true })
+      }
+
+      const user = await db.user.findFirst({
+        where: { telegramChatId: chatId },
+        select: { id: true },
+      })
+      if (!user) {
+        await sendTelegram(chatId, `❌ Telegram не привязан к аккаунту. Откройте /admin/profile или /cabinet/profile, чтобы подключить.`)
+        return NextResponse.json({ ok: true })
+      }
+
+      // Найти счётчик нужного типа в любом помещении этого арендатора
+      const meter = await db.meter.findFirst({
+        where: {
+          type: meterType,
+          space: {
+            OR: [
+              { tenant: { userId: user.id } },
+              { tenantSpaces: { some: { tenant: { userId: user.id } } } },
+            ],
+          },
+        },
+        include: {
+          readings: { orderBy: { createdAt: "desc" }, take: 1 },
+          space: { select: { number: true } },
+        },
+      })
+
+      if (!meter) {
+        await sendTelegram(chatId, `❌ Счётчик типа «${typeKey}» не найден в ваших помещениях.`)
+        return NextResponse.json({ ok: true })
+      }
+
+      const previous = meter.readings[0]?.value ?? 0
+      if (value < previous) {
+        await sendTelegram(chatId,
+          `❌ Текущее показание (${value}) меньше предыдущего (${previous}). Перепроверьте значение.`
+        )
+        return NextResponse.json({ ok: true })
+      }
+
+      const period = new Date().toISOString().slice(0, 7)
+      // Защита от дубликата за один и тот же период
+      const existing = await db.meterReading.findFirst({
+        where: { meterId: meter.id, period },
+        orderBy: { createdAt: "desc" },
+      })
+      if (existing && existing.value === value) {
+        await sendTelegram(chatId, `ℹ️ Показание ${value} уже сохранено за ${period}. Изменения не внесены.`)
+        return NextResponse.json({ ok: true })
+      }
+
+      await db.meterReading.create({
+        data: { meterId: meter.id, period, value, previous },
+      })
+
+      const consumption = Math.max(0, value - previous)
+      await sendTelegram(chatId,
+        `✅ Показание сохранено\n` +
+        `Тип: <b>${typeKey}</b> · Помещение: ${meter.space.number}\n` +
+        `Текущее: ${value} · Предыдущее: ${previous}\n` +
+        `Расход за период ${period}: <b>${consumption}</b>`
+      )
+    } catch (e) {
+      await sendTelegram(chatId, `⚠️ Ошибка сохранения показания: ${e instanceof Error ? e.message : "неизвестная"}`)
+    }
     return NextResponse.json({ ok: true })
   }
 

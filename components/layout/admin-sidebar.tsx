@@ -75,6 +75,7 @@ const nav: NavSection[] = [
   {
     title: "АНАЛИТИКА",
     items: [
+      { href: "/admin/dashboard/owner", label: "Дашборд владельца", icon: BarChart3, section: "analytics", ownerOnly: true },
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
       { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
       { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics", capability: "systemHealth.view" },

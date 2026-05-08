@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import {
   Search, Building2, Users, ClipboardList, TrendingUp, Loader2,
   FileText, UserCog, Wallet, CalendarDays, Plus, LayoutDashboard,
-  Receipt, ShieldCheck, Activity, Rocket, CircleHelp,
+  Receipt, ShieldCheck, Activity, Rocket, CircleHelp, LogOut,
 } from "lucide-react"
 
 type Item = {
@@ -48,10 +48,15 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
 const QUICK_CREATE: { label: string; href: string; icon: React.ElementType; keywords: string }[] = [
   { label: "Создать договор", href: "/admin/documents/new/contract", icon: Plus, keywords: "договор contract rental новый" },
   { label: "Создать счёт на оплату", href: "/admin/documents/new/invoice", icon: Plus, keywords: "счет invoice новый" },
+  { label: "Создать платёж", href: "/admin/finances?newPayment=1", icon: Plus, keywords: "платёж payment оплата новый" },
   { label: "Создать АВР", href: "/admin/documents/new/act", icon: Plus, keywords: "акт авр act выполненных работ услуги" },
   { label: "Создать акт сверки", href: "/admin/documents/new/reconciliation", icon: Plus, keywords: "сверка reconciliation" },
   { label: "Добавить арендатора", href: "/admin/tenants?new=1", icon: Plus, keywords: "арендатор новый создать" },
   { label: "Добавить лида", href: "/admin/leads?new=1", icon: Plus, keywords: "лид lead" },
+]
+
+const SYSTEM_ACTIONS: { label: string; icon: React.ElementType; keywords: string; action: "logout" }[] = [
+  { label: "Выйти из аккаунта", icon: LogOut, keywords: "logout signout выход выйти", action: "logout" },
 ]
 
 interface CommandPaletteProps {
@@ -71,10 +76,14 @@ export function CommandPalette({ openSignal = 0 }: CommandPaletteProps) {
         e.preventDefault()
         setOpen((o) => !o)
       }
+      if (e.key === "Escape" && open) {
+        e.preventDefault()
+        setOpen(false)
+      }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  }, [open])
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -111,6 +120,16 @@ export function CommandPalette({ openSignal = 0 }: CommandPaletteProps) {
     router.push(href)
     setOpen(false)
     setQuery("")
+  }
+
+  function performLogout() {
+    setOpen(false)
+    setQuery("")
+    const form = document.createElement("form")
+    form.action = "/api/logout"
+    form.method = "POST"
+    document.body.appendChild(form)
+    form.submit()
   }
 
   if (!open) return null
@@ -172,6 +191,25 @@ export function CommandPalette({ openSignal = 0 }: CommandPaletteProps) {
                       className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-blue-50 dark:bg-blue-500/10"
                     >
                       <Icon className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span className="flex-1 text-slate-900 dark:text-slate-100">{a.label}</span>
+                    </Command.Item>
+                  )
+                })}
+              </Command.Group>
+
+              <Command.Group heading="Аккаунт" className="text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500 px-2 py-1 mt-2">
+                {SYSTEM_ACTIONS.map((a) => {
+                  const Icon = a.icon
+                  return (
+                    <Command.Item
+                      key={a.action}
+                      value={`${a.label} ${a.keywords}`}
+                      onSelect={() => {
+                        if (a.action === "logout") performLogout()
+                      }}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-sm hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 data-[selected=true]:bg-red-50 dark:bg-red-500/10"
+                    >
+                      <Icon className="h-4 w-4 text-red-500 shrink-0" />
                       <span className="flex-1 text-slate-900 dark:text-slate-100">{a.label}</span>
                     </Command.Item>
                   )

@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useMemo, useCallback, useState, useRef, useEffect } from "react"
 import Link from "next/link"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText, UsersRound } from "lucide-react"
 import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { tenantTaxIdValue } from "@/lib/tenant-identity"
@@ -29,12 +30,56 @@ export interface TenantRow {
 type SortKey = "companyName" | "legalType" | "space" | "area" | "debt" | "phone"
 type SortDir = "asc" | "desc"
 
+const SORT_KEYS: SortKey[] = ["companyName", "legalType", "space", "area", "debt", "phone"]
+function parseSortKey(value: string | null): SortKey {
+  return value && (SORT_KEYS as string[]).includes(value) ? (value as SortKey) : "companyName"
+}
+
 export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
-  const [search, setSearch] = useState("")
-  const [legalFilter, setLegalFilter] = useState<string>("")
-  const [debtFilter, setDebtFilter] = useState<string>("")
-  const [sortKey, setSortKey] = useState<SortKey>("companyName")
-  const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const sp = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const search = sp.get("q") ?? ""
+  const legalFilter = sp.get("legal") ?? ""
+  const debtFilter = sp.get("debt") ?? ""
+  const sortKey = parseSortKey(sp.get("sort"))
+  const sortDir: SortDir = sp.get("dir") === "desc" ? "desc" : "asc"
+
+  // Локальный буфер ввода поиска: чтобы инпут отвечал мгновенно, а в URL писали с debounce.
+  // URL — источник истины; локальный стейт догоняет, не вызывая setState внутри useEffect-синхро.
+  const [searchInput, setSearchInput] = useState(search)
+  const debounceRef = useRef<number | null>(null)
+
+  const updateParam = useCallback(
+    (key: string, value: string | null) => {
+      const next = new URLSearchParams(sp.toString())
+      if (value === null || value === "") next.delete(key)
+      else next.set(key, value)
+      const qs = next.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname)
+    },
+    [sp, router, pathname],
+  )
+
+  function handleSearchChange(value: string) {
+    setSearchInput(value)
+    if (debounceRef.current !== null) window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => {
+      updateParam("q", value || null)
+    }, 250)
+  }
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) window.clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  // Если URL изменился извне (например, навигация назад) — отображаем актуальное значение.
+  // Используем простой ключ на input через value, синхронизированный к URL когда буфер пуст.
+  const displayedSearch = searchInput === "" && search !== "" ? search : searchInput
 
   const filtered = useMemo(() => {
     let list = tenants
@@ -90,10 +135,16 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+      const nextDir = sortDir === "asc" ? "desc" : "asc"
+      const params = new URLSearchParams(sp.toString())
+      params.set("sort", key)
+      params.set("dir", nextDir)
+      router.replace(`${pathname}?${params.toString()}`)
     } else {
-      setSortKey(key)
-      setSortDir("asc")
+      const params = new URLSearchParams(sp.toString())
+      params.set("sort", key)
+      params.delete("dir") // дефолт asc
+      router.replace(`${pathname}?${params.toString()}`)
     }
   }
 
@@ -189,15 +240,15 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={displayedSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Поиск: компания, БИН, ФИО, телефон..."
             className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
         <select
           value={legalFilter}
-          onChange={(e) => setLegalFilter(e.target.value)}
+          onChange={(e) => updateParam("legal", e.target.value || null)}
           className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
         >
           <option value="">Все типы</option>
@@ -210,7 +261,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         </select>
         <select
           value={debtFilter}
-          onChange={(e) => setDebtFilter(e.target.value)}
+          onChange={(e) => updateParam("debt", e.target.value || null)}
           className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
         >
           <option value="">Все статусы</option>
