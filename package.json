@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node scripts/deploy-migrations.mjs && prisma generate && next build",
+    "build:analyze": "node -e \"process.env.ANALYZE='true';require('child_process').execSync('next build',{stdio:'inherit',env:process.env})\"",
     "start": "next start",
     "lint": "eslint",
     "perf:audit": "node scripts/performance-audit.mjs",
@@ -49,6 +50,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",

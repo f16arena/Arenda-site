@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs"
 import { auth } from "@/auth"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
@@ -41,6 +42,14 @@ async function renderAdminLayout(children: React.ReactNode) {
   const session = await auth()
   if (!session) redirect("/login")
   const isPlatformOwner = session.user.isPlatformOwner ?? false
+  // Sentry user context — без email/PII (sendDefaultPii: false). Помогает группировать
+  // ошибки по пользователям и понимать impact инцидентов.
+  Sentry.setUser({
+    id: session.user.id,
+    role: session.user.role,
+    organizationId: session.user.organizationId ?? undefined,
+    isPlatformOwner,
+  })
   // Платформенному админу разрешаем доступ к /admin независимо от role.
   if (!isPlatformOwner && isTenantRole(session.user.role)) {
     redirect("/cabinet")

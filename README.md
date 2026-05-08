@@ -132,6 +132,39 @@ SQL-миграции лежат в `migrations/`, Prisma schema — в `prisma/s
 npm run perf:audit
 ```
 
+Анализ размера bundle (визуализация chunks):
+
+```bash
+npm run build:analyze
+```
+
+Откроется отчет `@next/bundle-analyzer` (HTML) — где какие пакеты «тяжелые» в client/server бандлах. Запускаем периодически после крупных рефакторов или после добавления новых зависимостей.
+
+## Observability и Sentry
+
+Errors/performance отправляются в Sentry. Конфигурация:
+
+- `sentry.server.config.ts` — Node runtime
+- `sentry.edge.config.ts` — Edge runtime
+- `instrumentation-client.ts` — браузер
+- `instrumentation.ts` — bootstrap для Next.js
+- В `next.config.ts` обернуто в `withSentryConfig` (source maps upload при наличии `SENTRY_AUTH_TOKEN`)
+
+Env vars (см. `.env.example`):
+
+| Переменная | Назначение |
+| --- | --- |
+| `SENTRY_DSN` | DSN для server runtime (обязательный для server событий) |
+| `NEXT_PUBLIC_SENTRY_DSN` | DSN для браузера |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | организация и проект Sentry |
+| `SENTRY_AUTH_TOKEN` | токен для upload source maps в build |
+| `SENTRY_TRACES_SAMPLE_RATE` | sample rate для performance (по умолчанию 0.05). НЕ ставим выше 0.1 — quota |
+| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | то же для браузера |
+
+PII (email/IP/cookies/headers с токенами) очищается в `lib/sentry-sanitize.ts` через `beforeSend`. User context (id/role/orgId) ставится в `app/admin/layout.tsx` через `Sentry.setUser` для группировки ошибок по пользователям без раскрытия PII.
+
+Серверные исключения в server actions/route handlers ловим через `captureServerException` из `lib/sentry-server.ts` — там автоматический redact + tags + scope.
+
 ## Где продолжать улучшения
 
 Приоритеты:

@@ -11,6 +11,12 @@ if (dsn) {
     release: process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || process.env.APP_VERSION,
     tracesSampleRate: Number.isFinite(tracesSampleRate) ? tracesSampleRate : 0.02,
     sendDefaultPii: false,
+    ignoreErrors: [
+      "AbortError",
+      "TimeoutError",
+      "NEXT_NOT_FOUND",
+      "NEXT_REDIRECT",
+    ],
     beforeSend(event) {
       return sanitizeSentryEvent(event)
     },
