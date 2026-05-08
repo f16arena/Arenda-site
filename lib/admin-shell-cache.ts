@@ -8,6 +8,14 @@ import { getAllowedCapabilityKeysForUser, getAllowedSectionsForUser } from "@/li
 
 export const ADMIN_SHELL_CACHE_TAG = "admin-shell"
 export const ADMIN_NOTIFICATION_CACHE_TAG = "admin-notifications"
+export const PLANS_CACHE_TAG = "plans"
+export const BUILDINGS_CACHE_TAG = "buildings"
+export const FLOORS_CACHE_TAG = "floors"
+
+/** Tag для инвалидации списка зданий конкретной организации. */
+export const buildingsForOrgTag = (orgId: string) => `buildings:${orgId}`
+/** Tag для инвалидации списка этажей конкретного здания. */
+export const floorsForBuildingTag = (buildingId: string) => `floors:${buildingId}`
 
 export type AdminShellOrg = {
   id: string
@@ -100,3 +108,125 @@ export const getCachedUnreadNotificationCount = unstable_cache(
   ["admin-shell-unread-notifications"],
   { revalidate: 10, tags: [ADMIN_NOTIFICATION_CACHE_TAG] },
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain caches: список зданий / тарифов / этажей
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// `unstable_cache` принимает массив тегов как фиксированную опцию — функция от
+// аргументов там не работает. Поэтому используется паттерн «фабрика»: создаём
+// `unstable_cache(...)` каждый раз с уже подставленным orgId/buildingId — и в
+// keyParts, и в tags. Это рабочий способ инвалидации per-tenant ресурса.
+
+export type CachedBuildingForOrg = {
+  id: string
+  name: string
+  address: string
+  totalArea: number | null
+  isActive: boolean
+  createdAtIso: string
+  floors: { id: string; number: number; name: string }[]
+}
+
+export const getCachedBuildingsForOrg = (orgId: string): Promise<CachedBuildingForOrg[]> =>
+  unstable_cache(
+    async (): Promise<CachedBuildingForOrg[]> => {
+      const buildings = await db.building.findMany({
+        where: { organizationId: orgId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          totalArea: true,
+          isActive: true,
+          createdAt: true,
+          floors: { select: { id: true, number: true, name: true }, orderBy: { number: "asc" } },
+        },
+        orderBy: [{ createdAt: "asc" }],
+      })
+      return buildings.map((b) => ({
+        id: b.id,
+        name: b.name,
+        address: b.address,
+        totalArea: b.totalArea,
+        isActive: b.isActive,
+        createdAtIso: b.createdAt.toISOString(),
+        floors: b.floors,
+      }))
+    },
+    ["buildings-for-org", orgId],
+    { revalidate: 60, tags: [buildingsForOrgTag(orgId), BUILDINGS_CACHE_TAG] },
+  )()
+
+export type CachedPlan = {
+  id: string
+  code: string
+  name: string
+  description: string | null
+  priceMonthly: number
+  priceYearly: number
+  maxBuildings: number | null
+  maxTenants: number | null
+  maxUsers: number | null
+  maxLeads: number | null
+  features: string
+  isActive: boolean
+  sortOrder: number
+}
+
+export const getCachedPlans = unstable_cache(
+  async (): Promise<CachedPlan[]> => {
+    const plans = await db.plan.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+        priceMonthly: true,
+        priceYearly: true,
+        maxBuildings: true,
+        maxTenants: true,
+        maxUsers: true,
+        maxLeads: true,
+        features: true,
+        isActive: true,
+        sortOrder: true,
+      },
+    })
+    return plans
+  },
+  ["plans"],
+  { revalidate: 600, tags: [PLANS_CACHE_TAG] },
+)
+
+export type CachedFloorForBuilding = {
+  id: string
+  number: number
+  name: string
+  ratePerSqm: number
+  totalArea: number | null
+  layoutJson: string | null
+  fixedMonthlyRent: number | null
+}
+
+export const getCachedFloorsForBuilding = (buildingId: string): Promise<CachedFloorForBuilding[]> =>
+  unstable_cache(
+    async (): Promise<CachedFloorForBuilding[]> => {
+      return db.floor.findMany({
+        where: { buildingId },
+        select: {
+          id: true,
+          number: true,
+          name: true,
+          ratePerSqm: true,
+          totalArea: true,
+          layoutJson: true,
+          fixedMonthlyRent: true,
+        },
+        orderBy: { number: "asc" },
+      })
+    },
+    ["floors-for-building", buildingId],
+    { revalidate: 60, tags: [floorsForBuildingTag(buildingId), FLOORS_CACHE_TAG] },
+  )()

@@ -9,7 +9,7 @@ import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
-import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { ADMIN_SHELL_CACHE_TAG, buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
 
 export async function createBuilding(formData: FormData) {
   await requireCapabilityAndFeature("buildings.create")
@@ -48,6 +48,7 @@ export async function createBuilding(formData: FormData) {
   revalidatePath("/admin/buildings")
   revalidatePath("/admin")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { id: building.id }
 }
 
@@ -87,6 +88,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
 }
 
 function readAddressFields(formData: FormData) {
@@ -129,6 +131,7 @@ export async function toggleBuildingActive(buildingId: string, isActive: boolean
 
   revalidatePath("/admin/buildings")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
 }
 
 export async function deleteBuilding(buildingId: string) {
@@ -145,6 +148,8 @@ export async function deleteBuilding(buildingId: string) {
 
   revalidatePath("/admin/buildings")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
+  revalidateTag(floorsForBuildingTag(buildingId), { expire: 0 })
 }
 
 export async function switchBuilding(buildingId: string) {
@@ -195,6 +200,8 @@ export async function createFloor(buildingId: string, formData: FormData) {
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
   revalidatePath("/admin/spaces")
+  revalidateTag(floorsForBuildingTag(buildingId), { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
 }
 
 /**
@@ -240,4 +247,8 @@ export async function deleteFloor(floorId: string, opts?: { cascade?: boolean })
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/settings")
   revalidatePath("/admin/spaces")
+  if (floor) {
+    revalidateTag(floorsForBuildingTag(floor.buildingId), { expire: 0 })
+    revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
+  }
 }

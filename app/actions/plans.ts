@@ -1,10 +1,11 @@
 "use server"
 
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { audit } from "@/lib/audit"
 import { PLAN_CAPABILITY_KEYS, PLAN_USAGE_LIMITS } from "@/lib/plan-capabilities"
+import { PLANS_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 export async function createPlan(formData: FormData) {
   await requirePlatformOwner()
@@ -141,6 +142,7 @@ function revalidatePlans() {
   revalidatePath("/superadmin")
   revalidatePath("/superadmin/plans")
   revalidatePath("/superadmin/orgs")
+  revalidateTag(PLANS_CACHE_TAG, { expire: 0 })
 }
 
 async function nextCopyCode(sourceCode: string) {

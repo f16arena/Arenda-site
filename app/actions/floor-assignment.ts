@@ -1,11 +1,12 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { assertFloorAssignableToOneTenant } from "@/lib/full-floor-guards"
+import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 
 export async function assignFullFloor(floorId: string, tenantId: string, fixedRent: number) {
   await requireCapabilityAndFeature("tenants.assignSpaces")
@@ -184,6 +185,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/settings")
   revalidatePath(`/admin/floors/${floorId}`)
+  revalidateTag(floorsForBuildingTag(targetFloor.buildingId), { expire: 0 })
 }
 
 export async function unassignFullFloor(floorId: string) {
@@ -194,9 +196,10 @@ export async function unassignFullFloor(floorId: string) {
   // Найдём арендатора, чтобы потом отвязать от auto-space
   const floor = await db.floor.findUnique({
     where: { id: floorId },
-    select: { fullFloorTenantId: true },
+    select: { fullFloorTenantId: true, buildingId: true },
   })
   const tenantId = floor?.fullFloorTenantId
+  const buildingIdForFloor = floor?.buildingId
 
   await db.floor.update({
     where: { id: floorId },
@@ -252,4 +255,5 @@ export async function unassignFullFloor(floorId: string) {
   revalidatePath("/admin/settings")
   revalidatePath(`/admin/floors/${floorId}`)
   if (tenantId) revalidatePath(`/admin/tenants/${tenantId}`)
+  if (buildingIdForFloor) revalidateTag(floorsForBuildingTag(buildingIdForFloor), { expire: 0 })
 }

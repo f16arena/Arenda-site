@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { cookies, headers } from "next/headers"
+import { cache } from "react"
 import { db } from "./db"
 import { createHmac, timingSafeEqual } from "crypto"
 
@@ -57,7 +58,10 @@ export async function getOrgIdBySlug(slug: string): Promise<string | null> {
 //   наследовать чужой контекст из cookie, оставшегося от другой сессии.
 // - Для платформа-админа: либо impersonate orgId (если он сам запустил),
 //   либо выбранная в cookie организация.
-export async function getCurrentOrgId(): Promise<string | null> {
+//
+// NOTE: обёрнуто в React cache() для дедупликации внутри одного request.
+// Layout, page, breadcrumbs могут вызывать это N раз — теперь это 1 запрос.
+export const getCurrentOrgId = cache(async (): Promise<string | null> => {
   const session = await auth()
   if (!session?.user) return null
 
@@ -85,7 +89,7 @@ export async function getCurrentOrgId(): Promise<string | null> {
   // Платформа-админ без impersonate — берёт orgId из cookie superadmin
   const store = await cookies()
   return store.get(SUPERADMIN_ORG_COOKIE)?.value ?? null
-}
+})
 
 export async function setSuperadminOrgCookie(orgId: string | null) {
   const store = await cookies()
@@ -109,7 +113,10 @@ export async function setSuperadminOrgCookie(orgId: string | null) {
 // organizationId пользователя. Если нет — редирект на /login (мы не должны
 // случайно работать с чужой организацией, даже если cookie каким-то образом
 // прошёл на чужой поддомен).
-export async function requireOrgAccess(): Promise<OrgContext> {
+//
+// Дедупликация: в одном RSC-render layout + page + sub-RSC часто вызывают
+// requireOrgAccess независимо. cache() из react деупликат внутри request lifecycle.
+export const requireOrgAccess = cache(async (): Promise<OrgContext> => {
   const session = await auth()
   if (!session?.user) redirect("/login")
 
@@ -154,7 +161,7 @@ export async function requireOrgAccess(): Promise<OrgContext> {
     isImpersonating: !!imp,
     hostSlug,
   }
-}
+})
 
 export async function requirePlatformOwner() {
   const session = await auth()

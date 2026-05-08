@@ -77,9 +77,11 @@ const getAccessibleBuildingsForUserCached = cache(async (
   return legacyAssigned.map(({ id, name, address }) => ({ id, name, address }))
 })
 
-export async function getAccessibleBuildingsForSession(orgId: string) {
+// Дедупликация в рамках одного render: layout + page + child component
+// часто запрашивают список доступных зданий для текущей сессии.
+export const getAccessibleBuildingsForSession = cache(async (orgId: string) => {
   const session = await auth()
-  if (!session?.user) return []
+  if (!session?.user) return [] as AccessibleBuilding[]
 
   return getAccessibleBuildingsForUser({
     userId: session.user.id,
@@ -87,11 +89,11 @@ export async function getAccessibleBuildingsForSession(orgId: string) {
     role: session.user.role,
     isPlatformOwner: session.user.isPlatformOwner,
   })
-}
+})
 
-export async function getAccessibleBuildingIdsForSession(orgId: string) {
+export const getAccessibleBuildingIdsForSession = cache(async (orgId: string) => {
   return (await getAccessibleBuildingsForSession(orgId)).map((b) => b.id)
-}
+})
 
 export async function assertBuildingAccess(buildingId: string, orgId: string) {
   const session = await auth()

@@ -12,7 +12,7 @@ import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { isStaffScopedRole } from "@/lib/building-access"
-import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { ADMIN_SHELL_CACHE_TAG, buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { BuildingUpdateSchema, FloorUpdateSchema, firstZodError } from "@/lib/schemas"
 
@@ -64,6 +64,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   revalidatePath("/admin/settings")
   revalidatePath("/admin/spaces")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { success: true }
 }
 
@@ -134,6 +135,8 @@ export async function updateFloor(floorId: string, formData: FormData) {
   revalidatePath("/admin/settings")
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/buildings")
+  revalidateTag(floorsForBuildingTag(floor.buildingId), { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { success: true }
 }
 
@@ -187,6 +190,7 @@ export async function setBuildingAdministrator(buildingId: string, adminUserId: 
   revalidatePath("/admin/buildings")
   revalidatePath("/cabinet")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { success: true }
 }
 

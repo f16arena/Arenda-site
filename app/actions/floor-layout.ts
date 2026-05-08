@@ -1,11 +1,12 @@
 "use server"
 
 import { db } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
+import { buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
 
 export type SaveFloorLayoutResult = {
   success: true
@@ -52,6 +53,10 @@ export async function saveFloorLayout(
   revalidatePath("/admin/spaces")
   revalidatePath(`/admin/buildings`)
   revalidatePath(`/admin/floors/${floorId}`)
+  revalidateTag(floorsForBuildingTag(floor.buildingId), { expire: 0 })
+  if (totalArea !== undefined) {
+    revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
+  }
   return {
     success: true,
     buildingId: floor.buildingId,
@@ -85,6 +90,10 @@ export async function clearFloorPlan(floorId: string) {
   revalidatePath("/admin/spaces")
   revalidatePath("/admin/buildings")
   revalidatePath(`/admin/floors/${floorId}`)
+  if (floor) {
+    revalidateTag(floorsForBuildingTag(floor.buildingId), { expire: 0 })
+    revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
+  }
   return { success: true }
 }
 
@@ -112,5 +121,6 @@ export async function setBuildingAreaFromFloors(buildingId: string) {
 
   revalidatePath("/admin/buildings")
   revalidatePath("/admin/spaces")
+  revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { success: true, totalArea: Math.round(sum * 10) / 10 }
 }

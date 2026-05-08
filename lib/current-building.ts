@@ -1,4 +1,5 @@
 import { cookies } from "next/headers"
+import { cache } from "react"
 import { auth } from "@/auth"
 import { db } from "./db"
 import { ALL_BUILDINGS_COOKIE, getAccessibleBuildingsForUser, isOwnerLike } from "./building-access"
@@ -34,8 +35,11 @@ export function resolveCurrentBuildingIdFromSelection({
  * БЕЗОПАСНОСТЬ: если orgId === null (нет сессии или платформ-админ без
  * выбранной организации) — возвращаем null. Раньше тут был fallback,
  * который мог вернуть ЛЮБОЕ активное здание из БД — это была дыра.
+ *
+ * Дедупликация: обёрнуто в React cache() — layout + page + breadcrumbs в
+ * рамках одного render выполнят это лишь один раз.
  */
-export async function getCurrentBuildingId(): Promise<string | null> {
+export const getCurrentBuildingId = cache(async (): Promise<string | null> => {
   const { getCurrentOrgId } = await import("./org")
   const orgId = await getCurrentOrgId()
 
@@ -58,7 +62,7 @@ export async function getCurrentBuildingId(): Promise<string | null> {
     role: session.user.role,
     isPlatformOwner: session.user.isPlatformOwner,
   })
-}
+})
 
 export async function getCurrentBuilding() {
   const id = await getCurrentBuildingId()
