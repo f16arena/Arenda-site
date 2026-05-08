@@ -108,16 +108,18 @@ export default async function DocumentsPage({
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
     ],
   }
-  const visibleTenantIds = visibleBuildingIds.length > 0
-    ? await safe(
-        "admin.documents.visibleTenantIds",
-        db.tenant.findMany({
-          where: tenantWhere,
-          select: { id: true },
-        }).then((rows) => rows.map((t) => t.id)),
-        [] as string[],
-      )
-    : []
+
+  // visibleTenantIds больше не нужен отдельным запросом — фильтруем generated через
+  // relation filter `tenant: tenantWhere`, что Prisma переведёт в EXISTS-подзапрос.
+  // Это убирает один round-trip.
+  const generatedTenantFilter = currentBuildingId
+    ? { tenant: tenantWhere }
+    : {
+        OR: [
+          { tenant: tenantWhere },
+          { tenantId: null },
+        ],
+      }
 
   const [contracts, generated] = await Promise.all([
     filterType === "ALL" || filterType === "CONTRACT"
@@ -162,14 +164,7 @@ export default async function DocumentsPage({
         db.generatedDocument.findMany({
             where: {
               organizationId: orgId,
-              ...(currentBuildingId
-                ? { tenantId: { in: visibleTenantIds } }
-                : {
-                    OR: [
-                      { tenantId: { in: visibleTenantIds } },
-                      { tenantId: null },
-                    ],
-                  }),
+              ...(visibleBuildingIds.length > 0 ? generatedTenantFilter : { id: "__never__" }),
               ...(filterType !== "ALL" ? { documentType: filterType } : {}),
               ...(period ? { period } : {}),
             },

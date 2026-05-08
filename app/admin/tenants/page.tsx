@@ -11,8 +11,16 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import { PaginationControls } from "@/components/ui/pagination-controls"
+import { normalizePage, pageSkip } from "@/lib/pagination"
 
-export default async function TenantsPage() {
+const TENANTS_PAGE_SIZE = 50
+
+type TenantsPageProps = {
+  searchParams?: Promise<{ page?: string | string[] }>
+}
+
+export default async function TenantsPage(props: TenantsPageProps) {
   const { orgId } = await requireOrgAccess()
   const session = await auth()
   const buildingId = await getCurrentBuildingId()
@@ -27,6 +35,9 @@ export default async function TenantsPage() {
         orgId,
       }))
     : new Set<string>()
+
+  const sp = await props.searchParams
+  const page = normalizePage(sp?.page)
 
   const tenantWhere = buildingId
     ? {
@@ -48,52 +59,67 @@ export default async function TenantsPage() {
 
   // Все арендаторы текущей организации — включая ещё не назначенных на помещение,
   // но привязанных через user.organizationId (если spaceId = null).
-  const tenants = await db.tenant.findMany({
-    where: tenantWhere,
-    select: {
-      id: true,
-      companyName: true,
-      legalType: true,
-      bin: true,
-      iin: true,
-      category: true,
-      createdAt: true,
-      user: { select: { id: true, name: true, phone: true, email: true } },
-      space: {
-        select: {
-          id: true,
-          number: true,
-          area: true,
-          floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
+  // Долги вынесены в отдельный groupBy-запрос ниже — это резко уменьшает payload
+  // (раньше charges подгружались полностью на каждого арендатора).
+  const [tenants, totalTenants] = await Promise.all([
+    db.tenant.findMany({
+      where: tenantWhere,
+      select: {
+        id: true,
+        companyName: true,
+        legalType: true,
+        bin: true,
+        iin: true,
+        category: true,
+        user: { select: { name: true, phone: true, email: true } },
+        space: {
+          select: {
+            id: true,
+            number: true,
+            area: true,
+            floor: { select: { name: true, ratePerSqm: true } },
+          },
         },
-      },
-      tenantSpaces: {
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-        select: {
-          isPrimary: true,
-          space: {
-            select: {
-              id: true,
-              number: true,
-              area: true,
-              floor: { select: { name: true, ratePerSqm: true, building: { select: { name: true } } } },
+        tenantSpaces: {
+          orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+          select: {
+            isPrimary: true,
+            space: {
+              select: {
+                id: true,
+                number: true,
+                area: true,
+                floor: { select: { name: true, ratePerSqm: true } },
+              },
             },
           },
         },
-      },
-      // Этажи, где этот арендатор сдан целиком — обратное отношение через Floor.fullFloorTenantId
-      fullFloors: {
-        select: {
-          id: true,
-          name: true,
-          totalArea: true,
-          fixedMonthlyRent: true,
+        // Этажи, где этот арендатор сдан целиком — обратное отношение через Floor.fullFloorTenantId
+        fullFloors: {
+          select: {
+            id: true,
+            name: true,
+            totalArea: true,
+            fixedMonthlyRent: true,
+          },
         },
       },
-      charges: { where: { isPaid: false }, select: { amount: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  })
+      orderBy: { createdAt: "desc" },
+      skip: pageSkip(page, TENANTS_PAGE_SIZE),
+      take: TENANTS_PAGE_SIZE,
+    }),
+    db.tenant.count({ where: tenantWhere }),
+  ])
+
+  const tenantIds = tenants.map((t) => t.id)
+  const debtRows = tenantIds.length > 0
+    ? await db.charge.groupBy({
+        by: ["tenantId"],
+        where: { tenantId: { in: tenantIds }, isPaid: false },
+        _sum: { amount: true },
+      })
+    : []
+  const debtMap = new Map(debtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 
   const vacantSpaces = await db.space.findMany({
     where: {
@@ -130,7 +156,7 @@ export default async function TenantsPage() {
       totalArea: f.totalArea,
       fixedMonthlyRent: f.fixedMonthlyRent,
     })),
-    debt: t.charges.reduce((s, c) => s + c.amount, 0),
+    debt: debtMap.get(t.id) ?? 0,
   }))
 
   return (
@@ -139,7 +165,7 @@ export default async function TenantsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Арендаторы</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {tenants.length} зарегистрировано
+            {totalTenants} зарегистрировано
           </p>
         </div>
         {allowedCapabilities.has("tenants.create") && (
@@ -157,6 +183,12 @@ export default async function TenantsPage() {
       </div>
 
       <TenantsTableLoader tenants={rows} />
+      <PaginationControls
+        basePath="/admin/tenants"
+        page={page}
+        pageSize={TENANTS_PAGE_SIZE}
+        total={totalTenants}
+      />
     </div>
   )
 }

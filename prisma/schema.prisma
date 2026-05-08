@@ -509,6 +509,9 @@ model Tenant {
   fullFloors     Floor[]             @relation("FullFloorTenant")
   bankAccounts   TenantBankAccount[]
 
+  // userId уже @unique → индекс есть автоматически. Не дублируем.
+  // createdAt — для orderBy в /admin/tenants (DESC).
+  @@index([createdAt(sort: Desc)])
   @@map("tenants")
 }
 

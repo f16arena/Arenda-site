@@ -13,6 +13,7 @@ const customSqlPatches = [
   "014_mobile_beta_readiness.sql",
   "015_must_change_password.sql",
   "016_payment_external_ref.sql",
+  "017_tenant_indexes.sql",
 ]
 
 function runPrisma(args) {

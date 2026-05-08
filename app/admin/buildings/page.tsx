@@ -195,21 +195,63 @@ export default async function BuildingsPage() {
     [] as Array<{ id: string; name: string; email: string | null; phone: string | null; role: string }>,
   )
 
-  // Считаем арендаторов и помещения по каждому зданию
-  const stats = await Promise.all(
-    buildings.map(async (b) => {
-      const floorIds = b.floors.map((f) => f.id)
-      const [tenantsCount, spacesCount, occupiedCount] = await Promise.all([
-        safe(`admin.buildings.${b.id}.tenantsCount`, db.tenant.count({
-          where: { space: { floorId: { in: floorIds } } },
-        }), 0),
-        safe(`admin.buildings.${b.id}.spacesCount`, db.space.count({ where: { floorId: { in: floorIds } } }), 0),
-        safe(`admin.buildings.${b.id}.occupiedCount`, db.space.count({ where: { floorId: { in: floorIds }, status: "OCCUPIED" } }), 0),
-      ])
-      return { id: b.id, tenantsCount, spacesCount, occupiedCount }
+  // Считаем арендаторов и помещения по всем зданиям сразу — 2 запроса вместо 3N.
+  // Семантика tenantsCount намеренно сохранена: считаем только tenants с прямой
+  // привязкой к space (не учитываем tenantSpaces и fullFloors), как было до рефактора.
+  const buildingIds = buildings.map((b) => b.id)
+  const [allSpaces, allTenants] = await Promise.all([
+    safe(
+      "admin.buildings.spacesAggregate",
+      buildingIds.length > 0
+        ? db.space.findMany({
+            where: { floor: { buildingId: { in: buildingIds } } },
+            select: { status: true, floor: { select: { buildingId: true } } },
+          })
+        : Promise.resolve([] as Array<{ status: string; floor: { buildingId: string } }>),
+      [] as Array<{ status: string; floor: { buildingId: string } }>,
+    ),
+    safe(
+      "admin.buildings.tenantsAggregate",
+      buildingIds.length > 0
+        ? db.tenant.findMany({
+            where: { space: { floor: { buildingId: { in: buildingIds } } } },
+            select: { space: { select: { floor: { select: { buildingId: true } } } } },
+          })
+        : Promise.resolve([] as Array<{ space: { floor: { buildingId: string } } | null }>),
+      [] as Array<{ space: { floor: { buildingId: string } } | null }>,
+    ),
+  ])
+
+  const spaceStatsByBuilding = new Map<string, { spacesCount: number; occupiedCount: number }>()
+  for (const sp of allSpaces) {
+    const bId = sp.floor.buildingId
+    const cur = spaceStatsByBuilding.get(bId) ?? { spacesCount: 0, occupiedCount: 0 }
+    cur.spacesCount += 1
+    if (sp.status === "OCCUPIED") cur.occupiedCount += 1
+    spaceStatsByBuilding.set(bId, cur)
+  }
+
+  const tenantsCountByBuilding = new Map<string, number>()
+  for (const t of allTenants) {
+    const bId = t.space?.floor.buildingId
+    if (!bId) continue
+    tenantsCountByBuilding.set(bId, (tenantsCountByBuilding.get(bId) ?? 0) + 1)
+  }
+
+  const statsById = new Map(
+    buildings.map((b) => {
+      const sp = spaceStatsByBuilding.get(b.id) ?? { spacesCount: 0, occupiedCount: 0 }
+      return [
+        b.id,
+        {
+          id: b.id,
+          tenantsCount: tenantsCountByBuilding.get(b.id) ?? 0,
+          spacesCount: sp.spacesCount,
+          occupiedCount: sp.occupiedCount,
+        },
+      ]
     })
   )
-  const statsById = new Map(stats.map((s) => [s.id, s]))
 
   const active = buildings.filter((b) => b.isActive)
   const inactive = buildings.filter((b) => !b.isActive)
