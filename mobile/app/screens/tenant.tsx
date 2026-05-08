@@ -65,11 +65,33 @@ export function TenantHome({ overview, notices, onNavigate }: { overview: Tenant
           </View>
         </View>
         <MetricGrid
+          variant="row"
           items={[
-            { label: "Долг", value: formatMoney(overview.finances.totalDebt), color: overview.finances.totalDebt > 0 ? colors.red : colors.green },
-            { label: "Аренда", value: formatMoney(overview.tenant.monthlyRent), color: colors.slate },
-            { label: "Заявки", value: String(overview.counters.activeRequests), color: colors.blue },
-            { label: "Документы", value: String(overview.counters.pendingDocuments), color: colors.orange },
+            {
+              label: "Долг",
+              value: formatMoney(overview.finances.totalDebt),
+              color: overview.finances.totalDebt > 0 ? colors.red : colors.green,
+              onPress: () => onNavigate("payments"),
+            },
+            {
+              label: "Аренда",
+              value: formatMoney(overview.tenant.monthlyRent),
+              color: colors.slate,
+            },
+            {
+              label: "Заявки",
+              value: String(overview.counters.activeRequests),
+              color: colors.blue,
+              onPress: () => onNavigate("requests"),
+              badge: overview.counters.activeRequests,
+            },
+            {
+              label: "Документы на подпись",
+              value: String(overview.counters.pendingDocuments),
+              color: overview.counters.pendingDocuments > 0 ? colors.orange : colors.green,
+              onPress: () => onNavigate("documents"),
+              badge: overview.counters.pendingDocuments,
+            },
           ]}
         />
       </Card>

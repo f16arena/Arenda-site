@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Linking, Text, View } from "react-native"
 import * as Notifications from "expo-notifications"
 import {
@@ -32,6 +32,46 @@ import type {
   MobileSessionInfo,
 } from "@/types/mobile"
 
+type SettingsSection = "profile" | "channels" | "push" | "security" | "appearance" | "support" | "about"
+
+function SettingsSectionCard({
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+  badge,
+}: {
+  icon: string
+  iconColor: string
+  title: string
+  subtitle: string
+  open: boolean
+  onToggle: () => void
+  children?: ReactNode
+  badge?: string
+}) {
+  return (
+    <Card>
+      <ActionRow
+        icon={icon}
+        title={title}
+        value={badge ?? (open ? "свернуть" : "открыть")}
+        color={iconColor}
+        onPress={onToggle}
+      />
+      {open ? (
+        <>
+          <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.medium }}>{subtitle}</Text>
+          {children}
+        </>
+      ) : null}
+    </Card>
+  )
+}
+
 export function More({
   bootstrap,
   buildings,
@@ -57,7 +97,7 @@ export function More({
   const [sessionsBusy, setSessionsBusy] = useState(false)
   const [pendingRevokeSession, setPendingRevokeSession] = useState<MobileSessionInfo | null>(null)
   const [pushPermissionStatus, setPushPermissionStatus] = useState<string | null>(null)
-  const [openSettings, setOpenSettings] = useState<"profile" | "channels" | "push" | "security" | "help" | null>(null)
+  const [openSection, setOpenSection] = useState<SettingsSection | null>(null)
 
   useEffect(() => {
     setLocalSettings(settings)
@@ -210,12 +250,31 @@ export function More({
     }
   }
 
+  function toggleSection(section: SettingsSection) {
+    setOpenSection((current) => (current === section ? null : section))
+  }
+
+  const roleLabel = bootstrap.user.role === "TENANT" ? "Арендатор" : bootstrap.user.role ?? "Сотрудник"
+  const initials = (bootstrap.user.name ?? "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "?"
+
   return (
     <>
       <SectionTitle title={title} />
       <Card>
-        <Text selectable style={{ color: colors.text, fontSize: 19, fontFamily: fonts.black, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
-        <Text selectable style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.regular }}>{bootstrap.organization.name} · {bootstrap.user.role}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: colors.blueSoft, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ color: colors.blue, fontSize: 18, fontFamily: fonts.black, fontWeight: "900" }}>{initials}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text selectable style={{ color: colors.text, fontSize: 19, fontFamily: fonts.black, fontWeight: "900" }}>{bootstrap.user.name ?? "Пользователь"}</Text>
+            <Text selectable style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.regular }}>{bootstrap.organization.name} · {roleLabel}</Text>
+          </View>
+        </View>
         {!settingsOnly ? (
           <View style={{ gap: 8 }}>
             <SecondaryButton title="Настройки" icon="settings" onPress={() => onNavigate("settings")} />
@@ -229,78 +288,101 @@ export function More({
           </View>
         ) : null}
       </Card>
+
       {settingsOnly ? (
         <>
-          <SectionTitle title="Разделы" />
-          <Card>
-            <ActionRow icon="person.fill" title="Профиль и организация" value={openSettings === "profile" ? "открыто" : "открыть"} color={colors.teal} onPress={() => setOpenSettings(openSettings === "profile" ? null : "profile")} />
-            <ActionRow icon="bell.fill" title="Каналы уведомлений" value={openSettings === "channels" ? "открыто" : "email/sms"} color={colors.blue} onPress={() => setOpenSettings(openSettings === "channels" ? null : "channels")} />
-            <ActionRow icon="iphone" title="Push на устройстве" value={String(localSettings?.devices.length ?? 0)} color={colors.orange} onPress={() => setOpenSettings(openSettings === "push" ? null : "push")} />
-            <ActionRow icon="lock.shield.fill" title="Безопасность" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} onPress={() => setOpenSettings(openSettings === "security" ? null : "security")} />
-            <ActionRow icon="doc.text.fill" title="Документы и поддержка" value={openSettings === "help" ? "открыто" : "ссылки"} color={colors.green} onPress={() => setOpenSettings(openSettings === "help" ? null : "help")} />
-          </Card>
+          <SectionTitle title="Профиль" />
+          <SettingsSectionCard
+            icon="person.fill"
+            iconColor={colors.teal}
+            title="Профиль и организация"
+            subtitle="Имя, организация, контактные данные. Редактирование доступно в web-кабинете."
+            open={openSection === "profile"}
+            onToggle={() => toggleSection("profile")}
+          >
+            <ActionRow icon="building.2.fill" title="Организация" value={bootstrap.organization.name} color={colors.blue} />
+            <ActionRow icon="person.fill" title="Имя" value={bootstrap.user.name ?? "не указано"} color={colors.teal} />
+            {bootstrap.user.email ? <ActionRow icon="message.fill" title="Email" value={bootstrap.user.email} color={colors.blue} onPress={() => Linking.openURL(`mailto:${bootstrap.user.email}`)} /> : null}
+            {bootstrap.user.phone ? <ActionRow icon="iphone" title="Телефон" value={bootstrap.user.phone} color={colors.teal} onPress={() => Linking.openURL(`tel:${bootstrap.user.phone}`)} /> : null}
+            <SecondaryButton title="Открыть web-кабинет" icon="arrow.up.right.square" onPress={() => openExternalUrl("/admin/profile").catch(() => null)} />
+          </SettingsSectionCard>
 
-          {openSettings === "profile" ? (
-            <Card>
-              <ActionRow icon="building.2.fill" title="Организация" value={bootstrap.organization.name} color={colors.blue} />
-              <ActionRow icon="person.fill" title="Пользователь" value={bootstrap.user.name ?? "профиль"} color={colors.teal} />
-              {bootstrap.user.email ? <ActionRow icon="message.fill" title="Email" value={bootstrap.user.email} color={colors.blue} onPress={() => Linking.openURL(`mailto:${bootstrap.user.email}`)} /> : null}
-              {bootstrap.user.phone ? <ActionRow icon="iphone" title="Телефон" value={bootstrap.user.phone} color={colors.teal} onPress={() => Linking.openURL(`tel:${bootstrap.user.phone}`)} /> : null}
-              <SecondaryButton title="Открыть web-кабинет" icon="arrow.up.right.square" onPress={() => openExternalUrl("/admin/profile").catch(() => null)} />
-            </Card>
-          ) : null}
+          <SectionTitle title="Уведомления" />
+          <SettingsSectionCard
+            icon="bell.fill"
+            iconColor={colors.blue}
+            title="Каналы уведомлений"
+            subtitle="Где получать письма и сообщения о событиях."
+            open={openSection === "channels"}
+            onToggle={() => toggleSection("channels")}
+          >
+            {localSettings ? (
+              <>
+                <ToggleRow title="In-app уведомления" subtitle="Лента уведомлений внутри приложения" value={localSettings.settings.notifyInApp} onValueChange={(value) => updateNotificationChannel("notifyInApp", value)} />
+                <ToggleRow title="Email" subtitle="Письма по важным событиям" value={localSettings.settings.notifyEmail} onValueChange={(value) => updateNotificationChannel("notifyEmail", value)} />
+                <ToggleRow title="SMS" subtitle="Черновик для будущего платного канала" value={localSettings.settings.notifySms} onValueChange={(value) => updateNotificationChannel("notifySms", value)} />
+                <ToggleRow title="Telegram" subtitle="Если подключен бот" value={localSettings.settings.notifyTelegram} onValueChange={(value) => updateNotificationChannel("notifyTelegram", value)} />
+              </>
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 14 }}>Загружаем настройки...</Text>
+            )}
+            {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
+          </SettingsSectionCard>
 
-          {openSettings === "channels" && localSettings ? (
-            <Card>
-              <ToggleRow title="In-app уведомления" subtitle="Лента уведомлений внутри приложения" value={localSettings.settings.notifyInApp} onValueChange={(value) => updateNotificationChannel("notifyInApp", value)} />
-              <ToggleRow title="Email" subtitle="Письма по важным событиям" value={localSettings.settings.notifyEmail} onValueChange={(value) => updateNotificationChannel("notifyEmail", value)} />
-              <ToggleRow title="SMS" subtitle="Черновик для будущего платного канала" value={localSettings.settings.notifySms} onValueChange={(value) => updateNotificationChannel("notifySms", value)} />
-              <ToggleRow title="Telegram" subtitle="Если подключен бот" value={localSettings.settings.notifyTelegram} onValueChange={(value) => updateNotificationChannel("notifyTelegram", value)} />
-              {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
-            </Card>
-          ) : null}
+          <SettingsSectionCard
+            icon="iphone"
+            iconColor={colors.orange}
+            title="Push на устройстве"
+            subtitle="Системные уведомления, тихие часы, типы событий."
+            open={openSection === "push"}
+            onToggle={() => toggleSection("push")}
+            badge={String(localSettings?.devices.length ?? 0)}
+          >
+            <ActionRow icon="iphone" title="Активные устройства" value={String(localSettings?.devices.length ?? 0)} color={colors.blue} />
+            <ActionRow icon="bell.fill" title="Разрешение телефона" value={pushPermissionStatus ? pushPermissionLabel(pushPermissionStatus) : "проверяем"} color={pushPermissionStatus === "granted" ? colors.green : colors.orange} />
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              <SecondaryButton title={pushBusy ? "Подключаем..." : "Включить"} icon="bell.fill" onPress={enablePush} />
+              <SecondaryButton title={pushBusy ? "Ждем..." : "Отключить"} icon="bell.slash.fill" onPress={disablePush} />
+            </View>
+            {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
+            {pushPreferences ? (
+              <>
+                <ToggleRow
+                  title="Тихие часы"
+                  subtitle={`${pushPreferences.quietFrom} - ${pushPreferences.quietTo}`}
+                  value={pushPreferences.quietHoursEnabled}
+                  onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
+                />
+                <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
+                <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
+                <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
+                <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
+              </>
+            ) : null}
+            {localSettings?.settings.eventTypes.map((eventType) => {
+              const enabled = !localSettings.settings.mutedTypes.includes(eventType.key)
+              return (
+                <ToggleRow
+                  key={eventType.key}
+                  title={eventType.label}
+                  subtitle={enabled ? "Push включен" : "Push выключен"}
+                  value={enabled}
+                  onValueChange={() => toggleMutedType(eventType.key)}
+                />
+              )
+            })}
+          </SettingsSectionCard>
 
-          {openSettings === "push" ? (
-            <Card>
-              <ActionRow icon="iphone" title="Активные устройства" value={String(localSettings?.devices.length ?? 0)} color={colors.blue} />
-              <ActionRow icon="bell.fill" title="Разрешение телефона" value={pushPermissionStatus ? pushPermissionLabel(pushPermissionStatus) : "проверяем"} color={pushPermissionStatus === "granted" ? colors.green : colors.orange} />
-              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                <SecondaryButton title={pushBusy ? "Подключаем..." : "Включить"} icon="bell.fill" onPress={enablePush} />
-                <SecondaryButton title={pushBusy ? "Ждем..." : "Отключить"} icon="bell.slash.fill" onPress={disablePush} />
-              </View>
-              {pushState ? <InlineMessage message={pushState} tone={pushState.includes("Не ") ? "error" : "success"} /> : null}
-              {pushPreferences ? (
-                <>
-                  <ToggleRow
-                    title="Тихие часы"
-                    subtitle={`${pushPreferences.quietFrom} - ${pushPreferences.quietTo}`}
-                    value={pushPreferences.quietHoursEnabled}
-                    onValueChange={(value) => updateQuietHours({ ...pushPreferences, quietHoursEnabled: value })}
-                  />
-                  <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Начало</Text>
-                  <ChoiceRow options={[["21:00", "21:00"], ["22:00", "22:00"], ["23:00", "23:00"]]} value={pushPreferences.quietFrom} onChange={(quietFrom) => updateQuietHours({ ...pushPreferences, quietFrom })} />
-                  <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.extraBold, fontWeight: "800" }}>Окончание</Text>
-                  <ChoiceRow options={[["07:00", "07:00"], ["08:00", "08:00"], ["09:00", "09:00"]]} value={pushPreferences.quietTo} onChange={(quietTo) => updateQuietHours({ ...pushPreferences, quietTo })} />
-                </>
-              ) : null}
-              {localSettings?.settings.eventTypes.map((eventType) => {
-                const enabled = !localSettings.settings.mutedTypes.includes(eventType.key)
-                return (
-                  <ToggleRow
-                    key={eventType.key}
-                    title={eventType.label}
-                    subtitle={enabled ? "Push включен" : "Push выключен"}
-                    value={enabled}
-                    onValueChange={() => toggleMutedType(eventType.key)}
-                  />
-                )
-              })}
-            </Card>
-          ) : null}
-
-          {openSettings === "security" ? (
-          <Card>
-            <ActionRow icon="lock.shield.fill" title="Активные входы" value={sessionsBusy ? "..." : String(sessions.length)} color={colors.slate} />
+          <SectionTitle title="Безопасность" />
+          <SettingsSectionCard
+            icon="lock.shield.fill"
+            iconColor={colors.slate}
+            title="Активные входы"
+            subtitle="Устройства и сессии, через которые открыт ваш кабинет."
+            open={openSection === "security"}
+            onToggle={() => toggleSection("security")}
+            badge={sessionsBusy ? "..." : String(sessions.length)}
+          >
             {sessions.map((session) => (
               <View key={session.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 8 }}>
                 <CompactRow
@@ -326,18 +408,55 @@ export function More({
               </View>
             ))}
             {sessions.length === 0 && !sessionsBusy ? <Text selectable style={{ color: colors.muted, fontSize: 14, textAlign: "center" }}>Активных мобильных входов нет</Text> : null}
-          </Card>
-          ) : null}
+            <SecondaryButton title="Сменить пароль (web)" icon="lock.fill" onPress={() => openExternalUrl("/admin/profile").catch(() => null)} />
+          </SettingsSectionCard>
 
-          {openSettings === "help" ? (
-            <Card>
-              <SecondaryButton title="Публичная оферта" icon="doc.text.fill" onPress={() => openExternalUrl("https://commrent.kz/offer").catch(() => null)} />
-              <SecondaryButton title="Политика конфиденциальности" icon="lock.fill" onPress={() => openExternalUrl("https://commrent.kz/privacy").catch(() => null)} />
-              <SecondaryButton title="Сайт Commrent" icon="arrow.up.right.square" onPress={() => openExternalUrl("https://commrent.kz").catch(() => null)} />
-            </Card>
-          ) : null}
+          <SectionTitle title="Внешний вид" />
+          <SettingsSectionCard
+            icon="settings"
+            iconColor={colors.blue}
+            title="Тема и язык"
+            subtitle="Темная тема и переключение языка появятся в следующих обновлениях."
+            open={openSection === "appearance"}
+            onToggle={() => toggleSection("appearance")}
+            badge="скоро"
+          >
+            <ActionRow icon="settings" title="Тема приложения" value="Светлая" color={colors.blue} />
+            <ActionRow icon="message.fill" title="Язык интерфейса" value="Русский" color={colors.teal} />
+            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.medium }}>
+              Переключение темы и языка добавится позже без обновления приложения.
+            </Text>
+          </SettingsSectionCard>
+
+          <SectionTitle title="Поддержка" />
+          <SettingsSectionCard
+            icon="message.fill"
+            iconColor={colors.green}
+            title="Связаться и помощь"
+            subtitle="Связь с администрацией, частые вопросы."
+            open={openSection === "support"}
+            onToggle={() => toggleSection("support")}
+          >
+            <SecondaryButton title="Открыть сайт Commrent" icon="arrow.up.right.square" onPress={() => openExternalUrl("https://commrent.kz").catch(() => null)} />
+            <SecondaryButton title="Написать в поддержку" icon="message.fill" onPress={() => Linking.openURL("mailto:hello@commrent.kz")} />
+          </SettingsSectionCard>
+
+          <SectionTitle title="О приложении" />
+          <SettingsSectionCard
+            icon="doc.text.fill"
+            iconColor={colors.slate}
+            title="Версия и документы"
+            subtitle="Юридические документы и информация о приложении."
+            open={openSection === "about"}
+            onToggle={() => toggleSection("about")}
+          >
+            <ActionRow icon="settings" title="Версия приложения" value="1.0.0" color={colors.slate} />
+            <SecondaryButton title="Публичная оферта" icon="doc.text.fill" onPress={() => openExternalUrl("https://commrent.kz/offer").catch(() => null)} />
+            <SecondaryButton title="Политика конфиденциальности" icon="lock.fill" onPress={() => openExternalUrl("https://commrent.kz/privacy").catch(() => null)} />
+          </SettingsSectionCard>
         </>
       ) : null}
+
       {!settingsOnly ? (
         <>
           <SectionTitle title="Объекты" />

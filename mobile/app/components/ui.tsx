@@ -1,6 +1,8 @@
-import type { ComponentProps, ReactNode, Ref } from "react"
+import { useEffect, useRef, type ComponentProps, type ReactNode, type Ref } from "react"
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   FlatList,
   Pressable,
   RefreshControl,
@@ -373,15 +375,125 @@ export function ChoiceRow({
   )
 }
 
-export function MetricGrid({ items }: { items: Array<{ label: string; value: string; color: string }> }) {
+export type MetricItem = {
+  label: string
+  value: string
+  color: string
+  onPress?: () => void
+  badge?: number
+}
+
+export function MetricGrid({
+  items,
+  variant = "tile",
+}: {
+  items: Array<MetricItem>
+  variant?: "tile" | "row"
+}) {
+  if (variant === "row") {
+    return (
+      <View style={{ borderRadius: 8, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: "#edf2f7", overflow: "hidden" }}>
+        {items.map((item, index) => (
+          <MetricRowItem key={item.label} item={item} isLast={index === items.length - 1} />
+        ))}
+      </View>
+    )
+  }
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
       {items.map((item) => (
-        <View key={item.label} style={{ flexGrow: 1, flexBasis: "42%", minHeight: 82, borderRadius: 8, backgroundColor: colors.surfaceMuted, padding: 11, justifyContent: "space-between", borderWidth: 1, borderColor: "#edf2f7" }}>
-          <Text style={{ color: colors.muted, fontSize: 13, fontFamily: fonts.medium }}>{item.label}</Text>
-          <Text selectable adjustsFontSizeToFit numberOfLines={1} style={{ color: item.color, fontSize: 21, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
-        </View>
+        <MetricTileItem key={item.label} item={item} />
       ))}
+    </View>
+  )
+}
+
+function MetricTileItem({ item }: { item: MetricItem }) {
+  const interactive = !!item.onPress
+  const tile = (pressed: boolean) => (
+    <View style={{ flexGrow: 1, flexBasis: "42%", minHeight: 82, borderRadius: 8, backgroundColor: pressed ? "#eef2f7" : colors.surfaceMuted, padding: 11, justifyContent: "space-between", borderWidth: 1, borderColor: "#edf2f7" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+        <Text numberOfLines={1} style={{ flex: 1, color: colors.muted, fontSize: 13, fontFamily: fonts.medium }}>{item.label}</Text>
+        {item.badge && item.badge > 0 ? <MetricBadge value={item.badge} /> : interactive ? <AppIcon name="chevron.right" size={14} color={colors.faint} /> : null}
+      </View>
+      <Text selectable adjustsFontSizeToFit numberOfLines={1} style={{ color: item.color, fontSize: 21, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
+    </View>
+  )
+  if (interactive) {
+    return (
+      <Pressable
+        focusable={false}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.label}. ${item.value}`}
+        onPress={item.onPress}
+        style={{ flexGrow: 1, flexBasis: "42%" }}
+      >
+        {({ pressed }) => tile(pressed)}
+      </Pressable>
+    )
+  }
+  return tile(false)
+}
+
+function MetricRowItem({ item, isLast }: { item: MetricItem; isLast: boolean }) {
+  const interactive = !!item.onPress
+  const row = (pressed: boolean) => (
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        minHeight: 44,
+        borderBottomWidth: isLast ? 0 : 1,
+        borderBottomColor: colors.border,
+        backgroundColor: pressed ? "#eef2f7" : "transparent",
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+        <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.medium }}>{item.label}</Text>
+        {item.badge && item.badge > 0 ? <MetricBadge value={item.badge} /> : null}
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Text selectable numberOfLines={1} style={{ color: item.color, fontSize: 16, fontFamily: fonts.black, fontWeight: "900", fontVariant: ["tabular-nums"] }}>{item.value}</Text>
+        {interactive ? <AppIcon name="chevron.right" size={14} color={colors.faint} /> : null}
+      </View>
+    </View>
+  )
+  if (interactive) {
+    return (
+      <Pressable
+        focusable={false}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.label}. ${item.value}`}
+        onPress={item.onPress}
+      >
+        {({ pressed }) => row(pressed)}
+      </Pressable>
+    )
+  }
+  return row(false)
+}
+
+function MetricBadge({ value }: { value: number }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: colors.red,
+        paddingHorizontal: 5,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ color: "#ffffff", fontSize: 11, fontFamily: fonts.black, fontWeight: "900" }}>
+        {value > 99 ? "99+" : String(value)}
+      </Text>
     </View>
   )
 }
@@ -593,21 +705,79 @@ export function TabLoading({ error, loading }: { error?: string | null; loading?
   return <SkeletonList />
 }
 
-export function SkeletonList() {
+function usePulseOpacity() {
+  const opacity = useRef(new Animated.Value(0.45)).current
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.85,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.45,
+          duration: 700,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    )
+    loop.start()
+    return () => {
+      loop.stop()
+    }
+  }, [opacity])
+
+  return opacity
+}
+
+export function SkeletonRow({ width = "100%", height = 14 }: { width?: number | `${number}%` | "auto"; height?: number }) {
+  const opacity = usePulseOpacity()
+  return (
+    <Animated.View
+      style={{
+        height,
+        width: width as Animated.WithAnimatedValue<number | `${number}%` | "auto">,
+        backgroundColor: "#e2e8f0",
+        borderRadius: 4,
+        opacity,
+      }}
+    />
+  )
+}
+
+export function CardSkeleton({ rows = 3 }: { rows?: number }) {
+  const widths: Array<`${number}%`> = ["60%", "85%", "55%", "70%", "45%"]
+  return (
+    <Card>
+      <SkeletonRow width="50%" height={16} />
+      {Array.from({ length: Math.max(0, rows - 1) }).map((_, index) => (
+        <SkeletonRow key={index} width={widths[index % widths.length]} height={12} />
+      ))}
+    </Card>
+  )
+}
+
+export function SkeletonList({ count = 3 }: { count?: number } = {}) {
+  const opacity = usePulseOpacity()
+  const items = Array.from({ length: count }, (_, index) => index)
   return (
     <>
-      {[0, 1, 2].map((item) => (
+      {items.map((item) => (
         <Card key={item}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: "#e2e8f0" }} />
+            <Animated.View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: "#e2e8f0", opacity }} />
             <View style={{ flex: 1, gap: 8 }}>
-              <View style={{ height: 16, width: "70%", borderRadius: 8, backgroundColor: "#e2e8f0" }} />
-              <View style={{ height: 12, width: "45%", borderRadius: 8, backgroundColor: "#eef2f7" }} />
+              <Animated.View style={{ height: 16, width: "70%", borderRadius: 8, backgroundColor: "#e2e8f0", opacity }} />
+              <Animated.View style={{ height: 12, width: "45%", borderRadius: 8, backgroundColor: "#eef2f7", opacity }} />
             </View>
           </View>
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <View style={{ flex: 1, height: 68, borderRadius: 8, backgroundColor: "#f1f5f9" }} />
-            <View style={{ flex: 1, height: 68, borderRadius: 8, backgroundColor: "#f1f5f9" }} />
+            <Animated.View style={{ flex: 1, height: 68, borderRadius: 8, backgroundColor: "#f1f5f9", opacity }} />
+            <Animated.View style={{ flex: 1, height: 68, borderRadius: 8, backgroundColor: "#f1f5f9", opacity }} />
           </View>
         </Card>
       ))}
@@ -792,7 +962,14 @@ export function FlatListPage<T>({
         alignSelf,
       }}
       refreshControl={
-        onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined
+        onRefresh ? (
+          <RefreshControl
+            refreshing={!!refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.blue}
+            colors={[colors.blue, colors.teal]}
+          />
+        ) : undefined
       }
       contentInsetAdjustmentBehavior="automatic"
       initialNumToRender={initialNumToRender}

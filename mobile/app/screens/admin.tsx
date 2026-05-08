@@ -150,6 +150,7 @@ export function AdminTenants({ payload, buildingId, onNavigate, virtualization }
       <SectionTitle title={buildingId ? "Арендаторы объекта" : "Арендаторы"} />
       <Card>
         <MetricGrid
+          variant="row"
           items={[
             { label: "Найдено", value: String(localPayload.counters.total), color: colors.blue },
             { label: "Загружено", value: String(localPayload.data.length), color: colors.teal },
@@ -250,11 +251,17 @@ export function AdminTenantDetail({ tenant, detail, onNavigate }: { tenant: Admi
         </View>
         <Text selectable style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{tenant.placement}</Text>
         <MetricGrid
+          variant="row"
           items={[
             { label: "Занимает", value: formatArea(tenant.area), color: colors.slate },
             { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
             { label: "К оплате до", value: `${tenant.paymentDueDay} числа`, color: colors.teal },
-            { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
+            {
+              label: "Долг",
+              value: formatMoney(tenant.totalDebt),
+              color: tenant.totalDebt > 0 ? colors.red : colors.green,
+              onPress: () => onNavigate("payments"),
+            },
           ]}
         />
       </Card>
@@ -780,11 +787,35 @@ export function AdminToday({ payload, notices, bootstrap, onChanged, onNavigate 
       <SectionTitle title="Сегодня" />
       <Card>
         <MetricGrid
+          variant="row"
           items={[
-            { label: "Заявки", value: String(payload.counters.openRequests), color: colors.blue },
-            { label: "Срочные", value: String(payload.counters.urgentRequests), color: colors.red },
-            { label: "Оплаты", value: String(payload.counters.pendingPayments), color: colors.green },
-            { label: "Долг", value: formatMoney(payload.counters.overdueAmount), color: colors.orange },
+            {
+              label: "Открытые заявки",
+              value: String(payload.counters.openRequests),
+              color: colors.blue,
+              onPress: () => onNavigate("requests"),
+              badge: payload.counters.openRequests,
+            },
+            {
+              label: "Срочные заявки",
+              value: String(payload.counters.urgentRequests),
+              color: colors.red,
+              onPress: () => onNavigate("requests"),
+              badge: payload.counters.urgentRequests,
+            },
+            {
+              label: "Оплаты на проверке",
+              value: String(payload.counters.pendingPayments),
+              color: colors.green,
+              onPress: () => onNavigate("payments"),
+              badge: payload.counters.pendingPayments,
+            },
+            {
+              label: "Просроченный долг",
+              value: formatMoney(payload.counters.overdueAmount),
+              color: payload.counters.overdueAmount > 0 ? colors.orange : colors.green,
+              onPress: () => onNavigate("payments"),
+            },
           ]}
         />
       </Card>

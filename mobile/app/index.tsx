@@ -481,7 +481,14 @@ function Dashboard({
       ) : (
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.blue}
+              colors={[colors.blue, colors.teal]}
+            />
+          }
           contentContainerStyle={{ padding: 16, paddingBottom: tabsHeight + 16, gap: 14, maxWidth: containerMaxWidth, alignSelf: containerAlignSelf }}
         >
           {pageHeader}

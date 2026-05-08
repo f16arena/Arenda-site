@@ -66,8 +66,14 @@ export function NotificationsScreen({
       <SectionTitle title="Уведомления" />
       <Card>
         <MetricGrid
+          variant="row"
           items={[
-            { label: "Новые", value: String(payload.unreadCount), color: payload.unreadCount > 0 ? colors.orange : colors.green },
+            {
+              label: "Новые",
+              value: String(payload.unreadCount),
+              color: payload.unreadCount > 0 ? colors.orange : colors.green,
+              badge: payload.unreadCount,
+            },
             { label: "Всего", value: String(payload.data.length), color: colors.blue },
             { label: "Объявления", value: String(notices.length), color: colors.teal },
             { label: "Типы", value: String(settings.settings.eventTypes.length), color: colors.slate },
