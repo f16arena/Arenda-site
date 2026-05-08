@@ -618,6 +618,9 @@ model Charge {
   @@index([tenantId, isPaid, dueDate])
   @@index([tenantId, period, type])
   @@index([dueDate])
+  // Календарь / dashboard часто фильтруют { tenantId, dueDate: { gte, lt } } без isPaid —
+  // существующий [tenantId, isPaid, dueDate] для этого пути теряет dueDate-селективность.
+  @@index([tenantId, dueDate])
   @@map("charges")
 }
 
@@ -1019,6 +1022,10 @@ model GeneratedDocument {
   @@index([organizationId, period])
   @@index([tenantId])
   @@index([tenantId, generatedAt])
+  // Mobile + cabinet часто запрашивают { organizationId, tenantId } для документов
+  // конкретного арендатора — отдельный индекс на (tenantId) есть, но composite быстрее
+  // когда запрос ещё и фильтрует по organizationId.
+  @@index([organizationId, tenantId])
   @@map("generated_documents")
 }
 
