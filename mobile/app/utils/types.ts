@@ -17,6 +17,13 @@ import type {
   TenantOverview,
   TenantRequestsPayload,
 } from "@/types/mobile"
+import type { TenantAdminContact, TenantMessageDto } from "@/lib/api"
+
+export type TenantMessagesPayload = {
+  unread: number
+  admins: TenantAdminContact[]
+  data: TenantMessageDto[]
+}
 
 export type AppData = {
   notices: BuildingNotice[]
@@ -25,6 +32,7 @@ export type AppData = {
   tenantRequests: TenantRequestsPayload | null
   tenantMeters: TenantMetersPayload | null
   tenantDocuments: TenantDocumentsPayload | null
+  tenantMessages: TenantMessagesPayload | null
   adminToday: AdminTodayPayload | null
   adminRequests: AdminRequestsPayload | null
   adminPayments: AdminPaymentReportsPayload | null
@@ -44,6 +52,7 @@ export const emptyData: AppData = {
   tenantRequests: null,
   tenantMeters: null,
   tenantDocuments: null,
+  tenantMessages: null,
   adminToday: null,
   adminRequests: null,
   adminPayments: null,
@@ -108,6 +117,7 @@ export function hasTabData(data: AppData, role: string, tabKey: string, tabParam
     if (tabKey === "requests") return !!data.tenantRequests
     if (tabKey === "meters") return !!data.tenantMeters
     if (tabKey === "documents") return !!data.tenantDocuments
+    if (tabKey === "messages") return !!data.tenantMessages
     return true
   }
 

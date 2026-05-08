@@ -821,6 +821,28 @@ export function TenantMessages() {
 
 function MessageBubble({ message }: { message: TenantMessageDto }) {
   const isOut = message.direction === "out"
+  const [attachmentBusy, setAttachmentBusy] = useState(false)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
+
+  async function openAttachment() {
+    if (!message.attachmentUrl || attachmentBusy) return
+    setAttachmentBusy(true)
+    setAttachmentError(null)
+    try {
+      const title = message.subject || `Вложение от ${message.from.name}`
+      const file = await downloadAuthorizedFile(message.attachmentUrl, title)
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: file.mimeType, dialogTitle: title })
+      } else {
+        await Linking.openURL(file.uri)
+      }
+    } catch (e) {
+      setAttachmentError(e instanceof Error ? e.message : "Не удалось открыть вложение")
+    } finally {
+      setAttachmentBusy(false)
+    }
+  }
+
   return (
     <View style={{ alignItems: isOut ? "flex-end" : "flex-start" }}>
       <View
@@ -871,6 +893,47 @@ function MessageBubble({ message }: { message: TenantMessageDto }) {
         >
           {message.body}
         </Text>
+        {message.attachmentUrl ? (
+          <Pressable
+            onPress={openAttachment}
+            disabled={attachmentBusy}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              alignSelf: "flex-start",
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              marginTop: 2,
+              borderRadius: 8,
+              backgroundColor: isOut ? "rgba(255,255,255,0.15)" : colors.surface,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Text style={{ fontSize: 14 }}>📎</Text>
+            <Text
+              style={{
+                color: isOut ? "#ffffff" : colors.blue,
+                fontSize: 13,
+                fontFamily: fonts.medium,
+                fontWeight: "600",
+              }}
+            >
+              {attachmentBusy ? "Скачиваем..." : "Открыть вложение"}
+            </Text>
+          </Pressable>
+        ) : null}
+        {attachmentError ? (
+          <Text
+            style={{
+              color: isOut ? "#fecaca" : colors.red,
+              fontSize: 11,
+              fontFamily: fonts.medium,
+            }}
+          >
+            {attachmentError}
+          </Text>
+        ) : null}
         <Text
           style={{
             color: isOut ? "#ffffff" : colors.muted,

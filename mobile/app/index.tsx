@@ -68,6 +68,7 @@ import {
   getTenantDocuments,
   getTenantFinances,
   getTenantMeters,
+  getTenantMessages,
   getTenantOverview,
   getTenantRequests,
   hasStoredSession,
@@ -119,6 +120,7 @@ export default function HomeScreen() {
       const [
         notices,
         tenantOverview,
+        tenantMessages,
         adminToday,
         ownerOverview,
         notifications,
@@ -126,6 +128,9 @@ export default function HomeScreen() {
       ] = await Promise.all([
         getBuildingNotices(),
         isTenant ? getTenantOverview() : Promise.resolve(null),
+        // Прелоад unread-счётчика сообщений арендатора, чтобы badge на табе
+        // показывался сразу при старте, а не после первого захода в раздел.
+        isTenant ? getTenantMessages().catch(() => null) : Promise.resolve(null),
         isStaff ? getAdminToday() : Promise.resolve(null),
         isOwner ? getOwnerOverview() : Promise.resolve(null),
         getMobileNotifications(),
@@ -139,6 +144,7 @@ export default function HomeScreen() {
         tenantRequests: null,
         tenantMeters: null,
         tenantDocuments: null,
+        tenantMessages,
         adminToday,
         adminRequests: null,
         adminPayments: null,
@@ -217,6 +223,7 @@ export default function HomeScreen() {
         else if (tabKey === "requests") patch = { tenantRequests: await getTenantRequests() }
         else if (tabKey === "meters") patch = { tenantMeters: await getTenantMeters() }
         else if (tabKey === "documents") patch = { tenantDocuments: await getTenantDocuments() }
+        else if (tabKey === "messages") patch = { tenantMessages: await getTenantMessages() }
       } else {
         if (tabKey === "tenant" && tabParam) {
           const detail = await getAdminTenantDetail(tabParam)
@@ -429,11 +436,16 @@ function Dashboard({
   const [tabsHeight, setTabsHeight] = useState(80)
 
   const unreadNotifications = data.notifications?.unreadCount ?? 0
-  const tabsWithBadge = tabs.map((tab) =>
-    tab.key === "notifications" && unreadNotifications > 0
-      ? { ...tab, badge: unreadNotifications }
-      : tab,
-  )
+  const unreadMessages = data.tenantMessages?.unread ?? 0
+  const tabsWithBadge = tabs.map((tab) => {
+    if (tab.key === "notifications" && unreadNotifications > 0) {
+      return { ...tab, badge: unreadNotifications }
+    }
+    if (tab.key === "messages" && unreadMessages > 0) {
+      return { ...tab, badge: unreadMessages }
+    }
+    return tab
+  })
 
   const [tabKey] = safeTab.split(":")
   const VIRTUALIZED_TABS = new Set(["tenants", "documents", "requests"])
