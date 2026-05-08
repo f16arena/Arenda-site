@@ -591,16 +591,24 @@ model Contract {
   changePayload      Json?     @map("change_payload")
   effectiveDate      DateTime? @map("effective_date")
   appliedAt          DateTime? @map("applied_at")
+  // Версионирование: при создании новой версии контракт-предок переходит в ARCHIVED,
+  // а на новой записи version = parent.version + 1, parentVersionId указывает на источник.
+  version            Int       @default(1)
+  parentVersionId    String?   @map("parent_version_id")
   createdAt          DateTime  @default(now()) @map("created_at")
   deletedAt          DateTime? @map("deleted_at")
 
   tenant         Tenant     @relation(fields: [tenantId], references: [id])
   parentContract Contract?  @relation("ContractAddenda", fields: [parentContractId], references: [id], onDelete: SetNull)
   addenda        Contract[] @relation("ContractAddenda")
+  parentVersion  Contract?  @relation("ContractVersions", fields: [parentVersionId], references: [id], onDelete: SetNull)
+  versions       Contract[] @relation("ContractVersions")
+  charges        Charge[]
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, type, status, createdAt])
   @@index([parentContractId])
+  @@index([parentVersionId])
   @@index([changeKind, appliedAt])
   @@index([deletedAt])
   @@map("contracts")
@@ -609,6 +617,10 @@ model Contract {
 model Charge {
   id          String    @id @default(cuid())
   tenantId    String    @map("tenant_id")
+  // Опциональная связь с контрактом-источником начисления. При расторжении/архивации
+  // договора charge не удаляется (исторические данные нужны для отчётов), просто
+  // contractId зануляется (ON DELETE SET NULL).
+  contractId  String?   @map("contract_id")
   period      String
   type        String
   amount      Float
@@ -618,7 +630,8 @@ model Charge {
   createdAt   DateTime  @default(now()) @map("created_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, isPaid, dueDate])
   @@index([tenantId, period, type])
@@ -626,6 +639,7 @@ model Charge {
   // Календарь / dashboard часто фильтруют { tenantId, dueDate: { gte, lt } } без isPaid —
   // существующий [tenantId, isPaid, dueDate] для этого пути теряет dueDate-селективность.
   @@index([tenantId, dueDate])
+  @@index([contractId])
   @@index([deletedAt])
   // Unique constraint via migration 020 (partial index, WHERE deleted_at IS NULL).
   // Prisma `@@unique` не поддерживает partial — добавляем raw SQL чтобы

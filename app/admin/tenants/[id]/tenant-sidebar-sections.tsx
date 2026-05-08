@@ -1,6 +1,7 @@
 import { FileText, Receipt } from "lucide-react"
 
 import { ContractWorkflowActions } from "./contract-actions"
+import { ContractVersionButton } from "./contract-version-button"
 import { db } from "@/lib/db"
 import { safeServerValue } from "@/lib/server-fallback"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
@@ -32,6 +33,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
           signedByTenantAt: true,
           signedByLandlordAt: true,
           signToken: true,
+          version: true,
         },
       }),
       [],
@@ -55,6 +57,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
             SIGNED_BY_TENANT: { label: "Ждет нашей подписи", cls: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
             SIGNED: { label: "Подписан", cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" },
             REJECTED: { label: "Отклонен", cls: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" },
+            ARCHIVED: { label: "Архив", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-500" },
           }
           const status = statusLabels[contract.status] ?? {
             label: contract.status,
@@ -67,6 +70,9 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   {docLabel} № {contract.number}
+                  {contract.version > 1 && (
+                    <span className="ml-1.5 text-[10px] font-normal text-slate-400 dark:text-slate-500">v{contract.version}</span>
+                  )}
                 </p>
                 <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${status.cls}`}>
                   {status.label}
@@ -88,8 +94,17 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
                     : "Изменения вступят только после подписи"}
                 </p>
               )}
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-3">
                 <ContractWorkflowActions contract={contract} />
+                {contract.type !== "ADDENDUM" && contract.status !== "ARCHIVED" && (
+                  <ContractVersionButton
+                    contractId={contract.id}
+                    contractNumber={contract.number}
+                    currentVersion={contract.version}
+                    defaultStartDate={contract.startDate ? contract.startDate.toISOString().slice(0, 10) : null}
+                    defaultEndDate={contract.endDate ? contract.endDate.toISOString().slice(0, 10) : null}
+                  />
+                )}
               </div>
             </div>
           )

@@ -37,6 +37,14 @@ export async function GET(req: Request) {
         where: { period: { in: [period, previousPeriod] }, type: "RENT" },
         select: { id: true, period: true },
       },
+      // Активный договор (SIGNED) — нужен чтобы привязать новые charges к контракту.
+      // Берём самый свежий: версия N важнее, при равных datestap — последняя.
+      contracts: {
+        where: { status: "SIGNED", deletedAt: null },
+        orderBy: [{ version: "desc" }, { signedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: { id: true },
+      },
     },
   })
 
@@ -69,6 +77,7 @@ export async function GET(req: Request) {
 
         const placement = formatTenantPlacement(tenant)
         const dueDate = rentSchedule.dueDate
+        const activeContractId = tenant.contracts[0]?.id ?? null
 
         // try/catch P2002: partial unique index из миграции 020 защищает от
         // одновременного запуска cron + ручной generateMonthlyCharges.
@@ -77,6 +86,7 @@ export async function GET(req: Request) {
           await db.charge.create({
             data: {
               tenantId: tenant.id,
+              contractId: activeContractId,
               period: chargePeriod,
               type: "RENT",
               amount: rentSchedule.amount,
@@ -99,6 +109,7 @@ export async function GET(req: Request) {
             await db.charge.create({
               data: {
                 tenantId: tenant.id,
+                contractId: activeContractId,
                 period: chargePeriod,
                 type: "CLEANING",
                 amount: tenant.cleaningFee,

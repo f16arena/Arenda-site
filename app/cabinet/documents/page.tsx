@@ -2,7 +2,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { FileText, Upload } from "lucide-react"
+import { FileText, Printer, Receipt, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 
 export default async function CabinetDocuments() {
@@ -49,6 +49,36 @@ export default async function CabinetDocuments() {
         <DocumentStat label="Ожидают подписи" value={pendingSignatureCount} tone="amber" />
         <DocumentStat label="Подписаны" value={signedContractsCount} tone="emerald" />
         <DocumentStat label="Мои файлы" value={tenant.documents.length} tone="blue" />
+      </div>
+
+      {/* Документы для печати */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы для печати</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Сформируйте и распечатайте счёт, акт сверки или реквизиты прямо из кабинета.
+          </p>
+        </div>
+        <div className="grid gap-3 p-5 sm:grid-cols-3">
+          <PrintLink
+            href="/cabinet/documents/print/invoice"
+            title="Счёт-фактура"
+            description="Счёт на оплату по открытым начислениям за текущий период."
+            icon={<Receipt className="h-4 w-4" />}
+          />
+          <PrintLink
+            href="/cabinet/documents/print/reconciliation"
+            title="Акт сверки"
+            description="Сверка взаиморасчётов за выбранный период."
+            icon={<FileText className="h-4 w-4" />}
+          />
+          <PrintLink
+            href="/cabinet/documents/print/requisites"
+            title="Реквизиты для оплаты"
+            description="БИН, ИИК, БИК арендодателя, сумма к оплате, QR-код Kaspi."
+            icon={<Wallet className="h-4 w-4" />}
+          />
+        </div>
       </div>
 
       {/* Contracts */}
@@ -141,6 +171,27 @@ export default async function CabinetDocuments() {
         )}
       </div>
     </div>
+  )
+}
+
+function PrintLink({ href, title, description, icon }: { href: string; title: string; description: string; icon: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 hover:border-blue-300 dark:hover:border-blue-500/40 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-colors"
+    >
+      <div className="flex items-center gap-2">
+        <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+          {icon}
+        </div>
+        <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{title}</span>
+      </div>
+      <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">{description}</p>
+      <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 group-hover:underline">
+        <Printer className="h-3 w-3" />
+        Открыть для печати
+      </span>
+    </Link>
   )
 }
 
