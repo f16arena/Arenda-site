@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Linking, Pressable, Text, TextInput, View } from "react-native"
+import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, TextInput, View } from "react-native"
 import * as Sharing from "expo-sharing"
 import {
   createTenantRequest,
@@ -166,17 +166,22 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
         ))}
         <Text selectable style={{ color: colors.muted, fontSize: 12 }}>Назначение: {finances.summary.paymentPurpose}</Text>
       </Card>
-      <Card>
-        <Field label="Сумма" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
-        <ChoiceRow options={[["KASPI", "Kaspi"], ["TRANSFER", "Банк"], ["CASH", "Нал."], ["CARD", "Карта"]]} value={method} onChange={setMethod} />
-        <Field label="Комментарий" value={note} onChangeText={setNote} placeholder="Номер чека или коротко" multiline />
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <SecondaryButton title={receipt ? receipt.name : "Прикрепить чек"} icon="paperclip" onPress={async () => setReceipt(await pickUploadFile("receipt"))} />
-          {receipt ? <SecondaryButton title="Убрать" icon="xmark" onPress={() => setReceipt(null)} /> : null}
-        </View>
-        {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
-        <PrimaryButton title={busy ? "Отправляем..." : "Я оплатил"} disabled={busy || !amount.trim()} onPress={submit} />
-      </Card>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+      >
+        <Card>
+          <Field label="Сумма" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+          <ChoiceRow options={[["KASPI", "Kaspi"], ["TRANSFER", "Банк"], ["CASH", "Нал."], ["CARD", "Карта"]]} value={method} onChange={setMethod} />
+          <Field label="Комментарий" value={note} onChangeText={setNote} placeholder="Номер чека или коротко" multiline />
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            <SecondaryButton title={receipt ? receipt.name : "Прикрепить чек"} icon="paperclip" onPress={async () => setReceipt(await pickUploadFile("receipt"))} />
+            {receipt ? <SecondaryButton title="Убрать" icon="xmark" onPress={() => setReceipt(null)} /> : null}
+          </View>
+          {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
+          <PrimaryButton title={busy ? "Отправляем..." : "Я оплатил"} disabled={busy || !amount.trim()} onPress={submit} />
+        </Card>
+      </KeyboardAvoidingView>
       <SectionTitle title="История" />
       <Card>
         {finances.paymentReports.slice(0, 8).map((report) => (
@@ -223,18 +228,23 @@ export function TenantRequests({ requests, onChanged }: { requests: TenantReques
   return (
     <>
       <SectionTitle title="Новая заявка" />
-      <Card>
-        <ChoiceRow options={[["TECHNICAL", "Техника"], ["INTERNET", "Интернет"], ["CLEANING", "Уборка"], ["QUESTION", "Вопрос"]]} value={type} onChange={setType} />
-        <ChoiceRow options={[["MEDIUM", "Обычная"], ["HIGH", "Срочно"], ["URGENT", "Критично"]]} value={priority} onChange={setPriority} />
-        <Field label="Тема" value={title} onChangeText={setTitle} placeholder="Например: не работает свет" />
-        <Field label="Описание" value={description} onChangeText={setDescription} placeholder="Где и что произошло" multiline />
-        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-          <SecondaryButton title={attachment ? attachment.name : "Фото/файл"} icon="camera.fill" onPress={async () => setAttachment(await pickUploadFile("request"))} />
-          {attachment ? <SecondaryButton title="Убрать" icon="xmark" onPress={() => setAttachment(null)} /> : null}
-        </View>
-        {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
-        <PrimaryButton title={busy ? "Создаем..." : "Создать заявку"} disabled={busy || title.trim().length < 3 || description.trim().length < 5} onPress={submit} />
-      </Card>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+      >
+        <Card>
+          <ChoiceRow options={[["TECHNICAL", "Техника"], ["INTERNET", "Интернет"], ["CLEANING", "Уборка"], ["QUESTION", "Вопрос"]]} value={type} onChange={setType} />
+          <ChoiceRow options={[["MEDIUM", "Обычная"], ["HIGH", "Срочно"], ["URGENT", "Критично"]]} value={priority} onChange={setPriority} />
+          <Field label="Тема" value={title} onChangeText={setTitle} placeholder="Например: не работает свет" />
+          <Field label="Описание" value={description} onChangeText={setDescription} placeholder="Где и что произошло" multiline />
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+            <SecondaryButton title={attachment ? attachment.name : "Фото/файл"} icon="camera.fill" onPress={async () => setAttachment(await pickUploadFile("request"))} />
+            {attachment ? <SecondaryButton title="Убрать" icon="xmark" onPress={() => setAttachment(null)} /> : null}
+          </View>
+          {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
+          <PrimaryButton title={busy ? "Создаем..." : "Создать заявку"} disabled={busy || title.trim().length < 3 || description.trim().length < 5} onPress={submit} />
+        </Card>
+      </KeyboardAvoidingView>
       <SectionTitle title="Мои заявки" />
       <RequestList requests={requests.data} />
     </>
@@ -273,27 +283,32 @@ function MeterCard({ meter, period, onChanged }: { meter: TenantMetersPayload["d
   }
 
   return (
-    <Card>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <IconBox icon="gauge.with.dots.needle.50percent" color={meter.type === "WATER" ? colors.blue : colors.orange} />
-        <View style={{ flex: 1 }}>
-          <Text selectable style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{meter.type} #{meter.number}</Text>
-          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>Каб. {meter.space.number} · предыдущее {meter.previousValue.toLocaleString("ru-RU")}</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+    >
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <IconBox icon="gauge.with.dots.needle.50percent" color={meter.type === "WATER" ? colors.blue : colors.orange} />
+          <View style={{ flex: 1 }}>
+            <Text selectable style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{meter.type} #{meter.number}</Text>
+            <Text selectable style={{ color: colors.muted, fontSize: 12 }}>Каб. {meter.space.number} · предыдущее {meter.previousValue.toLocaleString("ru-RU")}</Text>
+          </View>
+          {meter.hasCurrent ? <StatusPill label="Внесено" color={colors.green} /> : null}
         </View>
-        {meter.hasCurrent ? <StatusPill label="Внесено" color={colors.green} /> : null}
-      </View>
-      {meter.hasCurrent ? (
-        <Text selectable style={{ color: colors.muted, fontSize: 13 }}>Текущее: {meter.currentValue?.toLocaleString("ru-RU")} · расход: {meter.consumption?.toLocaleString("ru-RU")}</Text>
-      ) : (
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder="Текущее" placeholderTextColor="#94a3b8" style={{ flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, color: colors.text }} />
-          <Pressable focusable={false} accessibilityRole="button" accessibilityLabel="Отправить показание" accessibilityState={{ disabled: busy || !value.trim() }} disabled={busy || !value.trim()} onPress={submit} style={{ minHeight: 44, borderRadius: 8, paddingHorizontal: 16, backgroundColor: colors.teal, alignItems: "center", justifyContent: "center", opacity: busy ? 0.7 : 1 }}>
-            <Text style={{ color: "#ffffff", fontWeight: "900" }}>ОК</Text>
-          </Pressable>
-        </View>
-      )}
-      {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
-    </Card>
+        {meter.hasCurrent ? (
+          <Text selectable style={{ color: colors.muted, fontSize: 13 }}>Текущее: {meter.currentValue?.toLocaleString("ru-RU")} · расход: {meter.consumption?.toLocaleString("ru-RU")}</Text>
+        ) : (
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder="Текущее" placeholderTextColor="#94a3b8" style={{ flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, color: colors.text }} />
+            <Pressable focusable={false} accessibilityRole="button" accessibilityLabel="Отправить показание" accessibilityState={{ disabled: busy || !value.trim() }} disabled={busy || !value.trim()} onPress={submit} style={{ minHeight: 44, borderRadius: 8, paddingHorizontal: 16, backgroundColor: colors.teal, alignItems: "center", justifyContent: "center", opacity: busy ? 0.7 : 1 }}>
+              <Text style={{ color: "#ffffff", fontWeight: "900" }}>ОК</Text>
+            </Pressable>
+          </View>
+        )}
+        {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
+      </Card>
+    </KeyboardAvoidingView>
   )
 }
 

@@ -1,6 +1,8 @@
 import * as Notifications from "expo-notifications"
-import { useEffect, useState } from "react"
+import * as Network from "expo-network"
+import { useEffect, useRef, useState } from "react"
 import { RefreshControl, ScrollView, useWindowDimensions, View } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { colors, tabForNotification } from "@/app/utils/colors"
 import {
   type AppData,
@@ -287,6 +289,9 @@ export default function HomeScreen() {
     }
   }
 
+  const refreshRef = useRef(refresh)
+  refreshRef.current = refresh
+
   async function onLoggedIn() {
     setAuthError(null)
     try {
@@ -322,6 +327,24 @@ export default function HomeScreen() {
     if (!bootstrap) return
     loadTabData(activeTab).catch(() => null)
   }, [bootstrap?.user.id, activeTab])
+
+  useEffect(() => {
+    if (!bootstrap) return
+    let prevConnected = true
+    const interval = setInterval(async () => {
+      try {
+        const state = await Network.getNetworkStateAsync()
+        const isConnected = state.isConnected ?? true
+        if (!prevConnected && isConnected) {
+          refreshRef.current().catch(() => null)
+        }
+        prevConnected = isConnected
+      } catch {
+        // ignore
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [bootstrap?.user.id])
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -401,21 +424,29 @@ function Dashboard({
   const safeTab = activeTab || tabs[0]?.key || "home"
   const navigate = (tab: string) => setActiveTab(tab)
   const backTarget = backTargetForTab(safeTab)
+  const [tabsHeight, setTabsHeight] = useState(80)
+
+  const unreadNotifications = data.notifications?.unreadCount ?? 0
+  const tabsWithBadge = tabs.map((tab) =>
+    tab.key === "notifications" && unreadNotifications > 0
+      ? { ...tab, badge: unreadNotifications }
+      : tab,
+  )
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: 108, gap: 14, maxWidth: width >= 900 ? 860 : undefined, alignSelf: width >= 900 ? "center" : "stretch" }}
+        contentContainerStyle={{ padding: 16, paddingBottom: tabsHeight + 16, gap: 14, maxWidth: width >= 900 ? 860 : undefined, alignSelf: width >= 900 ? "center" : "stretch" }}
       >
         {backTarget ? <BackButton onPress={() => navigate(backTarget)} /> : null}
         <HeaderCard bootstrap={bootstrap} onLogout={onLogout} />
         {cacheState.fromCache ? <OfflineBanner savedAt={cacheState.savedAt} error={cacheState.error} /> : null}
         <TabContent role={role} tab={safeTab} bootstrap={bootstrap} data={data} loadingTabs={loadingTabs} tabErrors={tabErrors} onChanged={onRefresh} onNavigate={navigate} />
       </ScrollView>
-      <BottomTabs tabs={tabs} activeTab={safeTab} onChange={navigate} />
-    </View>
+      <BottomTabs tabs={tabsWithBadge} activeTab={safeTab} onChange={navigate} onLayout={(e) => setTabsHeight(e.nativeEvent.layout.height)} />
+    </SafeAreaView>
   )
 }
 

@@ -90,6 +90,7 @@ export function AdminTenants({ payload, buildingId, onNavigate }: { payload: Adm
   const [query, setQuery] = useState("")
   const [localPayload, setLocalPayload] = useState(payload)
   const [busy, setBusy] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const skipFirstSearch = useRef(true)
 
@@ -103,8 +104,9 @@ export function AdminTenants({ payload, buildingId, onNavigate }: { payload: Adm
       return
     }
 
+    setIsSearching(true)
     const timer = setTimeout(() => {
-      fetchPage({ reset: true }).catch(() => null)
+      fetchPage({ reset: true }).finally(() => setIsSearching(false))
     }, 360)
     return () => clearTimeout(timer)
   }, [query])
@@ -144,7 +146,7 @@ export function AdminTenants({ payload, buildingId, onNavigate }: { payload: Adm
             { label: "Долг", value: formatMoney(localPayload.counters.debtAmount), color: localPayload.counters.debtAmount > 0 ? colors.orange : colors.green },
           ]}
         />
-        <SearchField value={query} onChangeText={setQuery} placeholder="Название, БИН, кабинет" />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Название, БИН, кабинет" loading={isSearching} />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
       {localPayload.data.length === 0 && !busy ? <EmptyState title="Арендаторы не найдены" /> : null}
@@ -363,6 +365,7 @@ export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { 
   const [stage, setStage] = useState("ALL")
   const [localPayload, setLocalPayload] = useState(payload)
   const [busy, setBusy] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const skipFirstFilters = useRef(true)
   const skipFirstQuery = useRef(true)
@@ -385,8 +388,9 @@ export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { 
       return
     }
 
+    setIsSearching(true)
     const timer = setTimeout(() => {
-      fetchPage({ reset: true }).catch(() => null)
+      fetchPage({ reset: true }).finally(() => setIsSearching(false))
     }, 360)
     return () => clearTimeout(timer)
   }, [query])
@@ -472,7 +476,7 @@ export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { 
           value={stage}
           onChange={setStage}
         />
-        <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, номер, период" />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, номер, период" loading={isSearching} />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
       {showSignatureSection ? (
