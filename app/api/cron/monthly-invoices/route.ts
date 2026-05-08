@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
+import { isUniqueConstraintError } from "@/lib/prisma-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -69,31 +70,50 @@ export async function GET(req: Request) {
         const placement = formatTenantPlacement(tenant)
         const dueDate = rentSchedule.dueDate
 
-        await db.charge.create({
-          data: {
-            tenantId: tenant.id,
-            period: chargePeriod,
-            type: "RENT",
-            amount: rentSchedule.amount,
-            description: getTenantRentChargeDescription(placement, chargePeriod, rentSchedule),
-            dueDate,
-          },
-        })
-        results.rentCreated++
-        existingRentPeriods.add(chargePeriod)
-
-        if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+        // try/catch P2002: partial unique index из миграции 020 защищает от
+        // одновременного запуска cron + ручной generateMonthlyCharges.
+        // Если ручной запуск опередил — просто пропускаем.
+        try {
           await db.charge.create({
             data: {
               tenantId: tenant.id,
               period: chargePeriod,
-              type: "CLEANING",
-              amount: tenant.cleaningFee,
-              description: `Уборка помещения за ${chargePeriod}`,
+              type: "RENT",
+              amount: rentSchedule.amount,
+              description: getTenantRentChargeDescription(placement, chargePeriod, rentSchedule),
               dueDate,
             },
           })
-          results.cleaningCreated++
+          results.rentCreated++
+        } catch (e) {
+          if (isUniqueConstraintError(e)) {
+            results.skipped++
+          } else {
+            throw e
+          }
+        }
+        existingRentPeriods.add(chargePeriod)
+
+        if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+          try {
+            await db.charge.create({
+              data: {
+                tenantId: tenant.id,
+                period: chargePeriod,
+                type: "CLEANING",
+                amount: tenant.cleaningFee,
+                description: `Уборка помещения за ${chargePeriod}`,
+                dueDate,
+              },
+            })
+            results.cleaningCreated++
+          } catch (e) {
+            if (isUniqueConstraintError(e)) {
+              results.skipped++
+            } else {
+              throw e
+            }
+          }
         }
 
         try {

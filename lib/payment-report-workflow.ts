@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma/client"
+import type { TxClient } from "@/lib/db"
 
 type ConfirmablePaymentReport = {
   id: string
@@ -20,7 +20,7 @@ type ConfirmPaymentReportInput = {
 }
 
 export async function applyConfirmedPaymentReport(
-  tx: Prisma.TransactionClient,
+  tx: TxClient,
   {
     report,
     method,

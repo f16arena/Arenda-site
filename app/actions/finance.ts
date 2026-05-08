@@ -21,6 +21,7 @@ import {
 } from "@/lib/scope-guards"
 import { assertBuildingAccess, assertTenantBuildingAccess, getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { PaymentCreateSchema, firstZodError } from "@/lib/schemas"
+import { isUniqueConstraintError } from "@/lib/prisma-errors"
 
 function parseChargeAmount(value: FormDataEntryValue | null) {
   const amount = Number(String(value ?? "").trim().replace(",", "."))
@@ -90,6 +91,44 @@ export async function recordPayment(formData: FormData) {
     select: { companyName: true },
   })
 
+  // Если admin не выбрал charges явно — авто-распределение FIFO: гасим самые
+  // старые неоплаченные начисления, пока хватает суммы. Только полностью
+  // покрытые начисления — partial coverage не делаем (упрощение).
+  const autoDistributed: { ids: string[]; periods: string[] } = { ids: [], periods: [] }
+  let finalNote = note ?? null
+
+  if (chargeIds.length === 0 && amount > 0) {
+    const unpaidCharges = await db.charge.findMany({
+      where: {
+        AND: [
+          chargeScope(orgId),
+          { tenantId, isPaid: false },
+        ],
+      },
+      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+      select: { id: true, amount: true, period: true },
+    })
+
+    let remaining = amount
+    for (const c of unpaidCharges) {
+      if (remaining + 0.01 < c.amount) break // нельзя частично — целиком или ничего
+      autoDistributed.ids.push(c.id)
+      autoDistributed.periods.push(c.period)
+      remaining = Math.round((remaining - c.amount) * 100) / 100
+    }
+
+    if (autoDistributed.ids.length > 0) {
+      // Дописываем в payment.note информацию о покрытых начислениях.
+      // Сортируем периоды для понятного диапазона.
+      const sortedPeriods = [...new Set(autoDistributed.periods)].sort()
+      const periodSummary = sortedPeriods.length === 1
+        ? sortedPeriods[0]
+        : `${sortedPeriods[0]}..${sortedPeriods[sortedPeriods.length - 1]}`
+      const autoNote = `Автоматически закрыто: ${autoDistributed.ids.length} начислений за ${periodSummary}`
+      finalNote = finalNote ? `${finalNote} · ${autoNote}` : autoNote
+    }
+  }
+
   // Атомарно: создаём платёж + (опционально) транзакция + обновление баланса +
   // отметка charges как paid.
   const operations: unknown[] = [
@@ -98,7 +137,7 @@ export async function recordPayment(formData: FormData) {
         tenantId,
         amount,
         method,
-        note: note ?? null,
+        note: finalNote,
         paymentDate: paymentDate ?? new Date(),
       },
     }),
@@ -148,6 +187,14 @@ export async function recordPayment(formData: FormData) {
         }),
       )
     }
+  } else if (autoDistributed.ids.length > 0) {
+    // FIFO авто-распределение: помечаем выбранные charges оплаченными.
+    operations.push(
+      db.charge.updateMany({
+        where: { id: { in: autoDistributed.ids } },
+        data: { isPaid: true },
+      }),
+    )
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,7 +204,7 @@ export async function recordPayment(formData: FormData) {
   revalidatePath("/admin/finances")
   revalidatePath("/admin/finances/balance")
   revalidatePath(`/admin/tenants/${tenantId}`)
-  return { success: true, paymentId: payment.id }
+  return { success: true, paymentId: payment.id, autoDistributed: autoDistributed.ids.length }
 }
 
 export async function generateMonthlyCharges(period: string) {
@@ -197,30 +244,40 @@ export async function generateMonthlyCharges(period: string) {
     if (!rentSchedule.shouldCreate) continue
     const placement = formatTenantPlacement(tenant, { includeFloorName: false })
 
-    await db.charge.create({
-      data: {
-        tenantId: tenant.id,
-        period,
-        type: "RENT",
-        amount: rentSchedule.amount,
-        description: getTenantRentChargeDescription(placement, period, rentSchedule),
-        dueDate: rentSchedule.dueDate,
-      },
-    })
-
-    if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+    // try/catch P2002: миграция 020 — partial unique index на (tenant_id, period, type).
+    // Если cron monthly-invoices опередил — просто пропускаем дубликат.
+    try {
       await db.charge.create({
         data: {
           tenantId: tenant.id,
           period,
-          type: "CLEANING",
-          amount: tenant.cleaningFee,
+          type: "RENT",
+          amount: rentSchedule.amount,
+          description: getTenantRentChargeDescription(placement, period, rentSchedule),
           dueDate: rentSchedule.dueDate,
-          description: "Уборка помещения",
         },
       })
+      created++
+    } catch (e) {
+      if (!isUniqueConstraintError(e)) throw e
     }
-    created++
+
+    if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+      try {
+        await db.charge.create({
+          data: {
+            tenantId: tenant.id,
+            period,
+            type: "CLEANING",
+            amount: tenant.cleaningFee,
+            dueDate: rentSchedule.dueDate,
+            description: "Уборка помещения",
+          },
+        })
+      } catch (e) {
+        if (!isUniqueConstraintError(e)) throw e
+      }
+    }
   }
 
   revalidatePath("/admin/finances")

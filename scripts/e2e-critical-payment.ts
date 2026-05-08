@@ -183,7 +183,10 @@ async function main() {
     ids.paymentReportId = paymentReport.id
 
     const payment = await db.$transaction(async (tx) =>
-      applyConfirmedPaymentReport(tx, {
+      // E2E-скрипт создаёт свой PrismaClient без soft-delete extension —
+      // тип `tx` тут уже PrismaClient.TransactionClient, helper ожидает
+      // расширенный TxClient. Структурно совместимы, разница только в дженериках.
+      applyConfirmedPaymentReport(tx as unknown as Parameters<typeof applyConfirmedPaymentReport>[0], {
         report: paymentReport,
         method: "CASH",
         reviewerId: adminUser.id,

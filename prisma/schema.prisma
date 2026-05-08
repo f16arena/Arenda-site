@@ -627,6 +627,9 @@ model Charge {
   // существующий [tenantId, isPaid, dueDate] для этого пути теряет dueDate-селективность.
   @@index([tenantId, dueDate])
   @@index([deletedAt])
+  // Unique constraint via migration 020 (partial index, WHERE deleted_at IS NULL).
+  // Prisma `@@unique` не поддерживает partial — добавляем raw SQL чтобы
+  // soft-delete + recreate не ломал constraint.
   @@map("charges")
 }
 
