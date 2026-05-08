@@ -156,13 +156,13 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
               required
               className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
-            <button
+            <Button
               type="submit"
-              disabled={pending}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              loading={pending}
+              className="font-medium"
             >
               {pending ? "..." : "Отправить ссылку"}
-            </button>
+            </Button>
           </div>
           <p className="text-xs text-slate-400 dark:text-slate-500">
             На новый адрес придёт письмо с ссылкой подтверждения. Email обновится после перехода по ссылке.
@@ -255,13 +255,13 @@ function PasswordBlock() {
             <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
             Показать пароль
           </label>
-          <button
+          <Button
             type="submit"
-            disabled={pending}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            loading={pending}
+            className="font-medium"
           >
             {pending ? "..." : "Сменить пароль"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

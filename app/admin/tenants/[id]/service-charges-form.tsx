@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { saveTenantServiceCharges } from "@/app/actions/finance"
 import { SERVICE_CHARGE_TYPES } from "@/lib/service-charges"
+import { Button } from "@/components/ui/button"
 
 type ExistingServiceCharge = {
   id: string
@@ -135,13 +136,14 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
       </div>
 
       <div className="flex justify-end">
-        <button
+        <Button
           type="submit"
-          disabled={pending}
-          className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700"
+          size="lg"
+          loading={pending}
+          className="font-medium"
         >
           {pending ? "Сохранение..." : "Сохранить начисления"}
-        </button>
+        </Button>
       </div>
     </form>
   )

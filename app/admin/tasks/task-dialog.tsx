@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Plus, X } from "lucide-react"
 import { createTask } from "@/app/actions/tasks"
+import { Button } from "@/components/ui/button"
 
 type StaffUser = { id: string; name: string }
 type BuildingOption = { id: string; name: string }
@@ -28,13 +29,12 @@ export function TaskDialog({
 
   return (
     <>
-      <button
+      <Button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+        leftIcon={<Plus className="h-4 w-4" />}
       >
-        <Plus className="h-4 w-4" />
         Создать задачу
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -144,20 +144,21 @@ export function TaskDialog({
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+                  className="flex-1 font-medium"
                 >
                   Отмена
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  disabled={pending}
-                  className="flex-1 rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                  loading={pending}
+                  className="flex-1 font-medium"
                 >
                   {pending ? "Создание..." : "Создать задачу"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

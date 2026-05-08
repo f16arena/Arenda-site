@@ -33,6 +33,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { Button } from "@/components/ui/button"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
@@ -517,13 +518,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div className="col-span-2 flex justify-end">
-                <button
+                <Button
                   type="submit"
+                  size="lg"
                   disabled={!canEditContacts}
-                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  className="font-medium"
                 >
                   Сохранить
-                </button>
+                </Button>
               </div>
               </fieldset>
             </form>
@@ -671,13 +673,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 monthlyRent={monthlyRent}
               />
               <div className="col-span-2 flex justify-end">
-                <button
+                <Button
                   type="submit"
+                  size="lg"
                   disabled={!canEditCompany}
-                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  className="font-medium"
                 >
                   Сохранить
-                </button>
+                </Button>
               </div>
               </fieldset>
             </form>

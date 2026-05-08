@@ -14,6 +14,7 @@ import { OrganizationRequisitesSection } from "@/components/settings/organizatio
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { Button } from "@/components/ui/button"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -173,12 +174,13 @@ export default async function SettingsPage() {
             />
           </div>
           <div className="col-span-2 flex justify-end">
-            <button
+            <Button
               type="submit"
-              className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+              size="lg"
+              className="font-medium"
             >
               Сохранить
-            </button>
+            </Button>
           </div>
         </ServerForm>
       </div>
@@ -233,12 +235,12 @@ export default async function SettingsPage() {
                 />
               </div>
               <div className="flex justify-end">
-                <button
+                <Button
                   type="submit"
-                  className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+                  className="font-medium"
                 >
                   Сохранить
-                </button>
+                </Button>
               </div>
             </ServerForm>
           ))}
@@ -325,9 +327,9 @@ export default async function SettingsPage() {
                   <input type="checkbox" name="isActive" defaultChecked={t.isActive} className="rounded" />
                   Активен
                 </label>
-                <button type="submit" className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800">
+                <Button type="submit" className="font-medium">
                   Сохранить
-                </button>
+                </Button>
                 <DeleteAction
                   action={deleteTariff.bind(null, t.id)}
                   entity="тариф"
@@ -409,12 +411,12 @@ export default async function SettingsPage() {
                 />
               </div>
               <div className="flex gap-2 justify-end mt-4">
-                <button
+                <Button
                   type="submit"
-                  className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+                  className="font-medium"
                 >
                   Сохранить
-                </button>
+                </Button>
                 <DeleteAction
                   action={deleteEmergencyContact.bind(null, ec.id)}
                   entity="контакт"

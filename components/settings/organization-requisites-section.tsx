@@ -6,6 +6,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { OrganizationBankFields } from "@/components/settings/organization-bank-fields"
 import { OrganizationIdentityFields } from "@/components/settings/organization-identity-fields"
 import { ServerForm } from "@/components/ui/server-form"
+import { Button } from "@/components/ui/button"
 
 type OrganizationRequisitesFormData = {
   id: string
@@ -198,12 +199,13 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         </div>
 
         <div className="flex items-end justify-end lg:col-span-2">
-          <button
+          <Button
             type="submit"
-            className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+            size="lg"
+            className="font-medium"
           >
             Сохранить реквизиты
-          </button>
+          </Button>
         </div>
       </ServerForm>
     </div>

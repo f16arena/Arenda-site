@@ -6,6 +6,7 @@ import {
   effectivePrefix,
   type DocumentKind,
 } from "@/lib/document-numbering"
+import { Button } from "@/components/ui/button"
 
 interface BuildingPrefixes {
   id: string
@@ -86,12 +87,12 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
                   {preview}
                 </p>
               </div>
-              <button
+              <Button
                 type="submit"
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+                className="font-medium"
               >
                 Сохранить
-              </button>
+              </Button>
             </ServerForm>
           )
         })}

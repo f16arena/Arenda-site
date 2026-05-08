@@ -20,6 +20,7 @@ import { switchBuilding } from "@/app/actions/buildings"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import { Button } from "@/components/ui/button"
 
 type SafeQuery = <T>(source: string, promise: Promise<T>, fallback: T) => Promise<T>
 
@@ -244,12 +245,9 @@ export default async function SpacesPage() {
                     await switchBuilding(building.id)
                   }}
                 >
-                  <button
-                    type="submit"
-                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
+                  <Button type="submit" variant="outline" size="sm" className="font-medium">
                     Открыть
-                  </button>
+                  </Button>
                 </form>
               </div>
               <div className="grid grid-cols-4 gap-2 text-center">

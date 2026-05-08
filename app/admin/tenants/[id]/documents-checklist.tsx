@@ -7,6 +7,7 @@ import { addTenantDocument, deleteTenantDocument } from "@/app/actions/tenant-do
 import { getRequiredDocs, DOC_TYPE_LABELS } from "@/lib/required-docs"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { Button } from "@/components/ui/button"
 
 type Doc = { id: string; type: string; name: string; fileUrl: string | null; storageFileId?: string | null; createdAt: Date | string }
 
@@ -171,10 +172,10 @@ export function DocumentsChecklist({
                 </p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Сохранение..." : "Добавить"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

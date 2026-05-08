@@ -19,6 +19,7 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { formatMoney } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 
 const FIELD_CLASS = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
 
@@ -28,13 +29,12 @@ export function CreateBuildingButton() {
 
   return (
     <>
-      <button
+      <Button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        leftIcon={<Plus className="h-4 w-4" />}
       >
-        <Plus className="h-4 w-4" />
         Добавить здание
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -87,10 +87,10 @@ export function CreateBuildingButton() {
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Используется в номере: {`{префикс}-{год}-{№}`}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Создание..." : "Создать"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -272,10 +272,10 @@ export function BuildingActions({
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Формат: {`{префикс}-{год}-{№}`} → {building.contractPrefix || "F16"}-{new Date().getFullYear()}-001</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setEditOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white">
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" className="flex-1">
                   Сохранить
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -379,10 +379,10 @@ export function FloorsList({
                 <Field label="Площадь м²" name="totalArea" type="number" step="0.1" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "..." : "Создать"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

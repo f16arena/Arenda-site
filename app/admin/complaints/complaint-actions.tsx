@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { X, MessageSquare, CheckCircle } from "lucide-react"
 import { respondToComplaint, resolveComplaint } from "@/app/actions/complaints"
+import { Button } from "@/components/ui/button"
 
 export function RespondButton({ complaintId, hasResponse }: { complaintId: string; hasResponse: boolean }) {
   const [open, setOpen] = useState(false)
@@ -57,10 +58,10 @@ export function RespondButton({ complaintId, hasResponse }: { complaintId: strin
                 />
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Отправка..." : "Ответить"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
