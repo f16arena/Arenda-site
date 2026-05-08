@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Plus, X, Edit2, UserX, UserCheck, Banknote, CheckCircle } from "lucide-react"
 import { createStaff, updateStaff, deactivateStaff, reactivateStaff } from "@/app/actions/staff"
 import { generateSalaryPayments, markSalaryPaid } from "@/app/actions/salary"
+import { Button } from "@/components/ui/button"
 
 const ROLES = [
   { value: "OWNER", label: "Владелец" },
@@ -21,13 +22,12 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
 
   return (
     <>
-      <button
+      <Button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        leftIcon={<Plus className="h-4 w-4" />}
       >
-        <Plus className="h-4 w-4" />
         Добавить сотрудника
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -80,10 +80,10 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
               </div>
               <BuildingAccessField buildings={buildings} />
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Создание..." : "Создать"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -169,10 +169,10 @@ export function EditStaffDialog({ user, buildings }: { user: StaffUser; building
               </div>
               <BuildingAccessField buildings={buildings} selectedIds={user.buildingIds} />
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Сохранение..." : "Сохранить"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

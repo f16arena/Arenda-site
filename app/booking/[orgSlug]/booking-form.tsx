@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Check } from "lucide-react"
 import { createBookingLead } from "@/app/actions/booking"
+import { Button } from "@/components/ui/button"
 
 export function BookingForm({
   orgSlug,
@@ -107,13 +108,14 @@ export function BookingForm({
         <div className="rounded bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{err}</div>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={pending}
-        className="w-full rounded-lg bg-slate-900 hover:bg-slate-800 text-white py-2.5 text-sm font-semibold disabled:opacity-60"
+        size="lg"
+        loading={pending}
+        className="w-full font-semibold"
       >
         {pending ? "Отправка..." : "Оставить заявку"}
-      </button>
+      </Button>
       <p className="text-[10px] text-slate-400 text-center">
         Нажимая, вы соглашаетесь с обработкой персональных данных.
       </p>

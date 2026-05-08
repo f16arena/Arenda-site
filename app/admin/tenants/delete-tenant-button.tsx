@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Trash2, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { deleteTenant, getTenantDeleteBlockers } from "@/app/actions/tenant"
+import { Button } from "@/components/ui/button"
 
 type Blockers = Awaited<ReturnType<typeof getTenantDeleteBlockers>>
 
@@ -123,30 +124,33 @@ export function DeleteTenantButton({
             </div>
 
             <div className="flex gap-2 p-4 border-t border-slate-100 dark:border-slate-800">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setOpen(false)}
                 disabled={pending}
-                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400"
+                className="flex-1"
               >
                 Отмена
-              </button>
+              </Button>
               {blockers && !hasLinks && (
-                <button
+                <Button
+                  variant="danger"
                   onClick={() => handleDelete(false)}
-                  disabled={pending}
-                  className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  loading={pending}
+                  className="flex-1 font-medium"
                 >
                   {pending ? "Удаление..." : "Удалить"}
-                </button>
+                </Button>
               )}
               {blockers && hasLinks && (
-                <button
+                <Button
+                  variant="danger"
                   onClick={() => handleDelete(true)}
-                  disabled={pending}
-                  className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  loading={pending}
+                  className="flex-1 font-medium"
                 >
                   {pending ? "Удаление..." : `Удалить со всеми связями (${totalLinks})`}
-                </button>
+                </Button>
               )}
             </div>
           </div>

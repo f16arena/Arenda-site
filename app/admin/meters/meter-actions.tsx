@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Plus, X, Gauge } from "lucide-react"
 import { saveMeterReading, createMeter } from "@/app/actions/meters"
+import { Button } from "@/components/ui/button"
 
 type Meter = { id: string; type: string; number: string; space: { number: string } }
 type Space = { id: string; number: string; floor: { name: string } }
@@ -46,10 +47,10 @@ export function InlineReadingButton({ meterId, period }: { meterId: string; peri
               </div>
               {msg && <p className="text-xs text-center text-emerald-600 dark:text-emerald-400">{msg}</p>}
               <div className="flex gap-3">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "..." : "Сохранить"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -68,17 +69,16 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
 
   return (
     <>
-      <button
+      <Button
         onClick={() => {
           if (hasMeters) setOpen(true)
         }}
         disabled={!hasMeters}
         title={hasMeters ? "Внести показания" : "Сначала добавьте счётчик"}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700"
+        leftIcon={<Gauge className="h-4 w-4" />}
       >
-        <Gauge className="h-4 w-4" />
         Внести показания
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -114,10 +114,10 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
               <input type="hidden" name="period" value={period} />
               {msg && <p className="text-sm text-center text-emerald-600 dark:text-emerald-400">{msg}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Сохранение..." : "Сохранить"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -192,10 +192,10 @@ export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">От этого значения будет считаться расход</p>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="submit" loading={pending} className="flex-1">
                   {pending ? "Создание..." : "Создать"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

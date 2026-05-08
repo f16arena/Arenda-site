@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { updateFloor } from "@/app/actions/building"
+import { Button } from "@/components/ui/button"
 
 export function FloorSettingsForm({
   floorId,
@@ -79,13 +80,14 @@ export function FloorSettingsForm({
       </div>
 
       <div className="flex justify-end pt-2">
-        <button
+        <Button
           type="submit"
-          disabled={pending}
-          className="rounded-lg bg-slate-900 hover:bg-slate-800 px-5 py-2 text-sm font-medium text-white disabled:opacity-60"
+          size="lg"
+          loading={pending}
+          className="font-medium"
         >
           {pending ? "Сохранение..." : "Сохранить"}
-        </button>
+        </Button>
       </div>
     </form>
   )

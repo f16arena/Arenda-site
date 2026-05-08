@@ -9,6 +9,7 @@ import {
 import { ArrowLeft, Paperclip, User } from "lucide-react"
 import Link from "next/link"
 import { addRequestComment, updateRequestStatus } from "@/app/actions/requests"
+import { Button } from "@/components/ui/button"
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -144,9 +145,9 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                         className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none bg-white dark:bg-slate-900"
                       />
                       <div className="flex justify-end mt-2">
-                        <button type="submit" className="rounded-lg bg-slate-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-slate-800">
+                        <Button type="submit" size="sm" className="font-medium">
                           Отправить
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   </div>

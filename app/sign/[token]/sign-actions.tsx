@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Check, X } from "lucide-react"
 import { signContractByTenant, rejectContractByTenant } from "@/app/actions/contract-workflow"
+import { Button } from "@/components/ui/button"
 
 export function SignActions({ token }: { token: string }) {
   const [pending, startTransition] = useTransition()
@@ -132,13 +133,15 @@ export function SignActions({ token }: { token: string }) {
             >
               Назад
             </button>
-            <button
+            <Button
+              variant="danger"
               onClick={submitReject}
-              disabled={pending || rejectReason.length < 5}
-              className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 text-white py-2 text-sm font-medium disabled:opacity-60"
+              loading={pending}
+              disabled={rejectReason.length < 5}
+              className="flex-1 font-medium"
             >
               {pending ? "..." : "Отклонить договор"}
-            </button>
+            </Button>
           </div>
         </div>
       )}

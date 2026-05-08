@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Lock, CheckCircle2 } from "lucide-react"
+import { Lock, CheckCircle2 } from "lucide-react"
 import { resetPassword } from "@/app/actions/password-reset"
+import { Button } from "@/components/ui/button"
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [pending, startTransition] = useTransition()
@@ -24,13 +25,14 @@ export function ResetPasswordForm({ token }: { token: string }) {
             </div>
           </div>
         </div>
-        <button
+        <Button
           type="button"
+          size="lg"
           onClick={() => router.push("/login")}
-          className="w-full rounded-lg bg-slate-900 hover:bg-slate-800 py-2.5 text-sm font-semibold text-white"
+          className="w-full font-semibold"
         >
           Войти
-        </button>
+        </Button>
       </div>
     )
   }
@@ -92,14 +94,14 @@ export function ResetPasswordForm({ token }: { token: string }) {
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={pending}
-        className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 flex items-center justify-center gap-2"
+        size="lg"
+        loading={pending}
+        className="w-full font-semibold"
       >
-        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {pending ? "Сохранение..." : "Установить новый пароль"}
-      </button>
+      </Button>
     </form>
   )
 }

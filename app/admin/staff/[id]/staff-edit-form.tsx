@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { updateStaff, deactivateStaff, reactivateStaff } from "@/app/actions/staff"
+import { Button } from "@/components/ui/button"
 
 const ROLES = [
   { value: "OWNER", label: "Владелец" },
@@ -160,13 +161,13 @@ export function StaffEditForm({
         >
           {initial.isActive ? "Уволить" : "Восстановить"}
         </button>
-        <button
+        <Button
           type="submit"
-          disabled={pending}
-          className="rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          loading={pending}
+          className="font-medium"
         >
           {pending ? "Сохранение..." : "Сохранить"}
-        </button>
+        </Button>
       </div>
     </form>
   )

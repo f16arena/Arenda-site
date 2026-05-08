@@ -7,6 +7,7 @@ import { createLead, updateLeadStatus, bookSpaceForLead, unbookSpaceForLead, del
 import { LEAD_STATUSES, LEAD_SOURCES } from "@/lib/lead-constants"
 import { cn } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Button } from "@/components/ui/button"
 
 type Lead = {
   id: string
@@ -64,13 +65,12 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Воронка лидов</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{leads.length} потенциальных арендаторов</p>
         </div>
-        <button
+        <Button
           onClick={() => setOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          leftIcon={<Plus className="h-4 w-4" />}
         >
-          <Plus className="h-4 w-4" />
           Новый лид
-        </button>
+        </Button>
       </div>
 
       <div className="grid grid-cols-5 gap-3">
@@ -280,10 +280,10 @@ function CreateLeadDialog({ onClose, pending, startTransition }: {
             <textarea name="notes" rows={2} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm">Отмена</button>
-            <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1">Отмена</Button>
+            <Button type="submit" loading={pending} className="flex-1">
               {pending ? "..." : "Создать"}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

@@ -11,6 +11,7 @@ import {
   createCashAccount, depositToAccount, withdrawFromAccount,
   transferBetweenAccounts, adjustAccountBalance,
 } from "@/app/actions/cash-accounts"
+import { Button } from "@/components/ui/button"
 
 interface Transaction {
   id: string
@@ -365,12 +366,12 @@ function Select({
 
 function SubmitBtn({ label, pending }: { label: string; pending: boolean }) {
   return (
-    <button
+    <Button
       type="submit"
-      disabled={pending}
-      className="w-full rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+      loading={pending}
+      className="w-full font-medium"
     >
       {pending ? "..." : label}
-    </button>
+    </Button>
   )
 }

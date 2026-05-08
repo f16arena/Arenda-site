@@ -5,6 +5,7 @@ import { Plus, X, Edit2 } from "lucide-react"
 import { toast } from "sonner"
 import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { Button } from "@/components/ui/button"
 
 type Floor = {
   id: string
@@ -44,13 +45,12 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
 
   return (
     <>
-      <button
+      <Button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        leftIcon={<Plus className="h-4 w-4" />}
       >
-        <Plus className="h-4 w-4" />
         Добавить помещение
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -157,15 +157,16 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                 <input name="description" placeholder="Угловой офис, окна на юг…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button
                   type="submit"
-                  disabled={pending || exceeds}
-                  className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60"
+                  loading={pending}
+                  disabled={exceeds}
                   title={exceeds ? "Площадь превышает доступную на этаже" : undefined}
+                  className="flex-1"
                 >
                   {pending ? "Создание..." : "Создать"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -345,15 +346,16 @@ export function EditSpaceDialog({
                 <input name="description" defaultValue={space.description ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
-                <button
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button
                   type="submit"
-                  disabled={pending || cannotSave}
+                  loading={pending}
+                  disabled={cannotSave}
                   title={cannotSave ? "Проверьте правило занятости помещения" : undefined}
-                  className="flex-1 rounded-lg bg-slate-900 py-2 text-sm text-white disabled:opacity-60"
+                  className="flex-1"
                 >
                   {pending ? "Сохранение..." : "Сохранить"}
-                </button>
+                </Button>
               </div>
             </form>
           </div>

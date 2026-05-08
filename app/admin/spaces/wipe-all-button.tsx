@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { AlertTriangle, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { deleteAllSpacesInBuilding } from "@/app/actions/spaces"
+import { Button } from "@/components/ui/button"
 
 const CONFIRM_WORD = "удалить"
 
@@ -109,26 +110,28 @@ export function WipeAllSpacesButton({
             </div>
 
             <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => {
                   setOpen(false)
                   setConfirmText("")
                 }}
                 disabled={pending}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Отмена
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="danger"
                 onClick={handleDelete}
-                disabled={!confirmed || pending}
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700"
+                loading={pending}
+                disabled={!confirmed}
+                leftIcon={<Trash2 className="h-4 w-4" />}
+                className="font-medium"
               >
-                <Trash2 className="h-4 w-4" />
                 {pending ? "Удаление..." : "Удалить помещения"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

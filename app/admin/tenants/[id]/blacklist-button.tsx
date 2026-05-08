@@ -5,6 +5,7 @@ import { Ban, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { setTenantBlacklist } from "@/app/actions/tenant"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Button } from "@/components/ui/button"
 
 export function BlacklistButton({
   tenantId,
@@ -118,12 +119,14 @@ export function BlacklistButton({
             performAdd(ta?.value ?? "")
           }}
           trigger={
-            <button
+            <Button
+              variant="danger"
+              size="sm"
               disabled={pending}
-              className="flex-1 text-xs rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1 font-medium disabled:opacity-50"
+              className="flex-1 font-medium"
             >
               {pending ? "..." : "В чёрный список"}
-            </button>
+            </Button>
           }
         />
       </div>

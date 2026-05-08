@@ -8,6 +8,7 @@ import {
   generateTelegramConnectLink,
   disconnectTelegram,
 } from "@/app/actions/notifications"
+import { Button } from "@/components/ui/button"
 
 export function TelegramSetup({ currentChatId }: { currentChatId: string | null }) {
   const [chatId, setChatId] = useState(currentChatId ?? "")
@@ -130,13 +131,14 @@ export function TelegramSetup({ currentChatId }: { currentChatId: string | null 
               placeholder="123456789"
               className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
             />
-            <button
+            <Button
               type="submit"
-              disabled={pending || !chatId}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              loading={pending}
+              disabled={!chatId}
+              className="font-medium"
             >
               {pending ? "..." : "Сохранить"}
-            </button>
+            </Button>
           </form>
         </div>
       </details>

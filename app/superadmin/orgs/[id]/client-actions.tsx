@@ -14,6 +14,7 @@ import {
   deleteOrganization,
 } from "@/app/actions/organizations"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Button } from "@/components/ui/button"
 
 export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boolean }) {
   const router = useRouter()
@@ -106,13 +107,13 @@ export function OrgEditForm({
           Приостановлена
         </label>
       </div>
-      <button
+      <Button
         type="submit"
-        disabled={pending}
-        className="rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        loading={pending}
+        className="font-medium"
       >
         {pending ? "..." : "Сохранить"}
-      </button>
+      </Button>
     </form>
   )
 }
@@ -361,7 +362,8 @@ export function ChangeOwnerForm({
             </option>
           ))}
         </select>
-        <button
+        <Button
+          size="sm"
           onClick={() => {
             if (!selected) {
               toast.error("Выберите пользователя")
@@ -377,11 +379,12 @@ export function ChangeOwnerForm({
               }
             })
           }}
-          disabled={pending || !selected || selected === currentOwnerId}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+          loading={pending}
+          disabled={!selected || selected === currentOwnerId}
+          className="font-medium"
         >
           Сменить
-        </button>
+        </Button>
       </div>
       {willPromote && (
         <p className="text-[10px] text-amber-700 dark:text-amber-300">

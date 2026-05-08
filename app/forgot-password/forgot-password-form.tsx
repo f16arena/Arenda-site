@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Loader2, Mail, CheckCircle2, Copy } from "lucide-react"
+import { Mail, CheckCircle2, Copy } from "lucide-react"
 import { requestPasswordReset } from "@/app/actions/password-reset"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
 
 export function ForgotPasswordForm() {
   const [pending, startTransition] = useTransition()
@@ -50,17 +51,19 @@ export function ForgotPasswordForm() {
           Если письмо не пришло за 5 минут — проверь папку «Спам» или попробуй ещё раз.
         </p>
 
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="lg"
           onClick={() => {
             setDone(false)
             setMessage(null)
             setPreviewLink(null)
           }}
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300"
+          className="w-full font-medium"
         >
           Отправить ещё раз
-        </button>
+        </Button>
       </div>
     )
   }
@@ -103,14 +106,14 @@ export function ForgotPasswordForm() {
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
-        disabled={pending}
-        className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 flex items-center justify-center gap-2"
+        size="lg"
+        loading={pending}
+        className="w-full font-semibold"
       >
-        {pending && <Loader2 className="h-4 w-4 animate-spin" />}
         {pending ? "Отправка..." : "Отправить ссылку"}
-      </button>
+      </Button>
     </form>
   )
 }
