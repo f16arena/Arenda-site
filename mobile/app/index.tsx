@@ -26,6 +26,7 @@ import {
   OfflineBanner,
   TabLoading,
 } from "@/app/components/ui"
+import type { ReactNode } from "react"
 import { LoginScreen } from "@/app/screens/login"
 import {
   TenantDocuments,
@@ -433,21 +434,72 @@ function Dashboard({
       : tab,
   )
 
+  const [tabKey] = safeTab.split(":")
+  const VIRTUALIZED_TABS = new Set(["tenants", "documents", "requests"])
+  // Only virtualize when payload data is loaded — otherwise we want the legacy
+  // ScrollView so TabLoading/CenteredLoader and pageHeader render correctly.
+  const dataReadyForVirtualization =
+    (tabKey === "tenants" && !!data.adminTenants) ||
+    (tabKey === "documents" && !!data.adminDocuments) ||
+    (tabKey === "requests" && !!data.adminRequests)
+  const isVirtualized = VIRTUALIZED_TABS.has(tabKey) && dataReadyForVirtualization
+
+  const pageHeader: ReactNode = (
+    <>
+      {backTarget ? <BackButton onPress={() => navigate(backTarget)} /> : null}
+      <HeaderCard bootstrap={bootstrap} onLogout={onLogout} />
+      {cacheState.fromCache ? <OfflineBanner savedAt={cacheState.savedAt} error={cacheState.error} /> : null}
+    </>
+  )
+
+  const containerMaxWidth = width >= 900 ? 860 : undefined
+  const containerAlignSelf: "center" | "stretch" = width >= 900 ? "center" : "stretch"
+
+  const virtualization: VirtualizationProps = {
+    pageHeader,
+    refreshing,
+    onRefresh,
+    bottomPadding: tabsHeight + 16,
+    maxWidth: containerMaxWidth,
+    alignSelf: containerAlignSelf,
+  }
+
   return (
     <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ padding: 16, paddingBottom: tabsHeight + 16, gap: 14, maxWidth: width >= 900 ? 860 : undefined, alignSelf: width >= 900 ? "center" : "stretch" }}
-      >
-        {backTarget ? <BackButton onPress={() => navigate(backTarget)} /> : null}
-        <HeaderCard bootstrap={bootstrap} onLogout={onLogout} />
-        {cacheState.fromCache ? <OfflineBanner savedAt={cacheState.savedAt} error={cacheState.error} /> : null}
-        <TabContent role={role} tab={safeTab} bootstrap={bootstrap} data={data} loadingTabs={loadingTabs} tabErrors={tabErrors} onChanged={onRefresh} onNavigate={navigate} />
-      </ScrollView>
+      {isVirtualized ? (
+        <TabContent
+          role={role}
+          tab={safeTab}
+          bootstrap={bootstrap}
+          data={data}
+          loadingTabs={loadingTabs}
+          tabErrors={tabErrors}
+          onChanged={onRefresh}
+          onNavigate={navigate}
+          virtualization={virtualization}
+        />
+      ) : (
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ padding: 16, paddingBottom: tabsHeight + 16, gap: 14, maxWidth: containerMaxWidth, alignSelf: containerAlignSelf }}
+        >
+          {pageHeader}
+          <TabContent role={role} tab={safeTab} bootstrap={bootstrap} data={data} loadingTabs={loadingTabs} tabErrors={tabErrors} onChanged={onRefresh} onNavigate={navigate} />
+        </ScrollView>
+      )}
       <BottomTabs tabs={tabsWithBadge} activeTab={safeTab} onChange={navigate} onLayout={(e) => setTabsHeight(e.nativeEvent.layout.height)} />
     </SafeAreaView>
   )
+}
+
+export type VirtualizationProps = {
+  pageHeader: ReactNode
+  refreshing: boolean
+  onRefresh: () => void
+  bottomPadding: number
+  maxWidth?: number
+  alignSelf: "center" | "stretch"
 }
 
 function TabContent({
@@ -459,6 +511,7 @@ function TabContent({
   tabErrors,
   onChanged,
   onNavigate,
+  virtualization,
 }: {
   role: string
   tab: string
@@ -468,6 +521,7 @@ function TabContent({
   tabErrors: Record<string, string | null>
   onChanged: () => void
   onNavigate: (tab: string) => void
+  virtualization?: VirtualizationProps
 }) {
   const [tabKey, tabParam, tabSubParam] = tab.split(":")
   const tabError = tabErrors[tabKey]
@@ -503,7 +557,7 @@ function TabContent({
     if (!tenant) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     return <AdminTenantDetail tenant={tenant} detail={detail ?? null} onNavigate={onNavigate} />
   }
-  if (tabKey === "tenants") return data.adminTenants ? <AdminTenants payload={data.adminTenants} buildingId={tabParam} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "tenants") return data.adminTenants ? <AdminTenants payload={data.adminTenants} buildingId={tabParam} onNavigate={onNavigate} virtualization={virtualization} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "document") {
     if (!data.adminDocuments) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     return <AdminDocumentDetail payload={data.adminDocuments} kind={tabParam} id={tabSubParam} onNavigate={onNavigate} />
@@ -515,14 +569,14 @@ function TabContent({
   if (tabKey === "documents") {
     const tenantId = tabParam === "tenant" ? tabSubParam : tabParam && tabParam !== "building" ? tabParam : undefined
     const buildingId = tabParam === "building" ? tabSubParam : undefined
-    return data.adminDocuments ? <AdminDocuments payload={data.adminDocuments} tenantId={tenantId} buildingId={buildingId} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    return data.adminDocuments ? <AdminDocuments payload={data.adminDocuments} tenantId={tenantId} buildingId={buildingId} onNavigate={onNavigate} virtualization={virtualization} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   }
   if (tabKey === "request") {
     const request = data.adminRequests?.data.find((item) => item.id === tabParam)
     if (!data.adminRequests) return <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     return request ? <AdminRequestDetail request={request} onChanged={onChanged} onNavigate={onNavigate} /> : <EmptyState title="Заявка не найдена в загруженном списке" />
   }
-  if (tabKey === "requests") return data.adminRequests ? <AdminRequests payload={data.adminRequests} buildingId={tabParam} onChanged={onChanged} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "requests") return data.adminRequests ? <AdminRequests payload={data.adminRequests} buildingId={tabParam} onChanged={onChanged} onNavigate={onNavigate} virtualization={virtualization} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "payments") {
     if (!["OWNER", "ADMIN", "ACCOUNTANT"].includes(role)) return <NoAccess title="Оплаты доступны владельцу, админу и бухгалтеру" />
     return data.adminPayments ? <AdminPayments payload={data.adminPayments} buildingId={tabParam} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />

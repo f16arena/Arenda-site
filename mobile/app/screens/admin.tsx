@@ -51,6 +51,7 @@ import {
   CompactRow,
   EmptyState,
   Field,
+  FlatListPage,
   IconBox,
   InlineMessage,
   MetricGrid,
@@ -63,6 +64,16 @@ import {
   SectionTitle,
   StatusPill,
 } from "@/app/components/ui"
+import type { ReactNode } from "react"
+
+export type AdminListVirtualization = {
+  pageHeader: ReactNode
+  refreshing: boolean
+  onRefresh: () => void
+  bottomPadding: number
+  maxWidth?: number
+  alignSelf: "center" | "stretch"
+}
 import {
   ContractSignPrompt,
   DocumentRow,
@@ -86,7 +97,7 @@ import type {
   OwnerOverviewPayload,
 } from "@/types/mobile"
 
-export function AdminTenants({ payload, buildingId, onNavigate }: { payload: AdminTenantsPayload; buildingId?: string; onNavigate: (tab: string) => void }) {
+export function AdminTenants({ payload, buildingId, onNavigate, virtualization }: { payload: AdminTenantsPayload; buildingId?: string; onNavigate: (tab: string) => void; virtualization?: AdminListVirtualization }) {
   const [query, setQuery] = useState("")
   const [localPayload, setLocalPayload] = useState(payload)
   const [busy, setBusy] = useState(false)
@@ -134,7 +145,7 @@ export function AdminTenants({ payload, buildingId, onNavigate }: { payload: Adm
     }
   }
 
-  return (
+  const filterCard = (
     <>
       <SectionTitle title={buildingId ? "Арендаторы объекта" : "Арендаторы"} />
       <Card>
@@ -149,33 +160,69 @@ export function AdminTenants({ payload, buildingId, onNavigate }: { payload: Adm
         <SearchField value={query} onChangeText={setQuery} placeholder="Название, БИН, кабинет" loading={isSearching} />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
+    </>
+  )
+
+  const renderTenantCard = (tenant: AdminTenantListItem) => (
+    <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть арендатора ${tenant.companyName}`} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <IconBox icon="person.2.fill" color={tenant.totalDebt > 0 ? colors.orange : colors.teal} />
+          <View style={{ flex: 1 }}>
+            <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{tenant.companyName}</Text>
+            <Text selectable numberOfLines={2} style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.regular }}>{tenant.placement}</Text>
+          </View>
+          <StatusPill label={tenant.totalDebt > 0 ? "Долг" : "ОК"} color={tenant.totalDebt > 0 ? colors.orange : colors.green} />
+        </View>
+        <MetricGrid
+          items={[
+            { label: "Площадь", value: formatArea(tenant.area), color: colors.slate },
+            { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
+            { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
+            { label: "Договоры", value: String(tenant.contracts.total), color: colors.teal },
+          ]}
+        />
+        <CompactRow title="Заявки и документы" subtitle={`${tenant.activeRequests} активных заявок · ${tenant.documents} файлов`} value={tenant.contractEnd ? formatDate(tenant.contractEnd) : undefined} tone={tenant.contracts.expiringSoon > 0 ? colors.red : colors.blue} />
+      </Card>
+    </Pressable>
+  )
+
+  const loadMoreFooter = localPayload.pageInfo?.hasMore ? (
+    <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
+  ) : null
+
+  if (virtualization) {
+    return (
+      <FlatListPage<AdminTenantListItem>
+        header={
+          <>
+            {virtualization.pageHeader}
+            {filterCard}
+          </>
+        }
+        data={localPayload.data}
+        renderItem={({ item }) => renderTenantCard(item)}
+        keyExtractor={(item) => item.id}
+        empty={!busy ? <EmptyState title="Арендаторы не найдены" /> : null}
+        footer={loadMoreFooter}
+        refreshing={virtualization.refreshing}
+        onRefresh={virtualization.onRefresh}
+        bottomPadding={virtualization.bottomPadding}
+        maxWidth={virtualization.maxWidth}
+        alignSelf={virtualization.alignSelf}
+        initialNumToRender={10}
+      />
+    )
+  }
+
+  return (
+    <>
+      {filterCard}
       {localPayload.data.length === 0 && !busy ? <EmptyState title="Арендаторы не найдены" /> : null}
       {localPayload.data.map((tenant) => (
-        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть арендатора ${tenant.companyName}`} key={tenant.id} onPress={() => onNavigate(`tenant:${tenant.id}`)}>
-          <Card>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <IconBox icon="person.2.fill" color={tenant.totalDebt > 0 ? colors.orange : colors.teal} />
-              <View style={{ flex: 1 }}>
-                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 17, fontFamily: fonts.black, fontWeight: "900" }}>{tenant.companyName}</Text>
-                <Text selectable numberOfLines={2} style={{ color: colors.muted, fontSize: 13, lineHeight: 18, fontFamily: fonts.regular }}>{tenant.placement}</Text>
-              </View>
-              <StatusPill label={tenant.totalDebt > 0 ? "Долг" : "ОК"} color={tenant.totalDebt > 0 ? colors.orange : colors.green} />
-            </View>
-            <MetricGrid
-              items={[
-                { label: "Площадь", value: formatArea(tenant.area), color: colors.slate },
-                { label: "Аренда", value: formatMoney(tenant.monthlyRent), color: colors.blue },
-                { label: "Долг", value: formatMoney(tenant.totalDebt), color: tenant.totalDebt > 0 ? colors.red : colors.green },
-                { label: "Договоры", value: String(tenant.contracts.total), color: colors.teal },
-              ]}
-            />
-            <CompactRow title="Заявки и документы" subtitle={`${tenant.activeRequests} активных заявок · ${tenant.documents} файлов`} value={tenant.contractEnd ? formatDate(tenant.contractEnd) : undefined} tone={tenant.contracts.expiringSoon > 0 ? colors.red : colors.blue} />
-          </Card>
-        </Pressable>
+        <View key={tenant.id}>{renderTenantCard(tenant)}</View>
       ))}
-      {localPayload.pageInfo?.hasMore ? (
-        <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
-      ) : null}
+      {loadMoreFooter}
     </>
   )
 }
@@ -359,7 +406,11 @@ export function AdminTenantDetail({ tenant, detail, onNavigate }: { tenant: Admi
   )
 }
 
-export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { payload: AdminDocumentsPayload; tenantId?: string; buildingId?: string; onNavigate: (tab: string) => void }) {
+type DocumentListItem =
+  | { kind: "contract"; data: MobileContractSummary }
+  | { kind: "generated"; data: MobileGeneratedDocumentSummary }
+
+export function AdminDocuments({ payload, tenantId, buildingId, onNavigate, virtualization }: { payload: AdminDocumentsPayload; tenantId?: string; buildingId?: string; onNavigate: (tab: string) => void; virtualization?: AdminListVirtualization }) {
   const [query, setQuery] = useState("")
   const [category, setCategory] = useState("ALL")
   const [stage, setStage] = useState("ALL")
@@ -443,7 +494,7 @@ export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { 
   const signatureCount = signatureRequests.length + signatureContracts.length
   const showSignatureSection = (stage === "ALL" || stage === "SIGN") && signatureCount > 0
 
-  return (
+  const filterCard = (
     <>
       <SectionTitle title={tenantName ? `Документы: ${tenantName}` : buildingId ? "Документы объекта" : "Документы"} />
       <Card>
@@ -488,6 +539,65 @@ export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { 
           </Card>
         </>
       ) : null}
+    </>
+  )
+
+  const loadMoreFooter = localPayload.pageInfo?.hasMore ? (
+    <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
+  ) : null
+
+  if (virtualization) {
+    const items: DocumentListItem[] = []
+    if (showContracts && visibleContracts.length > 0) {
+      items.push(...visibleContracts.map((contract) => ({ kind: "contract", data: contract } as DocumentListItem)))
+    }
+    if (visibleGenerated.length > 0) {
+      items.push(...visibleGenerated.map((doc) => ({ kind: "generated", data: doc } as DocumentListItem)))
+    }
+
+    const headerWithSections = (
+      <>
+        {virtualization.pageHeader}
+        {filterCard}
+        {showContracts && localPayload.contracts.length > 0 && visibleContracts.length > 0 ? (
+          <SectionTitle title="Договоры" />
+        ) : null}
+      </>
+    )
+
+    return (
+      <FlatListPage<DocumentListItem>
+        header={headerWithSections}
+        data={items}
+        renderItem={({ item, index }) => {
+          // When transitioning from contracts to generated, render the generated SectionTitle.
+          const prev = index > 0 ? items[index - 1] : null
+          const isFirstGenerated = item.kind === "generated" && (!prev || prev.kind !== "generated")
+          return (
+            <>
+              {isFirstGenerated ? <View style={{ marginBottom: 14 }}><SectionTitle title={categoryTitle(category)} /></View> : null}
+              {item.kind === "contract"
+                ? <ContractRow contract={item.data} onNavigate={onNavigate} />
+                : <GeneratedDocumentRow document={item.data} onNavigate={onNavigate} />}
+            </>
+          )
+        }}
+        keyExtractor={(item) => `${item.kind}-${item.data.id}`}
+        empty={visibleCount + (showSignatureSection ? signatureCount : 0) === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
+        footer={loadMoreFooter}
+        refreshing={virtualization.refreshing}
+        onRefresh={virtualization.onRefresh}
+        bottomPadding={virtualization.bottomPadding}
+        maxWidth={virtualization.maxWidth}
+        alignSelf={virtualization.alignSelf}
+        initialNumToRender={10}
+      />
+    )
+  }
+
+  return (
+    <>
+      {filterCard}
       {visibleCount + (showSignatureSection ? signatureCount : 0) === 0 && !busy ? <EmptyState title="Документы не найдены" /> : null}
       {showContracts && localPayload.contracts.length > 0 ? (
         <>
@@ -501,9 +611,7 @@ export function AdminDocuments({ payload, tenantId, buildingId, onNavigate }: { 
           <GeneratedDocumentList documents={visibleGenerated} onNavigate={onNavigate} />
         </>
       ) : null}
-      {localPayload.pageInfo?.hasMore ? (
-        <PrimaryButton title={busy ? "Загружаем..." : "Загрузить еще"} disabled={busy} onPress={() => fetchPage({ reset: false })} />
-      ) : null}
+      {loadMoreFooter}
     </>
   )
 }
@@ -548,28 +656,34 @@ function ContractRow({ contract, onNavigate }: { contract: MobileContractSummary
   ) : content
 }
 
+function GeneratedDocumentRow({ document, onNavigate }: { document: MobileGeneratedDocumentSummary; onNavigate?: (tab: string) => void }) {
+  return (
+    <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть документ ${document.fileName}`} onPress={() => onNavigate ? onNavigate(`document:generated:${document.id}`) : null}>
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <IconBox icon="doc.text.fill" color={colors.blue} />
+          <View style={{ flex: 1 }}>
+            <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{document.fileName}</Text>
+            <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{document.tenantName} · {documentTypeLabel(document.documentType)}</Text>
+          </View>
+          <AppIcon name="chevron.right" size={18} color={colors.muted} />
+        </View>
+        <MetricGrid
+          items={[
+            { label: "Период", value: document.period ?? "без периода", color: colors.slate },
+            { label: "Сумма", value: document.totalAmount ? formatMoney(document.totalAmount) : "без суммы", color: colors.green },
+          ]}
+        />
+      </Card>
+    </Pressable>
+  )
+}
+
 function GeneratedDocumentList({ documents, onNavigate }: { documents: MobileGeneratedDocumentSummary[]; onNavigate?: (tab: string) => void }) {
   return (
     <>
       {documents.map((document) => (
-        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть документ ${document.fileName}`} key={document.id} onPress={() => onNavigate ? onNavigate(`document:generated:${document.id}`) : null}>
-          <Card>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <IconBox icon="doc.text.fill" color={colors.blue} />
-              <View style={{ flex: 1 }}>
-                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontFamily: fonts.black, fontWeight: "900" }}>{document.fileName}</Text>
-                <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{document.tenantName} · {documentTypeLabel(document.documentType)}</Text>
-              </View>
-              <AppIcon name="chevron.right" size={18} color={colors.muted} />
-            </View>
-            <MetricGrid
-              items={[
-                { label: "Период", value: document.period ?? "без периода", color: colors.slate },
-                { label: "Сумма", value: document.totalAmount ? formatMoney(document.totalAmount) : "без суммы", color: colors.green },
-              ]}
-            />
-          </Card>
-        </Pressable>
+        <GeneratedDocumentRow key={document.id} document={document} onNavigate={onNavigate} />
       ))}
     </>
   )
@@ -787,7 +901,7 @@ function StaffQuickSearch({ onNavigate }: { onNavigate: (tab: string) => void })
   )
 }
 
-export function AdminRequests({ payload, buildingId, onChanged, onNavigate }: { payload: AdminRequestsPayload; buildingId?: string; onChanged: () => void; onNavigate: (tab: string) => void }) {
+export function AdminRequests({ payload, buildingId, onChanged, onNavigate, virtualization }: { payload: AdminRequestsPayload; buildingId?: string; onChanged: () => void; onNavigate: (tab: string) => void; virtualization?: AdminListVirtualization }) {
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("ACTIVE")
   const [priorityFilter, setPriorityFilter] = useState("ALL")
@@ -826,7 +940,7 @@ export function AdminRequests({ payload, buildingId, onChanged, onNavigate }: { 
     return matchesQuery && matchesRequestStatus(request.status, statusFilter) && matchesRequestPriority(request.priority, priorityFilter)
   })
 
-  return (
+  const filterCard = (
     <>
       <SectionTitle title={buildingId ? "Заявки объекта" : "Заявки"} />
       <Card>
@@ -862,25 +976,59 @@ export function AdminRequests({ payload, buildingId, onChanged, onNavigate }: { 
         <SearchField value={query} onChangeText={setQuery} placeholder="Арендатор, заявка, описание" />
         {message ? <InlineMessage message={message} tone="error" /> : null}
       </Card>
+    </>
+  )
+
+  type RequestItem = AdminRequestsPayload["data"][number]
+  const renderRequestCard = (request: RequestItem) => (
+    <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть заявку ${request.title}`} onPress={() => onNavigate(`request:${request.id}`)}>
+      <Card>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <IconBox icon="tray.full.fill" color={requestPriorityColor(request.priority)} />
+          <View style={{ flex: 1 }}>
+            <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
+            <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{request.tenant.companyName} · {requestStatusLabel(request.status)}</Text>
+          </View>
+          <StatusPill label={requestPriorityLabel(request.priority)} color={requestPriorityColor(request.priority)} />
+        </View>
+        <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{request.description}</Text>
+        <CompactRow title="Локация" subtitle={requestLocation(request)} value={`${request._count?.comments ?? 0}`} tone={colors.blue} />
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          <SecondaryButton title="В работу" icon="play.fill" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "IN_PROGRESS" }); onChanged(); await fetchFilteredRequests() }} />
+          <SecondaryButton title="Готово" icon="checkmark" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "DONE" }); onChanged(); await fetchFilteredRequests() }} />
+        </View>
+      </Card>
+    </Pressable>
+  )
+
+  if (virtualization) {
+    return (
+      <FlatListPage<RequestItem>
+        header={
+          <>
+            {virtualization.pageHeader}
+            {filterCard}
+          </>
+        }
+        data={visibleRequests}
+        renderItem={({ item }) => renderRequestCard(item)}
+        keyExtractor={(item) => item.id}
+        empty={!busy ? <EmptyState title="Заявки не найдены" /> : null}
+        refreshing={virtualization.refreshing}
+        onRefresh={virtualization.onRefresh}
+        bottomPadding={virtualization.bottomPadding}
+        maxWidth={virtualization.maxWidth}
+        alignSelf={virtualization.alignSelf}
+        initialNumToRender={8}
+      />
+    )
+  }
+
+  return (
+    <>
+      {filterCard}
       {visibleRequests.map((request) => (
-        <Pressable focusable={false} accessibilityRole="button" accessibilityLabel={`Открыть заявку ${request.title}`} key={request.id} onPress={() => onNavigate(`request:${request.id}`)}>
-          <Card>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <IconBox icon="tray.full.fill" color={requestPriorityColor(request.priority)} />
-              <View style={{ flex: 1 }}>
-                <Text selectable numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontWeight: "900" }}>{request.title}</Text>
-                <Text selectable numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{request.tenant.companyName} · {requestStatusLabel(request.status)}</Text>
-              </View>
-              <StatusPill label={requestPriorityLabel(request.priority)} color={requestPriorityColor(request.priority)} />
-            </View>
-            <Text selectable numberOfLines={3} style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{request.description}</Text>
-            <CompactRow title="Локация" subtitle={requestLocation(request)} value={`${request._count?.comments ?? 0}`} tone={colors.blue} />
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              <SecondaryButton title="В работу" icon="play.fill" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "IN_PROGRESS" }); onChanged(); await fetchFilteredRequests() }} />
-              <SecondaryButton title="Готово" icon="checkmark" onPress={async () => { await updateAdminRequest({ requestId: request.id, status: "DONE" }); onChanged(); await fetchFilteredRequests() }} />
-            </View>
-          </Card>
-        </Pressable>
+        <View key={request.id}>{renderRequestCard(request)}</View>
       ))}
       {visibleRequests.length === 0 && !busy ? <EmptyState title="Заявки не найдены" /> : null}
     </>

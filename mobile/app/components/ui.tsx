@@ -1,12 +1,15 @@
 import type { ComponentProps, ReactNode, Ref } from "react"
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
+  RefreshControl,
   ScrollView,
   Switch,
   Text,
   TextInput,
   View,
+  type ListRenderItem,
 } from "react-native"
 import {
   colors,
@@ -735,6 +738,69 @@ export function NoticeList({ notices }: { notices: BuildingNotice[] }) {
         </Card>
       ))}
     </>
+  )
+}
+
+export type FlatListPageProps<T> = {
+  header?: ReactNode
+  data: T[]
+  renderItem: ListRenderItem<T>
+  keyExtractor: (item: T, index: number) => string
+  empty?: ReactNode
+  footer?: ReactNode
+  refreshing?: boolean
+  onRefresh?: () => void
+  separatorHeight?: number
+  bottomPadding?: number
+  initialNumToRender?: number
+  maxWidth?: number
+  alignSelf?: "stretch" | "center"
+}
+
+export function FlatListPage<T>({
+  header,
+  data,
+  renderItem,
+  keyExtractor,
+  empty,
+  footer,
+  refreshing,
+  onRefresh,
+  separatorHeight = 14,
+  bottomPadding = 96,
+  initialNumToRender = 10,
+  maxWidth,
+  alignSelf = "stretch",
+}: FlatListPageProps<T>) {
+  return (
+    <FlatList<T>
+      data={data}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      ListHeaderComponent={
+        header ? <View style={{ gap: 14, marginBottom: data.length > 0 ? separatorHeight : 0 }}>{header}</View> : null
+      }
+      ListEmptyComponent={empty as any}
+      ListFooterComponent={
+        footer ? <View style={{ marginTop: separatorHeight }}>{footer}</View> : null
+      }
+      ItemSeparatorComponent={() => <View style={{ height: separatorHeight }} />}
+      contentContainerStyle={{
+        padding: 16,
+        paddingBottom: bottomPadding,
+        maxWidth,
+        alignSelf,
+      }}
+      refreshControl={
+        onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} /> : undefined
+      }
+      contentInsetAdjustmentBehavior="automatic"
+      initialNumToRender={initialNumToRender}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+      removeClippedSubviews
+      keyboardShouldPersistTaps="handled"
+    />
   )
 }
 
