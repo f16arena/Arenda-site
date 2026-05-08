@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { KeyboardAvoidingView, ScrollView, Text, View } from "react-native"
+import { useEffect, useRef, useState } from "react"
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from "react-native"
 import { ApiError, loginMobile, registerMobile, requestMobilePasswordReset } from "@/lib/api"
 import { colors, fonts, openExternalUrl } from "@/app/utils/colors"
 import { isEmailLike, makeMobileSlug } from "@/app/utils/formatters"
@@ -52,6 +52,10 @@ export function LoginScreen({
   const [deviceAuthBusy, setDeviceAuthBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(error)
   const [messageTone, setMessageTone] = useState<"error" | "success">("error")
+
+  const ownerEmailRef = useRef<TextInput>(null)
+  const ownerPhoneRef = useRef<TextInput>(null)
+  const registerPasswordRef = useRef<TextInput>(null)
 
   useEffect(() => {
     setMessage(error)
@@ -270,10 +274,10 @@ export function LoginScreen({
                 </>
               ) : (
                 <>
-                  <Field label="ФИО владельца" value={ownerName} onChangeText={setOwnerName} placeholder="Арыстан Нурланов" textContentType="name" />
-                  <Field label="Email владельца" value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="owner@company.kz" textContentType="emailAddress" />
-                  <Field label="Телефон владельца" value={ownerPhone} onChangeText={setOwnerPhone} autoComplete="tel" keyboardType="phone-pad" placeholder="+7 700 000 00 00" textContentType="telephoneNumber" />
-                  <Field label="Пароль" value={registerPassword} onChangeText={setRegisterPassword} autoComplete="new-password" secureTextEntry placeholder="Минимум 8 символов" textContentType="newPassword" />
+                  <Field label="ФИО владельца" value={ownerName} onChangeText={setOwnerName} placeholder="Арыстан Нурланов" textContentType="name" returnKeyType="next" onSubmitEditing={() => ownerEmailRef.current?.focus()} blurOnSubmit={false} />
+                  <Field label="Email владельца" textInputRef={ownerEmailRef} value={ownerEmail} onChangeText={setOwnerEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="owner@company.kz" textContentType="emailAddress" returnKeyType="next" onSubmitEditing={() => ownerPhoneRef.current?.focus()} blurOnSubmit={false} />
+                  <Field label="Телефон владельца" textInputRef={ownerPhoneRef} value={ownerPhone} onChangeText={setOwnerPhone} autoComplete="tel" keyboardType="phone-pad" placeholder="+7 700 000 00 00" textContentType="telephoneNumber" returnKeyType="next" onSubmitEditing={() => registerPasswordRef.current?.focus()} blurOnSubmit={false} />
+                  <Field label="Пароль" textInputRef={registerPasswordRef} value={registerPassword} onChangeText={setRegisterPassword} autoComplete="new-password" secureTextEntry placeholder="Минимум 8 символов" textContentType="newPassword" returnKeyType="done" onSubmitEditing={() => submitRegister()} />
                   <ToggleRow
                     title="Принимаю оферту и политику"
                     subtitle="Без этого регистрация недоступна"

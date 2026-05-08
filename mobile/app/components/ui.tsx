@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react"
+import type { ComponentProps, ReactNode, Ref } from "react"
 import {
   ActivityIndicator,
   Pressable,
@@ -75,11 +75,12 @@ export function ToggleRow({
   )
 }
 
-export function Field({ label, ...props }: { label: string } & ComponentProps<typeof TextInput>) {
+export function Field({ label, textInputRef, ...props }: { label: string; textInputRef?: Ref<TextInput> } & ComponentProps<typeof TextInput>) {
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.muted, fontSize: 14, fontFamily: fonts.extraBold, fontWeight: "800" }}>{label}</Text>
       <TextInput
+        ref={textInputRef}
         {...props}
         placeholderTextColor="#94a3b8"
         style={[{
@@ -104,10 +105,12 @@ export function SearchField({
   value,
   onChangeText,
   placeholder,
+  loading = false,
 }: {
   value: string
   onChangeText: (value: string) => void
   placeholder: string
+  loading?: boolean
 }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 46, backgroundColor: "#ffffff" }}>
@@ -119,7 +122,8 @@ export function SearchField({
         placeholderTextColor="#94a3b8"
         style={{ flex: 1, color: colors.text, fontSize: 17, fontFamily: fonts.regular }}
       />
-      {value ? (
+      {loading ? <ActivityIndicator size="small" color={colors.muted} /> : null}
+      {value && !loading ? (
         <Pressable
           focusable={false}
           accessibilityRole="button"
@@ -297,7 +301,7 @@ export function TextButton({ title, onPress }: { title: string; onPress: () => v
       accessibilityRole="button"
       accessibilityLabel={title}
       onPress={onPress}
-      style={({ pressed }) => ({ minHeight: 34, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, opacity: pressed ? 0.65 : 1 })}
+      style={({ pressed }) => ({ minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, opacity: pressed ? 0.65 : 1 })}
     >
       <Text style={{ color: colors.blue, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{title}</Text>
     </Pressable>
@@ -413,7 +417,6 @@ export function ActionRow({
           flexDirection: "row",
           alignItems: "center",
           gap: 12,
-          paddingHorizontal: pressed ? 8 : 0,
           backgroundColor: pressed ? colors.surfaceMuted : "transparent",
         })}
       >
@@ -739,21 +742,27 @@ export function BottomTabs({
   tabs,
   activeTab,
   onChange,
+  onLayout,
 }: {
-  tabs: Array<{ key: string; label: string; icon: string }>
+  tabs: Array<{ key: string; label: string; icon: string; badge?: number }>
   activeTab: string
   onChange: (tab: string) => void
+  onLayout?: ComponentProps<typeof View>["onLayout"]
 }) {
   return (
-    <View style={{ position: "absolute", left: 12, right: 12, bottom: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: "row", padding: 8, gap: 4, boxShadow: "0 8px 28px rgba(15, 23, 42, 0.10)" }}>
+    <View
+      onLayout={onLayout}
+      style={{ position: "absolute", left: 12, right: 12, bottom: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, flexDirection: "row", padding: 8, gap: 4, boxShadow: "0 8px 28px rgba(15, 23, 42, 0.10)" }}
+    >
       {tabs.map((tab) => {
         const active = tab.key === activeTab || activeTab.startsWith(`${tab.key}:`)
+        const badge = tab.badge ?? 0
         return (
           <Pressable
             key={tab.key}
             focusable={false}
             accessibilityRole="tab"
-            accessibilityLabel={tab.label}
+            accessibilityLabel={badge > 0 ? `${tab.label}, ${badge} непрочитанных` : tab.label}
             accessibilityState={{ selected: active }}
             testID={`bottom-tab-${tab.key}`}
             onPress={() => onChange(tab.key)}
@@ -768,7 +777,30 @@ export function BottomTabs({
               transform: [{ scale: pressed ? 0.98 : 1 }],
             })}
           >
-            <AppIcon name={tab.icon} size={22} color={active ? colors.blue : colors.muted} />
+            <View>
+              <AppIcon name={tab.icon} size={22} color={active ? colors.blue : colors.muted} />
+              {badge > 0 ? (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -10,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: "#ef4444",
+                    paddingHorizontal: 4,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ color: "#ffffff", fontSize: 10, fontFamily: fonts.black, fontWeight: "900" }}>
+                    {badge > 99 ? "99+" : String(badge)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: active ? colors.blue : colors.muted, fontSize: 12, fontFamily: active ? fonts.black : fonts.bold, fontWeight: active ? "900" : "700" }}>{tab.label}</Text>
           </Pressable>
         )
