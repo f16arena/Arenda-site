@@ -3,8 +3,7 @@
 import { useActionState } from "react"
 import Link from "next/link"
 import { login } from "@/app/actions/auth"
-import { Building, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Building, Loader2, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
 
 export function LoginForm() {
   const [state, action, isPending] = useActionState(login, undefined)
@@ -85,14 +84,14 @@ export function LoginForm() {
             </div>
           )}
 
-          <Button
+          <button
             type="submit"
-            size="lg"
-            loading={isPending}
-            className="w-full font-semibold"
+            disabled={isPending}
+            className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
           >
+            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {isPending ? "Вход..." : "Войти"}
-          </Button>
+          </button>
         </form>
       </div>
 
