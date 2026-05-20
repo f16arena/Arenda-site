@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 import Link from "next/link"
+import { ProbePagesButton } from "./probe-button"
 import type { CSSProperties, ElementType } from "react"
 import {
   Activity,
@@ -279,6 +281,8 @@ export default async function SuperadminPerformancePage({
             </Link>
           </div>
         </header>
+
+        <ProbePagesButton />
 
         <section className="grid gap-4 md:grid-cols-5">
           <StatCard icon={Activity} label="Метрик за 24 часа" value={formatInteger(total24h)} hint="LCP, INP, CLS, TTFB, FCP" />
