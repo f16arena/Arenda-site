@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CircleAlert,
   Clock,
+  Download,
   ExternalLink,
   RefreshCw,
   ShieldCheck,
@@ -35,25 +36,25 @@ const statusMeta: Record<SystemCheckStatus, {
     label: "Работает",
     title: "Система готова к работе",
     icon: CheckCircle2,
-    iconClass: "bg-emerald-500/10 text-emerald-300",
-    pillClass: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    borderClass: "border-emerald-500/30",
+    iconClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
+    pillClass: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+    borderClass: "border-emerald-200 dark:border-emerald-500/30",
   },
   warning: {
     label: "Внимание",
     title: "Система работает, но есть предупреждения",
     icon: CircleAlert,
-    iconClass: "bg-amber-500/10 text-amber-300",
-    pillClass: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-    borderClass: "border-amber-500/30",
+    iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
+    pillClass: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+    borderClass: "border-amber-200 dark:border-amber-500/30",
   },
   error: {
     label: "Критично",
     title: "Есть критичные проблемы",
     icon: AlertTriangle,
-    iconClass: "bg-red-500/10 text-red-300",
-    pillClass: "border-red-500/30 bg-red-500/10 text-red-300",
-    borderClass: "border-red-500/30",
+    iconClass: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300",
+    pillClass: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
+    borderClass: "border-red-200 dark:border-red-500/30",
   },
 }
 
@@ -74,7 +75,7 @@ export default async function SuperadminSystemHealthPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-500/15 text-purple-200">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-500/15 dark:text-purple-200">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
@@ -88,15 +89,22 @@ export default async function SuperadminSystemHealthPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/superadmin/errors"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Bug className="h-4 w-4" />
             Ошибки сайта
           </Link>
+          <a
+            href="/superadmin/system-health/export"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <Download className="h-4 w-4" />
+            Скачать JSON
+          </a>
           <Link
             href="/api/health"
             target="_blank"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ExternalLink className="h-4 w-4" />
             API health
@@ -111,18 +119,18 @@ export default async function SuperadminSystemHealthPage() {
         </div>
       </header>
 
-      <section className={cn("rounded-2xl border bg-slate-950 p-5 text-white shadow-sm", statusMeta[summary.status].borderClass)}>
+      <section className={cn("rounded-2xl border bg-white p-5 text-slate-900 shadow-sm dark:bg-slate-950 dark:text-white", statusMeta[summary.status].borderClass)}>
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-start gap-4">
             <StatusIcon status={summary.status} size="lg" />
             <div>
               <h2 className="text-lg font-semibold">{statusMeta[summary.status].title}</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Версия <span className="font-mono text-slate-200">{release.version}</span>
-                {" "}· commit <span className="font-mono text-slate-200">{release.commitShort}</span>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Версия <span className="font-mono text-slate-900 dark:text-slate-200">{release.version}</span>
+                {" "}· commit <span className="font-mono text-slate-900 dark:text-slate-200">{release.commitShort}</span>
                 {" "}· проверено {formatDateTime(checkedAt)}
               </p>
-              <p className="mt-3 max-w-3xl text-sm text-slate-300">
+              <p className="mt-3 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
                 Красный блок значит, что перед deploy лучше остановиться. Желтый блок не всегда ломает сайт прямо сейчас,
                 но показывает, что нужно довести до production-уровня.
               </p>
@@ -175,19 +183,19 @@ function PriorityPanel({
   checks: SystemCheck[]
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
       <div className="mb-4 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-amber-300" />
-        <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
+        <Icon className="h-4 w-4 text-amber-500 dark:text-amber-300" />
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
       </div>
       {checks.length === 0 ? (
-        <p className="text-sm text-slate-500">{empty}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-500">{empty}</p>
       ) : (
         <div className="space-y-3">
           {checks.slice(0, 5).map((check) => (
-            <div key={check.id} className="rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-              <p className="text-sm font-semibold text-slate-100">{check.label}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">{check.message}</p>
+            <div key={check.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{check.message}</p>
             </div>
           ))}
         </div>
@@ -200,21 +208,21 @@ function CheckCard({ check }: { check: SystemCheck }) {
   const meta = statusMeta[check.status]
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-950">
-      <div className="border-b border-slate-800 p-5">
+    <article className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+      <div className="border-b border-slate-100 p-5 dark:border-slate-800">
         <div className="flex items-start gap-3">
           <StatusIcon status={check.status} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-100">{check.label}</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</h2>
               <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", meta.pillClass)}>
                 {meta.label}
               </span>
             </div>
-            <p className="mt-1 text-sm leading-6 text-slate-400">{check.message}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{check.message}</p>
           </div>
           {typeof check.ms === "number" && (
-            <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500">
               <Clock className="h-3.5 w-3.5" />
               {check.ms} ms
             </span>
@@ -225,8 +233,8 @@ function CheckCard({ check }: { check: SystemCheck }) {
       {check.details && check.details.length > 0 && (
         <div className="space-y-2 p-5">
           {check.details.map((detail, index) => (
-            <div key={`${check.id}-${index}`} className="flex items-start gap-2 text-sm leading-6 text-slate-300">
-              <Activity className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-600" />
+            <div key={`${check.id}-${index}`} className="flex items-start gap-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
+              <Activity className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-600" />
               <span>{detail}</span>
             </div>
           ))}
@@ -253,9 +261,9 @@ function StatusIcon({ status, size = "md" }: { status: SystemCheckStatus; size?:
 
 function SummaryTile({ label, value, tone }: { label: string; value: number; tone: "emerald" | "amber" | "red" }) {
   const toneClass = {
-    emerald: "bg-emerald-500/10 text-emerald-300",
-    amber: "bg-amber-500/10 text-amber-300",
-    red: "bg-red-500/10 text-red-300",
+    emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
+    amber: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
+    red: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300",
   }[tone]
 
   return (
