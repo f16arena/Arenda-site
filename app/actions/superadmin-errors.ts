@@ -67,3 +67,59 @@ function normalizeSupportStatus(value: string): ErrorSupportStatus | null {
   const normalized = value.toUpperCase() as ErrorSupportStatus
   return SUPPORT_STATUSES.has(normalized) ? normalized : null
 }
+
+/**
+ * Массово помечает все НЕрешённые ошибки (action=ERROR) как RESOLVED.
+ * Записи не удаляются — только меняется supportStatus в details.
+ * Возвращает количество обработанных записей.
+ */
+export async function resolveAllOpenErrors(): Promise<{ count: number }> {
+  const { userId } = await requirePlatformOwner()
+
+  const logs = await db.auditLog.findMany({
+    where: {
+      action: "ERROR",
+      NOT: [{ details: { contains: `"supportStatus":"RESOLVED"` } }],
+    },
+    select: { id: true, details: true },
+  })
+
+  const now = new Date().toISOString()
+  // Обновляем по одной (JSON-поле details редактируется per-row), пачками для скорости.
+  const BATCH = 20
+  for (let i = 0; i < logs.length; i += BATCH) {
+    const batch = logs.slice(i, i + BATCH)
+    await Promise.all(
+      batch.map((log) => {
+        const details = parseErrorDetails(log.details)
+        const next: ErrorReportDetails = {
+          ...details,
+          supportStatus: "RESOLVED",
+          supportNote: details.supportNote ?? "Массово закрыто платформой (исторические/устаревшие)",
+          supportUpdatedAt: now,
+          supportUpdatedBy: userId,
+          supportResolvedAt: now,
+        }
+        return db.auditLog.update({ where: { id: log.id }, data: { details: JSON.stringify(next) } })
+      }),
+    )
+  }
+
+  if (logs.length > 0) {
+    await db.auditLog.create({
+      data: {
+        userId,
+        userName: null,
+        userRole: "PLATFORM_OWNER",
+        action: "UPDATE",
+        entity: "error-support",
+        entityId: null,
+        details: JSON.stringify({ bulkResolved: logs.length, at: now }),
+      },
+    })
+  }
+
+  revalidatePath("/superadmin/errors")
+  revalidatePath("/superadmin")
+  return { count: logs.length }
+}

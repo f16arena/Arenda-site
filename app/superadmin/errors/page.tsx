@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import Link from "next/link"
 import { AlertTriangle, Bug, CheckCircle2, Download, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
 import { updateErrorSupportStatus, type ErrorSupportStatus } from "@/app/actions/superadmin-errors"
+import { BulkResolveButton } from "./bulk-resolve-button"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
@@ -161,6 +162,9 @@ export default async function SuperadminErrorsPage({
         <StatusLink label="В работе" value="in_progress" active={supportFilter === "in_progress"} count={inProgressCount} q={query} kind={kind} />
         <StatusLink label="Решенные" value="resolved" active={supportFilter === "resolved"} count={resolvedCount} q={query} kind={kind} />
         <StatusLink label="Все" value="all" active={supportFilter === "all"} count={totalAll} q={query} kind={kind} />
+        <div className="ml-auto">
+          <BulkResolveButton openCount={openCount} />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
