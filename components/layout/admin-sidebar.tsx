@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   LogOut, Building, Activity,
   CalendarDays, CirclePlus,
-  Menu, X, Rocket, CircleHelp, HardDrive,
+  Menu, X, Rocket, CircleHelp, HardDrive, UserCog,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -79,6 +79,12 @@ const nav: NavSection[] = [
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
       { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
       { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics", capability: "systemHealth.view" },
+    ],
+  },
+  {
+    title: "УПРАВЛЕНИЕ",
+    items: [
+      { href: "/admin/users", label: "Пользователи", icon: UserCog, section: "users" },
     ],
   },
   {
