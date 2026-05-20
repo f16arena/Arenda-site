@@ -234,11 +234,20 @@ export async function changeOrgOwner(orgId: string, newOwnerId: string) {
 
 export async function impersonateOrg(orgId: string) {
   const session = await requirePlatformOwner()
+  // ВАЖНО: условия должны совпадать с getValidatedImpersonateForUser (lib/org.ts).
+  // Иначе cookie выставится (тост «Входим как клиент…» зелёный), но на рендере
+  // /admin валидатор её отвергнет, и платформенный админ молча вернётся на экран
+  // выбора организации — выглядит как зависание.
   const owner = await db.user.findFirst({
     where: { organizationId: orgId, role: "OWNER" },
-    select: { id: true },
+    select: { id: true, isActive: true },
   })
-  if (!owner) throw new Error("Owner не найден в этой организации")
+  if (!owner) throw new Error("В организации не назначен владелец (OWNER) — войти как клиент нельзя")
+  if (!owner.isActive) {
+    throw new Error(
+      "Владелец организации деактивирован. Активируйте его аккаунт (карточка организации → пользователи), затем повторите вход.",
+    )
+  }
 
   await setImpersonateData({
     actAsUserId: owner.id,
