@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { Suspense } from "react"
 import { db } from "@/lib/db"
 import { formatMoney } from "@/lib/utils"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -30,7 +31,36 @@ type AttentionItem = {
   active: boolean
 }
 
-export default async function AdminDashboard() {
+// Скелет первого экрана: мгновенно отдаётся, пока стримятся тяжёлые метрики.
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+        ))}
+      </div>
+      <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Оболочка отдаётся сразу; тяжёлый дашборд (десятки запросов) стримится через
+// Suspense, поэтому первый экран красится мгновенно, а не ждёт все запросы.
+export default function AdminDashboard() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardBody />
+    </Suspense>
+  )
+}
+
+async function DashboardBody() {
   return measureServerRoute("/admin", async () => {
   const { orgId, userId } = await requireOrgAccess()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
