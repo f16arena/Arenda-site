@@ -81,7 +81,8 @@ export function ProbePagesButton() {
                 <tr>
                   <th className="px-4 py-2">Страница</th>
                   <th className="px-4 py-2">Статус</th>
-                  <th className="px-4 py-2">Время</th>
+                  <th className="px-4 py-2" title="Время до первого байта — когда показывается первый экран (учитывает стриминг)">TTFB</th>
+                  <th className="px-4 py-2" title="Полное время до конца ответа">Всего</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -99,7 +100,8 @@ export function ProbePagesButton() {
                         {r.note && r.status !== 0 ? ` · ${r.note}` : ""}
                       </span>
                     </td>
-                    <td className={`px-4 py-2 font-semibold ${durationClass(r.ms)}`}>{formatMs(r.ms)}</td>
+                    <td className={`px-4 py-2 font-semibold ${durationClass(r.ttfb)}`}>{formatMs(r.ttfb)}</td>
+                    <td className={`px-4 py-2 ${durationClass(r.ms)}`}>{formatMs(r.ms)}</td>
                   </tr>
                 ))}
               </tbody>

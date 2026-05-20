@@ -96,7 +96,8 @@ const CONCURRENCY = 4
 export type ProbeResult = {
   path: string
   status: number
-  ms: number
+  ttfb: number // время до заголовков (≈ первый экран; показывает эффект стриминга)
+  ms: number // полное время до конца тела
   ok: boolean
   note?: string
 }
@@ -176,15 +177,18 @@ async function probeOne(base: string, path: string, cookie: string): Promise<Pro
       cache: "no-store",
       signal: controller.signal,
     })
+    // fetch резолвится на заголовках — это ≈ TTFB / готовность оболочки (важно
+    // для стримящихся страниц). Затем дочитываем тело до полного завершения.
+    const ttfb = Math.round(performance.now() - start)
     await res.arrayBuffer().catch(() => null)
     const ms = Math.round(performance.now() - start)
     const isRedirect = res.status >= 300 && res.status < 400
     const ok = (res.status >= 200 && res.status < 300) || isRedirect
-    return { path, status: res.status, ms, ok, note: isRedirect ? "редирект" : undefined }
+    return { path, status: res.status, ttfb, ms, ok, note: isRedirect ? "редирект" : undefined }
   } catch (e) {
     const ms = Math.round(performance.now() - start)
     const timeout = e instanceof Error && e.name === "AbortError"
-    return { path, status: 0, ms, ok: false, note: timeout ? "таймаут" : "ошибка соединения" }
+    return { path, status: 0, ttfb: ms, ms, ok: false, note: timeout ? "таймаут" : "ошибка соединения" }
   } finally {
     clearTimeout(timer)
   }
