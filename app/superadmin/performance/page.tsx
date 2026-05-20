@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 120
 
 import Link from "next/link"
 import { ProbePagesButton } from "./probe-button"

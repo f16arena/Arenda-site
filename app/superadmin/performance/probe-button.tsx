@@ -2,27 +2,36 @@
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
-import { CheckCircle2, RefreshCw, XCircle } from "lucide-react"
-import { probePages, type ProbeResult } from "@/app/actions/perf-probe"
+import { CheckCircle2, Download, RefreshCw, XCircle } from "lucide-react"
+import { probePages, type ProbeReport } from "@/app/actions/perf-probe"
 
 export function ProbePagesButton() {
   const [pending, startTransition] = useTransition()
-  const [results, setResults] = useState<ProbeResult[] | null>(null)
-  const [checkedAt, setCheckedAt] = useState<string | null>(null)
+  const [report, setReport] = useState<ProbeReport | null>(null)
 
   function run() {
     startTransition(async () => {
       try {
         const r = await probePages()
-        setResults(r.results)
-        setCheckedAt(r.checkedAt)
-        const bad = r.results.filter((x) => !x.ok).length
-        if (bad > 0) toast.warning(`Проверка завершена: проблемных страниц ${bad}`)
-        else toast.success("Проверка завершена: все страницы отвечают")
+        setReport(r)
+        if (r.badCount > 0) toast.warning(`Проверено ${r.results.length} страниц · проблемных: ${r.badCount}`)
+        else toast.success(`Проверено ${r.results.length} страниц · все отвечают`)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Не удалось выполнить проверку")
       }
     })
+  }
+
+  function downloadReport() {
+    if (!report) return
+    const stamp = report.checkedAt.slice(0, 19).replace(/[:T]/g, "-")
+    const blob = new Blob([JSON.stringify({ tool: "page-probe", ...report }, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `commrent-page-probe-${stamp}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
@@ -31,29 +40,44 @@ export function ProbePagesButton() {
         <div>
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Активная проверка страниц</h2>
           <p className="mt-1 max-w-2xl text-xs text-slate-500 dark:text-slate-400">
-            Сервер сам открывает ключевые страницы под вашей сессией и измеряет полное время ответа и статус. Удобно проверить скорость прямо сейчас, не дожидаясь визитов пользователей.
+            Сервер обходит все страницы под вашей сессией, измеряет полное время ответа и статус. Прежние замеры полностью удаляются, формируется свежий отчёт — его можно скачать.
           </p>
         </div>
-        <button
-          onClick={run}
-          disabled={pending}
-          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-60"
-        >
-          <RefreshCw className={`h-4 w-4 ${pending ? "animate-spin" : ""}`} />
-          {pending ? "Проверяю…" : "Перепроверить страницы"}
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={run}
+            disabled={pending}
+            className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${pending ? "animate-spin" : ""}`} />
+            {pending ? "Проверяю…" : "Перепроверить страницы"}
+          </button>
+          {report && (
+            <button
+              onClick={downloadReport}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <Download className="h-4 w-4" />
+              Скачать отчёт
+            </button>
+          )}
+        </div>
       </div>
 
-      {results && (
+      {report && (
         <div className="mt-4">
-          {checkedAt && (
-            <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">
-              Проверено: {new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "medium", timeZone: "Asia/Qyzylorda" }).format(new Date(checkedAt))}
-            </p>
-          )}
-          <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+          <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+            <span>
+              Проверено: {new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "medium", timeZone: "Asia/Qyzylorda" }).format(new Date(report.checkedAt))}
+            </span>
+            <span>· страниц: {report.results.length}</span>
+            <span className="text-emerald-600 dark:text-emerald-400">· ок: {report.okCount}</span>
+            {report.badCount > 0 && <span className="text-red-600 dark:text-red-400">· проблемных: {report.badCount}</span>}
+            <span>· общее время прогона: {formatMs(report.totalMs)}</span>
+          </div>
+          <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-100 dark:border-slate-800">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950/70 dark:text-slate-500">
+              <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950/90 dark:text-slate-500">
                 <tr>
                   <th className="px-4 py-2">Страница</th>
                   <th className="px-4 py-2">Статус</th>
@@ -61,7 +85,7 @@ export function ProbePagesButton() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {results.map((r) => (
+                {report.results.map((r) => (
                   <tr key={r.path} className="text-slate-700 dark:text-slate-300">
                     <td className="px-4 py-2 font-mono text-xs">{r.path}</td>
                     <td className="px-4 py-2">
