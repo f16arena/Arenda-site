@@ -15,6 +15,7 @@ import {
   Package,
   Shield,
   UserCircle,
+  UserCog,
 } from "lucide-react"
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { formatPersonShortName, getDisplayInitial } from "@/lib/display-name"
@@ -41,6 +42,7 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           <SideLink href="/superadmin" icon={BarChart3} label="Обзор" />
           <SideLink href="/superadmin/orgs" icon={Building2} label="Организации" />
+          <SideLink href="/superadmin/users" icon={UserCog} label="Владельцы" />
           <SideLink href="/superadmin/subscriptions" icon={CalendarIcon} label="Подписки" />
           <SideLink href="/superadmin/plans" icon={Package} label="Тарифы" />
           <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
