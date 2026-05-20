@@ -649,21 +649,27 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
 
 export function ToggleActiveButton({ userId, isActive, disabled }: { userId: string; isActive: boolean; disabled?: boolean }) {
   const [, startTransition] = useTransition()
+  // Локальное (оптимистичное) состояние: меняем мгновенно, без перезагрузки всей
+  // страницы. При ошибке откатываем назад.
+  const [active, setActive] = useState(isActive)
   if (disabled) return null
 
   return (
     <ConfirmDialog
-      title={isActive ? "Деактивировать пользователя?" : "Активировать пользователя?"}
-      description={isActive ? "Пользователь не сможет войти в систему." : "Пользователь снова сможет войти."}
-      variant={isActive ? "danger" : "default"}
-      confirmLabel={isActive ? "Деактивировать" : "Активировать"}
+      title={active ? "Деактивировать пользователя?" : "Активировать пользователя?"}
+      description={active ? "Пользователь не сможет войти в систему." : "Пользователь снова сможет войти."}
+      variant={active ? "danger" : "default"}
+      confirmLabel={active ? "Деактивировать" : "Активировать"}
       onConfirm={() =>
         new Promise<void>((resolve) => {
+          const next = !active
+          setActive(next) // оптимистично
           startTransition(async () => {
             try {
-              await toggleUserActive(userId, !isActive)
-              toast.success(isActive ? "Деактивирован" : "Активирован")
+              await toggleUserActive(userId, next)
+              toast.success(next ? "Активирован" : "Деактивирован")
             } catch (error) {
+              setActive(!next) // откат при ошибке
               toast.error(error instanceof Error ? error.message : "Ошибка")
             } finally {
               resolve()
@@ -673,9 +679,9 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
       }
       trigger={
         <button
-          className={isActive ? "text-slate-500 hover:text-slate-300" : "text-emerald-400 hover:text-emerald-200"}
-          aria-label={isActive ? "Деактивировать" : "Активировать"}
-          title={isActive ? "Деактивировать" : "Активировать"}
+          className={active ? "text-slate-500 hover:text-slate-300" : "text-emerald-400 hover:text-emerald-200"}
+          aria-label={active ? "Деактивировать" : "Активировать"}
+          title={active ? "Активен — нажмите, чтобы деактивировать" : "Неактивен — нажмите, чтобы активировать"}
         >
           <Power className="h-4 w-4" />
         </button>

@@ -159,8 +159,9 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
     data: { isActive },
   })
 
-  revalidatePath("/admin/users")
-  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  // Без revalidatePath/revalidateTag: переключение активности обновляется
+  // оптимистично на клиенте, чтобы не перерисовывать всю тяжёлую страницу
+  // /admin/users. Свежие данные подтянутся при следующей навигации (force-dynamic).
 }
 
 export async function resetUserPassword(userId: string, newPassword: string) {
