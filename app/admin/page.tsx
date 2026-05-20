@@ -31,16 +31,30 @@ type AttentionItem = {
   active: boolean
 }
 
-// Скелет первого экрана: мгновенно отдаётся, пока стримятся тяжёлые метрики.
+// floorIds + tenant-scope where: нужны и базовым, и операционным метрикам.
+async function loadFloorScope(orgId: string, visibleBuildingIds: string[]) {
+  const floorIds = await safeServerValue(
+    db.floor.findMany({ where: { buildingId: { in: visibleBuildingIds } }, select: { id: true } }).then((floors) => floors.map((f) => f.id)),
+    [] as string[],
+    { source: "admin.dashboard.floorIds", route: "/admin", orgId },
+  )
+  const tenantWhereInBuilding: Prisma.TenantWhereInput = {
+    user: { organizationId: orgId },
+    OR: [
+      { space: { floorId: { in: floorIds } } },
+      { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
+      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+    ],
+  }
+  return { floorIds, tenantWhereInBuilding }
+}
+
+// Скелет первого экрана — отдаётся мгновенно, пока стримятся базовые метрики.
 function DashboardSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-        ))}
-      </div>
-      <div className="h-40 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+      <div className="h-9 w-40 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+      <OperationalSkeleton />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
@@ -50,8 +64,22 @@ function DashboardSkeleton() {
   )
 }
 
-// Оболочка отдаётся сразу; тяжёлый дашборд (десятки запросов) стримится через
-// Suspense, поэтому первый экран красится мгновенно, а не ждёт все запросы.
+// Скелет операционного блока (стримится отдельно).
+function OperationalSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Оболочка отдаётся сразу; тяжёлый дашборд стримится через Suspense, поэтому
+// первый экран не ждёт десятки запросов.
 export default function AdminDashboard() {
   return (
     <Suspense fallback={<DashboardSkeleton />}>
@@ -83,31 +111,16 @@ async function DashboardBody() {
     )
   }
 
-  const floorIds = await safe(
-    "admin.dashboard.floorIds",
-    db.floor.findMany({
-      where: { buildingId: { in: visibleBuildingIds } },
-      select: { id: true },
-    }).then((floors) => floors.map((f) => f.id)),
-    [] as string[],
-  )
+  const { floorIds, tenantWhereInBuilding } = await loadFloorScope(orgId, visibleBuildingIds)
 
-  const tenantWhereInBuilding: Prisma.TenantWhereInput = {
-    user: { organizationId: orgId },
-    OR: [
-      { space: { floorId: { in: floorIds } } },
-      { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
-      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
-    ],
-  }
-
-  const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
-  const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
-  const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
-
-  const baseMetricsPromise = Promise.all([
+  const [
+    tenantsCount,
+    activeTenants,
+    spacesGroup,
+    chargesAgg,
+    onboarding,
+    currentUser2fa,
+  ] = await measureServerStep("/admin", "base-metrics", Promise.all([
     safe("admin.dashboard.tenantsCount", db.tenant.count({ where: tenantWhereInBuilding }), 0),
     safe(
       "admin.dashboard.activeTenants",
@@ -177,9 +190,153 @@ async function DashboardBody() {
       }),
       null as { role: string; totpEnabledAt: Date | null } | null,
     ),
-  ])
+  ]))
 
-  const todayMetricsPromise = Promise.all([
+  const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
+  const vacantSpaces = spacesGroup.find((s) => s.status === "VACANT")?._count._all ?? 0
+  const totalDebt = chargesAgg._sum.amount ?? 0
+  const debtCount = chargesAgg._count._all
+  const monthlyRevenue = activeTenants.reduce((sum, t) => {
+    return sum + calculateTenantMonthlyRent(t)
+  }, 0)
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Дашборд</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+          {buildingId ? "Обзор выбранного здания" : `Обзор всех доступных зданий · ${visibleBuildingIds.length}`}
+        </p>
+      </div>
+
+      {currentUser2fa && currentUser2fa.role === "OWNER" && !currentUser2fa.totpEnabledAt && (
+        <Link
+          href="/admin/profile?tab=notifications"
+          className="block rounded-xl border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:bg-amber-100/70 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/15"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-amber-600 dark:bg-slate-900 dark:text-amber-300">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Настройте двухфакторную аутентификацию</p>
+                <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-200">
+                  Для роли владельца рекомендуется включить 2FA. Это защитит аккаунт даже при компрометации пароля.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 self-start rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white sm:self-auto">
+              Настроить
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </div>
+        </Link>
+      )}
+
+      {!onboarding.allDone && onboarding.nextStep && (
+        <Link
+          href="/admin/onboarding"
+          className="block rounded-xl border border-blue-200 bg-blue-50 p-4 transition hover:border-blue-300 hover:bg-blue-100/70 dark:border-blue-500/30 dark:bg-blue-500/10 dark:hover:bg-blue-500/15"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 dark:bg-slate-900 dark:text-blue-300">
+                <ClipboardCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-blue-950 dark:text-blue-100">Запуск платформы: {onboarding.percent}%</p>
+                <p className="mt-0.5 text-sm text-blue-700 dark:text-blue-200">
+                  Следующий шаг: {onboarding.nextStep.title.toLowerCase()}.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-36 overflow-hidden rounded-full bg-white/80 dark:bg-slate-800">
+                <div className="h-full rounded-full bg-blue-600" style={{ width: `${onboarding.percent}%` }} />
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 dark:text-blue-200">
+                Открыть чеклист
+                <ArrowUpRight className="h-4 w-4" />
+              </span>
+            </div>
+          </div>
+        </Link>
+      )}
+
+      {/* Операционный блок (сегодня/действия/качество данных) стримится отдельно,
+          чтобы тяжёлые подсчёты не задерживали ключевые карточки. */}
+      <Suspense fallback={<OperationalSkeleton />}>
+        <DashboardOperational orgId={orgId} buildingId={buildingId} visibleBuildingIds={visibleBuildingIds} />
+      </Suspense>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Арендаторы"
+          value={String(activeTenants.length)}
+          sub={`из ${tenantsCount} зарегистрированных`}
+          icon={Users}
+          color="blue"
+        />
+        <StatCard
+          label="Занято помещений"
+          value={String(occupiedSpaces)}
+          sub={`${vacantSpaces} свободно`}
+          icon={Building2}
+          color="teal"
+        />
+        <StatCard
+          label="Доход в месяц"
+          value={formatMoney(monthlyRevenue)}
+          sub="расчётный"
+          icon={TrendingUp}
+          color="green"
+        />
+        <StatCard
+          label="Общий долг"
+          value={formatMoney(totalDebt)}
+          sub={`${debtCount} неоплаченных`}
+          icon={AlertTriangle}
+          color="red"
+        />
+      </div>
+
+      <DashboardLazySections forecastMonthlyRevenue={monthlyRevenue} showPortfolio={!buildingId} />
+    </div>
+  )
+  })
+}
+
+async function DashboardOperational({
+  orgId,
+  buildingId,
+  visibleBuildingIds,
+}: {
+  orgId: string
+  buildingId: string | null
+  visibleBuildingIds: string[]
+}) {
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin", orgId })
+  const { floorIds, tenantWhereInBuilding } = await loadFloorScope(orgId, visibleBuildingIds)
+
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
+  const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
+
+  const [
+    overdueCharges,
+    pendingPaymentReports,
+    dataQualityIssues,
+    expiringContracts,
+    todayRequests,
+    yesterdayPayments,
+    openRequestsCount,
+    openTasksCount,
+    documentsOnSignature,
+  ] = await measureServerStep("/admin", "today-metrics", Promise.all([
     safe(
       "admin.dashboard.overdueCharges",
       db.charge.aggregate({
@@ -338,64 +495,7 @@ async function DashboardBody() {
       }),
       0,
     ),
-  ])
-
-  const [
-    [
-      tenantsCount,
-      activeTenants,
-      spacesGroup,
-      chargesAgg,
-      onboarding,
-      currentUser2fa,
-    ],
-    [
-      overdueCharges,
-      pendingPaymentReports,
-      dataQualityIssues,
-      expiringContracts,
-      todayRequests,
-      yesterdayPayments,
-      openRequestsCount,
-      openTasksCount,
-      documentsOnSignature,
-    ],
-  ] = await Promise.all([
-    measureServerStep("/admin", "base-metrics", baseMetricsPromise),
-    measureServerStep("/admin", "today-metrics", todayMetricsPromise),
-  ])
-
-  const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
-  const vacantSpaces = spacesGroup.find((s) => s.status === "VACANT")?._count._all ?? 0
-  const totalDebt = chargesAgg._sum.amount ?? 0
-  const debtCount = chargesAgg._count._all
-  const monthlyRevenue = activeTenants.reduce((sum, t) => {
-    return sum + calculateTenantMonthlyRent(t)
-  }, 0)
-
-  const buildingBreakdown: Array<{
-    id: string
-    name: string
-    address: string
-    tenantCount: number
-    income: number
-    expenses: number
-    profit: number
-    debt: number
-    debtCount: number
-    vacantArea: number
-    occupancyPercent: number | null
-  }> = []
-  const recentRequests: Array<{ id: string; title: string; status: string }> = []
-  const recentTasks: Array<{ id: string; title: string; status: string }> = []
-  const topTenants: Array<{
-    id: string
-    companyName: string
-    space: { number: string } | null
-    tenantSpaces: { space: { number: string } }[]
-    fullFloors: { number: number; name: string }[]
-  }> = []
-  const debtMap = new Map<string, number>()
+  ]))
 
   const attentionItems: AttentionItem[] = [
     {
@@ -435,68 +535,6 @@ async function DashboardBody() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Дашборд</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          {buildingId ? "Обзор выбранного здания" : `Обзор всех доступных зданий · ${visibleBuildingIds.length}`}
-        </p>
-      </div>
-
-      {currentUser2fa && currentUser2fa.role === "OWNER" && !currentUser2fa.totpEnabledAt && (
-        <Link
-          href="/admin/profile?tab=notifications"
-          className="block rounded-xl border border-amber-200 bg-amber-50 p-4 transition hover:border-amber-300 hover:bg-amber-100/70 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/15"
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-amber-600 dark:bg-slate-900 dark:text-amber-300">
-                <ShieldAlert className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-amber-950 dark:text-amber-100">Настройте двухфакторную аутентификацию</p>
-                <p className="mt-0.5 text-sm text-amber-800 dark:text-amber-200">
-                  Для роли владельца рекомендуется включить 2FA. Это защитит аккаунт даже при компрометации пароля.
-                </p>
-              </div>
-            </div>
-            <span className="inline-flex items-center gap-1.5 self-start rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white sm:self-auto">
-              Настроить
-              <ArrowUpRight className="h-4 w-4" />
-            </span>
-          </div>
-        </Link>
-      )}
-
-      {!onboarding.allDone && onboarding.nextStep && (
-        <Link
-          href="/admin/onboarding"
-          className="block rounded-xl border border-blue-200 bg-blue-50 p-4 transition hover:border-blue-300 hover:bg-blue-100/70 dark:border-blue-500/30 dark:bg-blue-500/10 dark:hover:bg-blue-500/15"
-        >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-blue-600 dark:bg-slate-900 dark:text-blue-300">
-                <ClipboardCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-blue-950 dark:text-blue-100">Запуск платформы: {onboarding.percent}%</p>
-                <p className="mt-0.5 text-sm text-blue-700 dark:text-blue-200">
-                  Следующий шаг: {onboarding.nextStep.title.toLowerCase()}.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="h-2 w-36 overflow-hidden rounded-full bg-white/80 dark:bg-slate-800">
-                <div className="h-full rounded-full bg-blue-600" style={{ width: `${onboarding.percent}%` }} />
-              </div>
-              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700 dark:text-blue-200">
-                Открыть чеклист
-                <ArrowUpRight className="h-4 w-4" />
-              </span>
-            </div>
-          </div>
-        </Link>
-      )}
-
       <OwnerNextActionCard action={ownerPrimaryAction} />
 
       <div>
@@ -583,202 +621,8 @@ async function DashboardBody() {
         openTasksCount={openTasksCount}
         documentsOnSignature={documentsOnSignature}
       />
-
-      {!buildingId && buildingBreakdown.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="flex flex-col gap-3 px-5 py-4 border-b border-slate-100 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разрез по зданиям за текущий месяц</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Доход, расход, прибыль, долг и свободная площадь по каждой точке.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/api/export/owner-report?format=xlsx"
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel
-              </Link>
-              <Link
-                href="/api/export/owner-report?format=html"
-                target="_blank"
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-              >
-                <Printer className="h-4 w-4" />
-                PDF/печать
-              </Link>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Доход</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Расход</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Прибыль</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Долг</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Свободно</th>
-                <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Заполняемость</th>
-              </tr>
-            </thead>
-            <tbody>
-              {buildingBreakdown.map((b) => (
-                <tr key={b.id} className="border-b border-slate-50 dark:border-slate-800/70">
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{b.name}</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">{b.address} · {b.tenantCount} арендаторов</p>
-                  </td>
-                  <td className="px-5 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{formatMoney(b.income)}</td>
-                  <td className="px-5 py-3 text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(b.expenses)}</td>
-                  <td className={`px-5 py-3 text-right font-semibold ${b.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                    {formatMoney(b.profit)}
-                  </td>
-                  <td className={`px-5 py-3 text-right font-medium ${b.debt > 0 ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
-                    {b.debt > 0 ? formatMoney(b.debt) : "—"}
-                    {b.debtCount > 0 && <span className="block text-[11px] font-normal text-slate-400">{b.debtCount} шт</span>}
-                  </td>
-                  <td className="px-5 py-3 text-right text-slate-600 dark:text-slate-400">
-                    {formatArea(b.vacantArea)}
-                  </td>
-                  <td className="px-5 py-3 text-right text-slate-600 dark:text-slate-400">
-                    {b.occupancyPercent !== null ? `${b.occupancyPercent}%` : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Арендаторы"
-          value={String(activeTenants.length)}
-          sub={`из ${tenantsCount} зарегистрированных`}
-          icon={Users}
-          color="blue"
-        />
-        <StatCard
-          label="Занято помещений"
-          value={String(occupiedSpaces)}
-          sub={`${vacantSpaces} свободно`}
-          icon={Building2}
-          color="teal"
-        />
-        <StatCard
-          label="Доход в месяц"
-          value={formatMoney(monthlyRevenue)}
-          sub="расчётный"
-          icon={TrendingUp}
-          color="green"
-        />
-        <StatCard
-          label="Общий долг"
-          value={formatMoney(totalDebt)}
-          sub={`${debtCount} неоплаченных`}
-          icon={AlertTriangle}
-          color="red"
-        />
-      </div>
-
-      <DashboardLazySections forecastMonthlyRevenue={monthlyRevenue} showPortfolio={!buildingId} />
-
-      {(recentRequests.length > 0 || recentTasks.length > 0) && (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              Активные заявки
-            </h2>
-            <Link href="/admin/requests" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5">
-              Все <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-          {recentRequests.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Нет активных заявок</p>
-          ) : (
-            <ul className="space-y-2">
-              {recentRequests.map((r) => (
-                <li key={r.id} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700 dark:text-slate-300 truncate">{r.title}</span>
-                  <StatusBadge status={r.status} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <CheckSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              Задачи
-            </h2>
-            <Link href="/admin/tasks" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5">
-              Все <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-          {recentTasks.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Нет активных задач</p>
-          ) : (
-            <ul className="space-y-2">
-              {recentTasks.map((t) => (
-                <li key={t.id} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-700 dark:text-slate-300 truncate">{t.title}</span>
-                  <StatusBadge status={t.status} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-      )}
-
-      {topTenants.length > 0 && (
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Арендаторы</h2>
-          <Link href="/admin/tenants" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5">
-            Все <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <table className="w-full min-w-[480px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Компания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Помещение</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Долг</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topTenants.map((t) => {
-              const debt = debtMap.get(t.id) ?? 0
-              return (
-                <tr key={t.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
-                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
-                    {describeTenantPlacement(t)}
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    {debt > 0 ? (
-                      <span className="text-red-600 dark:text-red-400 font-medium">{formatMoney(debt)}</span>
-                    ) : (
-                      <span className="text-emerald-600 dark:text-emerald-400">Нет долга</span>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-      )}
     </div>
   )
-  })
 }
 
 function OwnerNextActionCard({ action }: { action: AttentionItem | null }) {
@@ -1059,45 +903,5 @@ function StatCard({
       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
     </div>
-  )
-}
-
-function describeTenantPlacement(tenant: {
-  space: { number: string } | null
-  tenantSpaces: { space: { number: string } }[]
-  fullFloors: { number: number; name: string }[]
-}) {
-  if (tenant.fullFloors.length > 0) {
-    return tenant.fullFloors.map((floor) => floor.name || `${floor.number} этаж`).join(", ")
-  }
-
-  const rooms = tenant.tenantSpaces.length > 0
-    ? tenant.tenantSpaces.map((item) => item.space.number)
-    : tenant.space
-      ? [tenant.space.number]
-      : []
-
-  return rooms.length > 0 ? rooms.map((number) => `Каб. ${number}`).join(", ") : "—"
-}
-
-function formatArea(value: number) {
-  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value)} м²`
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    NEW: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
-    IN_PROGRESS: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",
-    DONE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
-  }
-  const label: Record<string, string> = {
-    NEW: "Новая",
-    IN_PROGRESS: "В работе",
-    DONE: "Готово",
-  }
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-      {label[status] ?? status}
-    </span>
   )
 }
