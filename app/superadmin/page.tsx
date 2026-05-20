@@ -230,27 +230,38 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
 
 async function SubscriptionDynamics({ userId }: { userId: string }) {
   const now = new Date()
+  const windowStart = new Date(now.getFullYear(), now.getMonth() - 5, 1)
+
+  // 2 запроса вместо 12: тянем строки за 6-месячное окно и раскладываем по месяцам в JS.
+  const [orgRows, subRows] = await Promise.all([
+    safeServerValue(
+      db.organization.findMany({ where: { createdAt: { gte: windowStart } }, select: { createdAt: true } }),
+      [] as Array<{ createdAt: Date }>,
+      { source: "superadmin.home.subscriptionDynamics.orgs", route: "/superadmin", userId },
+    ),
+    safeServerValue(
+      db.subscription.findMany({ where: { startedAt: { gte: windowStart } }, select: { startedAt: true, paidAmount: true } }),
+      [] as Array<{ startedAt: Date; paidAmount: number }>,
+      { source: "superadmin.home.subscriptionDynamics.subs", route: "/superadmin", userId },
+    ),
+  ])
+
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
   const months: { period: string; created: number; revenue: number }[] = []
+  const indexByPeriod = new Map<string, number>()
   for (let i = 5; i >= 0; i--) {
     const start = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1)
-    const period = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`
-    const [created, revenue] = await Promise.all([
-      safeServerValue(
-        db.organization.count({ where: { createdAt: { gte: start, lt: end } } }),
-        0,
-        { source: "superadmin.home.subscriptionDynamics.created", route: "/superadmin", userId, extra: { period } },
-      ),
-      safeServerValue(
-        db.subscription.aggregate({
-          where: { startedAt: { gte: start, lt: end } },
-          _sum: { paidAmount: true },
-        }).then((r) => r._sum.paidAmount ?? 0),
-        0,
-        { source: "superadmin.home.subscriptionDynamics.revenue", route: "/superadmin", userId, extra: { period } },
-      ),
-    ])
-    months.push({ period, created, revenue })
+    const period = monthKey(start)
+    indexByPeriod.set(period, months.length)
+    months.push({ period, created: 0, revenue: 0 })
+  }
+  for (const o of orgRows) {
+    const k = indexByPeriod.get(monthKey(new Date(o.createdAt)))
+    if (k !== undefined) months[k].created += 1
+  }
+  for (const s of subRows) {
+    const k = indexByPeriod.get(monthKey(new Date(s.startedAt)))
+    if (k !== undefined) months[k].revenue += s.paidAmount ?? 0
   }
 
   const maxRevenue = Math.max(...months.map((m) => m.revenue), 1)

@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs"
+import { Suspense } from "react"
 import { auth } from "@/auth"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
@@ -54,16 +55,19 @@ async function renderAdminLayout(children: React.ReactNode) {
   if (!isPlatformOwner && isTenantRole(session.user.role)) {
     redirect("/cabinet")
   }
-  // Принудительная смена пароля при первом входе.
-  // Проверяем актуальное значение из БД, а не из JWT (флаг сбрасывается без релогина).
-  const passwordCheck = await db.user.findUnique({
-    where: { id: session.user.id },
-    select: { mustChangePassword: true },
-  }).catch(() => null)
+  // Параллельно: некешируемая проверка смены пароля и impersonate-контекст —
+  // не держим их последовательно, чтобы не растягивать TTFB.
+  const [passwordCheck, impersonate] = await Promise.all([
+    db.user.findUnique({
+      where: { id: session.user.id },
+      select: { mustChangePassword: true },
+    }).catch(() => null),
+    isPlatformOwner ? getValidatedImpersonateData().catch(() => null) : Promise.resolve(null),
+  ])
+  // Принудительная смена пароля при первом входе (актуальное значение из БД).
   if (passwordCheck?.mustChangePassword) {
     redirect("/change-password")
   }
-  const impersonate = isPlatformOwner ? await getValidatedImpersonateData().catch(() => null) : null
   const currentOrgId = isPlatformOwner
     ? (impersonate?.orgId ?? await getCurrentOrgId().catch(() => null))
     : (session.user.organizationId ?? null)
@@ -98,50 +102,135 @@ async function renderAdminLayout(children: React.ReactNode) {
     return <AdminSelectOrg orgs={mapped} userName={formatPersonShortName(session.user.name, "Платформа")} />
   }
 
-  const [currentOrg, freshUser, allBuildings, unreadNotifications, allowedSections, allowedCapabilities] = await measureServerStep("/admin/layout", "admin-shell-data", Promise.all([
+  // Каркас отдаётся сразу; данные сайдбара и шапки (кешируются) стримятся
+  // через Suspense, поэтому страница (children) начинает рендериться немедленно,
+  // а не ждёт shell-данные. Это резко снижает TTFB всех /admin-страниц.
+  return (
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
+      <CommandPaletteLoader />
+      <Suspense fallback={<aside className="hidden lg:block w-60 shrink-0 bg-slate-900" />}>
+        <SidebarChrome
+          userId={session.user.id}
+          role={session.user.role}
+          isPlatformOwner={isPlatformOwner}
+          currentOrgId={currentOrgId}
+        />
+      </Suspense>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Suspense fallback={<div className="h-14 shrink-0 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" />}>
+          <HeaderChrome
+            userId={session.user.id}
+            userName={session.user.name}
+            role={session.user.role}
+            isPlatformOwner={isPlatformOwner}
+            currentOrgId={currentOrgId}
+            isImpersonating={!!impersonate}
+          />
+        </Suspense>
+        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+async function SidebarChrome({
+  userId,
+  role,
+  isPlatformOwner,
+  currentOrgId,
+}: {
+  userId: string
+  role: string
+  isPlatformOwner: boolean
+  currentOrgId: string | null
+}) {
+  const [allBuildings, allowedSections, allowedCapabilities] = await measureServerStep("/admin/layout", "sidebar-data", Promise.all([
     currentOrgId
       ? safeServerValue(
-          getCachedAdminShellOrg(currentOrgId),
-          null,
-          { source: "admin.layout.currentOrg", route: "/admin", orgId: currentOrgId, userId: session.user.id },
-        )
-      : Promise.resolve(null),
-    safeServerValue(
-      getCachedAdminShellUser(session.user.id),
-      null,
-      { source: "admin.layout.freshUser", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
-    ),
-    currentOrgId
-      ? safeServerValue(
-          getCachedAdminShellBuildings(session.user.id, currentOrgId, session.user.role, isPlatformOwner),
+          getCachedAdminShellBuildings(userId, currentOrgId, role, isPlatformOwner),
           [] as Array<{ id: string; name: string; address: string }>,
-          { source: "admin.layout.accessibleBuildings", route: "/admin", orgId: currentOrgId, userId: session.user.id },
+          { source: "admin.layout.accessibleBuildings", route: "/admin", orgId: currentOrgId, userId },
         )
       : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
-    safeServerValue(
-      getCachedUnreadNotificationCount(session.user.id),
-      0,
-      { source: "admin.layout.unreadNotifications", route: "/admin", orgId: currentOrgId ?? undefined, userId: session.user.id },
-    ),
-    getCachedAdminShellSections(session.user.id, session.user.role, isPlatformOwner),
-    getCachedAdminShellCapabilities(session.user.id, session.user.role, isPlatformOwner, currentOrgId),
+    getCachedAdminShellSections(userId, role, isPlatformOwner),
+    getCachedAdminShellCapabilities(userId, role, isPlatformOwner, currentOrgId),
   ]))
 
   const store = await cookies()
   const currentBuildingId = resolveCurrentBuildingIdFromSelection({
     cookieValue: store.get(CURRENT_BUILDING_COOKIE)?.value,
     accessibleBuildings: allBuildings,
-    role: session.user.role,
+    role,
     isPlatformOwner,
   })
   const building = allBuildings.find((item) => item.id === currentBuildingId) ?? null
-  const isPlatformView = isPlatformOwner && !impersonate && !!currentOrg
-  const organizationOwnerName = session.user.role === "OWNER"
+  const aggregateLabel = isOwnerLike(role, isPlatformOwner) ? "Все здания" : "Мои здания"
+
+  return (
+    <AdminSidebar
+      buildingName={building?.name ?? aggregateLabel}
+      userRole={role}
+      allowedSections={allowedSections}
+      allowedCapabilities={allowedCapabilities}
+    />
+  )
+}
+
+async function HeaderChrome({
+  userId,
+  userName,
+  role,
+  isPlatformOwner,
+  currentOrgId,
+  isImpersonating,
+}: {
+  userId: string
+  userName: string | null | undefined
+  role: string
+  isPlatformOwner: boolean
+  currentOrgId: string | null
+  isImpersonating: boolean
+}) {
+  const [currentOrg, freshUser, allBuildings, unreadNotifications] = await measureServerStep("/admin/layout", "header-data", Promise.all([
+    currentOrgId
+      ? safeServerValue(
+          getCachedAdminShellOrg(currentOrgId),
+          null,
+          { source: "admin.layout.currentOrg", route: "/admin", orgId: currentOrgId, userId },
+        )
+      : Promise.resolve(null),
+    safeServerValue(
+      getCachedAdminShellUser(userId),
+      null,
+      { source: "admin.layout.freshUser", route: "/admin", orgId: currentOrgId ?? undefined, userId },
+    ),
+    currentOrgId
+      ? safeServerValue(
+          getCachedAdminShellBuildings(userId, currentOrgId, role, isPlatformOwner),
+          [] as Array<{ id: string; name: string; address: string }>,
+          { source: "admin.layout.accessibleBuildings", route: "/admin", orgId: currentOrgId, userId },
+        )
+      : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
+    safeServerValue(
+      getCachedUnreadNotificationCount(userId),
+      0,
+      { source: "admin.layout.unreadNotifications", route: "/admin", orgId: currentOrgId ?? undefined, userId },
+    ),
+  ]))
+
+  const store = await cookies()
+  const currentBuildingId = resolveCurrentBuildingIdFromSelection({
+    cookieValue: store.get(CURRENT_BUILDING_COOKIE)?.value,
+    accessibleBuildings: allBuildings,
+    role,
+    isPlatformOwner,
+  })
+  const building = allBuildings.find((item) => item.id === currentBuildingId) ?? null
+  const isPlatformView = isPlatformOwner && !isImpersonating && !!currentOrg
+  const organizationOwnerName = role === "OWNER"
     ? currentOrg?.directorName?.trim() || currentOrg?.shortName?.trim() || null
     : null
-  const displayUserName = formatPersonShortName(
-    organizationOwnerName || freshUser?.name?.trim() || session.user.name,
-  )
+  const displayUserName = formatPersonShortName(organizationOwnerName || freshUser?.name?.trim() || userName)
 
   const now = new Date()
   const planExpiresAt = currentOrg?.planExpiresAtIso ? new Date(currentOrg.planExpiresAtIso) : null
@@ -149,68 +238,55 @@ async function renderAdminLayout(children: React.ReactNode) {
   const daysLeft = planExpiresAt
     ? Math.max(0, Math.ceil((planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
-  const aggregateLabel = isOwnerLike(session.user.role, session.user.isPlatformOwner) ? "Все здания" : "Мои здания"
-  const aggregateSubtitle = isOwnerLike(session.user.role, session.user.isPlatformOwner)
+  const aggregateLabel = isOwnerLike(role, isPlatformOwner) ? "Все здания" : "Мои здания"
+  const aggregateSubtitle = isOwnerLike(role, isPlatformOwner)
     ? "Общая картина по всем зданиям"
     : "Обзор назначенных зданий"
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
-      <CommandPaletteLoader />
-      <AdminSidebar
-        buildingName={building?.name ?? aggregateLabel}
-        userRole={session.user.role}
-        allowedSections={allowedSections}
-        allowedCapabilities={allowedCapabilities}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {impersonate && currentOrg && <ImpersonateBanner orgName={currentOrg.name} />}
-        {isPlatformView && currentOrg && <PlatformViewBanner orgName={currentOrg.name} />}
-        {!impersonate && !isPlatformView && currentOrg && (
-          <SubscriptionBanner
-            daysLeft={daysLeft}
-            isSuspended={currentOrg.isSuspended ?? false}
-            isExpired={isExpired}
-          />
-        )}
-        {freshUser?.email && !freshUser.emailVerifiedAtIso && (
-          <EmailNotVerifiedBanner email={freshUser.email} profileHref="/admin/profile" />
-        )}
-        {/* Top Header */}
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pl-16 lg:pl-6">
-          <BuildingSwitcher
-            current={building ? { id: building.id, name: building.name, address: building.address } : null}
-            options={allBuildings}
-            canCreate={session.user.role === "OWNER"}
-            aggregateLabel={allBuildings.length > 1 || !building ? aggregateLabel : undefined}
-            aggregateSubtitle={aggregateSubtitle}
-          />
-          <div className="flex items-center gap-4">
-            <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
-              Ctrl+K — поиск
-            </kbd>
-            <ThemeIconToggle />
-            <NotificationBell unreadCount={unreadNotifications} />
-            <Link
-              href="/admin/profile"
-              className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
-              title="Открыть профиль"
-            >
-              <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
-                <span className="text-[11px] font-semibold text-white">
-                  {getDisplayInitial(displayUserName)}
-                </span>
-              </div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
-                {displayUserName}
+    <>
+      {isImpersonating && currentOrg && <ImpersonateBanner orgName={currentOrg.name} />}
+      {isPlatformView && currentOrg && <PlatformViewBanner orgName={currentOrg.name} />}
+      {!isImpersonating && !isPlatformView && currentOrg && (
+        <SubscriptionBanner
+          daysLeft={daysLeft}
+          isSuspended={currentOrg.isSuspended ?? false}
+          isExpired={isExpired}
+        />
+      )}
+      {freshUser?.email && !freshUser.emailVerifiedAtIso && (
+        <EmailNotVerifiedBanner email={freshUser.email} profileHref="/admin/profile" />
+      )}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pl-16 lg:pl-6">
+        <BuildingSwitcher
+          current={building ? { id: building.id, name: building.name, address: building.address } : null}
+          options={allBuildings}
+          canCreate={role === "OWNER"}
+          aggregateLabel={allBuildings.length > 1 || !building ? aggregateLabel : undefined}
+          aggregateSubtitle={aggregateSubtitle}
+        />
+        <div className="flex items-center gap-4">
+          <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
+            Ctrl+K — поиск
+          </kbd>
+          <ThemeIconToggle />
+          <NotificationBell unreadCount={unreadNotifications} />
+          <Link
+            href="/admin/profile"
+            className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
+            title="Открыть профиль"
+          >
+            <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
+              <span className="text-[11px] font-semibold text-white">
+                {getDisplayInitial(displayUserName)}
               </span>
-            </Link>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
-      </div>
-    </div>
+            </div>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
+              {displayUserName}
+            </span>
+          </Link>
+        </div>
+      </header>
+    </>
   )
 }
