@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { Suspense } from "react"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
@@ -12,18 +13,53 @@ import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function SuperadminHomePage() {
   const { userId } = await requirePlatformOwner()
+  const now = new Date()
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Обзор платформы</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Метрики SaaS на {now.toLocaleDateString("ru-RU")}</p>
+      </div>
+
+      <Suspense fallback={<CardsSkeleton count={4} />}>
+        <PlatformOverviewCards userId={userId} />
+      </Suspense>
+
+      <Suspense fallback={<CardsSkeleton count={4} />}>
+        <KpiBlock userId={userId} />
+      </Suspense>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Suspense fallback={<PanelSkeleton />}>
+          <PlansDistribution userId={userId} />
+        </Suspense>
+        <Suspense fallback={<PanelSkeleton />}>
+          <SubscriptionDynamics userId={userId} />
+        </Suspense>
+      </div>
+
+      <Suspense fallback={<PanelSkeleton />}>
+        <TopOrgsByMrr userId={userId} />
+      </Suspense>
+
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия (всех организаций)</h2>
+        </div>
+        <Suspense fallback={<div className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Загрузка…</div>}>
+          <RecentAuditTable userId={userId} />
+        </Suspense>
+      </div>
+    </div>
+  )
+}
+
+async function PlatformOverviewCards({ userId }: { userId: string }) {
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/superadmin", userId })
-
   const now = new Date()
-  const [
-    totalOrgs,
-    activeOrgs,
-    suspendedOrgs,
-    expiringOrgs,
-    plansData,
-    revenueAgg,
-  ] = await Promise.all([
+  const [totalOrgs, activeOrgs, suspendedOrgs, expiringOrgs, revenueAgg] = await Promise.all([
     safe("superadmin.home.totalOrgs", db.organization.count(), 0),
     safe("superadmin.home.activeOrgs", db.organization.count({ where: { isActive: true, isSuspended: false } }), 0),
     safe("superadmin.home.suspendedOrgs", db.organization.count({ where: { isSuspended: true } }), 0),
@@ -33,24 +69,10 @@ export default async function SuperadminHomePage() {
         where: {
           isActive: true,
           isSuspended: false,
-          planExpiresAt: {
-            gte: now,
-            lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
-          },
+          planExpiresAt: { gte: now, lte: new Date(now.getTime() + 7 * 24 * 3600 * 1000) },
         },
       }),
       0,
-    ),
-    safe(
-      "superadmin.home.plansData",
-      db.plan.findMany({
-        orderBy: { sortOrder: "asc" },
-        select: {
-          id: true, code: true, name: true, priceMonthly: true,
-          _count: { select: { organizations: true } },
-        },
-      }),
-      [],
     ),
     safe(
       "superadmin.home.revenueAggregate",
@@ -63,63 +85,70 @@ export default async function SuperadminHomePage() {
   ])
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Обзор платформы</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Метрики SaaS на {now.toLocaleDateString("ru-RU")}</p>
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card label="Всего организаций" value={totalOrgs} icon={Building2} color="purple" />
+      <Card label="Активных" value={activeOrgs} icon={Users} color="emerald" sub={`${suspendedOrgs} приостановлено`} />
+      <Card label="Истекают за 7 дней" value={expiringOrgs} icon={AlertTriangle} color="amber" />
+      <Card label="MRR этого месяца" value={`${(revenueAgg._sum.paidAmount ?? 0).toLocaleString("ru-RU")} ₸`} icon={TrendingUp} color="blue" />
+    </div>
+  )
+}
+
+async function PlansDistribution({ userId }: { userId: string }) {
+  const plansData = await safeServerValue(
+    db.plan.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true, code: true, name: true, priceMonthly: true,
+        _count: { select: { organizations: true } },
+      },
+    }),
+    [] as Array<{ id: string; code: string; name: string; priceMonthly: number; _count: { organizations: number } }>,
+    { source: "superadmin.home.plansData", route: "/superadmin", userId },
+  )
+
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Package className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+          Распределение по тарифам
+        </h2>
       </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card label="Всего организаций" value={totalOrgs} icon={Building2} color="purple" />
-        <Card label="Активных" value={activeOrgs} icon={Users} color="emerald" sub={`${suspendedOrgs} приостановлено`} />
-        <Card label="Истекают за 7 дней" value={expiringOrgs} icon={AlertTriangle} color="amber" />
-        <Card label="MRR этого месяца" value={`${(revenueAgg._sum.paidAmount ?? 0).toLocaleString("ru-RU")} ₸`} icon={TrendingUp} color="blue" />
-      </div>
-
-      <KpiBlock userId={userId} />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Распределение по тарифам */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Package className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              Распределение по тарифам
-            </h2>
-          </div>
-          <div className="p-5 space-y-3">
-            {plansData.map((p) => {
-              const total = plansData.reduce((s, x) => s + x._count.organizations, 0) || 1
-              const percent = Math.round((p._count.organizations / total) * 100)
-              const mrr = p.priceMonthly * p._count.organizations
-              return (
-                <div key={p.id}>
-                  <div className="flex items-center justify-between mb-1 text-sm">
-                    <span className="font-medium text-slate-700 dark:text-slate-300">{p.name}</span>
-                    <span className="text-slate-500 dark:text-slate-400">{p._count.organizations} ({percent}%) · {mrr.toLocaleString("ru-RU")} ₸</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 transition-all" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <SubscriptionDynamics userId={userId} />
-      </div>
-
-      <TopOrgsByMrr userId={userId} />
-
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия (всех организаций)</h2>
-        </div>
-        <RecentAuditTable userId={userId} />
+      <div className="p-5 space-y-3">
+        {plansData.map((p) => {
+          const total = plansData.reduce((s, x) => s + x._count.organizations, 0) || 1
+          const percent = Math.round((p._count.organizations / total) * 100)
+          const mrr = p.priceMonthly * p._count.organizations
+          return (
+            <div key={p.id}>
+              <div className="flex items-center justify-between mb-1 text-sm">
+                <span className="font-medium text-slate-700 dark:text-slate-300">{p.name}</span>
+                <span className="text-slate-500 dark:text-slate-400">{p._count.organizations} ({percent}%) · {mrr.toLocaleString("ru-RU")} ₸</span>
+              </div>
+              <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-purple-500 transition-all" style={{ width: `${percent}%` }} />
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
+}
+
+function CardsSkeleton({ count }: { count: number }) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
+      ))}
+    </div>
+  )
+}
+
+function PanelSkeleton() {
+  return <div className="h-48 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
 }
 
 async function TopOrgsByMrr({ userId }: { userId: string }) {

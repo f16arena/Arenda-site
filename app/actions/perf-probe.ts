@@ -89,7 +89,9 @@ const PROBE_ROUTES = [
 ]
 
 const PER_REQUEST_TIMEOUT_MS = 12000
-const CONCURRENCY = 15
+// Низкий параллелизм: страницы почти не конкурируют за пул соединений и CPU,
+// поэтому измеренное время отражает реальную цену страницы, а не самозатор.
+const CONCURRENCY = 4
 
 export type ProbeResult = {
   path: string
