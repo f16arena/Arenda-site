@@ -9,6 +9,14 @@ const SUPERADMIN_ORG_COOKIE = "superadmin_currentOrgId"
 const IMPERSONATE_COOKIE = "impersonating"
 const IMPERSONATE_MAX_AGE_SECONDS = 60 * 60 * 8
 
+// Платформенные cookie должны жить на всех *.commrent.kz — так же, как session-token
+// (см. auth.ts). Иначе после редиректа с commrent.kz на slug-поддомен impersonate-
+// и superadmin-контекст теряются (host-only cookie остаётся на корневом домене).
+const PLATFORM_COOKIE_DOMAIN =
+  process.env.NODE_ENV === "production" && process.env.ROOT_HOST
+    ? `.${process.env.ROOT_HOST}`
+    : undefined
+
 type ImpersonateData = {
   actAsUserId: string
   realUserId: string
@@ -100,9 +108,10 @@ export async function setSuperadminOrgCookie(orgId: string | null) {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
+      ...(PLATFORM_COOKIE_DOMAIN ? { domain: PLATFORM_COOKIE_DOMAIN } : {}),
     })
   } else {
-    store.delete(SUPERADMIN_ORG_COOKIE)
+    store.delete({ name: SUPERADMIN_ORG_COOKIE, path: "/", ...(PLATFORM_COOKIE_DOMAIN ? { domain: PLATFORM_COOKIE_DOMAIN } : {}) })
   }
 }
 
@@ -259,12 +268,13 @@ export async function setImpersonateData(data: ImpersonateData) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
+    ...(PLATFORM_COOKIE_DOMAIN ? { domain: PLATFORM_COOKIE_DOMAIN } : {}),
   })
 }
 
 export async function clearImpersonate() {
   const store = await cookies()
-  store.delete(IMPERSONATE_COOKIE)
+  store.delete({ name: IMPERSONATE_COOKIE, path: "/", ...(PLATFORM_COOKIE_DOMAIN ? { domain: PLATFORM_COOKIE_DOMAIN } : {}) })
 }
 
 // Получить план текущей организации (для проверок лимитов)
