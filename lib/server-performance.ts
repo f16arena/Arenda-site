@@ -31,6 +31,24 @@ function isNextDynamicServerSignal(error: unknown) {
   return error.message.includes("Dynamic server usage") || String((error as { digest?: unknown }).digest ?? "").includes("DYNAMIC_SERVER")
 }
 
+// redirect() и notFound() в Server Components бросают специальные исключения
+// (NEXT_REDIRECT / NEXT_NOT_FOUND) — это нормальный поток управления, а не ошибка.
+// Не логируем их как status=error, иначе счётчик «ошибок сервера» завышается
+// (напр. /admin layout перенаправляет платформенного админа на /superadmin).
+function isExpectedControlFlowSignal(error: unknown): boolean {
+  if (isNextDynamicServerSignal(error)) return true
+  if (!(error instanceof Error)) return false
+  const digest = String((error as { digest?: unknown }).digest ?? "")
+  const message = error.message ?? ""
+  return (
+    digest.startsWith("NEXT_REDIRECT") ||
+    digest === "NEXT_NOT_FOUND" ||
+    digest.startsWith("NEXT_HTTP_ERROR_FALLBACK") ||
+    message === "NEXT_REDIRECT" ||
+    message === "NEXT_NOT_FOUND"
+  )
+}
+
 export async function measureServerRoute<T>(
   route: string,
   render: () => Promise<T>,
@@ -45,7 +63,7 @@ export async function measureServerRoute<T>(
     didError = true
     errorMessage = error instanceof Error ? error.message : "unknown"
     const durationMs = Math.round(performance.now() - start)
-    if (!isNextDynamicServerSignal(error)) {
+    if (!isExpectedControlFlowSignal(error)) {
       console.error("[route-performance]", {
         route,
         durationMs,
@@ -94,8 +112,10 @@ export async function measureServerStep<T>(
   try {
     return await promise
   } catch (error) {
-    status = "error"
-    errorMessage = error instanceof Error ? error.message : "unknown"
+    if (!isExpectedControlFlowSignal(error)) {
+      status = "error"
+      errorMessage = error instanceof Error ? error.message : "unknown"
+    }
     throw error
   } finally {
     const durationMs = Math.round(performance.now() - start)
