@@ -173,7 +173,9 @@ export async function resetUserPassword(userId: string, newPassword: string) {
 
   await db.user.update({
     where: { id: userId },
-    data: { password: await bcrypt.hash(newPassword, 10) },
+    // mustChangePassword: пароль выдан администратором/владельцем — пользователь
+    // обязан сменить его при первом входе.
+    data: { password: await bcrypt.hash(newPassword, 10), mustChangePassword: true },
   })
 
   revalidatePath("/admin/users")
