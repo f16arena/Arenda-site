@@ -14,6 +14,7 @@ interface DeleteActionProps {
   size?: "sm" | "md"
   trigger?: ReactNode
   disabled?: boolean
+  onSuccess?: () => void
 }
 
 export function DeleteAction({
@@ -25,6 +26,7 @@ export function DeleteAction({
   size = "sm",
   trigger,
   disabled,
+  onSuccess,
 }: DeleteActionProps) {
   const [pending, startTransition] = useTransition()
 
@@ -57,6 +59,7 @@ export function DeleteAction({
                 return
               }
               toast.success(successMessage ?? `${capitalize(entity)} удалён`)
+              onSuccess?.()
             } catch (e) {
               toast.error(e instanceof Error ? e.message : "Не удалось удалить")
             } finally {

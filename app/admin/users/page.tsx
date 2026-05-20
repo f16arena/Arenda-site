@@ -24,10 +24,12 @@ import {
   CreateUserDialog,
   DeleteUserButton,
   EditUserDialog,
+  RowInactiveBadge,
   UserApprovalButtons,
   UserCapabilitiesDialog,
   ResetPasswordDialog,
   ToggleActiveButton,
+  UserRow,
 } from "./user-actions"
 import { APPROVAL_PENDING, APPROVAL_REJECTED, approvalLabel } from "@/lib/approval"
 
@@ -403,13 +405,7 @@ export default async function UsersPage() {
               const effectiveRights = effectiveRightsByUserId.get(user.id)
               const inheritedRights = inheritedRightsByUserId.get(user.id)
               return (
-                <tr
-                  key={user.id}
-                  className={cn(
-                    "border-b border-slate-800/70 transition-colors hover:bg-slate-800/50",
-                    !user.isActive && "opacity-50",
-                  )}
-                >
+                <UserRow key={user.id} initialActive={user.isActive}>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800">
@@ -421,9 +417,7 @@ export default async function UsersPage() {
                           {isSelf && (
                             <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-purple-300">вы</span>
                           )}
-                          {!user.isActive && (
-                            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
-                          )}
+                          <RowInactiveBadge />
                           {user.approvalStatus === APPROVAL_PENDING && (
                             <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200">на подтверждении</span>
                           )}
@@ -527,7 +521,7 @@ export default async function UsersPage() {
                       )}
                     </div>
                   </td>
-                </tr>
+                </UserRow>
               )
             })}
             {users.length === 0 && (

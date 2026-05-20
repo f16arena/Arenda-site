@@ -220,8 +220,9 @@ export async function deleteUserAdmin(userId: string) {
     data: { isActive: false },
   })
 
-  revalidatePath("/admin/users")
+  // /admin/users обновляется оптимистично (строка скрывается на клиенте) —
+  // не ревалидируем этот тяжёлый маршрут, чтобы не перезагружать всю страницу.
+  // Смежные маршруты обновим, они дешевле и не влияют на текущую страницу.
   revalidatePath("/admin/staff")
   revalidatePath("/admin/tenants")
-  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }

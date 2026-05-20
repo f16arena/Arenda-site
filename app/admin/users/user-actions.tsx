@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { createContext, useContext, useMemo, useState, useTransition, type ReactNode } from "react"
 import { Edit2, Key, Lock, Plus, Power, Search, ShieldCheck, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 import {
   approveUserRegistration,
   rejectUserRegistration,
@@ -20,6 +21,38 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { isStaffLikeRole, type RoleOption } from "@/lib/role-capabilities"
 
 type BuildingOption = { id: string; name: string }
+
+// Контекст строки пользователя: позволяет кнопкам внутри строки (вкл/выкл,
+// удаление) мгновенно менять её вид без перезагрузки всей страницы.
+type RowStatus = {
+  active: boolean
+  setActiveOptimistic: (next: boolean) => void
+  removeRow: () => void
+}
+const RowStatusContext = createContext<RowStatus | null>(null)
+
+/** Клиентская обёртка строки таблицы: хранит оптимистичный статус активности. */
+export function UserRow({ initialActive, children }: { initialActive: boolean; children: ReactNode }) {
+  const [active, setActive] = useState(initialActive)
+  const [removed, setRemoved] = useState(false)
+  if (removed) return null
+  return (
+    <tr className={cn("border-b border-slate-800/70 transition-colors hover:bg-slate-800/50", !active && "opacity-50")}>
+      <RowStatusContext.Provider value={{ active, setActiveOptimistic: setActive, removeRow: () => setRemoved(true) }}>
+        {children}
+      </RowStatusContext.Provider>
+    </tr>
+  )
+}
+
+/** Бейдж «неактивен» в ячейке имени — реагирует на оптимистичный статус строки. */
+export function RowInactiveBadge() {
+  const row = useContext(RowStatusContext)
+  if (!row || row.active) return null
+  return (
+    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
+  )
+}
 
 export function CreateUserDialog({
   buildings,
@@ -649,9 +682,11 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
 
 export function ToggleActiveButton({ userId, isActive, disabled }: { userId: string; isActive: boolean; disabled?: boolean }) {
   const [, startTransition] = useTransition()
-  // Локальное (оптимистичное) состояние: меняем мгновенно, без перезагрузки всей
-  // страницы. При ошибке откатываем назад.
-  const [active, setActive] = useState(isActive)
+  // Статус строки берём из контекста — тогда вся строка (затемнение, бейдж)
+  // меняется мгновенно без перезагрузки страницы. Откатываем при ошибке.
+  const row = useContext(RowStatusContext)
+  const active = row ? row.active : isActive
+  const setActive = (next: boolean) => row?.setActiveOptimistic(next)
   if (disabled) return null
 
   return (
@@ -691,13 +726,15 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
 }
 
 export function DeleteUserButton({ userId, userName, disabled }: { userId: string; userName: string; disabled?: boolean }) {
+  const row = useContext(RowStatusContext)
   return (
     <DeleteAction
       action={() => deleteUserAdmin(userId)}
       entity="пользователя"
       description={`Связанные профильные данные будут обработаны безопасно. Пользователь «${userName}» будет деактивирован.`}
-      successMessage="Пользователь удален"
+      successMessage="Пользователь удалён"
       disabled={disabled}
+      onSuccess={() => row?.removeRow()}
     />
   )
 }
