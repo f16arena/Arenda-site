@@ -1047,7 +1047,12 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
 }
 
 async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
-  const errorRoute = await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "api", "errors", "report", "route.ts"))
+  // В production bundle исходники app/ не читаются как обычные файлы (то же
+  // ограничение, что и в других чеках). /api/errors/report всегда бандлится в
+  // прод и реально принимает ошибки — поэтому считаем внутренний сбор активным.
+  const errorRoute = isProductionRuntime()
+    ? true
+    : await fileExists(path.join(/* turbopackIgnore: true */ process.cwd(), "app", "api", "errors", "report", "route.ts"))
   const sentryConfigured = !!(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN)
   const sentrySourceFiles = isProductionRuntime()
     ? []
