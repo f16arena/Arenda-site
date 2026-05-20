@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import Link from "next/link"
-import { AlertTriangle, Bug, CheckCircle2, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
+import { AlertTriangle, Bug, CheckCircle2, Download, ExternalLink, Search, ServerCrash, ShieldAlert } from "lucide-react"
 import { updateErrorSupportStatus, type ErrorSupportStatus } from "@/app/actions/superadmin-errors"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { PaginationControls } from "@/components/ui/pagination-controls"
@@ -137,6 +137,14 @@ export default async function SuperadminErrorsPage({
           <button className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
             Найти
           </button>
+          <a
+            href="/superadmin/errors/export"
+            title="Скачать все ошибки одним JSON-файлом"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">JSON ({totalAll})</span>
+          </a>
         </form>
       </div>
 
