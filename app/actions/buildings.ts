@@ -221,15 +221,36 @@ export async function deleteFloor(floorId: string, opts?: { cascade?: boolean })
           `Удалите помещения вручную или используйте каскадное удаление.`,
       )
     }
-    // cascade: проверяем что нет занятых
+    // cascade: проверяем что нет занятых — учитываем И legacy space.tenant,
+    // И современный tenantSpaces (раньше занятые через tenantSpaces помещения
+    // молча удалялись вместе с этажом — потеря данных).
     const occupied = await db.space.findFirst({
-      where: { floorId, tenant: { isNot: null } },
-      select: { number: true, tenant: { select: { companyName: true } } },
+      where: {
+        floorId,
+        OR: [
+          { tenant: { isNot: null } },
+          { tenantSpaces: { some: {} } },
+        ],
+      },
+      select: {
+        number: true,
+        tenant: { select: { companyName: true } },
+        tenantSpaces: { select: { tenant: { select: { companyName: true } } }, take: 1 },
+      },
     })
     if (occupied) {
+      const company = occupied.tenant?.companyName ?? occupied.tenantSpaces[0]?.tenant?.companyName ?? "—"
       throw new Error(
-        `Нельзя удалить — кабинет ${occupied.number} занят арендатором «${occupied.tenant?.companyName ?? "—"}». Сначала выселите.`,
+        `Нельзя удалить — кабинет ${occupied.number} занят арендатором «${company}». Сначала выселите.`,
       )
+    }
+    // Этаж, сданный целиком, тоже нельзя каскадно удалять.
+    const fullFloor = await db.floor.findUnique({
+      where: { id: floorId },
+      select: { fullFloorTenantId: true },
+    })
+    if (fullFloor?.fullFloorTenantId) {
+      throw new Error("Нельзя удалить — этаж сдан целиком. Сначала освободите этаж.")
     }
     await db.space.deleteMany({ where: { floorId } })
   }
