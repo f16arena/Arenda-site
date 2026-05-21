@@ -23,6 +23,7 @@ import {
 import { getReleaseInfo } from "@/lib/release"
 import { requirePlatformOwner } from "@/lib/org"
 import { cn } from "@/lib/utils"
+import { TestEmailTool } from "./test-email"
 
 const statusMeta: Record<SystemCheckStatus, {
   label: string
@@ -144,6 +145,8 @@ export default async function SuperadminSystemHealthPage() {
           </div>
         </div>
       </section>
+
+      <TestEmailTool />
 
       {(critical.length > 0 || warnings.length > 0) && (
         <section className="grid gap-4 lg:grid-cols-2">
