@@ -131,6 +131,8 @@ export async function GET(req: Request) {
   const startDate = start.toLocaleDateString("ru-RU")
   const endDate = end.toLocaleDateString("ru-RU")
   const contractDate = today.toLocaleDateString("ru-RU")
+  const contractCity = extractCity(objectAddress)
+  const cleaningFeeText = tenant.needsCleaning && tenant.cleaningFee > 0 ? formatMoney(tenant.cleaningFee) : ""
 
   const customTemplate = await db.documentTemplate.findFirst({
     where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
@@ -162,6 +164,9 @@ export async function GET(req: Request) {
       landlord_second_bank: landlord.secondBank,
       landlord_second_iik: landlord.secondIik,
       landlord_second_bik: landlord.secondBik,
+      landlord_phone: landlord.phone,
+      landlord_email: landlord.email,
+      landlord_signatory: landlord.directorShort,
 
       tenant_name: tenant.companyName,
       tenant_legal_type: tenant.legalType,
@@ -216,6 +221,12 @@ export async function GET(req: Request) {
       signage_clause: SIGNAGE_CLAUSE,
       building_name: building?.name ?? "",
       building_address: objectAddress,
+
+      contract_city: contractCity,
+      contract_day: String(today.getDate()).padStart(2, "0"),
+      contract_month: MONTH[today.getMonth()],
+      contract_year: String(today.getFullYear()),
+      cleaning_fee: cleaningFeeText,
     }
 
     let bytes: Buffer
@@ -513,6 +524,13 @@ function formatArea(n: number) {
   return new Intl.NumberFormat("ru-RU", {
     maximumFractionDigits: 2,
   }).format(n).replace(/[\u00a0\u202f]/g, " ")
+}
+
+// \u0418\u0437\u0432\u043b\u0435\u043a\u0430\u0435\u0442 \u0433\u043e\u0440\u043e\u0434 \u0438\u0437 \u0430\u0434\u0440\u0435\u0441\u0430 \u043e\u0431\u044a\u0435\u043a\u0442\u0430 ("\u0433. \u0423\u0441\u0442\u044c-\u041a\u0430\u043c\u0435\u043d\u043e\u0433\u043e\u0440\u0441\u043a, \u0443\u043b. ..." \u2192 "\u0423\u0441\u0442\u044c-\u041a\u0430\u043c\u0435\u043d\u043e\u0433\u043e\u0440\u0441\u043a").
+// \u041d\u0443\u0436\u043d\u043e \u0434\u043b\u044f \u0448\u0430\u0431\u043b\u043e\u043d\u043e\u0432 \u0441 \u043c\u0435\u0442\u043a\u043e\u0439 {contract_city}; \u0435\u0441\u043b\u0438 \u0433\u043e\u0440\u043e\u0434 \u043d\u0435 \u0440\u0430\u0441\u043f\u043e\u0437\u043d\u0430\u043d \u2014 \u043f\u0443\u0441\u0442\u043e.
+function extractCity(address: string): string {
+  const m = address.match(/\u0433\.?\s*([\u0410-\u042f\u0401][\u0410-\u042f\u0430-\u044f\u0451\u0401-]+(?:[-\s][\u0410-\u042f\u0401][\u0410-\u042f\u0430-\u044f\u0451\u0401-]+){0,2})/)
+  return m ? m[1].trim() : ""
 }
 
 function inferTenantBasis(tenant: TenantBasisInput) {
