@@ -109,14 +109,23 @@ export default async function DocumentsPage({
     ],
   }
 
-  // visibleTenantIds больше не нужен отдельным запросом — фильтруем generated через
-  // relation filter `tenant: tenantWhere`, что Prisma переведёт в EXISTS-подзапрос.
-  // Это убирает один round-trip.
+  // GeneratedDocument НЕ имеет relation `tenant` (только скаляр tenantId), поэтому
+  // фильтровать через `tenant: {...}` нельзя — это валило страницу (Prisma
+  // validation error). Резолвим id арендаторов видимых зданий и фильтруем по tenantId.
+  const visibleTenantIds = (await safe(
+    "admin.documents.visibleTenantIds",
+    db.tenant.findMany({
+      where: { user: { organizationId: orgId }, ...tenantWhere },
+      select: { id: true },
+    }),
+    [] as Array<{ id: string }>,
+  )).map((t) => t.id)
+
   const generatedTenantFilter = currentBuildingId
-    ? { tenant: tenantWhere }
+    ? { tenantId: { in: visibleTenantIds } }
     : {
         OR: [
-          { tenant: tenantWhere },
+          { tenantId: { in: visibleTenantIds } },
           { tenantId: null },
         ],
       }
