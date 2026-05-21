@@ -146,6 +146,7 @@ export async function updateOrganization(orgId: string, formData: FormData) {
   await requirePlatformOwner()
 
   const name = String(formData.get("name") ?? "").trim()
+  if (!name) throw new Error("Название организации обязательно")
   const planId = String(formData.get("planId") ?? "")
   const isActive = formData.get("isActive") === "on"
   const isSuspended = formData.get("isSuspended") === "on"
@@ -206,10 +207,13 @@ export async function changeOrgOwner(orgId: string, newOwnerId: string) {
 
   const user = await db.user.findUnique({
     where: { id: newOwnerId },
-    select: { organizationId: true, role: true },
+    select: { organizationId: true, role: true, isActive: true },
   })
   if (!user || user.organizationId !== orgId) {
     throw new Error("Пользователь не принадлежит этой организации")
+  }
+  if (!user.isActive) {
+    throw new Error("Нельзя назначить владельцем деактивированного пользователя")
   }
 
   // Если выбранный юзер не OWNER — повышаем
@@ -238,10 +242,25 @@ export async function impersonateOrg(orgId: string) {
   // Иначе cookie выставится (тост «Входим как клиент…» зелёный), но на рендере
   // /admin валидатор её отвергнет, и платформенный админ молча вернётся на экран
   // выбора организации — выглядит как зависание.
-  const owner = await db.user.findFirst({
-    where: { organizationId: orgId, role: "OWNER" },
-    select: { id: true, isActive: true },
+  // Берём НАЗНАЧЕННОГО владельца (organization.ownerUserId), а не произвольного
+  // OWNER через findFirst — иначе при нескольких владельцах impersonate входил
+  // под недетерминированную/чужую личность, и аудит писал не того.
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { ownerUserId: true },
   })
+  const owner =
+    (org?.ownerUserId
+      ? await db.user.findFirst({
+          where: { id: org.ownerUserId, organizationId: orgId, role: "OWNER" },
+          select: { id: true, isActive: true },
+        })
+      : null) ??
+    (await db.user.findFirst({
+      where: { organizationId: orgId, role: "OWNER" },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, isActive: true },
+    }))
   if (!owner) throw new Error("В организации не назначен владелец (OWNER) — войти как клиент нельзя")
   if (!owner.isActive) {
     throw new Error(
@@ -346,11 +365,15 @@ export async function deleteOrganization(orgId: string, confirmSlug: string) {
 
   // Каскадное удаление: связанные сущности удаляются по onDelete: Cascade
   // (buildings, subscriptions). Пользователи остаются — отвязываем organizationId.
-  await db.user.updateMany({
-    where: { organizationId: orgId },
-    data: { organizationId: null, isActive: false },
-  })
-  await db.organization.delete({ where: { id: orgId } })
+  // В одной транзакции, чтобы при сбое удаления не остались осиротевшие/
+  // деактивированные пользователи без организации.
+  await db.$transaction([
+    db.user.updateMany({
+      where: { organizationId: orgId },
+      data: { organizationId: null, isActive: false },
+    }),
+    db.organization.delete({ where: { id: orgId } }),
+  ])
 
   await audit({
     action: "DELETE",
