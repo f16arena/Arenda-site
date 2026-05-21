@@ -32,6 +32,15 @@ function assertAssignableRole(role: string, orgId: string) {
   }
 }
 
+// Роль OWNER даёт полный доступ в обход всех проверок прав. Назначать её может
+// только сам владелец организации или платформенный администратор — иначе
+// любой ADMIN с правом users.edit мог бы повысить себя/другого до OWNER.
+function assertCanAssignRole(role: string, actor: { role: string; isPlatformOwner?: boolean }) {
+  if (role === "OWNER" && actor.role !== "OWNER" && !actor.isPlatformOwner) {
+    throw new Error("Назначить роль «Владелец» может только владелец организации")
+  }
+}
+
 async function assertCanManageTargetUser(
   userId: string,
   orgId: string,
@@ -48,7 +57,7 @@ async function assertCanManageTargetUser(
 }
 
 export async function createUserAdmin(formData: FormData) {
-  await requireCapabilityAndFeature("users.invite")
+  const session = await requireCapabilityAndFeature("users.invite")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "users")
@@ -66,6 +75,7 @@ export async function createUserAdmin(formData: FormData) {
   if (!phone && !email) throw new Error("Укажите телефон или email")
   if (password.length < 6) throw new Error("Пароль минимум 6 символов")
   assertAssignableRole(role, orgId)
+  assertCanAssignRole(role, session)
   assertBuildingSelection(role, buildingIds)
 
   const hash = await bcrypt.hash(password, 10)
@@ -115,6 +125,7 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
   if (!name) throw new Error("Имя обязательно")
   if (role) {
     assertAssignableRole(role, orgId)
+    assertCanAssignRole(role, session)
     assertBuildingSelection(role, buildingIds)
   }
 
