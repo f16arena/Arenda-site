@@ -12,6 +12,7 @@ import { DocumentNumberingSection } from "@/components/settings/document-numberi
 import { VatSection } from "@/components/settings/vat-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
+import { safeServerValue } from "@/lib/server-fallback"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { Button } from "@/components/ui/button"
@@ -20,27 +21,42 @@ export default async function SettingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  // Оборачиваем запросы в safeServerValue (как остальные admin-страницы): при
+  // транзиентном сбое пула/запроса страница деградирует, а не падает в
+  // Server Components render error.
+  const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
+    safeServerValue(promise, fallback, { source, route: "/admin/settings", orgId, userId: session.user.id })
 
   const [organization, buildingId] = await Promise.all([
-    db.organization.findUnique({
-      where: { id: orgId },
-      select: {
-        ...ORGANIZATION_REQUISITES_SELECT,
-        isVatPayer: true,
-        vatRate: true,
-        vatNumber: true,
-      },
-    }),
+    safe(
+      "admin.settings.organization",
+      db.organization.findUnique({
+        where: { id: orgId },
+        select: {
+          ...ORGANIZATION_REQUISITES_SELECT,
+          isVatPayer: true,
+          vatRate: true,
+          vatNumber: true,
+        },
+      }),
+      null,
+    ),
     getCurrentBuildingId(),
   ])
-  const building = buildingId ? await db.building.findUnique({
-    where: { id: buildingId },
-    include: {
-      floors: { orderBy: { number: "desc" } },
-      emergencyContacts: { orderBy: { category: "asc" } },
-      tariffs: { orderBy: { type: "asc" } },
-    },
-  }) : null
+  const building = buildingId
+    ? await safe(
+        "admin.settings.building",
+        db.building.findUnique({
+          where: { id: buildingId },
+          include: {
+            floors: { orderBy: { number: "desc" } },
+            emergencyContacts: { orderBy: { category: "asc" } },
+            tariffs: { orderBy: { type: "asc" } },
+          },
+        }),
+        null,
+      )
+    : null
 
   if (!building) {
     return (
