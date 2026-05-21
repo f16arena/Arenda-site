@@ -12,7 +12,7 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { OrgRowActions } from "./row-actions"
 import { cn } from "@/lib/utils"
 import { APPROVAL_PENDING, APPROVAL_REJECTED } from "@/lib/approval"
-import { approveOrganizationRegistration, rejectOrganizationRegistration } from "@/app/actions/approvals"
+import { RegistrationApprovalButtons } from "./registration-approval-buttons"
 
 const PAGE_SIZE = 30
 type StatusFilter = "all" | "pending" | "active" | "expiring" | "suspended" | "inactive" | "rejected"
@@ -369,19 +369,7 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
       </td>
       <td className="px-5 py-3.5">
         {isPendingApproval ? (
-          <div className="flex items-center justify-end gap-1.5">
-            <form action={approveOrganizationRegistration.bind(null, org.id)}>
-              <button className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-emerald-700">
-                Подтвердить
-              </button>
-            </form>
-            <form action={rejectOrganizationRegistration.bind(null, org.id)}>
-              <input type="hidden" name="reason" value="Отклонено суперадмином" />
-              <button className="rounded-md border border-red-300 px-2.5 py-1.5 text-[11px] font-medium text-red-600 transition hover:bg-red-50 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10">
-                Отклонить
-              </button>
-            </form>
-          </div>
+          <RegistrationApprovalButtons orgId={org.id} orgName={org.name} />
         ) : (
           <OrgRowActions
             id={org.id}

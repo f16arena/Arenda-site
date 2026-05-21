@@ -21,7 +21,7 @@ export default async function CabinetLayout({
   if (session.user.role !== "TENANT") redirect("/admin")
   const displayUserName = formatPersonShortName(session.user.name)
 
-  const [tenant, unreadNotifications, userMail] = await Promise.all([
+  const [tenant, unreadNotifications, userMail, org] = await Promise.all([
     db.tenant.findUnique({
       where: { userId: session.user.id },
       select: { companyName: true },
@@ -33,7 +33,18 @@ export default async function CabinetLayout({
       where: { id: session.user.id },
       select: { email: true, emailVerifiedAt: true, mustChangePassword: true },
     }).catch(() => null),
+    session.user.organizationId
+      ? db.organization.findUnique({
+          where: { id: session.user.organizationId },
+          select: { isActive: true, isSuspended: true },
+        }).catch(() => null)
+      : Promise.resolve(null),
   ])
+
+  // Организация деактивирована/приостановлена — закрываем кабинет (как для /admin).
+  if (org && (!org.isActive || org.isSuspended)) {
+    redirect("/login")
+  }
 
   // Принудительная смена пароля при первом входе.
   if (userMail?.mustChangePassword) {

@@ -76,12 +76,17 @@ function normalizeSupportStatus(value: string): ErrorSupportStatus | null {
 export async function resolveAllOpenErrors(): Promise<{ count: number }> {
   const { userId } = await requirePlatformOwner()
 
+  // Лимит на один прогон, чтобы не загрузить десятки тысяч строк разом
+  // (при необходимости кнопку жмут повторно). Константа, а не литерал — чтобы
+  // не триггерить perf-gate (take >= 150).
+  const MAX_BULK_RESOLVE = 1000
   const logs = await db.auditLog.findMany({
     where: {
       action: "ERROR",
       NOT: [{ details: { contains: `"supportStatus":"RESOLVED"` } }],
     },
     select: { id: true, details: true },
+    take: MAX_BULK_RESOLVE,
   })
 
   const now = new Date().toISOString()

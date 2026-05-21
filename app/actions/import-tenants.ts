@@ -334,7 +334,20 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
       }
 
       // Помещение
-      const spaceId = d.spaceNumber ? spaceByNumber.get(d.spaceNumber.toLowerCase()) : undefined
+      let spaceId = d.spaceNumber ? spaceByNumber.get(d.spaceNumber.toLowerCase()) : undefined
+
+      // Не перезаписываем уже занятое помещение (legacy tenant или tenantSpaces):
+      // создаём арендатора без привязки и фиксируем предупреждение в отчёте.
+      if (spaceId) {
+        const occupied = await db.space.findFirst({
+          where: { id: spaceId, OR: [{ tenant: { isNot: null } }, { tenantSpaces: { some: {} } }] },
+          select: { id: true },
+        })
+        if (occupied) {
+          result.errors.push({ rowIndex: row.rowIndex, error: `Помещение ${d.spaceNumber} уже занято — арендатор создан без привязки` })
+          spaceId = undefined
+        }
+      }
 
       await db.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({

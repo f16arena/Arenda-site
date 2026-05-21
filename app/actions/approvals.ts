@@ -42,9 +42,14 @@ export async function approveOrganizationRegistration(orgId: string) {
 
   let planId = org.planId
   if (!planId) {
-    const trialPlan = await db.plan.findFirst({ where: { code: "TRIAL" }, select: { id: true } })
-    if (!trialPlan) throw new Error("Тариф TRIAL не найден")
-    planId = trialPlan.id
+    // Предпочитаем TRIAL, иначе FREE, иначе любой активный тариф — чтобы
+    // подтверждение не падало с ошибкой, если плана TRIAL нет.
+    const plan =
+      (await db.plan.findFirst({ where: { code: "TRIAL", isActive: true }, select: { id: true } }))
+      ?? (await db.plan.findFirst({ where: { code: "FREE", isActive: true }, select: { id: true } }))
+      ?? (await db.plan.findFirst({ where: { isActive: true }, orderBy: { sortOrder: "asc" }, select: { id: true } }))
+    if (!plan) throw new Error("Нет доступного тарифа — создайте тариф в разделе «Тарифы»")
+    planId = plan.id
   }
 
   await db.$transaction(async (tx) => {
