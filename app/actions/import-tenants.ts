@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import {
   parseExcel,
   autoMapColumns,
@@ -76,6 +77,9 @@ export interface PreviewResult {
  * Шаг 1: парсит Excel и возвращает превью (без сохранения в БД).
  */
 export async function previewTenantImport(formData: FormData): Promise<PreviewResult> {
+  // Массовый импорт = массовое создание арендаторов: требует то же право, что и
+  // одиночное создание (раньше импорт обходил проверку прав).
+  await requireCapabilityAndFeature("tenants.create")
   await requireOrgAccess()
 
   const file = formData.get("file")
@@ -207,6 +211,7 @@ export interface ImportResult {
  * Принимает уже-парсенные строки от previewTenantImport.
  */
 export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<ImportResult> {
+  await requireCapabilityAndFeature("tenants.create")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
 

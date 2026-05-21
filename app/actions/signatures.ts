@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { audit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 import { assertContractInOrg } from "@/lib/scope-guards"
@@ -38,7 +39,14 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
   if (!session?.user) return { ok: false, error: "Не авторизован" }
 
   try {
+    await requireCapabilityAndFeature("documents.sign")
     const { orgId, userId } = await requireOrgAccess()
+
+    // Сначала проверяем принадлежность договора организации — и только потом
+    // пишем подпись/меняем статус (раньше подпись создавалась до проверки scope).
+    if (input.documentType === "CONTRACT" && input.documentId) {
+      await assertContractInOrg(input.documentId, orgId)
+    }
 
     // Базовая попытка извлечь IIN/BIN из cert (если он передан в формате PEM)
     const { commonName, iin, bin } = extractCertInfo(input.certPemB64)
@@ -74,7 +82,6 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
 
     // Если это договор и status DRAFT → подписание переводит в SIGNED
     if (input.documentType === "CONTRACT" && input.documentId) {
-      await assertContractInOrg(input.documentId, orgId)
       const contract = await db.contract.update({
         where: { id: input.documentId },
         data: { status: "SIGNED", signedAt: new Date() },
