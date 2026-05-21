@@ -8,7 +8,7 @@ import {
   Users, Building2, TrendingUp, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight,
   Clock, Calendar as CalendarIcon, Mail, Wallet,
-  ClipboardCheck, ShieldCheck, FileSpreadsheet, Printer,
+  ClipboardCheck, ShieldCheck,
   FileSignature, ShieldAlert,
 } from "lucide-react"
 import Link from "next/link"
@@ -267,7 +267,7 @@ async function DashboardBody() {
       {/* Операционный блок (сегодня/действия/качество данных) стримится отдельно,
           чтобы тяжёлые подсчёты не задерживали ключевые карточки. */}
       <Suspense fallback={<OperationalSkeleton />}>
-        <DashboardOperational orgId={orgId} buildingId={buildingId} visibleBuildingIds={visibleBuildingIds} />
+        <DashboardOperational orgId={orgId} visibleBuildingIds={visibleBuildingIds} />
       </Suspense>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -309,11 +309,9 @@ async function DashboardBody() {
 
 async function DashboardOperational({
   orgId,
-  buildingId,
   visibleBuildingIds,
 }: {
   orgId: string
-  buildingId: string | null
   visibleBuildingIds: string[]
 }) {
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>

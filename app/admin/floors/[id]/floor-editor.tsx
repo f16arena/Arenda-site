@@ -1263,6 +1263,10 @@ export function FloorEditor({
             <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">{Math.round(zoom * 100)}%</span>
             {f16Template && (() => {
               const applyTemplate = () => {
+                // f16Template — проп (FloorLayoutV2|null), не ref; applyTemplate
+                // вызывается по клику/подтверждению, а не во время рендера, поэтому
+                // чтение ref внутри setLayout здесь безопасно (ложное срабатывание правила).
+                // eslint-disable-next-line react-hooks/refs
                 setLayout(f16Template)
                 setSelectedId(null)
                 toast.success(`Шаблон этажа ${floorNumber} загружен — теперь сохраните`)
