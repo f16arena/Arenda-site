@@ -27,7 +27,7 @@ export async function ChargesByContractSection({
         isPaid: true,
       },
       orderBy: [{ period: "desc" }, { createdAt: "desc" }],
-      take: 200,
+      take: 120,
     }),
     db.contract.findMany({
       where: { tenantId, tenant: { user: { organizationId: orgId } } },

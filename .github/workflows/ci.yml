@@ -99,7 +99,7 @@ jobs:
         run: npm ci
 
       - name: Prepare database schema
-        run: npx prisma db push --skip-generate
+        run: npx prisma db push --accept-data-loss
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

@@ -55,16 +55,16 @@ export async function GET() {
     db.webVitalMetric.findMany({
       where: { createdAt: { gte: since7d }, name: { in: ["LCP", "INP", "TTFB"] }, rating: { in: ["poor", "needs-improvement"] } },
       orderBy: { value: "desc" },
-      take: 300,
+      take: 100,
       select: sampleSelect,
     }),
     db.webVitalMetric.findMany({
       where: { createdAt: { gte: since7d }, name: "CLS", rating: { in: ["poor", "needs-improvement"] } },
       orderBy: { value: "desc" },
-      take: 150,
+      take: 100,
       select: sampleSelect,
     }),
-    db.webVitalMetric.findMany({ orderBy: { createdAt: "desc" }, take: 2000, select: sampleSelect }),
+    db.webVitalMetric.findMany({ orderBy: { createdAt: "desc" }, take: 100, select: sampleSelect }),
     db.webVitalMetric.count(),
     db.serverPerformanceLog.groupBy({
       by: ["route"],
@@ -76,7 +76,7 @@ export async function GET() {
     db.serverPerformanceLog.findMany({
       where: { createdAt: { gte: since7d } },
       orderBy: [{ durationMs: "desc" }, { createdAt: "desc" }],
-      take: 200,
+      take: 100,
       select: { id: true, route: true, step: true, kind: true, durationMs: true, status: true, error: true, createdAt: true },
     }),
     db.serverPerformanceLog.count({ where: { createdAt: { gte: since24h } } }),
