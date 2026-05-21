@@ -30,7 +30,15 @@ export function OrganizationBankFields({
   const bikListId = useId()
   const bankNameListId = useId()
   const [bankName, setBankName] = useState(defaultBankName ?? "")
-  const [bik, setBik] = useState(normalizeBik(defaultBik ?? ""))
+  // Если в сохранённых данных есть название банка, но БИК пуст — выводим БИК из
+  // справочника банков уже на загрузке. Иначе при сохранении валидация падала
+  // бы на «заполните … и БИК», хотя банк по сути известен.
+  const [bik, setBik] = useState(() => {
+    const saved = normalizeBik(defaultBik ?? "")
+    if (saved) return saved
+    const bank = defaultBankName ? findBankByName(defaultBankName) ?? findSingleBankSuggestion(defaultBankName) : null
+    return bank ? normalizeBik(bank.bik) : ""
+  })
   const [iik, setIik] = useState(normalizeIikInput(defaultIik ?? ""))
   const checks = useMemo(() => validateRequisites({ bik, iik }), [bik, iik])
   const bankFromBik = useMemo(() => findBankByBik(bik), [bik])
