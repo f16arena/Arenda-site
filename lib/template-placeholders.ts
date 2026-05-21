@@ -84,6 +84,9 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     { key: "contract_month", label: "Месяц заключения (прописью)" },
     { key: "contract_year", label: "Год заключения" },
     { key: "cleaning_fee", label: "Стоимость уборки, ₸ (если включена)" },
+    { key: "name", label: "Доп. услуги — название (в цикле {#items}…{/items})" },
+    { key: "tariff", label: "Доп. услуги — тариф (в цикле {#items}…{/items})" },
+    { key: "amount", label: "Доп. услуги — стоимость/мес (в цикле {#items}…{/items})" },
   ],
   INVOICE: [
     { key: "invoice_number", label: "Номер счёта" },

@@ -91,12 +91,17 @@ export async function GET(req: Request) {
     : tenant.space ? [tenant.space] : []
   const primarySpace = assignedSpaces[0] ?? null
   const tenantBuildingId = primarySpace?.floor.buildingId ?? getTenantPrimaryBuildingId(tenant)
+  const buildingTariffsInclude = {
+    tariffs: { where: { isActive: true }, orderBy: { type: "asc" } },
+  } as const
   const building = tenantBuildingId
     ? await db.building.findFirst({
         where: { id: tenantBuildingId, isActive: true, organizationId: orgId },
+        include: buildingTariffsInclude,
       })
     : await db.building.findFirst({
         where: { isActive: true, organizationId: orgId },
+        include: buildingTariffsInclude,
       })
   const monthlyRent = calculateTenantMonthlyRent(tenant)
   const ratePerSqm = calculateTenantRatePerSqm(tenant) ?? 0
@@ -134,13 +139,35 @@ export async function GET(req: Request) {
   const contractCity = extractCity(objectAddress)
   const cleaningFeeText = tenant.needsCleaning && tenant.cleaningFee > 0 ? formatMoney(tenant.cleaningFee) : ""
 
+  // Строки таблицы доп. услуг для шаблонов с циклом {#items}{name}{tariff}{amount}{/items}.
+  // Берём активные тарифы здания + уборку арендатора. amount (стоимость в месяц)
+  // для тарифов по счётчику оставляем пустым — она зависит от потребления.
+  const serviceItems: { index: string; name: string; tariff: string; amount: string }[] = []
+  for (const t of building?.tariffs ?? []) {
+    serviceItems.push({
+      index: String(serviceItems.length + 1),
+      name: t.name,
+      tariff: `${formatMoney(t.rate)} ₸/${t.unit}`,
+      amount: "",
+    })
+  }
+  if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+    serviceItems.push({
+      index: String(serviceItems.length + 1),
+      name: "Уборка помещения",
+      tariff: `${formatMoney(tenant.cleaningFee)} ₸/мес`,
+      amount: formatMoney(tenant.cleaningFee),
+    })
+  }
+
   const customTemplate = await db.documentTemplate.findFirst({
     where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
     orderBy: { uploadedAt: "desc" },
   }).catch(() => null)
 
   if (customTemplate) {
-    const data: Record<string, string | number> = {
+    const data: Record<string, unknown> = {
+      items: serviceItems,
       contract_number: contractNumber,
       contract_date: contractDate,
       contract_date_long: fmtDate(today),
