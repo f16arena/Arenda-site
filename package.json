@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "postinstall": "prisma generate",
     "build": "node scripts/deploy-migrations.mjs && prisma generate && next build",
     "build:analyze": "node -e \"process.env.ANALYZE='true';require('child_process').execSync('next build',{stdio:'inherit',env:process.env})\"",
     "start": "next start",
