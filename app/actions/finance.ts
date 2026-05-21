@@ -644,6 +644,9 @@ export async function addExpense(formData: FormData) {
   const cashAccountId = (formData.get("cashAccountId") as string)?.trim() || null
 
   const amount = parseFloat(amountStr)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { error: "Сумма расхода должна быть положительным числом" }
+  }
 
   if (cashAccountId) {
     const acc = await db.cashAccount.findUnique({

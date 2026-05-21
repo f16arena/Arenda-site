@@ -41,6 +41,22 @@ function assertCanAssignRole(role: string, actor: { role: string; isPlatformOwne
   }
 }
 
+// Дружелюбная проверка уникальности контактов: phone/email @unique в БД, иначе
+// при дубле летела сырая ошибка Prisma P2002 вместо понятного сообщения.
+async function assertContactAvailable(phone: string | null, email: string | null, excludeUserId?: string) {
+  const or: Array<{ phone: string } | { email: string }> = []
+  if (phone) or.push({ phone })
+  if (email) or.push({ email })
+  if (or.length === 0) return
+  const existing = await db.user.findFirst({
+    where: excludeUserId ? { OR: or, NOT: { id: excludeUserId } } : { OR: or },
+    select: { phone: true, email: true },
+  })
+  if (!existing) return
+  if (phone && existing.phone === phone) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
+  throw new Error(`Email ${email} уже используется другим пользователем`)
+}
+
 async function assertCanManageTargetUser(
   userId: string,
   orgId: string,
@@ -77,6 +93,7 @@ export async function createUserAdmin(formData: FormData) {
   assertAssignableRole(role, orgId)
   assertCanAssignRole(role, session)
   assertBuildingSelection(role, buildingIds)
+  await assertContactAvailable(phone, email)
 
   const hash = await bcrypt.hash(password, 10)
 
@@ -128,6 +145,7 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
     assertCanAssignRole(role, session)
     assertBuildingSelection(role, buildingIds)
   }
+  await assertContactAvailable(phone, email, userId)
 
   await db.user.update({
     where: { id: userId },
@@ -164,6 +182,10 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
   await assertCanManageTargetUser(userId, orgId, session)
+  // Защита от самоблокировки: нельзя деактивировать собственный аккаунт.
+  if (userId === session.id && !isActive) {
+    throw new Error("Нельзя деактивировать собственный аккаунт")
+  }
 
   await db.user.update({
     where: { id: userId },
