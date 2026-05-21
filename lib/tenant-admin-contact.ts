@@ -9,24 +9,31 @@ export type TenantAdminContact = {
 }
 
 function isTenantVisibleAdmin(user: TenantAdminContact & { isActive?: boolean; organizationId?: string | null }, orgId: string | null) {
-  return user.isActive !== false && user.role === "ADMIN" && (!orgId || user.organizationId === orgId)
+  // Контактом может быть ADMIN или OWNER (владелец как назначенный администратор здания).
+  return user.isActive !== false && (user.role === "ADMIN" || user.role === "OWNER") && (!orgId || user.organizationId === orgId)
 }
+
+const CONTACT_SELECT = {
+  id: true,
+  name: true,
+  role: true,
+  phone: true,
+  email: true,
+} as const
 
 async function fallbackAdmins(orgId: string | null): Promise<TenantAdminContact[]> {
   if (!orgId) return []
+  const admins = await db.user.findMany({
+    where: { organizationId: orgId, isActive: true, role: "ADMIN" },
+    select: CONTACT_SELECT,
+    orderBy: { name: "asc" },
+  })
+  if (admins.length > 0) return admins
+  // Нет администраторов — показываем владельца(ев), иначе в организации только
+  // с OWNER арендатор не может ни отправить «Я оплатил», ни написать сообщение.
   return db.user.findMany({
-    where: {
-      organizationId: orgId,
-      isActive: true,
-      role: "ADMIN",
-    },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      phone: true,
-      email: true,
-    },
+    where: { organizationId: orgId, isActive: true, role: "OWNER" },
+    select: CONTACT_SELECT,
     orderBy: { name: "asc" },
   })
 }
