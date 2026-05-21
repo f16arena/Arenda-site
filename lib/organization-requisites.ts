@@ -25,6 +25,7 @@ export const ORGANIZATION_REQUISITES_SELECT = {
 } as const
 
 type OrganizationRequisitesRecord = {
+  id?: string
   name: string
   legalType: string | null
   legalName: string | null
@@ -92,23 +93,46 @@ export function organizationToRequisites(
   organization: OrganizationRequisitesRecord | null | undefined,
 ): OrganizationRequisites {
   const hasRequisites = hasCustomRequisites(organization)
+  // КРИТИЧНО (мультитенантность): реквизиты F16 (LANDLORD) — это реальный счёт
+  // конкретного ИП. Их можно подставлять как fallback ТОЛЬКО организации-
+  // арендодателю (env LANDLORD_ORG_ID). Любой другой организации без своих
+  // реквизитов подставляем ПУСТЫЕ поля (UI покажет «не настроено»), иначе
+  // арендатор увидит и оплатит на чужой банковский счёт.
+  const isLandlordOrg = !!process.env.LANDLORD_ORG_ID && organization?.id === process.env.LANDLORD_ORG_ID
+  const orgName = clean(organization?.name) ?? ""
+  const fb = isLandlordOrg
+    ? LANDLORD
+    : {
+        fullName: orgName,
+        shortName: orgName,
+        director: "",
+        directorShort: "",
+        basis: "",
+        legalAddress: "",
+        iin: "",
+        iik: "",
+        bik: "",
+        bank: "",
+        phone: "",
+        email: "",
+      }
   const legalType = hasRequisites ? normalizeLegalType(organization?.legalType) : "IP"
   const fullName = hasRequisites
-    ? clean(organization?.legalName) ?? clean(organization?.name) ?? LANDLORD.fullName
-    : LANDLORD.fullName
+    ? clean(organization?.legalName) ?? clean(organization?.name) ?? fb.fullName
+    : fb.fullName
   const shortName = hasRequisites
     ? clean(organization?.shortName) ?? fullName
-    : LANDLORD.shortName
-  const director = hasRequisites ? clean(organization?.directorName) ?? LANDLORD.director : LANDLORD.director
+    : fb.shortName
+  const director = hasRequisites ? clean(organization?.directorName) ?? fb.director : fb.director
   const organizationBin = clean(organization?.bin)
   const organizationIin = clean(organization?.iin)
   const taxId = hasRequisites
-    ? taxIdForLegalType(legalType, organizationBin, organizationIin) ?? LANDLORD.iin
-    : LANDLORD.iin
+    ? taxIdForLegalType(legalType, organizationBin, organizationIin) ?? fb.iin
+    : fb.iin
   const taxIdLabel = taxIdLabelFor(legalType, organization)
-  const bank = hasRequisites ? clean(organization?.bankName) ?? LANDLORD.bank : LANDLORD.bank
-  const iik = hasRequisites ? clean(organization?.iik) ?? LANDLORD.iik : LANDLORD.iik
-  const bik = hasRequisites ? clean(organization?.bik)?.toUpperCase() ?? LANDLORD.bik : LANDLORD.bik
+  const bank = hasRequisites ? clean(organization?.bankName) ?? fb.bank : fb.bank
+  const iik = hasRequisites ? clean(organization?.iik) ?? fb.iik : fb.iik
+  const bik = hasRequisites ? clean(organization?.bik)?.toUpperCase() ?? fb.bik : fb.bik
   const secondBank = hasRequisites ? clean(organization?.secondBankName) ?? "" : ""
   const secondIik = hasRequisites ? clean(organization?.secondIik) ?? "" : ""
   const secondBik = hasRequisites ? clean(organization?.secondBik)?.toUpperCase() ?? "" : ""
@@ -130,15 +154,15 @@ export function organizationToRequisites(
     shortName,
     legalType,
     bin: hasRequisites ? organizationBin ?? "" : "",
-    iin: hasRequisites ? organizationIin ?? (legalType === "IP" || legalType === "PHYSICAL" ? organizationBin : null) ?? LANDLORD.iin : LANDLORD.iin,
+    iin: hasRequisites ? organizationIin ?? (legalType === "IP" || legalType === "PHYSICAL" ? organizationBin : null) ?? fb.iin : fb.iin,
     taxId,
     taxIdLabel,
     director,
-    directorShort: shortPersonName(director) ?? LANDLORD.directorShort,
+    directorShort: shortPersonName(director) ?? fb.directorShort,
     directorPosition: hasRequisites ? clean(organization?.directorPosition) ?? "Директор" : "Директор",
-    basis: hasRequisites ? clean(organization?.basis) ?? defaultBasisFor(legalType) ?? LANDLORD.basis : LANDLORD.basis,
-    legalAddress: hasRequisites ? clean(organization?.legalAddress) ?? clean(organization?.actualAddress) ?? LANDLORD.legalAddress : LANDLORD.legalAddress,
-    actualAddress: hasRequisites ? clean(organization?.actualAddress) ?? clean(organization?.legalAddress) ?? LANDLORD.legalAddress : LANDLORD.legalAddress,
+    basis: hasRequisites ? clean(organization?.basis) ?? defaultBasisFor(legalType) ?? fb.basis : fb.basis,
+    legalAddress: hasRequisites ? clean(organization?.legalAddress) ?? clean(organization?.actualAddress) ?? fb.legalAddress : fb.legalAddress,
+    actualAddress: hasRequisites ? clean(organization?.actualAddress) ?? clean(organization?.legalAddress) ?? fb.legalAddress : fb.legalAddress,
     iik,
     bik,
     bank,
@@ -146,8 +170,8 @@ export function organizationToRequisites(
     secondBik,
     secondBank,
     bankAccounts,
-    phone: hasRequisites ? clean(organization?.phone) ?? LANDLORD.phone : LANDLORD.phone,
-    email: hasRequisites ? clean(organization?.email) ?? LANDLORD.email : LANDLORD.email,
+    phone: hasRequisites ? clean(organization?.phone) ?? fb.phone : fb.phone,
+    email: hasRequisites ? clean(organization?.email) ?? fb.email : fb.email,
   }
 }
 
