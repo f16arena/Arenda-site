@@ -56,12 +56,16 @@ export function AddressAutocompleteInput({
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  // Поиск запускаем только после ввода пользователем. Иначе на загрузке формы
+  // с уже сохранённым адресом эффект сам бы дёрнул API и открыл выпадашку с
+  // вариантами, хотя пользователь ничего не печатал.
+  const [touched, setTouched] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   const query = useMemo(() => value.trim(), [value])
 
   useEffect(() => {
-    if (query.length < 3) {
+    if (!touched || query.length < 3) {
       return
     }
 
@@ -94,9 +98,10 @@ export function AddressAutocompleteInput({
     return () => {
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [query, touched])
 
   function handleManualChange(nextValue: string) {
+    setTouched(true)
     setValue(nextValue)
     setOpen(true)
     if (nextValue.trim().length < 3) {

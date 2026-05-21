@@ -16,7 +16,18 @@ import { ADMIN_SHELL_CACHE_TAG, buildingsForOrgTag, floorsForBuildingTag } from 
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { BuildingUpdateSchema, FloorUpdateSchema, firstZodError } from "@/lib/schemas"
 
+// Возвращаем ошибку вместо throw: в проде Next затирает текст брошенных из
+// server action ошибок, а возвращённые значения отдаёт как есть. ServerForm
+// показывает result.error в тосте — пользователь видит реальную причину.
+function fail(error: unknown) {
+  return {
+    success: false as const,
+    error: error instanceof Error ? error.message : "Не удалось сохранить",
+  }
+}
+
 export async function updateBuilding(buildingId: string, formData: FormData) {
+  try {
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -66,6 +77,9 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
 }
 
 function readAddressFields(formData: FormData) {

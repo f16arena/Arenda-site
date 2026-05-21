@@ -9,35 +9,52 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
+// Возвращаем ошибку вместо throw: в проде Next затирает текст брошенных из
+// server action ошибок («…omitted in production…» + digest), а возвращённые
+// значения отдаёт клиенту как есть. ServerForm показывает result.error в тосте,
+// поэтому пользователь видит реальную причину (неверный ИИК/ИИН, мёртвый домен
+// email и т.п.), а не бесполезный общий текст.
+function fail(error: unknown) {
+  return {
+    success: false as const,
+    error: error instanceof Error ? error.message : "Не удалось сохранить",
+  }
+}
+
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
-  await requireCapabilityAndFeature("settings.updateOrganization")
-  const { orgId: scopeOrgId } = await requireOrgAccess()
-  if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+  try {
+    await requireCapabilityAndFeature("settings.updateOrganization")
+    const { orgId: scopeOrgId } = await requireOrgAccess()
+    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
 
-  const isVatPayer = formData.get("isVatPayer") === "on"
-  const vatNumber = String(formData.get("vatNumber") ?? "").trim()
-  const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
+    const isVatPayer = formData.get("isVatPayer") === "on"
+    const vatNumber = String(formData.get("vatNumber") ?? "").trim()
+    const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
 
-  await db.organization.update({
-    where: { id: orgId },
-    data: {
-      isVatPayer,
-      vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
-      vatNumber: vatNumber || null,
-    },
-  })
+    await db.organization.update({
+      where: { id: orgId },
+      data: {
+        isVatPayer,
+        vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
+        vatNumber: vatNumber || null,
+      },
+    })
 
-  revalidatePath("/admin/settings")
-  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
-  return { success: true }
+    revalidatePath("/admin/settings")
+    revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+    return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
 }
 
 export async function updateOrganizationRequisites(orgId: string, formData: FormData) {
-  await requireCapabilityAndFeature("settings.updateBankDetails")
-  const { orgId: scopeOrgId } = await requireOrgAccess()
-  if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+  try {
+    await requireCapabilityAndFeature("settings.updateBankDetails")
+    const { orgId: scopeOrgId } = await requireOrgAccess()
+    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
 
-  const legalType = normalizeLegalType(formData.get("legalType"))
+    const legalType = normalizeLegalType(formData.get("legalType"))
   const legalName = requiredText(formData.get("legalName"), "Полное название")
   const shortName = optionalText(formData.get("shortName"))
   const directorName = requiredText(formData.get("directorName"), "ФИО руководителя")
@@ -93,11 +110,14 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
     },
   })
 
-  revalidatePath("/admin/settings")
-  revalidatePath("/admin/documents")
-  revalidatePath("/cabinet/finances")
-  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
-  return { success: true }
+    revalidatePath("/admin/settings")
+    revalidatePath("/admin/documents")
+    revalidatePath("/cabinet/finances")
+    revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+    return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
 }
 
 function normalizeLegalType(value: FormDataEntryValue | null) {
