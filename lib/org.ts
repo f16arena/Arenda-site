@@ -56,7 +56,8 @@ export async function getOrgIdBySlug(slug: string): Promise<string | null> {
     where: { slug },
     select: { id: true, isActive: true, isSuspended: true },
   })
-  if (!org || !org.isActive) return null
+  // Приостановленная организация не должна резолвиться по slug (полная блокировка).
+  if (!org || !org.isActive || org.isSuspended) return null
   return org.id
 }
 
@@ -147,6 +148,13 @@ export const requireOrgAccess = cache(async (): Promise<OrgContext> => {
   if (!org || !org.isActive) {
     if (isPlatformOwner) redirect("/superadmin")
     else redirect("/login")
+  }
+
+  // Приостановленная организация полностью блокируется для клиентов
+  // (раньше suspend блокировал только записи, но не доступ к /admin).
+  // Платформенному админу оставляем доступ для поддержки/диагностики.
+  if (org?.isSuspended && !isPlatformOwner) {
+    redirect("/login")
   }
 
   // Проверка slug ↔ orgId. Включается через ENFORCE_SUBDOMAIN=true (после
