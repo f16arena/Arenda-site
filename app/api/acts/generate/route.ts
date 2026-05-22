@@ -16,6 +16,11 @@ import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 
 export const dynamic = "force-dynamic"
 
+// «01 января 2026 г.» — длинная дата для метки {contract_date_long}
+function fmtDateLong(d: Date): string {
+  return `${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })} г.`
+}
+
 // GET /api/acts/generate?tenantId=xxx&period=2026-04&number=001
 export async function GET(req: Request) {
   const session = await auth()
@@ -78,18 +83,25 @@ export async function GET(req: Request) {
       ? assignedSpaces.map((space) => `Каб. ${space.number}, ${space.floor.name}`).join("; ")
       : "по договору")
 
-  const items: { name: string; amount: number }[] = []
+  // Дата оказания услуг для колонки «Дата» в построчной таблице — конец периода.
+  const serviceDate = fmtDate(periodEnd)
+  type ActItem = { name: string; amount: number; qty: number; unit: string; tariff: number; date: string }
+  const items: ActItem[] = []
   if (tenant.charges.length > 0) {
     for (const c of tenant.charges) {
-      items.push({ name: c.description ?? c.type, amount: c.amount })
+      items.push({ name: c.description ?? c.type, amount: c.amount, qty: 1, unit: "усл.", tariff: c.amount, date: serviceDate })
     }
   } else {
     items.push({
       name: `Аренда нежилого помещения${placement ? ` (${placement})` : ""} за ${periodLabel(period)}`,
       amount: monthlyRent,
+      qty: 1,
+      unit: "мес",
+      tariff: monthlyRent,
+      date: serviceDate,
     })
     if (tenant.needsCleaning && tenant.cleaningFee > 0) {
-      items.push({ name: `Уборка помещения за ${periodLabel(period)}`, amount: tenant.cleaningFee })
+      items.push({ name: `Уборка помещения за ${periodLabel(period)}`, amount: tenant.cleaningFee, qty: 1, unit: "мес", tariff: tenant.cleaningFee, date: serviceDate })
     }
   }
   const subtotal = items.reduce((s, it) => s + it.amount, 0)
@@ -217,10 +229,15 @@ export async function GET(req: Request) {
       tenant_name: tenant.companyName,
       tenant_bin: tenant.bin || tenant.iin || "",
       tenant_director: tenant.directorName || tenant.user.name,
+      tenant_position: tenant.directorPosition || "",
+      tenant_address: tenant.legalAddress || "",
+      tenant_phone: tenant.user.phone || "",
+      tenant_email: tenant.user.email || "",
       tenant_is_vat_payer: tenant.isVatPayer ? "да" : "нет",
       tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
       tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
       landlord_name: landlord.fullName,
+      landlord_address: landlord.legalAddress || "",
       landlord_bin: landlord.bin || landlord.taxId,
       landlord_iin: landlord.iin,
       landlord_director: landlord.directorShort,
@@ -229,8 +246,18 @@ export async function GET(req: Request) {
       vat_amount: withVat ? fmtMoney(vatAmount) : "",
       total: fmtMoney(total),
       total_in_words: numberToWords(total),
+      monthly_rent_num: fmtMoney(monthlyRent),
       contract_number: contract?.number || "",
-      items: items.map((it) => ({ name: it.name, amount: fmtMoney(it.amount) })),
+      contract_date_long: contract?.startDate ? fmtDateLong(contract.startDate) : "",
+      // date — дата оказания услуги (конец периода); index подставляет {@index}
+      items: items.map((it) => ({
+        name: it.name,
+        qty: String(it.qty),
+        unit: it.unit,
+        tariff: fmtMoney(it.tariff),
+        amount: fmtMoney(it.amount),
+        date: it.date,
+      })),
     }
     try {
       const tplBuf = Buffer.from(customTemplate.fileBytes)
