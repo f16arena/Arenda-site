@@ -68,6 +68,8 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
   const secondBankName = optionalText(formData.get("secondBankName"))
   const secondIik = normalizeIik(formData.get("secondIik"))
   const secondBik = normalizeBik(formData.get("secondBik"))
+  const kbe = optionalText(formData.get("kbe"))
+  const knp = optionalText(formData.get("knp"))
   const phone = normalizeKzPhone(formData.get("phone"), { fieldName: "Телефон владельца" })
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email владельца" })
 
@@ -105,6 +107,8 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
       secondBankName,
       secondIik,
       secondBik,
+      kbe,
+      knp,
       phone,
       email,
     },

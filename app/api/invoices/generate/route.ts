@@ -276,6 +276,8 @@ export async function GET(req: Request) {
       landlord_second_iik: landlord.secondIik,
       landlord_second_bik: landlord.secondBik,
       landlord_second_bank: landlord.secondBank,
+      kbe: landlord.kbe,
+      knp: landlord.knp,
       landlord_director: landlord.directorShort,
       subtotal: fmtMoney(subtotal),
       vat_rate: withVat ? `${vatRate}` : "",

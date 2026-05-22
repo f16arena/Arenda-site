@@ -27,6 +27,8 @@ type OrganizationRequisitesFormData = {
   secondBankName: string | null
   secondIik: string | null
   secondBik: string | null
+  kbe: string | null
+  knp: string | null
   phone: string | null
   email: string | null
 }
@@ -185,6 +187,19 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
                 labelClass={labelClass}
                 inputClass={inputClass}
               />
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>КБе (код бенефициара)</label>
+              <input name="kbe" defaultValue={organization.kbe ?? ""} placeholder="напр. 17 (ТОО) / 19 (ИП)" maxLength={2} className={inputClass} />
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">2 цифры. Если пусто — подставится по форме (ТОО→17, ИП→19).</p>
+            </div>
+            <div>
+              <label className={labelClass}>КНП (код назначения платежа)</label>
+              <input name="knp" defaultValue={organization.knp ?? ""} placeholder="напр. 859" maxLength={3} className={inputClass} />
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">3 цифры. Код для счетов на оплату аренды (уточните у бухгалтера).</p>
             </div>
           </div>
         </div>

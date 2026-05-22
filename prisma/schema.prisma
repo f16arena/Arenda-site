@@ -113,6 +113,8 @@ model Organization {
   secondBankName      String?   @map("second_bank_name")
   secondIik           String?   @map("second_iik")
   secondBik           String?   @map("second_bik")
+  kbe                 String?
+  knp                 String?
   phone               String?
   email               String?
   isActive            Boolean   @default(true) @map("is_active")

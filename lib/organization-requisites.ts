@@ -20,6 +20,8 @@ export const ORGANIZATION_REQUISITES_SELECT = {
   secondBankName: true,
   secondIik: true,
   secondBik: true,
+  kbe: true,
+  knp: true,
   phone: true,
   email: true,
 } as const
@@ -43,6 +45,8 @@ type OrganizationRequisitesRecord = {
   secondBankName: string | null
   secondIik: string | null
   secondBik: string | null
+  kbe: string | null
+  knp: string | null
   phone: string | null
   email: string | null
 }
@@ -75,6 +79,8 @@ export type OrganizationRequisites = {
   secondIik: string
   secondBik: string
   secondBank: string
+  kbe: string
+  knp: string
   bankAccounts: OrganizationBankAccount[]
   phone: string
   email: string
@@ -169,6 +175,10 @@ export function organizationToRequisites(
     secondIik,
     secondBik,
     secondBank,
+    // КБе — код бенефициара (зависит от орг): своё значение или дефолт по форме.
+    kbe: clean(organization?.kbe) ?? defaultKbeFor(legalType),
+    // КНП — код назначения платежа: только своё значение (без угадывания).
+    knp: clean(organization?.knp) ?? "",
     bankAccounts,
     phone: hasRequisites ? clean(organization?.phone) ?? fb.phone : fb.phone,
     email: hasRequisites ? clean(organization?.email) ?? fb.email : fb.email,
@@ -228,6 +238,14 @@ function taxIdForLegalType(legalType: string, bin: string | null, iin: string | 
   if (legalType === "TOO" || legalType === "AO") return bin ?? iin
   if (legalType === "IP" || legalType === "PHYSICAL") return iin ?? bin
   return bin ?? iin
+}
+
+// КБе по правовой форме: ТОО/АО — резидент негос. нефин. орг. (17),
+// ИП/физлицо — население (19). Орг может переопределить своим значением.
+function defaultKbeFor(legalType: string) {
+  if (legalType === "TOO" || legalType === "AO") return "17"
+  if (legalType === "IP" || legalType === "PHYSICAL") return "19"
+  return "17"
 }
 
 function defaultBasisFor(legalType: string) {
