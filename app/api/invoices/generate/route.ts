@@ -289,6 +289,7 @@ export async function GET(req: Request) {
         qty: it.qty,
         unit: it.unit,
         price: fmtMoney(it.price),
+        tariff: fmtMoney(it.price), // алиас: в шаблонах используется {tariff}
         amount: fmtMoney(it.amount),
       })),
     }

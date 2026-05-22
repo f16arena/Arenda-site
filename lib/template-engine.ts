@@ -117,7 +117,31 @@ export async function renderXlsx(templateBuffer: Buffer, data: Record<string, un
   })
 
   const out = await wb.xlsx.writeBuffer()
-  return Buffer.from(out)
+  return sanitizeXlsxStyles(Buffer.from(out))
+}
+
+/**
+ * ExcelJS при пересборке некоторых шаблонов пишет невалидный `<patternFill/>`
+ * без атрибута patternType. ExcelJS такой файл читает, но Excel считает книгу
+ * повреждённой («ошибка в части содержимого») и сбрасывает лист. Чиним:
+ * нормализуем пустой patternFill в `patternType="none"`.
+ */
+function sanitizeXlsxStyles(buffer: Buffer): Buffer {
+  try {
+    const zip = new PizZip(buffer)
+    const styles = zip.file("xl/styles.xml")
+    if (!styles) return buffer
+    const text = styles.asText()
+    const fixed = text
+      .replace(/<patternFill\s*\/>/g, '<patternFill patternType="none"/>')
+      .replace(/<patternFill>\s*<\/patternFill>/g, '<patternFill patternType="none"/>')
+    if (fixed === text) return buffer
+    zip.file("xl/styles.xml", fixed)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return zip.generate({ type: "nodebuffer", compression: "DEFLATE" } as any) as unknown as Buffer
+  } catch {
+    return buffer
+  }
 }
 
 const PLACEHOLDER_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)\}/g
