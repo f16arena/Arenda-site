@@ -6,6 +6,7 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { tenantScope } from "@/lib/tenant-scope"
 import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
+import { resolveMonthRange } from "@/lib/period-range"
 import { Document, Packer } from "docx"
 import {
   p, center, row, fmtMoney, fmtDate, numberToWords,
@@ -30,8 +31,12 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const tenantId = searchParams.get("tenantId")
-  const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()))
   const numberParam = searchParams.get("number")
+  const { from, to, fromDate, toEndExclusive, toEndDate } = resolveMonthRange({
+    from: searchParams.get("from"),
+    to: searchParams.get("to"),
+    year: searchParams.get("year"),
+  })
 
   if (!tenantId) return NextResponse.json({ error: "tenantId required" }, { status: 400 })
 
@@ -47,9 +52,9 @@ export async function GET(req: Request) {
       where: { id: tenantId, ...tenantScope(orgId) },
       include: {
         user: { select: { name: true } },
-        charges: { where: { period: { startsWith: String(year) } }, orderBy: { period: "asc" } },
+        charges: { where: { period: { gte: from, lte: to } }, orderBy: { period: "asc" } },
         payments: {
-          where: { paymentDate: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } },
+          where: { paymentDate: { gte: fromDate, lt: toEndExclusive } },
           orderBy: { paymentDate: "asc" },
         },
       },
@@ -91,10 +96,10 @@ export async function GET(req: Request) {
   const building = await db.building.findFirst({ where: { organizationId: orgId } })
   const reconciliationNumber = numberParam
     ?? (building ? await suggestDocumentNumber(building.id, "reconciliation").catch(() => null) : null)
-    ?? `${year}-001`
+    ?? `${from.slice(0, 4)}-001`
 
-  const periodStart = fmtDate(new Date(year, 0, 1))
-  const periodEnd = fmtDate(new Date(year, 11, 31))
+  const periodStart = fmtDate(fromDate)
+  const periodEnd = fmtDate(toEndDate)
 
   // Встроенный DOCX-фолбэк (если шаблон не загружен).
   const fallbackTable = new Table({
@@ -144,7 +149,7 @@ export async function GET(req: Request) {
   let buffer: Buffer
   let format: "DOCX" | "XLSX" = "DOCX"
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  let fileName = `Акт_сверки_${reconciliationNumber}_${safeTenant}_${year}.docx`
+  let fileName = `Акт_сверки_${reconciliationNumber}_${safeTenant}_${from}_${to}.docx`
 
   if (customTemplate && customTemplate.format !== "PDF") {
     const templateData = {
@@ -193,7 +198,7 @@ export async function GET(req: Request) {
       number: reconciliationNumber,
       tenantId: tenant.id,
       tenantName: tenant.companyName,
-      period: String(year),
+      period: `${from}..${to}`,
       totalAmount: balance,
       fileName,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

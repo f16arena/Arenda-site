@@ -17,7 +17,7 @@ import {
 import type { DocumentTenantOption } from "@/lib/document-tenants"
 
 type DocTypeKey = "contract" | "invoice" | "act" | "reconciliation"
-type ExtraField = "period" | "year" | null
+type ExtraField = "period" | "range" | null
 
 type DocTypeConfig = {
   key: DocTypeKey
@@ -65,12 +65,13 @@ const TYPES: DocTypeConfig[] = [
     icon: FileText,
     color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
     action: "page",
-    field: "year",
+    field: "range",
   },
 ]
 
 const currentPeriod = () => new Date().toISOString().slice(0, 7)
-const currentYear = () => new Date().getFullYear()
+const defaultFrom = () => `${new Date().getFullYear()}-01`
+const defaultTo = () => `${new Date().getFullYear()}-12`
 
 export function CreateDocumentModal({
   tenants,
@@ -92,7 +93,8 @@ export function CreateDocumentModal({
   const [tenantId, setTenantId] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [period, setPeriod] = useState(currentPeriod)
-  const [year, setYear] = useState(currentYear)
+  const [from, setFrom] = useState(defaultFrom)
+  const [to, setTo] = useState(defaultTo)
   const [pending, setPending] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -128,7 +130,8 @@ export function CreateDocumentModal({
     setTenantId(null)
     setQuery("")
     setPeriod(currentPeriod())
-    setYear(currentYear())
+    setFrom(defaultFrom())
+    setTo(defaultTo())
     setPending(false)
   }
 
@@ -157,7 +160,7 @@ export function CreateDocumentModal({
 
     const url =
       type === "reconciliation"
-        ? `/admin/documents/new/reconciliation?tenantId=${tid}&year=${year}`
+        ? `/admin/documents/new/reconciliation?tenantId=${tid}&from=${from}&to=${to}`
         : `/admin/documents/new/contract?tenantId=${tid}`
     close()
     router.push(url)
@@ -294,22 +297,28 @@ export function CreateDocumentModal({
                   />
                 </div>
               )}
-              {config.field === "year" && (
+              {config.field === "range" && (
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Год
+                    Период (с — по)
                   </label>
-                  <select
-                    value={year}
-                    onChange={(e) => setYear(Number(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
-                  >
-                    {[currentYear() - 1, currentYear()].map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="month"
+                      value={from}
+                      max={to}
+                      onChange={(e) => setFrom(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                    />
+                    <span className="text-sm text-slate-400">—</span>
+                    <input
+                      type="month"
+                      value={to}
+                      min={from}
+                      onChange={(e) => setTo(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                    />
+                  </div>
                 </div>
               )}
             </div>

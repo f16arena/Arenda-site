@@ -8,7 +8,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { getDocumentTenantOptions, getVisibleBuildingIds } from "@/lib/document-tenants"
 import { DocumentArchive } from "@/components/documents/document-archive"
-import { ReconciliationYearSelect } from "./year-select"
+import { ReconciliationPeriodSelect } from "./period-select"
+import { resolveMonthRange } from "@/lib/period-range"
 import { Download } from "lucide-react"
 
 const CHARGE_TYPES: Record<string, string> = {
@@ -20,14 +21,13 @@ const CHARGE_TYPES: Record<string, string> = {
 export default async function ReconciliationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tenantId?: string; year?: string }>
+  searchParams: Promise<{ tenantId?: string; from?: string; to?: string; year?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
-  const { tenantId, year } = await searchParams
-  const currentYear = new Date().getFullYear()
-  const selectedYear = parseInt(year ?? String(currentYear))
+  const { tenantId, from: fromParam, to: toParam, year } = await searchParams
+  const { from, to, fromDate, toEndExclusive, toEndDate } = resolveMonthRange({ from: fromParam, to: toParam, year })
 
   const visibleBuildingIds = await getVisibleBuildingIds(orgId)
   const tenantOptions = await getDocumentTenantOptions(orgId)
@@ -39,16 +39,11 @@ export default async function ReconciliationPage({
           user: { select: { name: true } },
           space: { include: { floor: true } },
           charges: {
-            where: { period: { startsWith: String(selectedYear) } },
+            where: { period: { gte: from, lte: to } },
             orderBy: { period: "asc" },
           },
           payments: {
-            where: {
-              paymentDate: {
-                gte: new Date(selectedYear, 0, 1),
-                lt: new Date(selectedYear + 1, 0, 1),
-              },
-            },
+            where: { paymentDate: { gte: fromDate, lt: toEndExclusive } },
             orderBy: { paymentDate: "asc" },
           },
         },
@@ -104,16 +99,18 @@ export default async function ReconciliationPage({
       <div className="flex items-center justify-between no-print">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Акт сверки</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Взаиморасчёты за {selectedYear} год</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Взаиморасчёты за период {fromDate.toLocaleDateString("ru-RU")} – {toEndDate.toLocaleDateString("ru-RU")}
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          <ReconciliationYearSelect value={selectedYear} years={[currentYear - 1, currentYear]} />
+          <ReconciliationPeriodSelect from={from} to={to} />
           <div className="w-64">
             <TenantSelector tenants={tenantOptions} selectedId={tenantId} />
           </div>
           {selected && (
             <a
-              href={`/api/reconciliation/generate?tenantId=${selected.id}&year=${selectedYear}`}
+              href={`/api/reconciliation/generate?tenantId=${selected.id}&from=${from}&to=${to}`}
               download
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
@@ -140,7 +137,7 @@ export default async function ReconciliationPage({
                 № <span className="font-mono">{reconciliationNumber}</span>
               </p>
             )}
-            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">за период с 01.01.{selectedYear} по 31.12.{selectedYear}</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">за период с {fromDate.toLocaleDateString("ru-RU")} по {toEndDate.toLocaleDateString("ru-RU")}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-8 mb-6 text-sm">
