@@ -9,7 +9,7 @@ import {
   MessageSquare, AlertCircle, Phone, BarChart3,
   ShieldCheck,
   LogOut, Building, Activity,
-  CalendarDays, CirclePlus,
+  CalendarDays,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -58,7 +58,6 @@ const nav: NavSection[] = [
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
-      { href: "/admin/documents?create=1", label: "Создать документ", icon: CirclePlus, section: "documents", capability: "documents.create" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
