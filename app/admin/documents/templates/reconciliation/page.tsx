@@ -9,6 +9,7 @@ import { tenantScope } from "@/lib/tenant-scope"
 import { getDocumentTenantOptions, getVisibleBuildingIds } from "@/lib/document-tenants"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { ReconciliationYearSelect } from "./year-select"
+import { Download } from "lucide-react"
 
 const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода",
@@ -110,6 +111,15 @@ export default async function ReconciliationPage({
           <div className="w-64">
             <TenantSelector tenants={tenantOptions} selectedId={tenantId} />
           </div>
+          {selected && (
+            <a
+              href={`/api/reconciliation/generate?tenantId=${selected.id}&year=${selectedYear}`}
+              download
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              <Download className="h-4 w-4" /> Скачать
+            </a>
+          )}
           {selected && <PrintButton />}
         </div>
       </div>

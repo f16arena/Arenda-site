@@ -162,6 +162,7 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     { key: "amount", label: "Услуга — сумма (в цикле)" },
   ],
   RECONCILIATION: [
+    { key: "reconciliation_number", label: "Номер акта сверки" },
     { key: "period_start", label: "Начало периода" },
     { key: "period_end", label: "Конец периода" },
     { key: "tenant_name", label: "Контрагент" },
@@ -173,5 +174,11 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     { key: "balance", label: "Сальдо" },
     { key: "balance_in_words", label: "Сальдо прописью" },
     { key: "entries", label: "Список операций (#each entries)" },
+    { key: "date", label: "Операция — дата (в цикле {#entries}…{/entries})" },
+    { key: "doc", label: "Операция — документ/описание (в цикле)" },
+    { key: "our_debit", label: "Наш дебет — начислено (в цикле)" },
+    { key: "our_credit", label: "Наш кредит — оплачено (в цикле)" },
+    { key: "their_debit", label: "Дебет контрагента — пусто для встречной сверки (в цикле)" },
+    { key: "their_credit", label: "Кредит контрагента — пусто для встречной сверки (в цикле)" },
   ],
 }
