@@ -108,6 +108,7 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     { key: "landlord_iik", label: "ИИК поставщика" },
     { key: "landlord_bik", label: "БИК поставщика" },
     { key: "landlord_bank", label: "Банк поставщика" },
+    { key: "landlord_director", label: "Директор/подписант поставщика" },
     { key: "landlord_second_iik", label: "Второй ИИК поставщика" },
     { key: "landlord_second_bik", label: "Второй БИК поставщика" },
     { key: "landlord_second_bank", label: "Второй банк поставщика" },
