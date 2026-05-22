@@ -1,8 +1,8 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
+import { STATUS_COLORS, STATUS_LABELS, formatMoney } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { FileText, Printer, Receipt, Upload, Wallet } from "lucide-react"
+import { Download, FileText, Printer, Receipt, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
 
 export default async function CabinetDocuments() {
@@ -17,6 +17,21 @@ export default async function CabinetDocuments() {
   })
 
   if (!tenant) return null
+
+  // Выставленные арендодателем документы (счета, АВР, акты сверки и т.д.)
+  const issued = await db.generatedDocument.findMany({
+    where: { tenantId: tenant.id, deletedAt: null },
+    orderBy: { generatedAt: "desc" },
+    take: 50,
+    select: { id: true, documentType: true, number: true, period: true, totalAmount: true, generatedAt: true },
+  })
+  const issuedTypeLabel: Record<string, string> = {
+    INVOICE: "Счёт на оплату",
+    ACT: "Акт оказанных услуг",
+    RECONCILIATION: "Акт сверки",
+    CONTRACT: "Договор",
+    HANDOVER: "Акт приёма-передачи",
+  }
 
   const pendingSignatureCount = tenant.contracts.filter((contract) => ["SENT", "VIEWED"].includes(contract.status)).length
   const signedContractsCount = tenant.contracts.filter((contract) => contract.status === "SIGNED").length
@@ -50,6 +65,43 @@ export default async function CabinetDocuments() {
         <DocumentStat label="Подписаны" value={signedContractsCount} tone="emerald" />
         <DocumentStat label="Мои файлы" value={tenant.documents.length} tone="blue" />
       </div>
+
+      {/* Выставленные документы от арендодателя */}
+      {issued.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Выставленные документы</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Счета, акты и акты сверки от арендодателя — скачайте при необходимости.</p>
+          </div>
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
+            {issued.map((doc) => (
+              <div key={doc.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <Receipt className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                      {issuedTypeLabel[doc.documentType] ?? doc.documentType}{doc.number ? ` № ${doc.number}` : ""}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      {doc.period ? `${doc.period} · ` : ""}{new Date(doc.generatedAt).toLocaleDateString("ru-RU")}
+                      {doc.totalAmount != null ? ` · ${formatMoney(doc.totalAmount)}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={`/api/documents/archive/${doc.id}`}
+                  download
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 sm:self-center"
+                >
+                  <Download className="h-3.5 w-3.5" /> Скачать
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Документы для печати */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">

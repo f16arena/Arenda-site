@@ -9,6 +9,7 @@ import { tenantScope } from "@/lib/tenant-scope"
 import { getDocumentTenantOptions, getVisibleBuildingIds } from "@/lib/document-tenants"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { ReconciliationPeriodSelect } from "./period-select"
+import { SendToTenantButton } from "@/components/documents/send-to-tenant-button"
 import { resolveMonthRange } from "@/lib/period-range"
 import { Download } from "lucide-react"
 
@@ -117,6 +118,7 @@ export default async function ReconciliationPage({
               <Download className="h-4 w-4" /> Скачать
             </a>
           )}
+          {selected && <SendToTenantButton tenantId={selected.id} type="RECONCILIATION" from={from} to={to} />}
           {selected && <PrintButton />}
         </div>
       </div>

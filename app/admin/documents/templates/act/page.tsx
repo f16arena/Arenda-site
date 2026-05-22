@@ -12,6 +12,7 @@ import { tenantScope } from "@/lib/tenant-scope"
 import { getDocumentTenantOptions } from "@/lib/document-tenants"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { NcaSignButton } from "@/components/nca-sign-button"
+import { SendToTenantButton } from "@/components/documents/send-to-tenant-button"
 import { PeriodPicker } from "@/components/documents/period-picker"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
@@ -107,6 +108,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
               <a href={docxUrl} download className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white inline-flex items-center gap-2">
                 <Download className="h-4 w-4" /> Скачать DOCX
               </a>
+              <SendToTenantButton tenantId={tenant!.id} type="ACT" period={currentPeriod} number={actNumber} />
               <NcaSignButton documentUrl={docxUrl} documentType="ACT" documentRef={actNumber} />
             </>
           )}

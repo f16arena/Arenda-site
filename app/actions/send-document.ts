@@ -9,26 +9,30 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
 
-export type DocumentType = "INVOICE" | "ACT" | "CONTRACT" | "HANDOVER"
+export type DocumentType = "INVOICE" | "ACT" | "CONTRACT" | "HANDOVER" | "RECONCILIATION"
 
 interface SendDocumentParams {
   tenantId: string
   type: DocumentType
   period?: string
   number?: string
+  /** Для акта сверки — диапазон месяцев (YYYY-MM). */
+  from?: string
+  to?: string
 }
 
 const SUBJECTS: Record<DocumentType, (n: string) => string> = {
-  INVOICE: (n) => `Счёт-фактура № ${n}`,
+  INVOICE: (n) => `Счёт на оплату № ${n}`,
   ACT: (n) => `Акт оказанных услуг № ${n}`,
   CONTRACT: (n) => `Договор аренды № ${n}`,
   HANDOVER: () => `Акт приёма-передачи помещения`,
+  RECONCILIATION: (n) => `Акт сверки № ${n}`,
 }
 
 const BODIES: Record<DocumentType, (companyName: string) => { intro: string; details: string }> = {
   INVOICE: (n) => ({
     intro: `Уважаемые партнёры из «${n}»,`,
-    details: "Направляем вам счёт-фактуру за услуги аренды. Срок оплаты — 10 числа текущего месяца. По вопросам оплаты свяжитесь с бухгалтерией.",
+    details: "Направляем вам счёт на оплату за услуги аренды. Срок оплаты — 10 числа текущего месяца. По вопросам оплаты свяжитесь с бухгалтерией.",
   }),
   ACT: (n) => ({
     intro: `Уважаемые партнёры из «${n}»,`,
@@ -41,6 +45,10 @@ const BODIES: Record<DocumentType, (companyName: string) => { intro: string; det
   HANDOVER: (n) => ({
     intro: `Уважаемые партнёры из «${n}»,`,
     details: "Направляем акт приёма-передачи помещения для подписания.",
+  }),
+  RECONCILIATION: (n) => ({
+    intro: `Уважаемые партнёры из «${n}»,`,
+    details: "Направляем вам акт сверки взаиморасчётов. Просьба проверить данные и при согласии подписать.",
   }),
 }
 
@@ -67,8 +75,7 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
   })
 
   if (!tenant) return { ok: false, error: "Арендатор не найден" }
-  const recipient = tenant.user.email
-  if (!recipient) return { ok: false, error: "У арендатора не указан email" }
+  const recipient = tenant.user.email // может быть null — тогда только in-app
 
   // Получаем DOCX из соответствующего эндпоинта
   const h = await headers()
@@ -78,97 +85,84 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
 
   const today = new Date()
   const period = params.period ?? today.toISOString().slice(0, 7)
-  const number = params.number ?? `${period.replace("-", "")}-001`
+  const from = params.from ?? `${today.getFullYear()}-01`
+  const to = params.to ?? `${today.getFullYear()}-12`
+  const number = params.number
+    ?? (params.type === "RECONCILIATION" ? `${from}-001` : `${period.replace("-", "")}-001`)
 
   const docxUrlMap: Record<DocumentType, string> = {
     INVOICE: `${baseUrl}/api/invoices/generate?tenantId=${tenant.id}&period=${period}&number=${number}`,
     ACT: `${baseUrl}/api/acts/generate?tenantId=${tenant.id}&period=${period}&number=${number}`,
     CONTRACT: `${baseUrl}/api/contracts/generate?tenantId=${tenant.id}&number=${number}`,
     HANDOVER: `${baseUrl}/api/handover/generate?tenantId=${tenant.id}`,
+    RECONCILIATION: `${baseUrl}/api/reconciliation/generate?tenantId=${tenant.id}&from=${from}&to=${to}`,
   }
 
-  // Скачиваем DOCX
+  // Генерируем документ (эндпоинт сохраняет его в архив GeneratedDocument →
+  // он становится виден арендатору в кабинете).
   const docxRes = await fetch(docxUrlMap[params.type], {
     headers: { cookie: h.get("cookie") ?? "" }, // прокинуть auth cookie
   })
-
   if (!docxRes.ok) {
     return { ok: false, error: `Не удалось сгенерировать документ (${docxRes.status})` }
   }
-
   const buffer = Buffer.from(await docxRes.arrayBuffer())
   const subject = SUBJECTS[params.type](number)
   const body = BODIES[params.type](tenant.companyName)
 
-  // Сначала создаём запись в журнале (чтобы получить id для трекинга)
-  let logId = ""
-  try {
-    const log = await db.emailLog.create({
-      data: {
-        recipient,
-        subject,
-        type: params.type,
-        tenantId: tenant.id,
-        userId: tenant.user.id,
-        status: "QUEUED",
-      },
-      select: { id: true },
-    })
-    logId = log.id
-  } catch {
-    // Таблица не создана — продолжаем без журнала
-  }
-
-  // HTML письма
-  const html = basicEmailTemplate({
-    title: subject,
-    body: `<p>${body.intro}</p><p>${body.details}</p><p>Документ во вложении.</p>`,
-    footer: "БЦ F16 · По вопросам обращайтесь в администрацию",
-  })
-
-  const ext = params.type === "INVOICE" ? "Счет" : params.type === "ACT" ? "Акт" : params.type === "CONTRACT" ? "Договор" : "АктПриема"
-  const result = await sendEmail({
-    to: recipient,
-    subject,
-    html,
-    attachments: [
-      { filename: `${ext}_${number}.docx`, content: buffer },
-    ],
-    trackingId: logId,
-    trackingBaseUrl: baseUrl,
-  })
-
-  // Обновим журнал
-  if (logId) {
+  // Email — только если у арендатора есть почта.
+  let emailSent = false
+  if (recipient) {
+    let logId = ""
     try {
-      await db.emailLog.update({
-        where: { id: logId },
-        data: {
-          status: result.ok ? "SENT" : "FAILED",
-          externalId: result.id,
-          error: result.error,
-        },
+      const log = await db.emailLog.create({
+        data: { recipient, subject, type: params.type, tenantId: tenant.id, userId: tenant.user.id, status: "QUEUED" },
+        select: { id: true },
       })
-    } catch {}
-  }
+      logId = log.id
+    } catch { /* журнал недоступен — продолжаем */ }
 
-  if (result.ok) {
-    // Уведомляем арендатора: in-app + Telegram (email не дублируем — уже выслали с вложением).
-    const docTitle = params.type === "INVOICE" ? "Новый счёт на оплату"
-      : params.type === "ACT" ? "Акт оказанных услуг ожидает подписания"
-      : params.type === "CONTRACT" ? "Новый договор ожидает подписания"
-      : "Акт приёма-передачи ожидает подписания"
-
-    await notifyUser({
-      userId: tenant.user.id,
-      type: `DOCUMENT_${params.type}`,
-      title: docTitle,
-      message: `${subject}. Документ отправлен на ваш email — проверьте почту.`,
-      link: "/cabinet/documents",
-      sendEmail: false,
+    const html = basicEmailTemplate({
+      title: subject,
+      body: `<p>${body.intro}</p><p>${body.details}</p><p>Документ во вложении.</p>`,
+      footer: "По вопросам обращайтесь в администрацию",
     })
-
-    revalidatePath(`/admin/tenants/${tenant.id}`)
+    const ext = params.type === "INVOICE" ? "Счет"
+      : params.type === "ACT" ? "Акт"
+      : params.type === "CONTRACT" ? "Договор"
+      : params.type === "RECONCILIATION" ? "АктСверки"
+      : "АктПриема"
+    const result = await sendEmail({
+      to: recipient,
+      subject,
+      html,
+      attachments: [{ filename: `${ext}_${number}.docx`, content: buffer }],
+      trackingId: logId,
+      trackingBaseUrl: baseUrl,
+    })
+    emailSent = result.ok
+    if (logId) {
+      try {
+        await db.emailLog.update({ where: { id: logId }, data: { status: result.ok ? "SENT" : "FAILED", externalId: result.id, error: result.error } })
+      } catch {}
+    }
   }
-  return result
+
+  // In-app уведомление арендатору — всегда (даже без email).
+  const docTitle = params.type === "INVOICE" ? "Новый счёт на оплату"
+    : params.type === "ACT" ? "Акт оказанных услуг"
+    : params.type === "RECONCILIATION" ? "Акт сверки"
+    : params.type === "CONTRACT" ? "Новый договор ожидает подписания"
+    : "Акт приёма-передачи"
+  await notifyUser({
+    userId: tenant.user.id,
+    type: `DOCUMENT_${params.type}`,
+    title: docTitle,
+    message: `${subject}. ${emailSent ? "Отправлен на ваш email и доступен" : "Доступен"} в кабинете → Документы.`,
+    link: "/cabinet/documents",
+    sendEmail: false,
+  })
+
+  revalidatePath(`/admin/tenants/${tenant.id}`)
+  return { ok: true }
 }

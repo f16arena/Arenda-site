@@ -12,8 +12,11 @@ import {
   Plus,
   Receipt,
   Search,
+  Send,
   X,
 } from "lucide-react"
+import { toast } from "sonner"
+import { sendDocumentToTenant } from "@/app/actions/send-document"
 import type { DocumentTenantOption } from "@/lib/document-tenants"
 
 type DocTypeKey = "contract" | "invoice" | "act" | "reconciliation"
@@ -164,6 +167,26 @@ export function CreateDocumentModal({
         : `/admin/documents/new/contract?tenantId=${tid}`
     close()
     router.push(url)
+  }
+
+  // Сформировать и отправить арендатору (для счёта/АВР): уведомление + кабинет.
+  async function sendToTenant() {
+    if (!tenantId) return
+    setPending(true)
+    try {
+      const r = await sendDocumentToTenant({ tenantId, type: type === "invoice" ? "INVOICE" : "ACT", period })
+      if (r.ok) {
+        toast.success("Отправлено арендатору — уведомление пришло ему в кабинет")
+        close()
+        reset()
+      } else {
+        toast.error(r.error ?? "Не удалось отправить")
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка")
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -334,6 +357,16 @@ export function CreateDocumentModal({
                 >
                   Отмена
                 </button>
+                {config.action === "download" && (
+                  <button
+                    onClick={sendToTenant}
+                    disabled={!tenantId || pending}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+                  >
+                    <Send className="h-4 w-4" />
+                    Отправить арендатору
+                  </button>
+                )}
                 <button
                   onClick={submit}
                   disabled={!tenantId || pending}
