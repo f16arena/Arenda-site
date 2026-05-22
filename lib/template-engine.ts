@@ -105,14 +105,20 @@ export function renderDocx(templateBuffer: Buffer, data: Record<string, unknown>
 export async function renderXlsx(templateBuffer: Buffer, data: Record<string, unknown>): Promise<Buffer> {
   const zip = new PizZip(templateBuffer)
 
+  // Нормализуем shared strings → inline: метки (в т.ч. цикла {#items}) могут
+  // лежать в sharedStrings.xml, а правим мы XML листа. После инлайна обработка
+  // одинакова для любых шаблонов (inline/shared).
+  const shared = parseSharedStrings(zip)
+
   for (const file of zip.file(/xl\/worksheets\/sheet\d+\.xml$/)) {
     let xml = file.asText()
+    if (shared.length) xml = inlineSharedStrings(xml, shared)
     xml = expandLoopInSheetXml(xml, data)
     xml = replaceScalarsInXml(xml, data)
     zip.file(file.name, xml)
   }
 
-  // sharedStrings: подставить скаляры (если шаблон на shared strings)
+  // sharedStrings: подставить скаляры на случай неинлайненных ссылок (defensive)
   const ss = zip.file("xl/sharedStrings.xml")
   if (ss) zip.file("xl/sharedStrings.xml", replaceScalarsInXml(ss.asText(), data))
 
@@ -130,6 +136,24 @@ export async function renderXlsx(templateBuffer: Buffer, data: Record<string, un
 }
 
 const PLACEHOLDER_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)\}/g
+
+/** Внутренний XML каждой строки <si> из sharedStrings.xml (например "<t>…</t>"). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseSharedStrings(zip: any): string[] {
+  const ss = zip.file("xl/sharedStrings.xml")
+  if (!ss) return []
+  const text: string = ss.asText()
+  return [...text.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => m[1])
+}
+
+/** Заменяет ячейки t="s" (ссылки на shared strings) на inline-строки. */
+function inlineSharedStrings(xml: string, shared: string[]): string {
+  return xml.replace(/<c\b([^>]*)>\s*<v>(\d+)<\/v>\s*<\/c>/g, (full, attrs: string, idx: string) => {
+    if (!/\bt="s"/.test(attrs)) return full // только shared-string ячейки
+    const inner = shared[parseInt(idx, 10)] ?? "<t></t>"
+    return `<c${attrs.replace(/\bt="s"/, 't="inlineStr"')}><is>${inner}</is></c>`
+  })
+}
 
 function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
