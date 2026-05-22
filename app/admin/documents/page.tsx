@@ -12,26 +12,13 @@ import Link from "next/link"
 import { Settings } from "lucide-react"
 import { getDocumentTenantOptions } from "@/lib/document-tenants"
 import { CreateDocumentModal } from "./create-document-modal"
-import { DocumentTypeFilter } from "./document-type-filter"
-import { DocumentsTableLoader } from "./documents-table-loader"
+import { DocumentsBrowser } from "./documents-browser"
 import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
-import { PaginationControls } from "@/components/ui/pagination-controls"
-import { normalizePage, pageSkip } from "@/lib/pagination"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
-type DocType = "ALL" | "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
-
-const DOCUMENT_SOURCE_LIMIT = 80
-const DOCUMENT_PAGE_SIZE = 30
-
-const TYPE_LABELS: Record<string, string> = {
-  CONTRACT: "Договор",
-  INVOICE: "Счёт на оплату",
-  ACT: "АВР",
-  RECONCILIATION: "Акт сверки",
-  HANDOVER: "Акт приёма-передачи",
-}
+// Грузим расширенный набор — фильтрация/поиск/пагинация делаются на клиенте.
+const DOCUMENT_SOURCE_LIMIT = 200
 
 export default async function DocumentsPage({
   searchParams,
@@ -60,10 +47,7 @@ export default async function DocumentsPage({
   const canOpenTemplates = allowedCapabilities.has("documents.uploadTemplate")
   const createTenantOptions = canCreateDocuments ? await getDocumentTenantOptions(orgId) : []
 
-  const { type, q, period, page: pageParam, create } = await searchParams
-  const page = normalizePage(pageParam)
-  const filterType = (type ?? "ALL").toUpperCase() as DocType
-  const search = q?.trim() ?? ""
+  const { type, q, period, create } = await searchParams
   const tenantWhere = {
     OR: [
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
@@ -94,58 +78,52 @@ export default async function DocumentsPage({
       }
 
   const [contracts, generated] = await Promise.all([
-    filterType === "ALL" || filterType === "CONTRACT"
-      ? safe(
-        "admin.documents.contracts",
-        db.contract.findMany({
-            where: { AND: [contractScope(orgId), { tenant: tenantWhere }] },
-            select: {
-              id: true,
-              number: true,
-              type: true,
-              status: true,
-              signedAt: true,
-              signedByTenantAt: true,
-              signedByLandlordAt: true,
-              startDate: true,
-              endDate: true,
-              createdAt: true,
-              tenant: { select: { id: true, companyName: true } },
-            },
-            orderBy: { createdAt: "desc" },
-            take: DOCUMENT_SOURCE_LIMIT,
-          }),
-        [] as Array<{
-          id: string
-          number: string
-          type: string
-          status: string
-          signedAt: Date | null
-          signedByTenantAt: Date | null
-          signedByLandlordAt: Date | null
-          startDate: Date | null
-          endDate: Date | null
-          createdAt: Date
-          tenant: { id: string; companyName: string }
-        }>,
-      )
-      : [],
-    filterType === "ALL" || filterType !== "CONTRACT"
-      ? safe(
-        "admin.documents.generated",
-        db.generatedDocument.findMany({
-            where: {
-              organizationId: orgId,
-              ...(visibleBuildingIds.length > 0 ? generatedTenantFilter : { id: "__never__" }),
-              ...(filterType !== "ALL" ? { documentType: filterType } : {}),
-              ...(period ? { period } : {}),
-            },
-            orderBy: { generatedAt: "desc" },
-            take: DOCUMENT_SOURCE_LIMIT,
-          }),
-        [],
-      )
-      : [],
+    safe(
+      "admin.documents.contracts",
+      db.contract.findMany({
+        where: { AND: [contractScope(orgId), { tenant: tenantWhere }] },
+        select: {
+          id: true,
+          number: true,
+          type: true,
+          status: true,
+          signedAt: true,
+          signedByTenantAt: true,
+          signedByLandlordAt: true,
+          startDate: true,
+          endDate: true,
+          createdAt: true,
+          tenant: { select: { id: true, companyName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: DOCUMENT_SOURCE_LIMIT,
+      }),
+      [] as Array<{
+        id: string
+        number: string
+        type: string
+        status: string
+        signedAt: Date | null
+        signedByTenantAt: Date | null
+        signedByLandlordAt: Date | null
+        startDate: Date | null
+        endDate: Date | null
+        createdAt: Date
+        tenant: { id: string; companyName: string }
+      }>,
+    ),
+    safe(
+      "admin.documents.generated",
+      db.generatedDocument.findMany({
+        where: {
+          organizationId: orgId,
+          ...(visibleBuildingIds.length > 0 ? generatedTenantFilter : { id: "__never__" }),
+        },
+        orderBy: { generatedAt: "desc" },
+        take: DOCUMENT_SOURCE_LIMIT,
+      }),
+      [],
+    ),
   ])
 
   const signatureTargets = [
@@ -236,37 +214,15 @@ export default async function DocumentsPage({
     }
   })
 
-  let allRows = [...contractRows, ...generatedRows].sort(
+  const allRows: DocRow[] = [...contractRows, ...generatedRows].sort(
     (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
   )
-
-  if (search) {
-    const lower = search.toLowerCase()
-    allRows = allRows.filter(
-      (r) =>
-        r.tenantName.toLowerCase().includes(lower) ||
-        r.number?.toLowerCase().includes(lower)
-    )
-  }
-
-  const emptyHint = search || period || filterType !== "ALL"
-    ? "По вашим фильтрам ничего не найдено"
-    : "Документы ещё не созданы. Нажмите «Создать документ» и выберите тип."
-
-  const totalRows = allRows.length
-  const start = pageSkip(page, DOCUMENT_PAGE_SIZE)
-  const rowsForPage = allRows.slice(start, start + DOCUMENT_PAGE_SIZE)
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {allRows.length} {allRows.length === 1 ? "документ" : "документов"}
-            {filterType !== "ALL" ? ` · тип «${TYPE_LABELS[filterType] ?? filterType}»` : ""}
-            {period ? ` · период ${period}` : ""}
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canOpenTemplates && (
@@ -284,15 +240,11 @@ export default async function DocumentsPage({
         </div>
       </div>
 
-      <DocumentTypeFilter currentType={filterType} currentSearch={search} currentPeriod={period} />
-
-      <DocumentsTableLoader rows={rowsForPage} emptyHint={emptyHint} />
-      <PaginationControls
-        basePath="/admin/documents"
-        page={page}
-        pageSize={DOCUMENT_PAGE_SIZE}
-        total={totalRows}
-        params={{ type: filterType === "ALL" ? null : filterType, q: search, period }}
+      <DocumentsBrowser
+        rows={allRows}
+        initialType={(type ?? "ALL").toUpperCase()}
+        initialSearch={q?.trim() ?? ""}
+        initialPeriod={period ?? ""}
       />
     </div>
   )
