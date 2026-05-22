@@ -90,185 +90,146 @@ export function renderDocx(templateBuffer: Buffer, data: Record<string, unknown>
 /**
  * Подставить данные в XLSX-шаблон.
  *
- * Поддерживается:
- *   - скалярные метки {key} / {a.b.c} в любых ячейках;
- *   - ОДНОСТРОЧНЫЙ цикл {#items}…{@index}…{field}…{/items}: строка с маркерами
- *     размножается на длину массива data.items, стили и объединённые ячейки
- *     (merge) копируются построчно, всё ниже сдвигается вниз.
+ * ВАЖНО: правим XML ПРЯМО в шаблоне (через PizZip), БЕЗ пересборки книги через
+ * ExcelJS. ExcelJS при load→write меняет структуру листа так, что строгий
+ * загрузчик Excel (Office LTSC) отвергает файл («ошибка загрузки sheet1.xml»),
+ * хотя файл валиден по XML/схеме. Сохраняем zip БЕЗ сжатия (STORE): этот Excel
+ * не разжимает DEFLATE-поток pizzip/exceljs. Исходный шаблон при этом остаётся
+ * нетронутым по структуре → открывается.
  *
- * Многострочное тело цикла (маркеры открытия/закрытия в разных строках) НЕ
- * поддерживается — для xlsx это редкий кейс и ломает merge'ы.
+ * Поддерживается:
+ *   - скалярные метки {key} / {a.b.c};
+ *   - ОДНОСТРОЧНЫЙ цикл {#items}…{@index}…{field}…{/items}: строка-шаблон
+ *     размножается на длину массива, строки ниже и merge'ы сдвигаются.
  */
 export async function renderXlsx(templateBuffer: Buffer, data: Record<string, unknown>): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await wb.xlsx.load(templateBuffer as any)
+  const zip = new PizZip(templateBuffer)
 
-  wb.eachSheet((ws) => {
-    expandSingleRowLoop(ws, data)
-    // Плоская замена оставшихся скалярных меток.
-    ws.eachRow((row) => {
-      row.eachCell((cell) => {
-        if (typeof cell.value === "string" && cell.value.includes("{")) {
-          cell.value = replaceScalars(cell.value, data)
-        }
-      })
-    })
-  })
+  for (const file of zip.file(/xl\/worksheets\/sheet\d+\.xml$/)) {
+    let xml = file.asText()
+    xml = expandLoopInSheetXml(xml, data)
+    xml = replaceScalarsInXml(xml, data)
+    zip.file(file.name, xml)
+  }
 
-  const out = await wb.xlsx.writeBuffer()
-  return sanitizeXlsxStyles(Buffer.from(out))
-}
+  // sharedStrings: подставить скаляры (если шаблон на shared strings)
+  const ss = zip.file("xl/sharedStrings.xml")
+  if (ss) zip.file("xl/sharedStrings.xml", replaceScalarsInXml(ss.asText(), data))
 
-/**
- * ExcelJS при пересборке некоторых шаблонов пишет невалидный `<patternFill/>`
- * без атрибута patternType. ExcelJS такой файл читает, но Excel считает книгу
- * повреждённой («ошибка в части содержимого») и сбрасывает лист. Чиним:
- * нормализуем пустой patternFill в `patternType="none"`.
- */
-function sanitizeXlsxStyles(buffer: Buffer): Buffer {
-  try {
-    const zip = new PizZip(buffer)
-    const styles = zip.file("xl/styles.xml")
-    if (!styles) return buffer
-    const text = styles.asText()
-    const fixed = text
+  // Defensive: нормализовать пустой patternFill (на случай кривого шаблона)
+  const styles = zip.file("xl/styles.xml")
+  if (styles) {
+    const fixed = styles.asText()
       .replace(/<patternFill\s*\/>/g, '<patternFill patternType="none"/>')
       .replace(/<patternFill>\s*<\/patternFill>/g, '<patternFill patternType="none"/>')
-    if (fixed === text) return buffer
     zip.file("xl/styles.xml", fixed)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return zip.generate({ type: "nodebuffer", compression: "DEFLATE" } as any) as unknown as Buffer
-  } catch {
-    return buffer
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return zip.generate({ type: "nodebuffer", compression: "STORE" } as any) as unknown as Buffer
 }
 
 const PLACEHOLDER_RE = /\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)\}/g
 
-function replaceScalars(text: string, data: Record<string, unknown>): string {
-  return text.replace(PLACEHOLDER_RE, (_, key: string) => {
+function escapeXml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
+function replaceScalarsInXml(xml: string, data: Record<string, unknown>): string {
+  return xml.replace(PLACEHOLDER_RE, (_, key: string) => {
     const v = resolveDeep(data, key)
-    return v === null || v === undefined ? "" : String(v)
+    return v === null || v === undefined ? "" : escapeXml(String(v))
   })
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function expandSingleRowLoop(ws: any, data: Record<string, unknown>): void {
-  const loop = findLoopRow(ws)
-  if (!loop) return
+/**
+ * Раскрывает однострочный цикл {#key}…{/key} прямо в XML листа.
+ * Шаблонная строка размножается на длину массива; строки ниже и merge'ы
+ * сдвигаются на (n-1); dimension расширяется.
+ */
+function expandLoopInSheetXml(xml: string, data: Record<string, unknown>): string {
+  const keyMatch = xml.match(/\{#([a-zA-Z_][a-zA-Z0-9_]*)\}/)
+  if (!keyMatch) return xml
+  const key = keyMatch[1]
+  const arr = (data as Record<string, unknown>)[key]
+  const items: unknown[] = Array.isArray(arr) ? arr : []
 
-  const R = loop.row
-  const arr = (data as Record<string, unknown>)[loop.key]
-  const items = Array.isArray(arr) ? arr : []
-  const n = items.length
+  const sd = xml.match(/(<sheetData[^>]*>)([\s\S]*?)(<\/sheetData>)/)
+  if (!sd) return xml
+  const rows = [...sd[2].matchAll(/<row\b[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g)].map((m) => m[0])
+  const li = rows.findIndex((r) => r.includes(`{#${key}}`) && r.includes(`{/${key}}`))
+  if (li < 0) return xml // маркеры в разных строках — не поддерживаем
 
-  // Шаблон строки цикла: значение + стиль каждой ячейки с контентом.
-  const tmpl: { col: number; text: unknown; style: unknown }[] = []
-  ws.getRow(R).eachCell({ includeEmpty: false }, (cell: { value: unknown; style: unknown }, col: number) => {
-    tmpl.push({ col, text: cell.value, style: cell.style })
-  })
-  const rowHeight: number | undefined = ws.getRow(R).height
+  const loopRow = rows[li]
+  const R = parseInt((loopRow.match(/\br="(\d+)"/) ?? ["", "0"])[1], 10)
+  const delta = items.length - 1
 
-  // Разбор merge'ов: внутри строки цикла / выше / ниже.
-  const allMerges: string[] = (ws.model?.merges ?? []).slice()
-  const loopMerges: { l: number; r: number }[] = []
-  const aboveMerges: string[] = []
-  const belowMerges: { l: number; r: number; t: number; b: number }[] = []
-  for (const m of allMerges) {
-    const p = parseMerge(m)
-    if (p.t === R && p.b === R) loopMerges.push({ l: p.l, r: p.r })
-    else if (p.t > R) belowMerges.push(p)
-    else aboveMerges.push(m) // выше или пересекающие — оставляем как есть
-  }
-
-  // Снять все merge'ы, чтобы вставка/удаление строк не конфликтовали.
-  for (const m of allMerges) {
-    try { ws.unMergeCells(m) } catch { /* ignore */ }
-  }
-
-  const delta = n - 1
-  if (n === 0) {
-    ws.spliceRows(R, 1)
-  } else if (delta > 0) {
-    ws.spliceRows(R + 1, 0, ...Array.from({ length: delta }, () => []))
-  }
-
-  // Заполнить строки цикла.
-  for (let i = 0; i < n; i++) {
-    const target = R + i
-    if (rowHeight) ws.getRow(target).height = rowHeight
-    for (const t of tmpl) {
-      const cell = ws.getCell(target, t.col)
-      cell.value = typeof t.text === "string"
-        ? renderItemText(t.text, items[i] as Record<string, unknown>, i, data, loop.key)
-        : t.text
-      if (t.style) cell.style = t.style as never
-    }
-    for (const lm of loopMerges) {
-      try { ws.mergeCells(target, lm.l, target, lm.r) } catch { /* ignore */ }
-    }
-  }
-
-  // Восстановить merge'ы выше (без изменений) и ниже (сдвиг на delta).
-  for (const m of aboveMerges) {
-    try { ws.mergeCells(m) } catch { /* ignore */ }
-  }
-  for (const p of belowMerges) {
-    try { ws.mergeCells(p.t + delta, p.l, p.b + delta, p.r) } catch { /* ignore */ }
-  }
-}
-
-function renderItemText(
-  text: string,
-  item: Record<string, unknown>,
-  index: number,
-  data: Record<string, unknown>,
-  key: string,
-): string {
-  let s = text.split(`{#${key}}`).join("").split(`{/${key}}`).join("")
-  s = s.replace(/\{@index\}/g, String(index + 1))
-  return s.replace(PLACEHOLDER_RE, (_, k: string) => {
-    let v = resolveDeep(item, k)
-    if (v === undefined) v = resolveDeep(data, k) // общие скаляры внутри строки
-    return v === null || v === undefined ? "" : String(v)
-  })
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function findLoopRow(ws: any): { row: number; key: string } | null {
-  let result: { row: number; key: string } | null = null
-  ws.eachRow((row: { eachCell: (cb: (c: { value: unknown }) => void) => void }, rn: number) => {
-    if (result) return
-    row.eachCell((cell: { value: unknown }) => {
-      if (result) return
-      if (typeof cell.value === "string") {
-        const m = cell.value.match(/\{#([a-zA-Z_][a-zA-Z0-9_]*)\}/)
-        if (m) result = { row: rn, key: m[1] }
+  const out: string[] = []
+  for (let idx = 0; idx < rows.length; idx++) {
+    if (idx < li) { out.push(rows[idx]); continue }
+    if (idx === li) {
+      for (let i = 0; i < items.length; i++) {
+        let rx = setRowNumber(loopRow, R, R + i)
+        rx = rx.split(`{#${key}}`).join("").split(`{/${key}}`).join("")
+        rx = rx.replace(/\{@index\}/g, String(i + 1))
+        rx = rx.replace(PLACEHOLDER_RE, (_, k: string) => {
+          let v = resolveDeep(items[i] as Record<string, unknown>, k)
+          if (v === undefined) v = resolveDeep(data, k)
+          return v === null || v === undefined ? "" : escapeXml(String(v))
+        })
+        out.push(rx)
       }
-    })
-  })
+      continue
+    }
+    // idx > li
+    const oldN = parseInt((rows[idx].match(/\br="(\d+)"/) ?? ["", "0"])[1], 10)
+    out.push(delta === 0 ? rows[idx] : setRowNumber(rows[idx], oldN, oldN + delta))
+  }
+
+  let result = xml.slice(0, sd.index) + sd[1] + out.join("") + sd[3] + xml.slice((sd.index ?? 0) + sd[0].length)
+  if (delta !== 0) {
+    result = shiftMergeCells(result, R, delta, items.length)
+    result = result.replace(/(<dimension ref="[A-Z]+\d+:[A-Z]+)(\d+)("\s*\/>)/, (_, p1, r, p3) => `${p1}${parseInt(r, 10) + delta}${p3}`)
+  }
   return result
 }
 
-function parseMerge(range: string): { l: number; r: number; t: number; b: number } {
-  const [a, b] = range.split(":")
-  const pa = parseAddr(a)
-  const pb = parseAddr(b ?? a)
-  return {
-    l: Math.min(pa.c, pb.c),
-    r: Math.max(pa.c, pb.c),
-    t: Math.min(pa.r, pb.r),
-    b: Math.max(pa.r, pb.r),
-  }
+/** Меняет номер строки и r-ссылки её ячеек (oldN → newN). */
+function setRowNumber(rowXml: string, oldN: number, newN: number): string {
+  if (oldN === newN) return rowXml
+  return rowXml
+    .replace(new RegExp(`(<row\\b[^>]*\\br=")${oldN}(")`), `$1${newN}$2`)
+    .replace(new RegExp(`(<c\\b[^>]*\\br="[A-Z]+)${oldN}(")`, "g"), `$1${newN}$2`)
 }
 
-function parseAddr(addr: string): { c: number; r: number } {
+/** Сдвиг/размножение merge'ов: ниже R → +delta, на строке R → реплика на каждую из n строк. */
+function shiftMergeCells(xml: string, R: number, delta: number, n: number): string {
+  const mc = xml.match(/<mergeCells[^>]*>([\s\S]*?)<\/mergeCells>/)
+  if (!mc) return xml
+  const refs = [...mc[1].matchAll(/<mergeCell ref="([^"]+)"\s*\/>/g)].map((m) => m[1])
+  const outRefs: string[] = []
+  for (const ref of refs) {
+    const [a, b] = ref.split(":")
+    const pa = parseAddr(a)
+    const pb = parseAddr(b ?? a)
+    const top = Math.min(pa.r, pb.r)
+    const bot = Math.max(pa.r, pb.r)
+    if (bot < R) { outRefs.push(ref); continue }
+    if (top === R && bot === R) {
+      for (let i = 0; i < n; i++) outRefs.push(`${pa.col}${R + i}:${pb.col}${R + i}`)
+      continue
+    }
+    if (top > R) { outRefs.push(`${pa.col}${top + delta}:${pb.col}${bot + delta}`); continue }
+    outRefs.push(`${pa.col}${top}:${pb.col}${bot + delta}`) // пересекает R
+  }
+  const rebuilt = `<mergeCells count="${outRefs.length}">${outRefs.map((r) => `<mergeCell ref="${r}"/>`).join("")}</mergeCells>`
+  return xml.replace(/<mergeCells[^>]*>[\s\S]*?<\/mergeCells>/, rebuilt)
+}
+
+function parseAddr(addr: string): { col: string; r: number } {
   const m = addr.match(/^([A-Z]+)(\d+)$/)
-  if (!m) return { c: 1, r: 1 }
-  let c = 0
-  for (const ch of m[1]) c = c * 26 + (ch.charCodeAt(0) - 64)
-  return { c, r: parseInt(m[2], 10) }
+  if (!m) return { col: "A", r: 1 }
+  return { col: m[1], r: parseInt(m[2], 10) }
 }
 
 /**
