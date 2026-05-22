@@ -81,6 +81,13 @@ export function CreateDocumentModal({
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(defaultOpen)
+  // Открытие по ?create=1, в т.ч. при навигации с уже смонтированной страницы.
+  // Корректируем state во время рендера при смене пропса (паттерн React вместо эффекта).
+  const [prevDefaultOpen, setPrevDefaultOpen] = useState(defaultOpen)
+  if (defaultOpen !== prevDefaultOpen) {
+    setPrevDefaultOpen(defaultOpen)
+    if (defaultOpen) setOpen(true)
+  }
   const [type, setType] = useState<DocTypeKey>("contract")
   const [tenantId, setTenantId] = useState<string | null>(null)
   const [query, setQuery] = useState("")
@@ -102,11 +109,6 @@ export function CreateDocumentModal({
         (t.spaceNumber ?? "").toLowerCase().includes(q)
     )
   }, [tenants, query])
-
-  // Открытие по ?create=1, в т.ч. при навигации с уже смонтированной страницы
-  useEffect(() => {
-    if (defaultOpen) setOpen(true)
-  }, [defaultOpen])
 
   useEffect(() => {
     if (!open) return
