@@ -9,6 +9,7 @@ import Link from "next/link"
 import { ArrowLeft, Download, FileText } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
+import { getDocumentTenantOptions } from "@/lib/document-tenants"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { NcaSignButton } from "@/components/nca-sign-button"
 import { PeriodPicker } from "@/components/documents/period-picker"
@@ -30,19 +31,15 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
   const { tenantId, period, number } = await searchParams
   const currentPeriod = period ?? new Date().toISOString().slice(0, 7)
 
-  const tenants = await db.tenant.findMany({
-    where: tenantScope(orgId),
-    select: { id: true, companyName: true, space: { select: { number: true } }, user: { select: { name: true } } },
-    orderBy: { companyName: "asc" },
-  })
+  const tenantOptions = await getDocumentTenantOptions(orgId)
 
   const [organization, tenant] = await Promise.all([
     db.organization.findUnique({
       where: { id: orgId },
       select: { ...ORGANIZATION_REQUISITES_SELECT, isVatPayer: true, vatRate: true },
     }),
-    tenantId ? db.tenant.findUnique({
-      where: { id: tenantId },
+    tenantId ? db.tenant.findFirst({
+      where: { id: tenantId, ...tenantScope(orgId) },
       include: {
         user: true,
         space: { include: { floor: true } },
@@ -110,7 +107,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
         <div className="flex flex-wrap items-center gap-3">
           <PeriodPicker value={currentPeriod} />
           <div className="w-64">
-            <TenantSelector tenants={tenants.map((t) => ({ id: t.id, companyName: t.companyName, userName: t.user.name, spaceNumber: t.space?.number }))} selectedId={tenantId} />
+            <TenantSelector tenants={tenantOptions} selectedId={tenantId} />
           </div>
           {docxUrl && (
             <>

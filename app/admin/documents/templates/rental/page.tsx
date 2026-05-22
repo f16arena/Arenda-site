@@ -15,6 +15,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { tenantScope } from "@/lib/tenant-scope"
+import { getDocumentTenantOptions } from "@/lib/document-tenants"
 import { extractDocxPlaceholders, extractXlsxPlaceholders } from "@/lib/template-engine"
 import {
   LEASE_ADDITIONAL_SERVICES_CLAUSE,
@@ -35,22 +36,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
 
   const { tenantId } = await searchParams
 
-  const allTenantsRaw = await db.tenant.findMany({
-    where: tenantScope(orgId),
-    select: {
-      id: true,
-      companyName: true,
-      space: { select: { number: true } },
-      user: { select: { name: true } },
-    },
-    orderBy: { companyName: "asc" },
-  })
-  const allTenants = allTenantsRaw.map((t) => ({
-    id: t.id,
-    companyName: t.companyName,
-    userName: t.user.name,
-    spaceNumber: t.space?.number,
-  }))
+  const allTenants = await getDocumentTenantOptions(orgId)
 
   const tenant = tenantId
     ? await db.tenant.findFirst({

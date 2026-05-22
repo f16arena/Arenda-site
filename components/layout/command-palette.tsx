@@ -36,7 +36,7 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
   { label: "Лиды (CRM)", href: "/admin/leads", icon: TrendingUp, keywords: "leads crm" },
   { label: "Финансы", href: "/admin/finances", icon: Wallet, keywords: "finance деньги" },
   { label: "Документы", href: "/admin/documents", icon: FileText, keywords: "documents" },
-  { label: "Создать документ", href: "/admin/documents/new", icon: Plus, keywords: "документ создать договор счет акт авр сверка" },
+  { label: "Создать документ", href: "/admin/documents?create=1", icon: Plus, keywords: "документ создать договор счет акт авр сверка" },
   { label: "Шаблоны документов", href: "/admin/settings/document-templates", icon: FileText, keywords: "шаблоны документы настройки docx xlsx" },
   { label: "Качество данных", href: "/admin/data-quality", icon: ShieldCheck, keywords: "data quality ошибки проверка" },
   { label: "Проверка системы", href: "/admin/system-health", icon: Activity, keywords: "health система production env cron sitemap ошибки" },

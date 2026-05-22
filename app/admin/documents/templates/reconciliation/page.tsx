@@ -5,6 +5,8 @@ import { formatMoney } from "@/lib/utils"
 import { TenantSelector, PrintButton } from "../tenant-selector"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { requireOrgAccess } from "@/lib/org"
+import { tenantScope } from "@/lib/tenant-scope"
+import { getDocumentTenantOptions, getVisibleBuildingIds } from "@/lib/document-tenants"
 import { DocumentArchive } from "@/components/documents/document-archive"
 import { ReconciliationYearSelect } from "./year-select"
 
@@ -26,14 +28,12 @@ export default async function ReconciliationPage({
   const currentYear = new Date().getFullYear()
   const selectedYear = parseInt(year ?? String(currentYear))
 
-  const tenants = await db.tenant.findMany({
-    include: { user: { select: { name: true } }, space: true },
-    orderBy: { companyName: "asc" },
-  })
+  const visibleBuildingIds = await getVisibleBuildingIds(orgId)
+  const tenantOptions = await getDocumentTenantOptions(orgId)
 
   const selected = tenantId
-    ? await db.tenant.findUnique({
-        where: { id: tenantId },
+    ? await db.tenant.findFirst({
+        where: { id: tenantId, ...tenantScope(orgId) },
         include: {
           user: { select: { name: true } },
           space: { include: { floor: true } },
@@ -53,13 +53,6 @@ export default async function ReconciliationPage({
         },
       })
     : null
-
-  const tenantOptions = tenants.map((t) => ({
-    id: t.id,
-    companyName: t.companyName,
-    userName: t.user.name,
-    spaceNumber: t.space?.number,
-  }))
 
   // Build ledger entries
   type Entry = { date: string; label: string; debit: number; credit: number }
@@ -93,7 +86,13 @@ export default async function ReconciliationPage({
   const totalCredit = entries.reduce((s, e) => s + e.credit, 0)
   const balance = totalDebit - totalCredit
 
-  const building = await db.building.findFirst({ where: { isActive: true } })
+  const building = await db.building.findFirst({
+    where: {
+      organizationId: orgId,
+      ...(visibleBuildingIds.length > 0 ? { id: { in: visibleBuildingIds } } : {}),
+    },
+    orderBy: { isActive: "desc" },
+  })
   const today = new Date().toLocaleDateString("ru-RU")
   const reconciliationNumber = building && selected
     ? await suggestDocumentNumber(building.id, "reconciliation")

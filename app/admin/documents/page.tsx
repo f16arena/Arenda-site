@@ -9,15 +9,9 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import Link from "next/link"
-import type { ElementType } from "react"
-import {
-  ClipboardCheck,
-  FileCheck,
-  FileText,
-  Plus,
-  Receipt,
-  Settings,
-} from "lucide-react"
+import { Settings } from "lucide-react"
+import { getDocumentTenantOptions } from "@/lib/document-tenants"
+import { CreateDocumentModal } from "./create-document-modal"
 import { DocumentTypeFilter } from "./document-type-filter"
 import { DocumentsTableLoader } from "./documents-table-loader"
 import type { DocRow } from "./documents-table"
@@ -39,42 +33,10 @@ const TYPE_LABELS: Record<string, string> = {
   HANDOVER: "Акт приёма-передачи",
 }
 
-const CREATE_TYPES: {
-  label: string
-  href: string
-  icon: ElementType
-  color: string
-}[] = [
-  {
-    label: "Договор",
-    href: "/admin/documents/new/contract",
-    icon: FileCheck,
-    color: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
-  },
-  {
-    label: "Счёт на оплату",
-    href: "/admin/documents/new/invoice",
-    icon: Receipt,
-    color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  },
-  {
-    label: "АВР",
-    href: "/admin/documents/new/act",
-    icon: ClipboardCheck,
-    color: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  },
-  {
-    label: "Акт сверки",
-    href: "/admin/documents/new/reconciliation",
-    icon: FileText,
-    color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  },
-]
-
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[] }>
+  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[]; create?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
@@ -96,8 +58,9 @@ export default async function DocumentsPage({
   const canDeleteUnsignedDocuments = allowedCapabilities.has("documents.deleteUnsigned")
   const canDeleteSignedDocuments = isOwnerLikeUser && allowedCapabilities.has("documents.deleteSigned")
   const canOpenTemplates = allowedCapabilities.has("documents.uploadTemplate")
+  const createTenantOptions = canCreateDocuments ? await getDocumentTenantOptions(orgId) : []
 
-  const { type, q, period, page: pageParam } = await searchParams
+  const { type, q, period, page: pageParam, create } = await searchParams
   const page = normalizePage(pageParam)
   const filterType = (type ?? "ALL").toUpperCase() as DocType
   const search = q?.trim() ?? ""
@@ -316,36 +279,10 @@ export default async function DocumentsPage({
           </Link>
           )}
           {canCreateDocuments && (
-          <Link
-            href="/admin/documents/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Создать документ
-          </Link>
+            <CreateDocumentModal tenants={createTenantOptions} defaultOpen={create === "1"} />
           )}
         </div>
       </div>
-
-      {canCreateDocuments && (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {CREATE_TYPES.map((item) => {
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 hover:border-blue-300 dark:hover:border-blue-500/50 hover:bg-slate-50 dark:hover:bg-slate-800/40"
-            >
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.color}`}>
-                <Icon className="h-4 w-4" />
-              </span>
-              <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{item.label}</span>
-            </Link>
-          )
-        })}
-      </div>
-      )}
 
       <DocumentTypeFilter currentType={filterType} currentSearch={search} currentPeriod={period} />
 

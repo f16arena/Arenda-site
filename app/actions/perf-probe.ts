@@ -41,7 +41,6 @@ const PROBE_ROUTES = [
   "/admin/dashboard/owner",
   "/admin/data-quality",
   "/admin/documents",
-  "/admin/documents/new",
   "/admin/documents/new/act",
   "/admin/documents/new/contract",
   "/admin/documents/new/invoice",

@@ -58,7 +58,7 @@ const nav: NavSection[] = [
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
-      { href: "/admin/documents/new", label: "Создать документ", icon: CirclePlus, section: "documents", capability: "documents.create" },
+      { href: "/admin/documents?create=1", label: "Создать документ", icon: CirclePlus, section: "documents", capability: "documents.create" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
