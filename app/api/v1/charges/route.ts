@@ -4,6 +4,7 @@ import { requireApiKey, ApiKeyError } from "@/lib/api-keys"
 import { chargeScope } from "@/lib/tenant-scope"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { isOrgFeatureAvailable } from "@/lib/capabilities"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,13 @@ export const dynamic = "force-dynamic"
 export async function GET(req: Request) {
   try {
     const auth = await requireApiKey(req, "READ")
+    const apiAllowed = await isOrgFeatureAvailable(auth.organizationId, "api")
+    if (!apiAllowed) {
+      return NextResponse.json(
+        { error: "Публичный API доступен на тарифе Business и выше" },
+        { status: 403 },
+      )
+    }
     const reqHeaders = await headers()
     const rl = checkRateLimit(getClientKey(reqHeaders, `apikey:${auth.apiKeyId}`), {
       max: 100,

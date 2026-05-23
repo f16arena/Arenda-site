@@ -103,10 +103,10 @@ export function FoundersStateForm({
 export function ReleaseSlotButton({ orgId, orgName }: { orgId: string; orgName: string }) {
   const [pending, startTransition] = useTransition()
   function onClick() {
-    if (!confirm(`Снять статус Founders с «${orgName}»? Слот будет освобождён.`)) return
+    if (!confirm(`Снять статус Founding с «${orgName}»? Слот будет освобождён.`)) return
     startTransition(async () => {
       const r = await releaseFoundersSlot(orgId)
-      if (r.ok) toast.success("Статус Founders снят")
+      if (r.ok) toast.success("Статус Founding снят")
       else toast.error(r.error ?? "Не удалось")
     })
   }
@@ -126,10 +126,10 @@ export function ReleaseSlotButton({ orgId, orgName }: { orgId: string; orgName: 
 export function GrantSlotButton({ orgId, orgName }: { orgId: string; orgName: string }) {
   const [pending, startTransition] = useTransition()
   function onClick() {
-    if (!confirm(`Выдать статус Founders «${orgName}»? Это пожизненная скидка.`)) return
+    if (!confirm(`Выдать статус Founding Member «${orgName}»? Это пожизненная скидка.`)) return
     startTransition(async () => {
       const r = await grantFoundersSlot(orgId)
-      if (r.ok) toast.success(`Founder #${r.slotNumber ?? "?"} выдан`)
+      if (r.ok) toast.success(`Founding Member #${r.slotNumber ?? "?"} выдан`)
       else toast.error(r.error ?? "Не удалось")
     })
   }

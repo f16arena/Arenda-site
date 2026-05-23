@@ -481,11 +481,16 @@ async function KpiBlock({ userId }: { userId: string }) {
 }
 
 async function ActionableCards({ userId }: { userId: string }) {
-  const [pendingAddons, foundersTaken, foundersTotal, foundersActive] = await Promise.all([
+  const [pendingAddons, pendingServices, foundersTaken, foundersTotal, foundersActive] = await Promise.all([
     safeServerValue(
       db.organizationAddon.count({ where: { isActive: false, expiresAt: null } }),
       0,
       { source: "superadmin.home.pendingAddons", route: "/superadmin", userId },
+    ),
+    safeServerValue(
+      db.organizationService.count({ where: { status: "PENDING" } }),
+      0,
+      { source: "superadmin.home.pendingServices", route: "/superadmin", userId },
     ),
     safeServerValue(
       db.foundersProgramState.findUnique({ where: { id: "singleton" }, select: { takenSlots: true } }).then((s) => s?.takenSlots ?? 0),
@@ -505,7 +510,7 @@ async function ActionableCards({ userId }: { userId: string }) {
   ])
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Link
         href="/superadmin/addons?status=pending"
         className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:border-amber-500 dark:hover:border-amber-500/50 transition"
@@ -525,6 +530,24 @@ async function ActionableCards({ userId }: { userId: string }) {
       </Link>
 
       <Link
+        href="/superadmin/services?status=pending"
+        className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:border-purple-500 dark:hover:border-purple-500/50 transition"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Briefcase className="h-4 w-4 text-purple-500" />
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Заявки на услуги</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {pendingServices} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">ожидают оплаты</span>
+            </p>
+          </div>
+          <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-purple-500 transition" />
+        </div>
+      </Link>
+
+      <Link
         href="/superadmin/founders"
         className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:border-amber-500 dark:hover:border-amber-500/50 transition"
       >
@@ -532,7 +555,7 @@ async function ActionableCards({ userId }: { userId: string }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Founders Pricing</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Founding Pricing</span>
               {!foundersActive && <span className="text-[10px] text-red-500 font-medium">выкл.</span>}
             </div>
             <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">

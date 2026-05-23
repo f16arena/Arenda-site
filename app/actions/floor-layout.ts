@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
+import { requireOrgFeature } from "@/lib/capabilities"
 import { assertFloorInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
@@ -23,6 +24,7 @@ export async function saveFloorLayout(
   totalArea?: number | null,
 ): Promise<SaveFloorLayoutResult> {
   const { orgId } = await requireOrgAccess()
+  await requireOrgFeature(orgId, "floorEditor")
   await assertFloorInOrg(floorId, orgId)
 
   const floor = await db.floor.findUnique({

@@ -5,6 +5,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { requireOrgFeature } from "@/lib/capabilities"
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +18,11 @@ export async function GET(req: Request) {
   }
 
   const { orgId } = await requireOrgAccess()
+  try {
+    await requireOrgFeature(orgId, "export1c")
+  } catch {
+    return NextResponse.json({ error: "Экспорт в 1С доступен на тарифе Business и выше" }, { status: 403 })
+  }
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) return NextResponse.json({ error: "Building not selected" }, { status: 400 })
   await assertBuildingInOrg(buildingId, orgId)

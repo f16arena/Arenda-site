@@ -14,6 +14,7 @@ import {
   Building2,
   Calendar,
   CheckCircle,
+  Clock,
   FileText,
   Lock,
   MessageCircle,
@@ -24,7 +25,9 @@ import {
 } from "lucide-react"
 import { PeriodPrices } from "./period-prices"
 import { AddonsSection } from "./addons-section"
+import { ServicesSection } from "./services-section"
 import { addonsForPlan } from "@/lib/addons-catalog"
+import { servicesForPlan } from "@/lib/services-catalog"
 
 export default async function SubscriptionPage() {
   const { orgId } = await requireOrgAccess()
@@ -89,6 +92,13 @@ export default async function SubscriptionPage() {
   })
   const currentPeriodCode = org.subscriptions[0]?.billingPeriodCode ?? "monthly"
   const addonsCatalog = addonsForPlan(org.plan?.code ?? null)
+  const servicesCatalog = servicesForPlan(org.plan?.code ?? null)
+  const orgServices = await db.organizationService.findMany({
+    where: { organizationId: orgId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, serviceCode: true, serviceName: true, price: true, status: true, paidAt: true, deliveredAt: true, createdAt: true },
+  })
 
   return (
     <div className="max-w-6xl space-y-5">
@@ -162,7 +172,7 @@ export default async function SubscriptionPage() {
         {org.isFoundersMember && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-100">
             <Sparkles className="h-3.5 w-3.5" />
-            Founder #{org.foundersSlotNumber ?? "?"} · −{org.foundersLockedPct ?? 40}% lifetime
+            Founding Member #{org.foundersSlotNumber ?? "?"} · −{org.foundersLockedPct ?? 40}% lifetime
           </div>
         )}
       </div>
@@ -177,6 +187,8 @@ export default async function SubscriptionPage() {
       {org.plan?.code && org.plan.code !== "FREE" && (
         <AddonsSection catalog={addonsCatalog} active={orgAddons} />
       )}
+
+      <ServicesSection catalog={servicesCatalog} active={orgServices} />
 
       <div className="grid gap-3 lg:grid-cols-3">
         {usage.map(({ key, ...item }) => (
@@ -203,6 +215,7 @@ export default async function SubscriptionPage() {
               <div className="space-y-2 p-4">
                 {group.capabilities.map((capability) => {
                   const enabled = planFeatures.flags[capability.key] === true
+                  const planned = capability.plannedQuarter
                   return (
                     <div
                       key={capability.key}
@@ -210,17 +223,29 @@ export default async function SubscriptionPage() {
                         "flex items-start gap-3 rounded-lg border p-3",
                         enabled
                           ? "border-emerald-500/30 bg-emerald-500/10"
-                          : "border-slate-800 bg-slate-950/40",
+                          : planned
+                            ? "border-amber-500/30 bg-amber-500/10"
+                            : "border-slate-800 bg-slate-950/40",
                       )}
                     >
                       {enabled ? (
                         <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                      ) : planned ? (
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
                       ) : (
                         <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
                       )}
                       <div>
-                        <p className={cn("text-sm font-medium", enabled ? "text-emerald-100" : "text-slate-400")}>
+                        <p className={cn(
+                          "text-sm font-medium",
+                          enabled ? "text-emerald-100" : planned ? "text-amber-100" : "text-slate-400",
+                        )}>
                           {capability.label}
+                          {planned && !enabled && (
+                            <span className="ml-2 inline-flex items-center rounded-md bg-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                              готовится — {planned}
+                            </span>
+                          )}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">{capability.description}</p>
                       </div>

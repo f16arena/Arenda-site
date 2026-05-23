@@ -7,6 +7,7 @@ import { db } from "@/lib/db"
 import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { requireOrgFeature } from "@/lib/capabilities"
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +18,11 @@ export async function GET(req: Request) {
   }
 
   const { orgId } = await requireOrgAccess()
+  try {
+    await requireOrgFeature(orgId, "excelExport")
+  } catch {
+    return NextResponse.json({ error: "Экспорт в Excel доступен на тарифе Starter и выше" }, { status: 403 })
+  }
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
 

@@ -28,6 +28,7 @@ import {
 import type { LucideIcon } from "lucide-react"
 import { LEGAL_ENTITY } from "@/lib/legal-entity"
 import { FoundersBanner } from "@/components/landing/founders-banner"
+import { SocialProofSection } from "@/components/landing/social-proof"
 import { PricingSection } from "@/components/landing/pricing-section"
 import { LossCalculator } from "@/components/landing/loss-calculator"
 import { getPricingData } from "@/components/landing/pricing-data"
@@ -272,8 +273,8 @@ export default async function Home() {
               Когда аренда живет в таблицах, деньги теряются незаметно
             </h2>
             <p className="mt-4 text-sm leading-6 text-slate-600">
-              Клиент должен узнать себя уже на втором экране: хаос в документах, долги в переписках,
-              непонятные оплаты, свободные помещения и отсутствие общей картины по зданиям.
+              Хаос в документах, долги в переписках WhatsApp, непонятные оплаты на Kaspi и наличными,
+              пустые помещения и ни одной общей картины по нескольким зданиям.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -419,7 +420,7 @@ export default async function Home() {
             Начните с одного здания и масштабируйтесь до сети объектов
           </h2>
           <p className="mt-4 text-sm leading-6 text-slate-600">
-            5 тарифов, гибкие периоды оплаты, скидки до 25% за длинный пакет. Первым 15 клиентам — Founding pricing −40% lifetime.
+            5 тарифов, гибкие периоды оплаты, скидки до 25% за длинный пакет. Первые 15 клиентов — Founding Members с пожизненной скидкой −40%.
           </p>
         </div>
         {pricing ? (
@@ -429,12 +430,14 @@ export default async function Home() {
         )}
       </section>
 
+      <SocialProofSection />
+
       <section id="faq" className="border-y border-slate-200 bg-white">
         <div className="mx-auto max-w-4xl px-5 py-14 sm:px-8 lg:py-16">
           <SectionIntro
             eyebrow="FAQ"
             title="Ответы на вопросы до первой встречи"
-            text="FAQ должен сниматься с реальных вопросов владельцев, администраторов и арендаторов. После каждой новой функции его нужно обновлять."
+            text="Финансовые и юридические вопросы, которые чаще всего звучат на демо."
           />
           <div className="mt-8 space-y-3">
             {faqs.map((item) => (
@@ -452,9 +455,9 @@ export default async function Home() {
 
       <section id="blog" className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
         <SectionIntro
-          eyebrow="Блог и SEO"
-          title="Чтобы клиенты находили Commrent через свои проблемы"
-          text="Блог должен приводить владельцев из Google: договоры РК, аренда, долги, ЭСФ, НДС, коммунальные платежи, ИИН/БИН и учет помещений."
+          eyebrow="Полезное"
+          title="Разбираем темы, которые ежедневно касаются владельцев"
+          text="Договоры РК, индексация аренды, работа с долгами, ЭСФ и НДС, коммунальные платежи, ИИН/БИН."
         />
         <div className="mt-8 grid gap-3 md:grid-cols-3">
           {blogCards.map((title) => (

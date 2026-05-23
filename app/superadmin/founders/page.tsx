@@ -58,10 +58,10 @@ export default async function SuperadminFoundersPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-amber-500" />
-          Founders Program
+          Founding Program
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Управление программой Founders Pricing — пожизненная скидка для первых клиентов.
+          Управление программой Founding Pricing — пожизненная скидка для первых клиентов.
         </p>
       </div>
 
@@ -178,7 +178,7 @@ export default async function SuperadminFoundersPage() {
             <Calendar className="h-4 w-4 text-slate-400" />
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Выдать статус вручную</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 ml-2">
-              Последние 20 платных организаций без статуса Founders.
+              Последние 20 платных организаций без статуса Founding Member.
             </p>
           </div>
           <table className="w-full text-sm">

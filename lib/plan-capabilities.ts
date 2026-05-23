@@ -7,6 +7,12 @@ export type PlanCapability = {
   group: string
   risk?: PlanCapabilityRisk
   recommended?: boolean
+  /**
+   * Если задан — функция помечена как «готовится» (запланирована на квартал).
+   * В UI рендерится 🕐 + эта строка. Когда фича доступна — поле снимаем,
+   * флаг просто становится true в тарифах, входящих в её скоуп.
+   */
+  plannedQuarter?: string
 }
 
 export type PlanCapabilityGroup = {
@@ -265,6 +271,21 @@ export const PLAN_CAPABILITY_GROUPS: readonly PlanCapabilityGroup[] = [
         label: "White label",
         description: "Брендинг клиента без явного упоминания платформы.",
         group: "platform",
+        plannedQuarter: "Q4 2026",
+      },
+      {
+        key: "whatsappBusiness",
+        label: "WhatsApp Business",
+        description: "Уведомления арендаторов через WhatsApp Business API. Себестоимость 50-150 ₸/сообщение.",
+        group: "platform",
+        plannedQuarter: "Q3 2026",
+      },
+      {
+        key: "onPremise",
+        label: "On-premise развёртывание",
+        description: "Установка платформы на серверах клиента для Enterprise.",
+        group: "platform",
+        plannedQuarter: "Q4 2026",
       },
       {
         key: "webVitals",

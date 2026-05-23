@@ -55,7 +55,7 @@ export function PricingSection({
           <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
             <input type="checkbox" checked={showFounders} onChange={(e) => setShowFounders(e.target.checked)} />
             <Sparkles className="h-4 w-4 text-amber-500" />
-            <span>Цены Founders (−40% lifetime)</span>
+            <span>Founding Pricing (−40% lifetime для первых 15)</span>
           </label>
         )}
       </div>
@@ -115,7 +115,7 @@ export function PricingSection({
                     )}
                     {showFounders && breakdown.foundersDiscountPct > 0 && (
                       <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">
-                        <Sparkles className="h-3 w-3" /> Founders lifetime
+                        <Sparkles className="h-3 w-3" /> Founding lifetime
                       </p>
                     )}
                   </>

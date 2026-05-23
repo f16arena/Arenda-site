@@ -31,8 +31,8 @@ export async function PeriodPrices({ planCode, currentPeriod, isFoundersMember, 
         <h2 className="text-sm font-semibold text-slate-100">Стоимость по периодам</h2>
         <p className="text-xs text-slate-500 mt-0.5">
           {isFoundersMember
-            ? "С учётом вашей Founders-скидки −40% lifetime (стэк ограничен 50%)."
-            : "Чем длиннее период — тем больше скидка. Founders pricing (если открыто) — −40% lifetime."}
+            ? "С учётом вашей Founding-скидки −40% lifetime (стэк ограничен 50%)."
+            : "Чем длиннее период — тем больше скидка. Founding Pricing (если открыто) — −40% lifetime."}
         </p>
       </div>
       <table className="w-full min-w-[420px] text-sm">

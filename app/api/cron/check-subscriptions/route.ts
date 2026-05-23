@@ -18,22 +18,54 @@ export async function GET(req: Request) {
   const result = {
     suspended: 0,
     warnings: 0,
+    foundingGraceSkipped: 0,
     foundersReleased: 0,
     errors: [] as string[],
   }
+  // Founding Members получают 7 дней grace period перед suspension.
+  const FOUNDING_GRACE_DAYS = 7
+  const graceCutoff = new Date(now.getTime() - FOUNDING_GRACE_DAYS * 24 * 3600 * 1000)
 
   try {
     // 1. Истекшие подписки → suspended
+    //    Founding Members: 7 дней grace period. Если planExpiresAt в окне
+    //    [now-7д ... now] И is Founding — пропускаем, шлём напоминание.
     const expired = await db.organization.findMany({
       where: {
         isActive: true,
         isSuspended: false,
         planExpiresAt: { lt: now },
       },
-      select: { id: true, name: true, ownerUserId: true },
+      select: { id: true, name: true, ownerUserId: true, isFoundersMember: true, planExpiresAt: true },
     })
 
     for (const org of expired) {
+      const inGrace = org.isFoundersMember && org.planExpiresAt !== null && org.planExpiresAt >= graceCutoff
+      if (inGrace) {
+        result.foundingGraceSkipped++
+        // Мягкое напоминание (без suspension) — дедуп через Notification.
+        if (org.ownerUserId) {
+          const existing = await db.notification.findFirst({
+            where: {
+              userId: org.ownerUserId,
+              type: "SUBSCRIPTION_FOUNDING_GRACE",
+              createdAt: { gte: new Date(now.getTime() - 22 * 3600 * 1000) },
+            },
+          })
+          if (!existing) {
+            await notifyUser({
+              userId: org.ownerUserId,
+              type: "SUBSCRIPTION_FOUNDING_GRACE",
+              title: `Founding Member: 7 дней grace period`,
+              message: `Подписка "${org.name}" истекла, но как Founding Member у вас 7 дней на продление без приостановки. После этого кабинет будет приостановлен, статус Founding сохраняется.`,
+              link: "/admin/subscription",
+              emailButtonText: "Открыть подписку",
+            }).catch(() => null)
+          }
+        }
+        continue
+      }
+
       await db.organization.update({
         where: { id: org.id },
         data: { isSuspended: true },

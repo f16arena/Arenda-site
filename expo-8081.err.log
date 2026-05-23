@@ -1,0 +1,5 @@
+[33m› [1m[@sentry/react-native/expo][22m Missing config for [1morganization, project[22m. Environment variables will be used as a fallback during the build. https://docs.sentry.io/platforms/react-native/manual-setup/[0m
+The following packages should be updated for best compatibility with the installed expo version:
+  expo-haptics@55.0.14 - expected version: ~15.0.8
+  expo-network@55.0.13 - expected version: ~8.0.8
+Your project may not work correctly until you install the expected versions of the packages.

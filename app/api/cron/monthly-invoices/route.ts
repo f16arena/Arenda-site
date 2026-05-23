@@ -20,8 +20,28 @@ export async function GET(req: Request) {
   const period = now.toISOString().slice(0, 7) // YYYY-MM
   const previousPeriod = getPreviousPeriod(period)
 
+  // Auto-invoice cron — гейт по фиче `autoInvoiceCron`.
+  // Берём орг, у которых план включает фичу; остальные пропускаем тихо.
+  const orgsWithFeature = await db.organization.findMany({
+    where: { isActive: true, isSuspended: false },
+    select: { id: true, plan: { select: { features: true } } },
+  })
+  const allowedOrgIds = orgsWithFeature
+    .filter((o) => {
+      try {
+        const f = o.plan?.features ? JSON.parse(o.plan.features) : null
+        return f?.flags?.autoInvoiceCron === true
+      } catch { return false }
+    })
+    .map((o) => o.id)
+  if (allowedOrgIds.length === 0) {
+    return NextResponse.json({ ok: true, checked: 0, rentCreated: 0, cleaningCreated: 0, skipped: 0, note: "no orgs with autoInvoiceCron" })
+  }
+
   const tenants = await db.tenant.findMany({
     where: {
+      // Tenant скоупится через user.organizationId (там — единственный безопасный путь).
+      user: { organizationId: { in: allowedOrgIds } },
       OR: [
         { spaceId: { not: null } },
         { tenantSpaces: { some: {} } },
