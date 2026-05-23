@@ -18,9 +18,13 @@ import {
   Lock,
   MessageCircle,
   Package,
+  Sparkles,
   Star,
   Users,
 } from "lucide-react"
+import { PeriodPrices } from "./period-prices"
+import { AddonsSection } from "./addons-section"
+import { addonsForPlan } from "@/lib/addons-catalog"
 
 export default async function SubscriptionPage() {
   const { orgId } = await requireOrgAccess()
@@ -75,6 +79,16 @@ export default async function SubscriptionPage() {
 
   const enabledCount = Object.values(planFeatures.flags).filter(Boolean).length
   const totalFeatureCount = PLAN_CAPABILITY_GROUPS.reduce((sum, group) => sum + group.capabilities.length, 0)
+
+  // Аддоны: активные/запрошенные + каталог для текущего тарифа.
+  const orgAddons = await db.organizationAddon.findMany({
+    where: { organizationId: orgId },
+    orderBy: { startedAt: "desc" },
+    take: 50,
+    select: { id: true, addonCode: true, quantity: true, priceMonthly: true, isActive: true, startedAt: true, notes: true },
+  })
+  const currentPeriodCode = org.subscriptions[0]?.billingPeriodCode ?? "monthly"
+  const addonsCatalog = addonsForPlan(org.plan?.code ?? null)
 
   return (
     <div className="max-w-6xl space-y-5">
@@ -145,7 +159,24 @@ export default async function SubscriptionPage() {
             )}
           </div>
         </div>
+        {org.isFoundersMember && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-100">
+            <Sparkles className="h-3.5 w-3.5" />
+            Founder #{org.foundersSlotNumber ?? "?"} · −{org.foundersLockedPct ?? 40}% lifetime
+          </div>
+        )}
       </div>
+
+      <PeriodPrices
+        planCode={org.plan?.code ?? null}
+        currentPeriod={currentPeriodCode}
+        isFoundersMember={org.isFoundersMember}
+        foundersLockedPct={org.foundersLockedPct}
+      />
+
+      {org.plan?.code && org.plan.code !== "FREE" && (
+        <AddonsSection catalog={addonsCatalog} active={orgAddons} />
+      )}
 
       <div className="grid gap-3 lg:grid-cols-3">
         {usage.map(({ key, ...item }) => (
