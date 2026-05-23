@@ -21,7 +21,7 @@ export default async function ChangePasswordPage() {
   const targetAfter = user.role === "TENANT" ? "/cabinet" : "/admin"
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <ChangePasswordForm
         forced={user.mustChangePassword}
         userLogin={user.email ?? user.phone ?? user.name}

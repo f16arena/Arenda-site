@@ -30,14 +30,14 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <Link href="/" className="inline-flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center">
               <Building className="h-4 w-4 text-white" />
             </div>
-            <span className="text-lg font-bold text-slate-900 dark:text-slate-100">Commrent</span>
+            <span className="text-lg font-bold text-slate-900">Commrent</span>
           </Link>
         </div>
         {children}
@@ -48,19 +48,19 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 function Status({ type, title, message }: { type: "ok" | "error"; title: string; message: string }) {
   return (
-    <div className={`rounded-2xl border p-6 ${type === "ok" ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30" : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30"}`}>
+    <div className={`rounded-2xl border p-6 ${type === "ok" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
       <div className="flex items-start gap-3">
         {type === "ok"
-          ? <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          : <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 shrink-0" />}
+          ? <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+          : <AlertCircle className="h-6 w-6 text-red-600 shrink-0" />}
         <div className="flex-1">
-          <h1 className={`text-lg font-semibold ${type === "ok" ? "text-emerald-900 dark:text-emerald-200" : "text-red-900 dark:text-red-200"}`}>{title}</h1>
-          <p className={`text-sm mt-1 ${type === "ok" ? "text-emerald-800 dark:text-emerald-200" : "text-red-800 dark:text-red-200"}`}>{message}</p>
+          <h1 className={`text-lg font-semibold ${type === "ok" ? "text-emerald-900" : "text-red-900"}`}>{title}</h1>
+          <p className={`text-sm mt-1 ${type === "ok" ? "text-emerald-800" : "text-red-800"}`}>{message}</p>
           <div className="flex gap-2 mt-4">
             <Link href="/login" className="rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white">
               Войти
             </Link>
-            <Link href="/" className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <Link href="/" className="rounded-lg border border-slate-200 hover:bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
               На главную
             </Link>
           </div>
