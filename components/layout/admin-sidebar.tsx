@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   LogOut, Building, Activity,
   CalendarDays,
-  Menu, X, Rocket, CircleHelp, HardDrive, UserCog,
+  Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -54,6 +54,7 @@ const nav: NavSection[] = [
     title: "ФИНАНСЫ",
     items: [
       { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
+      { href: "/admin/service-fee", label: "Эксплуатационный сбор", icon: Sparkles, section: "buildings" },
     ],
   },
   {
