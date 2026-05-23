@@ -201,8 +201,21 @@ export async function GET(req: Request) {
       }
     }
 
-    // ── 3. Пени ──────────────────────────────────────────────
+    // ── 3. Пени (только для орг с фичей automatedFees) ──────
     const todayStr = now.toISOString().slice(0, 10)
+    // Префетч орг с включённой автопеней — фильтруем начисления по их арендаторам.
+    const orgsForFees = await db.organization.findMany({
+      where: { isActive: true, isSuspended: false },
+      select: { id: true, plan: { select: { features: true } } },
+    })
+    const autoFeesOrgIds = new Set<string>()
+    for (const o of orgsForFees) {
+      try {
+        const f = JSON.parse(o.plan?.features ?? "{}") as { automatedFees?: boolean }
+        if (f?.automatedFees === true) autoFeesOrgIds.add(o.id)
+      } catch { /* битый json — пропуск */ }
+    }
+
     const overdueCharges = await db.charge.findMany({
       where: {
         isPaid: false,
@@ -215,12 +228,23 @@ export async function GET(req: Request) {
         dueDate: true,
         type: true,
         period: true,
-        tenant: { select: { id: true, companyName: true, penaltyPercent: true, userId: true } },
+        tenant: {
+          select: {
+            id: true,
+            companyName: true,
+            penaltyPercent: true,
+            userId: true,
+            user: { select: { organizationId: true } },
+          },
+        },
       },
     })
 
     for (const c of overdueCharges) {
       if (!c.dueDate) continue
+      // Gate: автопеня только для орг с фичей automatedFees (Starter+).
+      const orgId = c.tenant.user?.organizationId
+      if (!orgId || !autoFeesOrgIds.has(orgId)) continue
       const daysOverdue = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000) - PENALTY_GRACE_DAYS
       if (daysOverdue <= 0) continue
 

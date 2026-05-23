@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { TenantDialog } from "./tenant-dialog"
+import { BulkNotifyButton } from "./bulk-notify-button"
 import { TenantsTableLoader } from "./tenants-table-loader"
 import type { TenantRow } from "./tenants-table"
 import { requireOrgAccess } from "@/lib/org"
@@ -27,6 +28,12 @@ export default async function TenantsPage(props: TenantsPageProps) {
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+  // Фича-флаг bulkNotifications из тарифа (для показа кнопки рассылки).
+  const orgForFeatures = await db.organization.findUnique({ where: { id: orgId }, select: { plan: { select: { features: true } } } })
+  let bulkNotificationsAvailable = false
+  try {
+    bulkNotificationsAvailable = JSON.parse(orgForFeatures?.plan?.features ?? "{}")?.bulkNotifications === true
+  } catch { /* ignore */ }
   const allowedCapabilities = session?.user
     ? new Set(await getAllowedCapabilityKeysForUser({
         userId: session.user.id,
@@ -168,18 +175,21 @@ export default async function TenantsPage(props: TenantsPageProps) {
             {totalTenants} зарегистрировано
           </p>
         </div>
-        {allowedCapabilities.has("tenants.create") && (
-          <TenantDialog
-            buildingId={buildingId}
-            vacantSpaces={vacantSpaces.map((s) => ({
-              id: s.id,
-              number: s.number,
-              floorName: s.floor.name,
-              buildingName: s.floor.building.name,
-              area: s.area,
-            }))}
-          />
-        )}
+        <div className="flex items-center gap-2">
+          <BulkNotifyButton available={bulkNotificationsAvailable} totalTenants={totalTenants} />
+          {allowedCapabilities.has("tenants.create") && (
+            <TenantDialog
+              buildingId={buildingId}
+              vacantSpaces={vacantSpaces.map((s) => ({
+                id: s.id,
+                number: s.number,
+                floorName: s.floor.name,
+                buildingName: s.floor.building.name,
+                area: s.area,
+              }))}
+            />
+          )}
+        </div>
       </div>
 
       <TenantsTableLoader tenants={rows} />
