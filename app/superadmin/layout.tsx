@@ -14,6 +14,7 @@ import {
   LogOut,
   Package,
   Shield,
+  Sparkles,
   UserCircle,
   UserCog,
 } from "lucide-react"
@@ -45,6 +46,8 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
           <SideLink href="/superadmin/users" icon={UserCog} label="Владельцы" />
           <SideLink href="/superadmin/subscriptions" icon={CalendarIcon} label="Подписки" />
           <SideLink href="/superadmin/plans" icon={Package} label="Тарифы" />
+          <SideLink href="/superadmin/addons" icon={Package} label="Аддоны" />
+          <SideLink href="/superadmin/founders" icon={Sparkles} label="Founders Pricing" />
           <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
           <SideLink href="/superadmin/errors" icon={Bug} label="Ошибки сайта" />
           <SideLink href="/superadmin/performance" icon={Gauge} label="Скорость сайта" />

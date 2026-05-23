@@ -6,7 +6,7 @@ import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
 import {
   Building2, Users, Package, TrendingUp, AlertTriangle, ArrowRight,
-  ExternalLink, UserCheck, TrendingDown, Briefcase, Target,
+  ExternalLink, UserCheck, TrendingDown, Briefcase, Target, Sparkles, Clock,
 } from "lucide-react"
 import { ROOT_HOST } from "@/lib/host"
 import { safeServerValue } from "@/lib/server-fallback"
@@ -28,6 +28,10 @@ export default async function SuperadminHomePage() {
 
       <Suspense fallback={<CardsSkeleton count={4} />}>
         <KpiBlock userId={userId} />
+      </Suspense>
+
+      <Suspense fallback={<div className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />}>
+        <ActionableCards userId={userId} />
       </Suspense>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -472,6 +476,72 @@ async function KpiBlock({ userId }: { userId: string }) {
         value={totalTenants}
         sub={`Сред. MRR: ${avgPlanRevenue.toLocaleString("ru-RU")} ₸`}
       />
+    </div>
+  )
+}
+
+async function ActionableCards({ userId }: { userId: string }) {
+  const [pendingAddons, foundersTaken, foundersTotal, foundersActive] = await Promise.all([
+    safeServerValue(
+      db.organizationAddon.count({ where: { isActive: false, expiresAt: null } }),
+      0,
+      { source: "superadmin.home.pendingAddons", route: "/superadmin", userId },
+    ),
+    safeServerValue(
+      db.foundersProgramState.findUnique({ where: { id: "singleton" }, select: { takenSlots: true } }).then((s) => s?.takenSlots ?? 0),
+      0,
+      { source: "superadmin.home.foundersTaken", route: "/superadmin", userId },
+    ),
+    safeServerValue(
+      db.foundersProgramState.findUnique({ where: { id: "singleton" }, select: { totalSlots: true } }).then((s) => s?.totalSlots ?? 15),
+      15,
+      { source: "superadmin.home.foundersTotal", route: "/superadmin", userId },
+    ),
+    safeServerValue(
+      db.foundersProgramState.findUnique({ where: { id: "singleton" }, select: { isActive: true } }).then((s) => s?.isActive ?? true),
+      true,
+      { source: "superadmin.home.foundersActive", route: "/superadmin", userId },
+    ),
+  ])
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Link
+        href="/superadmin/addons?status=pending"
+        className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:border-amber-500 dark:hover:border-amber-500/50 transition"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Clock className="h-4 w-4 text-amber-500" />
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Заявки на аддоны</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {pendingAddons} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">в обработке</span>
+            </p>
+          </div>
+          <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-amber-500 transition" />
+        </div>
+      </Link>
+
+      <Link
+        href="/superadmin/founders"
+        className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:border-amber-500 dark:hover:border-amber-500/50 transition"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles className="h-4 w-4 text-amber-500" />
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Founders Pricing</span>
+              {!foundersActive && <span className="text-[10px] text-red-500 font-medium">выкл.</span>}
+            </div>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {foundersTaken} / {foundersTotal} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">слотов</span>
+            </p>
+          </div>
+          <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-amber-500 transition" />
+        </div>
+      </Link>
     </div>
   )
 }
