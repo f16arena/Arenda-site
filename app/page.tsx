@@ -8,7 +8,6 @@ import {
   BookOpen,
   BriefcaseBusiness,
   Building2,
-  Calculator,
   ChevronDown,
   CircleDollarSign,
   ClipboardCheck,
@@ -20,7 +19,6 @@ import {
   MessageSquare,
   ReceiptText,
   SearchCheck,
-  ShieldCheck,
   Smartphone,
   Sparkles,
   Store,
@@ -29,6 +27,11 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { LEGAL_ENTITY } from "@/lib/legal-entity"
+import { FoundersBanner } from "@/components/landing/founders-banner"
+import { PricingSection } from "@/components/landing/pricing-section"
+import { LossCalculator } from "@/components/landing/loss-calculator"
+import { getPricingData } from "@/components/landing/pricing-data"
+import { getFoundersRemainingSlots } from "@/lib/pricing"
 
 const navItems = [
   ["Возможности", "#features"],
@@ -176,9 +179,15 @@ const blogCards = [
   "ИП, ТОО, ЧСИ и физлицо: какие данные нужны для аренды",
 ] as const
 
-export default function Home() {
+export default async function Home() {
+  const [pricing, founding] = await Promise.all([
+    getPricingData().catch(() => null),
+    getFoundersRemainingSlots().catch(() => null),
+  ])
+  const foundingActive = !!founding?.isActive && (founding?.remaining ?? 0) > 0
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-slate-950">
+      <FoundersBanner />
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center" aria-label="Commrent.kz">
@@ -372,37 +381,16 @@ export default function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
-        <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <p className="text-sm font-semibold text-orange-600">Калькулятор потерь</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              Покажите владельцу, сколько он теряет без системы
-            </h2>
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              На следующем этапе этот блок станет интерактивным: клиент введет количество арендаторов,
-              среднюю аренду, просрочки и свободные площади, а система покажет потенциальные потери.
-            </p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
-                <Calculator className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="font-semibold text-slate-950">Пример расчета</p>
-                <p className="text-sm text-slate-500">20 арендаторов, 2 просрочки, 80 м² пустует</p>
-              </div>
-            </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <MiniMetric label="Потери на простое" value="240 000 ₸" />
-              <MiniMetric label="Просрочки" value="380 000 ₸" />
-              <MiniMetric label="Время на документы" value="12 часов" />
-            </div>
-            <p className="mt-5 rounded-lg bg-slate-950 px-4 py-3 text-sm font-semibold text-white">
-              Потенциальные потери: 620 000 ₸ в месяц. Commrent помогает видеть такие риски заранее.
-            </p>
-          </div>
+        <div className="text-center max-w-3xl mx-auto mb-8">
+          <p className="text-sm font-semibold text-orange-600">Калькулятор потерь</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            Покажите владельцу, сколько он теряет без системы
+          </h2>
+          <p className="mt-4 text-sm leading-6 text-slate-600">
+            Подвиньте ползунки — увидите упущенную пеню, стоимость ручного труда бухгалтера и потери на замороженном кэшфлоу.
+          </p>
         </div>
+        <LossCalculator />
       </section>
 
       <section id="integrations" className="border-y border-slate-200 bg-white">
@@ -425,23 +413,20 @@ export default function Home() {
       </section>
 
       <section id="pricing" className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
-        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div>
-            <p className="text-sm font-semibold text-blue-600">Тарифы</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              Начните с одного здания и масштабируйтесь до сети объектов
-            </h2>
-            <p className="mt-4 text-sm leading-6 text-slate-600">
-              Тарифную сетку лучше показывать после финального утверждения лимитов. На главной уже объясняем ценность:
-              контроль денег, документов, арендаторов и объектов в одной системе.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <PriceCard title="Start" text="одно здание, базовый учет, документы и арендаторы" />
-            <PriceCard title="Pro" text="несколько зданий, роли, аналитика, хранилище и заявки" featured />
-            <PriceCard title="Business" text="сеть объектов, support mode, расширенные отчеты и SLA" />
-          </div>
+        <div className="text-center max-w-3xl mx-auto mb-8">
+          <p className="text-sm font-semibold text-blue-600">Тарифы</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            Начните с одного здания и масштабируйтесь до сети объектов
+          </h2>
+          <p className="mt-4 text-sm leading-6 text-slate-600">
+            5 тарифов, гибкие периоды оплаты, скидки до 25% за длинный пакет. Первым 15 клиентам — Founding pricing −40% lifetime.
+          </p>
         </div>
+        {pricing ? (
+          <PricingSection plans={pricing.plans} periods={pricing.periods} matrix={pricing.matrix} foundingActive={foundingActive} />
+        ) : (
+          <p className="text-center text-sm text-slate-500">Тарифы временно недоступны.</p>
+        )}
       </section>
 
       <section id="faq" className="border-y border-slate-200 bg-white">
@@ -654,27 +639,3 @@ function DocLine({ icon: Icon, title, status }: { icon: LucideIcon; title: strin
   )
 }
 
-function MiniMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
-    </div>
-  )
-}
-
-function PriceCard({ title, text, featured = false }: { title: string; text: string; featured?: boolean }) {
-  return (
-    <div className={`rounded-lg border p-5 ${featured ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-lg font-semibold text-slate-950">{title}</p>
-        {featured ? <span className="rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">популярно</span> : null}
-      </div>
-      <p className="mt-3 text-sm leading-6 text-slate-600">{text}</p>
-      <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
-        <ShieldCheck className="h-4 w-4 text-emerald-600" />
-        Доступ по ролям
-      </div>
-    </div>
-  )
-}
