@@ -106,6 +106,7 @@ export async function storeUploadedFile(input: StoreUploadedFileInput) {
 export async function storeBufferFile(input: StoreBufferInput) {
   validateFileSize(input.bytes.length, input.maxBytes)
   validateMimeType(input.mimeType, input.allowedMimeTypes)
+  await assertOrgStorageLimit(input.organizationId, input.bytes.length)
 
   const fileName = sanitizeFileName(input.fileName)
   const extension = getExtension(fileName)
@@ -191,6 +192,40 @@ export function formatMaxFileSize(bytes: number) {
 function validateFileSize(size: number, maxBytes: number) {
   if (size <= 0) throw new Error("Файл пустой")
   if (size > maxBytes) throw new Error(`Размер файла превышает ${formatMaxFileSize(maxBytes)}`)
+}
+
+/**
+ * Проверка лимита хранилища тарифа: суммирует originalSize всех StoredFile
+ * организации и сравнивает с plan.features.limits.storageGb. Кидает ошибку,
+ * если новый файл превысит лимит. Null/отсутствие лимита — безлимит.
+ */
+export async function assertOrgStorageLimit(organizationId: string, incomingBytes: number) {
+  const org = await db.organization.findUnique({
+    where: { id: organizationId },
+    select: { plan: { select: { features: true, maxStorageGb: true } } },
+  })
+  let limitGb: number | null = org?.plan?.maxStorageGb ?? null
+  // Fallback на features.limits.storageGb (старый путь, до выделения колонки).
+  if (limitGb == null && org?.plan?.features) {
+    try {
+      const parsed = JSON.parse(org.plan.features) as { limits?: { storageGb?: number | null } }
+      if (typeof parsed?.limits?.storageGb === "number") limitGb = parsed.limits.storageGb
+    } catch { /* битый json — считаем безлимит */ }
+  }
+  if (limitGb == null) return // безлимит
+
+  const limitBytes = limitGb * 1024 * 1024 * 1024
+  const agg = await db.storedFile.aggregate({
+    where: { organizationId, deletedAt: null },
+    _sum: { originalSize: true },
+  })
+  const usedBytes = agg._sum.originalSize ?? 0
+  if (usedBytes + incomingBytes > limitBytes) {
+    const usedMb = Math.round(usedBytes / 1024 / 1024)
+    throw new Error(
+      `Лимит хранилища тарифа исчерпан: использовано ${usedMb} МБ из ${limitGb} ГБ. Перейдите на старший тариф или удалите часть файлов.`,
+    )
+  }
 }
 
 function validateMimeType(mimeType: string, allowedMimeTypes: Set<string>) {

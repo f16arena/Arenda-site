@@ -123,6 +123,18 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
     },
   })
 
+  // 5. Founders: для платных тарифов пытаемся занять слот (если есть).
+  //    Сбой резерва (нет слотов / Free) НЕ должен ломать создание организации.
+  try {
+    const plan = await db.plan.findUnique({ where: { id: planId }, select: { code: true } })
+    if (plan && plan.code !== "FREE") {
+      const { tryReserveFoundersSlot } = await import("@/lib/pricing")
+      await tryReserveFoundersSlot(org.id)
+    }
+  } catch (e) {
+    console.error("[createOrganization] founders slot reservation failed:", e)
+  }
+
   await audit({
     action: "CREATE",
     entity: "tenant", // используем tenant как генерик

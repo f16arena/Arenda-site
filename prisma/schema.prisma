@@ -127,6 +127,10 @@ model Organization {
   ownerUserId         String?   @map("owner_user_id")
   planId              String?   @map("plan_id")
   planExpiresAt       DateTime? @map("plan_expires_at")
+  isFoundersMember    Boolean   @default(false) @map("is_founders_member")
+  foundersLockedPct   Int?      @default(0) @map("founders_locked_pct")
+  foundersJoinedAt    DateTime? @map("founders_joined_at")
+  foundersSlotNumber  Int?      @map("founders_slot_number")
   // НДС: для арендодателя — выставляются ли документы с НДС
   isVatPayer          Boolean   @default(false) @map("is_vat_payer")
   vatRate             Float     @default(16) @map("vat_rate")
@@ -142,6 +146,8 @@ model Organization {
   apiKeys       ApiKey[]
   faqArticles   FaqArticle[]
   storedFiles   StoredFile[]
+  addons        OrganizationAddon[]
+  services      OrganizationService[]
 
   @@index([approvalStatus, createdAt])
   @@index([isActive, approvalStatus])
@@ -279,20 +285,24 @@ model CashTransaction {
 }
 
 model Plan {
-  id           String   @id @default(cuid())
-  code         String   @unique
-  name         String
-  description  String?
-  priceMonthly Float    @default(0) @map("price_monthly")
-  priceYearly  Float    @default(0) @map("price_yearly")
-  maxBuildings Int?     @map("max_buildings")
-  maxTenants   Int?     @map("max_tenants")
-  maxUsers     Int?     @map("max_users")
-  maxLeads     Int?     @map("max_leads")
-  features     String   @default("{}") // JSON
-  isActive     Boolean  @default(true) @map("is_active")
-  sortOrder    Int      @default(0) @map("sort_order")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(cuid())
+  code                String   @unique
+  name                String
+  description         String?
+  priceMonthly        Float    @default(0) @map("price_monthly")
+  priceYearly         Float    @default(0) @map("price_yearly")
+  maxBuildings        Int?     @map("max_buildings")
+  maxTenants          Int?     @map("max_tenants")
+  maxUsers            Int?     @map("max_users")
+  maxLeads            Int?     @map("max_leads")
+  maxAreaSqm          Int?     @map("max_area_sqm")
+  maxStorageGb        Int?     @map("max_storage_gb")
+  foundersDiscountPct Int?     @default(40) @map("founders_discount_pct")
+  discountStackCapPct Int?     @default(50) @map("discount_stack_cap_pct")
+  features            String   @default("{}") // JSON
+  isActive            Boolean  @default(true) @map("is_active")
+  sortOrder           Int      @default(0) @map("sort_order")
+  createdAt           DateTime @default(now()) @map("created_at")
 
   organizations Organization[]
   subscriptions Subscription[]
@@ -301,22 +311,100 @@ model Plan {
 }
 
 model Subscription {
-  id             String   @id @default(cuid())
-  organizationId String   @map("organization_id")
-  planId         String   @map("plan_id")
-  startedAt      DateTime @default(now()) @map("started_at")
-  expiresAt      DateTime @map("expires_at")
-  status         String   @default("ACTIVE")
-  paidAmount     Float    @default(0) @map("paid_amount")
-  paymentMethod  String?  @map("payment_method")
-  notes          String?
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                 String    @id @default(cuid())
+  organizationId     String    @map("organization_id")
+  planId             String    @map("plan_id")
+  startedAt          DateTime  @default(now()) @map("started_at")
+  expiresAt          DateTime  @map("expires_at")
+  status             String    @default("ACTIVE")
+  paidAmount         Float     @default(0) @map("paid_amount")
+  paymentMethod      String?   @map("payment_method")
+  notes              String?
+  billingPeriodCode  String?   @default("monthly") @map("billing_period_code")
+  monthsCount        Int?      @default(1) @map("months_count")
+  basePriceMonthly   Float?    @map("base_price_monthly")
+  pricePerMonthPaid  Float?    @map("price_per_month_paid")
+  discountBreakdown  String?   @map("discount_breakdown") // JSON
+  autoRenew          Boolean   @default(false) @map("auto_renew")
+  reminderSentAt     DateTime? @map("reminder_sent_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan         Plan         @relation(fields: [planId], references: [id])
 
   @@index([organizationId])
   @@map("subscriptions")
+}
+
+// Периоды биллинга (помесячно, квартал, полугодие, год, 2 года) со скидкой.
+model BillingPeriod {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String
+  monthsCount  Int      @map("months_count")
+  discountPct  Int      @default(0) @map("discount_pct")
+  bonusMessage String?  @map("bonus_message")
+  isActive     Boolean  @default(true) @map("is_active")
+  sortOrder    Int      @default(0) @map("sort_order")
+
+  @@map("billing_periods")
+}
+
+// Аддоны, купленные сверх тарифа (+здание, +арендаторы, +ГБ, +юзер и т.д.).
+model OrganizationAddon {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  addonCode      String    @map("addon_code")
+  quantity       Int       @default(1)
+  priceMonthly   Float     @default(0) @map("price_monthly")
+  isActive       Boolean   @default(true) @map("is_active")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  expiresAt      DateTime? @map("expires_at")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
+  @@index([addonCode])
+  @@map("organization_addons")
+}
+
+// Разовые услуги (онбординг, юр.пакет, миграция Excel, интеграция 1С).
+model OrganizationService {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  serviceCode    String    @map("service_code")
+  serviceName    String    @map("service_name")
+  price          Float
+  status         String    @default("PENDING") // PENDING | PAID | DELIVERED | CANCELLED
+  paidAt         DateTime? @map("paid_at")
+  deliveredAt    DateTime? @map("delivered_at")
+  paymentMethod  String?   @map("payment_method")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("organization_services")
+}
+
+// Singleton-состояние программы Founders (всего 15 слотов, сколько занято и т.п.).
+model FoundersProgramState {
+  id          String    @id @default("singleton")
+  totalSlots  Int       @default(15) @map("total_slots")
+  takenSlots  Int       @default(0) @map("taken_slots")
+  discountPct Int       @default(40) @map("discount_pct")
+  endsAt      DateTime? @map("ends_at")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("founders_program_state")
 }
 
 model Notification {

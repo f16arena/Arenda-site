@@ -94,6 +94,13 @@ export default async function SubscriptionPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-sm text-blue-100">
+        <p className="font-medium text-blue-50">Хотите продлить, сменить тариф или подключить аддоны?</p>
+        <p className="mt-1 text-blue-200">
+          Свяжитесь с супер-админом платформы — он оформит продление, апгрейд или подключит дополнительные опции (здания, арендаторы, ГБ хранилища, брендирование и т.д.). Онлайн-оплата пока не подключена, всё оформляется вручную.
+        </p>
+      </div>
+
       <div className={cn(
         "rounded-2xl border p-6",
         expired

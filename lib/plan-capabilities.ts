@@ -293,6 +293,33 @@ export const PLAN_CAPABILITY_GROUPS: readonly PlanCapabilityGroup[] = [
       },
     ],
   },
+  {
+    key: "analytics",
+    label: "Аналитика",
+    description: "Три уровня аналитики: операционная (Pro), управленческая (Business), кастомная.",
+    capabilities: [
+      {
+        key: "analyticsBasic",
+        label: "Базовая аналитика",
+        description: "Дашборд, прогноз cashflow 6 мес, топ должников, заполняемость.",
+        group: "analytics",
+      },
+      {
+        key: "analyticsAdvanced",
+        label: "Расширенная аналитика",
+        description: "P&L по объектам, cohort арендаторов, heatmap, сравнение зданий, cashflow 12 мес, дебиторка по возрасту.",
+        group: "analytics",
+        risk: "business",
+      },
+      {
+        key: "analyticsCustomReports",
+        label: "Кастомные отчёты",
+        description: "Шаблоны отчётов под клиента, экспорт в Power BI/Tableau, регулярные авто-отчёты.",
+        group: "analytics",
+        risk: "business",
+      },
+    ],
+  },
 ] as const
 
 export const PLAN_CAPABILITIES: readonly PlanCapability[] = PLAN_CAPABILITY_GROUPS.flatMap((group) => group.capabilities)
