@@ -459,6 +459,19 @@ model Building {
   reconciliationPrefix  String?  @map("reconciliation_prefix")
   reconciliationCounter Int      @default(0) @map("reconciliation_counter")
   isActive              Boolean  @default(true) @map("is_active")
+  // Эксплуатационный сбор (Приложение №3 к договору) — сезонные тарифы
+  // на квадратный метр в месяц. Зимний период (по умолчанию окт-апр)
+  // обычно выше из-за отопления, летний — ниже.
+  serviceFeeWinterRate    Float?  @map("service_fee_winter_rate")
+  serviceFeeSummerRate    Float?  @map("service_fee_summer_rate")
+  // Массив номеров месяцев (1..12), которые считаются зимними.
+  // По умолчанию [10,11,12,1,2,3,4]. Хранится как JSON-строка для совместимости
+  // с провайдерами без array-типа; пустое значение = дефолт.
+  serviceFeeWinterMonths  String? @map("service_fee_winter_months")
+  // Процент годовой индексации (по умолчанию 10). Применяется в cron-задаче
+  // ежедневно: если now ≥ serviceFeeLastIndexedAt + 1 год — ставки ×(1+pct/100).
+  serviceFeeIndexationPct Float?  @default(10) @map("service_fee_indexation_pct")
+  serviceFeeLastIndexedAt DateTime? @map("service_fee_last_indexed_at")
   createdAt             DateTime @default(now()) @map("created_at")
 
   organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)

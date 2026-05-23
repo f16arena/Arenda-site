@@ -4,7 +4,8 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
-import { Building2, MapPin, Layers, Users, Check } from "lucide-react"
+import Link from "next/link"
+import { Building2, MapPin, Layers, Users, Check, Sparkles } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
@@ -410,6 +411,18 @@ export default async function BuildingsPage() {
                   </div>
                 )
               })()}
+
+              {canEditBuildings && (
+                <div className="mt-3 mb-2">
+                  <Link
+                    href={`/admin/buildings/${b.id}/service-fee`}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Эксплуатационный сбор
+                  </Link>
+                </div>
+              )}
 
               <FloorsList
                 buildingId={b.id}

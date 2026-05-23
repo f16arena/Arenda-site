@@ -87,6 +87,7 @@ export const ChargeCreateSchema = z.object({
   tenantId: z.string().min(1),
   type: z.enum([
     "RENT",
+    "SERVICE_FEE",
     "CLEANING",
     "ELECTRICITY",
     "WATER",

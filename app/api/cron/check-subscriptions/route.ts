@@ -136,7 +136,68 @@ export async function GET(req: Request) {
         } catch { /* skip */ }
       }
     }
-    // 3. Освобождение Founders-слотов у приостановленных орг (60+ дней).
+    // 3. Годовая индексация эксплуатационного сбора по зданиям.
+    //    Раз в год (если прошло ≥365 дней с serviceFeeLastIndexedAt) — умножаем
+    //    зимний и летний тарифы на (1 + pct/100), сохраняем дату.
+    //    Если LastIndexedAt не задан — считаем от первой установки тарифа (createdAt).
+    const oneYearAgo = new Date(now.getTime() - 365 * 24 * 3600 * 1000)
+    const buildingsToIndex = await db.building.findMany({
+      where: {
+        isActive: true,
+        serviceFeeWinterRate: { not: null },
+        serviceFeeSummerRate: { not: null },
+        serviceFeeIndexationPct: { gt: 0 },
+        OR: [
+          { serviceFeeLastIndexedAt: { lte: oneYearAgo } },
+          { AND: [{ serviceFeeLastIndexedAt: null }, { createdAt: { lte: oneYearAgo } }] },
+        ],
+      },
+      select: {
+        id: true, name: true,
+        organizationId: true,
+        serviceFeeWinterRate: true,
+        serviceFeeSummerRate: true,
+        serviceFeeIndexationPct: true,
+      },
+    })
+    let serviceFeeIndexedCount = 0
+    for (const b of buildingsToIndex) {
+      const factor = 1 + (b.serviceFeeIndexationPct ?? 10) / 100
+      const newWinter = Math.round((b.serviceFeeWinterRate ?? 0) * factor)
+      const newSummer = Math.round((b.serviceFeeSummerRate ?? 0) * factor)
+      try {
+        await db.building.update({
+          where: { id: b.id },
+          data: {
+            serviceFeeWinterRate: newWinter,
+            serviceFeeSummerRate: newSummer,
+            serviceFeeLastIndexedAt: now,
+          },
+        })
+        serviceFeeIndexedCount++
+        // Уведомим владельца организации.
+        const org = await db.organization.findUnique({
+          where: { id: b.organizationId },
+          select: { ownerUserId: true, name: true },
+        })
+        if (org?.ownerUserId) {
+          await notifyUser({
+            userId: org.ownerUserId,
+            type: "SERVICE_FEE_INDEXED",
+            title: `Эксплуатационный сбор проиндексирован: ${b.name}`,
+            message: `Тарифы здания «${b.name}» автоматически проиндексированы на ${b.serviceFeeIndexationPct ?? 10}%: зимний ${b.serviceFeeWinterRate} → ${newWinter} ₸/м², летний ${b.serviceFeeSummerRate} → ${newSummer} ₸/м². Применится со следующего месяца.`,
+            link: `/admin/buildings/${b.id}/service-fee`,
+            sendEmail: false,
+          }).catch(() => null)
+        }
+      } catch (e) {
+        result.errors.push(`service-fee.${b.id}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    // Запишем счётчик в JSON ответа (поле создадим динамически).
+    ;(result as Record<string, unknown>).serviceFeeIndexed = serviceFeeIndexedCount
+
+    // 4. Освобождение Founders-слотов у приостановленных орг (60+ дней).
     //    Помечаем slot свободным, чтобы программа продолжала работать.
     const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
     const stuckFounders = await db.organization.findMany({

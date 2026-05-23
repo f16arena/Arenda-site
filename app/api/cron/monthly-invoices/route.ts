@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
+import { calculateServiceFeeForPeriod } from "@/lib/service-fee"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import { isUniqueConstraintError } from "@/lib/prisma-errors"
 
@@ -50,12 +51,13 @@ export async function GET(req: Request) {
       ],
     },
     include: {
-      space: { include: { floor: true } },
-      tenantSpaces: { include: { space: { include: { floor: true } } } },
-      fullFloors: true,
+      // Подгружаем здание через каждый источник площади — нужно для service fee.
+      space: { include: { floor: { include: { building: true } } } },
+      tenantSpaces: { include: { space: { include: { floor: { include: { building: true } } } } } },
+      fullFloors: { include: { building: true } },
       charges: {
-        where: { period: { in: [period, previousPeriod] }, type: "RENT" },
-        select: { id: true, period: true },
+        where: { period: { in: [period, previousPeriod] }, type: { in: ["RENT", "SERVICE_FEE"] } },
+        select: { id: true, period: true, type: true },
       },
       // Активный договор (SIGNED) — нужен чтобы привязать новые charges к контракту.
       // Берём самый свежий: версия N важнее, при равных datestap — последняя.
@@ -72,6 +74,7 @@ export async function GET(req: Request) {
     checked: tenants.length,
     rentCreated: 0,
     cleaningCreated: 0,
+    serviceFeeCreated: 0,
     skipped: 0,
     errors: [] as string[],
   }
@@ -143,6 +146,44 @@ export async function GET(req: Request) {
               results.skipped++
             } else {
               throw e
+            }
+          }
+        }
+
+        // Эксплуатационный сбор (Приложение №3) — если у здания заданы тарифы.
+        // Берём данные здания из любого источника площади (space/tenantSpace/fullFloor).
+        const buildingForFee =
+          tenant.space?.floor.building ??
+          tenant.tenantSpaces[0]?.space.floor.building ??
+          tenant.fullFloors[0]?.building ??
+          null
+        if (buildingForFee) {
+          const existingServiceFeeForPeriod = tenant.charges.some(
+            (c) => c.period === chargePeriod && c.type === "SERVICE_FEE",
+          )
+          if (!existingServiceFeeForPeriod) {
+            const fee = calculateServiceFeeForPeriod(tenant, buildingForFee, chargePeriod, tenant.paymentDueDay ?? 10)
+            if (fee.shouldCreate && fee.amount > 0) {
+              try {
+                await db.charge.create({
+                  data: {
+                    tenantId: tenant.id,
+                    contractId: activeContractId,
+                    period: chargePeriod,
+                    type: "SERVICE_FEE",
+                    amount: fee.amount,
+                    description: fee.description,
+                    dueDate: fee.dueDate,
+                  },
+                })
+                results.serviceFeeCreated++
+              } catch (e) {
+                if (isUniqueConstraintError(e)) {
+                  results.skipped++
+                } else {
+                  throw e
+                }
+              }
             }
           }
         }

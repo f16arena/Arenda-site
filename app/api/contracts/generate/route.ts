@@ -21,6 +21,8 @@ import {
 } from "docx"
 import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
+import { formatMonthsRangeLabel } from "@/lib/service-fee"
+import { resolveServiceFeeSettings } from "@/app/actions/service-fee"
 import { formatTenantPlacement, getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
@@ -139,6 +141,17 @@ export async function GET(req: Request) {
   const contractCity = extractCity(objectAddress)
   const cleaningFeeText = tenant.needsCleaning && tenant.cleaningFee > 0 ? formatMoney(tenant.cleaningFee) : ""
 
+  // Эксплуатационный сбор (Приложение №3) — берётся из настроек здания.
+  // Если у здания не задан тариф — placeholders подставятся пустыми.
+  const serviceFeeSettings = building
+    ? resolveServiceFeeSettings(building)
+    : { winterRate: null, summerRate: null, winterMonths: [10, 11, 12, 1, 2, 3, 4], indexationPct: 10, enabled: false }
+  const winterMonthsLabel = formatMonthsRangeLabel(serviceFeeSettings.winterMonths)
+  const summerMonths = Array.from({ length: 12 }, (_, i) => i + 1).filter((m) => !serviceFeeSettings.winterMonths.includes(m))
+  const summerMonthsLabel = formatMonthsRangeLabel(summerMonths)
+  const serviceFeeWinterTotal = serviceFeeSettings.winterRate ? Math.round(serviceFeeSettings.winterRate * area) : 0
+  const serviceFeeSummerTotal = serviceFeeSettings.summerRate ? Math.round(serviceFeeSettings.summerRate * area) : 0
+
   // Строки таблицы доп. услуг для шаблонов с циклом {#items}{name}{tariff}{amount}{/items}.
   // Берём активные тарифы здания + уборку арендатора. amount (стоимость в месяц)
   // для тарифов по счётчику оставляем пустым — она зависит от потребления.
@@ -254,6 +267,18 @@ export async function GET(req: Request) {
       contract_month: MONTH[today.getMonth()],
       contract_year: String(today.getFullYear()),
       cleaning_fee: cleaningFeeText,
+
+      // Эксплуатационный сбор (Приложение №3 к договору).
+      // Площадь и тарифы автоматически подставляются из настроек здания + площади арендатора.
+      tenant_area_sqm: formatArea(area),
+      service_fee_winter_rate: serviceFeeSettings.winterRate ? formatMoney(serviceFeeSettings.winterRate) : "",
+      service_fee_summer_rate: serviceFeeSettings.summerRate ? formatMoney(serviceFeeSettings.summerRate) : "",
+      service_fee_winter_total: serviceFeeWinterTotal > 0 ? formatMoney(serviceFeeWinterTotal) : "",
+      service_fee_summer_total: serviceFeeSummerTotal > 0 ? formatMoney(serviceFeeSummerTotal) : "",
+      service_fee_winter_months: winterMonthsLabel,
+      service_fee_summer_months: summerMonthsLabel,
+      service_fee_indexation_pct: String(serviceFeeSettings.indexationPct),
+      annex_number: "3",
     }
 
     let bytes: Buffer
