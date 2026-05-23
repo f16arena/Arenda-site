@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { Building, ArrowLeft } from "lucide-react"
+import Image from "next/image"
+import { ArrowLeft } from "lucide-react"
 import { LEGAL_ENTITY, PLACEHOLDER_CLASS, isPlaceholder } from "@/lib/legal-entity"
 
 // Юр. страницы — публичные, в одной цветовой гамме с лендингом (только светлая тема).
@@ -72,15 +73,20 @@ export function LegalShell({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white border-b border-slate-100">
-        <div className="mx-auto max-w-3xl px-6 flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center">
-              <Building className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-lg font-bold text-slate-900">Commrent</span>
+    <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
+      {/* Header — те же визуалы, что на лендинге, чтобы пользователь
+          понимал, что находится на том же сайте, а не на стороннем. */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Link href="/" className="flex items-center" aria-label="Commrent.kz">
+            <Image
+              src="/commrent-logo-navbar.png"
+              alt="Commrent.kz"
+              width={214}
+              height={75}
+              priority
+              className="h-11 w-auto object-contain"
+            />
           </Link>
           <Link
             href="/"
@@ -92,8 +98,9 @@ export function LegalShell({
         </div>
       </header>
 
-      {/* Document */}
+      {/* Document — белая карточка на сером фоне, как Stripe/Linear legal pages */}
       <article className="mx-auto max-w-3xl px-6 py-12">
+       <div className="rounded-2xl border border-slate-200 bg-white px-6 py-10 sm:px-10 shadow-sm">
         <header className="pb-8 border-b border-slate-100 mb-8">
           <h1 className="text-3xl font-bold text-slate-900 leading-tight">{title}</h1>
           {subtitle && (
@@ -164,7 +171,23 @@ export function LegalShell({
             <li><Link href="/sla" className="text-slate-700 hover:text-blue-600 hover:underline">SLA</Link></li>
           </ul>
         </nav>
+       </div>
       </article>
+
+      {/* Footer — мини, как на лендинге, чтобы пользователь чувствовал
+          continuity и легко вернулся к продуктовым ссылкам. */}
+      <footer className="border-t border-slate-200 bg-white mt-12">
+        <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-600">
+          <p>© {new Date().getFullYear()} {LEGAL_ENTITY.fullName} · работает под брендом {LEGAL_ENTITY.brand}.kz</p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/" className="hover:text-slate-950">Главная</Link>
+            <Link href="/offer" className="hover:text-slate-950">Оферта</Link>
+            <Link href="/privacy" className="hover:text-slate-950">Конфиденциальность</Link>
+            <Link href="/terms" className="hover:text-slate-950">Условия</Link>
+            <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="hover:text-slate-950">{LEGAL_ENTITY.email.support}</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
