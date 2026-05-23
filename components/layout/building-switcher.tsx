@@ -64,8 +64,11 @@ export function BuildingSwitcher({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-40 w-72 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          {/* Backdrop и сама панель должны быть ВЫШЕ sidebar (z-50),
+              иначе панель прячется за левой колонкой при разворачивании
+              из верхнего левого угла. */}
+          <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-10 z-[60] w-72 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Здания</p>
             </div>
