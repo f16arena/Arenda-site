@@ -45,10 +45,10 @@ const navItems = [
 ] as const
 
 const painPoints = [
-  "Счета, акты и договоры собираются вручную в Word и Excel",
-  "Оплаты приходят в Kaspi или наличными, а долг приходится искать по чатам",
+  "Счета, акты и договоры собираете вручную в Word и Excel",
+  "Оплаты приходят в Kaspi или наличными, а долг ищется по чатам WhatsApp",
   "Свободные помещения, индексация и сроки договоров всплывают слишком поздно",
-  "Владелец не видит общую прибыль по нескольким зданиям",
+  "Не видите общую прибыль по нескольким зданиям сразу",
 ]
 
 const featureCards = [
@@ -367,7 +367,7 @@ export default async function Home() {
           <SectionIntro
             eyebrow="Кейсы"
             title="Подходит для разных форматов коммерческой недвижимости"
-            text="Структура здания, этажей, помещений и арендаторов помогает разделять данные по объектам и видеть общую картину бизнеса."
+            text="Один кабинет для всех ваших объектов: данные разделены по зданиям, а общая картина — на одном экране."
           />
           <div className="mt-8 grid gap-3 md:grid-cols-3">
             {cases.map((item) => (
@@ -385,7 +385,7 @@ export default async function Home() {
         <div className="text-center max-w-3xl mx-auto mb-8">
           <p className="text-sm font-semibold text-orange-600">Калькулятор потерь</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-            Покажите владельцу, сколько он теряет без системы
+            Посчитайте, сколько ваш бизнес теряет без системы
           </h2>
           <p className="mt-4 text-sm leading-6 text-slate-600">
             Подвиньте ползунки — увидите упущенную пеню, стоимость ручного труда бухгалтера и потери на замороженном кэшфлоу.
@@ -465,7 +465,11 @@ export default async function Home() {
               <BookOpen className="h-5 w-5 text-blue-600" />
               <h3 className="mt-4 text-base font-semibold leading-6 text-slate-950">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Статья-проводник: сначала объясняем проблему, потом показываем, как это автоматизируется в Commrent.kz.
+                Скоро откроем. Если статья нужна — напишите на{" "}
+                <a href={`mailto:${LEGAL_ENTITY.email.support}?subject=Хочу прочитать: ${title}`} className="text-blue-600 hover:underline">
+                  {LEGAL_ENTITY.email.support}
+                </a>
+                , приоритизируем.
               </p>
             </article>
           ))}
