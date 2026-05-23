@@ -19,12 +19,14 @@ export async function calculatePenalties() {
       dueDate: { lt: today },
       type: { not: "PENALTY" },
     },
-    include: { tenant: true },
+    include: { tenant: { select: { id: true, penaltyPercent: true } } },
   })
 
   let penaltiesCreated = 0
-  const DAILY_RATE = 0.01
-  const MAX_RATE = 0.10
+  // Ставка пени берётся из Tenant.penaltyPercent (по умолчанию 1%/день);
+  // суммарно не более 10% от тела начисления (та же формула, что у cron
+  // check-deadlines, чтобы ручная кнопка и автомат не расходились).
+  const MAX_PCT = 10
 
   for (const charge of overdueCharges) {
     const daysOverdue = Math.floor(
@@ -32,8 +34,9 @@ export async function calculatePenalties() {
     )
     if (daysOverdue <= 0) continue
 
-    const penaltyRate = Math.min(daysOverdue * DAILY_RATE, MAX_RATE)
-    const penaltyAmount = Math.round(charge.amount * penaltyRate)
+    const dailyPct = charge.tenant.penaltyPercent ?? 1
+    const totalPct = Math.min(dailyPct * daysOverdue, MAX_PCT)
+    const penaltyAmount = Math.round(charge.amount * (totalPct / 100))
     if (penaltyAmount < 100) continue
 
     const existing = await db.charge.findFirst({
@@ -52,7 +55,7 @@ export async function calculatePenalties() {
         period,
         type: "PENALTY",
         amount: penaltyAmount,
-        description: `Пеня ${Math.round(penaltyRate * 100)}% за просрочку (${daysOverdue} дн.) · ref:${charge.id}`,
+        description: `Пеня ${totalPct.toFixed(1)}% за просрочку (${daysOverdue} дн. × ${dailyPct}%, не более ${MAX_PCT}%) · ref:${charge.id}`,
       },
     })
     penaltiesCreated++
