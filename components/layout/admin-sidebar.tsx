@@ -20,6 +20,8 @@ type NavItem = {
   icon: typeof LayoutDashboard
   exact?: boolean
   ownerOnly?: boolean
+  /** Виден только платформ-админу (isPlatformOwner=true). Для тех.страниц. */
+  platformOnly?: boolean
   section?: string
   capability?: string
 }
@@ -28,7 +30,7 @@ type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
 const nav: NavSection[] = [
   {
     items: [
-      { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true, section: "dashboard" },
+      { href: "/admin", label: "Обзор", icon: LayoutDashboard, exact: true, section: "dashboard" },
       { href: "/admin/ops", label: "Сегодня", icon: ClipboardList, section: "dashboard" },
       { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
       { href: "/admin/onboarding", label: "Запуск", icon: Rocket, section: "dashboard" },
@@ -74,10 +76,11 @@ const nav: NavSection[] = [
   {
     title: "АНАЛИТИКА",
     items: [
-      { href: "/admin/dashboard/owner", label: "Дашборд владельца", icon: BarChart3, section: "analytics", ownerOnly: true },
+      { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
       { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
-      { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics", capability: "systemHealth.view" },
+      // Проверка системы — только для платформ-админа (БД/cron/env — техническая инфо).
+      { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics", platformOnly: true },
     ],
   },
   {
@@ -100,12 +103,13 @@ const nav: NavSection[] = [
 ]
 
 export function AdminSidebar({
-  buildingName, userRole, allowedSections, allowedCapabilities,
+  buildingName, userRole, allowedSections, allowedCapabilities, isPlatformOwner = false,
 }: {
   buildingName?: string
   userRole?: string
   allowedSections?: string[]
   allowedCapabilities?: string[]
+  isPlatformOwner?: boolean
 }) {
   const pathname = usePathname()
   const isOwner = userRole === "OWNER"
@@ -130,6 +134,8 @@ export function AdminSidebar({
     .map((s) => ({
       ...s,
       items: s.items.filter((item) => {
+        // platformOnly — самое строгое: даже OWNER не видит, если не платформа.
+        if (item.platformOnly && !isPlatformOwner) return false
         if (item.ownerOnly && !isOwner) return false
         if (isOwner) return true
         if (item.section && !allowed.has(item.section)) return false

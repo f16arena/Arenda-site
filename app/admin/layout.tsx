@@ -172,6 +172,7 @@ async function SidebarChrome({
       userRole={role}
       allowedSections={allowedSections}
       allowedCapabilities={allowedCapabilities}
+      isPlatformOwner={isPlatformOwner}
     />
   )
 }

@@ -264,8 +264,8 @@ export default async function UsersPage() {
             <Shield className="h-5 w-5 text-purple-300" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Пользователи и доступ</h1>
-            <p className="mt-0.5 text-sm text-slate-400">
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Пользователи и доступ</h1>
+            <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">
               Назначайте должности, здания и доступы. Свои должности создаются в разделе «Должности и права».
             </p>
           </div>

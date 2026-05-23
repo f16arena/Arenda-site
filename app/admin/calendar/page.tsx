@@ -85,10 +85,6 @@ async function renderCalendarPage({
     paidPayments,
     expiringContracts,
     upcomingTasks,
-    totalCharges,
-    totalPayments,
-    totalExpiringContracts,
-    totalTasks,
   ] = await measureServerStep("/admin/calendar", "calendar-data", Promise.all([
     safe(
       "admin.calendar.charges",
@@ -152,11 +148,11 @@ async function renderCalendarPage({
       }),
       [],
     ),
-    safe("admin.calendar.charges.count", db.charge.count({ where: chargeWhere }), 0),
-    safe("admin.calendar.payments.count", db.payment.count({ where: paymentWhere }), 0),
-    safe("admin.calendar.expiringContracts.count", db.tenant.count({ where: contractWhere }), 0),
-    safe("admin.calendar.tasks.count", db.task.count({ where: taskWhere }), 0),
   ]))
+  // Раньше дополнительно делали 4 count-запроса — это удваивало нагрузку
+  // при каждом переключении месяца. Теперь «упёрлись в лимит» определяем
+  // по тому, что любая из выборок вернула ровно CALENDAR_EVENT_SOURCE_LIMIT
+  // строк (это значит, что данных могло быть больше — мы их обрезали).
 
   const events: CalendarEvent[] = []
 
@@ -208,8 +204,11 @@ async function renderCalendarPage({
     })
   }
 
-  const totalAvailableEvents = totalCharges + totalPayments + totalExpiringContracts + totalTasks
-  const isCalendarCapped = totalAvailableEvents > events.length
+  const isCalendarCapped =
+    upcomingCharges.length === CALENDAR_EVENT_SOURCE_LIMIT ||
+    paidPayments.length === CALENDAR_EVENT_SOURCE_LIMIT ||
+    expiringContracts.length === CALENDAR_EVENT_SOURCE_LIMIT ||
+    upcomingTasks.length === CALENDAR_EVENT_SOURCE_LIMIT
 
   return (
     <div className="space-y-5">
@@ -220,7 +219,7 @@ async function renderCalendarPage({
             Календарь
           </h1>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Платежи, договоры, задачи · показано {events.length} из {totalAvailableEvents} событий в этом месяце
+            Платежи, договоры, задачи · {events.length} событий в этом месяце{isCalendarCapped ? " (показаны первые)" : ""}
           </p>
         </div>
       </div>
