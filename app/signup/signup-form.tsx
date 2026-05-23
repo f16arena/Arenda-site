@@ -52,7 +52,7 @@ export function SignupForm() {
 
   if (state?.pendingApproval) {
     return (
-      <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+      <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
             <Check className="h-5 w-5" />
@@ -63,7 +63,7 @@ export function SignupForm() {
               {state.message ?? "Суперадмин проверит заявку. После подтверждения можно будет войти в кабинет."}
             </p>
             {state.orgSlug && (
-              <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 font-mono text-xs text-emerald-800 dark:bg-slate-950/50 dark:text-emerald-200">
+              <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 font-mono text-xs text-emerald-800">
                 {state.orgSlug}.commrent.kz
               </p>
             )}
@@ -71,7 +71,7 @@ export function SignupForm() {
         </div>
         <Link
           href="/login"
-          className="inline-flex w-full items-center justify-center rounded-lg border border-emerald-300 bg-white px-4 py-2.5 font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-slate-950/50 dark:text-emerald-100"
+          className="inline-flex w-full items-center justify-center rounded-lg border border-emerald-300 bg-white px-4 py-2.5 font-semibold text-emerald-800 transition hover:bg-emerald-100"
         >
           Перейти ко входу
         </Link>
@@ -93,7 +93,7 @@ export function SignupForm() {
         />
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
             Адрес вашей рабочей зоны *
           </label>
           <div className="relative">
@@ -105,36 +105,36 @@ export function SignupForm() {
               maxLength={20}
               placeholder="bc-almaty"
               className={`w-full rounded-lg border px-3.5 py-2.5 pr-12 text-sm font-mono lowercase focus:outline-none focus:ring-2 transition ${
-                isSlugOk ? "border-emerald-300 dark:border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500/20"
-                : isSlugBad ? "border-red-300 dark:border-red-500/40 focus:border-red-500 focus:ring-red-500/20"
-                : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20"
+                isSlugOk ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20"
+                : isSlugBad ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
+                : "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
               }`}
             />
-            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 dark:text-slate-500 font-mono">
+            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">
               .commrent.kz
             </span>
           </div>
-          {!slug && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница, цифры, дефис</p>}
+          {!slug && <p className="text-[11px] text-slate-400 mt-1">5–20 символов: латиница, цифры, дефис</p>}
           {slugCheck.status === "checking" && (
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
+            <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" /> Проверяем...
             </p>
           )}
           {isSlugOk && checkResult && checkResult.ok && (
-            <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+            <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700">
               <Check className="h-3 w-3" />
               Свободно. Будет: {checkResult.url}
             </p>
           )}
           {isSlugBad && checkResult && !checkResult.ok && (
             <div className="mt-1">
-              <p className="text-[11px] text-red-600 dark:text-red-400">{checkResult.reason}</p>
+              <p className="text-[11px] text-red-600">{checkResult.reason}</p>
               {checkResult.suggestions && (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   Свободные:{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
-                      <button type="button" onClick={() => { setSlugTouched(true); setSlug(s) }} className="font-mono text-blue-600 dark:text-blue-400 hover:underline">{s}</button>
+                      <button type="button" onClick={() => { setSlugTouched(true); setSlug(s) }} className="font-mono text-blue-600 hover:underline">{s}</button>
                       {i < checkResult.suggestions!.length - 1 && ", "}
                     </span>
                   ))}
@@ -162,18 +162,18 @@ export function SignupForm() {
       </Section>
 
       {/* Согласие с офертой */}
-      <label className="flex items-start gap-2.5 cursor-pointer text-sm text-slate-700 dark:text-slate-300">
+      <label className="flex items-start gap-2.5 cursor-pointer text-sm text-slate-700">
         <input type="checkbox" name="agreed" className="mt-0.5 h-4 w-4 rounded border-slate-300" />
         <span>
           Я ознакомлен и согласен с{" "}
-          <Link href="/offer" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">Публичной офертой</Link>{", "}
-          <Link href="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">Политикой конфиденциальности</Link>{" и "}
-          <Link href="/terms" className="text-blue-600 dark:text-blue-400 hover:underline" target="_blank">Пользовательским соглашением</Link>
+          <Link href="/offer" className="text-blue-600 hover:underline" target="_blank">Публичной офертой</Link>{", "}
+          <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Политикой конфиденциальности</Link>{" и "}
+          <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Пользовательским соглашением</Link>
         </span>
       </label>
 
       {state?.error && (
-        <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <span className="font-medium">{state.error}</span>
         </div>
@@ -188,7 +188,7 @@ export function SignupForm() {
         {isPending ? "Создаём..." : "Начать 14-дневный триал бесплатно"}
       </button>
 
-      <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-center text-xs text-slate-500">
         Без оплаты, без карты. После триала — выберете тариф или продолжите смотреть в режиме чтения.
       </p>
     </form>
@@ -198,7 +198,7 @@ export function SignupForm() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{title}</p>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{title}</p>
       {children}
     </div>
   )
@@ -216,7 +216,7 @@ function Field({ label, name, type = "text", value, onChange, required, placehol
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
       <input
         name={name}
         type={type}
@@ -224,9 +224,9 @@ function Field({ label, name, type = "text", value, onChange, required, placehol
         onChange={onChange ? (e) => onChange(e.currentTarget.value) : undefined}
         required={required}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
       />
-      {hint && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{hint}</p>}
+      {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}
     </div>
   )
 }
