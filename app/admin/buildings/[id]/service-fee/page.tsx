@@ -8,7 +8,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { ArrowLeft, Sparkles } from "lucide-react"
 import { ServiceFeeForm } from "../../service-fee-form"
-import { resolveServiceFeeSettings } from "@/app/actions/service-fee"
+import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
 
 export default async function BuildingServiceFeePage({ params }: { params: Promise<{ id: string }> }) {
   await requireCapabilityAndFeature("buildings.edit")

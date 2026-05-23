@@ -5,7 +5,7 @@ import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Sparkles, Snowflake, Sun, ArrowRight, AlertCircle } from "lucide-react"
-import { resolveServiceFeeSettings } from "@/app/actions/service-fee"
+import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
 
 export default async function ServiceFeeListPage() {
   await requireCapabilityAndFeature("buildings.view")

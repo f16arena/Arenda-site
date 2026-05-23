@@ -1,5 +1,8 @@
 "use server"
 
+// ВАЖНО: файл с "use server" может экспортировать только async-функции.
+// Sync-хелпер resolveServiceFeeSettings вынесен в lib/service-fee-settings.ts.
+
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
@@ -58,30 +61,3 @@ export async function updateBuildingServiceFee(input: {
   return { ok: true }
 }
 
-/**
- * Возвращает эффективные параметры эксплуатационного сбора для здания
- * (с дефолтами там, где не задано). Используется и в UI, и в cron monthly-invoices.
- */
-export function resolveServiceFeeSettings(building: {
-  serviceFeeWinterRate: number | null
-  serviceFeeSummerRate: number | null
-  serviceFeeWinterMonths: string | null
-  serviceFeeIndexationPct: number | null
-}) {
-  let winterMonths: number[] = [10, 11, 12, 1, 2, 3, 4]
-  if (building.serviceFeeWinterMonths) {
-    try {
-      const parsed = JSON.parse(building.serviceFeeWinterMonths)
-      if (Array.isArray(parsed) && parsed.every((m) => Number.isInteger(m) && m >= 1 && m <= 12)) {
-        winterMonths = parsed
-      }
-    } catch { /* fallback to default */ }
-  }
-  return {
-    winterRate: building.serviceFeeWinterRate,
-    summerRate: building.serviceFeeSummerRate,
-    winterMonths,
-    indexationPct: building.serviceFeeIndexationPct ?? 10,
-    enabled: building.serviceFeeWinterRate !== null && building.serviceFeeSummerRate !== null,
-  }
-}

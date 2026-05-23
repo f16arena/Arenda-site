@@ -22,7 +22,7 @@ import {
 import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 import { formatMonthsRangeLabel } from "@/lib/service-fee"
-import { resolveServiceFeeSettings } from "@/app/actions/service-fee"
+import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
 import { formatTenantPlacement, getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {

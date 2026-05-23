@@ -10,7 +10,7 @@
  *   - если tenant.contractEnd внутри этого периода — про-рейт за дни (начало месяца..contractEnd)
  *   - иначе — полный месяц
  */
-import { resolveServiceFeeSettings } from "@/app/actions/service-fee"
+import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
 
 export type TenantForServiceFee = {
   id: string
