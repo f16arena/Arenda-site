@@ -520,6 +520,10 @@ export default async function Home() {
             <Link href="/offer" className="hover:text-slate-950">Оферта</Link>
             <Link href="/privacy" className="hover:text-slate-950">Конфиденциальность</Link>
             <Link href="/terms" className="hover:text-slate-950">Условия</Link>
+            <Link href="/sla" className="hover:text-slate-950">SLA</Link>
+            <a href={`mailto:${LEGAL_ENTITY.email.info}`} className="hover:text-slate-950">
+              {LEGAL_ENTITY.email.info}
+            </a>
             <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="hover:text-slate-950">
               {LEGAL_ENTITY.email.support}
             </a>
