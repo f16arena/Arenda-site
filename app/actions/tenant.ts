@@ -306,6 +306,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   const actualAddress = formData.get("actualAddress") as string
   const directorName = formData.get("directorName") as string
   const directorPosition = formData.get("directorPosition") as string
+  const usePurpose = (formData.get("usePurpose") as string ?? "").trim()
   const isVatPayer = formData.get("isVatPayer") === "on"
   const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
   const rentChoice = normalizeTenantRentChoice({
@@ -333,6 +334,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
       actualAddress: actualAddress || null,
       directorName: directorName || null,
       directorPosition: directorPosition || null,
+      usePurpose: usePurpose || null,
       isVatPayer,
       vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
       customRate: rentChoice.customRate,

@@ -582,6 +582,10 @@ model Tenant {
   actualAddress    String?   @map("actual_address")
   directorName     String?   @map("director_name")
   directorPosition String?   @map("director_position")
+  // Целевое использование помещения — что арендатор у нас делает («розничная
+  // торговля продуктами», «офис ЧСИ», «салон красоты»). Подставляется в
+  // пункт 1.1 договора через placeholder {tenant_use_purpose}.
+  usePurpose       String?   @map("use_purpose")
   needsCleaning    Boolean   @default(false) @map("needs_cleaning")
   cleaningFee      Float     @default(0) @map("cleaning_fee")
   customRate       Float?    @map("custom_rate")

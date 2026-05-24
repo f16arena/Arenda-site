@@ -87,6 +87,7 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     // ── Имена сторон с префиксом ИП/ТОО/ЧСИ (подставляется автоматически из реквизитов) ──
     { key: "tenant_full_name", label: "Полное имя арендатора с префиксом (ИП Иванов / ТОО Кармен / ЧСИ Иванов)" },
     { key: "landlord_full_name", label: "Полное имя арендодателя с префиксом (ТОО Turanix)" },
+    { key: "tenant_use_purpose", label: "Целевое использование помещения (для офиса ЧСИ / розничной торговли / салона красоты)" },
     // ── Документы-основания сторон ──
     { key: "landlord_basis_number", label: "Номер документа-основания арендодателя" },
     { key: "landlord_basis_date", label: "Дата документа-основания арендодателя" },

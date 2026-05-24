@@ -228,6 +228,8 @@ export async function GET(req: Request) {
       tenant_basis_document: tenantBasis,
       tenant_basis_number: "", // Можно добавить в реквизиты арендатора отдельно
       tenant_basis_date: "",   // Аналогично
+      // Целевое использование помещения. Если арендатор не задал — generic-фраза.
+      tenant_use_purpose: tenant.usePurpose?.trim() || "по согласованному Сторонами назначению",
       tenant_bin: tenant.bin ?? tenant.iin ?? "",
       tenant_iin: tenant.iin ?? "",
       tenant_address: tenant.legalAddress ?? "",
