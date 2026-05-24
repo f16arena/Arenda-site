@@ -73,6 +73,24 @@ def repl_party_block(m, ctx):
     return "{landlord_full_name}" if n % 2 == 0 else "{tenant_full_name}"
 
 
+def repl_svc_rate_solo(m, ctx):
+    """«( ____ )» в ячейке тарифа экспл.сбора без сезонного контекста.
+    1-я ячейка → winter, 2-я → summer."""
+    n = ctx.next("svc_rate")
+    return "({service_fee_winter_rate})" if n == 0 else (
+        "({service_fee_summer_rate})" if n == 1 else m.group(0)
+    )
+
+
+def repl_svc_total_solo(m, ctx):
+    """«______ тенге» в ячейке итоговой суммы без сезонного контекста.
+    1-я → winter_total, 2-я → summer_total."""
+    n = ctx.next("svc_total")
+    return "{service_fee_winter_total} тенге" if n == 0 else (
+        "{service_fee_summer_total} тенге" if n == 1 else m.group(0)
+    )
+
+
 # Список (regex, callable). Порядок важен — длинные паттерны раньше коротких.
 REPLACEMENTS = [
     # === Шапка договора ===
@@ -183,10 +201,10 @@ REPLACEMENTS = [
      repl_const("тарифу {service_fee_winter_rate} тенге за 1 кв. м зимой и {service_fee_summer_rate} тенге за 1 кв. м летом")),
 
     # === Залог (раздел 4.1) ===
-    # «_________ (________________) тенге (сумма цифрами и прописью)»
-    # или альтернативно «_________ (________________) тенге»
-    (re.compile(r"_+\s*\(_+\)\s*тенге(?:\s*\(сумма\s+цифрами\s+и\s+прописью\))?"),
-     repl_const("{deposit_amount_with_words} тенге")),
+    # Строгий якорь на «Депозит» или «сумма цифрами и прописью», чтобы не
+    # перехватить другие места с «____ (___) тенге» (парковка 3.6.4 и пр.).
+    (re.compile(r"_+\s*\(_+\)\s*тенге(?:\s*\(далее\s*[—-]?\s*«?Депозит»?\)?|\s*\(сумма\s+цифрами\s+и\s+прописью\))"),
+     repl_const("{deposit_amount_with_words} тенге (далее — «Депозит»)")),
 
     # === Подсудность (раздел 12.2) ===
     (re.compile(r"межрайонного\s+экономического\s+суда\s+_+\s+области"),
@@ -195,7 +213,8 @@ REPLACEMENTS = [
      repl_const("г. {court_city}» по подсудности")),
 
     # === Реквизиты (раздел 13) — стохастический счётчик: 1-е landlord, 2-е tenant ===
-    (re.compile(r"Адрес:\s*_+"),     repl_party_requisite("landlord_address",   "tenant_address",   "Адрес", "addr")),
+    # Адрес обрабатывается ниже более общим regex (захватывает «Адрес: Республика
+    # Казахстан, г. ___, ул. ___, ...»). Здесь оставляем только заметку.
     (re.compile(r"БИН/ИИН:\s*_+"),   repl_party_requisite("landlord_bin",       "tenant_bin",       "БИН",   "bin")),
     (re.compile(r"БИН:\s*_+"),       repl_party_requisite("landlord_bin",       "tenant_bin",       "БИН",   "bin")),
     (re.compile(r"ИИН:\s*_+"),       repl_party_requisite("landlord_iin",       "tenant_iin",       "ИИН",   "iin")),
@@ -205,6 +224,47 @@ REPLACEMENTS = [
     (re.compile(r"Тел\.?:\s*_+"),    repl_party_requisite("landlord_phone",     "tenant_phone",     "Тел.",  "phone")),
     (re.compile(r"E[\-—]?mail:\s*_+"), repl_party_requisite("landlord_email",   "tenant_email",     "E-mail","email")),
     (re.compile(r"/_+\s*/"),         repl_signature_line),
+
+    # === Приложение №3: таблица «Расчёт эксплуатационного сбора» ===
+    # Ячейки: «_____ кв. м» (площадь), «С октября по апрель… ( ____ ) тенге за
+    # 1 кв. метр в месяц», «( ____ ) тенге за 1 кв. метр в месяц» (соло-лето),
+    # «С октября по апрель… ______ тенге», «______ тенге» (соло-лето).
+    (re.compile(r"^_+\s*кв\.\s*м\s*$"),
+     repl_const("{tenant_area_sqm} кв. м")),
+    # Сезонные строки тарифа с контекстом «октября/мая» — приоритет.
+    # Кв.м или кв.метр — обе формы. ВАЖНО: инкрементируем svc_rate counter,
+    # чтобы solo-вариант ниже (если контекст разорван в другой параграф)
+    # дал правильную ставку (counter→1 = summer).
+    (re.compile(r"(С\s+октября\s+по\s+апрель[^()]*?)\(\s*_+\s*\)([^_]*?тенге\s+за\s+1\s*кв\.\s*м(?:етр)?)"),
+     lambda m, ctx: (ctx.next("svc_rate"), f"{m.group(1)}({{service_fee_winter_rate}}){m.group(2)}")[1]),
+    (re.compile(r"(С\s+мая\s+по\s+сентябрь[^()]*?)\(\s*_+\s*\)([^_]*?тенге\s+за\s+1\s*кв\.\s*м(?:етр)?)"),
+     lambda m, ctx: (ctx.next("svc_rate"), f"{m.group(1)}({{service_fee_summer_rate}}){m.group(2)}")[1]),
+    # Сезонные итоговые суммы. Тоже инкрементируем svc_total counter.
+    (re.compile(r"С\s+октября\s+по\s+апрель[^_]*?_+\s*тенге"),
+     lambda m, ctx: (ctx.next("svc_total"), "С октября по апрель включительно, {service_fee_winter_total} тенге")[1]),
+    (re.compile(r"С\s+мая\s+по\s+сентябрь[^_]*?_+\s*тенге"),
+     lambda m, ctx: (ctx.next("svc_total"), "С мая по сентябрь включительно, {service_fee_summer_total} тенге")[1]),
+    # Соло-ячейки (без сезонного контекста). ВАЖНО: ^/$ якоря —
+    # параграф должен СОДЕРЖАТЬ ТОЛЬКО эту фразу (короткая ячейка таблицы).
+    # Иначе перехватим парковку 3.6.4 или другие длинные пункты.
+    (re.compile(r"^\s*\(\s*_+\s*\)\s*тенге\s+за\s+1\s*кв\.\s*м(?:етр)?\s+в\s+месяц\s*$"),
+     lambda m, ctx: (
+         "({service_fee_winter_rate}) тенге за 1 кв. метр в месяц"
+         if ctx.next("svc_rate") == 0
+         else "({service_fee_summer_rate}) тенге за 1 кв. метр в месяц"
+     )),
+    (re.compile(r"^\s*_+\s*тенге\s*$"), repl_svc_total_solo),
+
+    # === Расширенные адреса в реквизитах ===
+    # «Адрес: Республика Казахстан, г. ___, ул. ___, д. ___, офис ___»
+    # — заменяем всю строку (любые символы с подчёркиваниями) на placeholder.
+    # ВАЖНО: должно идти ПЕРЕД более старым правилом «Адрес: _+» (он не сработает
+    # для адресов с префиксом «Республика Казахстан»).
+    (re.compile(r"Адрес:[^\n]*_+[^\n]*"),
+     repl_party_requisite("landlord_address", "tenant_address", "Адрес", "addr")),
+    # «Помещение: ул. ___, д. ___, ___ этаж, ___ кв. м.» в Приложении №2.
+    (re.compile(r"Помещение:\s*ул\.\s*_+\s*,\s*д\.\s*_+\s*,\s*_+\s*этаж\s*,\s*_+\s*кв\.\s*м\.?"),
+     repl_const("Помещение: {building_address}, {tenant_area_sqm} кв. м")),
 
     # Стэндалон-заголовки сторон в реквизитах (когда контекст «(Арендодатель)»/
     # «(Арендатор)»/«Арендодатель:»/«Арендатор:» отсутствует — это типично для шапки
