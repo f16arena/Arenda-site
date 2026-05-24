@@ -14,6 +14,9 @@ export function SignupForm() {
   const [slug, setSlug] = useState("")
   const [slugTouched, setSlugTouched] = useState(false)
   const [slugCheck, setSlugCheck] = useState<{ status: "idle" | "checking" | "result"; result?: SlugCheckResult }>({ status: "idle" })
+  // Принятие оферты — обязательное условие акцепта. Без галки кнопка
+  // регистрации заблокирована. Текст «Я принимаю...» — это правовой акцепт.
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   function autoSlug(v: string) {
     setCompanyName(v)
@@ -179,9 +182,27 @@ export function SignupForm() {
         </div>
       )}
 
+      <label className="flex items-start gap-2.5 text-sm text-slate-700 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          name="acceptedTerms"
+          checked={acceptedTerms}
+          onChange={(e) => setAcceptedTerms(e.target.checked)}
+          required
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span>
+          Я принимаю{" "}
+          <Link href="/offer" target="_blank" className="text-blue-600 hover:underline">Публичную оферту</Link>,{" "}
+          <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline">Политику конфиденциальности</Link>,{" "}
+          <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Условия использования</Link>{" "}
+          и даю согласие на обработку моих персональных данных и данных моей организации.
+        </span>
+      </label>
+
       <button
         type="submit"
-        disabled={isPending || isSlugBad}
+        disabled={isPending || isSlugBad || !acceptedTerms}
         className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 py-3 text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition"
       >
         {isPending && <Loader2 className="h-4 w-4 animate-spin" />}

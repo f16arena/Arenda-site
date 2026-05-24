@@ -64,12 +64,17 @@ export function LegalShell({
   subtitle,
   effectiveDate,
   lastUpdated,
+  version,
+  showBankDetails = false,
   children,
 }: {
   title: string
   subtitle?: string
   effectiveDate?: string
   lastUpdated?: string
+  version?: string
+  /** Если true — в подвале добавляем подробный блок «Банковские реквизиты для оплаты». Включаем в /offer. */
+  showBankDetails?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -106,8 +111,13 @@ export function LegalShell({
           {subtitle && (
             <p className="mt-2 text-base text-slate-600">{subtitle}</p>
           )}
-          {(effectiveDate || lastUpdated) && (
+          {(effectiveDate || lastUpdated || version) && (
             <div className="mt-4 space-y-1 text-sm text-slate-500">
+              {version && (
+                <p>
+                  Версия документа: <span className="font-mono">v{version}</span>
+                </p>
+              )}
               {effectiveDate && (
                 <p>
                   Дата вступления в силу: <Field value={effectiveDate} />
@@ -124,29 +134,31 @@ export function LegalShell({
 
         {children}
 
-        {/* Reqs footer */}
+        {/* Reqs footer — общие реквизиты (без банковских) */}
         <section className="mt-12 pt-6 border-t border-slate-100">
           <h2 className="text-lg font-semibold text-slate-900 mb-3">Реквизиты</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[15px] text-slate-700">
             <dt className="text-slate-500">Полное наименование</dt>
             <dd>{LEGAL_ENTITY.fullName}</dd>
             <dt className="text-slate-500">БИН</dt>
-            <dd><Field value={LEGAL_ENTITY.bin} /></dd>
+            <dd>{LEGAL_ENTITY.bin}</dd>
             <dt className="text-slate-500">Юридический адрес</dt>
-            <dd><Field value={LEGAL_ENTITY.legalAddress} /></dd>
-            <dt className="text-slate-500">Банк</dt>
-            <dd><Field value={LEGAL_ENTITY.bankName} /></dd>
-            <dt className="text-slate-500">ИИК</dt>
-            <dd><Field value={LEGAL_ENTITY.iik} /></dd>
-            <dt className="text-slate-500">БИК</dt>
-            <dd><Field value={LEGAL_ENTITY.bik} /></dd>
-            <dt className="text-slate-500">Кбе</dt>
-            <dd><Field value={LEGAL_ENTITY.kbe} /></dd>
+            <dd>{LEGAL_ENTITY.legalAddress}</dd>
             <dt className="text-slate-500">Директор</dt>
-            <dd><Field value={LEGAL_ENTITY.directorName} /></dd>
+            <dd>{LEGAL_ENTITY.directorName}</dd>
             <dt className="text-slate-500">Телефон</dt>
-            <dd><Field value={LEGAL_ENTITY.phone} /></dd>
-            <dt className="text-slate-500">Email поддержки</dt>
+            <dd>
+              <a href={`tel:${LEGAL_ENTITY.phone.replace(/\s/g, "")}`} className="hover:underline">
+                {LEGAL_ENTITY.phone}
+              </a>
+            </dd>
+            <dt className="text-slate-500">Общие вопросы</dt>
+            <dd>
+              <a href={`mailto:${LEGAL_ENTITY.email.info}`} className="text-blue-600 hover:underline">
+                {LEGAL_ENTITY.email.info}
+              </a>
+            </dd>
+            <dt className="text-slate-500">Поддержка</dt>
             <dd>
               <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
                 {LEGAL_ENTITY.email.support}
@@ -160,6 +172,30 @@ export function LegalShell({
             </dd>
           </dl>
         </section>
+
+        {/* Банковские реквизиты — только в /offer (для оплаты подписки) */}
+        {showBankDetails && (
+          <section className="mt-8 pt-6 border-t border-slate-100">
+            <h2 className="text-lg font-semibold text-slate-900 mb-3">Банковские реквизиты для оплаты</h2>
+            <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[15px] text-slate-700">
+              <dt className="text-slate-500">Получатель</dt>
+              <dd>{LEGAL_ENTITY.fullName}</dd>
+              <dt className="text-slate-500">БИН</dt>
+              <dd className="font-mono">{LEGAL_ENTITY.bin}</dd>
+              <dt className="text-slate-500">Банк</dt>
+              <dd>{LEGAL_ENTITY.bankName}</dd>
+              <dt className="text-slate-500">ИИК</dt>
+              <dd className="font-mono">{LEGAL_ENTITY.iik}</dd>
+              <dt className="text-slate-500">БИК</dt>
+              <dd className="font-mono">{LEGAL_ENTITY.bik}</dd>
+              <dt className="text-slate-500">Кбе</dt>
+              <dd className="font-mono">{LEGAL_ENTITY.kbe}</dd>
+            </dl>
+            <p className="mt-3 text-xs text-slate-500">
+              В назначении платежа укажите: <code className="px-1 py-0.5 bg-slate-100 rounded">Оплата подписки CommRent, организация &lt;ваше название&gt;, БИН &lt;ваш БИН&gt;</code>.
+            </p>
+          </section>
+        )}
 
         {/* Cross-links */}
         <nav className="mt-12 pt-6 border-t border-slate-100">
