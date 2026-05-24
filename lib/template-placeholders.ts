@@ -84,6 +84,21 @@ export const PLACEHOLDER_DOCS: Record<DocumentType, { key: string; label: string
     { key: "contract_month", label: "Месяц заключения (прописью)" },
     { key: "contract_year", label: "Год заключения" },
     { key: "cleaning_fee", label: "Стоимость уборки, ₸ (если включена)" },
+    // ── Имена сторон с префиксом ИП/ТОО/ЧСИ (подставляется автоматически из реквизитов) ──
+    { key: "tenant_full_name", label: "Полное имя арендатора с префиксом (ИП Иванов / ТОО Кармен / ЧСИ Иванов)" },
+    { key: "landlord_full_name", label: "Полное имя арендодателя с префиксом (ТОО Turanix)" },
+    // ── Документы-основания сторон ──
+    { key: "landlord_basis_number", label: "Номер документа-основания арендодателя" },
+    { key: "landlord_basis_date", label: "Дата документа-основания арендодателя" },
+    { key: "tenant_basis_number", label: "Номер документа-основания арендатора (например, госрегистрации)" },
+    { key: "tenant_basis_date", label: "Дата документа-основания арендатора" },
+    // ── Залог / гарантийный платёж ──
+    { key: "deposit_amount", label: "Сумма залога, ₸" },
+    { key: "deposit_amount_words", label: "Сумма залога прописью" },
+    { key: "deposit_amount_with_words", label: "Сумма залога цифрами и прописью" },
+    // ── Подсудность (для пункта о суде) ──
+    { key: "court_region", label: "Область подсудности (для пункта про суд)" },
+    { key: "court_city", label: "Город подсудности (если решается по г.)" },
     // Эксплуатационный сбор (Приложение №3 к договору).
     { key: "tenant_area_sqm", label: "Площадь арендатора, м² (сумма всех помещений/этажей)" },
     { key: "service_fee_winter_rate", label: "Зимний тариф эксплуатационного сбора, ₸/м²/мес" },

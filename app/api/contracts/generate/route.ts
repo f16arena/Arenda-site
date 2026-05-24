@@ -23,6 +23,7 @@ import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXls
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 import { formatMonthsRangeLabel } from "@/lib/service-fee"
 import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
+import { buildLegalEntityFullName } from "@/lib/full-name"
 import { formatTenantPlacement, getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
@@ -192,8 +193,11 @@ export async function GET(req: Request) {
       end_date_long: fmtDate(end),
 
       landlord_name: landlord.fullName,
+      landlord_full_name: landlord.fullName, // alias: уже включает «ТОО/АО/ИП»
       landlord_short: landlord.shortName,
       landlord_director: landlord.director,
+      landlord_basis_number: "",  // Заполняется вручную владельцем в реквизитах (если потребуется)
+      landlord_basis_date: "",    // Аналогично
       landlord_iin: landlord.iin,
       landlord_bin: landlord.bin || landlord.taxId,
       landlord_basis: landlord.basis,
@@ -209,12 +213,21 @@ export async function GET(req: Request) {
       landlord_signatory: landlord.directorShort,
 
       tenant_name: tenant.companyName,
+      // Полное имя с префиксом ИП/ТОО/ЧСИ — автоматически из legalType.
+      // Не дублирует {tenant_name} — он только название, без формы.
+      tenant_full_name: buildLegalEntityFullName({
+        legalType: tenant.legalType,
+        companyName: tenant.companyName,
+        directorName: tenant.directorName ?? tenant.user.name,
+      }),
       tenant_legal_type: tenant.legalType,
       tenant_director: tenant.directorName ?? tenant.user.name,
       tenant_director_short: shortName(tenant.directorName ?? tenant.user.name),
       tenant_position: tenant.directorPosition ?? "",
       tenant_basis: tenantBasis,
       tenant_basis_document: tenantBasis,
+      tenant_basis_number: "", // Можно добавить в реквизиты арендатора отдельно
+      tenant_basis_date: "",   // Аналогично
       tenant_bin: tenant.bin ?? tenant.iin ?? "",
       tenant_iin: tenant.iin ?? "",
       tenant_address: tenant.legalAddress ?? "",
@@ -267,6 +280,18 @@ export async function GET(req: Request) {
       contract_month: MONTH[today.getMonth()],
       contract_year: String(today.getFullYear()),
       cleaning_fee: cleaningFeeText,
+
+      // Залог / гарантийный платёж — обычно равен одной месячной арендной плате.
+      // По умолчанию подставляем месячную аренду; если в реквизитах появится отдельное
+      // поле — заменим источник.
+      deposit_amount: formatMoney(monthlyRent),
+      deposit_amount_words: rentWords,
+      deposit_amount_with_words: rentWithWords,
+
+      // Подсудность: по умолчанию совпадает с городом договора.
+      // Владелец может изменить вручную в шаблоне.
+      court_region: "",
+      court_city: contractCity,
 
       // Эксплуатационный сбор (Приложение №3 к договору).
       // Площадь и тарифы автоматически подставляются из настроек здания + площади арендатора.
