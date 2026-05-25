@@ -291,59 +291,119 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
 
-  const companyName = formData.get("companyName") as string
-  const bankName = formData.get("bankName") as string
-  const iik = formData.get("iik") as string
-  const bik = formData.get("bik") as string
-  const legalType = normalizeTenantLegalType(formData.get("legalType"))
-  const taxIds = normalizeTenantTaxIds({
-    legalType,
-    bin: formData.get("bin"),
-    iin: formData.get("iin"),
-  })
-  const category = formData.get("category") as string
-  const legalAddress = formData.get("legalAddress") as string
-  const actualAddress = formData.get("actualAddress") as string
-  const directorName = formData.get("directorName") as string
-  const directorPosition = formData.get("directorPosition") as string
-  const usePurpose = (formData.get("usePurpose") as string ?? "").trim()
-  const isVatPayer = formData.get("isVatPayer") === "on"
-  const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
-  const rentChoice = normalizeTenantRentChoice({
-    rentMode: String(formData.get("rentMode") ?? "").trim() || null,
-    customRate: parsePositiveNumberOrNull(formData.get("customRate")),
-    fixedMonthlyRent: parsePositiveNumberOrNull(formData.get("fixedMonthlyRent")),
-  })
-  const cleaningFeeStr = formData.get("cleaningFee") as string
-  const needsCleaning = formData.get("needsCleaning") === "on"
-  const contractStart = formData.get("contractStart") as string
-  const contractEnd = formData.get("contractEnd") as string
+  // ВАЖНО: эта форма используется в нескольких карточках на странице арендатора,
+  // каждая редактирует только свой кусок полей. Мы НЕ должны обнулять поля,
+  // которые форма не отправила — иначе случайно стираются БИН/legalType/ставка
+  // аренды при редактировании названия компании.
+  //
+  // Правило: каждое поле обновляется в БД ТОЛЬКО если оно реально присутствует
+  // в FormData (formData.has). Поле «isVatPayer» — особый случай (checkbox без
+  // галки в FormData отсутствует), его учитываем через явный hidden-sentinel
+  // «isVatPayerForm=1», который форма ставит вместе с чекбоксом.
+  const data: Record<string, unknown> = {}
+
+  if (formData.has("companyName")) {
+    const v = String(formData.get("companyName") ?? "").trim()
+    if (v) data.companyName = v
+  }
+
+  // legalType + bin/iin — обрабатываем как связку. Меняется только если форма
+  // реально прислала legalType (значит юзер пересохраняет блок «Данные компании»).
+  if (formData.has("legalType")) {
+    const legalType = normalizeTenantLegalType(formData.get("legalType"))
+    const taxIds = normalizeTenantTaxIds({
+      legalType,
+      bin: formData.get("bin"),
+      iin: formData.get("iin"),
+    })
+    data.legalType = taxIds.legalType
+    data.bin = taxIds.bin
+    data.iin = taxIds.iin
+  }
+
+  if (formData.has("bankName")) {
+    const v = String(formData.get("bankName") ?? "").trim()
+    data.bankName = v || null
+  }
+  if (formData.has("iik")) {
+    const v = String(formData.get("iik") ?? "").trim()
+    data.iik = v || null
+  }
+  if (formData.has("bik")) {
+    const v = String(formData.get("bik") ?? "").trim()
+    data.bik = v || null
+  }
+  if (formData.has("category")) {
+    const v = String(formData.get("category") ?? "").trim()
+    data.category = v || null
+  }
+  if (formData.has("legalAddress")) {
+    const v = String(formData.get("legalAddress") ?? "").trim()
+    data.legalAddress = v || null
+  }
+  if (formData.has("actualAddress")) {
+    const v = String(formData.get("actualAddress") ?? "").trim()
+    data.actualAddress = v || null
+  }
+  if (formData.has("directorName")) {
+    const v = String(formData.get("directorName") ?? "").trim()
+    data.directorName = v || null
+  }
+  if (formData.has("directorPosition")) {
+    const v = String(formData.get("directorPosition") ?? "").trim()
+    data.directorPosition = v || null
+  }
+  if (formData.has("usePurpose")) {
+    const v = String(formData.get("usePurpose") ?? "").trim()
+    data.usePurpose = v || null
+  }
+
+  // НДС — sentinel «isVatPayerForm=1» означает «эта форма управляет НДС».
+  // Без sentinel НДС не трогаем (другая форма могла не иметь чекбокса).
+  if (formData.has("isVatPayerForm")) {
+    const isVatPayer = formData.get("isVatPayer") === "on"
+    data.isVatPayer = isVatPayer
+    data.vatRate = isVatPayer
+      ? normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
+      : DEFAULT_KZ_VAT_RATE
+  }
+
+  // Ставка аренды — sentinel «rentForm=1» означает «эта форма управляет ставкой».
+  if (formData.has("rentForm")) {
+    const rentChoice = normalizeTenantRentChoice({
+      rentMode: String(formData.get("rentMode") ?? "").trim() || null,
+      customRate: parsePositiveNumberOrNull(formData.get("customRate")),
+      fixedMonthlyRent: parsePositiveNumberOrNull(formData.get("fixedMonthlyRent")),
+    })
+    data.customRate = rentChoice.customRate
+    data.fixedMonthlyRent = rentChoice.fixedMonthlyRent
+  }
+
+  // Уборка — те же правила: явный sentinel «cleaningForm=1».
+  if (formData.has("cleaningForm")) {
+    const cleaningFeeStr = String(formData.get("cleaningFee") ?? "")
+    data.cleaningFee = cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0
+    data.needsCleaning = formData.get("needsCleaning") === "on"
+  }
+
+  // Сроки контракта.
+  if (formData.has("contractStart")) {
+    const v = String(formData.get("contractStart") ?? "")
+    data.contractStart = v ? new Date(v) : null
+  }
+  if (formData.has("contractEnd")) {
+    const v = String(formData.get("contractEnd") ?? "")
+    data.contractEnd = v ? new Date(v) : null
+  }
+
+  // Если форма прислала только сентинели но реально менять нечего — выходим.
+  if (Object.keys(data).length === 0) {
+    return { success: true }
+  }
 
   await db.tenant.update({
     where: { id: tenantId },
-    data: {
-      companyName,
-      bin: taxIds.bin,
-      iin: taxIds.iin,
-      bankName: bankName || null,
-      iik: iik || null,
-      bik: bik || null,
-      legalType: taxIds.legalType,
-      category: category || null,
-      legalAddress: legalAddress || null,
-      actualAddress: actualAddress || null,
-      directorName: directorName || null,
-      directorPosition: directorPosition || null,
-      usePurpose: usePurpose || null,
-      isVatPayer,
-      vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
-      customRate: rentChoice.customRate,
-      fixedMonthlyRent: rentChoice.fixedMonthlyRent,
-      cleaningFee: cleaningFeeStr ? parseFloat(cleaningFeeStr) : 0,
-      needsCleaning,
-      contractStart: contractStart ? new Date(contractStart) : null,
-      contractEnd: contractEnd ? new Date(contractEnd) : null,
-    },
+    data,
   })
 
   revalidatePath(`/admin/tenants/${tenantId}`)

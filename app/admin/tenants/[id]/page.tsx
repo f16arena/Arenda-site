@@ -555,13 +555,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               }}
               className="p-5 grid grid-cols-2 gap-4"
             >
-              <input type="hidden" name="bankName" value={tenant.bankName ?? ""} />
-              <input type="hidden" name="iik" value={tenant.iik ?? ""} />
-              <input type="hidden" name="bik" value={tenant.bik ?? ""} />
-              <input type="hidden" name="cleaningFee" value={tenant.cleaningFee} />
-              <input type="hidden" name="needsCleaning" value={tenant.needsCleaning ? "on" : ""} />
-              <input type="hidden" name="customRate" value={tenant.customRate ?? ""} />
-              <input type="hidden" name="fixedMonthlyRent" value={tenant.fixedMonthlyRent ?? ""} />
+              {/* Эта форма НЕ редактирует bankName/iik/bik/cleaningFee/customRate/
+                  fixedMonthlyRent — они в других формах. Убраны вредные hidden-inputs
+                  (раньше затирали значения нулём/пустотой при сохранении).
+                  Sentinel «isVatPayerForm=1» сообщает action что НДС-чекбокс в этой
+                  форме — иначе несохранённая галка не превратится в false. */}
+              <input type="hidden" name="isVatPayerForm" value="1" />
 
               <fieldset disabled={!canEditCompany} className="contents">
               <div>
