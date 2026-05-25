@@ -23,7 +23,8 @@ import { extractDocxPlaceholders, extractXlsxPlaceholders, renderDocx, renderXls
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm } from "@/lib/rent"
 import { formatMonthsRangeLabel } from "@/lib/service-fee"
 import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
-import { buildLegalEntityFullName } from "@/lib/full-name"
+import { buildLegalEntityFullName, buildSignerIntro } from "@/lib/full-name"
+import { shortenFio } from "@/lib/declension"
 import { formatTenantPlacement, getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
@@ -196,6 +197,16 @@ export async function GET(req: Request) {
       landlord_full_name: landlord.fullName, // alias: уже включает «ТОО/АО/ИП»
       landlord_short: landlord.shortName,
       landlord_director: landlord.director,
+      // Готовая шапка арендодателя с правильной грамматикой (склонение,
+      // отсутствие «в лице» для ИП/ЧСИ). Подставляется как {landlord_intro}.
+      landlord_intro: buildSignerIntro({
+        legalType: landlord.legalType ?? "TOO",
+        fullName: landlord.fullName,
+        directorName: landlord.director,
+        directorPosition: "директора",
+        basisText: landlord.basis || "Устава",
+        calledAs: "Арендодатель",
+      }),
       landlord_basis_number: "",  // Заполняется вручную владельцем в реквизитах (если потребуется)
       landlord_basis_date: "",    // Аналогично
       landlord_iin: landlord.iin,
@@ -220,9 +231,23 @@ export async function GET(req: Request) {
         companyName: tenant.companyName,
         directorName: tenant.directorName ?? tenant.user.name,
       }),
+      // Готовая шапка арендатора (без «в лице» для ИП/ЧСИ, со склонением
+      // фамилии директора для ТОО/АО).
+      tenant_intro: buildSignerIntro({
+        legalType: tenant.legalType,
+        fullName: buildLegalEntityFullName({
+          legalType: tenant.legalType,
+          companyName: tenant.companyName,
+          directorName: tenant.directorName ?? tenant.user.name,
+        }),
+        directorName: tenant.directorName ?? tenant.user.name,
+        directorPosition: tenant.directorPosition || "директора",
+        basisText: tenantBasis || "Устава",
+        calledAs: "Арендатор",
+      }),
       tenant_legal_type: tenant.legalType,
       tenant_director: tenant.directorName ?? tenant.user.name,
-      tenant_director_short: shortName(tenant.directorName ?? tenant.user.name),
+      tenant_director_short: shortenFio(tenant.directorName ?? tenant.user.name),
       tenant_position: tenant.directorPosition ?? "",
       tenant_basis: tenantBasis,
       tenant_basis_document: tenantBasis,
@@ -413,7 +438,21 @@ export async function GET(req: Request) {
       spacing: { after: 200 },
     }),
 
-    p(`${landlord.fullName}, именуемый в дальнейшем «Арендодатель», в лице руководителя ${landlord.directorShort}, действующего на основании ${landlord.basis}, с одной стороны, и ${tenantName}, именуемый(ое) в дальнейшем «Арендатор», в лице ${tenantDir}${tenant.directorPosition ? ` (${tenant.directorPosition})` : ""}, действующего на основании ${tenantBasis}, с другой стороны, заключили настоящий Договор аренды нежилого помещения о нижеследующем:`),
+    p(`${buildSignerIntro({
+      legalType: landlord.legalType ?? "TOO",
+      fullName: landlord.fullName,
+      directorName: landlord.director,
+      directorPosition: "директора",
+      basisText: landlord.basis || "Устава",
+      calledAs: "Арендодатель",
+    })}, с одной стороны, и ${buildSignerIntro({
+      legalType: tenant.legalType,
+      fullName: tenantName,
+      directorName: tenantDir,
+      directorPosition: tenant.directorPosition || "директора",
+      basisText: tenantBasis || "Устава",
+      calledAs: "Арендатор",
+    })}, с другой стороны, заключили настоящий Договор аренды нежилого помещения о нижеследующем:`),
 
     heading("1. Предмет договора"),
     p(`1.1. Арендодатель обязуется передать, а Арендатор принять во временное владение и пользование (аренду) за плату на срок настоящего Договора нежилое помещение, расположенное по адресу: ${objectAddress}${placement ? `, ${placement}` : ""}, площадью ${formatArea(area)} кв.м., именуемое в дальнейшем «Помещение», в здании, принадлежащем Арендодателю на праве собственности.`),

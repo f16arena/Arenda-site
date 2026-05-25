@@ -6,14 +6,15 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 import { Document, Packer } from "docx"
 import {
-  p, center, row, fmtMoney, fmtDate, periodLabel, numberToWords, shortName,
+  p, center, row, fmtMoney, fmtDate, periodLabel, numberToWords,
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
-import { buildLegalEntityFullName } from "@/lib/full-name"
+import { buildLegalEntityFullName, buildSignerIntro } from "@/lib/full-name"
+import { shortenFio } from "@/lib/declension"
 
 export const dynamic = "force-dynamic"
 
@@ -174,7 +175,7 @@ export async function GET(req: Request) {
               new Paragraph({ children: [new TextRun("")], spacing: { after: 100 } }),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                children: [new TextRun({ text: `___________________ ${shortName(tenant.directorName ?? tenant.user.name)}`, size: 22 })],
+                children: [new TextRun({ text: `___________________ ${shortenFio(tenant.directorName ?? tenant.user.name)}`, size: 22 })],
                 spacing: { before: 300 },
               }),
               new Paragraph({
@@ -198,7 +199,25 @@ export async function GET(req: Request) {
         ...(contract ? [p(`К договору № ${contract.number}${contract.startDate ? ` от ${fmtDate(contract.startDate)}` : ""}`, { indent: false })] : []),
         p(`Период оказания услуг: с ${fmtDate(periodStart)} по ${fmtDate(periodEnd)}`, { indent: false }),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
-        p(`Мы, нижеподписавшиеся, ${landlord.fullName} (далее — Исполнитель), в лице руководителя ${landlord.directorShort}, с одной стороны, и ${tenant.companyName} (далее — Заказчик), в лице ${tenant.directorName ?? tenant.user.name}, с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки, а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:`),
+        p(`Мы, нижеподписавшиеся, ${buildSignerIntro({
+          legalType: landlord.legalType ?? "TOO",
+          fullName: landlord.fullName,
+          directorName: landlord.director,
+          directorPosition: "директора",
+          basisText: landlord.basis || "Устава",
+          calledAs: "Арендодатель",
+        })} (далее — Исполнитель), с одной стороны, и ${buildSignerIntro({
+          legalType: tenant.legalType,
+          fullName: buildLegalEntityFullName({
+            legalType: tenant.legalType,
+            companyName: tenant.companyName,
+            directorName: tenant.directorName ?? tenant.user.name,
+          }),
+          directorName: tenant.directorName ?? tenant.user.name,
+          directorPosition: tenant.directorPosition || "директора",
+          basisText: "Устава",
+          calledAs: "Арендатор",
+        })} (далее — Заказчик), с другой стороны, составили настоящий акт о том, что Исполнитель оказал Заказчику следующие услуги в полном объёме и в установленные сроки, а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:`),
         new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }),
         itemsTable,
         new Paragraph({ children: [new TextRun("")], spacing: { before: 200 } }),

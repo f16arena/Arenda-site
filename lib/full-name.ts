@@ -1,3 +1,5 @@
+import { declineFio, shortenFioGenitive } from "@/lib/declension"
+
 /**
  * Хелпер для построения «полного имени» лица для документов.
  *
@@ -85,4 +87,55 @@ export function buildLegalEntityFullName(input: {
       // Неизвестный legalType — возвращаем что есть, без принудительного префикса.
       return company || director
   }
+}
+
+/**
+ * Возвращает фрагмент «именуем(ое/ый) в дальнейшем «X», в лице Y, действующего
+ * на основании Z», правильно учитывая правовую форму:
+ *
+ *   ИП/ЧСИ/Физлицо — НЕ используется «в лице», поскольку юр. лицо отсутствует —
+ *     это сам человек: «ИП Иванов И.И., именуемый в дальнейшем «Арендатор»,
+ *     действующий на основании Уведомления о государственной регистрации».
+ *
+ *   ТОО/АО — используется «в лице директора Иванова И.И., действующего на
+ *     основании Устава» (с склонением фамилии директора в родительный падеж).
+ *
+ * Параметры:
+ *   - legalType                  — IP / CHSI / TOO / AO / PHYSICAL
+ *   - fullName                   — уже отформатированное «ТОО Кармен» / «ИП Иванов И.И.»
+ *   - directorName               — ФИО подписанта (только для ТОО/АО)
+ *   - directorPosition           — «директор», «генеральный директор», «управляющий» (для ТОО/АО)
+ *   - basisText                  — «Устава», «Уведомления о государственной регистрации № X от Y»
+ *   - calledAs                   — «Арендодатель» / «Арендатор» (для роли в договоре)
+ *
+ * Возвращает готовую строку без точки в конце (потом окружают запятыми).
+ */
+export function buildSignerIntro(input: {
+  legalType: string | null | undefined
+  fullName: string
+  directorName?: string | null
+  directorPosition?: string | null
+  basisText: string
+  calledAs: "Арендодатель" | "Арендатор"
+}): string {
+  const legalType = (input.legalType ?? "").toUpperCase()
+  const usesDirector = legalType === "TOO" || legalType === "AO"
+  // «именуемое» для ТОО/АО (среднее), «именуемый» для ИП/ЧСИ/Физлица (мужское).
+  // Юридически принято писать «именуемый(ое) в дальнейшем» — оставим
+  // правильное согласование.
+  const namedAs = usesDirector ? "именуемое" : "именуемый"
+  const actingAs = usesDirector ? "действующего" : "действующий"
+
+  if (usesDirector && input.directorName) {
+    const position = (input.directorPosition || "директора").trim()
+    // Должность тоже склоняется (директора, генерального директора).
+    // Простой подход: добавляем «-а» через declineFio (он умеет согласные).
+    const positionGenitive = declineFio(position, "genitive")
+    // ФИО директора — сокращаем до «Фамилия И.О.» и склоняем фамилию.
+    const directorShort = shortenFioGenitive(input.directorName)
+    return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», в лице ${positionGenitive} ${directorShort}, ${actingAs} на основании ${input.basisText}`
+  }
+
+  // ИП / ЧСИ / Физлицо — без «в лице».
+  return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», ${actingAs} на основании ${input.basisText}`
 }

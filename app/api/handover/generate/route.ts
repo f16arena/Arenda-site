@@ -6,9 +6,10 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { BUILDING_DEFAULT } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { buildLegalEntityFullName } from "@/lib/full-name"
+import { shortenFio } from "@/lib/declension"
 import { Document, Packer } from "docx"
 import {
-  p, center, fmtDate, shortName,
+  p, center, fmtDate,
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableNoBorders,
 } from "@/lib/docx-helpers"
@@ -111,7 +112,7 @@ export async function GET(req: Request) {
               ...(tenant.bin ? [new Paragraph({ children: [new TextRun({ text: `БИН: ${tenant.bin}`, size: 20 })] })] : []),
               new Paragraph({
                 alignment: AlignmentType.CENTER,
-                children: [new TextRun({ text: `___________________ ${shortName(tenant.directorName ?? tenant.user.name)}`, size: 22 })],
+                children: [new TextRun({ text: `___________________ ${shortenFio(tenant.directorName ?? tenant.user.name)}`, size: 22 })],
                 spacing: { before: 400 },
               }),
               new Paragraph({
