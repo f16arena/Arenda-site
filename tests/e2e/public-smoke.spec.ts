@@ -91,7 +91,12 @@ test.describe("public website smoke tests", () => {
     await expect(page.locator('input[name="ownerEmail"]')).toBeVisible()
     await expect(page.locator('input[name="ownerPhone"]')).toBeVisible()
     await expect(page.locator('input[name="password"]')).toBeVisible()
-    await expect(page.locator('input[name="agreed"]')).toBeVisible()
+    // Чекбокс акцепта оферты — обязательный, кнопка регистрации заблокирована
+    // пока он не отмечен.
+    const acceptTerms = page.locator('input[name="acceptedTerms"]')
+    await expect(acceptTerms).toBeVisible()
+    await expect(page.locator('button[type="submit"]')).toBeDisabled()
+    await acceptTerms.check()
     await expect(page.locator('button[type="submit"]')).toBeEnabled()
     await saveFullPageShot(page, testInfo, "signup")
 

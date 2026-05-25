@@ -164,17 +164,7 @@ export function SignupForm() {
         />
       </Section>
 
-      {/* Согласие с офертой */}
-      <label className="flex items-start gap-2.5 cursor-pointer text-sm text-slate-700">
-        <input type="checkbox" name="agreed" className="mt-0.5 h-4 w-4 rounded border-slate-300" />
-        <span>
-          Я ознакомлен и согласен с{" "}
-          <Link href="/offer" className="text-blue-600 hover:underline" target="_blank">Публичной офертой</Link>{", "}
-          <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Политикой конфиденциальности</Link>{" и "}
-          <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Пользовательским соглашением</Link>
-        </span>
-      </label>
-
+      {/* Согласие с офертой консолидировано в одном чекбоксе ниже («acceptedTerms»). */}
       {state?.error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />

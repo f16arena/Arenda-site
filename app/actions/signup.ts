@@ -56,14 +56,16 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     return { ok: false, error: error instanceof Error ? error.message : "Некорректные контактные данные", details }
   }
   const password = String(formData.get("password") ?? "")
-  const agreed = formData.get("agreed") === "on"
+  // acceptedTerms (новое название после консолидации с agreed). Серверная
+  // валидация — на случай если кто-то обойдёт клиентскую блокировку кнопки.
+  const acceptedTerms = formData.get("acceptedTerms") === "on" || formData.get("agreed") === "on"
 
   // ── Базовая валидация ────────────────────────────────────────
   if (!companyName) return { ok: false, error: "Введите название организации", details }
   if (!ownerName) return { ok: false, error: "Введите ФИО владельца", details }
   if (!ownerEmail && !ownerPhone) return { ok: false, error: "Укажите email или телефон", details }
   if (password.length < 8) return { ok: false, error: "Пароль минимум 8 символов", details }
-  if (!agreed) return { ok: false, error: "Нужно принять Публичную оферту и Политику конфиденциальности", details }
+  if (!acceptedTerms) return { ok: false, error: "Нужно принять Публичную оферту, Политику конфиденциальности и Условия использования", details }
 
   const v = validateSlug(slug)
   if (!v.ok) return { ok: false, error: `Поддомен: ${v.reason}`, details }
