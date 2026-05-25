@@ -7,6 +7,7 @@ import { tenantScope } from "@/lib/tenant-scope"
 import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { resolveMonthRange } from "@/lib/period-range"
+import { buildLegalEntityFullName } from "@/lib/full-name"
 import { Document, Packer } from "docx"
 import {
   p, center, row, fmtMoney, fmtDate, numberToWords,
@@ -157,8 +158,14 @@ export async function GET(req: Request) {
       period_start: periodStart,
       period_end: periodEnd,
       landlord_name: landlord.fullName,
+      landlord_full_name: landlord.fullName,
       landlord_bin: landlord.bin || landlord.taxId,
       tenant_name: tenant.companyName,
+      tenant_full_name: buildLegalEntityFullName({
+        legalType: tenant.legalType,
+        companyName: tenant.companyName,
+        directorName: tenant.directorName ?? tenant.user?.name,
+      }),
       tenant_bin: tenant.bin || tenant.iin || "",
       total_debit: fmtMoney(totalDebit),
       total_credit: fmtMoney(totalCredit),

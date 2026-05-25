@@ -12,6 +12,7 @@ import {
 } from "@/lib/docx-helpers"
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { buildLegalEntityFullName } from "@/lib/full-name"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 
 export const dynamic = "force-dynamic"
@@ -258,6 +259,13 @@ export async function GET(req: Request) {
       due_date: fmtDate(dueDate),
       period: periodLabel(period),
       tenant_name: tenant.companyName,
+      // Полное имя с автопрефиксом ИП/ТОО/ЧСИ — без дублирования, если префикс
+      // уже есть в companyName/directorName.
+      tenant_full_name: buildLegalEntityFullName({
+        legalType: tenant.legalType,
+        companyName: tenant.companyName,
+        directorName: tenant.directorName ?? tenant.user?.name,
+      }),
       tenant_bin: tenant.bin || tenant.iin || "",
       tenant_address: tenant.legalAddress || "",
       tenant_iik: tenantIik,
@@ -268,6 +276,7 @@ export async function GET(req: Request) {
       tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
       tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
       landlord_name: landlord.fullName,
+      landlord_full_name: landlord.fullName, // landlord.fullName уже включает префикс
       landlord_bin: landlord.bin || landlord.taxId,
       landlord_iin: landlord.iin,
       landlord_iik: landlord.iik,

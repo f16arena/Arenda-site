@@ -389,7 +389,13 @@ export async function GET(req: Request) {
     children: [new TextRun({ text, bold: opts?.bold ?? true, size: opts?.size ?? 24 })],
   })
 
-  const tenantName = tenant.companyName
+  // Полное имя арендатора с автопрефиксом (ИП/ТОО/ЧСИ) — без дублирования,
+  // если префикс уже есть в companyName.
+  const tenantName = buildLegalEntityFullName({
+    legalType: tenant.legalType,
+    companyName: tenant.companyName,
+    directorName: tenant.directorName ?? tenant.user.name,
+  })
   const tenantDir = tenant.directorName ?? tenant.user.name
   const tenantDirShort = shortName(tenantDir)
 

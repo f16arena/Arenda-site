@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { BUILDING_DEFAULT } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { buildLegalEntityFullName } from "@/lib/full-name"
 import { Document, Packer } from "docx"
 import {
   p, center, fmtDate, shortName,
@@ -62,6 +63,14 @@ export async function GET(req: Request) {
       ? assignedSpaces.map((space) => `${space.floor.name}, кабинет ${space.number}`).join("; ")
       : "")
 
+  // Полное имя арендатора с автопрефиксом ИП/ТОО/ЧСИ (без дублирования если
+  // префикс уже в companyName). Используется в шапке акта и реквизитах.
+  const tenantFullName = buildLegalEntityFullName({
+    legalType: tenant.legalType,
+    companyName: tenant.companyName,
+    directorName: tenant.directorName ?? tenant.user?.name,
+  })
+
   const actTitle = direction === "out"
     ? "Акт возврата нежилого помещения"
     : "Акт приёма-передачи нежилого помещения"
@@ -97,7 +106,7 @@ export async function GET(req: Request) {
             width: { size: 50, type: WidthType.PERCENTAGE },
             children: [
               new Paragraph({ children: [new TextRun({ text: "Арендатор:", bold: true, size: 22 })], spacing: { after: 80 } }),
-              new Paragraph({ children: [new TextRun({ text: tenant.companyName, size: 20 })] }),
+              new Paragraph({ children: [new TextRun({ text: tenantFullName, size: 20 })] }),
               ...(tenant.iin ? [new Paragraph({ children: [new TextRun({ text: `ИИН: ${tenant.iin}`, size: 20 })] })] : []),
               ...(tenant.bin ? [new Paragraph({ children: [new TextRun({ text: `БИН: ${tenant.bin}`, size: 20 })] })] : []),
               new Paragraph({
@@ -132,7 +141,7 @@ export async function GET(req: Request) {
           ],
           spacing: { after: 300 },
         }),
-        p(`${landlord.fullName}, в лице руководителя ${landlord.directorShort}, действующего на основании ${landlord.basis} (далее — «Арендодатель»), и ${tenant.companyName}, в лице ${tenant.directorName ?? tenant.user.name} (далее — «Арендатор»), составили настоящий Акт о следующем:`),
+        p(`${landlord.fullName}, в лице руководителя ${landlord.directorShort}, действующего на основании ${landlord.basis} (далее — «Арендодатель»), и ${tenantFullName}, в лице ${tenant.directorName ?? tenant.user.name} (далее — «Арендатор»), составили настоящий Акт о следующем:`),
         p(intro),
         p(`1. Адрес: ${buildingAddress}${placement ? `, ${placement}` : ""}.`, { indent: false }),
         p(`2. Площадь: ${area} кв.м.`, { indent: false }),

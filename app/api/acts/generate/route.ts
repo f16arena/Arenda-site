@@ -13,6 +13,7 @@ import {
 import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
+import { buildLegalEntityFullName } from "@/lib/full-name"
 
 export const dynamic = "force-dynamic"
 
@@ -227,6 +228,11 @@ export async function GET(req: Request) {
       period_start: fmtDate(periodStart),
       period_end: fmtDate(periodEnd),
       tenant_name: tenant.companyName,
+      tenant_full_name: buildLegalEntityFullName({
+        legalType: tenant.legalType,
+        companyName: tenant.companyName,
+        directorName: tenant.directorName ?? tenant.user.name,
+      }),
       tenant_bin: tenant.bin || tenant.iin || "",
       tenant_director: tenant.directorName || tenant.user.name,
       tenant_position: tenant.directorPosition || "",
@@ -237,6 +243,7 @@ export async function GET(req: Request) {
       tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
       tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
       landlord_name: landlord.fullName,
+      landlord_full_name: landlord.fullName,
       landlord_address: landlord.legalAddress || "",
       landlord_bin: landlord.bin || landlord.taxId,
       landlord_iin: landlord.iin,
