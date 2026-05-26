@@ -1,4 +1,4 @@
-import { FileText, Receipt } from "lucide-react"
+﻿import { FileText, Receipt } from "lucide-react"
 
 import { ContractWorkflowActions } from "./contract-actions"
 import { ContractVersionButton } from "./contract-version-button"
@@ -47,7 +47,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
   ]))
 
   return (
-    <CollapsibleCard title="Договоры" icon={FileText} meta={`${total} шт.`}>
+    <CollapsibleCard title="Договоры" icon={FileText} meta={`${total} шт.`} groupName="tenant-card">
       <div className="divide-y divide-slate-50">
         {contracts.map((contract) => {
           const statusLabels: Record<string, { label: string; cls: string }> = {
@@ -143,7 +143,7 @@ export async function TenantRecentChargesSidebar({ tenantId, orgId, userId }: Si
   ]))
 
   return (
-    <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${total} записей`}>
+    <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${total} записей`} groupName="tenant-card">
       <div className="divide-y divide-slate-50">
         {charges.map((charge) => (
           <div key={charge.id} className="flex items-center justify-between px-4 py-2.5">

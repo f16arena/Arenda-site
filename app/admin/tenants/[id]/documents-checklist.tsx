@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useTransition } from "react"
 import { CheckCircle2, Circle, Plus, X, ExternalLink, FileText } from "lucide-react"
@@ -33,7 +33,7 @@ export function DocumentsChecklist({
       title="Документы"
       icon={FileText}
       meta={`${completed} из ${required.length} обязательных`}
-    >
+     groupName="tenant-card">
       <div className="flex justify-end px-5 py-3 border-b border-slate-50 dark:border-slate-800">
         <button
           type="button"

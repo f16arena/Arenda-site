@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react"
+﻿import { FileText } from "lucide-react"
 
 import { db } from "@/lib/db"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
@@ -61,7 +61,7 @@ export async function ChargesByContractSection({
       title="Начисления по договорам"
       icon={FileText}
       meta={`${charges.length} записей`}
-    >
+     groupName="tenant-card">
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {sortedKeys.map((key) => {
           const list = groups.get(key) ?? []

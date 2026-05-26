@@ -1,4 +1,4 @@
-import { ClipboardList } from "lucide-react"
+﻿import { ClipboardList } from "lucide-react"
 import { db } from "@/lib/db"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import { safeServerValue } from "@/lib/server-fallback"
@@ -63,7 +63,7 @@ export async function TenantHistorySection({
       title="История изменений"
       icon={ClipboardList}
       meta={`${auditLogs.length} событий`}
-    >
+     groupName="tenant-card">
       <ul className="max-h-96 divide-y divide-slate-50 overflow-y-auto dark:divide-slate-800">
         {auditLogs.map((log) => (
           <li key={log.id} className="px-5 py-3 text-xs">

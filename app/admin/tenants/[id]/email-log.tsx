@@ -1,4 +1,4 @@
-import { Eye, AlertCircle, Send } from "lucide-react"
+﻿import { Eye, AlertCircle, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
@@ -42,7 +42,7 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
   if (items.length === 0) return null
 
   return (
-    <CollapsibleCard title="История писем" icon={Send} meta={`${items.length} писем`}>
+    <CollapsibleCard title="История писем" icon={Send} meta={`${items.length} писем`} groupName="tenant-card">
       <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-xs">
         <thead>

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useTransition } from "react"
 import { Download, Mail, FileText, Receipt, FileCheck, Box } from "lucide-react"
@@ -56,7 +56,7 @@ export function DocumentsActions({
       title="Документы для арендатора"
       icon={FileText}
       meta={tenantHasEmail ? "скачать или отправить" : "email не указан"}
-    >
+     groupName="tenant-card">
       <div className="divide-y divide-slate-50">
         {DOCS.map((d) => {
           const Icon = d.icon

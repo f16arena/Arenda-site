@@ -8,6 +8,15 @@ type Props = {
   defaultOpen?: boolean
   meta?: ReactNode
   compact?: boolean
+  /**
+   * Имя группы (HTML5 details[name]). Если задано — раскрытие этой
+   * карточки АВТОМАТИЧЕСКИ закрывает другие <details> с тем же name.
+   * Нативная фича браузеров с 2023 года: Chrome 120+, Safari 17.2+,
+   * Firefox 119+. Работает БЕЗ JavaScript — поэтому ВСЁ совместимо
+   * с RSC и inline server actions внутри children.
+   * Используется для accordion-режима «одна за раз» (см. карточку арендатора).
+   */
+  groupName?: string
 }
 
 /**
@@ -19,11 +28,16 @@ type Props = {
  *
  * Структура flex с min-w-0 на summary критична: без min-w-0 truncate в flex
  * не сжимает текст (flex-item имеет default min-content). С min-w-0 — сжимает.
+ *
+ * Поддержка `groupName` (HTML5 exclusive accordion): несколько CollapsibleCard
+ * с одинаковым groupName ведут себя как accordion — раскрытие одной
+ * закрывает остальные. Без JS, чисто браузером.
  */
-export function CollapsibleCard({ title, icon: Icon, children, defaultOpen = false, meta, compact = false }: Props) {
+export function CollapsibleCard({ title, icon: Icon, children, defaultOpen = false, meta, compact = false, groupName }: Props) {
   return (
     <details
       open={defaultOpen}
+      name={groupName}
       className="group overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
     >
       <summary className="flex min-w-0 cursor-pointer list-none items-center gap-2 border-b border-transparent bg-slate-50 px-5 py-3.5 transition-colors hover:bg-slate-100 group-open:border-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-800 dark:group-open:border-slate-800 [&::-webkit-details-marker]:hidden">
