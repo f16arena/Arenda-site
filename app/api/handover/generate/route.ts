@@ -46,6 +46,7 @@ export async function GET(req: Request) {
         include: { space: { include: { floor: { include: { building: { select: { address: true } } } } } } },
       },
       fullFloors: { include: { building: { select: { address: true } } } },
+      bankAccounts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
     },
   })
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
@@ -159,6 +160,31 @@ export async function GET(req: Request) {
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
   const prefix = direction === "out" ? "АктВозврата" : "АктПриема"
   const fileName = `${prefix}_${safeTenant}_${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}.docx`
+
+  // Архивируем handover в GeneratedDocument как остальные документы
+  // (раньше handover был единственный неархивный — терялся след передачи).
+  // session уже получен на старте функции, переиспользуем.
+  if (session?.user?.id) {
+    await db.generatedDocument.create({
+      data: {
+        organizationId: orgId,
+        documentType: "HANDOVER",
+        number: `HANDOVER-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, "0")}${String(today.getDate()).padStart(2, "0")}`,
+        tenantId: tenant.id,
+        tenantName: tenant.companyName,
+        period: today.toISOString().slice(0, 7),
+        totalAmount: 0,
+        fileName,
+        fileBytes: new Uint8Array(buffer),
+        fileSize: buffer.length,
+        format: "DOCX",
+        generatedById: session.user.id,
+      },
+    }).catch((e) => {
+      // Архивация — best-effort, не валим выдачу файла если БД не отвечает.
+      console.error("[handover] archive failed:", e instanceof Error ? e.message : e)
+    })
+  }
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {

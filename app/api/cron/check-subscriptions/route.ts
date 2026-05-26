@@ -129,8 +129,9 @@ export async function GET(req: Request) {
               : `Подписка "${org.name}" истекает через ${days} ${dayLabel}. Свяжитесь с супер-админом для продления, иначе кабинет будет приостановлен.`,
             link: "/admin/subscription",
             emailButtonText: "Открыть подписку",
-            // SMS только для горящих дедлайнов (T-3 и T-1).
-            sendSms: days <= 3,
+            // SMS убран для SUBSCRIPTION_EXPIRING — email + Telegram достаточны.
+            // SMS оставлен только для SUBSCRIPTION_EXPIRED (уже истекло) — см. блок выше.
+            sendSms: false,
           })
           result.warnings++
         } catch { /* skip */ }

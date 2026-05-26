@@ -11,6 +11,17 @@ export const MOBILE_NOTIFICATION_TYPES = [
   { key: "MESSAGE_RECEIVED", label: "Входящие сообщения" },
   { key: "CONTRACT_EXPIRING", label: "Сроки договоров" },
   { key: "PAYMENT_DUE", label: "Напоминания об оплате" },
+  // Бытовые типы — добавлены для возможности отключения (см. AUDIT_2026-05-26.md #21).
+  // SUBSCRIPTION_*, SERVICE_FEE_INDEXED сознательно НЕ добавляем — это юр. критичные
+  // уведомления, отключение которых нарушит обязательства информирования клиента.
+  { key: "ADDON_REQUEST", label: "Заявки на аддоны (только супер-админ)" },
+  { key: "ADDON_ACTIVATED", label: "Аддон активирован" },
+  { key: "ADDON_REJECTED", label: "Заявка на аддон отклонена" },
+  { key: "ADDON_DEACTIVATED", label: "Аддон выключен" },
+  { key: "SERVICE_REQUEST", label: "Заявки на разовые услуги (только супер-админ)" },
+  { key: "SERVICE_PAID", label: "Услуга оплачена" },
+  { key: "SERVICE_DELIVERED", label: "Услуга выполнена" },
+  { key: "SERVICE_CANCELLED", label: "Услуга отменена" },
 ] as const
 
 const KNOWN_TYPES: ReadonlySet<string> = new Set(MOBILE_NOTIFICATION_TYPES.map((item) => item.key))

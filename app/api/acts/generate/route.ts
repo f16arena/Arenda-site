@@ -55,6 +55,7 @@ export async function GET(req: Request) {
           include: { space: { include: { floor: true } } },
         },
         fullFloors: true,
+        bankAccounts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         charges: { where: { period }, orderBy: { createdAt: "asc" } },
         contracts: { orderBy: { createdAt: "desc" }, take: 1 },
       },
@@ -203,7 +204,7 @@ export async function GET(req: Request) {
           legalType: landlord.legalType ?? "TOO",
           fullName: landlord.fullName,
           directorName: landlord.director,
-          directorPosition: "директора",
+          directorPosition: landlord.directorPosition || "директора",
           basisText: landlord.basis || "Устава",
           calledAs: "Арендодатель",
         })} (далее — Исполнитель), с одной стороны, и ${buildSignerIntro({

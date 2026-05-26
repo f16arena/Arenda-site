@@ -29,11 +29,12 @@ type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
 
 const nav: NavSection[] = [
   {
+    // /admin/ops удалён из sidebar — операционные действия уже на главной (/admin).
+    // /admin/onboarding объединён с /admin/data-quality в «Здоровье платформы».
     items: [
       { href: "/admin", label: "Обзор", icon: LayoutDashboard, exact: true, section: "dashboard" },
-      { href: "/admin/ops", label: "Сегодня", icon: ClipboardList, section: "dashboard" },
       { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
-      { href: "/admin/onboarding", label: "Запуск", icon: Rocket, section: "dashboard" },
+      { href: "/admin/onboarding", label: "Здоровье платформы", icon: Rocket, section: "dashboard" },
     ],
   },
   {
@@ -79,9 +80,11 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
-      { href: "/admin/data-quality", label: "Качество данных", icon: ShieldCheck, section: "analytics" },
-      // Проверка системы — только для платформ-админа (БД/cron/env — техническая инфо).
-      { href: "/admin/system-health", label: "Проверка системы", icon: Activity, section: "analytics", platformOnly: true },
+      // /admin/data-quality удалён из sidebar — содержимое теперь в /admin/onboarding
+      // (объединённый экран «Здоровье платформы»). Сама страница пока живёт по
+      // прямой ссылке для обратной совместимости.
+      // /admin/system-health удалён из admin sidebar — техническая страница,
+      // доступна только в /superadmin/system-health для платформ-админа Turanix.
     ],
   },
   {

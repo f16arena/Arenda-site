@@ -195,6 +195,8 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
         message: `${formatMoney(amount)} за ${formattedDate}. ${methodLabel}. ${receipt ? "Чек приложен." : "Чек не приложен."}`,
         link: "/admin/finances",
         sendEmail: false,
+        // Дедуп: арендатор перезагрузил страницу и платёж улетел дважды.
+        dedupWindowHours: 1,
       })
     }
   } catch (e) {

@@ -74,9 +74,11 @@ export async function GET(req: Request) {
   const tenantVatRate = coerceKzVatRate(tenant.vatRate, DEFAULT_KZ_VAT_RATE)
   const tenantBankAccounts = tenant.bankAccounts ?? []
   const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
-  const tenantBankName = tenantPrimaryBank?.bankName ?? tenant.bankName ?? ""
-  const tenantIik = tenantPrimaryBank?.iik ?? tenant.iik ?? ""
-  const tenantBik = tenantPrimaryBank?.bik ?? tenant.bik ?? ""
+  // См. AUDIT_2026-05-26.md: legacy tenant.bankName/iik/bik больше не fallback,
+  // источник истины — только TenantBankAccount[].
+  const tenantBankName = tenantPrimaryBank?.bankName ?? ""
+  const tenantIik = tenantPrimaryBank?.iik ?? ""
+  const tenantBik = tenantPrimaryBank?.bik ?? ""
   const tenantBankAccountsText = tenantBankAccounts
     .map((account, index) => {
       const label = account.label ? `${account.label}: ` : `Счёт ${index + 1}: `

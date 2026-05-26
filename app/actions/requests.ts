@@ -202,6 +202,9 @@ export async function createRequestTenant(formData: FormData) {
         // Email только для срочных — обычные заявки летят админам пачками,
         // не хочется забивать им инбокс.
         sendEmail: isUrgent,
+        // Дедуп: если арендатор случайно дважды нажал «Отправить» — один админ
+        // получит одно уведомление (см. AUDIT_2026-05-26.md #22).
+        dedupWindowHours: 1,
       })
     }
   }

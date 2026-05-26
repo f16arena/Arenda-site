@@ -117,9 +117,13 @@ export async function GET(req: Request) {
   const tenantBasis = inferTenantBasis(tenant)
   const tenantBankAccounts = tenant.bankAccounts ?? []
   const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
-  const tenantBankName = tenantPrimaryBank?.bankName ?? tenant.bankName ?? ""
-  const tenantIik = tenantPrimaryBank?.iik ?? tenant.iik ?? ""
-  const tenantBik = tenantPrimaryBank?.bik ?? tenant.bik ?? ""
+  // Единый источник банковских реквизитов — TenantBankAccount. Legacy-поля
+  // tenant.bankName/iik/bik больше не используются как fallback (создавали
+  // путаницу — см. AUDIT_2026-05-26.md). Если у тенанта нет primary счёта,
+  // владелец должен добавить его через /admin/tenants/[id].
+  const tenantBankName = tenantPrimaryBank?.bankName ?? ""
+  const tenantIik = tenantPrimaryBank?.iik ?? ""
+  const tenantBik = tenantPrimaryBank?.bik ?? ""
   const tenantBankAccountsText = tenantBankAccounts
     .map((account, index) => {
       const label = account.label ? `${account.label}: ` : `Счёт ${index + 1}: `
@@ -203,7 +207,9 @@ export async function GET(req: Request) {
         legalType: landlord.legalType ?? "TOO",
         fullName: landlord.fullName,
         directorName: landlord.director,
-        directorPosition: "директора",
+        // landlord.directorPosition приходит из Organization (редактируется в /admin/settings),
+        // если пусто — fallback на «директора». Раньше был хардкод (см. AUDIT_2026-05-26.md).
+        directorPosition: landlord.directorPosition || "директора",
         basisText: landlord.basis || "Устава",
         calledAs: "Арендодатель",
       }),
@@ -442,7 +448,7 @@ export async function GET(req: Request) {
       legalType: landlord.legalType ?? "TOO",
       fullName: landlord.fullName,
       directorName: landlord.director,
-      directorPosition: "директора",
+      directorPosition: landlord.directorPosition || "директора",
       basisText: landlord.basis || "Устава",
       calledAs: "Арендодатель",
     })}, с одной стороны, и ${buildSignerIntro({

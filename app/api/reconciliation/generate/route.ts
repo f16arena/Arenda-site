@@ -8,6 +8,7 @@ import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { resolveMonthRange } from "@/lib/period-range"
 import { buildLegalEntityFullName } from "@/lib/full-name"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { Document, Packer } from "docx"
 import {
   p, center, row, fmtMoney, fmtDate, numberToWords,
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
       where: { id: tenantId, ...tenantScope(orgId) },
       include: {
         user: { select: { name: true } },
+        bankAccounts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         charges: { where: { period: { gte: from, lte: to } }, orderBy: { period: "asc" } },
         payments: {
           where: { paymentDate: { gte: fromDate, lt: toEndExclusive } },
@@ -93,6 +95,18 @@ export async function GET(req: Request) {
   const totalDebit = entries.reduce((s, e) => s + e.debit, 0)
   const totalCredit = entries.reduce((s, e) => s + e.credit, 0)
   const balance = totalDebit - totalCredit
+  // Расчётная месячная аренда (для справки в шапке — клиент может сравнить
+  // фактически начисленное с тем что должно быть по договору).
+  // calculateTenantMonthlyRent требует space.floor.ratePerSqm — подгружаем.
+  const tenantWithRent = await db.tenant.findUnique({
+    where: { id: tenant.id },
+    include: {
+      space: { include: { floor: { select: { ratePerSqm: true } } } },
+      tenantSpaces: { include: { space: { include: { floor: { select: { ratePerSqm: true } } } } } },
+      fullFloors: true,
+    },
+  })
+  const monthlyRentEstimate = tenantWithRent ? calculateTenantMonthlyRent(tenantWithRent) : 0
 
   const building = await db.building.findFirst({ where: { organizationId: orgId } })
   const reconciliationNumber = numberParam
@@ -170,6 +184,8 @@ export async function GET(req: Request) {
       total_debit: fmtMoney(totalDebit),
       total_credit: fmtMoney(totalCredit),
       balance: fmtMoney(balance),
+      // Справочно: расчётная месячная аренда по договору (для верификации).
+      monthly_rent_estimate: fmtMoney(monthlyRentEstimate),
       balance_in_words: numberToWords(Math.abs(balance)),
       // Реестр для цикла {#entries}…{/entries}
       entries: entries.map((e) => ({

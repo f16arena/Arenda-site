@@ -99,7 +99,9 @@ export async function GET(req: Request) {
         message: `Договор аренды истекает ${t.contractEnd.toLocaleDateString("ru-RU")}. Свяжитесь с администрацией для продления.`,
         link: "/cabinet",
         emailButtonText: "Открыть кабинет",
-        sendSms: daysLeft <= 7,
+        // SMS убран: email+Telegram достаточно для не-срочных предупреждений.
+        // SMS оставляем только для уже наступившей просрочки (см. блок ниже).
+        sendSms: false,
       })
       results.notificationsCreated++
       if (t.user.telegramChatId) results.telegramSent++

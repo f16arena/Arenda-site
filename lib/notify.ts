@@ -24,6 +24,13 @@ export interface NotifyOpts {
   emailHtml?: string
   /** Текст кнопки в письме (по умолчанию "Открыть в кабинете") */
   emailButtonText?: string
+  /**
+   * Дедупликация: если за последние N часов было уведомление этого же типа
+   * этому же юзеру — НЕ создаём дубликат (защита от спама при двойном клике
+   * «Отправить заявку», «Отправить сообщение», «Я оплатил»).
+   * 0 или undefined — без дедупа.
+   */
+  dedupWindowHours?: number
 }
 
 /**
@@ -36,6 +43,17 @@ export interface NotifyOpts {
  * Все каналы независимы: если один упал — остальные продолжают.
  */
 export async function notifyUser(opts: NotifyOpts) {
+  // Дедуп: если уже было такое уведомление этому юзеру в окне — выходим
+  // и не шлём ничего (защита от двойного клика и race-conditions).
+  if (opts.dedupWindowHours && opts.dedupWindowHours > 0) {
+    const since = new Date(Date.now() - opts.dedupWindowHours * 3600 * 1000)
+    const recent = await db.notification.findFirst({
+      where: { userId: opts.userId, type: opts.type, createdAt: { gte: since } },
+      select: { id: true },
+    }).catch(() => null)
+    if (recent) return
+  }
+
   // 1. In-app
   try {
     await db.notification.create({
