@@ -490,8 +490,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         defaultDueDate={defaultServiceDueDate}
       >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Left column: forms */}
-        <div className="space-y-5 xl:col-span-2">
+        {/* Left column: forms. ВСЕ карточки внутри идут в собственном grid
+            (2 колонки на lg+, 1 на мобиле) — раньше шли друг под другом
+            колонкой, владелец 2026-05-26 попросил «слева направо».
+            Левая колонка занимает xl:col-span-2 (2/3 экрана), поэтому
+            внутри 2 ряда дают ~450-500px на карточку — нормально для форм. */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:col-span-2 items-start">
           {/* Contact info */}
           <div id="tenant-contact">
             <CollapsibleCard
