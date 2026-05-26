@@ -21,6 +21,7 @@ import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
   Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
   FileSignature, CheckCircle2, AlertTriangle,
+  Mail, History as HistoryIcon, Layers, ShieldCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
@@ -37,6 +38,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { HorizontalAccordion, AccordionItem } from "@/components/ui/horizontal-accordion"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
 import type { Prisma } from "@/app/generated/prisma/client"
@@ -489,18 +491,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         period={currentPeriod}
         defaultDueDate={defaultServiceDueDate}
       >
-      {/* Горизонтальная лента всех карточек (2026-05-26, требование владельца:
-          «все 12 в одну горизонтальную ленту»). Слева направо со скроллом.
-          Каждая карточка по умолчанию узкая (w-72 ≈ 288px), при раскрытии
-          через details[open] — автоматически расширяется до w-[560px] через
-          has-modifier. Прокрутка только по этой ленте — overflow-x-auto.
-          items-start — карточки разной высоты не растягиваются.
-          [&>*]:shrink-0 [&>*]:w-72 + has-[details[open]]:w-[560px] —
-          применяется ко всем прямым детям. */}
-      <div className="flex gap-4 overflow-x-auto pb-3 items-start [scrollbar-gutter:stable] [&>*]:shrink-0 [&>*]:w-72 [&>*]:transition-[width] [&>details[open]]:w-[560px] [&>div:has(details[open])]:w-[560px]">
+      {/* Горизонтальная лента-аккордеон всех карточек (2026-05-26).
+          Все заголовки видны одной сеткой сверху, при клике на любой —
+          раскрывается полный контент во всю ширину под лентой. Раскрыта
+          ровно ОДНА карточка (или ни одной — повторный клик закрывает).
+          Этот режим заменяет старый <details> с individual open/close. */}
+      <HorizontalAccordion defaultActiveId="contact">
           {/* Contact info */}
-          <div id="tenant-contact">
-            <CollapsibleCard
+          <AccordionItem
+              id="contact"
               title="Контактное лицо"
               icon={User}
               meta={tenant.user.phone ?? tenant.user.email ?? "контакты не заполнены"}
@@ -551,11 +550,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               </fieldset>
             </form>
-            </CollapsibleCard>
-          </div>
+          </AccordionItem>
 
           {/* Company info */}
-          <CollapsibleCard
+          <AccordionItem
+            id="company"
             title="Данные компании"
             icon={Building2}
             meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"} · ${tenant.isVatPayer ? `НДС ${tenantVatRate}%` : "без НДС"}`}
@@ -732,11 +731,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               </fieldset>
             </form>
-          </CollapsibleCard>
+          </AccordionItem>
 
           {/* Requisites */}
-          <div id="tenant-requisites">
-            <CollapsibleCard
+          <AccordionItem
+              id="requisites"
               title="Банковские реквизиты"
               icon={CreditCard}
               meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
@@ -759,11 +758,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 Реквизиты доступны только для просмотра. Для изменения нужно право на данные компании арендатора.
               </div>
             )}
-            </CollapsibleCard>
-          </div>
+          </AccordionItem>
 
           {/* Rental terms */}
-          <CollapsibleCard
+          <AccordionItem
+            id="rental"
             title="Условия аренды"
             icon={Receipt}
             meta={`${formatMoney(monthlyRent)}/мес`}
@@ -787,46 +786,60 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 Условия аренды доступны только для просмотра. Для изменения нужно отдельное право.
               </div>
             )}
-          </CollapsibleCard>
+          </AccordionItem>
 
           {/* Service charges */}
-          <CollapsibleCard
-            title="Дополнительные начисления"
+          <AccordionItem
+            id="service-charges"
+            title="Доп. начисления"
             icon={Zap}
             meta={`за ${currentPeriod}`}
           >
             <TenantLazyServiceCharges />
-          </CollapsibleCard>
+          </AccordionItem>
 
-          {/* Начисления, сгруппированные по договорам */}
-          <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
+          {/* Начисления, сгруппированные по договорам — внутри Lazy уже свой
+              CollapsibleCard, оборачиваем в AccordionItem с понятным title */}
+          <AccordionItem id="charges-by-contract" title="Начисления по договорам" icon={Receipt}>
+            <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
+          </AccordionItem>
 
           {/* Documents actions: invoice, act, contract, handover */}
           {canCreateDocuments && (
-            <DocumentsActionsLoader
-              tenantId={tenant.id}
-              tenantHasEmail={!!tenant.user.email}
-            />
+            <AccordionItem id="docs-actions" title="Документы для арендатора" icon={FileText} meta="скачать или отправить">
+              <DocumentsActionsLoader
+                tenantId={tenant.id}
+                tenantHasEmail={!!tenant.user.email}
+              />
+            </AccordionItem>
           )}
 
           {/* Email log */}
-          <TenantLazyEmailLog />
+          <AccordionItem id="email-log" title="Журнал email" icon={Mail}>
+            <TenantLazyEmailLog />
+          </AccordionItem>
 
           {/* Documents checklist */}
-          <TenantLazyDocumentsChecklist />
+          <AccordionItem id="docs-checklist" title="Документы" icon={FileText}>
+            <TenantLazyDocumentsChecklist />
+          </AccordionItem>
 
           {/* История изменений */}
-          <TenantLazyHistory />
+          <AccordionItem id="history" title="История" icon={HistoryIcon}>
+            <TenantLazyHistory />
+          </AccordionItem>
 
           {/* === Бывшая правая колонка — теперь часть единой горизонтальной ленты === */}
           {/* Full floor assign */}
           {canAssignTenantSpaces && (
-            <TenantLazyFullFloor />
+            <AccordionItem id="full-floor" title="Аренда целого этажа" icon={Layers}>
+              <TenantLazyFullFloor />
+            </AccordionItem>
           )}
 
           {/* Space */}
-          <div id="tenant-placement">
-            <CollapsibleCard
+          <AccordionItem
+              id="placement"
               title="Помещения"
               icon={Building2}
               meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж. · ${fullFloorArea} м²` : "не назначено"}
@@ -955,13 +968,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               )}
             </div>
-            </CollapsibleCard>
-          </div>
+          </AccordionItem>
 
-          <TenantLazyContractsSidebar />
+          <AccordionItem id="contracts-sidebar" title="Договоры" icon={ShieldCheck}>
+            <TenantLazyContractsSidebar />
+          </AccordionItem>
 
-          <TenantLazyRecentChargesSidebar />
-      </div>{/* /flex-lane */}
+          <AccordionItem id="recent-charges" title="Последние начисления" icon={Wallet}>
+            <TenantLazyRecentChargesSidebar />
+          </AccordionItem>
+      </HorizontalAccordion>
       </TenantLazySectionsProvider>
     </div>
   )
