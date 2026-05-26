@@ -55,6 +55,10 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   const phone = normalizeKzPhone(formData.get("phone"))
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
   const responsible = String(formData.get("responsible") ?? "").trim()
+  // Адрес для документов — необязательный override обычного адреса. Используется
+  // в договорах/актах когда геокодер вернул адрес на казахском («Шығыс Қазақстан
+  // облысы»), а в документ нужно по-русски. Пустая строка → null (использовать обычный).
+  const documentAddress = String(formData.get("documentAddress") ?? "").trim()
 
   if (!address) throw new Error("Адрес здания обязателен")
 
@@ -65,6 +69,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
       name,
       address,
       ...addressFields,
+      documentAddress: documentAddress || null,
       description: description || null,
       phone,
       email,

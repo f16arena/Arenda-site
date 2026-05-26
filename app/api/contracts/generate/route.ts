@@ -88,6 +88,15 @@ export async function GET(req: Request) {
   if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 })
 
   const landlord = await getOrganizationRequisites(orgId)
+  // Дополнительные поля организации, не входящие в ORGANIZATION_REQUISITES_SELECT
+  // (он используется широко, не хотим тащить туда новые колонки и ломать другие
+  // генераторы). defaultPenaltyPercent — глобальный дефолт пени для всех договоров
+  // организации; tenant.penaltyPercent его переопределяет.
+  const orgExtras = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { defaultPenaltyPercent: true },
+  })
+  const orgPenaltyDefault = orgExtras?.defaultPenaltyPercent ?? 0.5
   const contractNumber = searchParams.get("number") || "01-XXX"
   const today = new Date()
   const fullFloors = tenant.fullFloors ?? []
@@ -114,8 +123,15 @@ export async function GET(req: Request) {
   const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
   const placement = formatTenantPlacement(tenant, { emptyLabel: "по договору" })
   const area = getTenantAreaTotal(tenant)
-  const objectAddress = building?.address ?? BUILDING_DEFAULT.address
-  const tenantBasis = inferTenantBasis(tenant)
+  // Адрес для договоров — приоритет documentAddress (если задан владельцем
+  // вручную, например — переведённый с казахского), иначе обычный address
+  // (часто приходит с геокодера, может быть на казахском).
+  const objectAddress = building?.documentAddress?.trim()
+    || building?.address
+    || BUILDING_DEFAULT.address
+  // Основание подписи для арендатора: приоритет — явно заданное basisDocument,
+  // иначе fallback по legalType БЕЗ дублирования БИН (он есть в реквизитах ниже).
+  const tenantBasis = tenant.basisDocument?.trim() || inferTenantBasis(tenant)
   const tenantBankAccounts = tenant.bankAccounts ?? []
   const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
   // Единый источник банковских реквизитов — TenantBankAccount. Legacy-поля
@@ -297,7 +313,11 @@ export async function GET(req: Request) {
       rent_terms_clause: rentClause,
       rent_basis: getLeaseRentBasisLabel(tenant),
       payment_due_day: tenant.paymentDueDay ?? 10,
-      penalty_percent: tenant.penaltyPercent ?? 1,
+      // Приоритет: значение у тенанта → дефолт организации → 0.5%. Используем
+      // `||` (не `??`) — 0 трактуется как «не задано, используй дефолт»;
+      // реальную нулевую пеню никто не пишет (это противоречит смыслу пени).
+      // Заменяем `.` на `,` для русской записи (РК-стандарт: «0,5%», не «0.5%»).
+      penalty_percent: String(tenant.penaltyPercent || orgPenaltyDefault).replace(".", ","),
 
       prolongation_clause: LEASE_PROLONGATION_CLAUSE,
       contract_prolongation_clause: LEASE_PROLONGATION_CLAUSE,
@@ -672,13 +692,15 @@ function extractCity(address: string): string {
 function inferTenantBasis(tenant: TenantBasisInput) {
   const legalType = (tenant.legalType ?? "").trim().toUpperCase()
   const name = `${tenant.companyName ?? ""} ${tenant.category ?? ""}`.toLowerCase()
-  const id = tenant.bin ?? tenant.iin ?? ""
-  const idText = id ? ` (БИН/ИИН ${id})` : ""
-
+  // Раньше fallback дублировал БИН в скобках («... (БИН/ИИН XXX)») — а БИН
+  // и так печатается ниже в разделе реквизитов. Получался дубль. Убрано
+  // 2026-05-26 (аудит #4). Если у тенанта есть собственный basisDocument —
+  // он используется напрямую (см. tenantBasis в route.ts), сюда мы попадаем
+  // только когда поле пусто.
+  // tenant.bin/iin больше не используются здесь — оставлены в типе TenantBasisInput
+  // для обратной совместимости.
   if (legalType === "CHSI" || legalType === "ЧСИ" || name.includes("чси") || name.includes("судебн")) {
-    return id
-      ? `лицензии частного судебного исполнителя и документов, подтверждающих статус ЧСИ (ИИН ${id})`
-      : "лицензии частного судебного исполнителя и документов, подтверждающих статус ЧСИ"
+    return "лицензии частного судебного исполнителя и документов, подтверждающих статус ЧСИ"
   }
 
   if (legalType === "TOO" || legalType === "ТОО" || legalType === "AO" || legalType === "АО") {
@@ -686,14 +708,14 @@ function inferTenantBasis(tenant: TenantBasisInput) {
   }
 
   if (legalType === "IP" || legalType === "ИП") {
-    return `Уведомления о начале деятельности в качестве индивидуального предпринимателя${idText}`
+    return "Уведомления о начале деятельности в качестве индивидуального предпринимателя"
   }
 
   if (legalType === "FIZ" || legalType === "PHYSICAL" || legalType === "INDIVIDUAL" || legalType === "ФИЗ") {
-    return id ? `документа, удостоверяющего личность (ИИН ${id})` : "документа, удостоверяющего личность"
+    return "документа, удостоверяющего личность"
   }
 
-  return id ? `регистрационных документов${idText}` : "регистрационных документов"
+  return "регистрационных документов"
 }
 
 function shortName(full: string): string {

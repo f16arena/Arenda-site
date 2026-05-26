@@ -37,6 +37,7 @@ export default async function SettingsPage() {
           isVatPayer: true,
           vatRate: true,
           vatNumber: true,
+          defaultPenaltyPercent: true,
         },
       }),
       null,
@@ -141,6 +142,25 @@ export default async function SettingsPage() {
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
+          </div>
+
+          {/* Адрес для документов — необязательный. Нужен потому что автокомплит
+              часто возвращает адрес с казахскими названиями («Шығыс Қазақстан
+              облысы»), а в договоры/акты нужно по-русски. Если пусто — берётся
+              обычный адрес. */}
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+              Адрес для документов <span className="text-slate-400 dark:text-slate-500 font-normal">— перекрывает обычный в договорах и актах</span>
+            </label>
+            <input
+              name="documentAddress"
+              defaultValue={building.documentAddress ?? ""}
+              placeholder="например: улица 30-й гвардейской дивизии, 24/1, г. Усть-Каменогорск, Восточно-Казахстанская область"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            />
+            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+              Если оставить пустым — в документах используется обычный адрес (часто на казахском от автокомплита).
+            </p>
           </div>
 
           <div>

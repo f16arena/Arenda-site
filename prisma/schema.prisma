@@ -135,6 +135,10 @@ model Organization {
   isVatPayer          Boolean   @default(false) @map("is_vat_payer")
   vatRate             Float     @default(16) @map("vat_rate")
   vatNumber           String?   @map("vat_number")
+  // Пеня по умолчанию для новых договоров (% от просроченной суммы за день).
+  // Подставляется в {penalty_percent} в шаблоне. У каждого Tenant может быть свой
+  // penaltyPercent — он переопределяет это значение.
+  defaultPenaltyPercent Float   @default(0.5) @map("default_penalty_percent")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
@@ -428,6 +432,10 @@ model Building {
   organizationId        String   @map("organization_id")
   name                  String
   address               String
+  // Адрес для документов (договоры/акты). Если пуст — используется обычный
+  // `address`. Нужен потому что геокодер часто возвращает адрес на казахском
+  // («Шығыс Қазақстан облысы»), а в договоры нужно по-русски.
+  documentAddress       String?  @map("document_address")
   addressCountryCode    String?  @map("address_country_code")
   addressRegion         String?  @map("address_region")
   addressCity           String?  @map("address_city")
@@ -593,7 +601,14 @@ model Tenant {
   contractStart    DateTime? @map("contract_start")
   contractEnd      DateTime? @map("contract_end")
   paymentDueDay    Int       @default(10) @map("payment_due_day")
-  penaltyPercent   Float     @default(1) @map("penalty_percent")
+  // Пеня за просрочку платежей (% за день). Default 0.5 (изменён с 1
+  // 2026-05-26 — пересмотр шаблона). Если null — наследуется
+  // organization.defaultPenaltyPercent.
+  penaltyPercent   Float     @default(0.5) @map("penalty_percent")
+  // Документ-основание для подписи (для ИП — «Уведомления № X от Y»,
+  // для ТОО — «Устава» уже подставляется автоматически). Подставляется
+  // в {tenant_basis_document}. Если пусто — fallback по legalType.
+  basisDocument    String?   @map("basis_document")
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
   vatRate          Float     @default(16) @map("vat_rate")

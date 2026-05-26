@@ -31,6 +31,8 @@ type OrganizationRequisitesFormData = {
   knp: string | null
   phone: string | null
   email: string | null
+  // Дефолт пени для договоров (применяется когда у tenant.penaltyPercent === 0).
+  defaultPenaltyPercent?: number | null
 }
 
 export function OrganizationRequisitesSection({ organization }: { organization: OrganizationRequisitesFormData }) {
@@ -211,6 +213,33 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         <div>
           <label className={labelClass}>Email владельца</label>
           <AsciiEmailInput name="email" defaultValue={organization.email ?? ""} className={inputClass} />
+        </div>
+
+        {/* Дефолт пени по договорам. Применяется когда у конкретного арендатора
+            penaltyPercent = 0 («использовать дефолт»). 0.5 — стандартная зеркальная
+            пеня в РК (см. аудит 2026-05-26 #12-13). */}
+        <div className="lg:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Договорные условия по умолчанию
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelClass}>Пеня за просрочку, % за день</label>
+              <input
+                name="defaultPenaltyPercent"
+                type="number"
+                step="0.1"
+                min="0"
+                max="10"
+                defaultValue={organization.defaultPenaltyPercent ?? 0.5}
+                className={inputClass}
+                placeholder="0.5"
+              />
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                Подставляется в п. 8.2 договора, если у арендатора не задана своя ставка. Рекомендуется 0,5% (но не более 10% от просроченной суммы).
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-end justify-end lg:col-span-2">

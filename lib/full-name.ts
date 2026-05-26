@@ -93,20 +93,24 @@ export function buildLegalEntityFullName(input: {
  * Возвращает фрагмент «именуем(ое/ый) в дальнейшем «X», в лице Y, действующего
  * на основании Z», правильно учитывая правовую форму:
  *
- *   ИП/ЧСИ/Физлицо — НЕ используется «в лице», поскольку юр. лицо отсутствует —
- *     это сам человек: «ИП Иванов И.И., именуемый в дальнейшем «Арендатор»,
- *     действующий на основании Уведомления о государственной регистрации».
+ *   ИП/ЧСИ/Физлицо — «в лице (ФИО полностью в род. падеже)». Юридически
+ *     ИП — это физлицо, ведущее бизнес, и фразой «в лице» подчёркивается
+ *     подписант. По умолчанию `useInLitseForSole=true` (см. ответ владельца
+ *     в #2 аудит 2026-05-26: «да всегда для всех»).
  *
- *   ТОО/АО — используется «в лице директора Иванова И.И., действующего на
- *     основании Устава» (с склонением фамилии директора в родительный падеж).
+ *   ТОО/АО — «в лице директора Иванова И.И., действующего на основании Устава»
+ *     (с короткой формой ФИО и склонением фамилии).
  *
  * Параметры:
  *   - legalType                  — IP / CHSI / TOO / AO / PHYSICAL
  *   - fullName                   — уже отформатированное «ТОО Кармен» / «ИП Иванов И.И.»
- *   - directorName               — ФИО подписанта (только для ТОО/АО)
+ *   - directorName               — ФИО подписанта (для ТОО/АО — директор; для
+ *                                  ИП/ЧСИ — сам ИП/судисп.)
  *   - directorPosition           — «директор», «генеральный директор», «управляющий» (для ТОО/АО)
  *   - basisText                  — «Устава», «Уведомления о государственной регистрации № X от Y»
  *   - calledAs                   — «Арендодатель» / «Арендатор» (для роли в договоре)
+ *   - useInLitseForSole          — добавлять ли «в лице (ФИО)» для ИП/ЧСИ. По
+ *                                  умолчанию true.
  *
  * Возвращает готовую строку без точки в конце (потом окружают запятыми).
  */
@@ -117,25 +121,34 @@ export function buildSignerIntro(input: {
   directorPosition?: string | null
   basisText: string
   calledAs: "Арендодатель" | "Арендатор"
+  useInLitseForSole?: boolean
 }): string {
   const legalType = (input.legalType ?? "").toUpperCase()
+  const isSoleProprietor = legalType === "IP" || legalType === "CHSI"
   const usesDirector = legalType === "TOO" || legalType === "AO"
   // «именуемое» для ТОО/АО (среднее), «именуемый» для ИП/ЧСИ/Физлица (мужское).
-  // Юридически принято писать «именуемый(ое) в дальнейшем» — оставим
-  // правильное согласование.
   const namedAs = usesDirector ? "именуемое" : "именуемый"
   const actingAs = usesDirector ? "действующего" : "действующий"
 
   if (usesDirector && input.directorName) {
     const position = (input.directorPosition || "директора").trim()
-    // Должность тоже склоняется (директора, генерального директора).
-    // Простой подход: добавляем «-а» через declineFio (он умеет согласные).
+    // Должность склоняется (директора, генерального директора).
     const positionGenitive = declineFio(position, "genitive")
-    // ФИО директора — сокращаем до «Фамилия И.О.» и склоняем фамилию.
+    // ФИО директора — короткая форма «Фамилия И.О.» в род. падеже.
     const directorShort = shortenFioGenitive(input.directorName)
     return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», в лице ${positionGenitive} ${directorShort}, ${actingAs} на основании ${input.basisText}`
   }
 
-  // ИП / ЧСИ / Физлицо — без «в лице».
+  // Для ИП/ЧСИ добавляем «в лице (ФИО в род. падеже)» — по требованию
+  // владельца. Это ПОЛНОЕ склонённое ФИО (а не сокращённое), потому что
+  // юридически это сам подписант — нужна полная идентификация.
+  // declineFio() сам разбивает по пробелам и склоняет каждую часть.
+  const useInLitse = input.useInLitseForSole ?? true
+  if (useInLitse && isSoleProprietor && input.directorName) {
+    const fioGenitive = declineFio(input.directorName, "genitive")
+    return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», в лице ${fioGenitive}, ${actingAs} на основании ${input.basisText}`
+  }
+
+  // Физлицо без directorName — без «в лице».
   return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», ${actingAs} на основании ${input.basisText}`
 }

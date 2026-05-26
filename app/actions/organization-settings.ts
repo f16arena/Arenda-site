@@ -72,6 +72,13 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
   const knp = optionalText(formData.get("knp"))
   const phone = normalizeKzPhone(formData.get("phone"), { fieldName: "Телефон владельца" })
   const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email владельца" })
+  // Дефолт пени по договорам. Принимаем "0.5", "0,5", "1" — нормализуем через
+  // запятую → точку. Clamp [0, 10] — больше 10% бессмысленно (зеркальный потолок).
+  const rawPenalty = String(formData.get("defaultPenaltyPercent") ?? "").trim().replace(",", ".")
+  const parsedPenalty = parseFloat(rawPenalty)
+  const defaultPenaltyPercent = Number.isFinite(parsedPenalty)
+    ? Math.min(Math.max(parsedPenalty, 0), 10)
+    : 0.5
 
   validateOptionalBankAccount(bankName, iik, bik, "Основной счёт")
   validateOptionalBankAccount(secondBankName, secondIik, secondBik, "Второй счёт")
@@ -111,6 +118,7 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
       knp,
       phone,
       email,
+      defaultPenaltyPercent,
     },
   })
 
