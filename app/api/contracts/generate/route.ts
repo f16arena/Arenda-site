@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
@@ -376,6 +377,11 @@ export async function GET(req: Request) {
           templateUsedId: customTemplate.id,
         },
       })
+      // Инвалидируем /admin/documents, чтобы созданный договор появился
+      // в списке без перезагрузки страницы.
+      revalidatePath("/admin/documents")
+      revalidatePath("/admin/contracts")
+      if (tenant.id) revalidatePath(`/admin/tenants/${tenant.id}`)
     } catch {}
 
     const ext = customTemplate.format === "DOCX" ? "docx" : customTemplate.format === "XLSX" ? "xlsx" : "pdf"

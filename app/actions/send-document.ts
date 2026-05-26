@@ -164,5 +164,6 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
   })
 
   revalidatePath(`/admin/tenants/${tenant.id}`)
+  revalidatePath("/admin/documents")
   return { ok: true }
 }

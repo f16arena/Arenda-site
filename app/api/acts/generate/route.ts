@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
@@ -303,6 +304,8 @@ export async function GET(req: Request) {
     buffer = await Packer.toBuffer(doc)
   }
 
+  // Сохраняем копию + инвалидируем /admin/documents,
+  // иначе новый акт появится в списке только после ручной перезагрузки.
   await db.generatedDocument.create({
     data: {
       organizationId: orgId,
@@ -320,6 +323,9 @@ export async function GET(req: Request) {
       generatedById: session.user.id,
       templateUsedId: customTemplate?.id ?? null,
     },
+  }).then(() => {
+    revalidatePath("/admin/documents")
+    if (tenant.id) revalidatePath(`/admin/tenants/${tenant.id}`)
   }).catch((e) => console.error("[archive save error]", e))
 
   return new NextResponse(buffer as unknown as BodyInit, {

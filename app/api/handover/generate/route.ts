@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
@@ -180,6 +181,11 @@ export async function GET(req: Request) {
         format: "DOCX",
         generatedById: session.user.id,
       },
+    }).then(() => {
+      // Инвалидируем /admin/documents, чтобы handover появился в списке
+      // без ручной перезагрузки страницы.
+      revalidatePath("/admin/documents")
+      if (tenant.id) revalidatePath(`/admin/tenants/${tenant.id}`)
     }).catch((e) => {
       // Архивация — best-effort, не валим выдачу файла если БД не отвечает.
       console.error("[handover] archive failed:", e instanceof Error ? e.message : e)

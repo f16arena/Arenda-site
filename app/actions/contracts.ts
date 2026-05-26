@@ -106,6 +106,7 @@ export async function createContract(formData: FormData) {
   }
 
   revalidatePath("/admin/contracts")
+  revalidatePath("/admin/documents")
   revalidatePath(`/admin/tenants/${tenantId}`)
   return { id: contract.id }
 }
@@ -185,6 +186,7 @@ export async function createContractVersion(
     })
 
     revalidatePath("/admin/contracts")
+    revalidatePath("/admin/documents")
     revalidatePath(`/admin/tenants/${parent.tenantId}`)
     return { ok: true, id: result.id }
   } catch (e) {

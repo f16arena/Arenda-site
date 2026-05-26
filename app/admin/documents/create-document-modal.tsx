@@ -152,12 +152,16 @@ export function CreateDocumentModal({
           ? `/api/invoices/generate?tenantId=${tid}&period=${period}`
           : `/api/acts/generate?tenantId=${tid}&period=${period}`
       setPending(true)
-      // attachment-ответ скачивается без ухода со страницы
+      // attachment-ответ скачивается без ухода со страницы.
+      // Сервер делает revalidatePath, но без router.refresh() клиент
+      // продолжает показывать старый RSC payload — новый документ
+      // появляется только после ручной перезагрузки.
       window.location.href = url
       window.setTimeout(() => {
         close()
         reset()
-      }, 800)
+        router.refresh()
+      }, 1500)
       return
     }
 
@@ -179,6 +183,7 @@ export function CreateDocumentModal({
         toast.success("Отправлено арендатору — уведомление пришло ему в кабинет")
         close()
         reset()
+        router.refresh()
       } else {
         toast.error(r.error ?? "Не удалось отправить")
       }
