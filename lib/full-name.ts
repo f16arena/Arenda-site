@@ -4,24 +4,28 @@ import { declineFio, shortenFioGenitive } from "@/lib/declension"
  * Хелпер для построения «полного имени» лица для документов.
  *
  * Логика РК:
- *   ИП  → «ИП ФИО» (бизнес ведёт физлицо под своим именем)
- *   ТОО → «ТОО Название»
- *   АО  → «АО Название»
- *   ЧСИ → «ЧСИ ФИО» (Частный судебный исполнитель — тоже персональный)
+ *   ИП       → «ИП ФИО» (бизнес ведёт физлицо под своим именем)
+ *   ТОО      → «ТОО Название»
+ *   АО       → «АО Название»
+ *   ЧСИ      → «ЧСИ ФИО» (Частный судебный исполнитель)
+ *   АДВОКАТ  → «Адвокат ФИО» (Лицензия Министерства юстиции РК)
+ *   НОТАРИУС → «Нотариус ФИО» (Лицензия Министерства юстиции РК)
  *   FIZ/PHYSICAL → просто «ФИО» без префикса
  *
  * Защита от дублирования: если в companyName/directorName/fullName уже есть
- * префикс формы собственности («ТОО Кармен», «ИП Иванов», «АО Halyk»), —
- * не добавляем второй раз. То есть «ТОО ТОО Кармен» получиться не должно.
+ * префикс формы собственности — не добавляем второй раз.
  */
 
-// Паттерны префиксов, которые НЕ надо дублировать. Регистронезависимо, с любыми
-// кавычками и пробелами. Также ловит латинские «ТОО»/«TOO».
+// Паттерны префиксов, которые НЕ надо дублировать. Регистронезависимо.
 const PREFIX_PATTERNS: Array<{ test: RegExp; legalType: string }> = [
   // ИП — обязательно отдельным словом (чтобы не цеплять «Иполит»)
   { test: /^\s*ИП\s+/i,  legalType: "IP" },
   // ЧСИ или полное «Частный судебный исполнитель»
   { test: /^\s*(?:ЧСИ|Частный\s+судебный\s+исполнитель)\s+/i, legalType: "CHSI" },
+  // Адвокат
+  { test: /^\s*Адвокат\s+/i, legalType: "ADVOKAT" },
+  // Нотариус
+  { test: /^\s*Нотариус\s+/i, legalType: "NOTARIUS" },
   // ТОО (и латинский TOO)
   { test: /^\s*(?:ТОО|TOO)\s+/i, legalType: "TOO" },
   // АО (и латинский AO/JSC)
@@ -70,6 +74,14 @@ export function buildLegalEntityFullName(input: {
       if (director) return addPrefixIfMissing("ЧСИ", director)
       if (company)  return addPrefixIfMissing("ЧСИ", company)
       return "ЧСИ"
+    case "ADVOKAT":
+      if (director) return addPrefixIfMissing("Адвокат", director)
+      if (company)  return addPrefixIfMissing("Адвокат", company)
+      return "Адвокат"
+    case "NOTARIUS":
+      if (director) return addPrefixIfMissing("Нотариус", director)
+      if (company)  return addPrefixIfMissing("Нотариус", company)
+      return "Нотариус"
     case "TOO":
       if (company)  return addPrefixIfMissing("ТОО", company)
       if (director) return addPrefixIfMissing("ТОО", director)
@@ -124,7 +136,10 @@ export function buildSignerIntro(input: {
   useInLitseForSole?: boolean
 }): string {
   const legalType = (input.legalType ?? "").toUpperCase()
-  const isSoleProprietor = legalType === "IP" || legalType === "CHSI"
+  // Персональные формы: ИП/ЧСИ/Адвокат/Нотариус — все подписывают сами, у них
+  // нет отдельного «представителя». Для всех добавляем «в лице (ФИО)».
+  const isSoleProprietor =
+    legalType === "IP" || legalType === "CHSI" || legalType === "ADVOKAT" || legalType === "NOTARIUS"
   const usesDirector = legalType === "TOO" || legalType === "AO"
   // «именуемое» для ТОО/АО (среднее), «именуемый» для ИП/ЧСИ/Физлица (мужское).
   const namedAs = usesDirector ? "именуемое" : "именуемый"

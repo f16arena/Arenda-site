@@ -136,6 +136,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       directorName: true,
       directorPosition: true,
       usePurpose: true,
+      basisDocument: true,
       cleaningFee: true,
       needsCleaning: true,
       customRate: true,
@@ -677,24 +678,37 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   Подставится в п. 1.1 договора: «для использования в целях <span className="font-mono">размещения [текст]</span>». Если пусто — «по согласованному Сторонами назначению».
                 </p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Начало договора</label>
+              <div className="col-span-full">
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                  Действует на основании
+                </label>
                 <input
-                  name="contractStart"
-                  type="date"
-                  defaultValue={tenant.contractStart?.toISOString().slice(0, 10) ?? ""}
+                  name="basisDocument"
+                  defaultValue={tenant.basisDocument ?? ""}
+                  placeholder="ИП: Талона №KZ16UWQ03665823 от 01.07.2022 / ТОО: Устава / ЧСИ: лицензии №..."
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  Подставится в шапке договора: «…действующий <span className="font-mono">на основании [текст]</span>».
+                  ИП — Талона (Уведомления о начале деятельности), ТОО — Устава, ЧСИ — лицензии. Если пусто — фраза по форме собственности без БИН.
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Конец договора</label>
-                <input
-                  name="contractEnd"
-                  type="date"
-                  defaultValue={tenant.contractEnd?.toISOString().slice(0, 10) ?? ""}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
+              {/* Даты договора убраны из карточки арендатора (2026-05-26) —
+                  они задаются ТОЛЬКО при создании Договора в /admin/documents/new/contract.
+                  Здесь показываем текущие даты как read-only справку. */}
+              {(tenant.contractStart || tenant.contractEnd) && (
+                <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
+                  <p className="mb-1 font-medium text-slate-700 dark:text-slate-200">Текущий период аренды</p>
+                  <p>
+                    {tenant.contractStart ? new Date(tenant.contractStart).toLocaleDateString("ru-RU") : "—"}
+                    {" — "}
+                    {tenant.contractEnd ? new Date(tenant.contractEnd).toLocaleDateString("ru-RU") : "—"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                    Даты обновляются при создании нового Договора. Чтобы изменить — создайте новый договор через раздел «Документы».
+                  </p>
+                </div>
+              )}
               <IndexationHint
                 initialContractEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
                 initialRate={ratePerSqm}

@@ -357,6 +357,13 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     const v = String(formData.get("usePurpose") ?? "").trim()
     data.usePurpose = v || null
   }
+  // basisDocument — явный документ-основание для подписи в договорах
+  // (например «Уведомления №KZXXX от XX.XX.XXXX»). Если пусто — генератор
+  // использует fallback по legalType без БИН (см. inferTenantBasis).
+  if (formData.has("basisDocument")) {
+    const v = String(formData.get("basisDocument") ?? "").trim()
+    data.basisDocument = v || null
+  }
 
   // НДС — sentinel «isVatPayerForm=1» означает «эта форма управляет НДС».
   // Без sentinel НДС не трогаем (другая форма могла не иметь чекбокса).

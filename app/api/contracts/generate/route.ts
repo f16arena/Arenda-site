@@ -119,8 +119,39 @@ export async function GET(req: Request) {
       })
   const monthlyRent = calculateTenantMonthlyRent(tenant)
   const ratePerSqm = calculateTenantRatePerSqm(tenant) ?? 0
-  const start = tenant.contractStart ?? today
-  const end = tenant.contractEnd ?? new Date(today.getFullYear() + 1, today.getMonth(), today.getDate() - 1)
+  // Даты договора. Приоритет: query-параметры start/end (заданы в
+  // ContractNumberInput при создании договора) → tenant.contractStart/End
+  // (старые значения, для повторной генерации) → today/end-of-year.
+  // При наличии query-параметров — синхронизируем Tenant: чтобы proration
+  // и cron-задачи (check-deadlines) видели свежие даты.
+  const startParam = searchParams.get("start")
+  const endParam = searchParams.get("end")
+  const parseIsoDate = (s: string | null): Date | null => {
+    if (!s) return null
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+    if (!m) return null
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  }
+  const startFromQuery = parseIsoDate(startParam)
+  const endFromQuery = parseIsoDate(endParam)
+  const start = startFromQuery ?? tenant.contractStart ?? today
+  const end = endFromQuery ?? tenant.contractEnd
+    ?? new Date(today.getFullYear(), 11, 31) // 31 декабря текущего года
+  // Синхронизируем Tenant если даты пришли из формы и отличаются.
+  if (startFromQuery || endFromQuery) {
+    const updates: { contractStart?: Date; contractEnd?: Date } = {}
+    if (startFromQuery && (!tenant.contractStart || tenant.contractStart.getTime() !== startFromQuery.getTime())) {
+      updates.contractStart = startFromQuery
+    }
+    if (endFromQuery && (!tenant.contractEnd || tenant.contractEnd.getTime() !== endFromQuery.getTime())) {
+      updates.contractEnd = endFromQuery
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.tenant.update({ where: { id: tenant.id }, data: updates }).catch((e) =>
+        console.error("[contract] failed to sync tenant dates:", e),
+      )
+    }
+  }
   const placement = formatTenantPlacement(tenant, { emptyLabel: "по договору" })
   const area = getTenantAreaTotal(tenant)
   // Адрес для договоров — приоритет documentAddress (если задан владельцем
@@ -689,18 +720,38 @@ function extractCity(address: string): string {
   return m ? m[1].trim() : ""
 }
 
+/**
+ * Fallback фразы «действует на основании …» по форме собственности.
+ * Используется когда tenant.basisDocument не заполнен. Источник — Законодательство
+ * РК на 2026 год:
+ *
+ *   ИП       — Уведомление о начале деятельности (в обиходе «Талон»),
+ *              ст. 35 Предпринимательского кодекса РК
+ *   ТОО/АО   — Устав (ст. 17 Закона «О товариществах с ограниченной…»)
+ *   ЧСИ      — Лицензия Министерства юстиции РК (Закон «Об исполнительном
+ *              производстве и статусе судебных исполнителей»)
+ *   Адвокат  — Лицензия МЮ РК (Закон «Об адвокатской деятельности и
+ *              юридической помощи»)
+ *   Нотариус — Лицензия МЮ РК (Закон «О нотариате»)
+ *   Физлицо  — Документ, удостоверяющий личность
+ *
+ * Если у тенанта есть собственный basisDocument — он используется напрямую
+ * (см. tenantBasis в route.ts), сюда мы попадаем только когда поле пусто.
+ */
 function inferTenantBasis(tenant: TenantBasisInput) {
   const legalType = (tenant.legalType ?? "").trim().toUpperCase()
   const name = `${tenant.companyName ?? ""} ${tenant.category ?? ""}`.toLowerCase()
-  // Раньше fallback дублировал БИН в скобках («... (БИН/ИИН XXX)») — а БИН
-  // и так печатается ниже в разделе реквизитов. Получался дубль. Убрано
-  // 2026-05-26 (аудит #4). Если у тенанта есть собственный basisDocument —
-  // он используется напрямую (см. tenantBasis в route.ts), сюда мы попадаем
-  // только когда поле пусто.
-  // tenant.bin/iin больше не используются здесь — оставлены в типе TenantBasisInput
-  // для обратной совместимости.
+
   if (legalType === "CHSI" || legalType === "ЧСИ" || name.includes("чси") || name.includes("судебн")) {
-    return "лицензии частного судебного исполнителя и документов, подтверждающих статус ЧСИ"
+    return "лицензии частного судебного исполнителя"
+  }
+
+  if (legalType === "ADVOKAT" || legalType === "АДВОКАТ" || name.includes("адвокат")) {
+    return "лицензии на занятие адвокатской деятельностью"
+  }
+
+  if (legalType === "NOTARIUS" || legalType === "НОТАРИУС" || name.includes("нотариус")) {
+    return "лицензии на занятие нотариальной деятельностью"
   }
 
   if (legalType === "TOO" || legalType === "ТОО" || legalType === "AO" || legalType === "АО") {
@@ -708,7 +759,11 @@ function inferTenantBasis(tenant: TenantBasisInput) {
   }
 
   if (legalType === "IP" || legalType === "ИП") {
-    return "Уведомления о начале деятельности в качестве индивидуального предпринимателя"
+    // «Талон» — терминология, принятая владельцем (см. карточку арендатора).
+    // Юридически называется «Уведомление о начале деятельности», в обиходе —
+    // «Талон». Если у тенанта заполнен basisDocument с номером — этот fallback
+    // не сработает.
+    return "Талона о начале деятельности в качестве индивидуального предпринимателя"
   }
 
   if (legalType === "FIZ" || legalType === "PHYSICAL" || legalType === "INDIVIDUAL" || legalType === "ФИЗ") {

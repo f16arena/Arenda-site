@@ -40,11 +40,13 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
           }}
           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
         >
-          <option value="IP">ИП</option>
-          <option value="CHSI">ЧСИ</option>
-          <option value="TOO">ТОО</option>
-          <option value="AO">АО</option>
-          <option value="PHYSICAL">Физ. лицо</option>
+          <option value="IP">ИП — Талон (Уведомление о начале деятельности)</option>
+          <option value="TOO">ТОО — Устав</option>
+          <option value="AO">АО — Устав</option>
+          <option value="CHSI">ЧСИ — Лицензия МЮ</option>
+          <option value="ADVOKAT">Адвокат — Лицензия МЮ</option>
+          <option value="NOTARIUS">Нотариус — Лицензия МЮ</option>
+          <option value="PHYSICAL">Физ. лицо — Удостоверение личности</option>
         </select>
       </div>
 
@@ -61,7 +63,11 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
               ? "БИН для ТОО/АО"
               : legalType === "CHSI"
                 ? "ИИН частного судебного исполнителя"
-                : "ИИН для ИП/физлица"
+                : legalType === "ADVOKAT"
+                  ? "ИИН адвоката"
+                  : legalType === "NOTARIUS"
+                    ? "ИИН нотариуса"
+                    : "ИИН для ИП/физлица"
           }
           inputMode="numeric"
           pattern="\d{12}"

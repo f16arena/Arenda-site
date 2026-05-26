@@ -141,6 +141,8 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
           tenantId={tenant.id}
           suggestedNumber={suggestedNumber}
           downloadFormat={activeContractTemplate?.format ?? "DOCX"}
+          initialStart={tenant.contractStart?.toISOString().slice(0, 10) ?? null}
+          initialEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
         />
         {activeContractTemplate ? (
           <ActiveContractTemplatePanel

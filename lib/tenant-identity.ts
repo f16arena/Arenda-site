@@ -1,12 +1,23 @@
 import { assertKazakhstanIin } from "@/lib/kz-iin"
 
-export type TenantLegalType = "IP" | "TOO" | "AO" | "CHSI" | "PHYSICAL"
+/**
+ * Формы собственности для арендатора (РК). Расширено 2026-05-26:
+ *   ADVOKAT  — адвокат (Закон РК «Об адвокатской деятельности», подписывает
+ *              на основании Лицензии Министерства юстиции)
+ *   NOTARIUS — нотариус (Закон РК «О нотариате», Лицензия МЮ)
+ *
+ * Все «персональные» формы (IP/CHSI/ADVOKAT/NOTARIUS/PHYSICAL) идентифицируются
+ * по ИИН, юридические (TOO/AO) — по БИН.
+ */
+export type TenantLegalType = "IP" | "TOO" | "AO" | "CHSI" | "ADVOKAT" | "NOTARIUS" | "PHYSICAL"
 
-const LEGAL_TYPES = new Set<TenantLegalType>(["IP", "TOO", "AO", "CHSI", "PHYSICAL"])
+const LEGAL_TYPES = new Set<TenantLegalType>(["IP", "TOO", "AO", "CHSI", "ADVOKAT", "NOTARIUS", "PHYSICAL"])
 
 export function normalizeTenantLegalType(value: unknown): TenantLegalType {
   const raw = String(value ?? "IP").trim().toUpperCase()
   if (raw === "CHSI" || raw === "ЧСИ" || raw.includes("СУДЕБН") || raw.includes("ИСПОЛНИТЕЛ")) return "CHSI"
+  if (raw === "ADVOKAT" || raw === "АДВОКАТ" || raw === "ADVOCAT" || raw === "LAWYER") return "ADVOKAT"
+  if (raw === "NOTARIUS" || raw === "НОТАРИУС" || raw === "NOTARY") return "NOTARIUS"
   if (raw === "PERSON" || raw === "INDIVIDUAL" || raw === "FL" || raw === "ФЛ") return "PHYSICAL"
   return LEGAL_TYPES.has(raw as TenantLegalType) ? (raw as TenantLegalType) : "IP"
 }
