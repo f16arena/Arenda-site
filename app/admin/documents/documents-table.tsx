@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, useTransition, useMemo } from "react"
+import { useState, useTransition, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
   Download, FileText, Archive, Loader2, ChevronDown, ChevronRight,
   List, Folder, Trash2, Lock,
 } from "lucide-react"
 import { toast } from "sonner"
-import { deleteAdminDocument, restoreAdminDocument } from "@/app/actions/documents"
+import {
+  deleteAdminDocument,
+  restoreAdminDocument,
+  bulkDeleteAdminDocuments,
+} from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
@@ -21,11 +24,11 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 const TYPE_COLORS: Record<string, string> = {
-  CONTRACT: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  INVOICE: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  ACT: "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300",
-  RECONCILIATION: "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  HANDOVER: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
+  CONTRACT: "bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  INVOICE: "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  ACT: "bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300",
+  RECONCILIATION: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  HANDOVER: "bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200",
 }
 
 export interface DocRow {
@@ -47,24 +50,32 @@ export interface DocRow {
 }
 
 export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint: string }) {
-  const router = useRouter()
+  // Локальный state — позволяет оптимистично убирать удалённые строки сразу,
+  // без ожидания router.refresh(). Если сервер вернул ошибку — возвращаем строку
+  // обратно. Синхронизируем localRows с props при каждом приходе свежих данных.
+  const [localRows, setLocalRows] = useState<DocRow[]>(rows)
+  useEffect(() => {
+    setLocalRows(rows)
+  }, [rows])
+
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
   const [groupBy, setGroupBy] = useState<"none" | "tenant">("none")
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // Группируем по tenantName (или "Без контрагента")
   const grouped = useMemo(() => {
     if (groupBy !== "tenant") return null
     const map = new Map<string, { tenantId: string | null; rows: DocRow[] }>()
-    for (const r of rows) {
+    for (const r of localRows) {
       const key = r.tenantName || "Без контрагента"
       if (!map.has(key)) map.set(key, { tenantId: r.tenantId, rows: [] })
       map.get(key)!.rows.push(r)
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [groupBy, rows])
+  }, [groupBy, localRows])
 
   function toggleGroup(name: string) {
     const next = new Set(collapsedGroups)
@@ -74,7 +85,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
   }
 
   // Только сгенерированные доки (с скачиваемым файлом) можно выделять
-  const selectableRows = rows.filter((r) => r.generatedId)
+  const selectableRows = localRows.filter((r) => r.generatedId)
+  // Для bulk delete нужны строки с deleteId и canDelete — это уже сужает выборку.
+  const deletableSelected = localRows.filter(
+    (r) => r.generatedId && selected.has(r.generatedId) && r.deleteId && r.canDelete,
+  )
 
   function toggle(genId: string) {
     const next = new Set(selected)
@@ -124,25 +139,33 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
 
   function performDelete(row: DocRow) {
     if (!row.deleteId || !row.canDelete) return
-    setDeletingRowId(row.id)
     const deleteId = row.deleteId
     const source = row.source
     const isSigned = row.isSigned
+    setDeletingRowId(row.id)
+
+    // Оптимистично убираем строку из localRows. Если придёт ошибка —
+    // вернём snapshot обратно.
+    const snapshot = localRows
+    setLocalRows((prev) => prev.filter((r) => r.id !== row.id))
+    if (row.generatedId) {
+      const next = new Set(selected)
+      next.delete(row.generatedId)
+      setSelected(next)
+    }
+
     startTransition(async () => {
       const result = await deleteAdminDocument({ source, id: deleteId })
       setDeletingRowId(null)
       if (!result.ok) {
+        // Откатываем оптимистичное удаление.
+        setLocalRows(snapshot)
         toast.error(result.error ?? "Не удалось удалить документ")
         return
       }
-      if (row.generatedId) {
-        const nextSelected = new Set(selected)
-        nextSelected.delete(row.generatedId)
-        setSelected(nextSelected)
-      }
-      router.refresh()
-      // Подписанные документы восстанавливать нельзя — подписи удалены безвозвратно.
-      // Для неподписанных предлагаем undo.
+      // router.refresh() не вызываем — RSC сам подхватит изменения
+      // через revalidatePath в server action. При следующем переходе
+      // на страницу будет свежее. Локально мы уже синхронны.
       if (isSigned) {
         toast.success("Документ удалён")
       } else {
@@ -156,12 +179,48 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                 toast.error(r.error ?? "Не удалось восстановить")
                 return
               }
-              router.refresh()
+              // После undo возвращаем строку в локальный список.
+              setLocalRows(snapshot)
               toast.success("Восстановлено")
             },
           },
         })
       }
+    })
+  }
+
+  function performBulkDelete() {
+    if (deletableSelected.length === 0) return
+    const inputs = deletableSelected
+      .map((r) => ({ source: r.source, id: r.deleteId! }))
+    const deletedIds = new Set(deletableSelected.map((r) => r.id))
+    const snapshot = localRows
+    setBulkDeleting(true)
+
+    // Оптимистично убираем все.
+    setLocalRows((prev) => prev.filter((r) => !deletedIds.has(r.id)))
+    setSelected(new Set())
+
+    startTransition(async () => {
+      const result = await bulkDeleteAdminDocuments(inputs)
+      setBulkDeleting(false)
+      if (result.succeeded > 0 && result.failed === 0) {
+        toast.success(`Удалено ${result.succeeded} ${result.succeeded === 1 ? "документ" : "документов"}`)
+        return
+      }
+      if (result.succeeded > 0 && result.failed > 0) {
+        // Частичный успех — возвращаем неудачные обратно в список.
+        const failedIds = new Set(result.results.filter((r) => !r.ok).map((r) => r.id))
+        const failedRows = snapshot.filter((r) => r.deleteId && failedIds.has(r.deleteId))
+        setLocalRows((prev) => [...failedRows, ...prev])
+        toast.warning(
+          `Удалено ${result.succeeded}, не удалось — ${result.failed}. Проверьте права доступа.`,
+        )
+        return
+      }
+      // Полный провал — откатываем всё.
+      setLocalRows(snapshot)
+      toast.error("Не удалось удалить документы. Возможно, не хватает прав.")
     })
   }
 
@@ -173,7 +232,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           <a
             href={row.downloadHref}
             download
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200"
           >
             <Download className="h-3 w-3" />
             Скачать
@@ -202,7 +261,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
               <button
                 type="button"
                 disabled={isDeleting}
-                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200 dark:hover:bg-red-500/25"
                 title={row.isSigned ? "Удалить подписанный документ может только владелец" : "Удалить ошибочно созданный документ"}
               >
                 {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
@@ -212,7 +271,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           />
         ) : row.deleteId && row.isSigned ? (
           <span
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-400 dark:border-slate-800 dark:text-slate-500"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
             title="Подписанный документ может удалить только владелец"
           >
             <Lock className="h-3 w-3" />
@@ -232,8 +291,8 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           onClick={() => setGroupBy("none")}
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
             groupBy === "none"
-              ? "bg-slate-900 text-white"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+              ? "bg-slate-900 dark:bg-slate-700 text-white"
+              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <List className="h-3.5 w-3.5" />
@@ -243,8 +302,8 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           onClick={() => setGroupBy("tenant")}
           className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
             groupBy === "tenant"
-              ? "bg-slate-900 text-white"
-              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+              ? "bg-slate-900 dark:bg-slate-700 text-white"
+              : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           }`}
         >
           <Folder className="h-3.5 w-3.5" />
@@ -252,27 +311,59 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         </button>
       </div>
 
-      {/* Bulk action bar */}
+      {/* Bulk action bar. В тёмной теме оборачиваем в slate-800 + border,
+          иначе bg-slate-900 сливается с тёмным фоном страницы. */}
       {selected.size > 0 && (
-        <div className="bg-slate-900 text-white rounded-xl px-4 py-3 flex items-center justify-between">
+        <div className="bg-slate-900 dark:bg-slate-800 dark:border dark:border-slate-700 text-white rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
           <p className="text-sm font-medium">
             Выбрано: {selected.size} {selected.size === 1 ? "документ" : "документов"}
+            {deletableSelected.length < selected.size && (
+              <span className="ml-2 text-xs text-slate-400 dark:text-slate-500 font-normal">
+                (можно удалить: {deletableSelected.length})
+              </span>
+            )}
           </p>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSelected(new Set())}
               className="text-xs text-slate-300 hover:text-white"
+              disabled={pending || bulkDeleting}
             >
               Снять выделение
             </button>
             <button
               onClick={downloadArchive}
-              disabled={pending}
+              disabled={pending || bulkDeleting}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
             >
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+              {pending && !bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
               Скачать ZIP
             </button>
+            {deletableSelected.length > 0 && (
+              <ConfirmDialog
+                variant="danger"
+                title={`Удалить ${deletableSelected.length} ${deletableSelected.length === 1 ? "документ" : "документов"}?`}
+                description={
+                  `Будут удалены выбранные документы. Подписанные могут удалить только владельцы.${
+                    deletableSelected.length < selected.size
+                      ? ` Документы без права на удаление (${selected.size - deletableSelected.length}) останутся.`
+                      : ""
+                  } Действие нельзя отменить.`
+                }
+                confirmLabel="Удалить"
+                onConfirm={performBulkDelete}
+                trigger={
+                  <button
+                    type="button"
+                    disabled={pending || bulkDeleting}
+                    className="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                  >
+                    {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    Удалить выбранные
+                  </button>
+                }
+              />
+            )}
           </div>
         </div>
       )}
@@ -316,7 +407,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                     <td colSpan={8} className="px-3 py-2">
                       <button
                         onClick={() => toggleGroup(groupName)}
-                        className="w-full flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:text-blue-400"
+                        className="w-full flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:hover:text-blue-400"
                       >
                         {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         <Folder className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -343,7 +434,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                     return (
                       <tr
                         key={r.id}
-                        className={`border-b border-slate-50 transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-500/10/50" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50"}`}
+                        className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${
+                          isSelected
+                            ? "bg-blue-50 dark:bg-blue-500/15"
+                            : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                        }`}
                       >
                         <td className="px-3 py-3 text-center">
                           {r.generatedId ? (
@@ -376,12 +471,16 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
               )
             })}
             {/* Plain list view */}
-            {grouped === null && rows.map((r) => {
+            {grouped === null && localRows.map((r) => {
               const isSelected = r.generatedId ? selected.has(r.generatedId) : false
               return (
                 <tr
                   key={r.id}
-                  className={`border-b border-slate-50 transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-500/10/50" : "hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50"}`}
+                  className={`border-b border-slate-100 dark:border-slate-800 transition-colors ${
+                    isSelected
+                      ? "bg-blue-50 dark:bg-blue-500/15"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  }`}
                 >
                   <td className="px-3 py-3 text-center">
                     {r.generatedId ? (
@@ -401,7 +500,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                   <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
                   <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
                     {r.tenantId ? (
-                      <Link href={`/admin/tenants/${r.tenantId}`} className="hover:text-blue-600 dark:text-blue-400 hover:underline">
+                      <Link href={`/admin/tenants/${r.tenantId}`} className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline">
                         {r.tenantName}
                       </Link>
                     ) : (
@@ -419,10 +518,10 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                 </tr>
               )
             })}
-            {rows.length === 0 && (
+            {localRows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-5 py-16 text-center">
-                  <FileText className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+                  <FileText className="h-8 w-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
                   <p className="text-sm text-slate-400 dark:text-slate-500">{emptyHint}</p>
                 </td>
               </tr>

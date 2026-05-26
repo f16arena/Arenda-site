@@ -196,6 +196,35 @@ function revalidateDocumentPaths(tenantId?: string | null) {
 }
 
 /**
+ * Массовое удаление документов. Каждая запись обрабатывается отдельной
+ * транзакцией через `deleteAdminDocument` — это сохраняет аудит,
+ * проверки прав на signed-доки и building-scope. Возвращает массив
+ * результатов в том же порядке, что и вход.
+ *
+ * Используется в /admin/documents — выделил N документов → «Удалить выбранные».
+ * Один документ-сбой не валит всю операцию: остальные удаляются, в UI
+ * показывается только число успешных + ошибочных.
+ */
+export async function bulkDeleteAdminDocuments(
+  inputs: DeleteAdminDocumentInput[],
+): Promise<{ ok: boolean; results: Array<{ id: string; ok: boolean; error?: string }>; succeeded: number; failed: number }> {
+  if (inputs.length === 0) return { ok: true, results: [], succeeded: 0, failed: 0 }
+  if (inputs.length > 100) {
+    return { ok: false, results: [], succeeded: 0, failed: inputs.length }
+  }
+  const results: Array<{ id: string; ok: boolean; error?: string }> = []
+  let succeeded = 0
+  let failed = 0
+  for (const input of inputs) {
+    const res = await deleteAdminDocument(input)
+    results.push({ id: input.id, ok: res.ok, error: res.error })
+    if (res.ok) succeeded += 1
+    else failed += 1
+  }
+  return { ok: failed === 0, results, succeeded, failed }
+}
+
+/**
  * Восстановить только что soft-deleted документ. Используется для toast «Отменить»
  * сразу после `deleteAdminDocument`. Подписи (signatures) при удалении уничтожаются
  * безвозвратно — поэтому восстановление возвращает только сам документ; повторно
