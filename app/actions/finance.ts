@@ -478,12 +478,39 @@ export async function deletePayment(paymentId: string) {
 
   const payment = await db.payment.findFirst({
     where: { id: paymentId, ...paymentScope(orgId) },
-    select: { tenantId: true },
+    select: { tenantId: true, amount: true },
   })
   if (!payment) throw new Error("Платёж не найден или нет доступа")
-  // Soft delete (миграция 019). Восстановление возможно через recycle bin.
-  await db.payment.update({ where: { id: paymentId }, data: { deletedAt: new Date() } })
+
+  // Удаляем платёж ВМЕСТЕ со связанной кассовой проводкой и компенсируем
+  // баланс кассы. Иначе CashAccount.balance расходится с реальностью
+  // (см. AUDIT_2026-05-26.md, проблема #5).
+  //
+  // У CashTransaction нет soft-delete (нет deletedAt) — выполняем hard delete,
+  // т.к. audit-история сохраняется через Payment (soft-delete) и AuditLog.
+  // CashTransaction.amount — знаковое: положительное = приход (увеличило
+  // баланс), отрицательное = расход (уменьшило). Чтобы откатить — вычитаем
+  // amount из баланса аккаунта.
+  await db.$transaction(async (tx) => {
+    const cashTxs = await tx.cashTransaction.findMany({
+      where: { paymentId },
+      select: { id: true, amount: true, accountId: true },
+    })
+    await tx.payment.update({
+      where: { id: paymentId },
+      data: { deletedAt: new Date() },
+    })
+    for (const ct of cashTxs) {
+      await tx.cashAccount.update({
+        where: { id: ct.accountId },
+        data: { balance: { decrement: ct.amount } },
+      })
+      await tx.cashTransaction.delete({ where: { id: ct.id } })
+    }
+  })
+
   revalidatePath("/admin/finances")
+  revalidatePath("/admin/finances/balance")
   if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
 }
 

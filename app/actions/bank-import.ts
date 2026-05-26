@@ -121,40 +121,43 @@ export async function applyBankImport(
     }
     try {
       const paymentDate = parseDate(r.date) ?? new Date()
-      await db.payment.create({
-        data: {
-          tenantId: r.tenantId,
-          amount: r.amount,
-          paymentDate,
-          method: "TRANSFER",
-          note: `Импорт из выписки: ${r.description.slice(0, 100)}`,
-        },
-      })
-      created++
-
-      // Авто-погашение начислений: ищем неоплаченные charges того же tenant'а.
-      // 1. Точное совпадение суммы → один charge помечается isPaid=true
-      // 2. Если сумма больше → закрываем самые старые charges по очереди пока хватит
-      const unpaid = await db.charge.findMany({
-        where: { tenantId: r.tenantId, isPaid: false },
-        orderBy: { createdAt: "asc" },
-        select: { id: true, amount: true },
-      })
-      const exact = unpaid.find((c) => Math.abs(c.amount - r.amount) < 0.01)
-      if (exact) {
-        await db.charge.update({ where: { id: exact.id }, data: { isPaid: true } })
-        chargesPaid++
-      } else {
+      // Платёж + погашение charges — одна транзакция. Иначе при ошибке
+      // посередине часть charges помечается isPaid=true, а Payment остаётся
+      // без них или наоборот — рассинхрон денег (см. AUDIT_2026-05-26.md, #6).
+      const paidInTx = await db.$transaction(async (tx) => {
+        await tx.payment.create({
+          data: {
+            tenantId: r.tenantId!,
+            amount: r.amount,
+            paymentDate,
+            method: "TRANSFER",
+            note: `Импорт из выписки: ${r.description.slice(0, 100)}`,
+          },
+        })
+        const unpaid = await tx.charge.findMany({
+          where: { tenantId: r.tenantId!, isPaid: false, deletedAt: null },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, amount: true },
+        })
+        const exact = unpaid.find((c) => Math.abs(c.amount - r.amount) < 0.01)
+        if (exact) {
+          await tx.charge.update({ where: { id: exact.id }, data: { isPaid: true } })
+          return 1
+        }
         // greedy: закрываем самые старые charges пока сумма позволяет
         let remaining = r.amount
+        let paid = 0
         for (const c of unpaid) {
           if (remaining + 0.01 < c.amount) break
-          await db.charge.update({ where: { id: c.id }, data: { isPaid: true } })
-          chargesPaid++
+          await tx.charge.update({ where: { id: c.id }, data: { isPaid: true } })
+          paid++
           remaining -= c.amount
           if (remaining < 0.01) break
         }
-      }
+        return paid
+      })
+      created++
+      chargesPaid += paidInTx
 
       await audit({
         action: "CREATE",
@@ -163,7 +166,7 @@ export async function applyBankImport(
         details: { amount: r.amount, source: "bank-import" },
       })
     } catch {
-      // Skip — не валим весь импорт
+      // Skip — не валим весь импорт. Транзакция откатилась, Payment не создан.
     }
   }
 

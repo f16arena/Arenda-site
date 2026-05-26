@@ -4,7 +4,10 @@ import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
 import { FileSpreadsheet, Upload, Wallet } from "lucide-react"
 import Link from "next/link"
-import { PaymentDialog, ExpenseDialog, GenerateChargesButton, PenaltyButton } from "./finance-actions"
+// PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
+// (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
+// Дублирующая ручная кнопка приводила к рассинхрону (см. AUDIT_2026-05-26.md).
+import { PaymentDialog, ExpenseDialog, GenerateChargesButton } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { ChargesBulkActions } from "./charges-bulk-actions"
@@ -356,7 +359,6 @@ async function renderFinancesPage({
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </a>
-          <PenaltyButton />
           <GenerateChargesButton />
           <BatchBillingButton defaultPeriod={currentPeriod} />
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />

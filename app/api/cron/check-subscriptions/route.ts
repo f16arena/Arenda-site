@@ -221,5 +221,24 @@ export async function GET(req: Request) {
     result.errors.push(e instanceof Error ? e.message : String(e))
   }
 
+  // 5. Сбрасываем admin-shell-cache: cron поменял isSuspended/foundersSlot/тарифы
+  //    — клиенту админка не должна показывать устаревшее ещё 60 сек.
+  //    revalidateTag из cron не работает в serverless, поэтому дёргаем endpoint.
+  if (result.suspended > 0 || result.foundersReleased > 0 || (result as Record<string, unknown>).serviceFeeIndexed) {
+    const base = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
+      ? `https://${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL}`
+      : null
+    if (base && process.env.CRON_SECRET) {
+      await fetch(`${base}/api/admin/cache/invalidate`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.CRON_SECRET}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ tag: "admin-shell" }),
+      }).catch((e) => result.errors.push(`cache-invalidate: ${e instanceof Error ? e.message : String(e)}`))
+    }
+  }
+
   return NextResponse.json({ ok: true, ...result, ranAt: now.toISOString() })
 }

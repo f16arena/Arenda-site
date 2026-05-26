@@ -27,12 +27,13 @@ export async function GET(req: Request) {
   const origin = new URL(req.url).origin
 
   const [totalDebt, charges, payments, reports, landlord] = await Promise.all([
+    // deletedAt:null обязателен — иначе мобилка покажет другую сумму, чем /cabinet/finances.
     db.charge.aggregate({
-      where: { tenantId: tenant.id, isPaid: false },
+      where: { tenantId: tenant.id, isPaid: false, deletedAt: null },
       _sum: { amount: true },
     }),
     db.charge.findMany({
-      where: { tenantId: tenant.id },
+      where: { tenantId: tenant.id, deletedAt: null },
       select: {
         id: true,
         period: true,

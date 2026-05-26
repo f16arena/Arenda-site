@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, X, DollarSign, TrendingDown, AlertTriangle } from "lucide-react"
+import { Plus, X, DollarSign, TrendingDown } from "lucide-react"
 import { recordPayment, addExpense, generateMonthlyCharges } from "@/app/actions/finance"
-import { calculatePenalties } from "@/app/actions/penalties"
+// calculatePenalties удалена — пени теперь только cron-ом.
 import { Button } from "@/components/ui/button"
 
 type Tenant = { id: string; companyName: string }
@@ -222,29 +222,7 @@ export function ExpenseDialog({
   )
 }
 
-export function PenaltyButton() {
-  const [pending, startTransition] = useTransition()
-  const [result, setResult] = useState<string | null>(null)
-
-  return (
-    <div className="flex items-center gap-3">
-      {result && <span className="text-xs text-amber-600 dark:text-amber-400">{result}</span>}
-      <button
-        type="button"
-        onClick={() => startTransition(async () => {
-          const r = await calculatePenalties()
-          setResult(`✓ Пеней начислено: ${r.penaltiesCreated}`)
-          setTimeout(() => setResult(null), 5000)
-        })}
-        disabled={pending}
-        className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 dark:bg-amber-500/20 disabled:opacity-60"
-      >
-        <AlertTriangle className="h-4 w-4" />
-        {pending ? "Расчёт..." : "Рассчитать пени"}
-      </button>
-    </div>
-  )
-}
+// PenaltyButton удалён (см. app/actions/penalties.ts). Пени теперь автоматические.
 
 export function GenerateChargesButton() {
   const [pending, startTransition] = useTransition()

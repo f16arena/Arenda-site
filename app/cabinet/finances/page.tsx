@@ -31,8 +31,10 @@ export default async function CabinetFinances() {
 
   if (!tenant) return null
 
+  // ВАЖНО: фильтр deletedAt:null — иначе soft-deleted начисления тоже попадают в долг,
+  // и сумма расходится с /admin/dashboard/owner (там тот же чек через chargeScope).
   const totalDebt = await db.charge.aggregate({
-    where: { tenantId: tenant.id, isPaid: false },
+    where: { tenantId: tenant.id, isPaid: false, deletedAt: null },
     _sum: { amount: true },
   }).then((result) => result._sum.amount ?? 0).catch(() => 0)
   const area = getTenantAreaTotal(tenant)

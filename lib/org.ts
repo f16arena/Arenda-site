@@ -187,6 +187,51 @@ export async function requirePlatformOwner() {
   return { userId: session.user.id }
 }
 
+/**
+ * Аналог requireOrgAccess, но НЕ блокирует suspended-организации.
+ * Используется ТОЛЬКО для страниц, которые должны быть доступны
+ * приостановленному клиенту: /admin/subscription (оплата продления)
+ * и /admin/profile (контакты / реквизиты).
+ *
+ * Возвращает то же что requireOrgAccess + флаг isSuspended.
+ */
+export async function requireOrgAccessAllowSuspended(): Promise<OrgContext & { isSuspended: boolean }> {
+  const session = await auth()
+  if (!session?.user) redirect("/login")
+
+  const orgId = await getCurrentOrgId()
+  const isPlatformOwner = session.user.isPlatformOwner ?? false
+
+  if (!orgId) {
+    if (isPlatformOwner) redirect("/superadmin")
+    else redirect("/login")
+  }
+
+  const org = await db.organization.findUnique({
+    where: { id: orgId! },
+    select: { id: true, slug: true, isActive: true, isSuspended: true },
+  }).catch(() => null)
+
+  // Полностью деактивированную (isActive=false) всё равно блокируем — это
+  // удаление аккаунта, не приостановка за неуплату.
+  if (!org || !org.isActive) {
+    if (isPlatformOwner) redirect("/superadmin")
+    else redirect("/login")
+  }
+
+  const imp = isPlatformOwner ? await getValidatedImpersonateData() : null
+  const hostSlug = await getHostSlug()
+
+  return {
+    orgId: orgId!,
+    userId: imp?.actAsUserId ?? session.user.id,
+    isPlatformOwner,
+    isImpersonating: !!imp,
+    hostSlug,
+    isSuspended: !!org?.isSuspended,
+  }
+}
+
 // Impersonate cookie helpers
 export async function getImpersonateData(): Promise<ImpersonateData | null> {
   const store = await cookies()
@@ -348,23 +393,49 @@ export async function checkLimit(orgId: string, type: "buildings" | "tenants" | 
   const org = await getOrgPlan(orgId)
   if (!org?.plan) return // нет плана — пропускаем (для миграционного периода)
 
-  const max = org.plan[`max${capitalize(type)}` as keyof typeof org.plan] as number | null
-  if (max === null || max === undefined) return // безлимит
+  const planMax = org.plan[`max${capitalize(type)}` as keyof typeof org.plan] as number | null
+  if (planMax === null || planMax === undefined) return // безлимит
 
-  const floorIds = (await db.floor.findMany({
-    where: { building: { organizationId: orgId } },
-    select: { id: true },
-  })).map((f) => f.id)
+  // Активные аддоны увеличивают лимит. Например, +1 здание купили → maxBuildings + 1.
+  const { getActiveAddons, effectiveLimit } = await import("@/lib/effective-limits")
+  const addons = await getActiveAddons(orgId)
+  const max = effectiveLimit(planMax, type === "leads" ? "leads" : type, addons) ?? planMax
 
+  // ВАЖНО: для tenants считаем ТОЛЬКО арендаторов нашей организации, не всю
+  // платформу. Раньше при пустом floorIds получался undefined и Prisma считал
+  // всех арендаторов всех организаций — это была дыра изоляции.
   let current = 0
-  if (type === "buildings") current = await db.building.count({ where: { organizationId: orgId } })
-  else if (type === "tenants") current = await db.tenant.count({
-    where: floorIds.length > 0
-      ? { OR: [{ space: { floorId: { in: floorIds } } }, { spaceId: null }] }
-      : undefined,
-  })
-  else if (type === "users") current = await db.user.count({ where: { organizationId: orgId } })
-  else if (type === "leads") current = await db.lead.count({ where: { buildingId: { in: await orgBuildingIds(orgId) } } }).catch(() => 0)
+  if (type === "buildings") {
+    current = await db.building.count({ where: { organizationId: orgId } })
+  } else if (type === "tenants") {
+    // Тенант принадлежит организации, если его user.organizationId совпадает
+    // ИЛИ он привязан к space в одном из наших зданий ИЛИ занимает полный этаж.
+    // Скоуп аналогичен tenantScope() из lib/tenant-scope.ts.
+    const floorIds = (await db.floor.findMany({
+      where: { building: { organizationId: orgId } },
+      select: { id: true },
+    })).map((f) => f.id)
+    const buildingIds = (await db.building.findMany({
+      where: { organizationId: orgId },
+      select: { id: true },
+    })).map((b) => b.id)
+    current = await db.tenant.count({
+      where: {
+        deletedAt: null,
+        OR: [
+          { user: { organizationId: orgId } },
+          ...(floorIds.length > 0 ? [{ space: { floorId: { in: floorIds } } }] : []),
+          ...(buildingIds.length > 0 ? [{ fullFloors: { some: { building: { id: { in: buildingIds } } } } }] : []),
+        ],
+      },
+    })
+  } else if (type === "users") {
+    current = await db.user.count({ where: { organizationId: orgId, isActive: true } })
+  } else if (type === "leads") {
+    current = await db.lead.count({
+      where: { buildingId: { in: await orgBuildingIds(orgId) } },
+    }).catch(() => 0)
+  }
 
   if (current >= max) {
     throw new LimitExceededError(type, max, current)

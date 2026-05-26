@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { requireOrgAccess } from "@/lib/org"
+import { requireOrgAccessAllowSuspended } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { cn } from "@/lib/utils"
 import {
@@ -30,7 +30,9 @@ import { addonsForPlan } from "@/lib/addons-catalog"
 import { servicesForPlan } from "@/lib/services-catalog"
 
 export default async function SubscriptionPage() {
-  const { orgId } = await requireOrgAccess()
+  // Доступ даже для suspended-организаций: они должны иметь возможность
+  // продлить подписку, иначе попадают в замкнутый круг (см. AUDIT 2026-05-26).
+  const { orgId, isSuspended } = await requireOrgAccessAllowSuspended()
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
@@ -117,6 +119,16 @@ export default async function SubscriptionPage() {
           <p className="mt-1 text-2xl font-bold text-slate-100">{enabledCount} / {totalFeatureCount}</p>
         </div>
       </div>
+
+      {isSuspended && (
+        <div className="rounded-xl border-2 border-red-500/50 bg-red-500/20 px-5 py-4 text-sm">
+          <p className="font-semibold text-red-50 text-base">Подписка приостановлена</p>
+          <p className="mt-1 text-red-200">
+            Доступ к остальным разделам ограничен до продления. На этой странице вы можете
+            оформить продление — свяжитесь с супер-админом, он активирует доступ после оплаты.
+          </p>
+        </div>
+      )}
 
       <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-sm text-blue-100">
         <p className="font-medium text-blue-50">Хотите продлить, сменить тариф или подключить аддоны?</p>

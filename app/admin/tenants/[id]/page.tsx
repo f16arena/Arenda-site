@@ -1,3 +1,7 @@
+// force-dynamic чтобы после updateTenant новый рендер сразу видел свежие данные
+// без 60-секундной задержки кэша Next.js (см. AUDIT_2026-05-26.md).
+export const dynamic = "force-dynamic"
+
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
@@ -227,8 +231,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     }),
     safe(
       "tenantDetail.debtAggregate",
+      // deletedAt:null — иначе долг расходится с /cabinet/finances и /admin/dashboard/owner.
       db.charge.aggregate({
-        where: { tenantId: tenant.id, isPaid: false },
+        where: { tenantId: tenant.id, isPaid: false, deletedAt: null },
         _sum: { amount: true },
         _count: { _all: true },
       }),

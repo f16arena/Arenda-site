@@ -214,6 +214,11 @@ export async function assertOrgStorageLimit(organizationId: string, incomingByte
   }
   if (limitGb == null) return // безлимит
 
+  // Активные аддоны STORAGE_25GB добавляют по 25 ГБ каждая единица.
+  const { getActiveAddons, addonBonusFor } = await import("@/lib/effective-limits")
+  const addons = await getActiveAddons(organizationId)
+  limitGb += addonBonusFor("storageGb", addons)
+
   const limitBytes = limitGb * 1024 * 1024 * 1024
   const agg = await db.storedFile.aggregate({
     where: { organizationId, deletedAt: null },
