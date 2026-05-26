@@ -6,13 +6,14 @@ import { redirect } from "next/navigation"
 import { TelegramSetup } from "./telegram-setup"
 import { Send, User } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
-import { ManagementHub } from "@/components/profile/management-hub"
 import { NotificationSettingsForm } from "@/components/profile/notification-settings"
 import { TwoFactorCard } from "@/components/two-factor-card"
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
-import { requireOrgAccess } from "@/lib/org"
-import { tenantScope } from "@/lib/tenant-scope"
 import { formatPersonShortName } from "@/lib/display-name"
+// Вкладка «Управление» (ManagementHub) удалена 2026-05-26:
+// её 14 тайлов либо дублировали sidebar, либо были настройками,
+// которые теперь живут в свёрнутой секции «НАСТРОЙКИ» в sidebar.
+// Профиль = только про «меня»: Личное / Email / Безопасность / Уведомления.
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: "Владелец",
@@ -31,8 +32,11 @@ export default async function ProfilePage({ searchParams }: { searchParams?: Pro
   const resolvedSearchParams = (await searchParams) ?? {}
   const tabParamRaw = resolvedSearchParams.tab
   const tabParam = Array.isArray(tabParamRaw) ? tabParamRaw[0] : tabParamRaw
-  const allowedTabs = ["general", "security", "email", "notifications", "management"] as const
+  const allowedTabs = ["general", "security", "email", "notifications"] as const
   type AllowedTab = typeof allowedTabs[number]
+  // Старый ?tab=management из закладок — молча открываем дефолтную вкладку
+  // (Личное). Кто увидит «потерянный раздел» и поищет — найдёт его в sidebar
+  // как НАСТРОЙКИ.
   const initialTab: AllowedTab | undefined = allowedTabs.includes(tabParam as AllowedTab)
     ? (tabParam as AllowedTab)
     : undefined
@@ -48,24 +52,6 @@ export default async function ProfilePage({ searchParams }: { searchParams?: Pro
   if (!user) redirect("/login")
 
   const notifSettings = await getMyNotificationSettings()
-
-  // Hub-статистика только для OWNER (показываем количество объектов рядом с ссылками)
-  const isOwner = user.role === "OWNER"
-  let stats: { buildings: number; spaces: number; staff: number; tenants: number } | undefined
-  if (isOwner) {
-    try {
-      const { orgId } = await requireOrgAccess()
-      const [buildings, spaces, staff, tenants] = await Promise.all([
-        db.building.count({ where: { organizationId: orgId } }).catch(() => 0),
-        db.space.count({ where: { floor: { building: { organizationId: orgId } } } }).catch(() => 0),
-        db.user.count({ where: { organizationId: orgId, role: { not: "TENANT" }, isActive: true } }).catch(() => 0),
-        db.tenant.count({ where: tenantScope(orgId) }).catch(() => 0),
-      ])
-      stats = { buildings, spaces, staff, tenants }
-    } catch {
-      stats = undefined
-    }
-  }
 
   return (
     <div className="space-y-5 max-w-3xl">
@@ -102,7 +88,6 @@ export default async function ProfilePage({ searchParams }: { searchParams?: Pro
             </div>
           </div>
         }
-        managementSlot={isOwner ? <ManagementHub stats={stats} /> : undefined}
       />
     </div>
   )

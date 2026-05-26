@@ -7,9 +7,10 @@ import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
-  ShieldCheck,
+  ShieldCheck, Shield, Package, Settings as SettingsIcon,
+  Mail, History, TrendingUp,
   LogOut, Building, Activity,
-  CalendarDays,
+  CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -25,7 +26,14 @@ type NavItem = {
   section?: string
   capability?: string
 }
-type NavSection = { title?: string; items: NavItem[]; ownerOnly?: boolean }
+type NavSection = {
+  title?: string
+  items: NavItem[]
+  ownerOnly?: boolean
+  /** Свёрнутая по умолчанию секция (раскрывается по клику). Состояние
+   *  сохраняется в localStorage по ключу `sidebar:section:<title>`. */
+  collapsible?: boolean
+}
 
 const nav: NavSection[] = [
   {
@@ -88,22 +96,31 @@ const nav: NavSection[] = [
     ],
   },
   {
-    title: "УПРАВЛЕНИЕ",
-    items: [
-      { href: "/admin/users", label: "Пользователи", icon: UserCog, section: "users" },
-    ],
-  },
-  {
     title: "ПОМОЩЬ",
     items: [
       { href: "/admin/faq", label: "FAQ", icon: CircleHelp },
     ],
   },
-  // Сотрудники / Подписка / Роли / Настройки организации / Импорт / Тарифы
-  // вынесены в "Управление" внутри /admin/profile (видимо только OWNER-у).
-  // Это упрощает sidebar, оставляя там только повседневные операционные разделы.
-  // Доступ к профилю — через клик по имени в правом верхнем углу.
-  // "Все пользователи" и "Журнал операций" перенесены в Management Hub профиля.
+  // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию. Раньше эти пункты жили
+  // в /admin/profile?tab=management, но владельцы не находили их там —
+  // искали в sidebar. Возвращаем сюда, чтобы «настройки организации» были
+  // там, где их ищут. Дубли с другими секциями (Здания/Финансы/Аналитика)
+  // намеренно не переносим — они и так в sidebar.
+  {
+    title: "НАСТРОЙКИ",
+    ownerOnly: true,
+    collapsible: true,
+    items: [
+      { href: "/admin/settings", label: "Настройки организации", icon: SettingsIcon, section: "settings" },
+      { href: "/admin/staff", label: "Сотрудники", icon: Users, section: "staff" },
+      { href: "/admin/roles", label: "Роли и доступы", icon: Shield, section: "settings" },
+      { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
+      { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "leads" },
+      { href: "/admin/users", label: "Все пользователи", icon: UserCog, section: "users" },
+      { href: "/admin/email-logs", label: "Журнал email", icon: Mail, section: "settings" },
+      { href: "/admin/audit", label: "Журнал операций", icon: History, section: "settings" },
+    ],
+  },
 ]
 
 export function AdminSidebar({
@@ -120,6 +137,10 @@ export function AdminSidebar({
   const allowed = new Set(allowedSections ?? [])
   const capabilities = new Set(allowedCapabilities ?? [])
   const [mobileOpen, setMobileOpen] = useState(false)
+  // Collapsible-секции: ключ — title секции. Дефолтное состояние
+  // (свёрнуто/раскрыто) приходит из логики ниже — если активный путь
+  // внутри секции, она раскрывается. Иначе читаем из localStorage.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
   // Закрываем drawer при смене URL
   useEffect(() => {
@@ -127,9 +148,32 @@ export function AdminSidebar({
     return () => window.clearTimeout(id)
   }, [pathname])
 
+  // Подтягиваем сохранённое состояние сворачивания из localStorage один раз.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      const raw = window.localStorage.getItem("sidebar:collapsed")
+      if (raw) setCollapsed(JSON.parse(raw) as Record<string, boolean>)
+    } catch {
+      // localStorage может быть недоступен (приватный режим) — игнорируем.
+    }
+  }, [])
+
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href
     return pathname.startsWith(href)
+  }
+
+  function toggleSection(title: string) {
+    setCollapsed((prev) => {
+      const next = { ...prev, [title]: !prev[title] }
+      try {
+        window.localStorage.setItem("sidebar:collapsed", JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
   }
 
   // Фильтруем секции по правам
@@ -200,33 +244,63 @@ export function AdminSidebar({
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
-        {visibleNav.map((section, si) => (
-          <div key={si}>
-            {section.title && (
-              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                {section.title}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {section.items.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
+        {visibleNav.map((section, si) => {
+          // Активный путь внутри секции — раскрываем принудительно,
+          // даже если пользователь её свернул. Это уберегает от ситуации
+          // «зашёл по ссылке, а в sidebar её нет — кажется что страница потеряна».
+          const hasActive = section.items.some((it) => isActive(it.href, it.exact))
+          const userCollapsed = section.title ? collapsed[section.title] : false
+          // По умолчанию collapsible-секции свёрнуты (если в localStorage
+          // нет явной записи), обычные — всегда раскрыты.
+          const isExplicitState = section.title ? section.title in collapsed : false
+          const defaultCollapsed = section.collapsible && !isExplicitState
+          const isCollapsed = !hasActive && (userCollapsed ?? defaultCollapsed)
+
+          return (
+            <div key={si}>
+              {section.title && section.collapsible ? (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.title!)}
+                  className="w-full px-2 mb-1 flex items-center justify-between text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase hover:text-slate-300 transition-colors"
+                  aria-expanded={!isCollapsed}
+                >
+                  <span>{section.title}</span>
+                  <ChevronDown
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                      isActive(item.href, "exact" in item ? item.exact : undefined)
-                        ? "bg-blue-600/20 text-white border-l-2 border-blue-500 pl-[10px]"
-                        : "text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+                      "h-3 w-3 transition-transform",
+                      isCollapsed && "-rotate-90"
                     )}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+                  />
+                </button>
+              ) : section.title ? (
+                <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                  {section.title}
+                </p>
+              ) : null}
+              {!isCollapsed && (
+                <ul className="space-y-0.5">
+                  {section.items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                          isActive(item.href, "exact" in item ? item.exact : undefined)
+                            ? "bg-blue-600/20 text-white border-l-2 border-blue-500 pl-[10px]"
+                            : "text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {item.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )
+        })}
       </nav>
 
       {/* Logout: API route → browser выполняет полную навигацию,

@@ -1,10 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { UserCircle, Lock, Mail, Bell, Phone, Settings } from "lucide-react"
+import { UserCircle, Lock, Mail, Bell, Phone } from "lucide-react"
 import { NameBlock, EmailBlock, PasswordBlock } from "./profile-forms"
 
-type TabKey = "general" | "security" | "email" | "notifications" | "management"
+// «management» вкладка удалена 2026-05-26 — её функции переехали в sidebar
+// в свёрнутую секцию НАСТРОЙКИ. Профиль теперь чисто про пользователя.
+type TabKey = "general" | "security" | "email" | "notifications"
 
 interface Props {
   currentName: string
@@ -12,12 +14,11 @@ interface Props {
   emailVerified: boolean
   phone: string | null
   notificationsSlot?: React.ReactNode
-  managementSlot?: React.ReactNode
   initialTab?: TabKey
 }
 
 export function ProfileTabs({
-  currentName, currentEmail, emailVerified, phone, notificationsSlot, managementSlot, initialTab,
+  currentName, currentEmail, emailVerified, phone, notificationsSlot, initialTab,
 }: Props) {
   const [tab, setTab] = useState<TabKey>(initialTab ?? "general")
 
@@ -30,9 +31,6 @@ export function ProfileTabs({
         <TabBtn icon={Lock} label="Безопасность" active={tab === "security"} onClick={() => setTab("security")} />
         {notificationsSlot && (
           <TabBtn icon={Bell} label="Уведомления" active={tab === "notifications"} onClick={() => setTab("notifications")} />
-        )}
-        {managementSlot && (
-          <TabBtn icon={Settings} label="Управление" active={tab === "management"} onClick={() => setTab("management")} />
         )}
       </div>
 
@@ -71,10 +69,6 @@ export function ProfileTabs({
 
       {tab === "notifications" && notificationsSlot && (
         <div className="space-y-5">{notificationsSlot}</div>
-      )}
-
-      {tab === "management" && managementSlot && (
-        <div>{managementSlot}</div>
       )}
     </div>
   )
