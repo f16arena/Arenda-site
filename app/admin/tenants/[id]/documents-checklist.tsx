@@ -32,8 +32,7 @@ export function DocumentsChecklist({
     <CollapsibleCard
       title="Документы"
       icon={FileText}
-      meta={`${completed} из ${required.length} обязательных`}
-     groupName="tenant-card">
+      meta={`${completed} из ${required.length} обязательных`}>
       <div className="flex justify-end px-5 py-3 border-b border-slate-50 dark:border-slate-800">
         <button
           type="button"

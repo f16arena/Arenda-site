@@ -42,7 +42,7 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
   if (items.length === 0) return null
 
   return (
-    <CollapsibleCard title="История писем" icon={Send} meta={`${items.length} писем`} groupName="tenant-card">
+    <CollapsibleCard title="История писем" icon={Send} meta={`${items.length} писем`}>
       <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-xs">
         <thead>

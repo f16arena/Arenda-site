@@ -35,7 +35,6 @@ export function FullFloorAssign({
       title="Аренда целого этажа"
       icon={Layers}
       meta={currentFloors.length > 0 ? `${currentFloors.length} назначено` : "не назначено"}
-      groupName="tenant-card"
     >
       <div className="p-4">
         {availableFloors.length > 0 && (

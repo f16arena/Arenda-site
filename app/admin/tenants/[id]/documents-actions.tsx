@@ -55,8 +55,7 @@ export function DocumentsActions({
     <CollapsibleCard
       title="Документы для арендатора"
       icon={FileText}
-      meta={tenantHasEmail ? "скачать или отправить" : "email не указан"}
-     groupName="tenant-card">
+      meta={tenantHasEmail ? "скачать или отправить" : "email не указан"}>
       <div className="divide-y divide-slate-50">
         {DOCS.map((d) => {
           const Icon = d.icon

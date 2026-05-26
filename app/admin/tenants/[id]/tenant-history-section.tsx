@@ -62,8 +62,7 @@ export async function TenantHistorySection({
     <CollapsibleCard
       title="История изменений"
       icon={ClipboardList}
-      meta={`${auditLogs.length} событий`}
-     groupName="tenant-card">
+      meta={`${auditLogs.length} событий`}>
       <ul className="max-h-96 divide-y divide-slate-50 overflow-y-auto dark:divide-slate-800">
         {auditLogs.map((log) => (
           <li key={log.id} className="px-5 py-3 text-xs">

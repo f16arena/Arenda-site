@@ -21,6 +21,7 @@ import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
   Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
   FileSignature, CheckCircle2, AlertTriangle,
+  Mail, History as HistoryIcon, Layers, ShieldCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
@@ -37,6 +38,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { Tabs, Tab } from "@/components/ui/server-tabs"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
 import type { Prisma } from "@/app/generated/prisma/client"
@@ -489,22 +491,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         period={currentPeriod}
         defaultDueDate={defaultServiceDueDate}
       >
-      {/* Адаптивная сетка всех карточек с поведением exclusive accordion
-          (2026-05-26, требование владельца). Все заголовки помещаются в
-          ширину страницы — 2 колонки на мобиле, до 7 на 2xl. Раскрытие
-          ОДНОЙ карточки автоматически закрывает остальные через нативный
-          HTML5 механизм <details name="tenant-card"> (Chrome 120+,
-          Safari 17.2+, Firefox 119+). Раскрытая карточка занимает
-          full-width через col-span-full — её контент виден целиком. */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 items-start [&>*:has(details[open])]:col-span-full [&>details[open]]:col-span-full">
+      {/* Табы карточки арендатора. Полоса заголовков сверху, контент
+          активной — на полную ширину под полосой. CSS-only переключение,
+          server component — никаких client boundary проблем. */}
+      <Tabs name="tenant-card" defaultActiveId="contact">
           {/* Contact info */}
-          <div id="tenant-contact">
-            <CollapsibleCard
+          <Tab
+              id="contact"
               title="Контактное лицо"
               icon={User}
               meta={tenant.user.phone ?? tenant.user.email ?? "контакты не заполнены"}
-              groupName="tenant-card"
-              defaultOpen
             >
             <form
               action={async (formData: FormData) => {
@@ -552,15 +548,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               </fieldset>
             </form>
-            </CollapsibleCard>
-          </div>
+          </Tab>
 
           {/* Company info */}
-          <CollapsibleCard
+          <Tab
+            id="company"
             title="Данные компании"
             icon={Building2}
             meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"} · ${tenant.isVatPayer ? `НДС ${tenantVatRate}%` : "без НДС"}`}
-            groupName="tenant-card"
           >
             <form
               action={async (formData: FormData) => {
@@ -734,15 +729,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               </fieldset>
             </form>
-          </CollapsibleCard>
+          </Tab>
 
           {/* Requisites */}
-          <div id="tenant-requisites">
-            <CollapsibleCard
+          <Tab
+              id="requisites"
               title="Банковские реквизиты"
               icon={CreditCard}
               meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
-              groupName="tenant-card"
             >
             {canEditCompany ? (
             <RequisitesFormLoader
@@ -762,15 +756,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 Реквизиты доступны только для просмотра. Для изменения нужно право на данные компании арендатора.
               </div>
             )}
-            </CollapsibleCard>
-          </div>
+          </Tab>
 
           {/* Rental terms */}
-          <CollapsibleCard
+          <Tab
+            id="rental"
             title="Условия аренды"
             icon={Receipt}
             meta={`${formatMoney(monthlyRent)}/мес`}
-            groupName="tenant-card"
           >
             {canEditRentalTerms ? (
             <RentalTermsFormLoader
@@ -791,51 +784,57 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 Условия аренды доступны только для просмотра. Для изменения нужно отдельное право.
               </div>
             )}
-          </CollapsibleCard>
+          </Tab>
 
           {/* Service charges */}
-          <CollapsibleCard
-            title="Дополнительные начисления"
-            icon={Zap}
-            meta={`за ${currentPeriod}`}
-            groupName="tenant-card"
-          >
+          <Tab id="service" title="Доп. начисления" icon={Zap} meta={`за ${currentPeriod}`}>
             <TenantLazyServiceCharges />
-          </CollapsibleCard>
+          </Tab>
 
           {/* Начисления, сгруппированные по договорам */}
-          <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
+          <Tab id="charges" title="По договорам" icon={Receipt}>
+            <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
+          </Tab>
 
           {/* Documents actions: invoice, act, contract, handover */}
           {canCreateDocuments && (
-            <DocumentsActionsLoader
-              tenantId={tenant.id}
-              tenantHasEmail={!!tenant.user.email}
-            />
+            <Tab id="docs-actions" title="Документы клиенту" icon={FileText}>
+              <DocumentsActionsLoader
+                tenantId={tenant.id}
+                tenantHasEmail={!!tenant.user.email}
+              />
+            </Tab>
           )}
 
           {/* Email log */}
-          <TenantLazyEmailLog />
+          <Tab id="email-log" title="Email" icon={Mail}>
+            <TenantLazyEmailLog />
+          </Tab>
 
           {/* Documents checklist */}
-          <TenantLazyDocumentsChecklist />
+          <Tab id="docs" title="Документы" icon={FileText}>
+            <TenantLazyDocumentsChecklist />
+          </Tab>
 
           {/* История изменений */}
-          <TenantLazyHistory />
+          <Tab id="history" title="История" icon={HistoryIcon}>
+            <TenantLazyHistory />
+          </Tab>
 
-          {/* === Бывшая правая колонка — теперь часть единой горизонтальной ленты === */}
+          {/* === Бывшая правая колонка — теперь часть единого ряда табов === */}
           {/* Full floor assign */}
           {canAssignTenantSpaces && (
-            <TenantLazyFullFloor />
+            <Tab id="full-floor" title="Целый этаж" icon={Layers}>
+              <TenantLazyFullFloor />
+            </Tab>
           )}
 
           {/* Space */}
-          <div id="tenant-placement">
-            <CollapsibleCard
+          <Tab
+              id="placement"
               title="Помещения"
               icon={Building2}
-              meta={assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ. · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж. · ${fullFloorArea} м²` : "не назначено"}
-              groupName="tenant-card"
+              meta={assignedSpaces.length > 0 ? `${assignedSpaces.length}×${assignedSpaces.reduce((sum, space) => sum + space.area, 0)}м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж` : "—"}
             >
             <div className="p-4">
               {assignedSpaces.length > 0 ? (
@@ -961,13 +960,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               )}
             </div>
-            </CollapsibleCard>
-          </div>
+          </Tab>
 
-          <TenantLazyContractsSidebar />
+          <Tab id="contracts" title="Договоры" icon={ShieldCheck}>
+            <TenantLazyContractsSidebar />
+          </Tab>
 
-          <TenantLazyRecentChargesSidebar />
-      </div>{/* /flex-lane */}
+          <Tab id="recent" title="Последние начисления" icon={Wallet}>
+            <TenantLazyRecentChargesSidebar />
+          </Tab>
+      </Tabs>
       </TenantLazySectionsProvider>
     </div>
   )

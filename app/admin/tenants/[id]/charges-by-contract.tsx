@@ -60,8 +60,7 @@ export async function ChargesByContractSection({
     <CollapsibleCard
       title="Начисления по договорам"
       icon={FileText}
-      meta={`${charges.length} записей`}
-     groupName="tenant-card">
+      meta={`${charges.length} записей`}>
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {sortedKeys.map((key) => {
           const list = groups.get(key) ?? []
