@@ -489,13 +489,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         period={currentPeriod}
         defaultDueDate={defaultServiceDueDate}
       >
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Left column: forms. ВСЕ карточки внутри идут в собственном grid
-            (2 колонки на lg+, 1 на мобиле) — раньше шли друг под другом
-            колонкой, владелец 2026-05-26 попросил «слева направо».
-            Левая колонка занимает xl:col-span-2 (2/3 экрана), поэтому
-            внутри 2 ряда дают ~450-500px на карточку — нормально для форм. */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 xl:col-span-2 items-start">
+      {/* Горизонтальная лента всех карточек (2026-05-26, требование владельца:
+          «все 12 в одну горизонтальную ленту»). Слева направо со скроллом.
+          Каждая карточка по умолчанию узкая (w-72 ≈ 288px), при раскрытии
+          через details[open] — автоматически расширяется до w-[560px] через
+          has-modifier. Прокрутка только по этой ленте — overflow-x-auto.
+          items-start — карточки разной высоты не растягиваются.
+          [&>*]:shrink-0 [&>*]:w-72 + has-[details[open]]:w-[560px] —
+          применяется ко всем прямым детям. */}
+      <div className="flex gap-4 overflow-x-auto pb-3 items-start [scrollbar-gutter:stable] [&>*]:shrink-0 [&>*]:w-72 [&>*]:transition-[width] [&>details[open]]:w-[560px] [&>div:has(details[open])]:w-[560px]">
           {/* Contact info */}
           <div id="tenant-contact">
             <CollapsibleCard
@@ -815,10 +817,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
           {/* История изменений */}
           <TenantLazyHistory />
-        </div>
 
-        {/* Right column: info cards */}
-        <div className="space-y-5">
+          {/* === Бывшая правая колонка — теперь часть единой горизонтальной ленты === */}
           {/* Full floor assign */}
           {canAssignTenantSpaces && (
             <TenantLazyFullFloor />
@@ -961,8 +961,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           <TenantLazyContractsSidebar />
 
           <TenantLazyRecentChargesSidebar />
-        </div>
-      </div>
+      </div>{/* /flex-lane */}
       </TenantLazySectionsProvider>
     </div>
   )
