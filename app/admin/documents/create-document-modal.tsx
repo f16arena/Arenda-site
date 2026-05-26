@@ -142,7 +142,7 @@ export function CreateDocumentModal({
     setOpen(false)
   }
 
-  function submit() {
+  async function submit() {
     if (!tenantId) return
     const tid = encodeURIComponent(tenantId)
 
@@ -152,16 +152,41 @@ export function CreateDocumentModal({
           ? `/api/invoices/generate?tenantId=${tid}&period=${period}`
           : `/api/acts/generate?tenantId=${tid}&period=${period}`
       setPending(true)
-      // attachment-ответ скачивается без ухода со страницы.
-      // Сервер делает revalidatePath, но без router.refresh() клиент
-      // продолжает показывать старый RSC payload — новый документ
-      // появляется только после ручной перезагрузки.
-      window.location.href = url
-      window.setTimeout(() => {
+      // Было `window.location.href = url` + setTimeout(refresh) — это
+      // не работало: браузер видел attachment-ответ, начинал навигацию,
+      // отменял её, но за это время React успевал частично размонтироваться
+      // и router.refresh() в setTimeout не дёргал RSC заново.
+      // Теперь — честный fetch + blob: страница вообще не «дёргается»,
+      // router.refresh() вызывается ТОЛЬКО после того как сервер
+      // подтвердил создание (и уже отработал revalidatePath).
+      try {
+        const res = await fetch(url, { method: "GET" })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Не удалось создать документ" }))
+          toast.error(err.error || "Не удалось создать документ")
+          return
+        }
+        const blob = await res.blob()
+        const downloadUrl = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = downloadUrl
+        // Имя файла — из Content-Disposition: filename*=UTF-8''…
+        const disposition = res.headers.get("Content-Disposition") ?? ""
+        const match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+        a.download = match ? decodeURIComponent(match[1]) : `document_${Date.now()}.docx`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(downloadUrl)
+        toast.success("Документ создан и скачан")
         close()
         reset()
         router.refresh()
-      }, 1500)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Ошибка при создании документа")
+      } finally {
+        setPending(false)
+      }
       return
     }
 
