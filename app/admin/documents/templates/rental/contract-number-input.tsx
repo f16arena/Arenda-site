@@ -4,6 +4,13 @@ import { useState } from "react"
 import { Hash, Check, Download, Calendar } from "lucide-react"
 import { NcaSignButton } from "@/components/nca-sign-button"
 
+/** Конец = 31 декабря (любого года)? Используется для мягкой валидации
+ *  при создании договора — индексация всегда на 1 января, поэтому
+ *  заканчивать в середине года значит перерывать срок ДС. */
+function isYearEnd(isoDate: string): boolean {
+  return /-12-31$/.test(isoDate)
+}
+
 export function ContractNumberInput({
   initial,
   tenantId,
@@ -73,8 +80,20 @@ export function ContractNumberInput({
           value={end}
           min={start}
           onChange={(e) => setEnd(e.target.value)}
-          className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+          className={`rounded-lg border px-3 py-1.5 text-sm focus:outline-none ${
+            isYearEnd(end)
+              ? "border-slate-200 dark:border-slate-800 focus:border-blue-500"
+              : "border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 focus:border-amber-500"
+          }`}
         />
+        <button
+          type="button"
+          onClick={() => setEnd(`${new Date(end).getFullYear()}-12-31`)}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+          title="Установить конец договора на 31 декабря выбранного года"
+        >
+          → 31.12
+        </button>
         <a href={docxUrl} download className="rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white shrink-0 inline-flex items-center gap-1 ml-auto">
           <Download className="h-3 w-3" /> {downloadFormat}
         </a>
@@ -86,9 +105,13 @@ export function ContractNumberInput({
           label="Подписать ЭЦП"
         />
       </div>
+      {!isYearEnd(end) && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400 ml-7">
+          ⚠️ Конец договора не 31 декабря. Индексация арендной платы происходит 1 января — рекомендуется заканчивать договор 31.12, чтобы новый договор/ДС начинал период с новой ставкой целиком.
+        </p>
+      )}
       <p className="text-[11px] text-slate-400 dark:text-slate-500 ml-7">
         Номер уникален в пределах здания. Период подставится в п. 2.1 договора и сохранится в карточке арендатора.
-        Рекомендуем заканчивать договор 31 декабря — индексация на 1 января не разорвёт срок.
       </p>
     </div>
   )
