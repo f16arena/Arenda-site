@@ -961,39 +961,65 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             </div>
           </Tab>
 
-          {/* Service charges */}
-          <Tab id="service" title="Доп. начисления" icon={Zap} meta={`за ${currentPeriod}`}>
-            <TenantLazyServiceCharges />
+          {/* === Объединение «Договоры» 2026-05-27: список договоров +
+              действия (создать счёт/договор/АВР) + начисления по договорам.
+              Раньше 3 отдельных таба — теперь один с 3 секциями. === */}
+          <Tab id="contracts" title="Договоры" icon={ShieldCheck}>
+            <div>
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Список договоров</h3>
+              </div>
+              <TenantLazyContractsSidebar />
+            </div>
+
+            {canCreateDocuments && (
+              <div className="border-t border-slate-100 dark:border-slate-800">
+                <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Создать документ</h3>
+                  <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">счёт / АВР / договор</span>
+                </div>
+                <DocumentsActionsLoader
+                  tenantId={tenant.id}
+                  tenantHasEmail={!!tenant.user.email}
+                />
+              </div>
+            )}
+
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления по договорам</h3>
+              </div>
+              <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
+            </div>
           </Tab>
 
-          {/* Начисления, сгруппированные по договорам */}
-          <Tab id="charges" title="По договорам" icon={Receipt}>
-            <ChargesByContractSection tenantId={tenant.id} orgId={orgId} />
+          {/* === Объединение «Начисления» 2026-05-27: доп. начисления (свет/вода)
+              + последние начисления (cron-сводка). === */}
+          <Tab id="charges-all" title="Начисления" icon={Zap} meta={`за ${currentPeriod}`}>
+            <div>
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h3>
+                <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">за {currentPeriod}</span>
+              </div>
+              <TenantLazyServiceCharges />
+            </div>
+
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние начисления</h3>
+              </div>
+              <TenantLazyRecentChargesSidebar />
+            </div>
           </Tab>
-
-          {/* Documents actions: invoice, act, contract, handover */}
-          {canCreateDocuments && (
-            <Tab id="docs-actions" title="Документы клиенту" icon={FileText}>
-              <DocumentsActionsLoader
-                tenantId={tenant.id}
-                tenantHasEmail={!!tenant.user.email}
-              />
-            </Tab>
-          )}
-
-          {/* «Email» (журнал писем) удалён 2026-05-27 — email уже в «Контактное лицо» */}
 
           {/* История изменений */}
           <Tab id="history" title="История" icon={HistoryIcon}>
             <TenantLazyHistory />
-          </Tab>
-
-          <Tab id="contracts" title="Договоры" icon={ShieldCheck}>
-            <TenantLazyContractsSidebar />
-          </Tab>
-
-          <Tab id="recent" title="Последние начисления" icon={Wallet}>
-            <TenantLazyRecentChargesSidebar />
           </Tab>
       </Tabs>
       </TenantLazySectionsProvider>
