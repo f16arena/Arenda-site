@@ -19,3 +19,30 @@ export function isServiceChargeType(value: string): value is ServiceChargeType {
 export function getServiceChargeDescription(type: ServiceChargeType) {
   return SERVICE_CHARGE_TYPES.find((item) => item.type === type)?.description ?? type
 }
+
+/**
+ * Парсит `building.utilitiesInServiceFee` (JSON-строка с массивом типов
+ * или null) в Set валидных ServiceChargeType. Невалидные/неизвестные
+ * значения молча отбрасываются.
+ */
+export function parseUtilitiesInServiceFee(value: string | null | undefined): Set<ServiceChargeType> {
+  if (!value) return new Set()
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(
+      parsed
+        .filter((v): v is string => typeof v === "string")
+        .filter((v): v is ServiceChargeType => isServiceChargeType(v)),
+    )
+  } catch {
+    return new Set()
+  }
+}
+
+/** Сериализация обратно в JSON-строку для сохранения в БД. */
+export function serializeUtilitiesInServiceFee(values: Iterable<string>): string | null {
+  const arr = Array.from(values).filter((v): v is ServiceChargeType => isServiceChargeType(v))
+  if (arr.length === 0) return null
+  return JSON.stringify(arr)
+}

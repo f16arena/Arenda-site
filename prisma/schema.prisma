@@ -480,6 +480,11 @@ model Building {
   // ежедневно: если now ≥ serviceFeeLastIndexedAt + 1 год — ставки ×(1+pct/100).
   serviceFeeIndexationPct Float?  @default(10) @map("service_fee_indexation_pct")
   serviceFeeLastIndexedAt DateTime? @map("service_fee_last_indexed_at")
+  // Какие коммунальные услуги УЖЕ включены в эксплуатационный сбор —
+  // не выставляются арендатору отдельной строкой и скрываются из формы
+  // «Доп. начисления». JSON-массив строк: ["ELECTRICITY","WATER","GARBAGE"...].
+  // Пусто = все услуги выставляются отдельно. Добавлено 2026-05-27.
+  utilitiesInServiceFee   String? @map("utilities_in_service_fee")
   createdAt             DateTime @default(now()) @map("created_at")
 
   organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)

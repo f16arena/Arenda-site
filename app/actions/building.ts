@@ -59,6 +59,14 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   // в договорах/актах когда геокодер вернул адрес на казахском («Шығыс Қазақстан
   // облысы»), а в документ нужно по-русски. Пустая строка → null (использовать обычный).
   const documentAddress = String(formData.get("documentAddress") ?? "").trim()
+  // Услуги включённые в эксп. сбор — массив чекбоксов name="utilities_in_service_fee".
+  // Sentinel `utilities_in_service_fee_form=1` помечает что форма управляет
+  // этим полем (иначе не трогаем — другая форма может его не иметь).
+  let utilitiesInServiceFee: string | null | undefined
+  if (formData.get("utilities_in_service_fee_form") === "1") {
+    const values = formData.getAll("utilities_in_service_fee").map(String)
+    utilitiesInServiceFee = (await import("@/lib/service-charges")).serializeUtilitiesInServiceFee(values)
+  }
 
   if (!address) throw new Error("Адрес здания обязателен")
 
@@ -70,6 +78,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
       address,
       ...addressFields,
       documentAddress: documentAddress || null,
+      ...(utilitiesInServiceFee !== undefined ? { utilitiesInServiceFee } : {}),
       description: description || null,
       phone,
       email,

@@ -19,6 +19,9 @@ type Props = {
   period: string
   defaultDueDate: string
   existingCharges: ExistingServiceCharge[]
+  /** Типы услуг включённые в эксп. сбор здания (Building.utilitiesInServiceFee).
+   *  Они скрываются из формы — арендатору не выставляются отдельно. */
+  utilitiesInServiceFee?: string[]
 }
 
 const inputClass =
@@ -28,12 +31,20 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Не удалось сохранить начисления"
 }
 
-export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingCharges }: Props) {
+export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingCharges, utilitiesInServiceFee = [] }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const existingByType = useMemo(() => {
     return new Map(existingCharges.map((charge) => [charge.type, charge]))
   }, [existingCharges])
+  // Фильтруем типы — скрываем те что включены в эксп. сбор здания.
+  // Но если уже есть существующее начисление этого типа (из истории) —
+  // показываем его (помечаем как «уже не выставляется, в эксп. сборе»),
+  // чтобы пользователь мог его удалить/посмотреть.
+  const hiddenTypes = useMemo(() => new Set(utilitiesInServiceFee), [utilitiesInServiceFee])
+  const visibleTypes = useMemo(() => {
+    return SERVICE_CHARGE_TYPES.filter((item) => !hiddenTypes.has(item.type) || existingByType.has(item.type))
+  }, [hiddenTypes, existingByType])
   const [enabled, setEnabled] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}
     for (const item of SERVICE_CHARGE_TYPES) initial[item.type] = existingByType.has(item.type)
@@ -83,6 +94,12 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
         </div>
       </div>
 
+      {hiddenTypes.size > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2 text-xs text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
+          В эксп. сборе здания: {Array.from(hiddenTypes).join(", ")}.
+          Эти услуги не выставляются отдельно и скрыты из списка ниже (если они уже не были начислены ранее).
+        </div>
+      )}
       <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
         <div className="hidden gap-3 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 md:grid md:grid-cols-[minmax(130px,1fr)_minmax(120px,180px)_minmax(160px,1fr)]">
           <span>Услуга</span>
@@ -90,7 +107,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
           <span>Комментарий</span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {SERVICE_CHARGE_TYPES.map((item) => {
+          {visibleTypes.map((item) => {
             const active = enabled[item.type]
             const existing = existingByType.get(item.type)
             return (

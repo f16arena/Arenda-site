@@ -200,6 +200,51 @@ export default async function SettingsPage() {
               Рассчитывается автоматически из общей площади этажей.
             </p>
           </div>
+          {/* Услуги в эксп. сборе: чекбоксы 2026-05-27.
+              Если услуга отмечена — она уже включена в эксплуатационный сбор,
+              не выставляется арендатору отдельной строкой и не появляется
+              в форме «Доп. начисления» в карточке арендатора. */}
+          <div className="col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/40 p-4 dark:border-slate-800 dark:bg-slate-900/40">
+            <input type="hidden" name="utilities_in_service_fee_form" value="1" />
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">
+              Включено в эксплуатационный сбор
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+              Отметьте услуги которые УЖЕ покрываются эксп. сбором. Они не будут выставляться арендатору отдельной строкой и не появятся в форме «Доп. начисления».
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+              {(() => {
+                const inServiceFee = (() => {
+                  try {
+                    if (!building.utilitiesInServiceFee) return new Set<string>()
+                    const parsed = JSON.parse(building.utilitiesInServiceFee)
+                    return Array.isArray(parsed) ? new Set(parsed.filter((v) => typeof v === "string")) : new Set<string>()
+                  } catch { return new Set<string>() }
+                })()
+                const items: Array<[string, string]> = [
+                  ["ELECTRICITY", "Свет"],
+                  ["WATER", "Вода"],
+                  ["GARBAGE", "Вывоз мусора"],
+                  ["HEATING", "Отопление"],
+                  ["SECURITY", "Охрана"],
+                  ["INTERNET", "Интернет"],
+                ]
+                return items.map(([type, label]) => (
+                  <label key={type} className="flex items-center gap-2 cursor-pointer rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800">
+                    <input
+                      type="checkbox"
+                      name="utilities_in_service_fee"
+                      value={type}
+                      defaultChecked={inServiceFee.has(type)}
+                      className="rounded border-slate-300"
+                    />
+                    <span className="text-slate-700 dark:text-slate-300">{label}</span>
+                  </label>
+                ))
+              })()}
+            </div>
+          </div>
+
           <div className="col-span-2">
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
             <textarea
