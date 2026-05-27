@@ -21,7 +21,7 @@ import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
   Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
   FileSignature, CheckCircle2, AlertTriangle,
-  Mail, History as HistoryIcon, Layers, ShieldCheck,
+  History as HistoryIcon, Layers, ShieldCheck,
 } from "lucide-react"
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
@@ -729,61 +729,210 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </div>
               </fieldset>
             </form>
+
+            {/* === Объединено 2026-05-27: Банковские реквизиты теперь
+                раздел внутри «Данные компании» === */}
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские реквизиты</h3>
+                <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+                  {tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : "не заполнены"}
+                </span>
+              </div>
+              {canEditCompany ? (
+                <RequisitesFormLoader
+                  tenantId={tenant.id}
+                  isIin={tenant.legalType === "IP" || tenant.legalType === "CHSI" || tenant.legalType === "PHYSICAL"}
+                  initial={{
+                    bankName: tenant.bankName,
+                    iik: tenant.iik,
+                    bik: tenant.bik,
+                    bin: tenant.bin,
+                    iin: tenant.iin,
+                    bankAccounts: tenant.bankAccounts,
+                  }}
+                />
+              ) : (
+                <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
+                  Реквизиты доступны только для просмотра. Нужно право на «данные компании арендатора».
+                </div>
+              )}
+            </div>
+
+            {/* === Объединено 2026-05-27: Документы компании теперь
+                раздел внутри «Данные компании» === */}
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы компании</h3>
+              </div>
+              <TenantLazyDocumentsChecklist />
+            </div>
           </Tab>
 
-          {/* Requisites */}
+          {/* === Объединено 2026-05-27: «Аренда» = Условия + Целый этаж + Помещения === */}
           <Tab
-              id="requisites"
-              title="Банковские реквизиты"
-              icon={CreditCard}
-              meta={tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : tenant.bankName ?? tenant.iik ?? "не заполнены"}
-            >
-            {canEditCompany ? (
-            <RequisitesFormLoader
-              tenantId={tenant.id}
-              isIin={tenant.legalType === "IP" || tenant.legalType === "CHSI" || tenant.legalType === "PHYSICAL"}
-              initial={{
-                bankName: tenant.bankName,
-                  iik: tenant.iik,
-                  bik: tenant.bik,
-                  bin: tenant.bin,
-                  iin: tenant.iin,
-                  bankAccounts: tenant.bankAccounts,
+            id="rental"
+            title="Аренда"
+            icon={Receipt}
+            meta={`${formatMoney(monthlyRent)}/мес · ${assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ.` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж` : "—"}`}
+          >
+            <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Условия аренды</h3>
+            </div>
+            {canEditRentalTerms ? (
+              <RentalTermsFormLoader
+                tenantId={tenant.id}
+                locked={rentalTermsLocked}
+                lockedReason={rentalTermsLockReason}
+                initial={{
+                  customRate: tenant.customRate,
+                  fixedMonthlyRent: tenant.fixedMonthlyRent,
+                  cleaningFee: tenant.cleaningFee,
+                  needsCleaning: tenant.needsCleaning,
+                  paymentDueDay: tenant.paymentDueDay ?? 10,
+                  penaltyPercent: tenant.penaltyPercent ?? 1,
                 }}
               />
             ) : (
               <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
-                Реквизиты доступны только для просмотра. Для изменения нужно право на данные компании арендатора.
+                Условия аренды доступны только для просмотра. Нужно отдельное право.
               </div>
             )}
-          </Tab>
 
-          {/* Rental terms */}
-          <Tab
-            id="rental"
-            title="Условия аренды"
-            icon={Receipt}
-            meta={`${formatMoney(monthlyRent)}/мес`}
-          >
-            {canEditRentalTerms ? (
-            <RentalTermsFormLoader
-              tenantId={tenant.id}
-              locked={rentalTermsLocked}
-              lockedReason={rentalTermsLockReason}
-              initial={{
-                customRate: tenant.customRate,
-                fixedMonthlyRent: tenant.fixedMonthlyRent,
-                cleaningFee: tenant.cleaningFee,
-                needsCleaning: tenant.needsCleaning,
-                paymentDueDay: tenant.paymentDueDay ?? 10,
-                penaltyPercent: tenant.penaltyPercent ?? 1,
-              }}
-            />
-            ) : (
-              <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
-                Условия аренды доступны только для просмотра. Для изменения нужно отдельное право.
+            {canAssignTenantSpaces && (
+              <div className="border-t border-slate-100 dark:border-slate-800">
+                <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Аренда целого этажа</h3>
+                </div>
+                <TenantLazyFullFloor />
               </div>
             )}
+
+            <div className="border-t border-slate-100 dark:border-slate-800">
+              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Помещения</h3>
+                <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+                  {assignedSpaces.length > 0 ? `${assignedSpaces.length} назначено · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : "не назначено"}
+                </span>
+              </div>
+              <div className="p-4">
+                {assignedSpaces.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {assignedSpaces.map((space, index) => (
+                        <div key={space.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                                Каб. {space.number}
+                                {index === 0 && (
+                                  <span className="ml-2 align-middle rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
+                                    Основное
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{space.floor.name}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{space.area} м²</p>
+                            </div>
+                            {canAssignTenantSpaces && (
+                              <form
+                                action={async () => {
+                                  "use server"
+                                  await unassignTenantSpace(tenant.id, space.id)
+                                }}
+                              >
+                                <button
+                                  type="submit"
+                                  className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
+                                >
+                                  Снять
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {hasTenantFixedRent ? (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
+                    ) : tenant.customRate ? (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
+                    ) : (
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Расчёт по ставкам этажей</p>
+                    )}
+                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
+                      Аренда: {formatMoney(monthlyRent)}/мес
+                    </p>
+                    {canCreateDocuments && (
+                      <Link
+                        href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
+                        className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                      >
+                        Сформировать договор
+                      </Link>
+                    )}
+                  </div>
+                ) : myFullFloors.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      {myFullFloors.map((floor) => (
+                        <div key={floor.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+                          <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{floor.name}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{floor.totalArea ?? 0} м²</p>
+                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            {formatMoney(floor.fixedMonthlyRent ?? 0)}/мес
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
+                      Аренда всего: {formatMoney(monthlyRent)}/мес
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
+                )}
+                {canAssignTenantSpaces && (
+                  <div className={assignedSpaces.length > 0 ? "mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" : ""}>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">
+                      {assignedSpaces.length > 0 ? "Добавить ещё помещение:" : "Свободные помещения:"}
+                    </p>
+                    <div className="space-y-2">
+                      {vacantSpaces.map((s) => (
+                        <form
+                          key={s.id}
+                          action={async () => {
+                            "use server"
+                            await assignTenantSpace(tenant.id, s.id)
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                          >
+                            <span className="font-medium">Каб. {s.number}</span>
+                            <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
+                          </button>
+                        </form>
+                      ))}
+                      {vacantSpaces.length === 0 && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
+                      )}
+                      {vacantSpacesHasMore && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                          Показаны первые {vacantSpaces.length}. Для точного выбора откройте страницу помещений выбранного здания.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </Tab>
 
           {/* Service charges */}
@@ -806,160 +955,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             </Tab>
           )}
 
-          {/* Email log */}
-          <Tab id="email-log" title="Email" icon={Mail}>
-            <TenantLazyEmailLog />
-          </Tab>
-
-          {/* Documents checklist */}
-          <Tab id="docs" title="Документы" icon={FileText}>
-            <TenantLazyDocumentsChecklist />
-          </Tab>
+          {/* «Email» (журнал писем) удалён 2026-05-27 — email уже в «Контактное лицо» */}
 
           {/* История изменений */}
           <Tab id="history" title="История" icon={HistoryIcon}>
             <TenantLazyHistory />
-          </Tab>
-
-          {/* === Бывшая правая колонка — теперь часть единого ряда табов === */}
-          {/* Full floor assign */}
-          {canAssignTenantSpaces && (
-            <Tab id="full-floor" title="Целый этаж" icon={Layers}>
-              <TenantLazyFullFloor />
-            </Tab>
-          )}
-
-          {/* Space */}
-          <Tab
-              id="placement"
-              title="Помещения"
-              icon={Building2}
-              meta={assignedSpaces.length > 0 ? `${assignedSpaces.length}×${assignedSpaces.reduce((sum, space) => sum + space.area, 0)}м²` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж` : "—"}
-            >
-            <div className="p-4">
-              {assignedSpaces.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    {assignedSpaces.map((space, index) => (
-                      <div key={space.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                              Каб. {space.number}
-                              {index === 0 && (
-                                <span className="ml-2 align-middle rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
-                                  Основное
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{space.floor.name}</p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">{space.area} м²</p>
-                          </div>
-                          {canAssignTenantSpaces && (
-                          <form
-                            action={async () => {
-                              "use server"
-                              await unassignTenantSpace(tenant.id, space.id)
-                            }}
-                          >
-                            <button
-                              type="submit"
-                              className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
-                            >
-                              Снять
-                            </button>
-                          </form>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {hasTenantFixedRent ? (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
-                  ) : tenant.customRate ? (
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
-                  ) : (
-                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      Расчёт по ставкам этажей
-                    </p>
-                  )}
-                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
-                    Аренда: {formatMoney(monthlyRent)}/мес
-                  </p>
-                  {canCreateDocuments && (
-                  <Link
-                    href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
-                    className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors"
-                  >
-                    Сформировать договор
-                  </Link>
-                  )}
-                </div>
-              ) : myFullFloors.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    {myFullFloors.map((floor) => (
-                      <div key={floor.id} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
-                        <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{floor.name}</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{floor.totalArea ?? 0} м²</p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {formatMoney(floor.fixedMonthlyRent ?? 0)}/мес
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
-                    Аренда всего: {formatMoney(monthlyRent)}/мес
-                  </p>
-                  {canCreateDocuments && (
-                  <Link
-                    href={`/admin/documents/new/contract?tenantId=${tenant.id}`}
-                    className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                  >
-                    Сформировать договор
-                  </Link>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
-                </div>
-              )}
-              {canAssignTenantSpaces && (
-              <div className={assignedSpaces.length > 0 ? "mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" : ""}>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">
-                  {assignedSpaces.length > 0 ? "Добавить ещё помещение:" : "Свободные помещения:"}
-                </p>
-                <div className="space-y-2">
-                  {vacantSpaces.map((s) => (
-                    <form
-                      key={s.id}
-                      action={async () => {
-                        "use server"
-                        await assignTenantSpace(tenant.id, s.id)
-                      }}
-                    >
-                      <button
-                        type="submit"
-                        className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 dark:border-blue-500/40 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10 transition-colors"
-                      >
-                        <span className="font-medium">Каб. {s.number}</span>
-                        <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
-                      </button>
-                    </form>
-                  ))}
-                  {vacantSpaces.length === 0 && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
-                  )}
-                  {vacantSpacesHasMore && (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Показаны первые {vacantSpaces.length}. Для точного выбора откройте страницу помещений выбранного здания.
-                    </p>
-                  )}
-                </div>
-              </div>
-              )}
-            </div>
           </Tab>
 
           <Tab id="contracts" title="Договоры" icon={ShieldCheck}>
