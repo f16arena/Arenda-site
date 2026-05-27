@@ -357,6 +357,19 @@ export async function GET(req: Request) {
       deposit_amount: formatMoney(tenant.depositAmount ?? monthlyRent),
       deposit_in_words: numberToWords(tenant.depositAmount ?? monthlyRent),
 
+      // Готовые абзацы для шаблона (вставляются как один плейсхолдер вместо
+      // нескольких отдельных полей). Добавлены 2026-05-27 — упрощают шаблон
+      // в Word: вместо «N месяцев каникул» с условной логикой —
+      // просто {rent_free_months_clause} = пусто если нет каникул, или
+      // готовая фраза если есть.
+      rent_free_months_clause: (tenant.rentFreeMonths ?? 0) > 0
+        ? `Стороны согласовали арендные каникулы сроком ${tenant.rentFreeMonths} ${pluralRu(tenant.rentFreeMonths!, ["месяц", "месяца", "месяцев"])} с даты передачи Помещения. В указанный период арендная плата не начисляется. По истечении каникул начисление производится в общем порядке.`
+        : "",
+      deposit_clause: (() => {
+        const dep = tenant.depositAmount ?? monthlyRent
+        return `Размер обеспечительного (гарантийного) депозита составляет ${formatMoney(dep)} (${numberToWords(dep)}) тенге, что эквивалентно ${tenant.depositAmount && tenant.depositAmount !== monthlyRent ? "согласованной Сторонами сумме" : "одной месячной арендной плате"}. Депозит вносится Арендатором в течение 30 (тридцати) календарных дней с даты подписания Договора.`
+      })(),
+
       prolongation_clause: LEASE_PROLONGATION_CLAUSE,
       contract_prolongation_clause: LEASE_PROLONGATION_CLAUSE,
       esf_clause: LEASE_ESF_CLAUSE,
@@ -680,6 +693,19 @@ type TenantBasisInput = {
   companyName?: string | null
   bin?: string | null
   iin?: string | null
+}
+
+/**
+ * Русская плюрализация числа: pluralRu(1, ["месяц","месяца","месяцев"]) → "месяц".
+ * Правила РК: 1 → форма1, 2-4 → форма2, 5-20 → форма3, 21 → форма1 (...).
+ */
+function pluralRu(n: number, forms: [string, string, string]): string {
+  const abs = Math.abs(n) % 100
+  const n1 = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (n1 > 1 && n1 < 5) return forms[1]
+  if (n1 === 1) return forms[0]
+  return forms[2]
 }
 
 const UTILITIES_CLAUSE = "Отопление, электроэнергия и водоснабжение предоставляются в рамках эксплуатации здания. За отдельную плату и/или по отдельному соглашению Арендодатель может предоставлять Арендатору телефонную линию, доступ в интернет и иные дополнительные услуги, которые не относятся к арендным платежам и оплачиваются Арендатором отдельно."
