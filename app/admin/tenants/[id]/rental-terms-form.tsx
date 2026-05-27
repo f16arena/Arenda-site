@@ -16,6 +16,8 @@ type RentalTermsInitial = {
   penaltyPercent: number
   rentFreeMonths?: number | null
   depositAmount?: number | null
+  /** YYYY-MM-DD строкой (если задана); используется для defaultValue input[type=date] */
+  moveInDate?: string | null
 }
 
 type Props = {
@@ -170,7 +172,26 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           Нельзя указать одновременно со ставкой за м²
         </p>
       </div>
-      {/* Каникулы (rent-free months) — первые N месяцев после contractStart
+      {/* Дата фактического заселения — может отличаться от даты начала договора
+          (договор подписан 1 апреля, заехал 1 мая). Если пусто — берётся
+          contractStart. От этой даты отсчитываются каникулы и proration. */}
+      <div>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          Дата заселения
+        </label>
+        <input
+          name="moveInDate"
+          type="date"
+          defaultValue={initial.moveInDate ?? ""}
+          disabled={termsDisabled || pending}
+          className={inputClass}
+        />
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          Если пусто — = дата начала договора. Точка отсчёта каникул.
+        </p>
+      </div>
+
+      {/* Каникулы (rent-free months) — первые N месяцев после moveInDate
           не начисляются. Используется для ремонта / заселения. */}
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">

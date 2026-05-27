@@ -600,7 +600,11 @@ model Tenant {
   fixedMonthlyRent Float?    @map("fixed_monthly_rent")
   contractStart    DateTime? @map("contract_start")
   contractEnd      DateTime? @map("contract_end")
-  // Арендные каникулы — N месяцев после contractStart без начисления аренды
+  // Фактическая дата заселения. Может отличаться от contractStart: договор
+  // подписан 1 апреля, заехал 1 мая. Если NULL — = contractStart.
+  // Используется как точка отсчёта каникул и proration. Добавлено 2026-05-27.
+  moveInDate       DateTime? @map("move_in_date")
+  // Арендные каникулы — N месяцев после moveInDate без начисления аренды
   // (ремонт, заселение). Cron check-deadlines пропускает создание Charge
   // для этих периодов. По умолчанию 0.
   rentFreeMonths   Int       @default(0) @map("rent_free_months")

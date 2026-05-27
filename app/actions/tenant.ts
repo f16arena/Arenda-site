@@ -734,6 +734,17 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     const n = parseFloat(depositAmountRaw.replace(",", "."))
     if (Number.isFinite(n) && n >= 0) depositAmount = n
   }
+  // Дата заселения. Если пусто — null (использовать contractStart).
+  let moveInDate: Date | null | undefined
+  const moveInDateRaw = String(formData.get("moveInDate") ?? "").trim()
+  if (formData.has("moveInDate")) {
+    if (moveInDateRaw === "") {
+      moveInDate = null
+    } else {
+      const d = new Date(moveInDateRaw)
+      if (!Number.isNaN(d.getTime())) moveInDate = d
+    }
+  }
 
   const before: RentalTermsSnapshot = {
     customRate: normalizeMoney(tenant.customRate),
@@ -837,17 +848,19 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
           penaltyPercent: after.penaltyPercent,
           ...(rentFreeMonths !== undefined ? { rentFreeMonths } : {}),
           ...(depositAmount !== undefined ? { depositAmount } : {}),
+          ...(moveInDate !== undefined ? { moveInDate } : {}),
         },
       })
     } else {
-      // При addendum-режиме каникулы/депозит обновляем напрямую — они
+      // При addendum-режиме доп. поля обновляем напрямую — они
       // не часть rental-terms snapshot, не требуют доп. соглашения.
-      if (rentFreeMonths !== undefined || depositAmount !== undefined) {
+      if (rentFreeMonths !== undefined || depositAmount !== undefined || moveInDate !== undefined) {
         await tx.tenant.update({
           where: { id: tenantId },
           data: {
             ...(rentFreeMonths !== undefined ? { rentFreeMonths } : {}),
             ...(depositAmount !== undefined ? { depositAmount } : {}),
+            ...(moveInDate !== undefined ? { moveInDate } : {}),
           },
         })
       }

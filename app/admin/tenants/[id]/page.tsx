@@ -139,6 +139,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       basisDocument: true,
       rentFreeMonths: true,
       depositAmount: true,
+      moveInDate: true,
       cleaningFee: true,
       needsCleaning: true,
       customRate: true,
@@ -820,6 +821,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   penaltyPercent: tenant.penaltyPercent ?? 1,
                   rentFreeMonths: tenant.rentFreeMonths ?? 0,
                   depositAmount: tenant.depositAmount,
+                  moveInDate: tenant.moveInDate?.toISOString().slice(0, 10) ?? null,
                 }}
               />
             ) : (

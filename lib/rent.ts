@@ -3,10 +3,13 @@ type TenantRentInput = {
   customRate?: number | null
   contractStart?: Date | string | null
   contractEnd?: Date | string | null
+  /** Фактическая дата заселения. Если задана — используется как точка
+   *  отсчёта для proration и каникул вместо contractStart. Раньше эти
+   *  две даты совпадали; разделены 2026-05-27. */
+  moveInDate?: Date | string | null
   paymentDueDay?: number | null
-  /** Арендные каникулы — первые N месяцев после contractStart без начисления.
-   *  По умолчанию 0. Учитывается в calculateTenantRentChargeForPeriod через
-   *  skipReason="RENT_FREE_PERIOD". */
+  /** Арендные каникулы — первые N месяцев после moveInDate (или contractStart
+   *  если moveInDate не задан) без начисления. По умолчанию 0. */
   rentFreeMonths?: number | null
   space?: {
     area: number
@@ -84,7 +87,9 @@ export function calculateTenantRentChargeForPeriod(
     return skippedRentSchedule(monthlyRent, regularDueDate, "NO_RENT")
   }
 
-  const contractStart = toLocalDate(tenant.contractStart)
+  // Используем moveInDate для proration и каникул если задан, иначе contractStart.
+  // contractEnd НЕ заменяется на moveInDate — окончание = по контракту.
+  const contractStart = toLocalDate(tenant.moveInDate) ?? toLocalDate(tenant.contractStart)
   const contractEnd = toLocalDate(tenant.contractEnd)
   const periodMonth = monthKey(year, monthIndex)
 
