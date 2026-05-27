@@ -345,7 +345,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             : null
 
   return (
-    <div className="space-y-6">
+    // POC: применён Swiss-якорь (frontend-design skill, Ilm-Alan).
+    // Класс swiss-anchor определён в app/globals.css — переопределяет
+    // tailwind-классы для всех вложенных: hairline borders, без скруглений,
+    // без теней, Helvetica, accent #E4002B вместо blue, font-weight 400/700.
+    // Если плохо смотрится — убрать только этот wrapper, остальной код цел.
+    <div className="swiss-anchor space-y-6">
       <Breadcrumbs
         items={[
           { label: "Главная", href: "/admin" },
