@@ -37,7 +37,6 @@ import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-pla
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
-import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import { Tabs, Tab } from "@/components/ui/server-tabs"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
@@ -49,7 +48,6 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import {
   TenantLazyContractsSidebar,
   TenantLazyDocumentsChecklist,
-  TenantLazyEmailLog,
   TenantLazyFullFloor,
   TenantLazyHistory,
   TenantLazyRecentChargesSidebar,

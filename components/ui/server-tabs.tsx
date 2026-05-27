@@ -34,7 +34,11 @@ export type TabProps = {
 
 // Tab — server-side маркер. Сам не рендерит ничего — props собирает
 // родитель через React.Children и сам формирует HTML структуру.
-export function Tab(_props: TabProps): null {
+// Сигнатура с TabProps сохранена для TypeScript-валидации
+// `<Tab id="..." title="..." ...>` на caller-сайте; `void props`
+// помечает аргумент как использованный для ESLint.
+export function Tab(props: TabProps): null {
+  void props
   return null
 }
 
@@ -84,7 +88,6 @@ export function Tabs({
 
   return (
     <div className={cssClass(name)}>
-      {/* eslint-disable-next-line react/no-danger */}
       <style dangerouslySetInnerHTML={{ __html: css }} />
 
       {/* Все radio inputs ДО labels/panels — sibling-селектор `~` работает

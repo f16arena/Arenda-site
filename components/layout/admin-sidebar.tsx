@@ -7,9 +7,9 @@ import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
-  ShieldCheck, Shield, Package, Settings as SettingsIcon,
+  Shield, Package, Settings as SettingsIcon,
   Mail, History, TrendingUp,
-  LogOut, Building, Activity,
+  LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles,
 } from "lucide-react"
@@ -141,23 +141,30 @@ export function AdminSidebar({
   // (свёрнуто/раскрыто) приходит из логики ниже — если активный путь
   // внутри секции, она раскрывается. Иначе читаем из localStorage.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  // Hydration-flag: на сервере {} → SSR HTML, на клиенте при первом рендере
+  // подгружаем из localStorage и обновляем state. Используем паттерн
+  // «adjusting state during render» (React 18+) вместо useEffect —
+  // ESLint правило react-hooks/set-state-in-effect блокирует setState
+  // внутри эффекта. Этот паттерн идиоматичен и React сам перерендерит
+  // без cascading effects. См. react.dev/learn/you-might-not-need-an-effect.
+  const [hydrated, setHydrated] = useState(false)
+  if (!hydrated) {
+    setHydrated(true)
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("sidebar:collapsed")
+        if (raw) setCollapsed(JSON.parse(raw) as Record<string, boolean>)
+      } catch {
+        // localStorage может быть недоступен (приватный режим) — игнорируем.
+      }
+    }
+  }
 
   // Закрываем drawer при смене URL
   useEffect(() => {
     const id = window.setTimeout(() => setMobileOpen(false), 0)
     return () => window.clearTimeout(id)
   }, [pathname])
-
-  // Подтягиваем сохранённое состояние сворачивания из localStorage один раз.
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    try {
-      const raw = window.localStorage.getItem("sidebar:collapsed")
-      if (raw) setCollapsed(JSON.parse(raw) as Record<string, boolean>)
-    } catch {
-      // localStorage может быть недоступен (приватный режим) — игнорируем.
-    }
-  }, [])
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href

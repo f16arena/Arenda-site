@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useMemo, useEffect } from "react"
+import { useState, useTransition, useMemo } from "react"
 import Link from "next/link"
 import {
   Download, FileText, Archive, Loader2, ChevronDown, ChevronRight,
@@ -52,11 +52,16 @@ export interface DocRow {
 export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint: string }) {
   // Локальный state — позволяет оптимистично убирать удалённые строки сразу,
   // без ожидания router.refresh(). Если сервер вернул ошибку — возвращаем строку
-  // обратно. Синхронизируем localRows с props при каждом приходе свежих данных.
+  // обратно. Синхронизация с свежими props через паттерн «adjusting state during
+  // render» (React 18+ docs/learn/you-might-not-need-an-effect): React сам
+  // дорендерит без cascading-эффектов. Раньше использовался useEffect →
+  // ESLint правило react-hooks/set-state-in-effect ругалось.
+  const [prevRows, setPrevRows] = useState(rows)
   const [localRows, setLocalRows] = useState<DocRow[]>(rows)
-  useEffect(() => {
+  if (prevRows !== rows) {
+    setPrevRows(rows)
     setLocalRows(rows)
-  }, [rows])
+  }
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
