@@ -385,6 +385,10 @@ function ExistingAccount({ account }: { account: BankAccount }) {
 
 function AddAccountForm({ tenantId }: { tenantId: string }) {
   const router = useRouter()
+  // Свёрнутая форма по умолчанию — показываем только ссылку «+ Добавить счёт»
+  // (требование владельца 2026-05-27). При клике форма раскрывается.
+  // После успешного добавления — снова сворачиваем (см. submit()).
+  const [expanded, setExpanded] = useState(false)
   const [label, setLabel] = useState("")
   const [bankName, setBankName] = useState("")
   const [iik, setIik] = useState("")
@@ -418,6 +422,7 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
         setIik("")
         setBik("")
         setIsPrimary(false)
+        setExpanded(false) // после успешного добавления — снова сворачиваем
         toast.success("Счёт добавлен")
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Не удалось добавить счёт")
@@ -425,6 +430,21 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
     })
   }
 
+  // Свёрнутый вид — просто кнопка-ссылка «+ Добавить счёт»
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+      >
+        <Plus className="h-4 w-4" />
+        Добавить счёт
+      </button>
+    )
+  }
+
+  // Раскрытый вид — полная форма
   return (
     <div className="rounded-xl border border-dashed border-slate-300 p-4 dark:border-slate-700">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -432,15 +452,31 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Добавить банковский счёт</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">Можно хранить несколько счетов арендатора.</p>
         </div>
-        <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-          <input
-            type="checkbox"
-            checked={isPrimary}
-            onChange={(event) => setIsPrimary(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600"
-          />
-          Основной
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={isPrimary}
+              onChange={(event) => setIsPrimary(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            />
+            Основной
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setExpanded(false)
+              setLabel("")
+              setBankName("")
+              setIik("")
+              setBik("")
+              setIsPrimary(false)
+            }}
+            className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            Отмена
+          </button>
+        </div>
       </div>
 
       <BankFields
