@@ -361,7 +361,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             : null
 
   return (
-    <div className="space-y-6">
+    // POC Linear-style (2026-05-27): применяет hairline borders, мягче shadow,
+    // компактнее радиусы, violet-accent, плавные transitions, чёткие focus rings.
+    // Класс определён в app/globals.css. Реверсивно — убрать `linear-style`.
+    <div className="linear-style space-y-6">
       <Breadcrumbs
         items={[
           { label: "Главная", href: "/admin" },

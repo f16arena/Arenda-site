@@ -31,3 +31,129 @@ body {
 .tabular-nums, table td, .font-mono {
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   Linear-style — POC обёртка (2026-05-27).
+   Применяется через <div className="linear-style"> на отдельные
+   страницы. Идиомы linear.app: компактнее, hairline, мягче shadow,
+   subtle hover, чёткие focus rings, tabular numerals везде, чуть
+   меньшие радиусы (lg=8px вместо xl=12px).
+
+   Принцип: переопределяет Tailwind-классы внутри скоупа через
+   [class*="..."] селекторы. Реверсивно — убрать класс на root div,
+   страница вернётся к стандартному виду.
+
+   Если понравится — расширим на всю платформу (заменим скоуп на body
+   или :root). Сейчас точечно как POC.
+   ============================================================ */
+.linear-style {
+  --ls-accent: #5e6ad2;
+  --ls-accent-hover: #4d59c9;
+  --ls-accent-soft: #eef0fc;
+  --ls-hairline: #e4e4e7;
+  --ls-hairline-strong: #d4d4d8;
+  --ls-text: #18181b;
+  --ls-text-muted: #71717a;
+  --ls-bg: #fafafa;
+  --ls-bg-card: #ffffff;
+  font-feature-settings: "ss01", "ss02", "cv01", "cv03", "tnum" 1, "lnum" 1;
+  letter-spacing: -0.005em;
+}
+
+/* Чуть меньшие радиусы — Linear использует rounded-lg (8px) для карточек,
+   а не rounded-xl/2xl */
+.linear-style [class*="rounded-2xl"] { border-radius: 0.625rem !important; } /* 10px */
+.linear-style [class*="rounded-xl"]  { border-radius: 0.5rem !important; }   /* 8px */
+.linear-style [class*="rounded-lg"]  { border-radius: 0.375rem !important; } /* 6px */
+
+/* Hairline borders — слабее обычных Tailwind. Дублирующиеся правила для
+   light/dark — селектор поднимает специфичность достаточно. */
+.linear-style [class*="border-slate-200"],
+.linear-style [class*="border-zinc-200"],
+.linear-style [class*="border-gray-200"] {
+  border-color: var(--ls-hairline) !important;
+}
+.linear-style [class*="border-slate-300"] {
+  border-color: var(--ls-hairline-strong) !important;
+}
+
+/* Минимальные shadow — Linear почти не использует тени, только 1px hairline
+   снизу для отделения. */
+.linear-style [class*="shadow-sm"],
+.linear-style [class*="shadow-md"],
+.linear-style [class*="shadow-lg"] {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04) !important;
+}
+.linear-style [class*="shadow-2xl"] {
+  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08) !important;
+}
+
+/* Плавные transitions на всё — Linear очень отзывчивый, 100-150ms ease */
+.linear-style button,
+.linear-style a,
+.linear-style [role="button"],
+.linear-style [class*="hover:"] {
+  transition-property: background-color, border-color, color, opacity, box-shadow, transform !important;
+  transition-duration: 120ms !important;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Focus rings — чёткие и заметные. Linear использует violet-accent. */
+.linear-style :focus-visible {
+  outline: 2px solid var(--ls-accent) !important;
+  outline-offset: 2px;
+}
+.linear-style input:focus-visible,
+.linear-style textarea:focus-visible,
+.linear-style select:focus-visible {
+  outline: none !important;
+  border-color: var(--ls-accent) !important;
+  box-shadow: 0 0 0 3px var(--ls-accent-soft) !important;
+}
+
+/* Blue accent → Linear violet */
+.linear-style [class*="text-blue-600"],
+.linear-style [class*="text-blue-700"],
+.linear-style [class*="text-blue-500"] {
+  color: var(--ls-accent) !important;
+}
+.linear-style [class*="bg-blue-600"],
+.linear-style [class*="bg-blue-700"] {
+  background-color: var(--ls-accent) !important;
+}
+.linear-style [class*="bg-blue-600"]:hover,
+.linear-style [class*="bg-blue-700"]:hover {
+  background-color: var(--ls-accent-hover) !important;
+}
+.linear-style [class*="bg-blue-50"],
+.linear-style [class*="bg-blue-100"] {
+  background-color: var(--ls-accent-soft) !important;
+}
+.linear-style [class*="border-blue-500"],
+.linear-style [class*="border-blue-600"] {
+  border-color: var(--ls-accent) !important;
+}
+
+/* Font-weight нормализация: Linear использует только 400 (body), 500 (emphasis), 600 (heading).
+   Никаких 700/800 — оставляем естественный вес шрифта. */
+.linear-style [class*="font-bold"] {
+  font-weight: 600 !important;
+}
+
+/* Тёмная тема: инвертируем переменные. Linear-app в тёмной — slate-900 фон,
+   slate-800 карточки, almost-pure-white текст. */
+.dark .linear-style {
+  --ls-accent: #7c89eb;
+  --ls-accent-hover: #909ceb;
+  --ls-accent-soft: rgba(94, 106, 210, 0.15);
+  --ls-hairline: #27272a;
+  --ls-hairline-strong: #3f3f46;
+  --ls-text: #fafafa;
+  --ls-text-muted: #a1a1aa;
+  --ls-bg: #09090b;
+  --ls-bg-card: #18181b;
+}
+.dark .linear-style [class*="border-slate-700"],
+.dark .linear-style [class*="border-slate-800"] {
+  border-color: var(--ls-hairline) !important;
+}
