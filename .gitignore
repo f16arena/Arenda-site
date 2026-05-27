@@ -60,3 +60,6 @@ prisma/*-dump.json
 .commit-msg.tmp
 
 .claude/
+
+# Obsidian vault — локальные настройки/workspace юзера, не код проекта
+.obsidian/
