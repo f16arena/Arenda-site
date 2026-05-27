@@ -211,12 +211,23 @@ function Section({
                 <td className="px-5 py-3 text-right">
                   <div className="flex gap-3 justify-end text-xs">
                     <Link href={`/admin/tenants/${t.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">Карточка</Link>
-                    <Link
-                      href={`/admin/documents/new/contract?tenantId=${t.id}`}
-                      className="text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Договор
-                    </Link>
+                    {/* Если есть последний контракт — даём прямую ссылку на detail; */}
+                    {/* иначе на форму создания нового. */}
+                    {t.contracts.length > 0 ? (
+                      <Link
+                        href={`/admin/contracts/${t.contracts[0].id}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        № {t.contracts[0].number}
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/admin/documents/new/contract?tenantId=${t.id}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Создать
+                      </Link>
+                    )}
                   </div>
                 </td>
               </tr>
