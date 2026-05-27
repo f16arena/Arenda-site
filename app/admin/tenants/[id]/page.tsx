@@ -139,6 +139,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       directorPosition: true,
       usePurpose: true,
       basisDocument: true,
+      rentFreeMonths: true,
+      depositAmount: true,
       cleaningFee: true,
       needsCleaning: true,
       customRate: true,
@@ -197,10 +199,25 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const buildingId = currentBuildingId ?? tenantBuildingId
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
-  // Дни до окончания договора (отрицательное = истёк)
+  // Период аренды берётся из АКТИВНОГО Договора (Contract), а не из
+  // tenant.contractStart/End (которые исторически могли быть введены вручную
+  // при создании тенанта без реального договора). Если контракта нет —
+  // показываем «Договор не создан» (требование владельца 2026-05-27).
+  const activeContract = await db.contract.findFirst({
+    where: {
+      tenantId: id,
+      status: { in: ["SIGNED", "DRAFT", "SIGNED_BY_TENANT", "SENT", "ACTIVE"] },
+      type: { not: "ADDENDUM" },
+    },
+    select: { startDate: true, endDate: true, status: true, number: true },
+    orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
+  }).catch(() => null)
+
   const today = new Date()
-  const daysToContractEnd = tenant.contractEnd
-    ? Math.ceil((tenant.contractEnd.getTime() - today.getTime()) / 86_400_000)
+  // Дни до окончания договора (отрицательное = истёк). null = договор не создан.
+  const effectiveContractEnd = activeContract?.endDate ?? null
+  const daysToContractEnd = effectiveContractEnd
+    ? Math.ceil((effectiveContractEnd.getTime() - today.getTime()) / 86_400_000)
     : null
 
   // Период = текущий месяц для генератора счёта
@@ -415,7 +432,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 : daysToContractEnd < 30 ? "text-amber-600 dark:text-amber-400"
                 : "text-slate-900 dark:text-slate-100"
             }
-            sub={tenant.contractEnd ? formatDate(tenant.contractEnd) : "Договор не заключён"}
+            sub={effectiveContractEnd ? formatDate(effectiveContractEnd) : "Договор не создан"}
           />
         </div>
 
@@ -696,22 +713,31 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   ИП — Талона (Уведомления о начале деятельности), ТОО — Устава, ЧСИ — лицензии. Если пусто — фраза по форме собственности без БИН.
                 </p>
               </div>
-              {/* Даты договора убраны из карточки арендатора (2026-05-26) —
-                  они задаются ТОЛЬКО при создании Договора в /admin/documents/new/contract.
-                  Здесь показываем текущие даты как read-only справку. */}
-              {(tenant.contractStart || tenant.contractEnd) && (
-                <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
-                  <p className="mb-1 font-medium text-slate-700 dark:text-slate-200">Текущий период аренды</p>
-                  <p>
-                    {tenant.contractStart ? new Date(tenant.contractStart).toLocaleDateString("ru-RU") : "—"}
-                    {" — "}
-                    {tenant.contractEnd ? new Date(tenant.contractEnd).toLocaleDateString("ru-RU") : "—"}
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                    Даты обновляются при создании нового Договора. Чтобы изменить — создайте новый договор через раздел «Документы».
-                  </p>
-                </div>
-              )}
+              {/* Период аренды берётся из активного Договора. Если контракта
+                  нет — показываем подсказку «Создайте договор». 2026-05-27 */}
+              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
+                <p className="mb-1 font-medium text-slate-700 dark:text-slate-200">Период аренды</p>
+                {activeContract ? (
+                  <>
+                    <p>
+                      Договор № {activeContract.number ?? "—"} ·{" "}
+                      {activeContract.startDate ? new Date(activeContract.startDate).toLocaleDateString("ru-RU") : "—"}
+                      {" — "}
+                      {activeContract.endDate ? new Date(activeContract.endDate).toLocaleDateString("ru-RU") : "—"}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                      Чтобы изменить — создайте новый договор через раздел «Документы».
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-amber-700 dark:text-amber-300">Договор ещё не создан</p>
+                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                      Срок аренды появится после создания договора в разделе «Документы».
+                    </p>
+                  </>
+                )}
+              </div>
               <IndexationHint
                 initialContractEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
                 initialRate={ratePerSqm}
@@ -794,6 +820,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   needsCleaning: tenant.needsCleaning,
                   paymentDueDay: tenant.paymentDueDay ?? 10,
                   penaltyPercent: tenant.penaltyPercent ?? 1,
+                  rentFreeMonths: tenant.rentFreeMonths ?? 0,
+                  depositAmount: tenant.depositAmount,
                 }}
               />
             ) : (

@@ -14,6 +14,8 @@ type RentalTermsInitial = {
   needsCleaning: boolean
   paymentDueDay: number
   penaltyPercent: number
+  rentFreeMonths?: number | null
+  depositAmount?: number | null
 }
 
 type Props = {
@@ -100,17 +102,17 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
 
       <fieldset className="md:col-span-3" disabled={termsDisabled || pending}>
         <legend className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Способ расчета аренды
+          Способ расчёта аренды
         </legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {[
-            ["FLOOR", "По ставке этажа"],
-            ["RATE", "Ставка за м²"],
-            ["FIXED", "Сумма в месяц"],
-          ].map(([mode, label]) => (
+          {([
+            ["FLOOR", "По ставке этажа", "Площадь × ставка ₸/м² этажа"],
+            ["RATE", "Индивидуальная ставка м²", "Площадь × своя ставка"],
+            ["FIXED", "Фиксированная сумма", "Договорная сумма независимо от площади"],
+          ] as const).map(([mode, label, hint]) => (
             <label
               key={mode}
-              className={`flex cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              className={`flex cursor-pointer flex-col items-start rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${
                 rentMode === mode
                   ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-200"
                   : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
@@ -125,10 +127,14 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
                 disabled={termsDisabled || pending}
                 className="sr-only"
               />
-              {label}
+              <span>{label}</span>
+              <span className="mt-0.5 text-[11px] font-normal text-slate-500 dark:text-slate-400">{hint}</span>
             </label>
           ))}
         </div>
+        <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+          Аренда целого этажа по фиксированной сумме — в отдельной секции ниже («Аренда целого этажа»).
+        </p>
       </fieldset>
 
       <div>
@@ -164,6 +170,49 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           Нельзя указать одновременно со ставкой за м²
         </p>
       </div>
+      {/* Каникулы (rent-free months) — первые N месяцев после contractStart
+          не начисляются. Используется для ремонта / заселения. */}
+      <div>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          Каникулы, мес.
+        </label>
+        <input
+          name="rentFreeMonths"
+          type="number"
+          min={0}
+          max={24}
+          step={1}
+          defaultValue={initial.rentFreeMonths ?? 0}
+          disabled={termsDisabled || pending}
+          className={inputClass}
+          placeholder="0"
+        />
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          Первые N мес. после начала договора — 0 ₸ (ремонт, заселение)
+        </p>
+      </div>
+
+      {/* Депозит (security deposit) — сумма гарантийного депозита. Если NULL —
+          подставляется = monthlyRent (1 месяц аренды). */}
+      <div>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          Депозит ₸
+        </label>
+        <input
+          name="depositAmount"
+          type="number"
+          min={0}
+          step="0.01"
+          defaultValue={initial.depositAmount ?? ""}
+          disabled={termsDisabled || pending}
+          className={inputClass}
+          placeholder="по умолчанию = месячная аренда"
+        />
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          Гарантийный депозит. Если пусто — = 1 месяцу аренды
+        </p>
+      </div>
+
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Уборка ₸/мес</label>
         <input

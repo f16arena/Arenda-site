@@ -4,6 +4,10 @@ type TenantRentInput = {
   contractStart?: Date | string | null
   contractEnd?: Date | string | null
   paymentDueDay?: number | null
+  /** Арендные каникулы — первые N месяцев после contractStart без начисления.
+   *  По умолчанию 0. Учитывается в calculateTenantRentChargeForPeriod через
+   *  skipReason="RENT_FREE_PERIOD". */
+  rentFreeMonths?: number | null
   space?: {
     area: number
     floor: {
@@ -34,7 +38,7 @@ export type TenantRentChargeSchedule = {
   prorationDays: number | null
   prorationStart: Date | null
   prorationEnd: Date | null
-  skippedReason?: "NO_RENT" | "BEFORE_CONTRACT_START" | "AFTER_CONTRACT_END" | "FIRST_PERIOD_ALREADY_COVERED"
+  skippedReason?: "NO_RENT" | "BEFORE_CONTRACT_START" | "AFTER_CONTRACT_END" | "FIRST_PERIOD_ALREADY_COVERED" | "RENT_FREE_PERIOD"
 }
 
 function positiveAmount(value: number | null | undefined) {
@@ -90,6 +94,18 @@ export function calculateTenantRentChargeForPeriod(
 
   if (contractEnd && periodMonth > monthKey(contractEnd.getFullYear(), contractEnd.getMonth())) {
     return skippedRentSchedule(monthlyRent, regularDueDate, "AFTER_CONTRACT_END")
+  }
+
+  // Арендные каникулы — первые N месяцев после contractStart не начисляются.
+  // Считаем от contractStart, не от today: если арендатор заехал 1 января с
+  // каникулами=3 — март включительно бесплатно, апрель — первый платный.
+  const rentFreeMonths = Math.max(0, Math.trunc(tenant.rentFreeMonths ?? 0))
+  if (rentFreeMonths > 0 && contractStart) {
+    const startMonthKey = monthKey(contractStart.getFullYear(), contractStart.getMonth())
+    const monthsSinceStart = periodMonth - startMonthKey
+    if (monthsSinceStart >= 0 && monthsSinceStart < rentFreeMonths) {
+      return skippedRentSchedule(monthlyRent, regularDueDate, "RENT_FREE_PERIOD")
+    }
   }
 
   if (!contractStart || contractStart.getDate() === 1) {

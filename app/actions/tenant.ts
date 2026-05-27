@@ -718,6 +718,23 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     if (isFinite(n) && n >= 0 && n <= 100) penaltyPercent = n
   }
 
+  // Каникулы и депозит — простые updates без участия в addendum-flow.
+  // rentFreeMonths int [0..24]; depositAmount float ≥ 0 (NULL = «1 месяц аренды»).
+  let rentFreeMonths: number | undefined
+  const rentFreeMonthsRaw = String(formData.get("rentFreeMonths") ?? "").trim()
+  if (rentFreeMonthsRaw) {
+    const n = parseInt(rentFreeMonthsRaw, 10)
+    if (Number.isFinite(n) && n >= 0 && n <= 24) rentFreeMonths = n
+  }
+  let depositAmount: number | null | undefined
+  const depositAmountRaw = String(formData.get("depositAmount") ?? "").trim()
+  if (depositAmountRaw === "") {
+    depositAmount = null // явно сбросить
+  } else {
+    const n = parseFloat(depositAmountRaw.replace(",", "."))
+    if (Number.isFinite(n) && n >= 0) depositAmount = n
+  }
+
   const before: RentalTermsSnapshot = {
     customRate: normalizeMoney(tenant.customRate),
     fixedMonthlyRent: normalizeMoney(tenant.fixedMonthlyRent),
@@ -818,8 +835,22 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
           needsCleaning: after.needsCleaning,
           paymentDueDay: after.paymentDueDay,
           penaltyPercent: after.penaltyPercent,
+          ...(rentFreeMonths !== undefined ? { rentFreeMonths } : {}),
+          ...(depositAmount !== undefined ? { depositAmount } : {}),
         },
       })
+    } else {
+      // При addendum-режиме каникулы/депозит обновляем напрямую — они
+      // не часть rental-terms snapshot, не требуют доп. соглашения.
+      if (rentFreeMonths !== undefined || depositAmount !== undefined) {
+        await tx.tenant.update({
+          where: { id: tenantId },
+          data: {
+            ...(rentFreeMonths !== undefined ? { rentFreeMonths } : {}),
+            ...(depositAmount !== undefined ? { depositAmount } : {}),
+          },
+        })
+      }
     }
 
     if (addendum) {

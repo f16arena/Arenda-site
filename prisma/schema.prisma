@@ -600,6 +600,14 @@ model Tenant {
   fixedMonthlyRent Float?    @map("fixed_monthly_rent")
   contractStart    DateTime? @map("contract_start")
   contractEnd      DateTime? @map("contract_end")
+  // Арендные каникулы — N месяцев после contractStart без начисления аренды
+  // (ремонт, заселение). Cron check-deadlines пропускает создание Charge
+  // для этих периодов. По умолчанию 0.
+  rentFreeMonths   Int       @default(0) @map("rent_free_months")
+  // Гарантийный депозит — сумма, внесённая арендатором в начале договора
+  // и возвращаемая при выселении. По умолчанию = monthlyRent (1 месяц аренды),
+  // но владелец может задать явно. Подставляется в {deposit_amount} шаблона.
+  depositAmount    Float?    @map("deposit_amount")
   paymentDueDay    Int       @default(10) @map("payment_due_day")
   // Пеня за просрочку платежей (% за день). Default 0.5 (изменён с 1
   // 2026-05-26 — пересмотр шаблона). Если null — наследуется

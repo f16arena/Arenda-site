@@ -350,6 +350,13 @@ export async function GET(req: Request) {
       // Заменяем `.` на `,` для русской записи (РК-стандарт: «0,5%», не «0.5%»).
       penalty_percent: String(tenant.penaltyPercent || orgPenaltyDefault).replace(".", ","),
 
+      // Каникулы и депозит — добавлены 2026-05-27.
+      // rent_free_months: число месяцев каникул (0 = нет каникул)
+      // deposit_amount: явная сумма депозита; если NULL — = monthlyRent
+      rent_free_months: tenant.rentFreeMonths ?? 0,
+      deposit_amount: formatMoney(tenant.depositAmount ?? monthlyRent),
+      deposit_in_words: numberToWords(tenant.depositAmount ?? monthlyRent),
+
       prolongation_clause: LEASE_PROLONGATION_CLAUSE,
       contract_prolongation_clause: LEASE_PROLONGATION_CLAUSE,
       esf_clause: LEASE_ESF_CLAUSE,
@@ -366,12 +373,10 @@ export async function GET(req: Request) {
       contract_year: String(today.getFullYear()),
       cleaning_fee: cleaningFeeText,
 
-      // Залог / гарантийный платёж — обычно равен одной месячной арендной плате.
-      // По умолчанию подставляем месячную аренду; если в реквизитах появится отдельное
-      // поле — заменим источник.
-      deposit_amount: formatMoney(monthlyRent),
-      deposit_amount_words: rentWords,
-      deposit_amount_with_words: rentWithWords,
+      // Депозит: новые плейсхолдеры выше (deposit_amount/deposit_in_words)
+      // учитывают tenant.depositAmount; здесь старые алиасы для совместимости.
+      deposit_amount_words: numberToWords(tenant.depositAmount ?? monthlyRent),
+      deposit_amount_with_words: `${formatMoney(tenant.depositAmount ?? monthlyRent)} (${numberToWords(tenant.depositAmount ?? monthlyRent)})`,
 
       // Подсудность: по умолчанию совпадает с городом договора.
       // Владелец может изменить вручную в шаблоне.
