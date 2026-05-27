@@ -60,6 +60,32 @@ export function IndexationHint({ initialContractEnd, initialRate, monthlyRent }:
 
   const fmt = (n: number) => n.toLocaleString("ru-RU")
 
+  // Применяет индексацию к полю customRate в форме «Условия аренды».
+  // Также включает radio «Индивидуальная ставка м²» если оно ещё не выбрано
+  // (через эмуляцию click — это вызывает onChange handler в форме).
+  // Скроллит к форме чтобы юзер увидел изменение.
+  const applyIndexation = (newRate: number, newRent: number) => {
+    // 1. Активируем режим RATE через radio button
+    const rateRadio = document.querySelector<HTMLInputElement>('input[name="rentModeChoice"][value="RATE"]')
+    if (rateRadio && !rateRadio.checked) {
+      rateRadio.click()
+    }
+    // 2. Устанавливаем новую ставку в input customRate.
+    // React controlled input — нужно вызвать native setter и затем
+    // dispatchEvent чтобы React увидел изменение.
+    const rateInput = document.querySelector<HTMLInputElement>('input[name="customRate"]')
+    if (rateInput) {
+      const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+      nativeSetter?.call(rateInput, String(newRate))
+      rateInput.dispatchEvent(new Event("input", { bubbles: true }))
+      rateInput.scrollIntoView({ behavior: "smooth", block: "center" })
+      // Подсветим input на 2 сек чтобы юзер видел что изменилось
+      rateInput.style.outline = "2px solid rgb(217 119 6)"
+      window.setTimeout(() => { rateInput.style.outline = "" }, 2000)
+    }
+    void newRent // используется в title-атрибуте кнопки
+  }
+
   return (
     <div className="col-span-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 p-3">
       <div className="flex items-start gap-2.5">
@@ -78,20 +104,32 @@ export function IndexationHint({ initialContractEnd, initialRate, monthlyRent }:
                 <p className="font-mono">{fmt(initialRate)} ₸/м²</p>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">{fmt(monthlyRent)} ₸/мес</p>
               </div>
-              <div className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-200 dark:border-amber-500/30">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">+5% (умеренно)</p>
+              <button
+                type="button"
+                onClick={() => applyIndexation(extension.rate5, extension.rent5)}
+                className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left transition-colors"
+                title="Применить индексацию +5% к индивидуальной ставке"
+              >
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Применить +5%</p>
                 <p className="font-mono text-amber-700 dark:text-amber-300">{fmt(extension.rate5)} ₸/м²</p>
                 <p className="text-[10px] text-amber-600 dark:text-amber-400">{fmt(extension.rent5)} ₸/мес</p>
-              </div>
-              <div className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-300 dark:border-amber-500/40">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">+10% (макс)</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyIndexation(extension.rate10, extension.rent10)}
+                className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-300 dark:border-amber-500/40 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left transition-colors"
+                title="Применить индексацию +10% к индивидуальной ставке"
+              >
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">Применить +10% (макс)</p>
                 <p className="font-mono text-amber-700 dark:text-amber-300">{fmt(extension.rate10)} ₸/м²</p>
                 <p className="text-[10px] text-amber-600 dark:text-amber-400">{fmt(extension.rent10)} ₸/мес</p>
-              </div>
+              </button>
             </div>
           )}
           <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1.5">
-            Чтобы применить новую ставку — после сохранения дат измените «Индивид. ставку ₸/м²» в разделе ниже.
+            Клик по кнопке — установит новую ставку в поле «Индивид. ставка ₸/м²».
+            После — сохраните форму («Сохранить» внизу). Если договор уже закреплён —
+            нужно будет создать доп. соглашение (форма предложит).
           </p>
         </div>
         <button
