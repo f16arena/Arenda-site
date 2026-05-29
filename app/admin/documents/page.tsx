@@ -8,8 +8,6 @@ import { contractScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
-import Link from "next/link"
-import { Settings } from "lucide-react"
 import { getDocumentTenantOptions } from "@/lib/document-tenants"
 import { DocumentsBrowser } from "./documents-browser"
 import { DocumentsHub } from "@/components/documents/documents-hub"
@@ -45,7 +43,6 @@ export default async function DocumentsPage({
   const canCreateDocuments = allowedCapabilities.has("documents.create")
   const canDeleteUnsignedDocuments = allowedCapabilities.has("documents.deleteUnsigned")
   const canDeleteSignedDocuments = isOwnerLikeUser && allowedCapabilities.has("documents.deleteSigned")
-  const canOpenTemplates = allowedCapabilities.has("documents.uploadTemplate")
   const createTenantOptions = canCreateDocuments ? await getDocumentTenantOptions(orgId) : []
 
   const { type, q, period, create, tenantId: createTenantId } = await searchParams
@@ -227,20 +224,7 @@ export default async function DocumentsPage({
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canOpenTemplates && (
-          <Link
-            href="/admin/settings/document-templates"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-          >
-            <Settings className="h-4 w-4" />
-            Шаблоны
-          </Link>
-          )}
-        </div>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
       </div>
 
       <DocumentsHub
