@@ -151,10 +151,15 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
  */
 export async function prefillFromTenant(
   tenantId: string,
-): Promise<{ ok: boolean; error?: string; state?: ContractState }> {
+): Promise<{
+  ok: boolean
+  error?: string
+  state?: ContractState
+  landlordContacts?: { owner: { phone: string; email: string }; admin: { phone: string; email: string } }
+}> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
-    const { orgId } = await requireOrgAccess()
+    const { orgId, userId } = await requireOrgAccess()
 
     const tenant = await db.tenant.findFirst({
       where: { AND: [tenantScope(orgId), { id: tenantId }] },
@@ -177,14 +182,20 @@ export async function prefillFromTenant(
     const org = await getOrganizationRequisites(orgId)
     const s = defaultState()
 
-    // Арендодатель = организация
+    // Контакты: владелец (текущий пользователь/аккаунт) vs администратор (контакты организации).
+    const ownerUser = await db.user.findUnique({ where: { id: userId }, select: { phone: true, email: true } })
+    const ownerContacts = { phone: ownerUser?.phone ?? "", email: ownerUser?.email ?? "" }
+    const adminContacts = { phone: org.phone ?? "", email: org.email ?? "" }
+
+    // Арендодатель = организация. Контакты по умолчанию — владельца (если заданы), иначе организации.
     s.landlord = {
       type: toPartyType(org.legalType),
       name: org.fullName,
       signatory: org.director || org.directorShort || "",
       bin: org.bin, iin: org.iin, iik: org.iik, bank: org.bank, bik: org.bik,
       basis: org.basis, address: org.legalAddress,
-      phone: org.phone, email: org.email,
+      phone: ownerContacts.phone || adminContacts.phone,
+      email: ownerContacts.email || adminContacts.email,
     }
 
     // Арендатор — выбранный
@@ -240,7 +251,7 @@ export async function prefillFromTenant(
     if (tenant.contractStart) s.term.startDate = new Date(tenant.contractStart).toISOString().slice(0, 10)
     if (tenant.contractEnd) s.term.endDate = new Date(tenant.contractEnd).toISOString().slice(0, 10)
 
-    return { ok: true, state: s }
+    return { ok: true, state: s, landlordContacts: { owner: ownerContacts, admin: adminContacts } }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить арендатора" }
   }

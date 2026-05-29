@@ -103,6 +103,8 @@ export function ContractConstructor() {
 
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
+  // Контакты арендодателя на выбор: владелец (аккаунт) или администратор (контакты организации).
+  const [landlordContacts, setLandlordContacts] = useState<{ owner: { phone: string; email: string }; admin: { phone: string; email: string } } | null>(null)
 
   const refreshDrafts = () => { listContractDrafts().then(setDrafts).catch(() => {}) }
   useEffect(() => { listContractDrafts().then(setDrafts).catch(() => {}) }, [])
@@ -138,6 +140,7 @@ export function ContractConstructor() {
       const r = await prefillFromTenant(id)
       if (r.ok && r.state) {
         setState(r.state)
+        setLandlordContacts(r.landlordContacts ?? null)
         setDraftName(r.state.tenant.name || "Без названия")
         toast.success("Данные арендатора подставлены")
       } else toast.error(r.error ?? "Не удалось подставить данные")
@@ -239,7 +242,7 @@ export function ContractConstructor() {
             <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Реквизиты сторон, помещение, ставка, депозит и срок подставятся автоматически — дальше можно поправить вручную.</p>
           </div>
           <CollapsibleCard title="Стороны" icon={Users} defaultOpen>
-            <div className="space-y-1 p-5"><PartiesStep state={state} set={set} /></div>
+            <div className="space-y-1 p-5"><PartiesStep state={state} set={set} landlordContacts={landlordContacts} /></div>
           </CollapsibleCard>
           <CollapsibleCard title="Помещение и реквизиты договора" icon={Building2}>
             <div className="space-y-1 p-5"><PremisesStep state={state} set={set} /></div>
@@ -347,10 +350,35 @@ function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (m
   )
 }
 
-function PartiesStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
+type Contacts = { phone: string; email: string }
+
+function contactBtn(active: boolean): string {
+  return `flex-1 rounded-md border px-2.5 py-1.5 text-[12.5px] font-medium transition ${
+    active
+      ? "border-transparent bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+      : "border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+  }`
+}
+
+function PartiesStep({ state, set, landlordContacts }: { state: ContractState; set: (m: Mutator) => void; landlordContacts: { owner: Contacts; admin: Contacts } | null }) {
+  const ll = state.landlord
+  const sameAs = (c: Contacts) => (c.phone || c.email) !== "" && (ll.phone ?? "") === c.phone && (ll.email ?? "") === c.email
+  const applyContacts = (c: Contacts) => set((s) => { s.landlord.phone = c.phone; s.landlord.email = c.email })
+  const contactHint = (c: Contacts) => [c.phone, c.email].filter(Boolean).join(" · ") || "не заданы"
   return (
     <>
       <PartyForm p={state.landlord} role="Арендодатель" onChange={(mut) => set((s) => mut(s.landlord))} />
+      <div className={secTitleCls}>Контакты арендодателя</div>
+      {landlordContacts && (
+        <div className="mb-1.5 flex gap-1.5">
+          <button type="button" title={contactHint(landlordContacts.owner)} onClick={() => applyContacts(landlordContacts.owner)} className={contactBtn(sameAs(landlordContacts.owner))}>Владелец (вы)</button>
+          <button type="button" title={contactHint(landlordContacts.admin)} onClick={() => applyContacts(landlordContacts.admin)} className={contactBtn(sameAs(landlordContacts.admin))}>Администратор</button>
+        </div>
+      )}
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div><label className={labelCls}>Телефон</label><input className={inputCls} value={ll.phone ?? ""} onChange={(e) => set((s) => { s.landlord.phone = e.target.value })} /></div>
+        <div><label className={labelCls}>E-mail</label><input className={inputCls} value={ll.email ?? ""} onChange={(e) => set((s) => { s.landlord.email = e.target.value })} /></div>
+      </div>
       <PartyForm p={state.tenant} role="Арендатор" onChange={(mut) => set((s) => mut(s.tenant))} />
       <div className={secTitleCls}>Контакты арендатора</div>
       <div className="grid grid-cols-2 gap-2">
