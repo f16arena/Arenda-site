@@ -9,8 +9,9 @@ import { Prisma } from "@/app/generated/prisma/client"
 import { tenantScope } from "@/lib/tenant-scope"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
-import { assemble, defaultState, type ContractState, type PartyType } from "@/lib/contract-engine"
+import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
 import { renderContractDocx } from "@/lib/contract-engine/docx"
+import { sendContractForSignature } from "@/app/actions/contract-workflow"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -242,6 +243,70 @@ export async function prefillFromTenant(
     return { ok: true, state: s }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить арендатора" }
+  }
+}
+
+/**
+ * Создаёт реальный Contract (статус DRAFT) из состояния конструктора и
+ * опционально сразу отправляет арендатору на подпись (переиспуёт существующий
+ * sendContractForSignature — статус SENT, signToken, письмо со ссылкой /sign/[token]).
+ * Контент — детерминированная строка (renderContractText), которую потребляет
+ * контур подписи без изменений.
+ */
+export async function createContractFromBuilder(
+  tenantId: string,
+  builderState: ContractState,
+  opts?: { send?: boolean },
+): Promise<{ ok: boolean; error?: string; contractId?: string; sent?: boolean; signUrl?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+    if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }
+
+    const tenant = await db.tenant.findFirst({
+      where: { AND: [tenantScope(orgId), { id: tenantId }] },
+      select: { id: true },
+    })
+    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+
+    const a = assemble(builderState)
+    if (a.validation.hard.length) {
+      return { ok: false, error: "Договор содержит ошибки: " + a.validation.hard.join("; ") }
+    }
+
+    const rawNum = (builderState.meta.contractNumber || "").trim()
+    const number = rawNum && rawNum !== "___" ? rawNum : "Б/Н"
+    const contract = await db.contract.create({
+      data: {
+        tenantId,
+        number,
+        type: "STANDARD",
+        content: renderContractText(builderState),
+        status: "DRAFT",
+        startDate: builderState.term.startDate ? new Date(builderState.term.startDate) : null,
+        endDate: builderState.term.endDate ? new Date(builderState.term.endDate) : null,
+      },
+      select: { id: true },
+    })
+
+    let sent = false
+    let signUrl: string | undefined
+    if (opts?.send) {
+      const r = await sendContractForSignature(contract.id)
+      if (r.ok) {
+        sent = true
+        signUrl = r.signUrl
+      } else {
+        revalidatePath(`/admin/tenants/${tenantId}`)
+        return { ok: true, contractId: contract.id, sent: false, error: "Договор создан, но отправка не удалась: " + r.error }
+      }
+    }
+
+    revalidatePath(`/admin/tenants/${tenantId}`)
+    revalidatePath("/admin/contracts")
+    return { ok: true, contractId: contract.id, sent, signUrl }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать договор" }
   }
 }
 

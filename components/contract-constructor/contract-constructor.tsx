@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   Info,
   Sparkles,
+  FilePlus2,
+  Send,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
@@ -26,6 +28,7 @@ import {
   generateContractDocx,
   listConstructorTenants,
   prefillFromTenant,
+  createContractFromBuilder,
   type DraftListItem,
   type ConstructorTenant,
 } from "@/app/actions/contract-builder"
@@ -156,6 +159,15 @@ export function ContractConstructor() {
       URL.revokeObjectURL(url)
     })
   }
+  function doCreate(send: boolean) {
+    if (!selTenant) { toast.error("Сначала выберите арендатора в списке вверху формы"); return }
+    startTransition(async () => {
+      const r = await createContractFromBuilder(selTenant, state, { send })
+      if (!r.ok) { toast.error(r.error ?? "Не удалось создать договор"); return }
+      if (r.error) { toast.error(r.error); return } // создан, но отправка не удалась
+      toast.success(send ? "Договор создан и отправлен арендатору на подпись" : "Договор создан (черновик) — в карточке арендатора")
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -183,7 +195,9 @@ export function ContractConstructor() {
         )}
         <input className={`${inputCls} w-44`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" />
         <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить</Button>
-        <Button variant="primary" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>Скачать DOCX</Button>
+        <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>DOCX</Button>
+        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate(false)}>Создать договор</Button>
+        <Button variant="primary" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate(true)}>Отправить на подпись</Button>
         {hardErrors.length > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
             <AlertTriangle className="h-3 w-3" /> {hardErrors.length} ошибок
