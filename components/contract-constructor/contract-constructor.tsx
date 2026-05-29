@@ -159,13 +159,19 @@ export function ContractConstructor() {
       URL.revokeObjectURL(url)
     })
   }
-  function doCreate(send: boolean) {
+  function doCreate(opts: { send?: boolean; landlordSign?: boolean }) {
     if (!selTenant) { toast.error("Сначала выберите арендатора в списке вверху формы"); return }
     startTransition(async () => {
-      const r = await createContractFromBuilder(selTenant, state, { send })
+      const r = await createContractFromBuilder(selTenant, state, opts)
       if (!r.ok) { toast.error(r.error ?? "Не удалось создать договор"); return }
-      if (r.error) { toast.error(r.error); return } // создан, но отправка не удалась
-      toast.success(send ? "Договор создан и отправлен арендатору на подпись" : "Договор создан (черновик) — в карточке арендатора")
+      if (r.error) { toast.error(r.error); return } // создан, но шаг подписи/отправки не удался
+      toast.success(
+        opts.send
+          ? opts.landlordSign
+            ? "Подписано вами (Арендодатель) и отправлено арендатору на подпись"
+            : "Отправлено арендатору на подпись"
+          : "Договор создан (черновик) — в карточке арендатора",
+      )
     })
   }
 
@@ -196,8 +202,8 @@ export function ContractConstructor() {
         <input className={`${inputCls} w-44`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" />
         <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить</Button>
         <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>DOCX</Button>
-        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate(false)}>Создать договор</Button>
-        <Button variant="primary" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate(true)}>Отправить на подпись</Button>
+        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate({})}>Создать договор</Button>
+        <Button variant="primary" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate({ send: true, landlordSign: true })}>Подписать и отправить</Button>
         {hardErrors.length > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
             <AlertTriangle className="h-3 w-3" /> {hardErrors.length} ошибок

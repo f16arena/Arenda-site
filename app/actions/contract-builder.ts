@@ -11,7 +11,7 @@ import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
 import { renderContractDocx } from "@/lib/contract-engine/docx"
-import { sendContractForSignature } from "@/app/actions/contract-workflow"
+import { sendContractForSignature, markContractSignedByLandlord } from "@/app/actions/contract-workflow"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -256,8 +256,8 @@ export async function prefillFromTenant(
 export async function createContractFromBuilder(
   tenantId: string,
   builderState: ContractState,
-  opts?: { send?: boolean },
-): Promise<{ ok: boolean; error?: string; contractId?: string; sent?: boolean; signUrl?: string }> {
+  opts?: { send?: boolean; landlordSign?: boolean },
+): Promise<{ ok: boolean; error?: string; contractId?: string; sent?: boolean; landlordSigned?: boolean; signUrl?: string }> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
     const { orgId } = await requireOrgAccess()
@@ -289,6 +289,19 @@ export async function createContractFromBuilder(
       select: { id: true },
     })
 
+    // Подпись со стороны арендодателя (простая — отметка времени; ЭЦП владельца
+    // делается отдельно интерактивно через NCALayer). Ставится ДО отправки,
+    // чтобы арендатор получил уже подписанный нами договор.
+    let landlordSigned = false
+    if (opts?.landlordSign) {
+      const r = await markContractSignedByLandlord(contract.id)
+      if (r.ok) landlordSigned = true
+      else {
+        revalidatePath(`/admin/tenants/${tenantId}`)
+        return { ok: true, contractId: contract.id, sent: false, landlordSigned: false, error: "Договор создан, но подпись арендодателя не удалась: " + r.error }
+      }
+    }
+
     let sent = false
     let signUrl: string | undefined
     if (opts?.send) {
@@ -298,13 +311,13 @@ export async function createContractFromBuilder(
         signUrl = r.signUrl
       } else {
         revalidatePath(`/admin/tenants/${tenantId}`)
-        return { ok: true, contractId: contract.id, sent: false, error: "Договор создан, но отправка не удалась: " + r.error }
+        return { ok: true, contractId: contract.id, sent: false, landlordSigned, error: "Договор создан, но отправка не удалась: " + r.error }
       }
     }
 
     revalidatePath(`/admin/tenants/${tenantId}`)
     revalidatePath("/admin/contracts")
-    return { ok: true, contractId: contract.id, sent, signUrl }
+    return { ok: true, contractId: contract.id, sent, landlordSigned, signUrl }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать договор" }
   }
