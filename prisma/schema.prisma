@@ -734,6 +734,8 @@ model Contract {
   // а на новой записи version = parent.version + 1, parentVersionId указывает на источник.
   version            Int       @default(1)
   parentVersionId    String?   @map("parent_version_id")
+  // Снимок ContractState из конструктора (для перерисовки DOCX с QR после подписи).
+  builderState       Json?     @map("builder_state")
   createdAt          DateTime  @default(now()) @map("created_at")
   deletedAt          DateTime? @map("deleted_at")
 

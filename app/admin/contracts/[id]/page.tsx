@@ -14,6 +14,7 @@ import { assertContractInOrg } from "@/lib/scope-guards"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
+import { SignedDocxButton } from "@/components/contract-constructor/signed-docx-button"
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT:             { label: "Черновик",       color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
@@ -76,6 +77,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       parentVersionId: true,
       changeKind: true,
       createdAt: true,
+      builderState: true,
       tenant: {
         select: {
           id: true,
@@ -179,6 +181,9 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               contractId={contract.id}
               label="Подписать ЭЦП (арендодатель)"
             />
+          )}
+          {contract.builderState && (contract.signedByLandlordAt || contract.signedByTenantAt || contract.status === "SIGNED") && (
+            <SignedDocxButton contractId={contract.id} />
           )}
         </div>
       </div>

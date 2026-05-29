@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Prisma } from "@/app/generated/prisma/client"
-import { tenantScope } from "@/lib/tenant-scope"
+import { tenantScope, contractScope } from "@/lib/tenant-scope"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
@@ -328,6 +328,8 @@ export async function createContractFromBuilder(
         status: "DRAFT",
         startDate: builderState.term.startDate ? new Date(builderState.term.startDate) : null,
         endDate: builderState.term.endDate ? new Date(builderState.term.endDate) : null,
+        // Снимок состояния — чтобы после подписи перерисовать DOCX с QR /verify/{id}.
+        builderState: builderState as unknown as Prisma.InputJsonValue,
       },
       select: { id: true },
     })
@@ -381,6 +383,36 @@ export async function generateContractDocx(
     const buf = await renderContractDocx(builderState)
     const num = (builderState.meta.contractNumber || "draft").replace(/[^\w.-]+/g, "_")
     return { ok: true, fileName: `Договор_${num}.docx`, base64: buf.toString("base64") }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать" }
+  }
+}
+
+/**
+ * DOCX уже существующего договора с РЕАЛЬНЫМ QR-кодом на страницу проверки
+ * /verify/{id}. Доступно после подписи (есть подпись стороны или статус SIGNED).
+ * Требует сохранённого снимка builderState (договоры из конструктора).
+ */
+export async function generateSignedContractDocx(
+  contractId: string,
+): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+    const contract = await db.contract.findFirst({
+      where: { id: contractId, ...contractScope(orgId) },
+      select: { id: true, number: true, status: true, signedByLandlordAt: true, signedByTenantAt: true, builderState: true },
+    })
+    if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
+    if (!contract.builderState) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    const signedAny = !!contract.signedByLandlordAt || !!contract.signedByTenantAt || contract.status === "SIGNED"
+    if (!signedAny) return { ok: false, error: "DOCX с QR доступен после подписания" }
+
+    const state = contract.builderState as unknown as ContractState
+    const verifyUrl = `https://commrent.kz/verify/${contract.id}`
+    const buf = await renderContractDocx(state, { verifyUrl })
+    const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
+    return { ok: true, fileName: `Договор_${num}_подписан.docx`, base64: buf.toString("base64") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать" }
   }
