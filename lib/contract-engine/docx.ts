@@ -247,7 +247,13 @@ export async function renderContractDocx(s: ContractState): Promise<Buffer> {
 
   const doc = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 24 } } } },
-    sections: [{ properties: {}, children }],
+    sections: [
+      {
+        // Поля как принято в РК-документах: левое 30мм, правое 15мм, верх/низ 20мм (в twips).
+        properties: { page: { margin: { top: 1134, bottom: 1134, left: 1701, right: 850 } } },
+        children,
+      },
+    ],
   })
   return Packer.toBuffer(doc)
 }

@@ -37,6 +37,9 @@ import {
   UTILITY_ORDER,
   UTILITY_LABELS,
   money,
+  partyIntro,
+  partyRequisites,
+  dateLong,
   type ContractState,
   type Party,
   type PartyType,
@@ -436,12 +439,33 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
 
 // ───────────────────────── preview ─────────────────────────
 
+const docTitleCls = "text-center text-base font-bold text-slate-900 dark:text-slate-100"
+const docSubCls = "text-center text-slate-500 dark:text-slate-400"
+const docTagCls = "text-right text-xs italic text-slate-400 dark:text-slate-500"
+const annexTableCls = "w-full border-collapse text-xs [&_td]:border [&_td]:border-slate-200 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-slate-200 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left dark:[&_td]:border-slate-700 dark:[&_th]:border-slate-700"
+
+function ReqColumn({ role, party }: { role: string; party: Party }) {
+  return (
+    <div>
+      <b className="text-slate-900 dark:text-slate-100">{role}:</b>
+      <div className="mt-1 whitespace-pre-line text-xs text-slate-600 dark:text-slate-400">{partyRequisites(party)}</div>
+    </div>
+  )
+}
+
 function ContractPreview({ state }: { state: ContractState }) {
   const a = assemble(state)
   return (
     <div>
-      <div className="mb-1 text-center text-base font-bold text-slate-900 dark:text-slate-100">ДОГОВОР № {state.meta.contractNumber || "____"}</div>
-      <div className="mb-4 text-center text-slate-500 dark:text-slate-400">аренды нежилого помещения</div>
+      <div className={`mb-1 ${docTitleCls}`}>ДОГОВОР № {state.meta.contractNumber || "____"}</div>
+      <div className={`mb-3 ${docSubCls}`}>аренды нежилого помещения</div>
+      <div className="mb-3 flex justify-between text-slate-600 dark:text-slate-400">
+        <span>{state.meta.city}</span>
+        <span>{dateLong(state.meta.contractDate)}</span>
+      </div>
+      <p className="mb-4 text-justify text-slate-700 dark:text-slate-300">
+        {partyIntro(state.landlord, "Арендодатель")}, с одной стороны, и {partyIntro(state.tenant, "Арендатор")}, с другой стороны, совместно именуемые «Стороны», заключили настоящий Договор о нижеследующем:
+      </p>
       {a.sections.map((sec) => (
         <div key={sec.num} className="mb-3">
           <div className="mb-1.5 mt-4 font-semibold text-slate-900 dark:text-slate-100">{sec.num}. {sec.title}</div>
@@ -455,29 +479,95 @@ function ContractPreview({ state }: { state: ContractState }) {
           ))}
         </div>
       ))}
-      <div className="mb-1.5 mt-4 font-semibold text-slate-900 dark:text-slate-100">{a.requisitesNum}. Реквизиты и подписи Сторон</div>
+      <div className="mb-2 mt-4 font-semibold text-slate-900 dark:text-slate-100">{a.requisitesNum}. Реквизиты и подписи Сторон</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <ReqColumn role="АРЕНДОДАТЕЛЬ" party={state.landlord} />
+        <ReqColumn role="АРЕНДАТОР" party={state.tenant} />
+      </div>
     </div>
   )
 }
 
-function AnnexItem({ on, title, extra }: { on: boolean; title: string; extra: string }) {
+function Annex1Preview({ state }: { state: ContractState }) {
+  const p = state.premises
   return (
-    <div className="flex items-start gap-2">
-      <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${on ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"}`} />
-      <div><b className="text-slate-900 dark:text-slate-100">{title}</b> — <span className={on ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-slate-500"}>{extra}</span></div>
+    <div className="space-y-2 text-slate-700 dark:text-slate-300">
+      <div className={docTagCls}>Приложение № 1 к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
+      <div className={docTitleCls}>АКТ</div>
+      <div className={docSubCls}>приёма-передачи нежилого помещения</div>
+      <p>{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
+      <p>1. Передано нежилое помещение по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
+      <p>2. Состояние помещения на момент передачи:</p>
+      <ul className="ml-4 list-disc space-y-0.5">{["стены", "пол", "потолок", "окна, двери", "электропроводка, освещение", "сантехника, отопление", "иное"].map((x) => <li key={x}>{x}: ____________________</li>)}</ul>
+      <p>3. Показания счётчиков: электроэнергия ______ кВт·ч; холодная вода ______ куб. м; горячая вода ______ куб. м.</p>
+      <p>4. Передаваемые ключи: ____ комплектов.</p>
+      <p>5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.</p>
+    </div>
+  )
+}
+
+function Annex2Preview({ state }: { state: ContractState }) {
+  const sv = state.financials.additionalServices
+  const rows: [string, boolean, string][] = [
+    ["Уборка внутри помещения", sv.premisesCleaning.ordered, sv.premisesCleaning.ratePerSqm ? `${money(sv.premisesCleaning.ratePerSqm)} за кв. м/мес` : "____ за кв. м/мес"],
+    ["Стационарный телефон", sv.phone.ordered, "по тарифам оператора"],
+    ["Интернет (Wi-Fi)", sv.internet.ordered, sv.internet.monthly ? `${money(sv.internet.monthly)}/мес` : "____/мес"],
+    ["Охрана помещения", sv.premisesSecurity.ordered, sv.premisesSecurity.monthly ? `${money(sv.premisesSecurity.monthly)}/мес` : "____/мес"],
+  ]
+  return (
+    <div className="space-y-2 text-slate-700 dark:text-slate-300">
+      <div className={docTagCls}>Приложение № 2 к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
+      <div className={docTitleCls}>ЗАЯВЛЕНИЕ</div>
+      <div className={docSubCls}>на дополнительные услуги</div>
+      <p>Арендатор: {state.tenant.name || "________"}. Помещение: {state.premises.buildingAddress || "________"}, {state.premises.spaceAreaSqm || "____"} кв. м.</p>
+      <table className={annexTableCls}>
+        <thead><tr><th>№</th><th>Услуга</th><th>Тариф</th><th>Заказ</th></tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={r[0]}><td>{i + 1}</td><td>{r[0]}</td><td>{r[2]}</td><td className="text-center">{r[1] ? "✓" : "☐"}</td></tr>)}</tbody>
+      </table>
+    </div>
+  )
+}
+
+function Annex3Preview({ state }: { state: ContractState }) {
+  const op = state.financials.operatingCosts
+  const a = assemble(state)
+  const area = state.premises.spaceAreaSqm || 0
+  return (
+    <div className="space-y-2 text-slate-700 dark:text-slate-300">
+      <div className={docTagCls}>Приложение № 3 к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
+      <div className={docTitleCls}>РАСЧЁТ</div>
+      <div className={docSubCls}>эксплуатационных расходов</div>
+      {op.method === "fixed_per_sqm" ? (
+        <table className={annexTableCls}>
+          <tbody>
+            <tr><td>Площадь помещения</td><td>{area || "____"} кв. м</td></tr>
+            <tr><td>Тариф (окт–апр)</td><td>{money(op.fixed?.winterRate ?? 0)} за кв. м/мес</td></tr>
+            <tr><td>Тариф (май–сен)</td><td>{money(op.fixed?.summerRate ?? 0)} за кв. м/мес</td></tr>
+            <tr><td>Расходы в месяц (зима)</td><td>{money((op.fixed?.winterRate ?? 0) * area)}</td></tr>
+            <tr><td>Расходы в месяц (лето)</td><td>{money((op.fixed?.summerRate ?? 0) * area)}</td></tr>
+          </tbody>
+        </table>
+      ) : (
+        <>
+          <p><b>Формула:</b> ЭР = (фактические расходы здания за период ÷ общая арендуемая площадь здания {state.building.totalRentableAreaSqm || "____"} кв. м) × площадь помещения {area || "____"} кв. м.</p>
+          {op.pooled?.estimatedRatePerSqm ? <p>Авансовая ставка: {money(op.pooled.estimatedRatePerSqm)} за кв. м/мес, с последующим перерасчётом по факту.</p> : null}
+        </>
+      )}
+      <p className="text-xs text-slate-500 dark:text-slate-400">Покрывает: {a.ctx.covers.join("; ")}.</p>
     </div>
   )
 }
 
 function AnnexesPreview({ state }: { state: ContractState }) {
   const c = assemble(state).ctx
-  const f = state.financials
+  if (!c.annexes.act && !c.annexes.services && !c.annexes.operatingCosts) {
+    return <p className="text-sm text-slate-400 dark:text-slate-500">Приложения к договору не предусмотрены — включаются Актом (Прил. № 1), доп. услугами (Прил. № 2) или методом эксплуатационных расходов (Прил. № 3).</p>
+  }
   return (
-    <div className="space-y-3">
-      <AnnexItem on={c.annexes.act} title="Приложение № 1 — Акт приёма-передачи" extra={c.annexes.act ? "включено" : "выключено"} />
-      <AnnexItem on={c.annexes.services} title="Приложение № 2 — Доп. услуги" extra={c.annexes.services ? "включено" : "нет заказанных услуг"} />
-      <AnnexItem on={c.annexes.operatingCosts} title="Приложение № 3 — Эксплуатационные расходы" extra={c.annexes.operatingCosts ? (f.operatingCosts.method === "fixed_per_sqm" ? `тарифы: зима ${money(f.operatingCosts.fixed?.winterRate ?? 0)}, лето ${money(f.operatingCosts.fixed?.summerRate ?? 0)}` : "котловой долевой расчёт") : "метод не выбран"} />
-      <p className="pt-1 text-xs text-slate-400 dark:text-slate-500">Полный DOCX приложений — в кнопке «Скачать DOCX».</p>
+    <div className="space-y-8">
+      {c.annexes.act && <Annex1Preview state={state} />}
+      {c.annexes.services && <Annex2Preview state={state} />}
+      {c.annexes.operatingCosts && <Annex3Preview state={state} />}
     </div>
   )
 }
