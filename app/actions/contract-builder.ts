@@ -6,8 +6,18 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Prisma } from "@/app/generated/prisma/client"
-import { assemble, type ContractState } from "@/lib/contract-engine"
+import { tenantScope } from "@/lib/tenant-scope"
+import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { assemble, defaultState, type ContractState, type PartyType } from "@/lib/contract-engine"
 import { renderContractDocx } from "@/lib/contract-engine/docx"
+
+function toPartyType(legalType: string | null | undefined): PartyType {
+  const t = String(legalType ?? "").toUpperCase()
+  if (t === "PHYSICAL") return "individual"
+  if (t === "IP") return "ip"
+  return "too" // TOO/AO/OTHER
+}
 
 // Server actions конструктора договоров (Фаза 3). Работают с НОВОЙ таблицей
 // contract_drafts, не трогая contracts / document_templates / подпись.
@@ -101,6 +111,140 @@ export async function deleteContractDraft(id: string): Promise<{ ok: boolean }> 
  * base64 (клиент инициирует скачивание). Блокирует генерацию при hard-ошибках.
  * Архивация в GeneratedDocument — отдельная фаза интеграции (5).
  */
+export interface ConstructorTenant {
+  id: string
+  name: string
+  building: string | null
+}
+
+/** Список арендаторов организации для выбора в конструкторе (с зданием). */
+export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
+  const { orgId } = await requireOrgAccess()
+  const rows = await db.tenant.findMany({
+    where: tenantScope(orgId),
+    orderBy: { companyName: "asc" },
+    take: 500,
+    select: {
+      id: true,
+      companyName: true,
+      space: { select: { floor: { select: { building: { select: { name: true } } } } } },
+      tenantSpaces: { take: 1, select: { space: { select: { floor: { select: { building: { select: { name: true } } } } } } } },
+      fullFloors: { take: 1, select: { building: { select: { name: true } } } },
+    },
+  })
+  return rows.map((t) => ({
+    id: t.id,
+    name: t.companyName,
+    building:
+      t.space?.floor.building.name ??
+      t.tenantSpaces[0]?.space.floor.building.name ??
+      t.fullFloors[0]?.building.name ??
+      null,
+  }))
+}
+
+/**
+ * Префилл состояния конструктора из существующего арендатора: реквизиты сторон
+ * (арендодатель = организация, арендатор = выбранный), помещение, ставка аренды,
+ * депозит, пеня, срок, услуги. Переиспользует те же загрузчики, что и генераторы.
+ */
+export async function prefillFromTenant(
+  tenantId: string,
+): Promise<{ ok: boolean; error?: string; state?: ContractState }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+
+    const tenant = await db.tenant.findFirst({
+      where: { AND: [tenantScope(orgId), { id: tenantId }] },
+      select: {
+        companyName: true, bin: true, iin: true, bankName: true, iik: true, bik: true,
+        legalType: true, legalAddress: true, actualAddress: true, directorName: true,
+        usePurpose: true, customRate: true, fixedMonthlyRent: true,
+        contractStart: true, contractEnd: true, depositAmount: true, paymentDueDay: true,
+        penaltyPercent: true, basisDocument: true, needsCleaning: true, cleaningFee: true,
+        isVatPayer: true,
+        user: { select: { phone: true, email: true } },
+        bankAccounts: { select: { bankName: true, iik: true, bik: true, isPrimary: true } },
+        space: { select: { number: true, area: true, floor: { select: { number: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
+        tenantSpaces: { select: { space: { select: { number: true, area: true, floor: { select: { number: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } } } },
+        fullFloors: { select: { number: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
+      },
+    })
+    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+
+    const org = await getOrganizationRequisites(orgId)
+    const s = defaultState()
+
+    // Арендодатель = организация
+    s.landlord = {
+      type: toPartyType(org.legalType),
+      name: org.fullName,
+      signatory: org.director || org.directorShort || "",
+      bin: org.bin, iin: org.iin, iik: org.iik, bank: org.bank, bik: org.bik,
+      basis: org.basis, address: org.legalAddress,
+      phone: org.phone, email: org.email,
+    }
+
+    // Арендатор — выбранный
+    const tb = tenant.bankAccounts.find((b) => b.isPrimary) ?? tenant.bankAccounts[0]
+    s.tenant = {
+      type: toPartyType(tenant.legalType),
+      name: tenant.companyName,
+      signatory: tenant.directorName ?? "",
+      bin: tenant.bin ?? "", iin: tenant.iin ?? "",
+      iik: tb?.iik ?? tenant.iik ?? "", bank: tb?.bankName ?? tenant.bankName ?? "", bik: tb?.bik ?? tenant.bik ?? "",
+      basis: tenant.basisDocument ?? s.tenant.basis,
+      address: tenant.legalAddress ?? tenant.actualAddress ?? "",
+      phone: tenant.user?.phone ?? "", email: tenant.user?.email ?? "",
+    }
+
+    // Помещение
+    const building =
+      tenant.space?.floor.building ??
+      tenant.tenantSpaces[0]?.space.floor.building ??
+      tenant.fullFloors[0]?.building ??
+      null
+    s.premises.buildingAddress = building?.documentAddress || building?.address || ""
+    if (tenant.space) {
+      s.premises.placement = `${tenant.space.floor.number} этаж, помещение ${tenant.space.number}`
+      s.premises.spaceAreaSqm = tenant.space.area
+    } else if (tenant.tenantSpaces.length > 0) {
+      s.premises.placement = tenant.tenantSpaces.map((x) => `${x.space.floor.number} эт., пом. ${x.space.number}`).join("; ")
+      s.premises.spaceAreaSqm = tenant.tenantSpaces.reduce((sum, x) => sum + x.space.area, 0)
+    } else if (tenant.fullFloors.length > 0) {
+      s.premises.placement = tenant.fullFloors.map((fl) => `${fl.number} этаж целиком`).join("; ")
+      s.premises.spaceAreaSqm = tenant.fullFloors.reduce((sum, fl) => sum + (fl.totalArea ?? 0), 0)
+    }
+    if (tenant.usePurpose) s.premises.purposeUse = tenant.usePurpose
+
+    // Общая арендуемая площадь здания (для долевого расчёта)
+    const buildingId = building?.id
+    if (buildingId) {
+      const agg = await db.space.aggregate({ where: { kind: "RENTABLE", floor: { buildingId } }, _sum: { area: true } })
+      s.building.totalRentableAreaSqm = agg._sum.area ?? 0
+    }
+
+    // Финансы
+    const rent = calculateTenantMonthlyRent(tenant)
+    s.financials.monthlyRent = rent
+    s.financials.deposit.amount = tenant.depositAmount ?? rent
+    s.financials.paymentDueDay = tenant.paymentDueDay
+    s.financials.penalty.tenantPerDay = tenant.penaltyPercent
+    s.financials.penalty.landlordPerDay = tenant.penaltyPercent
+    s.financials.vatIncluded = tenant.isVatPayer
+    s.financials.additionalServices.premisesCleaning = { ordered: tenant.needsCleaning, ratePerSqm: tenant.cleaningFee }
+
+    // Срок
+    if (tenant.contractStart) s.term.startDate = new Date(tenant.contractStart).toISOString().slice(0, 10)
+    if (tenant.contractEnd) s.term.endDate = new Date(tenant.contractEnd).toISOString().slice(0, 10)
+
+    return { ok: true, state: s }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить арендатора" }
+  }
+}
+
 export async function generateContractDocx(
   builderState: ContractState,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {

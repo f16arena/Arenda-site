@@ -24,7 +24,10 @@ import {
   listContractDrafts,
   loadContractDraft,
   generateContractDocx,
+  listConstructorTenants,
+  prefillFromTenant,
   type DraftListItem,
+  type ConstructorTenant,
 } from "@/app/actions/contract-builder"
 import {
   defaultState,
@@ -92,8 +95,36 @@ export function ContractConstructor() {
   const advices = useMemo(() => advise(state, assembly.ctx), [state, assembly])
   const hardErrors = assembly.validation.hard
 
+  const [tenants, setTenants] = useState<ConstructorTenant[]>([])
+  const [selTenant, setSelTenant] = useState("")
+
   const refreshDrafts = () => { listContractDrafts().then(setDrafts).catch(() => {}) }
   useEffect(() => { listContractDrafts().then(setDrafts).catch(() => {}) }, [])
+  useEffect(() => { listConstructorTenants().then(setTenants).catch(() => {}) }, [])
+
+  const tenantGroups = useMemo(() => {
+    const m = new Map<string, ConstructorTenant[]>()
+    for (const t of tenants) {
+      const key = t.building ?? "Без здания"
+      const list = m.get(key) ?? []
+      list.push(t)
+      m.set(key, list)
+    }
+    return [...m.entries()]
+  }, [tenants])
+
+  function onPickTenant(id: string) {
+    setSelTenant(id)
+    if (!id) return
+    startTransition(async () => {
+      const r = await prefillFromTenant(id)
+      if (r.ok && r.state) {
+        setState(r.state)
+        setDraftName(r.state.tenant.name || "Без названия")
+        toast.success("Данные арендатора подставлены")
+      } else toast.error(r.error ?? "Не удалось подставить данные")
+    })
+  }
 
   function doSave() {
     startTransition(async () => {
@@ -160,6 +191,18 @@ export function ContractConstructor() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* ── form ── */}
         <div className="space-y-4">
+          <div className={`${cardCls} p-4`}>
+            <label className={labelCls}>Заполнить из арендатора</label>
+            <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
+              <option value="">— выбрать арендатора —</option>
+              {tenantGroups.map(([b, list]) => (
+                <optgroup key={b} label={b}>
+                  {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Реквизиты сторон, помещение, ставка, депозит и срок подставятся автоматически — дальше можно поправить вручную.</p>
+          </div>
           <CollapsibleCard title="Стороны" icon={Users} defaultOpen>
             <div className="space-y-1 p-5"><PartiesStep state={state} set={set} /></div>
           </CollapsibleCard>
