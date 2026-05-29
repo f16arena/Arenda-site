@@ -49,21 +49,50 @@ function tableCell(text: string, widthPct: number, opts: { bold?: boolean; align
 }
 
 const COLS = [4, 24, 10, 14, 8, 10, 14, 16] // суммируется в 100
-const HEADERS = [
-  "Номер по порядку",
-  "Наименование работ (услуг)",
-  "Дата выполнения работ (оказания услуг)",
-  "Сведения об отчёте (дата, номер, кол-во страниц)",
-  "Единица измерения",
-  "Количество",
-  "Цена за единицу",
-  "Стоимость",
-]
+
+// Полные формулировки заголовков как в форме Р-1.
+const H_NUM = "Номер по порядку"
+const H_NAME = "Наименование работ (услуг) (в разрезе их подвидов в соответствии с технической спецификацией, заданием, графиком выполнения работ (услуг) при их наличии)"
+const H_DATE = "Дата выполнения работ (оказания услуг)"
+const H_REPORT = "Сведения об отчёте о научных исследованиях, маркетинговых, консультационных и прочих услугах (дата, номер, количество страниц) (при их наличии)"
+const H_UNIT = "Единица измерения"
+const H_DONE = "Выполнено работ (оказано услуг)"
+
+/** Ячейка-заголовок с поддержкой объединения по строкам/колонкам. */
+function hCell(text: string, widthPct: number, opts: { rowSpan?: number; colSpan?: number } = {}): TableCell {
+  return new TableCell({
+    width: { size: widthPct, type: WidthType.PERCENTAGE },
+    borders: cellBorders,
+    verticalAlign: VerticalAlign.CENTER,
+    rowSpan: opts.rowSpan,
+    columnSpan: opts.colSpan,
+    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [txt(text, { bold: true, size: 13 })] })],
+  })
+}
 
 function itemsTable(s: AvrState): Table {
   const rows: TableRow[] = []
-  rows.push(new TableRow({ tableHeader: true, children: HEADERS.map((h, i) => tableCell(h, COLS[i], { bold: true, align: AlignmentType.CENTER })) }))
-  rows.push(new TableRow({ children: ["1", "2", "3", "4", "5", "6", "7", "8"].map((n, i) => tableCell(n, COLS[i], { align: AlignmentType.CENTER, size: 16 })) }))
+  // Двухуровневая шапка: 5 колонок на 2 строки + группа «Выполнено работ» над 3 подколонками.
+  rows.push(
+    new TableRow({
+      tableHeader: true,
+      children: [
+        hCell(H_NUM, COLS[0], { rowSpan: 2 }),
+        hCell(H_NAME, COLS[1], { rowSpan: 2 }),
+        hCell(H_DATE, COLS[2], { rowSpan: 2 }),
+        hCell(H_REPORT, COLS[3], { rowSpan: 2 }),
+        hCell(H_UNIT, COLS[4], { rowSpan: 2 }),
+        hCell(H_DONE, COLS[5] + COLS[6] + COLS[7], { colSpan: 3 }),
+      ],
+    }),
+  )
+  rows.push(
+    new TableRow({
+      tableHeader: true,
+      children: [hCell("количество", COLS[5]), hCell("цена за единицу", COLS[6]), hCell("стоимость", COLS[7])],
+    }),
+  )
+  rows.push(new TableRow({ children: ["1", "2", "3", "4", "5", "6", "7", "8"].map((n, i) => tableCell(n, COLS[i], { align: AlignmentType.CENTER, size: 14 })) }))
   s.items.forEach((it, idx) => {
     rows.push(
       new TableRow({
@@ -185,7 +214,8 @@ export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string }):
   children.push(pr([txt(`Всего на сумму: ${moneyWithWords(avrTotal(s))}.`, { bold: true })], AlignmentType.LEFT, 120))
 
   // Запасы / приложение
-  children.push(pr([txt("Сведения об использовании запасов, полученных от заказчика: ", { bold: true }), txt(s.stocks || "не использовались")], AlignmentType.LEFT, 40))
+  children.push(pr([txt("Сведения об использовании запасов, полученных от заказчика: ", { bold: true }), txt(s.stocks || "не использовались")], AlignmentType.LEFT, 0))
+  children.push(note("наименование, количество, стоимость"))
   children.push(pr([txt("Приложение: перечень документации на ", {}), txt(String(s.attachmentPages || 0), { bold: true }), txt(" страниц(е/ах) (при наличии).")], AlignmentType.LEFT, 60))
   children.push(pr([txt("Работы (услуги) выполнены в полном объёме и в установленные сроки. Стороны претензий друг к другу не имеют.")], AlignmentType.LEFT, 200))
 

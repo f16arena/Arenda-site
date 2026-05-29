@@ -238,23 +238,36 @@ export function AvrConstructor() {
             <div className="mt-4 text-center text-sm font-bold">АКТ ВЫПОЛНЕННЫХ РАБОТ (ОКАЗАННЫХ УСЛУГ)</div>
             <div className="mb-3 text-center text-xs text-slate-500">за {periodLabel(state.period)}</div>
 
-            <table className="w-full border-collapse text-[11px]">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900">
-                  {["№", "Наименование", "Дата", "Ед.", "Кол-во", "Цена", "Стоимость"].map((h) => (
-                    <th key={h} className="border border-slate-300 px-1.5 py-1 text-left font-semibold dark:border-slate-700">{h}</th>
+            <table className="w-full border-collapse text-[10.5px]">
+              <thead className="bg-slate-50 dark:bg-slate-900">
+                <tr>
+                  {[
+                    { t: "№", title: "Номер по порядку" },
+                    { t: "Наименование", title: "Наименование работ (услуг)" },
+                    { t: "Дата", title: "Дата выполнения работ (оказания услуг)" },
+                    { t: "Отчёт", title: "Сведения об отчёте (при наличии)" },
+                    { t: "Ед.", title: "Единица измерения" },
+                  ].map((h) => (
+                    <th key={h.t} rowSpan={2} title={h.title} className="border border-slate-300 px-1.5 py-1 text-left align-middle font-semibold dark:border-slate-700">{h.t}</th>
+                  ))}
+                  <th colSpan={3} className="border border-slate-300 px-1.5 py-1 text-center font-semibold dark:border-slate-700">Выполнено работ (оказано услуг)</th>
+                </tr>
+                <tr>
+                  {["Кол-во", "Цена", "Стоимость"].map((h) => (
+                    <th key={h} className="border border-slate-300 px-1.5 py-1 text-center font-semibold dark:border-slate-700">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {state.items.length === 0 && (
-                  <tr><td colSpan={7} className="border border-slate-300 px-2 py-3 text-center text-slate-400 dark:border-slate-700">Нет позиций — добавьте слева или выберите арендатора с начислениями</td></tr>
+                  <tr><td colSpan={8} className="border border-slate-300 px-2 py-3 text-center text-slate-400 dark:border-slate-700">Нет позиций — добавьте слева или выберите арендатора с начислениями</td></tr>
                 )}
                 {state.items.map((it, i) => (
                   <tr key={i}>
                     <td className="border border-slate-300 px-1.5 py-1 text-center dark:border-slate-700">{i + 1}</td>
                     <td className="border border-slate-300 px-1.5 py-1 dark:border-slate-700">{it.name || "—"}</td>
                     <td className="border border-slate-300 px-1.5 py-1 text-center dark:border-slate-700">{it.date || "—"}</td>
+                    <td className="border border-slate-300 px-1.5 py-1 text-center dark:border-slate-700">{it.report || "—"}</td>
                     <td className="border border-slate-300 px-1.5 py-1 text-center dark:border-slate-700">{it.unit}</td>
                     <td className="border border-slate-300 px-1.5 py-1 text-center dark:border-slate-700">{it.qty}</td>
                     <td className="border border-slate-300 px-1.5 py-1 text-right dark:border-slate-700">{money(it.price)}</td>
