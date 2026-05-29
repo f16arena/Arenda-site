@@ -5,14 +5,15 @@ import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import {
-  ArrowLeft, FileText, Calendar, ShieldCheck, AlertTriangle,
+  ArrowLeft, FileText, Calendar, ShieldCheck,
   Clock, Users, Receipt, History as HistoryIcon, Download,
 } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
 import { assertContractInOrg } from "@/lib/scope-guards"
-import { formatMoney } from "@/lib/utils"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
+import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
+import { ContractEcpSign } from "@/components/contract-ecp-sign"
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT:             { label: "Черновик",       color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
@@ -104,6 +105,18 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
 
   const statusMeta = STATUS_LABELS[contract.status] ?? { label: contract.status, color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" }
   const isAddendum = contract.type === "ADDENDUM"
+  const isCompleted = contract.status === "SIGNED" || contract.status === "REJECTED"
+  const canLandlordSign = !isCompleted && !contract.signedByLandlordAt
+  const landlordPayloadB64 = canLandlordSign
+    ? contractPayloadBase64({
+        number: contract.number,
+        type: contract.type,
+        content: contract.content,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        tenantCompany: contract.tenant.companyName,
+      })
+    : null
 
   return (
     <div className="space-y-5 max-w-5xl">
@@ -159,6 +172,14 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             <Download className="h-4 w-4" />
             Скачать DOCX
           </a>
+          {landlordPayloadB64 && (
+            <ContractEcpSign
+              payloadB64={landlordPayloadB64}
+              mode="landlord"
+              contractId={contract.id}
+              label="Подписать ЭЦП (арендодатель)"
+            />
+          )}
         </div>
       </div>
 

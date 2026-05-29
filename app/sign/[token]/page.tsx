@@ -6,6 +6,7 @@ import { getContractByToken } from "@/app/actions/contract-workflow"
 import { SignActions } from "./sign-actions"
 import { LANDLORD } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 
 function redactOwnerContact(content: string, contacts: string[]) {
   return contacts.reduce((text, value) => {
@@ -33,6 +34,17 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
     landlord?.phone ?? "",
     landlord?.email ?? "",
   ])
+
+  // Канонический текст для ЭЦП считаем по ПОЛНОМУ контенту (тот же, что подпишет
+  // арендодатель), а не по версии с замазанными контактами.
+  const signingPayloadB64 = contractPayloadBase64({
+    number: contract.number,
+    type: contract.type,
+    content: contract.content,
+    startDate: contract.startDate,
+    endDate: contract.endDate,
+    tenantCompany: contract.tenant.companyName,
+  })
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -151,7 +163,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
 
         {/* Действия */}
         {!isCompleted && !tenantSigned && (
-          <SignActions token={token} />
+          <SignActions token={token} payloadB64={signingPayloadB64} />
         )}
 
         {contract.status === "REJECTED" && contract.rejectionReason && (

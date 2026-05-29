@@ -39,10 +39,26 @@ export interface NcaSignError {
 export type NcaSignResponse = NcaSignResult | NcaSignError
 
 interface NcaWsMessage {
-  status: boolean
+  // Разные версии NCALayer отвечают по-разному:
+  //  - commonUtils: { code: "200"|"500", responseObject?: ..., result?: ..., message? }
+  //  - новые модули: { status: boolean, result?: ..., errorCode?, message? }
+  status?: boolean
+  code?: string
   result?: string | { signature?: string; certificates?: string[] }
+  responseObject?: string | { signature?: string; certificates?: string[] }
   errorCode?: string
   message?: string
+}
+
+/** Достаёт base64-CMS из ответа NCALayer любого из известных форматов. */
+function extractSignature(msg: NcaWsMessage): string | null {
+  for (const candidate of [msg.result, msg.responseObject]) {
+    if (typeof candidate === "string" && candidate.length > 0) return candidate
+    if (candidate && typeof candidate === "object" && candidate.signature) {
+      return candidate.signature
+    }
+  }
+  return null
 }
 
 /**
@@ -122,38 +138,26 @@ export async function signWithNCALayer(
         const msg = JSON.parse(event.data) as NcaWsMessage
         try { ws.close() } catch { /* noop */ }
 
-        if (!msg.status) {
-          const code = msg.errorCode ?? "unknown"
+        // Успех: code === "200" ИЛИ status === true
+        const isSuccess = msg.code === "200" || msg.status === true
+        if (!isSuccess) {
+          const code = msg.errorCode ?? msg.code ?? "unknown"
           const human =
-            code === "USER_CANCELLED" ? "Подписание отменено" :
-            code === "EMPTY_KEY_STORE" ? "Файл сертификата не найден" :
-            code === "WRONG_PASSWORD" ? "Неверный PIN" :
+            code === "USER_CANCELLED" ? "Подписание отменено пользователем" :
+            code === "EMPTY_KEY_STORE" ? "Файл сертификата (ключ) не найден" :
+            code === "WRONG_PASSWORD" ? "Неверный пароль/PIN к ключу" :
             msg.message ?? "Ошибка NCALayer"
           resolve({ ok: false, error: human, code })
           return
         }
 
-        const result = msg.result
-        if (typeof result === "string") {
-          // Старый протокол — result это base64 signature
-          resolve({
-            ok: true,
-            signature: result,
-            signerCert: "",
-            signerInfo: {},
-          })
+        // Полный CMS (сертификат подписанта внутри) — сервер распарсит его сам.
+        const signature = extractSignature(msg)
+        if (signature) {
+          resolve({ ok: true, signature, signerCert: signature, signerInfo: {} })
           return
         }
-        if (result && typeof result === "object" && "signature" in result) {
-          resolve({
-            ok: true,
-            signature: result.signature ?? "",
-            signerCert: (result.certificates ?? []).join("\n"),
-            signerInfo: {},
-          })
-          return
-        }
-        resolve({ ok: false, error: "Неожиданный формат ответа NCALayer" })
+        resolve({ ok: false, error: "Неожиданный формат ответа NCALayer (нет подписи)" })
       } catch (e) {
         resolve({ ok: false, error: e instanceof Error ? e.message : "JSON parse error" })
       }

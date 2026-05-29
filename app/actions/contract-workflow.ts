@@ -10,6 +10,83 @@ import { ROOT_HOST } from "@/lib/host"
 import { applySignedContractChanges } from "@/lib/contract-addendum"
 import { headers } from "next/headers"
 import crypto from "crypto"
+import { parseCmsSignature, validateSigner, signerDisplayName } from "@/lib/ncalayer-cms"
+import { verifyCmsWithNcanode } from "@/lib/ncanode"
+import { contractPayloadBase64, type ContractSigningFields } from "@/lib/contract-signing-payload"
+
+// Жёсткие предупреждения, при которых подпись отклоняется (а не просто логируется).
+const BLOCKING_WARNINGS = ["Срок действия сертификата истёк", "Сертификат ещё не вступил в силу"]
+
+interface ContractForSign extends ContractSigningFields {
+  id: string
+  organizationId: string
+}
+
+/**
+ * Общая логика записи ЭЦП-подписи договора (для арендатора и арендодателя):
+ *  1) разбирает CMS (сертификат подписанта);
+ *  2) проверяет срок/издателя;
+ *  3) сверяет вложенные в подпись данные с каноническим текстом договора (привязка);
+ *  4) пишет DocumentSignature.
+ * Возвращает { signatureId, signerName } либо бросает Error с понятным текстом.
+ */
+async function recordContractEcpSignature(
+  contract: ContractForSign,
+  cmsB64: string,
+  signerUserId: string | null,
+): Promise<{ signatureId: string; signerName: string }> {
+  const parsed = parseCmsSignature(cmsB64)
+  if (!parsed.ok || !parsed.signer) {
+    throw new Error(parsed.error ?? "Не удалось разобрать ЭЦП-подпись")
+  }
+  const signer = parsed.signer
+
+  const warnings = validateSigner(signer)
+  const blocking = warnings.filter((w) => BLOCKING_WARNINGS.includes(w))
+  if (blocking.length) {
+    throw new Error(blocking.join("; "))
+  }
+
+  // Привязка: вложенные в CMS данные должны совпадать с текстом договора.
+  const expectedB64 = contractPayloadBase64(contract)
+  if (parsed.encapsulatedContentB64 && parsed.encapsulatedContentB64 !== expectedB64) {
+    throw new Error("Подпись не соответствует тексту договора (возможно, документ изменён)")
+  }
+
+  // Строгая криптопроверка через NCANode (KalkanCrypt): ГОСТ-2015 + цепочка до НУЦ РК
+  // + отзыв (OCSP). Включается ТОЛЬКО если NCANode настроен (NCANODE_SECRET) — иначе
+  // (dev/preview без верификатора) полагаемся на pure-JS разбор + привязку выше.
+  if (process.env.NCANODE_SECRET) {
+    const v = await verifyCmsWithNcanode(cmsB64)
+    if (!v.valid) {
+      throw new Error("ЭЦП не прошла криптопроверку НУЦ РК: " + (v.reason ?? "подпись недействительна"))
+    }
+  }
+
+  const signerName = signerDisplayName(signer) ?? "Подписант ЭЦП"
+  const signedHashB64 = crypto.createHash("sha256").update(expectedB64, "base64").digest("base64")
+
+  const sig = await db.documentSignature.create({
+    data: {
+      organizationId: contract.organizationId,
+      documentType: "CONTRACT",
+      documentId: contract.id,
+      signerUserId,
+      signerName,
+      signerIin: signer.iin ?? null,
+      signerOrgBin: signer.bin ?? null,
+      signedHashB64,
+      signatureB64: cmsB64,
+      certPemB64: signer.certDerB64 ?? "",
+      validFrom: signer.validFrom ?? null,
+      validTo: signer.validTo ?? null,
+      algorithm: "GOST/RSA (NCALayer)",
+    },
+    select: { id: true },
+  })
+
+  return { signatureId: sig.id, signerName }
+}
 
 /**
  * Отправить договор арендатору на подпись.
@@ -212,6 +289,153 @@ export async function signContractByTenant(
 
   revalidatePath("/admin/documents")
   return { ok: true }
+}
+
+/**
+ * Арендатор подписывает договор квалифицированной ЭЦП (НУЦ РК) через NCALayer.
+ * Публичное действие — доступ по токену (внешний пользователь без сессии).
+ * @param cmsB64 base64 CMS-подписи от NCALayer (attached).
+ */
+export async function signContractByTenantEcp(
+  token: string,
+  cmsB64: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
+  if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
+
+  const contract = await db.contract.findUnique({
+    where: { signToken: token },
+    select: {
+      id: true,
+      number: true,
+      type: true,
+      content: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      signedByLandlordAt: true,
+      tenant: {
+        select: {
+          companyName: true,
+          user: { select: { organizationId: true } },
+        },
+      },
+    },
+  })
+  if (!contract) return { ok: false, error: "Договор не найден" }
+  if (contract.status === "SIGNED" || contract.status === "REJECTED") {
+    return { ok: false, error: "Договор уже завершён" }
+  }
+  const orgId = contract.tenant.user.organizationId
+  if (!orgId) return { ok: false, error: "Договор не привязан к организации" }
+
+  try {
+    const { signerName } = await recordContractEcpSignature(
+      {
+        id: contract.id,
+        organizationId: orgId,
+        number: contract.number,
+        type: contract.type,
+        content: contract.content,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        tenantCompany: contract.tenant.companyName,
+      },
+      cmsB64,
+      null,
+    )
+
+    const now = new Date()
+    const newStatus = contract.signedByLandlordAt ? "SIGNED" : "SIGNED_BY_TENANT"
+    await db.contract.update({
+      where: { id: contract.id },
+      data: {
+        signedByTenantAt: now,
+        signedByTenantName: signerName,
+        status: newStatus,
+        ...(newStatus === "SIGNED" ? { signedAt: now } : {}),
+      },
+    })
+    if (newStatus === "SIGNED") {
+      await applySignedContractChanges(contract.id)
+    }
+
+    revalidatePath("/admin/documents")
+    revalidatePath("/admin/contracts")
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подписать" }
+  }
+}
+
+/**
+ * Арендодатель подписывает договор квалифицированной ЭЦП (НУЦ РК) через NCALayer.
+ * Authed-действие (внутри админки).
+ */
+export async function signContractByLandlordEcp(
+  contractId: string,
+  cmsB64: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
+  const { orgId, userId } = await requireOrgAccess()
+
+  const contract = await db.contract.findFirst({
+    where: { id: contractId, ...contractScope(orgId) },
+    select: {
+      id: true,
+      number: true,
+      type: true,
+      content: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+      signedByTenantAt: true,
+      tenant: { select: { companyName: true } },
+    },
+  })
+  if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
+  if (contract.status === "SIGNED" || contract.status === "REJECTED") {
+    return { ok: false, error: "Договор уже завершён" }
+  }
+
+  try {
+    await recordContractEcpSignature(
+      {
+        id: contract.id,
+        organizationId: orgId,
+        number: contract.number,
+        type: contract.type,
+        content: contract.content,
+        startDate: contract.startDate,
+        endDate: contract.endDate,
+        tenantCompany: contract.tenant.companyName,
+      },
+      cmsB64,
+      userId,
+    )
+
+    const now = new Date()
+    const newStatus = contract.signedByTenantAt ? "SIGNED" : "SENT"
+    await db.contract.update({
+      where: { id: contract.id },
+      data: {
+        signedByLandlordAt: now,
+        status: newStatus,
+        ...(newStatus === "SIGNED" ? { signedAt: now } : {}),
+      },
+    })
+    if (newStatus === "SIGNED") {
+      await applySignedContractChanges(contract.id)
+    }
+
+    revalidatePath(`/admin/contracts/${contract.id}`)
+    revalidatePath("/admin/documents")
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подписать" }
+  }
 }
 
 /**

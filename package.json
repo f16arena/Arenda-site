@@ -26,6 +26,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
+    "@peculiar/asn1-cms": "^2.7.0",
+    "@peculiar/asn1-schema": "^2.7.0",
+    "@peculiar/asn1-x509": "^2.7.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@sentry/nextjs": "^10.51.0",

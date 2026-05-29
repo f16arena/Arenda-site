@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Check, X } from "lucide-react"
+import { Check, X, ShieldCheck, PenLine } from "lucide-react"
 import { signContractByTenant, rejectContractByTenant } from "@/app/actions/contract-workflow"
 import { Button } from "@/components/ui/button"
+import { ContractEcpSign } from "@/components/contract-ecp-sign"
 
-export function SignActions({ token }: { token: string }) {
+export function SignActions({ token, payloadB64 }: { token: string; payloadB64?: string }) {
   const [pending, startTransition] = useTransition()
+  const [method, setMethod] = useState<"ecp" | "simple">(payloadB64 ? "ecp" : "simple")
   const [signerName, setSignerName] = useState("")
   const [agreed, setAgreed] = useState(false)
   const [showReject, setShowReject] = useState(false)
@@ -66,54 +68,108 @@ export function SignActions({ token }: { token: string }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
       <h2 className="text-lg font-semibold text-slate-900">Подписать договор</h2>
-      <p className="text-sm text-slate-600">
-        Подписывая, вы соглашаетесь со всеми условиями договора. Это юридически действительно
-        как простая электронная подпись по статье 7 Закона РК «Об электронном документе и ЭЦП».
-      </p>
 
-      <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">ФИО подписанта *</label>
-        <input
-          value={signerName}
-          onChange={(e) => setSignerName(e.target.value)}
-          placeholder="Иванов Иван Иванович"
-          maxLength={200}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-        />
-      </div>
-
-      <label className="flex items-start gap-2 text-sm cursor-pointer">
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={(e) => setAgreed(e.target.checked)}
-          className="mt-0.5 rounded"
-        />
-        <span className="text-slate-700">
-          Я ознакомился с текстом договора и согласен с его условиями
-        </span>
-      </label>
-
-      {err && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{err}</div>
+      {/* Выбор метода подписи */}
+      {payloadB64 && (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => { setMethod("ecp"); setErr(null) }}
+            className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition ${
+              method === "ecp"
+                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <ShieldCheck className="h-4 w-4" /> ЭЦП (НУЦ РК)
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMethod("simple"); setErr(null) }}
+            className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition ${
+              method === "simple"
+                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <PenLine className="h-4 w-4" /> Простая подпись
+          </button>
+        </div>
       )}
 
-      <div className="flex gap-2 pt-2">
-        <button
-          onClick={() => setShowReject(true)}
-          disabled={pending}
-          className="flex-1 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 py-2.5 text-sm font-medium"
-        >
-          Отклонить
-        </button>
-        <button
-          onClick={submitSign}
-          disabled={pending || !agreed || signerName.length < 3}
-          className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-sm font-semibold disabled:opacity-60"
-        >
-          {pending ? "..." : "Подписать"}
-        </button>
-      </div>
+      {method === "ecp" && payloadB64 ? (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            Подпишите квалифицированной ЭЦП НУЦ РК через NCALayer — это полноценная
+            электронная подпись, юридически равная собственноручной.
+          </p>
+          <ContractEcpSign
+            payloadB64={payloadB64}
+            mode="tenant"
+            token={token}
+            label="Подписать ЭЦП"
+            onSigned={() => setDone("signed")}
+          />
+          <button
+            onClick={() => setShowReject(true)}
+            disabled={pending}
+            className="w-full rounded-lg border border-red-200 hover:bg-red-50 text-red-600 py-2.5 text-sm font-medium"
+          >
+            Отклонить договор
+          </button>
+        </div>
+      ) : (
+        <>
+          <p className="text-sm text-slate-600">
+            Подписывая, вы соглашаетесь со всеми условиями договора. Это юридически действительно
+            как простая электронная подпись по статье 7 Закона РК «Об электронном документе и ЭЦП».
+          </p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">ФИО подписанта *</label>
+            <input
+              value={signerName}
+              onChange={(e) => setSignerName(e.target.value)}
+              placeholder="Иванов Иван Иванович"
+              maxLength={200}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            />
+          </div>
+
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 rounded"
+            />
+            <span className="text-slate-700">
+              Я ознакомился с текстом договора и согласен с его условиями
+            </span>
+          </label>
+
+          {err && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{err}</div>
+          )}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => setShowReject(true)}
+              disabled={pending}
+              className="flex-1 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 py-2.5 text-sm font-medium"
+            >
+              Отклонить
+            </button>
+            <button
+              onClick={submitSign}
+              disabled={pending || !agreed || signerName.length < 3}
+              className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-sm font-semibold disabled:opacity-60"
+            >
+              {pending ? "..." : "Подписать"}
+            </button>
+          </div>
+        </>
+      )}
 
       {showReject && (
         <div className="border-t border-slate-200 pt-4">
