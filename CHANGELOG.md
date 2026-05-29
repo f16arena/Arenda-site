@@ -11,6 +11,7 @@
 - Уведомления: задействован флаг `notifyInApp` (не создаём in-app, если отключён); `sendMessage` пропускает повторный сабмит идентичного сообщения за 10 сек (анти-дубль).
 - Мобайл: `/api/mobile/auth/logout` ревокает push-девайс по `pushToken` (серверная часть; RN-клиент должен слать токен при выходе).
 - Рефактор: кассовая логика платежа вынесена в `lib/payment-cash.ts` (`recordPaymentCash`/`reversePaymentCash`/`reapplyPaymentCash`), `paymentId` стал обязательным аргументом. Добавлен E2E `scripts/e2e-cash-balance.ts` (`npm run test:e2e:cash`, в `quality:audit`): record→delete→restore→bulk с проверкой баланса кассы.
+- Backfill: `scripts/backfill-cash-payment-link.ts` (`npm run backfill:cash-link`) связывает исторические DEPOSIT-проводки без `payment_id` с платежами по однозначному совпадению (сумма + org + окно createdAt ±5с). Dry-run по умолчанию; запись только `--apply` + `BACKFILL_ALLOW_WRITE=1`.
 - Проверки: `npx eslint` по изменённым файлам и `npx tsc --noEmit` — зелёные. `npm run build` локально не прогонялся (нет подключения к БД).
 - Rollback-точка: коммит `b3800b9` (предыдущий на main).
 

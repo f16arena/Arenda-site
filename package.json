@@ -11,6 +11,7 @@
     "lint": "eslint",
     "perf:audit": "node scripts/performance-audit.mjs",
     "security:audit": "node scripts/security-isolation-audit.mjs",
+    "backfill:cash-link": "tsx scripts/backfill-cash-payment-link.ts",
     "ci:performance-gate": "node scripts/ci-performance-gate.mjs",
     "test:e2e:payment": "tsx scripts/e2e-critical-payment.ts",
     "test:e2e:cash": "tsx scripts/e2e-cash-balance.ts",
