@@ -29,6 +29,7 @@ import {
   listConstructorTenants,
   prefillFromTenant,
   createContractFromBuilder,
+  getNextContractNumber,
   type DraftListItem,
   type ConstructorTenant,
 } from "@/app/actions/contract-builder"
@@ -105,6 +106,13 @@ export function ContractConstructor() {
   const [selTenant, setSelTenant] = useState("")
   // Контакты арендодателя на выбор: владелец (аккаунт) или администратор (контакты организации).
   const [landlordContacts, setLandlordContacts] = useState<{ owner: { phone: string; email: string }; admin: { phone: string; email: string } } | null>(null)
+  // Автонумерация договора (001, 002, …). Выкл — владелец задаёт номер вручную.
+  const [autoNumber, setAutoNum] = useState(true)
+
+  const applyAutoNumber = () => {
+    getNextContractNumber().then((r) => { if (r.ok && r.number) set((s) => { s.meta.contractNumber = r.number! }) }).catch(() => {})
+  }
+  const onSetAutoNumber = (v: boolean) => { setAutoNum(v); if (v) applyAutoNumber() }
 
   const refreshDrafts = () => { listContractDrafts().then(setDrafts).catch(() => {}) }
   useEffect(() => { listContractDrafts().then(setDrafts).catch(() => {}) }, [])
@@ -121,6 +129,8 @@ export function ContractConstructor() {
       return n
     })
   }, [])
+  // Предзаполнить номер договора следующим свободным (если включена автонумерация).
+  useEffect(() => { if (autoNumber) applyAutoNumber() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tenantGroups = useMemo(() => {
     const m = new Map<string, ConstructorTenant[]>()
@@ -142,6 +152,7 @@ export function ContractConstructor() {
         setState(r.state)
         setLandlordContacts(r.landlordContacts ?? null)
         setDraftName(r.state.tenant.name || "Без названия")
+        if (autoNumber) applyAutoNumber() // prefill сбрасывает номер — вернуть автономер
         toast.success("Данные арендатора подставлены")
       } else toast.error(r.error ?? "Не удалось подставить данные")
     })
@@ -157,7 +168,7 @@ export function ContractConstructor() {
     if (!id) return
     startTransition(async () => {
       const r = await loadContractDraft(id)
-      if (r.ok && r.builderState) { setState(r.builderState); setDraftId(id); setDraftName(r.name ?? "Без названия"); toast.success("Черновик загружен") } else toast.error(r.error ?? "Не удалось загрузить")
+      if (r.ok && r.builderState) { setState(r.builderState); setDraftId(id); setDraftName(r.name ?? "Без названия"); setAutoNum(false); toast.success("Черновик загружен") } else toast.error(r.error ?? "Не удалось загрузить")
     })
   }
   function doDownload() {
@@ -177,7 +188,7 @@ export function ContractConstructor() {
   function doCreate(opts: { send?: boolean; landlordSign?: boolean }) {
     if (!selTenant) { toast.error("Сначала выберите арендатора в списке вверху формы"); return }
     startTransition(async () => {
-      const r = await createContractFromBuilder(selTenant, state, opts)
+      const r = await createContractFromBuilder(selTenant, state, { ...opts, autoNumber })
       if (!r.ok) { toast.error(r.error ?? "Не удалось создать договор"); return }
       if (r.error) { toast.error(r.error); return } // создан, но шаг подписи/отправки не удался
       toast.success(
@@ -245,7 +256,7 @@ export function ContractConstructor() {
             <div className="space-y-1 p-5"><PartiesStep state={state} set={set} landlordContacts={landlordContacts} /></div>
           </CollapsibleCard>
           <CollapsibleCard title="Помещение и реквизиты договора" icon={Building2}>
-            <div className="space-y-1 p-5"><PremisesStep state={state} set={set} /></div>
+            <div className="space-y-1 p-5"><PremisesStep state={state} set={set} autoNumber={autoNumber} onSetAutoNumber={onSetAutoNumber} /></div>
           </CollapsibleCard>
           <CollapsibleCard title="Финансовая модель" icon={Wallet}>
             <div className="space-y-1 p-5"><FinancialStep state={state} set={set} /></div>
@@ -389,12 +400,20 @@ function PartiesStep({ state, set, landlordContacts }: { state: ContractState; s
   )
 }
 
-function PremisesStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
+function PremisesStep({ state, set, autoNumber, onSetAutoNumber }: { state: ContractState; set: (m: Mutator) => void; autoNumber: boolean; onSetAutoNumber: (v: boolean) => void }) {
   return (
     <>
       <div className={secTitleCls}>Договор</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Номер</label><input className={inputCls} placeholder="например, 12" value={state.meta.contractNumber} onChange={(e) => set((s) => { s.meta.contractNumber = e.target.value })} /></div>
+        <div>
+          <label className={labelCls}>Номер {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">авто</span>}</label>
+          <div className="flex gap-1.5">
+            <input className={`${inputCls} disabled:opacity-60`} placeholder="например, 001" value={state.meta.contractNumber} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.contractNumber = e.target.value })} />
+            <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} title={autoNumber ? "Задать номер вручную" : "Вернуть автонумерацию"} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">
+              {autoNumber ? "Другой" : "Авто"}
+            </button>
+          </div>
+        </div>
         <div><label className={labelCls}>Дата</label><input type="date" className={inputCls} value={state.meta.contractDate} onChange={(e) => set((s) => { s.meta.contractDate = e.target.value })} /></div>
       </div>
       <div className="mb-2"><label className={labelCls}>Город</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>

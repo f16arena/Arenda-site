@@ -258,6 +258,32 @@ export async function prefillFromTenant(
 }
 
 /**
+ * Следующий порядковый номер договора по организации: max числовой + 1, с ведущими
+ * нулями до 3 знаков (001, 002, …). Учитываются только чисто числовые номера —
+ * ручные/нестандартные («Б/Н», «2026/14») в подсчёте не участвуют.
+ */
+async function computeNextContractNumber(orgId: string): Promise<string> {
+  const rows = await db.contract.findMany({ where: { tenant: tenantScope(orgId) }, select: { number: true } })
+  let max = 0
+  for (const r of rows) {
+    const t = (r.number ?? "").trim()
+    if (/^\d+$/.test(t)) { const n = parseInt(t, 10); if (n > max) max = n }
+  }
+  return String(max + 1).padStart(3, "0")
+}
+
+/** Возвращает следующий свободный номер договора (для предпросмотра автонумерации). */
+export async function getNextContractNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+    return { ok: true, number: await computeNextContractNumber(orgId) }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить номер" }
+  }
+}
+
+/**
  * Создаёт реальный Contract (статус DRAFT) из состояния конструктора и
  * опционально сразу отправляет арендатору на подпись (переиспуёт существующий
  * sendContractForSignature — статус SENT, signToken, письмо со ссылкой /sign/[token]).
@@ -267,7 +293,7 @@ export async function prefillFromTenant(
 export async function createContractFromBuilder(
   tenantId: string,
   builderState: ContractState,
-  opts?: { send?: boolean; landlordSign?: boolean },
+  opts?: { send?: boolean; landlordSign?: boolean; autoNumber?: boolean },
 ): Promise<{ ok: boolean; error?: string; contractId?: string; sent?: boolean; landlordSigned?: boolean; signUrl?: string }> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
@@ -285,8 +311,14 @@ export async function createContractFromBuilder(
       return { ok: false, error: "Договор содержит ошибки: " + a.validation.hard.join("; ") }
     }
 
-    const rawNum = (builderState.meta.contractNumber || "").trim()
-    const number = rawNum && rawNum !== "___" ? rawNum : "Б/Н"
+    // Автонумерация считается на момент создания (атомарнее, чем клиентский предпросмотр).
+    let number: string
+    if (opts?.autoNumber) {
+      number = await computeNextContractNumber(orgId)
+    } else {
+      const rawNum = (builderState.meta.contractNumber || "").trim()
+      number = rawNum && rawNum !== "___" ? rawNum : "Б/Н"
+    }
     const contract = await db.contract.create({
       data: {
         tenantId,

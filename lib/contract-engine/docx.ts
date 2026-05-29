@@ -10,7 +10,6 @@ import {
   Packer,
   Paragraph,
   TextRun,
-  HeadingLevel,
   AlignmentType,
   Table,
   TableRow,
@@ -30,12 +29,14 @@ import { money, dateLong } from "./numerals"
 
 // ───────────────────────── helpers ─────────────────────────
 
+// Заголовки рисуем явным чёрным жирным текстом (а не HeadingLevel) — иначе Word
+// применяет тему стилей и красит заголовки в синий.
 function h1(text: string): Paragraph {
-  return new Paragraph({ text, heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, spacing: { after: 120 } })
+  return new Paragraph({ children: [new TextRun({ text, bold: true, size: 28, color: "000000" })], alignment: AlignmentType.CENTER, spacing: { after: 120 } })
 }
 
 function h2(text: string): Paragraph {
-  return new Paragraph({ text, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 80 } })
+  return new Paragraph({ children: [new TextRun({ text, bold: true, size: 26, color: "000000" })], spacing: { before: 200, after: 80 } })
 }
 
 function para(text: string): Paragraph {
@@ -105,6 +106,11 @@ function signingMark(qr: Buffer | null, verifyUrl: string | null): (Paragraph | 
   ]
 }
 
+/** Подписи сторон + отметка ЭЦП/QR — ставится после каждого блока реквизитов (договор и каждое приложение). */
+function requisitesBlock(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
+  return [signatureTable(s), ...signingMark(qr, verifyUrl)]
+}
+
 function signatureTable(s: ContractState): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -157,14 +163,13 @@ function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string
     }
   }
   out.push(h2(`${a.requisitesNum}. Реквизиты и подписи Сторон`))
-  out.push(signatureTable(s))
-  out.push(...signingMark(qr, verifyUrl))
+  out.push(...requisitesBlock(s, qr, verifyUrl))
   return out
 }
 
 // ───────────────────────── annexes ─────────────────────────
 
-function annex1Act(s: ContractState): (Paragraph | Table)[] {
+function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
   const p = s.premises
   const out: (Paragraph | Table)[] = []
   out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 1 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
@@ -180,11 +185,11 @@ function annex1Act(s: ContractState): (Paragraph | Table)[] {
   out.push(para("3. Показания счётчиков: электроэнергия ________ кВт·ч; холодная вода ________ куб. м; горячая вода ________ куб. м."))
   out.push(para("4. Передаваемые ключи: ____ комплектов."))
   out.push(para("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет."))
-  out.push(signatureTable(s))
+  out.push(...requisitesBlock(s, qr, verifyUrl))
   return out
 }
 
-function annex2Services(s: ContractState): (Paragraph | Table)[] {
+function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
   const sv = s.financials.additionalServices
   const out: (Paragraph | Table)[] = []
   out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 2 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
@@ -217,11 +222,11 @@ function annex2Services(s: ContractState): (Paragraph | Table)[] {
     }),
   )
   out.push(para("Стоимость услуг оплачивается ежемесячно одновременно с арендной платой отдельной строкой счёта. Состав услуг может быть изменён уведомлением за 15 календарных дней."))
-  out.push(signatureTable(s))
+  out.push(...requisitesBlock(s, qr, verifyUrl))
   return out
 }
 
-function annex3OperatingCosts(s: ContractState): (Paragraph | Table)[] {
+function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
   const f = s.financials
   const op = f.operatingCosts
   const out: (Paragraph | Table)[] = []
@@ -260,7 +265,7 @@ function annex3OperatingCosts(s: ContractState): (Paragraph | Table)[] {
 
   const c = deriveContext(s)
   out.push(para("Эксплуатационные расходы покрывают: " + c.covers.join("; ") + "."))
-  out.push(signatureTable(s))
+  out.push(...requisitesBlock(s, qr, verifyUrl))
   return out
 }
 
@@ -279,15 +284,15 @@ export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: 
 
   if (c.annexes.act) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex1Act(s))
+    children.push(...annex1Act(s, qr, verifyUrl))
   }
   if (c.annexes.services) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex2Services(s))
+    children.push(...annex2Services(s, qr, verifyUrl))
   }
   if (c.annexes.operatingCosts) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex3OperatingCosts(s))
+    children.push(...annex3OperatingCosts(s, qr, verifyUrl))
   }
 
   const doc = new Document({
