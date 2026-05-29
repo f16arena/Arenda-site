@@ -18,7 +18,9 @@ import {
   WidthType,
   BorderStyle,
   PageBreak,
+  ImageRun,
 } from "docx"
+import QRCode from "qrcode"
 
 import { type ContractState, type Party } from "./schema"
 import { assemble } from "./assemble"
@@ -67,6 +69,42 @@ function requisitesParagraphs(p: Party): Paragraph[] {
 const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
 const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder }
 
+const thin = { style: BorderStyle.SINGLE, size: 4, color: "999999" }
+const thinBorders = { top: thin, bottom: thin, left: thin, right: thin, insideHorizontal: thin, insideVertical: thin }
+
+/**
+ * Блок «Отметка о подписании ЭЦП (НУЦ РК)» на странице подписей (§17.4 ТЗ).
+ * `qr` — PNG-буфер QR-кода со ссылкой на страницу проверки (`/verify/{id}`);
+ * если его нет (черновик/предпросмотр) — рисуется зарезервированное место под QR.
+ * Сам документ после подписания не перегенерируется (§17.6) — QR/штамп ставятся
+ * один раз на финальном PDF.
+ */
+function signingMark(qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
+  const qrCell = new TableCell({
+    width: { size: 22, type: WidthType.PERCENTAGE },
+    borders: thinBorders,
+    children: qr
+      ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: qr, transformation: { width: 104, height: 104 } })] })]
+      : [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 720, after: 720 }, children: [new TextRun({ text: "QR", color: "BBBBBB", size: 28, bold: true })] })],
+  })
+  const textCell = new TableCell({
+    width: { size: 78, type: WidthType.PERCENTAGE },
+    borders: noBorders,
+    children: [
+      new Paragraph({ children: [new TextRun({ text: "Отметка о подписании ЭЦП (НУЦ РК)", bold: true, size: 20 })], spacing: { after: 40 } }),
+      new Paragraph({
+        children: [new TextRun({ text: verifyUrl ? `Проверка подлинности и статуса подписей: ${verifyUrl}` : "Проверка подлинности — по QR-коду: commrent.kz/verify/…", size: 20 })],
+        spacing: { after: 40 },
+      }),
+      new Paragraph({ children: [new TextRun({ text: "После подписания здесь фиксируются подписанты (наименование, ИИН/БИН, серийный № сертификата) и время по метке доверенного времени (TSP).", size: 18, color: "666666" })] }),
+    ],
+  })
+  return [
+    new Paragraph({ text: "", spacing: { before: 160 } }),
+    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { ...thinBorders, insideVertical: noBorder }, rows: [new TableRow({ children: [qrCell, textCell] })] }),
+  ]
+}
+
 function signatureTable(s: ContractState): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -103,7 +141,7 @@ function kvRow(k: string, v: string): TableRow {
 
 // ───────────────────────── contract body ─────────────────────────
 
-function contractChildren(s: ContractState): (Paragraph | Table)[] {
+function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
   const a = assemble(s)
   const out: (Paragraph | Table)[] = []
   out.push(h1(`ДОГОВОР № ${s.meta.contractNumber || "____"}`))
@@ -120,6 +158,7 @@ function contractChildren(s: ContractState): (Paragraph | Table)[] {
   }
   out.push(h2(`${a.requisitesNum}. Реквизиты и подписи Сторон`))
   out.push(signatureTable(s))
+  out.push(...signingMark(qr, verifyUrl))
   return out
 }
 
@@ -227,10 +266,16 @@ function annex3OperatingCosts(s: ContractState): (Paragraph | Table)[] {
 
 // ───────────────────────── entry ─────────────────────────
 
-/** Собирает DOCX договора + включённых приложений. Возвращает Buffer. */
-export async function renderContractDocx(s: ContractState): Promise<Buffer> {
+/**
+ * Собирает DOCX договора + включённых приложений. Возвращает Buffer.
+ * `opts.verifyUrl` — ссылка на страницу проверки ЭЦП (`/verify/{id}`): если задана,
+ * на странице подписей рисуется реальный QR-код; иначе — зарезервированное место под него.
+ */
+export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: string }): Promise<Buffer> {
+  const verifyUrl = opts?.verifyUrl ?? null
+  const qr = verifyUrl ? await QRCode.toBuffer(verifyUrl, { width: 240, margin: 1, errorCorrectionLevel: "M" }) : null
   const c = deriveContext(s)
-  const children: (Paragraph | Table)[] = [...contractChildren(s)]
+  const children: (Paragraph | Table)[] = [...contractChildren(s, qr, verifyUrl)]
 
   if (c.annexes.act) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
