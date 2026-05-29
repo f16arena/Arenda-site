@@ -222,7 +222,7 @@ function Section({
                       </Link>
                     ) : (
                       <Link
-                        href={`/admin/documents/new/contract?tenantId=${t.id}`}
+                        href={`/admin/documents?create=contract&tenantId=${t.id}`}
                         className="text-blue-600 dark:text-blue-400 hover:underline"
                       >
                         Создать

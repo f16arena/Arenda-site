@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { ArrowLeft, Download, FilePlus2, Plus, Trash2, Users, ReceiptText, ListChecks } from "lucide-react"
@@ -76,7 +76,7 @@ function ItemsEditor({ state, set }: { state: AvrState; set: (m: Mutator) => voi
   )
 }
 
-export function AvrConstructor({ embedded = false }: { embedded?: boolean } = {}) {
+export function AvrConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
   const [state, setState] = useState<AvrState>(defaultAvrState)
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
@@ -100,6 +100,14 @@ export function AvrConstructor({ embedded = false }: { embedded?: boolean } = {}
   // Автонумер при загрузке.
   const applyAutoNumber = () => { getNextActNumber().then((r) => { if (r.ok && r.number) set((s) => { s.meta.number = r.number! }) }).catch(() => {}) }
   useEffect(() => { if (autoNumber) applyAutoNumber() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Автовыбор арендатора из ?tenantId= (когда АВР открыт из карточки арендатора). Ждём и период.
+  const appliedInitialTenant = useRef(false)
+  useEffect(() => {
+    if (appliedInitialTenant.current || !initialTenantId || !period) return
+    if (!tenants.some((t) => t.id === initialTenantId)) return
+    appliedInitialTenant.current = true
+    onPickTenant(initialTenantId)
+  }, [tenants, initialTenantId, period]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSetAutoNumber = (v: boolean) => { setAutoNum(v); if (v) applyAutoNumber() }
 

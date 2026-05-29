@@ -15,9 +15,9 @@ const labelCls = "mb-1 block text-xs font-medium text-slate-600 dark:text-slate-
  * Быстрая генерация счёта на оплату / акта сверки (пока без полноценного конструктора).
  * Счёт — скачать DOCX за месяц / отправить арендатору. Сверка — открыть страницу за период.
  */
-export function DocumentQuickGen({ kind, tenants }: { kind: "invoice" | "reconciliation"; tenants: DocumentTenantOption[] }) {
+export function DocumentQuickGen({ kind, tenants, initialTenantId }: { kind: "invoice" | "reconciliation"; tenants: DocumentTenantOption[]; initialTenantId?: string }) {
   const router = useRouter()
-  const [tenantId, setTenantId] = useState("")
+  const [tenantId, setTenantId] = useState(initialTenantId && tenants.some((t) => t.id === initialTenantId) ? initialTenantId : "")
   const [period, setPeriod] = useState("")
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")

@@ -24,7 +24,7 @@ const DOCUMENT_SOURCE_LIMIT = 200
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[]; create?: string }>
+  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[]; create?: string; tenantId?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
@@ -48,7 +48,12 @@ export default async function DocumentsPage({
   const canOpenTemplates = allowedCapabilities.has("documents.uploadTemplate")
   const createTenantOptions = canCreateDocuments ? await getDocumentTenantOptions(orgId) : []
 
-  const { type, q, period, create } = await searchParams
+  const { type, q, period, create, tenantId: createTenantId } = await searchParams
+  const CREATE_TABS = ["contract", "avr", "invoice", "reconciliation"] as const
+  const createTab = (CREATE_TABS as readonly string[]).includes(create ?? "")
+    ? (create as (typeof CREATE_TABS)[number])
+    : "contract"
+  const wantsCreate = !!create
   const tenantWhere = {
     OR: [
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
@@ -240,7 +245,7 @@ export default async function DocumentsPage({
 
       <DocumentsHub
         canCreate={canCreateDocuments}
-        initialTab={create === "1" ? "create" : "archive"}
+        initialTab={wantsCreate ? "create" : "archive"}
         archive={
           <DocumentsBrowser
             rows={allRows}
@@ -249,7 +254,7 @@ export default async function DocumentsPage({
             initialPeriod={period ?? ""}
           />
         }
-        create={canCreateDocuments ? <DocumentCreate tenants={createTenantOptions} /> : null}
+        create={canCreateDocuments ? <DocumentCreate tenants={createTenantOptions} initialTab={createTab} initialTenantId={createTenantId} /> : null}
       />
     </div>
   )

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useTransition, useEffect } from "react"
+import { useMemo, useRef, useState, useTransition, useEffect } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
@@ -88,7 +88,7 @@ const ADV_BOX: Record<string, string> = {
   info: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200",
 }
 
-export function ContractConstructor({ embedded = false }: { embedded?: boolean } = {}) {
+export function ContractConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
   const [state, setState] = useState<ContractState>(defaultState)
   const [tab, setTab] = useState<"contract" | "annexes">("contract")
   const [draftId, setDraftId] = useState<string | null>(null)
@@ -131,6 +131,14 @@ export function ContractConstructor({ embedded = false }: { embedded?: boolean }
   }, [])
   // Предзаполнить номер договора следующим свободным (если включена автонумерация).
   useEffect(() => { if (autoNumber) applyAutoNumber() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Автовыбор арендатора из ?tenantId= (когда конструктор открыт из карточки арендатора).
+  const appliedInitialTenant = useRef(false)
+  useEffect(() => {
+    if (appliedInitialTenant.current || !initialTenantId) return
+    if (!tenants.some((t) => t.id === initialTenantId)) return
+    appliedInitialTenant.current = true
+    onPickTenant(initialTenantId)
+  }, [tenants, initialTenantId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tenantGroups = useMemo(() => {
     const m = new Map<string, ConstructorTenant[]>()

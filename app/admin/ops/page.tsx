@@ -341,7 +341,7 @@ export default async function AdminOpsPage() {
 function AdminQuickActions() {
   const actions = [
     { href: "/admin/finances", label: "Принять оплату", sub: "наличные, Kaspi/QR, чек", icon: Wallet },
-    { href: "/admin/documents/new/invoice", label: "Создать счет", sub: "выставить начисление", icon: Receipt },
+    { href: "/admin/documents?create=invoice", label: "Создать счет", sub: "выставить начисление", icon: Receipt },
     { href: "/admin/requests", label: "Заявки", sub: "новые и в работе", icon: ClipboardList },
     { href: "/admin/tasks", label: "Задачи", sub: "назначить или закрыть", icon: CheckSquare },
     { href: "/admin/messages", label: "Написать", sub: "арендатору или команде", icon: MessageSquare },

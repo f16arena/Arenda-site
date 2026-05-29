@@ -23,8 +23,16 @@ function tabBtn(active: boolean): string {
 }
 
 /** Под-вкладки создания документа: конструкторы договора/АВР + быстрая генерация счёта/сверки. */
-export function DocumentCreate({ tenants }: { tenants: DocumentTenantOption[] }) {
-  const [tab, setTab] = useState<CreateTab>("contract")
+export function DocumentCreate({
+  tenants,
+  initialTab = "contract",
+  initialTenantId,
+}: {
+  tenants: DocumentTenantOption[]
+  initialTab?: CreateTab
+  initialTenantId?: string
+}) {
+  const [tab, setTab] = useState<CreateTab>(initialTab)
   return (
     <div className="space-y-5">
       <div className="flex w-fit flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
@@ -32,10 +40,10 @@ export function DocumentCreate({ tenants }: { tenants: DocumentTenantOption[] })
           <button key={t.key} onClick={() => setTab(t.key)} className={tabBtn(tab === t.key)}>{t.label}</button>
         ))}
       </div>
-      {tab === "contract" && <ContractConstructor embedded />}
-      {tab === "avr" && <AvrConstructor embedded />}
-      {tab === "invoice" && <DocumentQuickGen kind="invoice" tenants={tenants} />}
-      {tab === "reconciliation" && <DocumentQuickGen kind="reconciliation" tenants={tenants} />}
+      {tab === "contract" && <ContractConstructor embedded initialTenantId={initialTenantId} />}
+      {tab === "avr" && <AvrConstructor embedded initialTenantId={initialTenantId} />}
+      {tab === "invoice" && <DocumentQuickGen kind="invoice" tenants={tenants} initialTenantId={initialTenantId} />}
+      {tab === "reconciliation" && <DocumentQuickGen kind="reconciliation" tenants={tenants} initialTenantId={initialTenantId} />}
     </div>
   )
 }
