@@ -76,7 +76,7 @@ function ItemsEditor({ state, set }: { state: AvrState; set: (m: Mutator) => voi
   )
 }
 
-export function AvrConstructor() {
+export function AvrConstructor({ embedded = false }: { embedded?: boolean } = {}) {
   const [state, setState] = useState<AvrState>(defaultAvrState)
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
@@ -152,6 +152,7 @@ export function AvrConstructor() {
 
   return (
     <div className="space-y-6">
+      {!embedded && (
       <div className="flex items-center gap-3">
         <Link href="/admin/settings" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" aria-label="Назад к настройкам"><ArrowLeft className="h-5 w-5" /></Link>
         <div>
@@ -159,6 +160,7 @@ export function AvrConstructor() {
           <p className="text-xs text-slate-500 dark:text-slate-400">Акт выполненных работ (форма Р-1). Позиции подтягиваются из начислений за выбранный месяц.</p>
         </div>
       </div>
+      )}
 
       {/* Тулбар: арендатор + месяц + действия */}
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">

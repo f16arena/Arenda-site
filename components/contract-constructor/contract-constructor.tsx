@@ -88,7 +88,7 @@ const ADV_BOX: Record<string, string> = {
   info: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200",
 }
 
-export function ContractConstructor() {
+export function ContractConstructor({ embedded = false }: { embedded?: boolean } = {}) {
   const [state, setState] = useState<ContractState>(defaultState)
   const [tab, setTab] = useState<"contract" | "annexes">("contract")
   const [draftId, setDraftId] = useState<string | null>(null)
@@ -204,6 +204,7 @@ export function ContractConstructor() {
   return (
     <div className="space-y-6">
       {/* header */}
+      {!embedded && (
       <div className="flex items-center gap-3">
         <Link href="/admin/settings" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" aria-label="Назад к настройкам">
           <ArrowLeft className="h-5 w-5" />
@@ -216,6 +217,7 @@ export function ContractConstructor() {
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Договор аренды собирается из условий — без ручного редактирования текста</p>
         </div>
       </div>
+      )}
 
       {/* toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">

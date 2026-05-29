@@ -11,8 +11,9 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import Link from "next/link"
 import { Settings } from "lucide-react"
 import { getDocumentTenantOptions } from "@/lib/document-tenants"
-import { CreateDocumentModal } from "./create-document-modal"
 import { DocumentsBrowser } from "./documents-browser"
+import { DocumentsHub } from "@/components/documents/documents-hub"
+import { DocumentCreate } from "@/components/documents/document-create"
 import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
@@ -234,17 +235,21 @@ export default async function DocumentsPage({
             Шаблоны
           </Link>
           )}
-          {canCreateDocuments && (
-            <CreateDocumentModal tenants={createTenantOptions} defaultOpen={create === "1"} />
-          )}
         </div>
       </div>
 
-      <DocumentsBrowser
-        rows={allRows}
-        initialType={(type ?? "ALL").toUpperCase()}
-        initialSearch={q?.trim() ?? ""}
-        initialPeriod={period ?? ""}
+      <DocumentsHub
+        canCreate={canCreateDocuments}
+        initialTab={create === "1" ? "create" : "archive"}
+        archive={
+          <DocumentsBrowser
+            rows={allRows}
+            initialType={(type ?? "ALL").toUpperCase()}
+            initialSearch={q?.trim() ?? ""}
+            initialPeriod={period ?? ""}
+          />
+        }
+        create={canCreateDocuments ? <DocumentCreate tenants={createTenantOptions} /> : null}
       />
     </div>
   )
