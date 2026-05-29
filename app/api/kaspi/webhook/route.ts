@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { parseKaspiWebhook, verifyKaspiWebhookSignature } from "@/lib/kaspi"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { isUniqueConstraintError } from "@/lib/prisma-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -47,13 +48,15 @@ export async function POST(request: Request) {
   //    a) по reference (если в QR был передан tenantId/chargeId)
   //    b) по ИИН/БИН плательщика
   let tenantId: string | null = null
+  let referencedChargeId: string | null = null
   if (payload.reference) {
     // Reference может быть в форматах "tenant:<id>" или "charge:<id>"
     if (payload.reference.startsWith("tenant:")) {
       tenantId = payload.reference.slice("tenant:".length)
     } else if (payload.reference.startsWith("charge:")) {
+      referencedChargeId = payload.reference.slice("charge:".length)
       const charge = await db.charge.findUnique({
-        where: { id: payload.reference.slice("charge:".length) },
+        where: { id: referencedChargeId },
         select: { tenantId: true },
       }).catch(() => null)
       tenantId = charge?.tenantId ?? null
@@ -78,19 +81,69 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, matched: false })
   }
 
-  // 5. Создать Payment и (опционально) погасить ближайший Charge
-  await db.payment.create({
-    data: {
-      tenantId,
-      amount: payload.amount,
-      method: "KASPI",
-      paymentDate: new Date(payload.paidAt),
-      note: payload.purpose,
-      externalRef: payload.txnId,
-    },
+  // 5. Создать Payment (идемпотентно по externalRef) и погасить charges.
+  //    Приоритет — конкретный charge из reference, затем FIFO по старым
+  //    неоплаченным. Всё в одной транзакции (как bank-import), иначе деньги и
+  //    charges рассинхронизируются (см. AUDIT_2026-05-29, пункт B).
+  const resolvedTenantId = tenantId
+  const result = await db.$transaction(async (tx) => {
+    const payment = await tx.payment.create({
+      data: {
+        tenantId: resolvedTenantId,
+        amount: payload.amount,
+        method: "KASPI",
+        paymentDate: new Date(payload.paidAt),
+        note: payload.purpose,
+        externalRef: payload.txnId,
+      },
+      select: { id: true },
+    })
+
+    let chargesPaid = 0
+    let remaining = payload.amount
+
+    // a) конкретный charge из reference — закрываем первым, если сумма позволяет
+    if (referencedChargeId) {
+      const ref = await tx.charge.findFirst({
+        where: { id: referencedChargeId, tenantId: resolvedTenantId, isPaid: false },
+        select: { id: true, amount: true },
+      })
+      if (ref && remaining + 0.01 >= ref.amount) {
+        await tx.charge.update({ where: { id: ref.id }, data: { isPaid: true } })
+        chargesPaid++
+        remaining = Math.round((remaining - ref.amount) * 100) / 100
+      }
+    }
+
+    // b) остаток — FIFO по старым неоплаченным charge (только целиком)
+    if (remaining > 0.01) {
+      const unpaid = await tx.charge.findMany({
+        where: { tenantId: resolvedTenantId, isPaid: false },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, amount: true },
+      })
+      for (const c of unpaid) {
+        if (remaining + 0.01 < c.amount) break
+        await tx.charge.update({ where: { id: c.id }, data: { isPaid: true } })
+        chargesPaid++
+        remaining = Math.round((remaining - c.amount) * 100) / 100
+        if (remaining < 0.01) break
+      }
+    }
+
+    return { paymentId: payment.id, chargesPaid }
+  }).catch((e) => {
+    // Гонка дублей webhook'а: второй параллельный запрос с тем же txnId упёрся
+    // в unique externalRef. Платёж уже создан первым — считаем дублем.
+    if (isUniqueConstraintError(e)) return null
+    throw e
   })
 
-  return NextResponse.json({ ok: true, matched: true })
+  if (!result) {
+    return NextResponse.json({ ok: true, duplicate: true })
+  }
+
+  return NextResponse.json({ ok: true, matched: true, paymentId: result.paymentId, chargesPaid: result.chargesPaid })
 }
 
 // GET для проверки доступности эндпоинта (Kaspi обычно делает HEAD/GET ping)

@@ -42,6 +42,20 @@ export async function sendMessage(formData: FormData) {
 
     if (recipients.length === 0) throw new Error("Нет получателей")
 
+    // Анти-дубль при двойном сабмите: если это же объявление уже ушло за
+    // последние 10 сек — молча выходим (см. AUDIT_2026-05-29, E1). Дедуп по
+    // содержанию (а не по типу), чтобы не глушить разные сообщения.
+    const recentBroadcast = await db.message.findFirst({
+      where: {
+        fromId: session.user.id,
+        subject: subject ?? "[Объявление]",
+        body,
+        createdAt: { gte: new Date(Date.now() - 10_000) },
+      },
+      select: { id: true },
+    })
+    if (recentBroadcast) return
+
     await db.message.createMany({
       data: recipients.map((r) => ({
         fromId: session.user.id,
@@ -73,6 +87,19 @@ export async function sendMessage(formData: FormData) {
 
     // Адресное сообщение — получатель должен быть в той же организации
     await assertUserInOrg(toId, orgId)
+
+    // Анти-дубль при двойном сабмите (см. AUDIT_2026-05-29, E1).
+    const recentDirect = await db.message.findFirst({
+      where: {
+        fromId: session.user.id,
+        toId,
+        body,
+        createdAt: { gte: new Date(Date.now() - 10_000) },
+      },
+      select: { id: true },
+    })
+    if (recentDirect) return
+
     await db.message.create({
       data: {
         fromId: session.user.id,

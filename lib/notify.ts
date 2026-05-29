@@ -54,32 +54,36 @@ export async function notifyUser(opts: NotifyOpts) {
     if (recent) return
   }
 
-  // 1. In-app
-  try {
-    await db.notification.create({
-      data: {
-        userId: opts.userId,
-        type: opts.type,
-        title: opts.title,
-        message: opts.message,
-        link: opts.link ?? null,
-      },
-    })
-  } catch (e) {
-    console.warn("[notify] in-app create failed:", e instanceof Error ? e.message : e)
-  }
-
-  if (opts.sendTelegram === false && opts.sendEmail === false && !opts.sendSms && opts.sendPush === false) return
-
+  // Грузим настройки уведомлений заранее — нужны и для in-app (notifyInApp),
+  // и для остальных каналов.
   const user = await db.user.findUnique({
     where: { id: opts.userId },
     select: {
       telegramChatId: true, email: true, phone: true, name: true,
       notifyEmail: true, notifyTelegram: true, notifySms: true,
-      notifyMutedTypes: true,
+      notifyInApp: true, notifyMutedTypes: true,
     },
   }).catch(() => null)
+
+  // 1. In-app (колокольчик) — если юзер не отключил in-app в настройках.
+  if (user?.notifyInApp ?? true) {
+    try {
+      await db.notification.create({
+        data: {
+          userId: opts.userId,
+          type: opts.type,
+          title: opts.title,
+          message: opts.message,
+          link: opts.link ?? null,
+        },
+      })
+    } catch (e) {
+      console.warn("[notify] in-app create failed:", e instanceof Error ? e.message : e)
+    }
+  }
+
   if (!user) return
+  if (opts.sendTelegram === false && opts.sendEmail === false && !opts.sendSms && opts.sendPush === false) return
 
   // Если этот тип события у юзера в muted — ни telegram, ни email не шлём
   // (in-app уведомление уже создано выше).

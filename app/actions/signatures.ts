@@ -46,6 +46,16 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
     // пишем подпись/меняем статус (раньше подпись создавалась до проверки scope).
     if (input.documentType === "CONTRACT" && input.documentId) {
       await assertContractInOrg(input.documentId, orgId)
+      // Не даём переподписать уже завершённый договор (как в contract-workflow.ts):
+      // повторная подпись заново флипнула бы статус/signedAt и могла повторно
+      // запустить applySignedContractChanges для доп. соглашения.
+      const existing = await db.contract.findFirst({
+        where: { id: input.documentId },
+        select: { status: true },
+      })
+      if (existing && (existing.status === "SIGNED" || existing.status === "REJECTED")) {
+        return { ok: false, error: "Договор уже завершён (подписан или отклонён)" }
+      }
     }
 
     // Базовая попытка извлечь IIN/BIN из cert (если он передан в формате PEM)

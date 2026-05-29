@@ -102,7 +102,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
 
           if (!user.isPlatformOwner) {
-            if (!user.organization?.isActive || user.organization.isSuspended) return null
+            if (!user.organization?.isActive) return null
+            // Suspended (истёкшая подписка): пускаем только владельца — чтобы он
+            // мог войти и продлить подписку на /admin/subscription (иначе catch-22:
+            // не залогиниться → не оплатить). Остальные роли при suspend не пускаем.
+            // См. AUDIT_2026-05-29, пункт D.
+            if (user.organization.isSuspended && user.role !== "OWNER") return null
             const blockReason = loginBlockReason({
               userStatus: user.approvalStatus,
               orgStatus: user.organization.approvalStatus,

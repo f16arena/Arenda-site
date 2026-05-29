@@ -154,6 +154,13 @@ export const requireOrgAccess = cache(async (): Promise<OrgContext> => {
   // (раньше suspend блокировал только записи, но не доступ к /admin).
   // Платформенному админу оставляем доступ для поддержки/диагностики.
   if (org?.isSuspended && !isPlatformOwner) {
+    // Владельца уводим на страницу продления (а не /login): теперь suspended-
+    // владелец МОЖЕТ залогиниться (см. auth.ts / AUDIT_2026-05-29, D), и редирект
+    // на /login создал бы петлю. /admin/subscription использует
+    // requireOrgAccessAllowSuspended и рендерится. Остальные роли при suspend
+    // не логинятся; их живые сессии — на /login, как раньше (без петли через
+    // admin-layout → /cabinet).
+    if (session.user.role === "OWNER") redirect("/admin/subscription")
     redirect("/login")
   }
 

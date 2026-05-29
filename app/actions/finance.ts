@@ -130,37 +130,8 @@ export async function recordPayment(formData: FormData) {
     }
   }
 
-  // Атомарно: создаём платёж + (опционально) транзакция + обновление баланса +
-  // отметка charges как paid.
-  const operations: Prisma.PrismaPromise<unknown>[] = [
-    db.payment.create({
-      data: {
-        tenantId,
-        amount,
-        method,
-        note: finalNote,
-        paymentDate: paymentDate ?? new Date(),
-      },
-    }),
-  ]
-
-  if (cashAccountId) {
-    operations.push(
-      db.cashTransaction.create({
-        data: {
-          accountId: cashAccountId,
-          amount,
-          type: "DEPOSIT",
-          description: `Платёж от ${tenant?.companyName ?? "арендатора"}${note ? ` · ${note}` : ""}`,
-        },
-      }),
-      db.cashAccount.update({
-        where: { id: cashAccountId },
-        data: { balance: { increment: amount } },
-      }),
-    )
-  }
-
+  // Валидируем переданные charges ДО транзакции: каждый должен принадлежать орг.
+  let chargeIdsToMark: string[] = []
   if (chargeIds.length > 0) {
     // БЕЗОПАСНОСТЬ: re-валидируем что каждый charge действительно
     // принадлежит этой орге через chargeScope. Иначе теоретически
@@ -179,27 +150,53 @@ export async function recordPayment(formData: FormData) {
     if (validIds.length !== chargeIds.length) {
       throw new Error("Некоторые начисления недоступны для текущей организации")
     }
-
-    if (validIds.length > 0) {
-      operations.push(
-        db.charge.updateMany({
-          where: { id: { in: validIds } },
-          data: { isPaid: true },
-        }),
-      )
-    }
+    chargeIdsToMark = validIds
   } else if (autoDistributed.ids.length > 0) {
     // FIFO авто-распределение: помечаем выбранные charges оплаченными.
-    operations.push(
-      db.charge.updateMany({
-        where: { id: { in: autoDistributed.ids } },
-        data: { isPaid: true },
-      }),
-    )
+    chargeIdsToMark = autoDistributed.ids
   }
 
-  const results = await db.$transaction(operations)
-  const payment = results[0] as { id: string }
+  // Атомарно: создаём платёж + (опционально) кассовую проводку + обновление
+  // баланса + отметка charges как paid. Интерактивная транзакция нужна, чтобы
+  // привязать cashTransaction.paymentId к созданному платежу — иначе
+  // deletePayment не найдёт проводку и не откатит CashAccount.balance
+  // (см. AUDIT_2026-05-26.md, проблема #5).
+  const payment = await db.$transaction(async (tx) => {
+    const created = await tx.payment.create({
+      data: {
+        tenantId,
+        amount,
+        method,
+        note: finalNote,
+        paymentDate: paymentDate ?? new Date(),
+      },
+    })
+
+    if (cashAccountId) {
+      await tx.cashTransaction.create({
+        data: {
+          accountId: cashAccountId,
+          amount,
+          type: "DEPOSIT",
+          description: `Платёж от ${tenant?.companyName ?? "арендатора"}${note ? ` · ${note}` : ""}`,
+          paymentId: created.id,
+        },
+      })
+      await tx.cashAccount.update({
+        where: { id: cashAccountId },
+        data: { balance: { increment: amount } },
+      })
+    }
+
+    if (chargeIdsToMark.length > 0) {
+      await tx.charge.updateMany({
+        where: { id: { in: chargeIdsToMark } },
+        data: { isPaid: true },
+      })
+    }
+
+    return created
+  })
 
   revalidatePath("/admin/finances")
   revalidatePath("/admin/finances/balance")
@@ -294,34 +291,23 @@ export async function generateMonthlyCharges(period: string) {
   return { success: true, created }
 }
 
-export async function addPenalty(tenantId: string, formData: FormData) {
-  await requireCapabilityAndFeature("finance.createInvoice")
-  const { orgId } = await requireOrgAccess()
-  await assertTenantInOrg(tenantId, orgId)
-  await assertTenantBuildingAccess(tenantId, orgId)
-
-  const amountStr = formData.get("amount") as string
-  const description = formData.get("description") as string
-  const period = new Date().toISOString().slice(0, 7)
-
-  const amount = parseFloat(amountStr)
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Сумма пени должна быть положительным числом")
-  }
-
-  await db.charge.create({
-    data: {
-      tenantId,
-      period,
-      type: "PENALTY",
-      amount,
-      description: description || "Пеня за просрочку",
-    },
-  })
-
-  revalidatePath(`/admin/tenants/${tenantId}`)
-  revalidatePath("/admin/finances")
-  return { success: true }
+/**
+ * УДАЛЕНО (см. AUDIT_2026-05-26.md, проблема #3, и AUDIT_2026-05-29).
+ *
+ * Ручное добавление пени создавало PENALTY charge без учёта PENALTY_GRACE_DAYS
+ * и без дедупликации — это рассинхронизировало сумму с автоматическим cron-ом
+ * check-deadlines (двойные/несогласованные пени). Функция нигде не вызывалась,
+ * но оставалась экспортируемым server action.
+ *
+ * Источник истины для пеней — только cron app/api/cron/check-deadlines.
+ * Stub оставлен (как calculatePenalties), чтобы любой случайный вызов был явно
+ * виден. Для прочих ручных начислений используйте addCharge.
+ */
+export async function addPenalty(): Promise<never> {
+  throw new Error(
+    "Ручное добавление пени удалено. Пени начисляет cron /api/cron/check-deadlines " +
+    "с учётом PENALTY_GRACE_DAYS. Для прочих начислений используйте addCharge.",
+  )
 }
 
 export async function addCharge(formData: FormData) {
@@ -482,19 +468,17 @@ export async function deletePayment(paymentId: string) {
   })
   if (!payment) throw new Error("Платёж не найден или нет доступа")
 
-  // Удаляем платёж ВМЕСТЕ со связанной кассовой проводкой и компенсируем
-  // баланс кассы. Иначе CashAccount.balance расходится с реальностью
-  // (см. AUDIT_2026-05-26.md, проблема #5).
+  // Soft-delete платежа + компенсация баланса кассы. Иначе CashAccount.balance
+  // расходится с реальностью (см. AUDIT_2026-05-26.md, проблема #5).
   //
-  // У CashTransaction нет soft-delete (нет deletedAt) — выполняем hard delete,
-  // т.к. audit-история сохраняется через Payment (soft-delete) и AuditLog.
-  // CashTransaction.amount — знаковое: положительное = приход (увеличило
-  // баланс), отрицательное = расход (уменьшило). Чтобы откатить — вычитаем
-  // amount из баланса аккаунта.
+  // CashTransaction НЕ удаляем физически — оставляем привязанной к soft-deleted
+  // платежу, чтобы restorePayment мог вернуть баланс. Проводки нигде в UI не
+  // листаются, поэтому «висящая» запись безвредна. amount знаковый: + приход,
+  // − расход; на удаление вычитаем из баланса, на restorePayment — прибавляем.
   await db.$transaction(async (tx) => {
     const cashTxs = await tx.cashTransaction.findMany({
       where: { paymentId },
-      select: { id: true, amount: true, accountId: true },
+      select: { amount: true, accountId: true },
     })
     await tx.payment.update({
       where: { id: paymentId },
@@ -505,7 +489,6 @@ export async function deletePayment(paymentId: string) {
         where: { id: ct.accountId },
         data: { balance: { decrement: ct.amount } },
       })
-      await tx.cashTransaction.delete({ where: { id: ct.id } })
     }
   })
 
@@ -532,14 +515,14 @@ export async function restoreCharge(chargeId: string): Promise<{ ok: true } | { 
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
     const { orgId } = await requireOrgAccess()
-    // Прямой findFirst без chargeScope (тот фильтрует по deletedAt: null).
-    // Нам нужно найти именно удалённую запись текущей организации.
+    // findFirst с deletedAt: { not: null } — ищем именно удалённую запись И
+    // отключаем авто-фильтр soft-delete extension (без упоминания deletedAt он
+    // подставил бы deletedAt: null, и удалённое начисление не нашлось бы).
     const charge = await db.charge.findFirst({
-      where: { id: chargeId, tenant: { user: { organizationId: orgId } } },
-      select: { id: true, tenantId: true, deletedAt: true },
+      where: { id: chargeId, deletedAt: { not: null }, tenant: { user: { organizationId: orgId } } },
+      select: { id: true, tenantId: true },
     })
     if (!charge) return { ok: false, error: "Начисление не найдено" }
-    if (!charge.deletedAt) return { ok: true } // уже восстановлено
     await db.charge.update({ where: { id: chargeId }, data: { deletedAt: null } })
     revalidatePath("/admin/finances")
     if (charge.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
@@ -556,14 +539,31 @@ export async function restorePayment(paymentId: string): Promise<{ ok: true } | 
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
     const { orgId } = await requireOrgAccess()
+    // deletedAt: { not: null } — ищем именно удалённый платёж И отключаем
+    // авто-фильтр soft-delete extension (иначе findFirst подставит deletedAt:null
+    // и не найдёт удалённую запись).
     const payment = await db.payment.findFirst({
-      where: { id: paymentId, tenant: { user: { organizationId: orgId } } },
-      select: { id: true, tenantId: true, deletedAt: true },
+      where: { id: paymentId, deletedAt: { not: null }, tenant: { user: { organizationId: orgId } } },
+      select: { id: true, tenantId: true },
     })
     if (!payment) return { ok: false, error: "Платёж не найден" }
-    if (!payment.deletedAt) return { ok: true }
-    await db.payment.update({ where: { id: paymentId }, data: { deletedAt: null } })
+    // Восстанавливаем платёж и возвращаем баланс кассы (deletePayment его
+    // декрементировал, проводку оставил привязанной).
+    await db.$transaction(async (tx) => {
+      const cashTxs = await tx.cashTransaction.findMany({
+        where: { paymentId },
+        select: { amount: true, accountId: true },
+      })
+      await tx.payment.update({ where: { id: paymentId }, data: { deletedAt: null } })
+      for (const ct of cashTxs) {
+        await tx.cashAccount.update({
+          where: { id: ct.accountId },
+          data: { balance: { increment: ct.amount } },
+        })
+      }
+    })
     revalidatePath("/admin/finances")
+    revalidatePath("/admin/finances/balance")
     if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
     return { ok: true }
   } catch (e) {
@@ -615,11 +615,27 @@ export async function bulkDeletePayments(
     })
     const eligibleIds = eligible.map((p) => p.id)
     if (eligibleIds.length === 0) return { ok: false, error: "Нет доступных для удаления платежей" }
-    await db.payment.updateMany({
-      where: { id: { in: eligibleIds } },
-      data: { deletedAt: new Date() },
+    // Удаляем платежи ВМЕСТЕ со связанными кассовыми проводками и компенсируем
+    // баланс каждого счёта — как одиночный deletePayment. Иначе bulk-delete
+    // оставляет CashAccount.balance завышенным (см. AUDIT_2026-05-26.md, #5).
+    await db.$transaction(async (tx) => {
+      const cashTxs = await tx.cashTransaction.findMany({
+        where: { paymentId: { in: eligibleIds } },
+        select: { amount: true, accountId: true },
+      })
+      await tx.payment.updateMany({
+        where: { id: { in: eligibleIds } },
+        data: { deletedAt: new Date() },
+      })
+      for (const ct of cashTxs) {
+        await tx.cashAccount.update({
+          where: { id: ct.accountId },
+          data: { balance: { decrement: ct.amount } },
+        })
+      }
     })
     revalidatePath("/admin/finances")
+    revalidatePath("/admin/finances/balance")
     return { ok: true, deleted: eligibleIds }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось удалить" }
