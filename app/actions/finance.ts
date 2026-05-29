@@ -6,6 +6,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
+import { recordPaymentCash, reversePaymentCash, reapplyPaymentCash } from "@/lib/payment-cash"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import {
@@ -173,18 +174,11 @@ export async function recordPayment(formData: FormData) {
     })
 
     if (cashAccountId) {
-      await tx.cashTransaction.create({
-        data: {
-          accountId: cashAccountId,
-          amount,
-          type: "DEPOSIT",
-          description: `Платёж от ${tenant?.companyName ?? "арендатора"}${note ? ` · ${note}` : ""}`,
-          paymentId: created.id,
-        },
-      })
-      await tx.cashAccount.update({
-        where: { id: cashAccountId },
-        data: { balance: { increment: amount } },
+      await recordPaymentCash(tx, {
+        paymentId: created.id,
+        cashAccountId,
+        amount,
+        description: `Платёж от ${tenant?.companyName ?? "арендатора"}${note ? ` · ${note}` : ""}`,
       })
     }
 
@@ -476,20 +470,11 @@ export async function deletePayment(paymentId: string) {
   // листаются, поэтому «висящая» запись безвредна. amount знаковый: + приход,
   // − расход; на удаление вычитаем из баланса, на restorePayment — прибавляем.
   await db.$transaction(async (tx) => {
-    const cashTxs = await tx.cashTransaction.findMany({
-      where: { paymentId },
-      select: { amount: true, accountId: true },
-    })
     await tx.payment.update({
       where: { id: paymentId },
       data: { deletedAt: new Date() },
     })
-    for (const ct of cashTxs) {
-      await tx.cashAccount.update({
-        where: { id: ct.accountId },
-        data: { balance: { decrement: ct.amount } },
-      })
-    }
+    await reversePaymentCash(tx, paymentId)
   })
 
   revalidatePath("/admin/finances")
@@ -550,17 +535,8 @@ export async function restorePayment(paymentId: string): Promise<{ ok: true } | 
     // Восстанавливаем платёж и возвращаем баланс кассы (deletePayment его
     // декрементировал, проводку оставил привязанной).
     await db.$transaction(async (tx) => {
-      const cashTxs = await tx.cashTransaction.findMany({
-        where: { paymentId },
-        select: { amount: true, accountId: true },
-      })
       await tx.payment.update({ where: { id: paymentId }, data: { deletedAt: null } })
-      for (const ct of cashTxs) {
-        await tx.cashAccount.update({
-          where: { id: ct.accountId },
-          data: { balance: { increment: ct.amount } },
-        })
-      }
+      await reapplyPaymentCash(tx, paymentId)
     })
     revalidatePath("/admin/finances")
     revalidatePath("/admin/finances/balance")
@@ -619,20 +595,11 @@ export async function bulkDeletePayments(
     // баланс каждого счёта — как одиночный deletePayment. Иначе bulk-delete
     // оставляет CashAccount.balance завышенным (см. AUDIT_2026-05-26.md, #5).
     await db.$transaction(async (tx) => {
-      const cashTxs = await tx.cashTransaction.findMany({
-        where: { paymentId: { in: eligibleIds } },
-        select: { amount: true, accountId: true },
-      })
       await tx.payment.updateMany({
         where: { id: { in: eligibleIds } },
         data: { deletedAt: new Date() },
       })
-      for (const ct of cashTxs) {
-        await tx.cashAccount.update({
-          where: { id: ct.accountId },
-          data: { balance: { decrement: ct.amount } },
-        })
-      }
+      await reversePaymentCash(tx, eligibleIds)
     })
     revalidatePath("/admin/finances")
     revalidatePath("/admin/finances/balance")

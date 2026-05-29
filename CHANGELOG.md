@@ -10,6 +10,7 @@
 - Подписки: suspended-владелец (`role=OWNER`) теперь может войти и попасть на `/admin/subscription` для продления (`auth.ts` + `requireOrgAccess` уводит на оплату, а не на `/login`) — закрыт catch-22. Остальные роли при suspend по-прежнему блокируются.
 - Уведомления: задействован флаг `notifyInApp` (не создаём in-app, если отключён); `sendMessage` пропускает повторный сабмит идентичного сообщения за 10 сек (анти-дубль).
 - Мобайл: `/api/mobile/auth/logout` ревокает push-девайс по `pushToken` (серверная часть; RN-клиент должен слать токен при выходе).
+- Рефактор: кассовая логика платежа вынесена в `lib/payment-cash.ts` (`recordPaymentCash`/`reversePaymentCash`/`reapplyPaymentCash`), `paymentId` стал обязательным аргументом. Добавлен E2E `scripts/e2e-cash-balance.ts` (`npm run test:e2e:cash`, в `quality:audit`): record→delete→restore→bulk с проверкой баланса кассы.
 - Проверки: `npx eslint` по изменённым файлам и `npx tsc --noEmit` — зелёные. `npm run build` локально не прогонялся (нет подключения к БД).
 - Rollback-точка: коммит `b3800b9` (предыдущий на main).
 
