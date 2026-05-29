@@ -1,5 +1,6 @@
 "use server"
 
+import { createHash } from "node:crypto"
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
@@ -121,6 +122,15 @@ export async function applyBankImport(
     }
     try {
       const paymentDate = parseDate(r.date) ?? new Date()
+      // Идемпотентность импорта: детерминированный externalRef из полей строки
+      // выписки. Повторная загрузка того же файла даёт тот же externalRef →
+      // unique-конфликт → строка пропускается в catch ниже (раньше дублировались
+      // платежи, см. AUDIT_2026-05-29, пункт C). Выписки обычно содержат
+      // уникальную ссылку/№ документа в description, поэтому коллизия двух РАЗНЫХ
+      // платежей маловероятна; при появлении нативного bank-txn-id — использовать его.
+      const externalRef = `bankimport:${createHash("sha1")
+        .update(`${r.tenantId}|${r.amount}|${r.date}|${r.description}`)
+        .digest("hex")}`
       // Платёж + погашение charges — одна транзакция. Иначе при ошибке
       // посередине часть charges помечается isPaid=true, а Payment остаётся
       // без них или наоборот — рассинхрон денег (см. AUDIT_2026-05-26.md, #6).
@@ -132,6 +142,7 @@ export async function applyBankImport(
             paymentDate,
             method: "TRANSFER",
             note: `Импорт из выписки: ${r.description.slice(0, 100)}`,
+            externalRef,
           },
         })
         const unpaid = await tx.charge.findMany({
