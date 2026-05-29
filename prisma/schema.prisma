@@ -1340,3 +1340,25 @@ model DocumentSignatureRequest {
   @@index([documentType, documentId])
   @@map("document_signature_requests")
 }
+
+// Черновик договора, собранный визуальным конструктором (lib/contract-engine).
+// builderState — сериализованный ContractState (Json). Отдельная таблица: она НЕ
+// модифицирует модель Contract — та остаётся источником для подписи/жизненного
+// цикла; конструктор лишь готовит контент (см. docs/AUDIT, signing-контур).
+model ContractDraft {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  name           String    @default("Без названия")
+  builderState   Json      @map("builder_state")
+  tenantId       String?   @map("tenant_id")
+  status         String    @default("DRAFT")
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  @@index([organizationId, status, updatedAt])
+  @@index([organizationId, tenantId])
+  @@index([deletedAt])
+  @@map("contract_drafts")
+}
