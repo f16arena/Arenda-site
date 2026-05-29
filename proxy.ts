@@ -28,6 +28,7 @@ const PUBLIC_ROOT_PATHS = new Set([
 // на '/' и клиент получал бы HTML вместо JSON.
 // /booking — публичная витрина свободных площадей.
 // /sign — публичная страница подписи договора по уникальному токену.
+// /verify — публичная страница проверки ЭЦП (по QR с документа, ТЗ 17.5).
 const PUBLIC_ROOT_PREFIXES = [
   "/api/",
   "/_next",
@@ -38,6 +39,7 @@ const PUBLIC_ROOT_PREFIXES = [
   "/sitemap",
   "/booking",
   "/sign",
+  "/verify",
 ]
 
 const PUBLIC_ASSET_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|map|woff2?|ttf|otf)$/i
