@@ -169,7 +169,7 @@ function defaultParty(): Party {
 
 export function defaultState(): ContractState {
   return {
-    meta: { contractNumber: "___", contractDate: "", city: "г. Усть-Каменогорск" },
+    meta: { contractNumber: "", contractDate: "", city: "г. Усть-Каменогорск" },
     landlord: defaultParty(),
     tenant: { ...defaultParty(), phone: "", email: "" },
     building: { totalRentableAreaSqm: 0 },

@@ -107,6 +107,18 @@ export function ContractConstructor() {
   const refreshDrafts = () => { listContractDrafts().then(setDrafts).catch(() => {}) }
   useEffect(() => { listContractDrafts().then(setDrafts).catch(() => {}) }, [])
   useEffect(() => { listConstructorTenants().then(setTenants).catch(() => {}) }, [])
+  // Предзаполнить дату договора сегодняшней (только на клиенте — чтобы не ломать гидрацию).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- осознанно: client-only начальное значение, иначе hydration mismatch
+    setState((prev) => {
+      if (prev.meta.contractDate) return prev
+      const d = new Date()
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      const n = structuredClone(prev)
+      n.meta.contractDate = iso
+      return n
+    })
+  }, [])
 
   const tenantGroups = useMemo(() => {
     const m = new Map<string, ConstructorTenant[]>()
@@ -354,7 +366,7 @@ function PremisesStep({ state, set }: { state: ContractState; set: (m: Mutator) 
     <>
       <div className={secTitleCls}>Договор</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Номер</label><input className={inputCls} value={state.meta.contractNumber} onChange={(e) => set((s) => { s.meta.contractNumber = e.target.value })} /></div>
+        <div><label className={labelCls}>Номер</label><input className={inputCls} placeholder="например, 12" value={state.meta.contractNumber} onChange={(e) => set((s) => { s.meta.contractNumber = e.target.value })} /></div>
         <div><label className={labelCls}>Дата</label><input type="date" className={inputCls} value={state.meta.contractDate} onChange={(e) => set((s) => { s.meta.contractDate = e.target.value })} /></div>
       </div>
       <div className="mb-2"><label className={labelCls}>Город</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>
