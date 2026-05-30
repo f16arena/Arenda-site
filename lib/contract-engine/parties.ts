@@ -15,7 +15,11 @@ export function partyIntro(p: Party, role: string): string {
   const id = partyId(p)
   const name = p.type === "ip" ? "Индивидуальный предприниматель " + p.name : p.name
   if (p.type === "individual") {
-    return `${name} (${id}), действующий(-ая) от своего имени, именуемый(-ая) в дальнейшем «${role}»`
+    // Физлицо — от своего имени; ЧСИ/адвокат/нотариус — на основании лицензии (если задано основание).
+    const acting = p.basis && p.basis.trim()
+      ? `действующий(-ая) на основании ${p.basis}`
+      : "действующий(-ая) от своего имени"
+    return `${name} (${id}), ${acting}, именуемый(-ая) в дальнейшем «${role}»`
   }
   return `${name} (${id}), в лице ${p.signatory || "________"}, действующего на основании ${p.basis || "________"}, именуемое в дальнейшем «${role}»`
 }

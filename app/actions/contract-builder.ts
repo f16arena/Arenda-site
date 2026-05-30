@@ -19,6 +19,9 @@ function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
   if (t === "PHYSICAL") return "individual"
   if (t === "IP") return "ip"
+  // ЧСИ / адвокат / нотариус — физлица с ИИН, действующие на основании лицензии
+  // (НЕ юрлица с БИН). В конструкторе это «individual» (ИИН), основание = лицензия.
+  if (t === "CHSI" || t === "ADVOKAT" || t === "NOTARIUS") return "individual"
   return "too" // TOO/AO/OTHER
 }
 
