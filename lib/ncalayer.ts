@@ -97,6 +97,21 @@ function connect(): Promise<WebSocket> {
 const COMMON = "kz.gov.pki.knca.commonUtils"
 
 /**
+ * NCALayer при коннекте (и периодически) шлёт служебный heartbeat вида
+ * {"result":{"version":"1.4"}} — это НЕ ответ на запрос. Его нужно пропускать,
+ * иначе он принимается за результат подписи (был баг «ответ без подписи»).
+ */
+function isHeartbeat(msg: NcaWsMessage): boolean {
+  const r = msg?.result
+  return (
+    !!r && typeof r === "object" && !Array.isArray(r) &&
+    "version" in (r as Record<string, unknown>) &&
+    msg.responseObject === undefined && msg.code === undefined &&
+    msg.status === undefined && msg.errorCode === undefined && msg.body === undefined
+  )
+}
+
+/**
  * Низкоуровневый вызов NCALayer. Возвращает СЫРОЙ разобранный ответ для любого
  * полученного JSON (успех определяет вызывающий — по наличию подписи, а не по коду,
  * т.к. формат поля code/status разнится между версиями NCALayer). ok:false — только
@@ -111,14 +126,21 @@ function rawRpc(request: unknown): Promise<{ ok: true; msg: NcaWsMessage } | { o
       }, TIMEOUT_MS)
 
       ws.onmessage = (event) => {
-        clearTimeout(timeout)
+        let msg: NcaWsMessage
         try {
-          const msg = JSON.parse(event.data) as NcaWsMessage
-          try { ws.close() } catch { /* noop */ }
-          resolve({ ok: true, msg })
+          msg = JSON.parse(event.data) as NcaWsMessage
         } catch {
+          clearTimeout(timeout)
+          try { ws.close() } catch { /* noop */ }
           resolve({ ok: false, error: "NCALayer вернул не-JSON ответ", code: "PARSE_ERROR" })
+          return
         }
+        // NCALayer при подключении/периодически шлёт heartbeat {"result":{"version":"x.x"}}.
+        // Это НЕ ответ на наш запрос — игнорируем и продолжаем ждать настоящий ответ.
+        if (isHeartbeat(msg)) return
+        clearTimeout(timeout)
+        try { ws.close() } catch { /* noop */ }
+        resolve({ ok: true, msg })
       }
 
       ws.onerror = () => {
