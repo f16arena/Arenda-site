@@ -4,6 +4,7 @@ import { STATUS_COLORS, STATUS_LABELS, formatMoney } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { Download, FileText, Printer, Receipt, Upload, Wallet, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
+import { MyDocumentUpload, MyDocumentDelete } from "@/components/cabinet/my-document-upload"
 import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
 
 export default async function CabinetDocuments() {
@@ -207,10 +208,7 @@ export default async function CabinetDocuments() {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Мои документы</h2>
-          <button className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-            <Upload className="h-3 w-3" />
-            Загрузить
-          </button>
+          <MyDocumentUpload />
         </div>
         {tenant.documents.length === 0 ? (
           <div className="py-12 text-center">
@@ -231,11 +229,11 @@ export default async function CabinetDocuments() {
                     <p className="text-xs text-slate-400 dark:text-slate-500">{docTypeLabel[d.type] ?? d.type}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                    Загружен
-                  </span>
-                  <button className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Открыть</button>
+                <div className="flex items-center gap-3">
+                  {d.fileUrl && (
+                    <a href={d.fileUrl} target="_blank" rel="noopener" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Открыть</a>
+                  )}
+                  <MyDocumentDelete documentId={d.id} />
                 </div>
               </div>
             ))}
