@@ -33,6 +33,8 @@ const TYPE_COLORS: Record<string, string> = {
   HANDOVER: "bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200",
 }
 
+export type DocCategory = "active" | "signing" | "draft" | "archive"
+
 export interface DocRow {
   id: string
   type: string
@@ -44,12 +46,23 @@ export interface DocRow {
   generatedAt: Date | string
   source: "contract" | "generated"
   downloadHref: string | null
+  /** Ссылка «Открыть» (страница документа), если скачивания нет (договоры). */
+  viewHref?: string | null
+  /** Категория для под-вкладок: активные / на подпись / черновик / архив. */
+  category: DocCategory
   /** Для bulk: GeneratedDocument id (без префикса) */
   generatedId?: string
   deleteId?: string
   canDelete?: boolean
   isSigned?: boolean
 }
+
+export const DOC_CATEGORY_TABS: { key: DocCategory; label: string }[] = [
+  { key: "active", label: "Активные" },
+  { key: "signing", label: "Отправлены на подпись" },
+  { key: "draft", label: "Черновики" },
+  { key: "archive", label: "Архив" },
+]
 
 export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint: string }) {
   // Локальный state — позволяет оптимистично убирать удалённые строки сразу,
@@ -71,18 +84,29 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [cat, setCat] = useState<DocCategory>("active")
+
+  // Счётчики по категориям (для подписей под-вкладок).
+  const catCounts = useMemo(() => {
+    const c: Record<DocCategory, number> = { active: 0, signing: 0, draft: 0, archive: 0 }
+    for (const r of localRows) c[r.category] = (c[r.category] ?? 0) + 1
+    return c
+  }, [localRows])
+
+  // Строки активной под-вкладки.
+  const catRows = useMemo(() => localRows.filter((r) => r.category === cat), [localRows, cat])
 
   // Группируем по tenantName (или "Без контрагента")
   const grouped = useMemo(() => {
     if (groupBy !== "tenant") return null
     const map = new Map<string, { tenantId: string | null; rows: DocRow[] }>()
-    for (const r of localRows) {
+    for (const r of catRows) {
       const key = r.tenantName || "Без контрагента"
       if (!map.has(key)) map.set(key, { tenantId: r.tenantId, rows: [] })
       map.get(key)!.rows.push(r)
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
-  }, [groupBy, localRows])
+  }, [groupBy, catRows])
 
   function toggleGroup(name: string) {
     const next = new Set(collapsedGroups)
@@ -91,8 +115,8 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     setCollapsedGroups(next)
   }
 
-  // Только сгенерированные доки (с скачиваемым файлом) можно выделять
-  const selectableRows = localRows.filter((r) => r.generatedId)
+  // Только сгенерированные доки (с скачиваемым файлом) можно выделять — в текущей вкладке
+  const selectableRows = catRows.filter((r) => r.generatedId)
   // Для bulk delete нужны строки с deleteId и canDelete — это уже сужает выборку.
   const deletableSelected = localRows.filter(
     (r) => r.generatedId && selected.has(r.generatedId) && r.deleteId && r.canDelete,
@@ -240,10 +264,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
           </a>
         ) : (
           <Link
-            href={`/admin/tenants/${row.tenantId}`}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            href={row.viewHref ?? (row.tenantId ? `/admin/tenants/${row.tenantId}` : "/admin/documents")}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200"
           >
-            Открыть →
+            <FileText className="h-3 w-3" />
+            Открыть
           </Link>
         )}
         {row.deleteId && row.canDelete ? (
@@ -286,6 +311,25 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
 
   return (
     <div className="space-y-3">
+      {/* Под-вкладки по статусу */}
+      <div className="flex w-fit flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+        {DOC_CATEGORY_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => { setCat(t.key); setSelected(new Set()) }}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              cat === t.key
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            }`}
+          >
+            {t.label}
+            <span className={`ml-1.5 text-xs ${cat === t.key ? "opacity-70" : "text-slate-400 dark:text-slate-500"}`}>{catCounts[t.key]}</span>
+          </button>
+        ))}
+      </div>
+
       {/* View mode toggle */}
       <div className="flex items-center justify-end gap-2">
         <span className="text-xs text-slate-500 dark:text-slate-400">Вид:</span>
@@ -474,7 +518,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
               )
             })}
             {/* Plain list view */}
-            {grouped === null && localRows.map((r) => {
+            {grouped === null && catRows.map((r) => {
               const isSelected = r.generatedId ? selected.has(r.generatedId) : false
               return (
                 <tr
@@ -521,11 +565,13 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                 </tr>
               )
             })}
-            {localRows.length === 0 && (
+            {catRows.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-5 py-16 text-center">
                   <FileText className="h-8 w-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">{emptyHint}</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">
+                    {localRows.length === 0 ? emptyHint : "В этой категории документов нет"}
+                  </p>
                 </td>
               </tr>
             )}

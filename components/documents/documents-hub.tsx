@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
-import { Archive, FilePlus2 } from "lucide-react"
+import { FileText, FilePlus2 } from "lucide-react"
 
 function tabBtn(active: boolean): string {
   return `inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition ${
@@ -22,7 +22,7 @@ export function DocumentsHub({ archive, create, canCreate, initialTab = "archive
     <div className="space-y-5">
       {canCreate && (
         <div className="flex w-fit gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
-          <button onClick={() => setTab("archive")} className={tabBtn(tab === "archive")}><Archive className="h-4 w-4" /> Архив</button>
+          <button onClick={() => setTab("archive")} className={tabBtn(tab === "archive")}><FileText className="h-4 w-4" /> Документы</button>
           <button onClick={() => setTab("create")} className={tabBtn(tab === "create")}><FilePlus2 className="h-4 w-4" /> Создать</button>
         </div>
       )}

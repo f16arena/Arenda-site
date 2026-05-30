@@ -174,6 +174,13 @@ export default async function DocumentsPage({
       || !!c.signedByLandlordAt
     )
 
+    const category: DocRow["category"] =
+      c.status === "DRAFT" ? "draft"
+      : c.status === "SENT" || c.status === "VIEWED" || c.status === "SIGNED_BY_TENANT" ? "signing"
+      : c.status === "ARCHIVED" || c.status === "REJECTED" ? "archive"
+      : c.status === "SIGNED" ? "active"
+      : isSigned ? "active" : "signing"
+
     return {
       id: `c-${c.id}`,
       type: "CONTRACT",
@@ -185,6 +192,8 @@ export default async function DocumentsPage({
       generatedAt: c.createdAt,
       source: "contract",
       downloadHref: null,
+      viewHref: `/admin/contracts/${c.id}`,
+      category,
       deleteId: c.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
@@ -208,6 +217,8 @@ export default async function DocumentsPage({
       generatedAt: g.generatedAt,
       source: "generated",
       downloadHref: `/api/documents/archive/${g.id}`,
+      viewHref: null,
+      category: "active" as const,
       generatedId: g.id,
       deleteId: g.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
