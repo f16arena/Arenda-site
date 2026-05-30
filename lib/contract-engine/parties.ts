@@ -22,7 +22,7 @@ export function partyIntro(p: Party, role: string): string {
 
 /** Блок реквизитов стороны (для раздела 13), plain-text. */
 export function partyRequisites(p: Party): string {
-  const idLabel = p.type === "individual" ? "ИИН" : "БИН/ИИН"
+  const idLabel = p.type === "too" ? "БИН" : "ИИН"
   const lines = [
     p.name || "________",
     `Адрес: ${p.address || "________"}`,

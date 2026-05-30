@@ -392,7 +392,8 @@ function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (m
         <div className="mb-2"><label className={labelCls}>Подписант (в лице)</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
       )}
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>{p.type === "individual" ? "ИИН" : "БИН/ИИН"}</label><input className={inputCls} value={p.type === "individual" ? p.iin : p.bin} onChange={(e) => onChange((x) => { if (x.type === "individual") x.iin = e.target.value; else x.bin = e.target.value })} /></div>
+        {/* ИП и физлицо идентифицируются по ИИН (хранится в iin), ТОО/АО — по БИН (bin). */}
+        <div><label className={labelCls}>{p.type === "too" ? "БИН" : "ИИН"}</label><input className={inputCls} value={(p.type === "too" ? p.bin : p.iin) || ""} onChange={(e) => onChange((x) => { if (x.type === "too") x.bin = e.target.value; else x.iin = e.target.value })} /></div>
         <div><label className={labelCls}>Основание</label><input className={inputCls} value={p.basis} onChange={(e) => onChange((x) => { x.basis = e.target.value })} /></div>
       </div>
       <div className="mb-2"><label className={labelCls}>Адрес</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>

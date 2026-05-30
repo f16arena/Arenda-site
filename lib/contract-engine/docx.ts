@@ -56,7 +56,7 @@ export interface DocxSigner { name: string; taxId?: string; signedAt?: string; c
 export type DocxSigners = { landlord?: DocxSigner; tenant?: DocxSigner }
 
 function requisitesParagraphs(p: Party, stamp?: DocxSigner): Paragraph[] {
-  const idLabel = p.type === "individual" ? "ИИН" : "БИН/ИИН"
+  const idLabel = p.type === "too" ? "БИН" : "ИИН"
   const lines = [
     p.name || "________",
     `Адрес: ${p.address || "________"}`,
