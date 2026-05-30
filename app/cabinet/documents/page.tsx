@@ -2,8 +2,9 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { STATUS_COLORS, STATUS_LABELS, formatMoney } from "@/lib/utils"
 import { cn } from "@/lib/utils"
-import { Download, FileText, Printer, Receipt, Upload, Wallet } from "lucide-react"
+import { Download, FileText, Printer, Receipt, Upload, Wallet, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
+import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
 
 export default async function CabinetDocuments() {
   const session = await auth()
@@ -32,6 +33,14 @@ export default async function CabinetDocuments() {
     CONTRACT: "Договор",
     HANDOVER: "Акт приёма-передачи",
   }
+
+  // Какие выставленные АВР/акты сверки арендатор уже подписал.
+  const signedIssuedIds = new Set(
+    (await db.documentSignature.findMany({
+      where: { documentType: { in: ["ACT", "RECONCILIATION"] }, documentId: { in: issued.map((d) => d.id) }, signerUserId: session!.user.id },
+      select: { documentId: true },
+    })).map((s) => s.documentId).filter((x): x is string => !!x),
+  )
 
   const pendingSignatureCount = tenant.contracts.filter((contract) => ["SENT", "VIEWED"].includes(contract.status)).length
   const signedContractsCount = tenant.contracts.filter((contract) => contract.status === "SIGNED").length
@@ -90,13 +99,24 @@ export default async function CabinetDocuments() {
                     </p>
                   </div>
                 </div>
-                <a
-                  href={`/api/documents/archive/${doc.id}`}
-                  download
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 sm:self-center"
-                >
-                  <Download className="h-3.5 w-3.5" /> Скачать
-                </a>
+                <div className="flex flex-wrap items-center gap-2 sm:self-center">
+                  {(doc.documentType === "ACT" || doc.documentType === "RECONCILIATION") && (
+                    signedIssuedIds.has(doc.id) ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Подписано
+                      </span>
+                    ) : (
+                      <DocumentSignButton documentId={doc.id} />
+                    )
+                  )}
+                  <a
+                    href={`/api/documents/archive/${doc.id}`}
+                    download
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Скачать
+                  </a>
+                </div>
               </div>
             ))}
           </div>
