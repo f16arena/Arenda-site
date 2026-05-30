@@ -15,6 +15,8 @@ model User {
   password                String
   role                    String    @default("TENANT")
   isActive                Boolean   @default(true) @map("is_active")
+  // Удаление пользователя из /admin/users (soft): запись цела (FK/аудит), но скрыта.
+  deletedAt               DateTime? @map("deleted_at")
   approvalStatus          String    @default("APPROVED") @map("approval_status")
   approvalRequestedAt     DateTime? @map("approval_requested_at")
   approvedAt              DateTime? @map("approved_at")

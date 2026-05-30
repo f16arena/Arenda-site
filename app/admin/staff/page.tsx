@@ -12,7 +12,7 @@ export default async function StaffPage() {
   const currentPeriod = new Date().toISOString().slice(0, 7)
 
   const users = await db.user.findMany({
-    where: { role: { not: "TENANT" }, organizationId: orgId },
+    where: { role: { not: "TENANT" }, organizationId: orgId, deletedAt: null },
     include: {
       staff: { include: { salaryPayments: { where: { period: currentPeriod }, orderBy: { createdAt: "desc" }, take: 1 } } },
       buildingAccess: {

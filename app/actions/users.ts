@@ -248,9 +248,11 @@ export async function deleteUserAdmin(userId: string) {
   await db.staff.deleteMany({ where: { userId } })
   await db.rolePermission.deleteMany({ where: { role: userCapabilityRole(userId) } })
 
+  // Удаление: deletedAt скрывает из /admin/users навсегда (запись цела — FK/аудит/
+  // подписи не ломаются). isActive=false дополнительно блокирует вход.
   await db.user.update({
     where: { id: userId },
-    data: { isActive: false },
+    data: { isActive: false, deletedAt: new Date() },
   })
 
   // /admin/users обновляется оптимистично (строка скрывается на клиенте) —

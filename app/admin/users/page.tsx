@@ -63,7 +63,7 @@ export default async function UsersPage() {
 
   const [users, buildings, roleRows, org, currentCapabilityKeys] = await Promise.all([
     db.user.findMany({
-      where: { organizationId: orgId },
+      where: { organizationId: orgId, deletedAt: null },
       select: {
         id: true,
         name: true,
