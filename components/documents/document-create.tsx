@@ -2,13 +2,15 @@
 
 import { useState } from "react"
 import { ContractConstructor } from "@/components/contract-constructor/contract-constructor"
+import { AddendumConstructor } from "@/components/contract-constructor/addendum-constructor"
 import { AvrConstructor } from "@/components/contract-constructor/avr-constructor"
 import { InvoiceConstructor } from "./invoice-constructor"
 import { ReconciliationConstructor } from "./reconciliation-constructor"
 
-type CreateTab = "contract" | "avr" | "invoice" | "reconciliation"
+type CreateTab = "contract" | "addendum" | "avr" | "invoice" | "reconciliation"
 const TABS: { key: CreateTab; label: string }[] = [
   { key: "contract", label: "Договор" },
+  { key: "addendum", label: "Доп. соглашение (ДС)" },
   { key: "avr", label: "АВР" },
   { key: "invoice", label: "Счёт на оплату" },
   { key: "reconciliation", label: "Акт сверки" },
@@ -39,6 +41,7 @@ export function DocumentCreate({
         ))}
       </div>
       {tab === "contract" && <ContractConstructor embedded initialTenantId={initialTenantId} />}
+      {tab === "addendum" && <AddendumConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "avr" && <AvrConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "invoice" && <InvoiceConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "reconciliation" && <ReconciliationConstructor embedded initialTenantId={initialTenantId} />}

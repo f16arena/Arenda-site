@@ -10,6 +10,42 @@ function fmt(d: Date | string): string {
   return new Date(d).toLocaleDateString("ru-RU")
 }
 
+export interface ParentContractOption {
+  id: string
+  number: string
+  tenantId: string
+  tenantName: string
+  startDate: string | null
+  endDate: string | null
+  status: string
+}
+
+/**
+ * Список договоров, к которым можно оформить доп. соглашение: основные (не ADDENDUM),
+ * не удалённые. Для выпадашки «к какому договору» при создании ДС.
+ */
+export async function listParentContractsForAddendum(): Promise<ParentContractOption[]> {
+  const { orgId } = await requireOrgAccess()
+  const rows = await db.contract.findMany({
+    where: { ...contractScope(orgId), type: { not: "ADDENDUM" } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true, number: true, status: true, startDate: true, endDate: true, tenantId: true,
+      tenant: { select: { companyName: true } },
+    },
+    take: 500,
+  })
+  return rows.map((r) => ({
+    id: r.id,
+    number: r.number,
+    tenantId: r.tenantId,
+    tenantName: r.tenant.companyName,
+    startDate: r.startDate ? r.startDate.toISOString() : null,
+    endDate: r.endDate ? r.endDate.toISOString() : null,
+    status: r.status,
+  }))
+}
+
 async function loadParent(contractId: string, orgId: string) {
   const c = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
