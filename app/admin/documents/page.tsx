@@ -8,7 +8,6 @@ import { contractScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
-import { getDocumentTenantOptions } from "@/lib/document-tenants"
 import { DocumentsBrowser } from "./documents-browser"
 import { DocumentsHub } from "@/components/documents/documents-hub"
 import { DocumentCreate } from "@/components/documents/document-create"
@@ -43,7 +42,6 @@ export default async function DocumentsPage({
   const canCreateDocuments = allowedCapabilities.has("documents.create")
   const canDeleteUnsignedDocuments = allowedCapabilities.has("documents.deleteUnsigned")
   const canDeleteSignedDocuments = isOwnerLikeUser && allowedCapabilities.has("documents.deleteSigned")
-  const createTenantOptions = canCreateDocuments ? await getDocumentTenantOptions(orgId) : []
 
   const { type, q, period, create, tenantId: createTenantId } = await searchParams
   const CREATE_TABS = ["contract", "avr", "invoice", "reconciliation"] as const
@@ -238,7 +236,7 @@ export default async function DocumentsPage({
             initialPeriod={period ?? ""}
           />
         }
-        create={canCreateDocuments ? <DocumentCreate tenants={createTenantOptions} initialTab={createTab} initialTenantId={createTenantId} /> : null}
+        create={canCreateDocuments ? <DocumentCreate initialTab={createTab} initialTenantId={createTenantId} /> : null}
       />
     </div>
   )

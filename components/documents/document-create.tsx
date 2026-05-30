@@ -4,8 +4,7 @@ import { useState } from "react"
 import { ContractConstructor } from "@/components/contract-constructor/contract-constructor"
 import { AvrConstructor } from "@/components/contract-constructor/avr-constructor"
 import { InvoiceConstructor } from "./invoice-constructor"
-import { DocumentQuickGen } from "./document-quick-gen"
-import type { DocumentTenantOption } from "@/lib/document-tenants"
+import { ReconciliationConstructor } from "./reconciliation-constructor"
 
 type CreateTab = "contract" | "avr" | "invoice" | "reconciliation"
 const TABS: { key: CreateTab; label: string }[] = [
@@ -23,13 +22,11 @@ function tabBtn(active: boolean): string {
   }`
 }
 
-/** Под-вкладки создания документа: конструкторы договора/АВР + быстрая генерация счёта/сверки. */
+/** Под-вкладки создания документа: конструкторы договора / АВР / счёта / акта сверки. */
 export function DocumentCreate({
-  tenants,
   initialTab = "contract",
   initialTenantId,
 }: {
-  tenants: DocumentTenantOption[]
   initialTab?: CreateTab
   initialTenantId?: string
 }) {
@@ -44,7 +41,7 @@ export function DocumentCreate({
       {tab === "contract" && <ContractConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "avr" && <AvrConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "invoice" && <InvoiceConstructor embedded initialTenantId={initialTenantId} />}
-      {tab === "reconciliation" && <DocumentQuickGen kind="reconciliation" tenants={tenants} initialTenantId={initialTenantId} />}
+      {tab === "reconciliation" && <ReconciliationConstructor embedded initialTenantId={initialTenantId} />}
     </div>
   )
 }
