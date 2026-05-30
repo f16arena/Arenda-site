@@ -9,7 +9,6 @@ import {
 import { toast } from "sonner"
 import {
   deleteAdminDocument,
-  restoreAdminDocument,
   bulkDeleteAdminDocuments,
 } from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
@@ -146,7 +145,6 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     if (!row.deleteId || !row.canDelete) return
     const deleteId = row.deleteId
     const source = row.source
-    const isSigned = row.isSigned
     setDeletingRowId(row.id)
 
     // Оптимистично убираем строку из localRows. Если придёт ошибка —
@@ -171,26 +169,8 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
       // router.refresh() не вызываем — RSC сам подхватит изменения
       // через revalidatePath в server action. При следующем переходе
       // на страницу будет свежее. Локально мы уже синхронны.
-      if (isSigned) {
-        toast.success("Документ удалён")
-      } else {
-        toast.success("Документ удалён", {
-          duration: 6000,
-          action: {
-            label: "Отменить",
-            onClick: async () => {
-              const r = await restoreAdminDocument({ source, id: deleteId })
-              if (!r.ok) {
-                toast.error(r.error ?? "Не удалось восстановить")
-                return
-              }
-              // После undo возвращаем строку в локальный список.
-              setLocalRows(snapshot)
-              toast.success("Восстановлено")
-            },
-          },
-        })
-      }
+      // Жёсткое удаление — отмены нет (восстановить нечего).
+      toast.success("Документ удалён навсегда")
     })
   }
 
@@ -263,14 +243,15 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         {row.deleteId && row.canDelete ? (
           <ConfirmDialog
             variant="danger"
-            title={`Удалить ${TYPE_LABELS[row.type] ?? "документ"}${row.number ? ` № ${row.number}` : ""}?`}
+            requireText="удалить"
+            title={`Удалить ${TYPE_LABELS[row.type] ?? "документ"}${row.number ? ` № ${row.number}` : ""} навсегда?`}
             description={
               (row.isSigned
                 ? "Документ уже подписан. Удаление подписанного документа доступно только владельцу. "
                 : "") +
-              "Действие нельзя отменить. Если документ нужен с изменениями, его нужно будет создать заново."
+              "Документ и его подписи будут удалены из базы НАВСЕГДА — восстановить нельзя. Если нужен с изменениями, создайте заново."
             }
-            confirmLabel="Удалить"
+            confirmLabel="Удалить навсегда"
             onConfirm={() => performDelete(row)}
             trigger={
               <button
@@ -357,15 +338,16 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
             {deletableSelected.length > 0 && (
               <ConfirmDialog
                 variant="danger"
-                title={`Удалить ${deletableSelected.length} ${deletableSelected.length === 1 ? "документ" : "документов"}?`}
+                requireText="удалить"
+                title={`Удалить ${deletableSelected.length} ${deletableSelected.length === 1 ? "документ" : "документов"} навсегда?`}
                 description={
-                  `Будут удалены выбранные документы. Подписанные могут удалить только владельцы.${
+                  `Выбранные документы и их подписи будут удалены из базы НАВСЕГДА. Подписанные могут удалить только владельцы.${
                     deletableSelected.length < selected.size
                       ? ` Документы без права на удаление (${selected.size - deletableSelected.length}) останутся.`
                       : ""
-                  } Действие нельзя отменить.`
+                  } Восстановить нельзя.`
                 }
-                confirmLabel="Удалить"
+                confirmLabel="Удалить навсегда"
                 onConfirm={performBulkDelete}
                 trigger={
                   <button

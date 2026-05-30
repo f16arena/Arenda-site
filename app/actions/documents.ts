@@ -65,20 +65,22 @@ async function deleteContractDocument(contractId: string, orgId: string, isOwner
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
-  // Soft delete (миграция 019): подписи всё-таки удаляем жёстко (они не имеют deletedAt),
-  // а сам контракт помечаем deletedAt.
+  // Жёсткое удаление: договор стирается физически из БД вместе с подписями.
+  // Связанные записи отвязываются автоматически (onDelete: SetNull у addenda/
+  // charges/generated-doc). Восстановление невозможно — на это в UI стоит
+  // подтверждение вводом слова «удалить».
   await db.$transaction([
     db.documentSignature.deleteMany({
       where: { organizationId: orgId, ...signatureWhere },
     }),
-    db.contract.update({ where: { id: contract.id }, data: { deletedAt: new Date() } }),
+    db.contract.delete({ where: { id: contract.id } }),
   ])
 
   await audit({
     action: "DELETE",
     entity: "contract",
     entityId: contract.id,
-    details: { number: contract.number, status: contract.status, signed },
+    details: { number: contract.number, status: contract.status, signed, hardDelete: true },
   })
 
   revalidateDocumentPaths(contract.tenantId)
@@ -123,12 +125,12 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
-  // Soft delete (миграция 019): подписи удаляются жёстко, документ помечается deletedAt.
+  // Жёсткое удаление: документ и его подписи стираются физически из БД.
   await db.$transaction([
     db.documentSignature.deleteMany({
       where: { organizationId: orgId, ...signatureWhere },
     }),
-    db.generatedDocument.update({ where: { id: doc.id }, data: { deletedAt: new Date() } }),
+    db.generatedDocument.delete({ where: { id: doc.id } }),
   ])
 
   await audit({
@@ -222,44 +224,4 @@ export async function bulkDeleteAdminDocuments(
     else failed += 1
   }
   return { ok: failed === 0, results, succeeded, failed }
-}
-
-/**
- * Восстановить только что soft-deleted документ. Используется для toast «Отменить»
- * сразу после `deleteAdminDocument`. Подписи (signatures) при удалении уничтожаются
- * безвозвратно — поэтому восстановление возвращает только сам документ; повторно
- * подписать придётся вручную (в большинстве случаев документ был неподписан).
- */
-export async function restoreAdminDocument(input: DeleteAdminDocumentInput): Promise<DeleteAdminDocumentResult> {
-  try {
-    await requireCapabilityAndFeature("documents.deleteUnsigned")
-    const { orgId } = await requireOrgAccess()
-    if (!input.id) return { ok: false, error: "Документ не найден." }
-
-    if (input.source === "contract") {
-      const contract = await db.contract.findFirst({
-        where: { id: input.id, tenant: { user: { organizationId: orgId } } },
-        select: { id: true, deletedAt: true, tenantId: true },
-      })
-      if (!contract) return { ok: false, error: "Договор не найден." }
-      if (!contract.deletedAt) return { ok: true }
-      await db.contract.update({ where: { id: contract.id }, data: { deletedAt: null } })
-      revalidateDocumentPaths(contract.tenantId)
-      return { ok: true }
-    }
-    if (input.source === "generated") {
-      const doc = await db.generatedDocument.findFirst({
-        where: { id: input.id, organizationId: orgId },
-        select: { id: true, deletedAt: true, tenantId: true },
-      })
-      if (!doc) return { ok: false, error: "Документ не найден." }
-      if (!doc.deletedAt) return { ok: true }
-      await db.generatedDocument.update({ where: { id: doc.id }, data: { deletedAt: null } })
-      revalidateDocumentPaths(doc.tenantId)
-      return { ok: true }
-    }
-    return { ok: false, error: "Неизвестный тип документа." }
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Не удалось восстановить документ." }
-  }
 }
