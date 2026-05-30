@@ -6,6 +6,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
+import { additionalChargesEnabled } from "@/lib/org-features"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { spaceScope } from "@/lib/tenant-scope"
@@ -97,6 +98,13 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       orgId,
       userId: session.user.id,
     })
+
+  const orgFeaturesRow = await safe(
+    "admin.tenant.orgFeatures",
+    db.organization.findUnique({ where: { id: orgId }, select: { features: true } }),
+    null,
+  )
+  const showAdditionalCharges = additionalChargesEnabled(orgFeaturesRow?.features)
 
   const { id } = await params
   try {
@@ -1004,16 +1012,18 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           {/* === Объединение «Начисления» 2026-05-27: доп. начисления (свет/вода)
               + последние начисления (cron-сводка). === */}
           <Tab id="charges-all" title="Начисления" icon={Zap} meta={`за ${currentPeriod}`}>
-            <div>
-              <div className="px-5 pt-5 pb-2 flex items-center gap-2">
-                <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h3>
-                <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">за {currentPeriod}</span>
+            {showAdditionalCharges && (
+              <div>
+                <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h3>
+                  <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">за {currentPeriod}</span>
+                </div>
+                <TenantLazyServiceCharges />
               </div>
-              <TenantLazyServiceCharges />
-            </div>
+            )}
 
-            <div className="border-t border-slate-100 dark:border-slate-800">
+            <div className={showAdditionalCharges ? "border-t border-slate-100 dark:border-slate-800" : ""}>
               <div className="px-5 pt-5 pb-2 flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние начисления</h3>

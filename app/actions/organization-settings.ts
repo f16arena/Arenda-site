@@ -21,6 +21,31 @@ function fail(error: unknown) {
   }
 }
 
+/** Org-флаги, которые владелец переключает сам (хранятся в Organization.features JSON). */
+export async function updateOrganizationFeatures(orgId: string, formData: FormData) {
+  try {
+    await requireCapabilityAndFeature("settings.updateOrganization")
+    const { orgId: scopeOrgId } = await requireOrgAccess()
+    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+
+    const org = await db.organization.findUnique({ where: { id: orgId }, select: { features: true } })
+    let features: Record<string, unknown> = {}
+    try { const v = JSON.parse(org?.features ?? "{}"); if (v && typeof v === "object") features = v } catch { /* ignore */ }
+
+    // Чекбокс «Дополнительные начисления включены». Отмечен → раздел показывается.
+    features.additionalChargesDisabled = formData.get("additionalChargesEnabled") !== "on"
+
+    await db.organization.update({ where: { id: orgId }, data: { features: JSON.stringify(features) } })
+
+    revalidatePath("/admin/settings")
+    revalidatePath("/admin/tenants", "layout")
+    revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+    return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")

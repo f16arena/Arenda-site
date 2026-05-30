@@ -139,6 +139,8 @@ model Organization {
   // Подставляется в {penalty_percent} в шаблоне. У каждого Tenant может быть свой
   // penaltyPercent — он переопределяет это значение.
   defaultPenaltyPercent Float   @default(0.5) @map("default_penalty_percent")
+  // Org-level флаги, переключаемые владельцем (JSON). Напр. additionalChargesDisabled.
+  features            String    @default("{}")
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 

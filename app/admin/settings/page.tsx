@@ -10,6 +10,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 import { VatSection } from "@/components/settings/vat-section"
+import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
 import { safeServerValue } from "@/lib/server-fallback"
@@ -38,6 +39,7 @@ export default async function SettingsPage() {
           vatRate: true,
           vatNumber: true,
           defaultPenaltyPercent: true,
+          features: true,
         },
       }),
       null,
@@ -330,6 +332,9 @@ export default async function SettingsPage() {
 
       {/* НДС настройки */}
       {organization && <VatSection organization={organization} />}
+
+      {/* Дополнительные начисления — вкл/выкл раздела в карточке арендатора */}
+      {organization && <AdditionalChargesSection organization={organization} />}
 
       {/* Document numbering */}
       <DocumentNumberingSection building={building} />
