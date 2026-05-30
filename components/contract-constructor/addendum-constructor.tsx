@@ -54,7 +54,7 @@ export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; i
           </div>
         ) : contracts.length === 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-            Нет основных договоров для ДС. Сначала создайте договор.
+            Нет действующих договоров. ДС оформляется только к договору, подписанному обеими сторонами — сначала создайте и подпишите договор.
           </div>
         ) : (
           <select

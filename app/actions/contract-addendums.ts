@@ -22,12 +22,13 @@ export interface ParentContractOption {
 
 /**
  * Список договоров, к которым можно оформить доп. соглашение: основные (не ADDENDUM),
- * не удалённые. Для выпадашки «к какому договору» при создании ДС.
+ * ДЕЙСТВУЮЩИЕ (status SIGNED — подписаны обеими сторонами), не удалённые.
+ * ДС оформляется только к заключённому договору (ст. 401 ГК РК). Для выпадашки ДС.
  */
 export async function listParentContractsForAddendum(): Promise<ParentContractOption[]> {
   const { orgId } = await requireOrgAccess()
   const rows = await db.contract.findMany({
-    where: { ...contractScope(orgId), type: { not: "ADDENDUM" } },
+    where: { ...contractScope(orgId), type: { not: "ADDENDUM" }, status: "SIGNED" },
     orderBy: { createdAt: "desc" },
     select: {
       id: true, number: true, status: true, startDate: true, endDate: true, tenantId: true,
@@ -56,6 +57,7 @@ async function loadParent(contractId: string, orgId: string) {
   })
   if (!c) return { error: "Договор не найден или нет доступа" as const }
   if (c.type === "ADDENDUM") return { error: "Нельзя оформить ДС к доп. соглашению — выберите основной договор" as const }
+  if (c.status !== "SIGNED") return { error: "ДС можно оформить только к действующему договору (подписанному обеими сторонами)" as const }
   return { contract: c }
 }
 
