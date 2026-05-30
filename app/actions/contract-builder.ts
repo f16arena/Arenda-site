@@ -10,7 +10,7 @@ import { tenantScope, contractScope } from "@/lib/tenant-scope"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
-import { renderContractDocx } from "@/lib/contract-engine/docx"
+import { renderContractDocx, type DocxSigners } from "@/lib/contract-engine/docx"
 import { sendContractForSignature, markContractSignedByLandlord } from "@/app/actions/contract-workflow"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
@@ -414,8 +414,31 @@ export async function generateSignedContractDocx(
     if (!signedAny) return { ok: false, error: "DOCX с QR доступен после подписания" }
 
     const state = contract.builderState as unknown as ContractState
+
+    // Подписи сторон → штампы ЭЦП в блоке подписей (вместо строки «___ /ФИО/ М.П.»).
+    const sigs = await db.documentSignature.findMany({
+      where: { documentType: "CONTRACT", documentId: contract.id },
+      select: { signerName: true, signerIin: true, signerOrgBin: true, signedAt: true, algorithm: true },
+      orderBy: { signedAt: "asc" },
+    })
+    const digits = (v?: string | null) => String(v ?? "").replace(/\D/g, "")
+    const fmtDt = (d: Date | null | undefined) => d ? new Date(d).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined
+    const landlordIds = [digits(state.landlord.bin), digits(state.landlord.iin)].filter((x) => x.length === 12)
+    const tenantIds = [digits(state.tenant.bin), digits(state.tenant.iin)].filter((x) => x.length === 12)
+    const isEcp = (alg?: string) => !!alg && /ЭЦП|NCALayer|ГОСТ|RSA/i.test(alg)
+    const signers: DocxSigners = {}
+    for (const sg of sigs) {
+      const tax = digits(sg.signerOrgBin) || digits(sg.signerIin)
+      const stamp = { name: sg.signerName, taxId: tax || undefined, signedAt: fmtDt(sg.signedAt), method: isEcp(sg.algorithm) ? "Документ подписан ЭЦП (НУЦ РК)" : "Документ подписан (простая подпись)" }
+      if (tax && landlordIds.includes(tax)) signers.landlord = stamp
+      else if (tax && tenantIds.includes(tax)) signers.tenant = stamp
+    }
+    // Простая отметка («Подписать и отправить») без DocumentSignature — штамп по факту.
+    if (!signers.landlord && contract.signedByLandlordAt) signers.landlord = { name: state.landlord.signatory || state.landlord.name, taxId: state.landlord.bin || state.landlord.iin || undefined, signedAt: fmtDt(contract.signedByLandlordAt), method: "Документ подписан (электронно)" }
+    if (!signers.tenant && contract.signedByTenantAt) signers.tenant = { name: state.tenant.signatory || state.tenant.name, taxId: state.tenant.bin || state.tenant.iin || undefined, signedAt: fmtDt(contract.signedByTenantAt), method: "Документ подписан (электронно)" }
+
     const verifyUrl = `https://commrent.kz/verify/${contract.id}`
-    const buf = await renderContractDocx(state, { verifyUrl })
+    const buf = await renderContractDocx(state, { verifyUrl, signers })
     const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
     return { ok: true, fileName: `Договор_${num}_подписан.docx`, base64: buf.toString("base64") }
   } catch (e) {

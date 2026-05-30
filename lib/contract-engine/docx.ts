@@ -51,7 +51,11 @@ function clausePara(num: string, html: string, sub?: string, indent = 0): Paragr
   return new Paragraph({ children: runs, alignment: AlignmentType.JUSTIFIED, spacing: { after: 70 }, indent: indent ? { left: indent } : undefined })
 }
 
-function requisitesParagraphs(p: Party): Paragraph[] {
+/** Штамп ЭЦП-подписи стороны (вместо строки «___ /ФИО/ М.П.»), если сторона подписала. */
+export interface DocxSigner { name: string; taxId?: string; signedAt?: string; certSerial?: string; method?: string }
+export type DocxSigners = { landlord?: DocxSigner; tenant?: DocxSigner }
+
+function requisitesParagraphs(p: Party, stamp?: DocxSigner): Paragraph[] {
   const idLabel = p.type === "individual" ? "ИИН" : "БИН/ИИН"
   const lines = [
     p.name || "________",
@@ -63,8 +67,17 @@ function requisitesParagraphs(p: Party): Paragraph[] {
   if (p.email) lines.push(`E-mail: ${p.email}`)
   lines.push(`Основание: ${p.basis || "________"}`)
   lines.push("")
-  lines.push("_______________ /" + (p.signatory || "________") + "/ М.П.")
-  return lines.map((l) => new Paragraph({ children: [new TextRun({ text: l, size: 20 })], spacing: { after: 30 } }))
+  const paras = lines.map((l) => new Paragraph({ children: [new TextRun({ text: l, size: 20 })], spacing: { after: 30 } }))
+  if (stamp) {
+    // Подписано ЭЦП — штамп вместо рукописной строки.
+    paras.push(new Paragraph({ children: [new TextRun({ text: "✔ " + (stamp.method ?? "Документ подписан ЭЦП (НУЦ РК)"), bold: true, size: 18, color: "1A7F37" })], spacing: { after: 16 } }))
+    paras.push(new Paragraph({ children: [new TextRun({ text: `${stamp.name}${stamp.taxId ? `, ИИН/БИН ${stamp.taxId}` : ""}`, size: 16, color: "444444" })], spacing: { after: 8 } }))
+    if (stamp.signedAt) paras.push(new Paragraph({ children: [new TextRun({ text: `Время подписания: ${stamp.signedAt}`, size: 16, color: "444444" })], spacing: { after: 8 } }))
+    if (stamp.certSerial) paras.push(new Paragraph({ children: [new TextRun({ text: `Сертификат №: ${stamp.certSerial}`, size: 16, color: "444444" })] }))
+  } else {
+    paras.push(new Paragraph({ children: [new TextRun({ text: "_______________ /" + (p.signatory || "________") + "/ М.П.", size: 20 })] }))
+  }
+  return paras
 }
 
 const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
@@ -107,19 +120,19 @@ function signingMark(qr: Buffer | null, verifyUrl: string | null): (Paragraph | 
 }
 
 /** Подписи сторон + отметка ЭЦП/QR — ставится после каждого блока реквизитов (договор и каждое приложение). */
-function requisitesBlock(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
-  return [signatureTable(s), ...signingMark(qr, verifyUrl)]
+function requisitesBlock(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
+  return [signatureTable(s, signers), ...signingMark(qr, verifyUrl)]
 }
 
-function signatureTable(s: ContractState): Table {
+function signatureTable(s: ContractState, signers?: DocxSigners): Table {
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     borders: noBorders,
     rows: [
       new TableRow({
         children: [
-          new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "АРЕНДОДАТЕЛЬ:", bold: true })] }), ...requisitesParagraphs(s.landlord)] }),
-          new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "АРЕНДАТОР:", bold: true })] }), ...requisitesParagraphs(s.tenant)] }),
+          new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "АРЕНДОДАТЕЛЬ:", bold: true })] }), ...requisitesParagraphs(s.landlord, signers?.landlord)] }),
+          new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "АРЕНДАТОР:", bold: true })] }), ...requisitesParagraphs(s.tenant, signers?.tenant)] }),
         ],
       }),
     ],
@@ -147,7 +160,7 @@ function kvRow(k: string, v: string): TableRow {
 
 // ───────────────────────── contract body ─────────────────────────
 
-function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
+function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
   const a = assemble(s)
   const out: (Paragraph | Table)[] = []
   out.push(h1(`ДОГОВОР № ${s.meta.contractNumber || "____"}`))
@@ -163,13 +176,13 @@ function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string
     }
   }
   out.push(h2(`${a.requisitesNum}. Реквизиты и подписи Сторон`))
-  out.push(...requisitesBlock(s, qr, verifyUrl))
+  out.push(...requisitesBlock(s, qr, verifyUrl, signers))
   return out
 }
 
 // ───────────────────────── annexes ─────────────────────────
 
-function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
+function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
   const p = s.premises
   const out: (Paragraph | Table)[] = []
   out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 1 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
@@ -185,11 +198,11 @@ function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null
   out.push(para("3. Показания счётчиков: электроэнергия ________ кВт·ч; холодная вода ________ куб. м; горячая вода ________ куб. м."))
   out.push(para("4. Передаваемые ключи: ____ комплектов."))
   out.push(para("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет."))
-  out.push(...requisitesBlock(s, qr, verifyUrl))
+  out.push(...requisitesBlock(s, qr, verifyUrl, signers))
   return out
 }
 
-function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
+function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
   const sv = s.financials.additionalServices
   const out: (Paragraph | Table)[] = []
   out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 2 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
@@ -222,11 +235,11 @@ function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string |
     }),
   )
   out.push(para("Стоимость услуг оплачивается ежемесячно одновременно с арендной платой отдельной строкой счёта. Состав услуг может быть изменён уведомлением за 15 календарных дней."))
-  out.push(...requisitesBlock(s, qr, verifyUrl))
+  out.push(...requisitesBlock(s, qr, verifyUrl, signers))
   return out
 }
 
-function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: string | null): (Paragraph | Table)[] {
+function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
   const f = s.financials
   const op = f.operatingCosts
   const out: (Paragraph | Table)[] = []
@@ -265,7 +278,7 @@ function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: st
 
   const c = deriveContext(s)
   out.push(para("Эксплуатационные расходы покрывают: " + c.covers.join("; ") + "."))
-  out.push(...requisitesBlock(s, qr, verifyUrl))
+  out.push(...requisitesBlock(s, qr, verifyUrl, signers))
   return out
 }
 
@@ -276,23 +289,24 @@ function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: st
  * `opts.verifyUrl` — ссылка на страницу проверки ЭЦП (`/verify/{id}`): если задана,
  * на странице подписей рисуется реальный QR-код; иначе — зарезервированное место под него.
  */
-export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: string }): Promise<Buffer> {
+export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: string; signers?: DocxSigners }): Promise<Buffer> {
   const verifyUrl = opts?.verifyUrl ?? null
+  const signers = opts?.signers
   const qr = verifyUrl ? await QRCode.toBuffer(verifyUrl, { width: 240, margin: 1, errorCorrectionLevel: "M" }) : null
   const c = deriveContext(s)
-  const children: (Paragraph | Table)[] = [...contractChildren(s, qr, verifyUrl)]
+  const children: (Paragraph | Table)[] = [...contractChildren(s, qr, verifyUrl, signers)]
 
   if (c.annexes.act) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex1Act(s, qr, verifyUrl))
+    children.push(...annex1Act(s, qr, verifyUrl, signers))
   }
   if (c.annexes.services) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex2Services(s, qr, verifyUrl))
+    children.push(...annex2Services(s, qr, verifyUrl, signers))
   }
   if (c.annexes.operatingCosts) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex3OperatingCosts(s, qr, verifyUrl))
+    children.push(...annex3OperatingCosts(s, qr, verifyUrl, signers))
   }
 
   const doc = new Document({
