@@ -25,7 +25,7 @@ export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string 
       <div className="flex gap-1.5 shrink-0">
         <button
           onClick={copy}
-          className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+          className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           title="Скопировать URL"
         >
           {copied ? <><Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Скопировано</> : <><Copy className="h-3.5 w-3.5" /> Копировать</>}

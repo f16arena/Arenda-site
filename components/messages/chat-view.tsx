@@ -89,7 +89,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               type="button"
               onClick={() => setSelectedId(BROADCAST_ID)}
               className={cn(
-                "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
+                "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
                 selectedId === BROADCAST_ID && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
               )}
             >
@@ -113,7 +113,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               type="button"
               onClick={() => setSelectedId(c.id)}
               className={cn(
-                "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
+                "w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800",
                 selectedId === c.id && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
               )}
             >

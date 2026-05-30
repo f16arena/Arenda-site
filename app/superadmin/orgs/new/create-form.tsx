@@ -85,7 +85,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           </button>
           <button
             onClick={() => router.push(`/superadmin/orgs/${created.orgId}`)}
-            className="rounded-lg border border-emerald-300 dark:border-emerald-500/40 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 dark:bg-emerald-500/10"
+            className="rounded-lg border border-emerald-300 dark:border-emerald-500/40 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
           >
             Перейти к организации
           </button>
@@ -96,7 +96,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
               setSlug("")
               setSlugTouched(false)
             }}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
             Создать ещё
           </button>

@@ -165,13 +165,13 @@ function OrgCard({ org }: { org: Org }) {
             }}
             disabled={pending || !org.isActive}
             title="Просмотр от вашего имени (без impersonate)"
-            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 disabled:opacity-50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
           >
             <Eye className="h-3.5 w-3.5" />
           </button>
           <Link
             href={`/superadmin/orgs/${org.id}`}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 transition"
             title="Открыть карточку в супер-админе"
           >
             ⋯

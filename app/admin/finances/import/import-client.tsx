@@ -108,7 +108,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
             <div className="flex gap-2">
               <button
                 onClick={() => setRows([])}
-                className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50"
+                className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
               >
                 Очистить
               </button>

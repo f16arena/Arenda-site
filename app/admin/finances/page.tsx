@@ -345,7 +345,7 @@ async function renderFinancesPage({
           <a
             href="/api/export/1c"
             download
-            className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 dark:bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300"
+            className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300"
             title="Экспорт в формате 1C-Enterprise"
           >
             <FileSpreadsheet className="h-4 w-4" />
@@ -354,7 +354,7 @@ async function renderFinancesPage({
           <a
             href="/api/export/finances"
             download
-            className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 dark:bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300"
+            className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300"
           >
             <FileSpreadsheet className="h-4 w-4" />
             Excel

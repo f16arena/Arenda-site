@@ -196,7 +196,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <button type="submit" className="mt-1.5 w-full rounded-lg border border-slate-200 dark:border-slate-800 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">
+                <button type="submit" className="mt-1.5 w-full rounded-lg border border-slate-200 dark:border-slate-800 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   Назначить
                 </button>
               </form>

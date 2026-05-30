@@ -85,7 +85,7 @@ export function RequestDialog() {
                 </div>
               </div>
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50">Отмена</button>
+                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50">Отмена</button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-teal-600 py-2 text-sm text-white hover:bg-teal-700 disabled:opacity-60">
                   {pending ? "Отправка..." : "Отправить"}
                 </button>

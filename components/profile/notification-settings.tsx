@@ -107,7 +107,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
                 type="button"
                 onClick={() => toggleType(t.type)}
                 disabled={pending}
-                className="w-full px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition text-left disabled:opacity-60"
+                className="w-full px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition text-left disabled:opacity-60"
               >
                 <div className={`flex h-5 w-5 items-center justify-center rounded border-2 shrink-0 ${
                   isEnabled

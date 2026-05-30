@@ -170,7 +170,7 @@ function Section({
             const placement = formatTenantPlacement(t, { emptyLabel: "—" })
             return (
               <tr key={t.id} className={cn(
-                "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50",
+                "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50",
                 highlight === "amber" && "bg-amber-50 dark:bg-amber-500/10",
                 highlight === "red" && "bg-red-50 dark:bg-red-500/10"
               )}>

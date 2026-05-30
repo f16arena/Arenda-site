@@ -44,7 +44,7 @@ export function PeriodPicker({ value }: Props) {
     <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
       <button
         onClick={() => shift(-1)}
-        className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-l-lg"
+        className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-l-lg"
         title="Предыдущий месяц"
       >
         <ChevronLeft className="h-4 w-4 text-slate-500 dark:text-slate-400" />
@@ -69,7 +69,7 @@ export function PeriodPicker({ value }: Props) {
       </select>
       <button
         onClick={() => shift(1)}
-        className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 rounded-r-lg"
+        className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-r-lg"
         title="Следующий месяц"
       >
         <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400" />

@@ -211,7 +211,7 @@ export default async function RequestsPage({
           </thead>
           <tbody>
             {requests.map((r) => (
-              <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
+              <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                 <td className="px-5 py-3.5">
                   <Link href={`/admin/requests/${r.id}`} className="block">
                     <p className="font-medium text-slate-900 dark:text-slate-100 hover:text-blue-600 dark:text-blue-400">{r.title}</p>

@@ -68,7 +68,7 @@ export function ConfirmDialog({
               <button
                 onClick={() => setOpen(false)}
                 disabled={pending}
-                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 disabled:opacity-60"
+                className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-60"
               >
                 {cancelLabel}
               </button>

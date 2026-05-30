@@ -111,7 +111,7 @@ export function CalendarView({
               onClick={() => navigateMonth(-1)}
               aria-label="Предыдущий месяц"
               title="Предыдущий месяц"
-              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 p-2"
+              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2"
             >
               <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </button>
@@ -123,7 +123,7 @@ export function CalendarView({
               onClick={() => navigateMonth(1)}
               aria-label="Следующий месяц"
               title="Следующий месяц"
-              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 p-2"
+              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2"
             >
               <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </button>
@@ -131,7 +131,7 @@ export function CalendarView({
           <button
             type="button"
             onClick={() => router.push("?")}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300"
+            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300"
           >
             Сегодня
           </button>
@@ -252,7 +252,7 @@ export function CalendarView({
                     const meta = EVENT_META[e.type]
                     const Icon = meta.icon
                     const inner = (
-                      <div className="flex items-start gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
+                      <div className="flex items-start gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                         <div className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded ${meta.color} text-white shrink-0`}>
                           <Icon className="h-3 w-3" />
                         </div>
@@ -291,7 +291,7 @@ export function CalendarView({
                   .map((e) => {
                     const meta = EVENT_META[e.type]
                     const inner = (
-                      <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
+                      <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                         <span className={`inline-block h-2 w-2 rounded-full ${meta.color}`} />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate">{e.title}</p>

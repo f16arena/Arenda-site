@@ -120,7 +120,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                   })
                 }
                 disabled={pending}
-                className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 dark:bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 disabled:opacity-50"
+                className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 disabled:opacity-50"
               >
                 Подтвердить
               </button>
@@ -182,7 +182,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                   navigator.clipboard.writeText(previewLink)
                   toast.success("Ссылка скопирована")
                 }}
-                className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-2 py-1 text-xs text-slate-700 dark:text-slate-300"
+                className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 py-1 text-xs text-slate-700 dark:text-slate-300"
               >
                 <Copy className="h-3 w-3" />
               </button>

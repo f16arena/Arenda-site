@@ -204,7 +204,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           <ArrowLeft className="h-3 w-3 inline" />
         </button>
         {!lead.spaceId && lead.status !== "LOST" && lead.status !== "SIGNED" && (
-          <button onClick={onBook} className="flex-1 rounded text-[10px] py-1 hover:bg-purple-100 dark:hover:bg-purple-500/20 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400">
+          <button onClick={onBook} className="flex-1 rounded text-[10px] py-1 hover:bg-purple-100 dark:hover:bg-purple-500/20 text-purple-600 dark:text-purple-400">
             Бронь
           </button>
         )}

@@ -245,7 +245,7 @@ export default async function CabinetDashboard() {
                   <a
                     href={`/api/documents/archive/${recentDocs.find((d) => d.documentType === "INVOICE")?.id}`}
                     download
-                    className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
+                    className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
                   >
                     <Download className="h-4 w-4" />
                     Скачать счёт
@@ -438,7 +438,7 @@ export default async function CabinetDashboard() {
               </p>
             ) : (
               recentDocs.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
+                <div key={d.id} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
                     <Receipt className="h-4 w-4" />
                   </div>
@@ -493,7 +493,7 @@ export default async function CabinetDashboard() {
                 <Link
                   key={m.id}
                   href="/cabinet/messages"
-                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50 dark:bg-blue-500/20" : ""}`}
+                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50 dark:bg-blue-500/20" : ""}`}
                 >
                   {!m.isRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />}
                   <div className="flex-1 min-w-0">

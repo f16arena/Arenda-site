@@ -305,7 +305,7 @@ export function DangerZone({
                   setShowDelete(false)
                   setConfirmInput("")
                 }}
-                className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300"
+                className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300"
               >
                 Отмена
               </button>

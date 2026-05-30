@@ -102,7 +102,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
               confirmLabel="Удалить"
               onConfirm={remove}
               trigger={
-                <button disabled={pending} className="rounded-md border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 dark:bg-red-500/10 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1">
+                <button disabled={pending} className="rounded-md border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1">
                   <X className="h-3 w-3" />
                   Удалить
                 </button>
@@ -133,7 +133,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
           </label>
         ) : (
           <label className={`block border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition ${
-            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10"
+            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10"
           }`}>
             <input
               type="file"
