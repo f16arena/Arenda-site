@@ -464,6 +464,10 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber }: { state: Cont
         </div>
         <div><label className={labelCls}>Дата</label><input type="date" className={inputCls} value={state.meta.contractDate} onChange={(e) => set((s) => { s.meta.contractDate = e.target.value })} /></div>
       </div>
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div><label className={labelCls}>Начало аренды</label><input type="date" className={inputCls} value={state.term.startDate} onChange={(e) => set((s) => { s.term.startDate = e.target.value })} /></div>
+        <div><label className={labelCls}>Окончание аренды</label><input type="date" className={inputCls} value={state.term.endDate} onChange={(e) => set((s) => { s.term.endDate = e.target.value })} /></div>
+      </div>
       <div className="mb-2"><label className={labelCls}>Город</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>
       <div className={secTitleCls}>Помещение</div>
       <div className="mb-2"><label className={labelCls}>Адрес здания</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
