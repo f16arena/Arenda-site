@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic"
 
 import { notFound } from "next/navigation"
-import { Building2, FileSignature, Check, X, Clock } from "lucide-react"
+import { Building2, FileSignature, Check, X, Clock, Lock } from "lucide-react"
+import { auth } from "@/auth"
 import { getContractByToken } from "@/app/actions/contract-workflow"
 import { SignActions } from "./sign-actions"
+import { DownloadSigned } from "./download-signed"
 import { LANDLORD } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
@@ -19,6 +21,36 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   const { token } = await params
   const contract = await getContractByToken(token)
   if (!contract) notFound()
+
+  // Гибрид-защита: если открыт залогиненный АРЕНДАТОР — это должен быть именно его договор.
+  // Иначе (чужой арендатор зашёл под своей сессией) подпись запрещаем. Анонимный доступ
+  // по токену остаётся (подпись только ЭЦП со сверкой ИИН/БИН), сотрудники-админы — смотрят.
+  const session = await auth()
+  const wrongTenant =
+    !!session?.user &&
+    session.user.role === "TENANT" &&
+    session.user.id !== contract.tenant.userId
+
+  if (wrongTenant) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 p-8 text-center">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-3">
+            <Lock className="h-6 w-6" />
+          </div>
+          <h1 className="text-lg font-semibold text-slate-900">Договор привязан к другому арендатору</h1>
+          <p className="text-sm text-slate-600 mt-2">
+            Вы вошли под другим аккаунтом. Выйдите из текущего аккаунта или откройте ссылку
+            в режиме, где вы не авторизованы, чтобы подписать договор предназначенной стороной.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/api/auth/signout" className="inline-block mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            Выйти из аккаунта
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   const isCompleted = contract.status === "SIGNED" || contract.status === "REJECTED"
   const tenantSigned = !!contract.signedByTenantAt
@@ -164,6 +196,27 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
         {/* Действия */}
         {!isCompleted && !tenantSigned && (
           <SignActions token={token} payloadB64={signingPayloadB64} />
+        )}
+
+        {/* Подписано обеими сторонами → даём скачать готовый документ */}
+        {contract.status === "SIGNED" && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Готовый документ</p>
+            <DownloadSigned token={token} />
+            <p className="mt-2 text-[11px] text-slate-400">
+              DOCX со штампами ЭЦП обеих сторон и QR-кодом для проверки подлинности.
+            </p>
+          </div>
+        )}
+
+        {/* Арендатор подписал, ждём арендодателя */}
+        {!isCompleted && tenantSigned && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
+            <p className="text-sm font-semibold text-emerald-900">Вы подписали договор</p>
+            <p className="text-xs text-emerald-700 mt-1">
+              Ожидаем подпись арендодателя. После неё здесь появится кнопка скачать готовый договор.
+            </p>
+          </div>
         )}
 
         {contract.status === "REJECTED" && contract.rejectionReason && (

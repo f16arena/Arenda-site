@@ -36,10 +36,11 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
     try {
       const result = await signWithNCALayer(payloadB64, "cms", { tsp: true })
       if (!result.ok) {
-        setError(result.error)
+        const msg = result.error || "NCALayer не вернул подпись (неизвестная ошибка)"
+        setError(msg)
         setPhase("error")
-        toast.error(result.error)
-        if (/NCALayer/i.test(result.error)) setShowHelp(true)
+        toast.error(msg)
+        if (/NCALayer/i.test(msg)) setShowHelp(true)
         return
       }
 
@@ -50,9 +51,12 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
           : await signContractByLandlordEcp(contractId ?? "", result.signature)
 
       if (!saved.ok) {
-        setError(saved.error)
+        // Здесь приходят важные причины: ИИН/БИН не совпал, сертификат истёк,
+        // подпись не соответствует тексту, не прошла криптопроверку НУЦ РК.
+        const msg = saved.error || "Не удалось сохранить подпись (причина не указана)"
+        setError(msg)
         setPhase("error")
-        toast.error(saved.error)
+        toast.error(msg)
         return
       }
 

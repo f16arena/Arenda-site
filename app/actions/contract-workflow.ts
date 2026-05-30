@@ -14,6 +14,7 @@ import { parseCmsSignature, validateSigner, signerDisplayName } from "@/lib/ncal
 import { verifyCmsWithNcanode } from "@/lib/ncanode"
 import { contractPayloadBase64, type ContractSigningFields } from "@/lib/contract-signing-payload"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
 
 // Жёсткие предупреждения, при которых подпись отклоняется (а не просто логируется).
 const BLOCKING_WARNINGS = ["Срок действия сертификата истёк", "Сертификат ещё не вступил в силу"]
@@ -46,6 +47,7 @@ async function recordContractEcpSignature(
   cmsB64: string,
   signerUserId: string | null,
   expectedTaxIds: string[] = [],
+  opts?: { requireIdentity?: boolean; partyLabel?: string },
 ): Promise<{ signatureId: string; signerName: string }> {
   const parsed = parseCmsSignature(cmsB64)
   if (!parsed.ok || !parsed.signer) {
@@ -69,10 +71,17 @@ async function recordContractEcpSignature(
   // стороной договора. Сверяем ТОЛЬКО когда ожидаемые реквизиты известны (12 цифр) —
   // если в базе их нет, не блокируем легитимную подпись.
   const expected = expectedTaxIds.map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
+  const label = opts?.partyLabel ?? "стороны договора"
+  // Строгий режим: реквизиты стороны ОБЯЗАНЫ быть заполнены — иначе сверить личность
+  // подписанта не с чем, и подпись недопустима (ТЗ 17.2.3).
+  if (opts?.requireIdentity && !expected.length) {
+    throw new Error(`Не заполнен ИИН/БИН ${label}: подпись невозможна, пока реквизиты не указаны (нужны для сверки личности подписанта)`)
+  }
   if (expected.length) {
+    // Для ТОО валиден И БИН организации, И ИИН директора — принимаем оба.
     const got = [signer.iin, signer.bin].filter((x): x is string => !!x)
     if (!got.some((g) => expected.includes(g))) {
-      throw new Error(`ЭЦП подписана не той стороной: ИИН/БИН сертификата (${got.join("/") || "не определён"}) не совпадает с реквизитами стороны договора`)
+      throw new Error(`ЭЦП подписана не той стороной: ИИН/БИН сертификата (${got.join("/") || "не определён"}) не совпадает с реквизитами ${label}. Подписать может только владелец ключа с этим ИИН/БИН.`)
     }
   }
 
@@ -245,8 +254,10 @@ export async function markContractSignedByLandlord(
 export async function getContractByToken(token: string) {
   if (!token || typeof token !== "string" || token.length < 20) return null
 
-  const contract = await db.contract.findUnique({
-    where: { signToken: token },
+  // findFirst + deletedAt:null — soft-delete НЕ перехватывает findUnique (lib/db.ts),
+  // поэтому фильтруем явно: удалённый арендодателем договор должен сразу пропасть по ссылке.
+  const contract = await db.contract.findFirst({
+    where: { signToken: token, deletedAt: null },
     select: {
       id: true,
       number: true,
@@ -266,6 +277,7 @@ export async function getContractByToken(token: string) {
         select: {
           companyName: true,
           legalType: true,
+          userId: true,
           user: { select: { name: true, email: true, organizationId: true } },
         },
       },
@@ -284,42 +296,49 @@ export async function getContractByToken(token: string) {
 }
 
 /**
+ * Публичное скачивание подписанного договора по токену (для арендатора).
+ * Доступно ТОЛЬКО когда договор подписан обеими сторонами (status SIGNED) и не удалён.
+ * Возвращает DOCX со штампами ЭЦП (тот же рендер, что у арендодателя).
+ */
+export async function getSignedContractDocxByToken(
+  token: string,
+): Promise<{ ok: true; fileName: string; base64: string } | { ok: false; error: string }> {
+  if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
+  const contract = await db.contract.findFirst({
+    where: { signToken: token, deletedAt: null },
+    select: {
+      id: true, number: true, status: true, builderState: true,
+      signedByLandlordAt: true, signedByTenantAt: true,
+    },
+  })
+  if (!contract) return { ok: false, error: "Договор не найден" }
+  if (contract.status !== "SIGNED") {
+    return { ok: false, error: "Скачивание будет доступно после подписи обеих сторон" }
+  }
+  try {
+    const buf = await buildSignedContractDocxBuffer(contract)
+    if (!buf) return { ok: false, error: "Договор создан вне конструктора — обратитесь к арендодателю за копией" }
+    const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
+    return { ok: true, fileName: `Договор_${num}_подписан.docx`, base64: buf.toString("base64") }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать документ" }
+  }
+}
+
+/**
  * Арендатор подписывает договор.
  */
 export async function signContractByTenant(
   token: string,
   signerName: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
-  const name = signerName.trim().slice(0, 200)
-  if (name.length < 3) return { ok: false, error: "Введите ФИО подписанта (минимум 3 символа)" }
-
-  const contract = await db.contract.findUnique({
-    where: { signToken: token },
-    select: { id: true, status: true, signedByLandlordAt: true },
-  })
-  if (!contract) return { ok: false, error: "Договор не найден" }
-  if (contract.status === "SIGNED" || contract.status === "REJECTED") {
-    return { ok: false, error: "Договор уже завершён" }
-  }
-
-  const now = new Date()
-  const newStatus = contract.signedByLandlordAt ? "SIGNED" : "SIGNED_BY_TENANT"
-  await db.contract.update({
-    where: { id: contract.id },
-    data: {
-      signedByTenantAt: now,
-      signedByTenantName: name,
-      status: newStatus,
-      ...(newStatus === "SIGNED" ? { signedAt: now } : {}),
-    },
-  })
-  if (newStatus === "SIGNED") {
-    await applySignedContractChanges(contract.id)
-  }
-
-  revalidatePath("/admin/documents")
-  return { ok: true }
+  // Простая подпись арендатором отключена: договор подписывается ТОЛЬКО
+  // квалифицированной ЭЦП НУЦ РК (через NCALayer) — это требование закрывает
+  // подпись «любым ФИО без сверки личности». Оставлено как защита на сервере
+  // на случай прямого вызова в обход UI.
+  void signerName
+  if (!token) return { ok: false, error: "Неверная ссылка" }
+  return { ok: false, error: "Договор подписывается только через ЭЦП (НУЦ РК). Простая подпись отключена." }
 }
 
 /**
@@ -334,8 +353,8 @@ export async function signContractByTenantEcp(
   if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
   if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
 
-  const contract = await db.contract.findUnique({
-    where: { signToken: token },
+  const contract = await db.contract.findFirst({
+    where: { signToken: token, deletedAt: null },
     select: {
       id: true,
       number: true,
@@ -377,6 +396,7 @@ export async function signContractByTenantEcp(
       cmsB64,
       null,
       [contract.tenant.bin ?? "", contract.tenant.iin ?? ""],
+      { requireIdentity: true, partyLabel: "арендатора" },
     )
 
     const now = new Date()
@@ -449,6 +469,7 @@ export async function signContractByLandlordEcp(
       cmsB64,
       userId,
       await landlordExpectedTaxIds(orgId),
+      { requireIdentity: true, partyLabel: "арендодателя (организации)" },
     )
 
     const now = new Date()

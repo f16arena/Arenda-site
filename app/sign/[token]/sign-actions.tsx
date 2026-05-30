@@ -1,31 +1,17 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Check, X, ShieldCheck, PenLine } from "lucide-react"
-import { signContractByTenant, rejectContractByTenant } from "@/app/actions/contract-workflow"
+import { Check, X, ShieldCheck } from "lucide-react"
+import { rejectContractByTenant } from "@/app/actions/contract-workflow"
 import { Button } from "@/components/ui/button"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
 
 export function SignActions({ token, payloadB64 }: { token: string; payloadB64?: string }) {
   const [pending, startTransition] = useTransition()
-  const [method, setMethod] = useState<"ecp" | "simple">(payloadB64 ? "ecp" : "simple")
-  const [signerName, setSignerName] = useState("")
-  const [agreed, setAgreed] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
   const [done, setDone] = useState<"signed" | "rejected" | null>(null)
   const [err, setErr] = useState<string | null>(null)
-
-  const submitSign = () => {
-    if (!agreed) { setErr("Подтвердите согласие с условиями"); return }
-    if (signerName.trim().length < 3) { setErr("Введите ФИО полностью"); return }
-    setErr(null)
-    startTransition(async () => {
-      const r = await signContractByTenant(token, signerName)
-      if (r.ok) { setDone("signed") }
-      else setErr(r.error)
-    })
-  }
 
   const submitReject = () => {
     if (rejectReason.trim().length < 5) { setErr("Опишите причину минимум в 5 символов"); return }
@@ -43,9 +29,10 @@ export function SignActions({ token, payloadB64 }: { token: string; payloadB64?:
         <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-3">
           <Check className="h-6 w-6" />
         </div>
-        <h2 className="text-lg font-semibold text-emerald-900">Договор подписан</h2>
+        <h2 className="text-lg font-semibold text-emerald-900">Договор подписан ЭЦП</h2>
         <p className="text-sm text-emerald-700 mt-1">
-          Спасибо! Арендодатель получит уведомление и подпишет в течение 1–2 рабочих дней.
+          Спасибо! Арендодатель получит уведомление и подпишет. После подписи обеих сторон
+          здесь появится кнопка скачать готовый договор — обновите страницу.
         </p>
       </div>
     )
@@ -67,42 +54,23 @@ export function SignActions({ token, payloadB64 }: { token: string; payloadB64?:
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-      <h2 className="text-lg font-semibold text-slate-900">Подписать договор</h2>
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-5 w-5 text-emerald-600" />
+        <h2 className="text-lg font-semibold text-slate-900">Подписать договор ЭЦП</h2>
+      </div>
 
-      {/* Выбор метода подписи */}
-      {payloadB64 && (
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => { setMethod("ecp"); setErr(null) }}
-            className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition ${
-              method === "ecp"
-                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <ShieldCheck className="h-4 w-4" /> ЭЦП (НУЦ РК)
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMethod("simple"); setErr(null) }}
-            className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-sm font-medium transition ${
-              method === "simple"
-                ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                : "border-slate-200 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <PenLine className="h-4 w-4" /> Простая подпись
-          </button>
+      <p className="text-sm text-slate-600">
+        Договор подписывается квалифицированной ЭЦП НУЦ РК через NCALayer — это полноценная
+        электронная подпись, юридически равная собственноручной. ИИН/БИН вашего ключа
+        сверяется с реквизитами арендатора в договоре.
+      </p>
+
+      {!payloadB64 ? (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+          Не удалось подготовить договор к подписи. Обновите страницу или обратитесь к арендодателю.
         </div>
-      )}
-
-      {method === "ecp" && payloadB64 ? (
+      ) : (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">
-            Подпишите квалифицированной ЭЦП НУЦ РК через NCALayer — это полноценная
-            электронная подпись, юридически равная собственноручной.
-          </p>
           <ContractEcpSign
             payloadB64={payloadB64}
             mode="tenant"
@@ -111,64 +79,17 @@ export function SignActions({ token, payloadB64 }: { token: string; payloadB64?:
             onSigned={() => setDone("signed")}
           />
           <button
-            onClick={() => setShowReject(true)}
+            onClick={() => setShowReject((v) => !v)}
             disabled={pending}
             className="w-full rounded-lg border border-red-200 hover:bg-red-50 text-red-600 py-2.5 text-sm font-medium"
           >
             Отклонить договор
           </button>
         </div>
-      ) : (
-        <>
-          <p className="text-sm text-slate-600">
-            Подписывая, вы соглашаетесь со всеми условиями договора. Это юридически действительно
-            как простая электронная подпись по статье 7 Закона РК «Об электронном документе и ЭЦП».
-          </p>
+      )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">ФИО подписанта *</label>
-            <input
-              value={signerName}
-              onChange={(e) => setSignerName(e.target.value)}
-              placeholder="Иванов Иван Иванович"
-              maxLength={200}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            />
-          </div>
-
-          <label className="flex items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-0.5 rounded"
-            />
-            <span className="text-slate-700">
-              Я ознакомился с текстом договора и согласен с его условиями
-            </span>
-          </label>
-
-          {err && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{err}</div>
-          )}
-
-          <div className="flex gap-2 pt-2">
-            <button
-              onClick={() => setShowReject(true)}
-              disabled={pending}
-              className="flex-1 rounded-lg border border-red-200 hover:bg-red-50 text-red-600 py-2.5 text-sm font-medium"
-            >
-              Отклонить
-            </button>
-            <button
-              onClick={submitSign}
-              disabled={pending || !agreed || signerName.length < 3}
-              className="flex-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 text-sm font-semibold disabled:opacity-60"
-            >
-              {pending ? "..." : "Подписать"}
-            </button>
-          </div>
-        </>
+      {err && (
+        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{err}</div>
       )}
 
       {showReject && (
