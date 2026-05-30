@@ -34,7 +34,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
     setError(null)
     setPhase("signing")
     try {
-      const result = await signWithNCALayer(payloadB64, "cms")
+      const result = await signWithNCALayer(payloadB64, "cms", { tsp: true })
       if (!result.ok) {
         setError(result.error)
         setPhase("error")

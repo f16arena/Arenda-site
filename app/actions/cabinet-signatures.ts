@@ -94,10 +94,15 @@ export async function signIssuedDocumentEcp(documentId: string, cmsB64: string):
       return { ok: false, error: `ЭЦП подписана не тем лицом: ИИН/БИН (${got.join("/") || "—"}) не совпадает с арендатором` }
     }
 
-    // Криптопроверка через NCANode (если настроен).
+    // Криптопроверка через NCANode (если настроен) + извлечение метки времени (TSP).
+    let tspGenTime: Date | null = null
+    let tspSerial: string | null = null
     if (process.env.NCANODE_SECRET) {
       const v = await verifyCmsWithNcanode(cmsB64)
       if (!v.valid) return { ok: false, error: "ЭЦП не прошла криптопроверку НУЦ РК: " + (v.reason ?? "") }
+      const t = v.signers.find((s) => s.tspGenTime)?.tspGenTime
+      if (t) { const d = new Date(t); if (!Number.isNaN(d.getTime())) tspGenTime = d }
+      tspSerial = v.signers.find((s) => s.tspSerial)?.tspSerial ?? null
     }
 
     const hash = crypto.createHash("sha256").update(Buffer.from(doc.fileBytes)).digest("base64")
@@ -116,6 +121,8 @@ export async function signIssuedDocumentEcp(documentId: string, cmsB64: string):
         validFrom: signer.validFrom ?? null,
         validTo: signer.validTo ?? null,
         algorithm: "ЭЦП НУЦ РК (NCALayer)",
+        tspGenTime,
+        tspSerial,
       },
     })
     revalidatePath("/cabinet/documents")

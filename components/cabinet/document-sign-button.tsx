@@ -16,7 +16,7 @@ export function DocumentSignButton({ documentId }: { documentId: string }) {
     setBusy("ecp")
     try {
       const fileB64 = await fetchAsBase64(`/api/documents/archive/${documentId}`)
-      const res = await signWithNCALayer(fileB64, "cms")
+      const res = await signWithNCALayer(fileB64, "cms", { tsp: true })
       if (!res.ok) { toast.error(res.error); return }
       const saved = await signIssuedDocumentEcp(documentId, res.signature)
       if (!saved.ok) { toast.error(saved.error ?? "Не удалось подписать"); return }

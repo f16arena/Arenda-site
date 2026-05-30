@@ -68,7 +68,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
 
   const signatures = await db.documentSignature.findMany({
     where: { documentId: id },
-    select: { id: true, signerName: true, signerIin: true, signerOrgBin: true, validFrom: true, validTo: true, algorithm: true, signedAt: true, signatureB64: true },
+    select: { id: true, signerName: true, signerIin: true, signerOrgBin: true, validFrom: true, validTo: true, algorithm: true, signedAt: true, signatureB64: true, tspGenTime: true, tspSerial: true },
     orderBy: { signedAt: "asc" },
   })
 
@@ -156,6 +156,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
                 {r.signerOrgBin && (<><dt>БИН</dt><dd className="text-right tabular-nums text-slate-900 dark:text-slate-100">{r.signerOrgBin}</dd></>)}
                 {r.signerIin && (<><dt>ИИН</dt><dd className="text-right tabular-nums text-slate-900 dark:text-slate-100">{maskIin(r.signerIin)}</dd></>)}
                 <dt className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Время</dt><dd className="text-right tabular-nums text-slate-900 dark:text-slate-100">{fmtDateTime(r.signedAt)}</dd>
+                {r.tspGenTime && (<><dt className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Метка времени (TSP)</dt><dd className="text-right tabular-nums text-emerald-700 dark:text-emerald-400">{fmtDateTime(r.tspGenTime)}</dd></>)}
                 <dt>Сертификат</dt><dd className={`text-right ${r.certExpired ? "text-amber-600" : "text-slate-900 dark:text-slate-100"}`}>{r.certExpired ? "истёк" : "действителен"} (до {r.validTo ? fmtDateTime(r.validTo) : "—"})</dd>
                 <dt>Алгоритм</dt><dd className="text-right text-slate-900 dark:text-slate-100">{r.algorithm}</dd>
               </dl>

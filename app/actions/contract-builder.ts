@@ -418,7 +418,7 @@ export async function generateSignedContractDocx(
     // Подписи сторон → штампы ЭЦП в блоке подписей (вместо строки «___ /ФИО/ М.П.»).
     const sigs = await db.documentSignature.findMany({
       where: { documentType: "CONTRACT", documentId: contract.id },
-      select: { signerName: true, signerIin: true, signerOrgBin: true, signedAt: true, algorithm: true },
+      select: { signerName: true, signerIin: true, signerOrgBin: true, signedAt: true, algorithm: true, tspGenTime: true },
       orderBy: { signedAt: "asc" },
     })
     const digits = (v?: string | null) => String(v ?? "").replace(/\D/g, "")
@@ -429,7 +429,7 @@ export async function generateSignedContractDocx(
     const signers: DocxSigners = {}
     for (const sg of sigs) {
       const tax = digits(sg.signerOrgBin) || digits(sg.signerIin)
-      const stamp = { name: sg.signerName, taxId: tax || undefined, signedAt: fmtDt(sg.signedAt), method: isEcp(sg.algorithm) ? "Документ подписан ЭЦП (НУЦ РК)" : "Документ подписан (простая подпись)" }
+      const stamp = { name: sg.signerName, taxId: tax || undefined, signedAt: fmtDt(sg.signedAt), tspTime: fmtDt(sg.tspGenTime), method: isEcp(sg.algorithm) ? "Документ подписан ЭЦП (НУЦ РК)" : "Документ подписан (простая подпись)" }
       if (tax && landlordIds.includes(tax)) signers.landlord = stamp
       else if (tax && tenantIds.includes(tax)) signers.tenant = stamp
     }

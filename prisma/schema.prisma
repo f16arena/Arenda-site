@@ -1215,6 +1215,10 @@ model DocumentSignature {
   validFrom      DateTime? @map("valid_from")
   validTo        DateTime? @map("valid_to")
   algorithm      String    @default("RSA-SHA256") @map("algorithm")
+  // Метка доверенного времени (TSP, RFC 3161) от TSA НУЦ РК — извлекается из CMS
+  // при верификации через NCANode. Доказывает момент подписания независимо от часов клиента.
+  tspGenTime     DateTime? @map("tsp_gen_time")
+  tspSerial      String?   @map("tsp_serial")
   signedAt       DateTime  @default(now()) @map("signed_at")
 
   @@index([organizationId])

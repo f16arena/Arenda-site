@@ -26,6 +26,8 @@ export interface NcanodeSigner {
   ocspStatus?: string
   /** метка доверенного времени (TSP), если есть */
   tspGenTime?: string
+  /** серийный номер TSP-токена */
+  tspSerial?: string
 }
 
 export interface NcanodeVerifyResult {
@@ -82,6 +84,7 @@ function normalize(json: RawResponse): NcanodeVerifyResult {
       issuerCommonName: iss.commonName ?? iss.cn,
       ocspStatus: s?.ocsp?.status,
       tspGenTime: s?.tsp?.genTime,
+      tspSerial: s?.tsp?.serialNumber,
     }
   })
   return { valid, reason: valid ? undefined : json?.message ?? json?.error ?? "Подпись недействительна", signers, raw: json }

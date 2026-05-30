@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache"
 import { assertContractInOrg } from "@/lib/scope-guards"
 import { applySignedContractChanges } from "@/lib/contract-addendum"
 import { parseCmsSignature, validateSigner, signerDisplayName } from "@/lib/ncalayer-cms"
+import { verifyCmsWithNcanode } from "@/lib/ncanode"
 
 export interface SaveSignatureInput {
   documentType: "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
@@ -65,6 +66,16 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
     const commonName = signerDisplayName(signer)
     const warnings = validateSigner(signer)
 
+    // Метка доверенного времени (TSP) — извлекаем через NCANode, если настроен.
+    let tspGenTime: Date | null = null
+    let tspSerial: string | null = null
+    if (process.env.NCANODE_SECRET) {
+      const v = await verifyCmsWithNcanode(input.signatureB64)
+      const t = v.signers.find((s) => s.tspGenTime)?.tspGenTime
+      if (t) { const d = new Date(t); if (!Number.isNaN(d.getTime())) tspGenTime = d }
+      tspSerial = v.signers.find((s) => s.tspSerial)?.tspSerial ?? null
+    }
+
     const sig = await db.documentSignature.create({
       data: {
         organizationId: orgId,
@@ -80,6 +91,8 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
         certPemB64: signer?.certDerB64 ?? input.certPemB64,
         validFrom: signer?.validFrom ?? null,
         validTo: signer?.validTo ?? null,
+        tspGenTime,
+        tspSerial,
       },
       select: { id: true },
     })

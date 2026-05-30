@@ -52,7 +52,7 @@ function clausePara(num: string, html: string, sub?: string, indent = 0): Paragr
 }
 
 /** Штамп ЭЦП-подписи стороны (вместо строки «___ /ФИО/ М.П.»), если сторона подписала. */
-export interface DocxSigner { name: string; taxId?: string; signedAt?: string; certSerial?: string; method?: string }
+export interface DocxSigner { name: string; taxId?: string; signedAt?: string; certSerial?: string; method?: string; tspTime?: string }
 export type DocxSigners = { landlord?: DocxSigner; tenant?: DocxSigner }
 
 function requisitesParagraphs(p: Party, stamp?: DocxSigner): Paragraph[] {
@@ -73,6 +73,7 @@ function requisitesParagraphs(p: Party, stamp?: DocxSigner): Paragraph[] {
     paras.push(new Paragraph({ children: [new TextRun({ text: "✔ " + (stamp.method ?? "Документ подписан ЭЦП (НУЦ РК)"), bold: true, size: 18, color: "1A7F37" })], spacing: { after: 16 } }))
     paras.push(new Paragraph({ children: [new TextRun({ text: `${stamp.name}${stamp.taxId ? `, ИИН/БИН ${stamp.taxId}` : ""}`, size: 16, color: "444444" })], spacing: { after: 8 } }))
     if (stamp.signedAt) paras.push(new Paragraph({ children: [new TextRun({ text: `Время подписания: ${stamp.signedAt}`, size: 16, color: "444444" })], spacing: { after: 8 } }))
+    if (stamp.tspTime) paras.push(new Paragraph({ children: [new TextRun({ text: `Метка времени (TSP, НУЦ РК): ${stamp.tspTime}`, size: 16, color: "444444" })], spacing: { after: 8 } }))
     if (stamp.certSerial) paras.push(new Paragraph({ children: [new TextRun({ text: `Сертификат №: ${stamp.certSerial}`, size: 16, color: "444444" })] }))
   } else {
     paras.push(new Paragraph({ children: [new TextRun({ text: "_______________ /" + (p.signatory || "________") + "/ М.П.", size: 20 })] }))

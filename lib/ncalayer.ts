@@ -42,24 +42,34 @@ interface NcaWsMessage {
   // Разные версии NCALayer отвечают по-разному:
   //  - commonUtils: { code: "200"|"500", responseObject?: ..., result?: ..., message? }
   //  - новые модули: { status: boolean, result?: ..., errorCode?, message? }
+  //  - basics (sign): { status: true, body: { result: [<base64Cms>] } }
   status?: boolean
   code?: string
-  result?: string | { signature?: string; certificates?: string[] }
+  result?: string | string[] | { signature?: string; certificates?: string[] }
   responseObject?: string | { signature?: string; certificates?: string[] }
+  body?: { result?: string | string[] }
   errorCode?: string
   message?: string
 }
 
 /** Достаёт base64-CMS из ответа NCALayer любого из известных форматов. */
 function extractSignature(msg: NcaWsMessage): string | null {
-  for (const candidate of [msg.result, msg.responseObject]) {
+  // basics-модуль (TSP): подпись лежит в body.result (строка или массив).
+  for (const candidate of [msg.body?.result, msg.result, msg.responseObject]) {
     if (typeof candidate === "string" && candidate.length > 0) return candidate
-    if (candidate && typeof candidate === "object" && candidate.signature) {
+    if (Array.isArray(candidate)) {
+      const first = candidate.find((x) => typeof x === "string" && x.length > 0)
+      if (first) return first
+    }
+    if (candidate && typeof candidate === "object" && !Array.isArray(candidate) && candidate.signature) {
       return candidate.signature
     }
   }
   return null
 }
+
+// Коды, при которых повторять подпись бессмысленно (пользователь сам прервал/ошибся).
+const NON_RETRYABLE_CODES = new Set(["USER_CANCELLED", "WRONG_PASSWORD", "EMPTY_KEY_STORE"])
 
 /**
  * Открыть WebSocket к NCALayer. Пробует wss:// потом ws://.
@@ -87,88 +97,118 @@ function connect(): Promise<WebSocket> {
   })
 }
 
+// Все известные хранилища ключей (для basics-модуля): файл .p12 + аппаратные токены.
+const ALL_STORAGES = ["PKCS12", "AKKaztoken", "AKKONAITOKEN", "ETOKEN72K", "JaCarta", "AKEUSB"]
+
+/** Один RPC-вызов к NCALayer: открыть ws, отправить запрос, дождаться ответа. */
+function runSign(request: unknown): Promise<NcaSignResponse> {
+  return new Promise<NcaSignResponse>((resolve) => {
+    connect().then((ws) => {
+      const timeout = setTimeout(() => {
+        try { ws.close() } catch { /* noop */ }
+        resolve({ ok: false, error: "Превышено время ожидания. Введите PIN в окне NCALayer и попробуйте снова." })
+      }, TIMEOUT_MS)
+
+      ws.onmessage = (event) => {
+        clearTimeout(timeout)
+        try {
+          const msg = JSON.parse(event.data) as NcaWsMessage
+          try { ws.close() } catch { /* noop */ }
+
+          // Успех: code === "200" ИЛИ status === true
+          const isSuccess = msg.code === "200" || msg.status === true
+          if (!isSuccess) {
+            const code = msg.errorCode ?? msg.code ?? "unknown"
+            const human =
+              code === "USER_CANCELLED" ? "Подписание отменено пользователем" :
+              code === "EMPTY_KEY_STORE" ? "Файл сертификата (ключ) не найден" :
+              code === "WRONG_PASSWORD" ? "Неверный пароль/PIN к ключу" :
+              msg.message ?? "Ошибка NCALayer"
+            resolve({ ok: false, error: human, code })
+            return
+          }
+
+          // Полный CMS (сертификат подписанта внутри) — сервер распарсит его сам.
+          const signature = extractSignature(msg)
+          if (signature) {
+            resolve({ ok: true, signature, signerCert: signature, signerInfo: {} })
+            return
+          }
+          resolve({ ok: false, error: "Неожиданный формат ответа NCALayer (нет подписи)", code: "NO_SIGNATURE" })
+        } catch (e) {
+          resolve({ ok: false, error: e instanceof Error ? e.message : "JSON parse error", code: "PARSE_ERROR" })
+        }
+      }
+
+      ws.onerror = () => {
+        clearTimeout(timeout)
+        resolve({ ok: false, error: "Ошибка соединения с NCALayer" })
+      }
+
+      ws.send(JSON.stringify(request))
+    }).catch((e) => {
+      resolve({ ok: false, error: e instanceof Error ? e.message : "Не удалось подключиться к NCALayer" })
+    })
+  })
+}
+
 /**
  * Подписать строку (base64) через NCALayer.
  * Возвращает signed CMS (PKCS#7) с цепочкой сертификатов в base64.
  *
  * @param dataB64 Данные для подписи в base64 (можно подписать сам документ, либо его SHA-256 хеш)
- * @param signMode "signRaw" подписывает byte-stream напрямую; "signXml" — XML с XMLDSig (для ЭСФ)
+ * @param signMode "cms" подписывает byte-stream → CMS; "raw" — XML с XMLDSig (для ЭСФ)
+ * @param opts.tsp Запросить встроенную метку доверенного времени (TSP, НУЦ РК). Использует
+ *        модуль kz.gov.pki.knca.basics с tsaProfile; при неуспехе автоматически откатывается
+ *        на проверенный commonUtils без TSP, чтобы подпись никогда не падала из-за TSP.
  */
 export async function signWithNCALayer(
   dataB64: string,
   signMode: "raw" | "cms" = "cms",
+  opts?: { tsp?: boolean },
 ): Promise<NcaSignResponse> {
   if (typeof window === "undefined") {
     return { ok: false, error: "NCALayer работает только в браузере" }
   }
 
-  let ws: WebSocket
-  try {
-    ws = await connect()
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подключиться к NCALayer" }
+  // XML-подпись (ЭСФ) — без TSP, прежний путь.
+  if (signMode === "raw") {
+    return runSign({
+      module: "kz.gov.pki.knca.commonUtils",
+      method: "signXml",
+      args: ["PKCS12", "SIGNATURE", dataB64, "", ""],
+    })
   }
 
-  const request = signMode === "cms"
-    ? {
-        module: "kz.gov.pki.knca.commonUtils",
-        method: "createCMSSignatureFromBase64",
-        args: [
-          "PKCS12",         // Storage type — PKCS12 (.p12 файл) или AKKaztoken / EToken
-          "SIGNATURE",      // Назначение — подпись (не аутентификация)
-          dataB64,
-          true,             // attached signature (документ внутри подписи)
-        ],
-      }
-    : {
-        module: "kz.gov.pki.knca.commonUtils",
-        method: "signXml",
-        args: ["PKCS12", "SIGNATURE", dataB64, "", ""],
-      }
+  // CMS со встроенным TSP-токеном через basics-модуль (CAdES-T).
+  if (opts?.tsp) {
+    const tsp = await runSign({
+      module: "kz.gov.pki.knca.basics",
+      method: "sign",
+      args: {
+        allowedStorages: ALL_STORAGES,
+        format: "cms",
+        data: dataB64,
+        signingParams: { decode: false, encapsulate: true, digested: false, tsaProfile: {} },
+        signerParams: { extKeyUsageOids: ["1.3.6.1.5.5.7.3.4"] }, // OID назначения «подпись»
+        locale: "ru",
+      },
+    })
+    // Пользователь сам прервал/ошибся ключом — не откатываемся, показываем как есть.
+    if (tsp.ok || (tsp.code && NON_RETRYABLE_CODES.has(tsp.code))) return tsp
+    // Старый NCALayer без basics/TSA — тихо откатываемся на обычный CMS.
+  }
 
-  return new Promise<NcaSignResponse>((resolve) => {
-    const timeout = setTimeout(() => {
-      try { ws.close() } catch { /* noop */ }
-      resolve({ ok: false, error: "Превышено время ожидания. Введите PIN в окне NCALayer и попробуйте снова." })
-    }, TIMEOUT_MS)
-
-    ws.onmessage = (event) => {
-      clearTimeout(timeout)
-      try {
-        const msg = JSON.parse(event.data) as NcaWsMessage
-        try { ws.close() } catch { /* noop */ }
-
-        // Успех: code === "200" ИЛИ status === true
-        const isSuccess = msg.code === "200" || msg.status === true
-        if (!isSuccess) {
-          const code = msg.errorCode ?? msg.code ?? "unknown"
-          const human =
-            code === "USER_CANCELLED" ? "Подписание отменено пользователем" :
-            code === "EMPTY_KEY_STORE" ? "Файл сертификата (ключ) не найден" :
-            code === "WRONG_PASSWORD" ? "Неверный пароль/PIN к ключу" :
-            msg.message ?? "Ошибка NCALayer"
-          resolve({ ok: false, error: human, code })
-          return
-        }
-
-        // Полный CMS (сертификат подписанта внутри) — сервер распарсит его сам.
-        const signature = extractSignature(msg)
-        if (signature) {
-          resolve({ ok: true, signature, signerCert: signature, signerInfo: {} })
-          return
-        }
-        resolve({ ok: false, error: "Неожиданный формат ответа NCALayer (нет подписи)" })
-      } catch (e) {
-        resolve({ ok: false, error: e instanceof Error ? e.message : "JSON parse error" })
-      }
-    }
-
-    ws.onerror = () => {
-      clearTimeout(timeout)
-      resolve({ ok: false, error: "Ошибка соединения с NCALayer" })
-    }
-
-    ws.send(JSON.stringify(request))
+  // Обычная CMS-подпись (attached), без TSP.
+  return runSign({
+    module: "kz.gov.pki.knca.commonUtils",
+    method: "createCMSSignatureFromBase64",
+    args: [
+      "PKCS12",         // Storage type — PKCS12 (.p12 файл) или AKKaztoken / EToken
+      "SIGNATURE",      // Назначение — подпись (не аутентификация)
+      dataB64,
+      true,             // attached signature (документ внутри подписи)
+    ],
   })
 }
 

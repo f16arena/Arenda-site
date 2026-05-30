@@ -32,7 +32,7 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
       const hashB64 = await sha256Base64(Uint8Array.from(atob(fileB64), (c) => c.charCodeAt(0)).buffer as ArrayBuffer)
 
       setPhase("signing")
-      const result = await signWithNCALayer(fileB64, "cms")
+      const result = await signWithNCALayer(fileB64, "cms", { tsp: true })
       if (!result.ok) {
         setError(result.error)
         setPhase("error")

@@ -79,11 +79,17 @@ async function recordContractEcpSignature(
   // Строгая криптопроверка через NCANode (KalkanCrypt): ГОСТ-2015 + цепочка до НУЦ РК
   // + отзыв (OCSP). Включается ТОЛЬКО если NCANode настроен (NCANODE_SECRET) — иначе
   // (dev/preview без верификатора) полагаемся на pure-JS разбор + привязку выше.
+  // Метка доверенного времени (TSP, RFC 3161), если NCALayer встроил её в CMS.
+  let tspGenTime: Date | null = null
+  let tspSerial: string | null = null
   if (process.env.NCANODE_SECRET) {
     const v = await verifyCmsWithNcanode(cmsB64)
     if (!v.valid) {
       throw new Error("ЭЦП не прошла криптопроверку НУЦ РК: " + (v.reason ?? "подпись недействительна"))
     }
+    const t = v.signers.find((s) => s.tspGenTime)?.tspGenTime
+    if (t) { const d = new Date(t); if (!Number.isNaN(d.getTime())) tspGenTime = d }
+    tspSerial = v.signers.find((s) => s.tspSerial)?.tspSerial ?? null
   }
 
   const signerName = signerDisplayName(signer) ?? "Подписант ЭЦП"
@@ -104,6 +110,8 @@ async function recordContractEcpSignature(
       validFrom: signer.validFrom ?? null,
       validTo: signer.validTo ?? null,
       algorithm: "GOST/RSA (NCALayer)",
+      tspGenTime,
+      tspSerial,
     },
     select: { id: true },
   })
