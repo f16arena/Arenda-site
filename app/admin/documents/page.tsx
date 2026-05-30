@@ -247,7 +247,7 @@ export default async function DocumentsPage({
             initialPeriod={period ?? ""}
           />
         }
-        create={canCreateDocuments ? <DocumentCreate initialTab={createTab} initialTenantId={createTenantId} /> : null}
+        create={canCreateDocuments ? <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} /> : null}
       />
     </div>
   )
