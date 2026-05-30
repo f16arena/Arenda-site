@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, LockKeyhole, PencilLine } from "lucide-react"
+import Link from "next/link"
+import { LockKeyhole, FileSignature } from "lucide-react"
 import { toast } from "sonner"
 import { updateTenantRentalTerms } from "@/app/actions/tenant"
+import { formatMoney } from "@/lib/utils"
 import type { RentMode } from "@/lib/rent"
 
 type RentalTermsInitial = {
@@ -44,15 +46,22 @@ function initialRentMode(initial: RentalTermsInitial): RentMode {
   return "FLOOR"
 }
 
+/** Строка «значение» для read-only режима. */
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-100 py-2 text-sm dark:border-slate-800 last:border-0">
+      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className="text-right font-medium text-slate-900 dark:text-slate-100 tabular-nums">{value}</dd>
+    </div>
+  )
+}
+
 export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Props) {
   const router = useRouter()
-  const [addendumMode, setAddendumMode] = useState(false)
   const [rentMode, setRentMode] = useState<RentMode>(() => initialRentMode(initial))
   const [customRate, setCustomRate] = useState(() => initialRentMode(initial) === "RATE" ? String(initial.customRate ?? "") : "")
   const [fixedMonthlyRent, setFixedMonthlyRent] = useState(() => initialRentMode(initial) === "FIXED" ? String(initial.fixedMonthlyRent ?? "") : "")
   const [pending, startTransition] = useTransition()
-  const termsDisabled = locked && !addendumMode
-  const today = new Date().toISOString().slice(0, 10)
 
   const changeRentMode = (nextMode: RentMode) => {
     setRentMode(nextMode)
@@ -63,11 +72,8 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
   const submit = (formData: FormData) => {
     startTransition(async () => {
       try {
-        const result = await updateTenantRentalTerms(tenantId, formData)
-        toast.success(result.addendumCreated
-          ? "Условия сохранены, доп. соглашение создано"
-          : "Условия аренды сохранены")
-        setAddendumMode(false)
+        await updateTenantRentalTerms(tenantId, formData)
+        toast.success("Условия аренды сохранены")
         router.refresh()
       } catch (error) {
         toast.error(errorMessage(error))
@@ -75,34 +81,68 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
     })
   }
 
-  return (
-    <form action={submit} className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-      <input type="hidden" name="rentMode" value={rentMode} />
-      {locked && (
-        <div className="md:col-span-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+  // ── Закреплено договором → только просмотр; изменения только через ДС. ──────────
+  if (locked) {
+    const mode = initialRentMode(initial)
+    const methodLabel = mode === "FIXED" ? "Фиксированная сумма" : mode === "RATE" ? "Индивидуальная ставка ₸/м²" : "По ставке этажа"
+    const rentValue = mode === "FIXED"
+      ? `${formatMoney(initial.fixedMonthlyRent ?? 0)}/мес`
+      : mode === "RATE"
+        ? `${formatMoney(initial.customRate ?? 0)}/м²`
+        : "—"
+    return (
+      <div className="p-5 space-y-4">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex gap-2">
-              <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
+              <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
               <div>
-                <p className="font-medium">Условия аренды закреплены договором</p>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Условия аренды закреплены договором</p>
                 <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
-                  {lockedReason ?? "Для изменения условий нужно оформить дополнительное соглашение."}
+                  {lockedReason ?? "Эти данные берутся из договора. Изменить их можно только дополнительным соглашением (ДС) с подписью арендатора."}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setAddendumMode((value) => !value)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-900 px-3 py-2 text-xs font-medium text-white hover:bg-amber-800 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200"
+            <Link
+              href={`/admin/documents?create=addendum&tenantId=${tenantId}`}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-900 px-3 py-2 text-xs font-medium text-white hover:bg-amber-800 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200"
             >
-              <PencilLine className="h-3.5 w-3.5" />
-              {addendumMode ? "Отменить" : "Изменить по доп. соглашению"}
-            </button>
+              <FileSignature className="h-3.5 w-3.5" />
+              Изменить через доп. соглашение
+            </Link>
           </div>
         </div>
-      )}
 
-      <fieldset className="md:col-span-3" disabled={termsDisabled || pending}>
+        <dl className="rounded-lg border border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
+          <Row label="Способ расчёта" value={methodLabel} />
+          {mode !== "FLOOR" && <Row label="Стоимость аренды" value={rentValue} />}
+          <Row label="Уборка" value={initial.needsCleaning ? `${formatMoney(initial.cleaningFee)}/мес` : "не требуется"} />
+          <Row label="День оплаты" value={`${initial.paymentDueDay} числа`} />
+          <Row label="Пеня за просрочку" value={initial.penaltyPercent > 0 ? `${initial.penaltyPercent}% в день` : "без пени"} />
+          {typeof initial.depositAmount === "number" && initial.depositAmount > 0 && (
+            <Row label="Депозит" value={formatMoney(initial.depositAmount)} />
+          )}
+          {typeof initial.rentFreeMonths === "number" && initial.rentFreeMonths > 0 && (
+            <Row label="Каникулы" value={`${initial.rentFreeMonths} мес.`} />
+          )}
+          {initial.moveInDate && (
+            <Row label="Дата заселения" value={new Date(initial.moveInDate).toLocaleDateString("ru-RU")} />
+          )}
+        </dl>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500">
+          Значения подтягиваются из договора и применённых ДС. Прямое редактирование отключено —
+          любое изменение оформляется доп. соглашением и вступает в силу после подписи арендатора.
+        </p>
+      </div>
+    )
+  }
+
+  // ── Договора ещё нет → первичная настройка условий вручную. ────────────────────
+  return (
+    <form action={submit} className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <input type="hidden" name="rentMode" value={rentMode} />
+
+      <fieldset className="md:col-span-3" disabled={pending}>
         <legend className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Способ расчёта аренды
         </legend>
@@ -114,11 +154,11 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           ] as const).map(([mode, label, hint]) => (
             <label
               key={mode}
-              className={`flex cursor-pointer flex-col items-start rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed ${
+              className={`flex cursor-pointer flex-col items-start rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
                 rentMode === mode
                   ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-200"
                   : "border-slate-200 text-slate-600 hover:border-slate-300 dark:border-slate-800 dark:text-slate-300"
-              } ${termsDisabled || pending ? "cursor-not-allowed opacity-60" : ""}`}
+              }`}
             >
               <input
                 type="radio"
@@ -126,7 +166,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
                 value={mode}
                 checked={rentMode === mode}
                 onChange={() => changeRentMode(mode as RentMode)}
-                disabled={termsDisabled || pending}
+                disabled={pending}
                 className="sr-only"
               />
               <span>{label}</span>
@@ -135,7 +175,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           ))}
         </div>
         <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-          Аренда целого этажа по фиксированной сумме — в отдельной секции ниже («Аренда целого этажа»).
+          После подписания договора эти условия закрепляются и меняются только через ДС.
         </p>
       </fieldset>
 
@@ -149,7 +189,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           value={customRate}
           onChange={(event) => setCustomRate(event.target.value)}
           placeholder="Если отличается от этажной"
-          disabled={termsDisabled || pending || rentMode !== "RATE"}
+          disabled={pending || rentMode !== "RATE"}
           required={rentMode === "RATE"}
           className={inputClass}
         />
@@ -164,7 +204,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           value={fixedMonthlyRent}
           onChange={(event) => setFixedMonthlyRent(event.target.value)}
           placeholder="Если договор на сумму"
-          disabled={termsDisabled || pending || rentMode !== "FIXED"}
+          disabled={pending || rentMode !== "FIXED"}
           required={rentMode === "FIXED"}
           className={inputClass}
         />
@@ -172,9 +212,6 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           Нельзя указать одновременно со ставкой за м²
         </p>
       </div>
-      {/* Дата фактического заселения — может отличаться от даты начала договора
-          (договор подписан 1 апреля, заехал 1 мая). Если пусто — берётся
-          contractStart. От этой даты отсчитываются каникулы и proration. */}
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Дата заселения
@@ -183,7 +220,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           name="moveInDate"
           type="date"
           defaultValue={initial.moveInDate ?? ""}
-          disabled={termsDisabled || pending}
+          disabled={pending}
           className={inputClass}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
@@ -191,8 +228,6 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
         </p>
       </div>
 
-      {/* Каникулы (rent-free months) — первые N месяцев после moveInDate
-          не начисляются. Используется для ремонта / заселения. */}
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Каникулы, мес.
@@ -204,7 +239,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           max={24}
           step={1}
           defaultValue={initial.rentFreeMonths ?? 0}
-          disabled={termsDisabled || pending}
+          disabled={pending}
           className={inputClass}
           placeholder="0"
         />
@@ -213,8 +248,6 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
         </p>
       </div>
 
-      {/* Депозит (security deposit) — сумма гарантийного депозита. Если NULL —
-          подставляется = monthlyRent (1 месяц аренды). */}
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Депозит ₸
@@ -225,7 +258,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           min={0}
           step="0.01"
           defaultValue={initial.depositAmount ?? ""}
-          disabled={termsDisabled || pending}
+          disabled={pending}
           className={inputClass}
           placeholder="по умолчанию = месячная аренда"
         />
@@ -241,7 +274,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           type="number"
           step="0.01"
           defaultValue={initial.cleaningFee}
-          disabled={termsDisabled || pending}
+          disabled={pending}
           className={inputClass}
         />
       </div>
@@ -251,7 +284,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
             name="needsCleaning"
             type="checkbox"
             defaultChecked={initial.needsCleaning}
-            disabled={termsDisabled || pending}
+            disabled={pending}
             className="rounded border-slate-300 disabled:cursor-not-allowed"
           />
           Требуется уборка
@@ -268,7 +301,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           min={1}
           max={31}
           defaultValue={initial.paymentDueDay}
-          disabled={termsDisabled || pending}
+          disabled={pending}
           className={inputClass}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
@@ -286,63 +319,21 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           min={0}
           max={100}
           defaultValue={initial.penaltyPercent}
-          disabled={termsDisabled || pending}
+          disabled={pending}
           className={inputClass}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
           При просрочке (0 = без пени)
         </p>
       </div>
-      {locked && addendumMode && (
-        <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-          <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-              № доп. соглашения
-            </label>
-            <input
-              name="addendumNumber"
-              required
-              maxLength={80}
-              placeholder="ДС-001"
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-              Дата соглашения
-            </label>
-            <input
-              name="addendumDate"
-              type="date"
-              required
-              defaultValue={today}
-              className={inputClass}
-            />
-          </div>
-          <div className="md:col-span-3">
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-              Изменения
-            </label>
-            <textarea
-              name="addendumChanges"
-              required
-              minLength={10}
-              rows={3}
-              placeholder="Например: с 01.06.2026 аренда составляет 650 000 ₸/мес, остальные условия без изменений."
-              className={`${inputClass} resize-none`}
-            />
-          </div>
-        </div>
-      )}
 
       <div className="md:col-span-3 flex justify-end">
         <button
-          type={termsDisabled ? "button" : "submit"}
-          disabled={termsDisabled || pending}
+          type="submit"
+          disabled={pending}
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-slate-700"
         >
-          {locked && addendumMode && <FileText className="h-4 w-4" />}
-          {pending ? "Сохранение..." : locked && addendumMode ? "Сохранить и создать доп. соглашение" : termsDisabled ? "Заблокировано" : "Сохранить"}
+          {pending ? "Сохранение..." : "Сохранить"}
         </button>
       </div>
     </form>

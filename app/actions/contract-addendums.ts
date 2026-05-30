@@ -172,3 +172,92 @@ export async function createTerminationAddendum(
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать соглашение о расторжении" }
   }
 }
+
+export interface RentalTermsChange {
+  customRate?: number | null
+  fixedMonthlyRent?: number | null
+  cleaningFee?: number | null
+  needsCleaning?: boolean | null
+  paymentDueDay?: number | null
+  penaltyPercent?: number | null
+}
+
+function money(v: number | null | undefined): string {
+  return typeof v === "number" ? new Intl.NumberFormat("ru-RU").format(v) + " ₸" : "—"
+}
+
+/**
+ * Изменение условий аренды через ДС: создаёт ADDENDUM (RENTAL_TERMS) и отправляет
+ * арендатору. После подписания applySignedContractChanges применит новые условия
+ * к арендатору (ставка/сумма/уборка/день оплаты/пеня).
+ */
+export async function createRentalTermsAddendum(
+  contractId: string,
+  terms: RentalTermsChange,
+  effectiveDateStr?: string,
+): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+
+    // Должна быть указана хотя бы одна стоимость аренды (ставка ИЛИ фикс. сумма).
+    const hasRate = typeof terms.customRate === "number" && terms.customRate > 0
+    const hasFixed = typeof terms.fixedMonthlyRent === "number" && terms.fixedMonthlyRent > 0
+    if (hasRate && hasFixed) return { ok: false, error: "Укажите либо ставку за м², либо фикс. сумму — не одновременно" }
+    if (!hasRate && !hasFixed) return { ok: false, error: "Укажите новую стоимость аренды (ставку за м² или фикс. сумму)" }
+
+    const r = await loadParent(contractId, orgId)
+    if ("error" in r) return { ok: false, error: r.error }
+    const parent = r.contract
+
+    const eff = effectiveDateStr ? new Date(effectiveDateStr) : new Date()
+    if (Number.isNaN(eff.getTime())) return { ok: false, error: "Укажите корректную дату вступления в силу" }
+
+    const number = await nextAddendumNumber(parent.id, parent.number)
+    const today = new Date()
+    const newTerms = {
+      customRate: hasRate ? terms.customRate : null,
+      fixedMonthlyRent: hasFixed ? terms.fixedMonthlyRent : null,
+      ...(typeof terms.cleaningFee === "number" ? { cleaningFee: terms.cleaningFee } : {}),
+      ...(typeof terms.needsCleaning === "boolean" ? { needsCleaning: terms.needsCleaning } : {}),
+      ...(typeof terms.paymentDueDay === "number" ? { paymentDueDay: terms.paymentDueDay } : {}),
+      ...(typeof terms.penaltyPercent === "number" ? { penaltyPercent: terms.penaltyPercent } : {}),
+    }
+    const rentLine = hasFixed
+      ? `аренда составляет ${money(terms.fixedMonthlyRent)}/мес (фиксированная сумма)`
+      : `ставка аренды составляет ${money(terms.customRate)}/м² в месяц`
+    const content = [
+      `ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ № ${number}`,
+      `к Договору аренды № ${parent.number}${parent.startDate ? ` от ${fmt(parent.startDate)}` : ""}`,
+      "",
+      `г. ${today.toLocaleDateString("ru-RU")}`,
+      "",
+      `Арендодатель и Арендатор (${parent.tenant.companyName}) договорились о нижеследующем:`,
+      `1. С ${fmt(eff)} ${rentLine}.`,
+      ...(typeof terms.cleaningFee === "number" ? [`2. Стоимость уборки: ${money(terms.cleaningFee)}/мес.`] : []),
+      `${typeof terms.cleaningFee === "number" ? "3" : "2"}. Остальные условия Договора остаются без изменений.`,
+      `${typeof terms.cleaningFee === "number" ? "4" : "3"}. Настоящее соглашение является неотъемлемой частью Договора и составлено в двух экземплярах.`,
+    ].join("\n")
+
+    const addendum = await db.contract.create({
+      data: {
+        tenantId: parent.tenantId,
+        number,
+        type: "ADDENDUM",
+        content,
+        parentContractId: parent.id,
+        changeKind: "RENTAL_TERMS",
+        changePayload: { newTerms },
+        effectiveDate: eff,
+        startDate: today,
+        status: "DRAFT",
+      },
+      select: { id: true },
+    })
+
+    const sent = await sendContractForSignature(addendum.id)
+    return { ok: true, contractId: addendum.id, signUrl: sent.ok ? sent.signUrl : undefined }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать ДС об изменении условий" }
+  }
+}

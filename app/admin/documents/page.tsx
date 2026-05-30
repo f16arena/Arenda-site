@@ -44,7 +44,7 @@ export default async function DocumentsPage({
   const canDeleteSignedDocuments = isOwnerLikeUser && allowedCapabilities.has("documents.deleteSigned")
 
   const { type, q, period, create, tenantId: createTenantId } = await searchParams
-  const CREATE_TABS = ["contract", "avr", "invoice", "reconciliation"] as const
+  const CREATE_TABS = ["contract", "addendum", "avr", "invoice", "reconciliation"] as const
   const createTab = (CREATE_TABS as readonly string[]).includes(create ?? "")
     ? (create as (typeof CREATE_TABS)[number])
     : "contract"
