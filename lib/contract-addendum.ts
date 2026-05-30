@@ -43,6 +43,7 @@ export async function applySignedContractChanges(contractId: string) {
         changeKind: true,
         changePayload: true,
         appliedAt: true,
+        parentContractId: true,
       },
     })
 
@@ -50,9 +51,37 @@ export async function applySignedContractChanges(contractId: string) {
     if (contract.type !== "ADDENDUM") return { applied: false, reason: "not_addendum" }
     if (contract.status !== "SIGNED") return { applied: false, reason: "not_signed" }
     if (contract.appliedAt) return { applied: false, reason: "already_applied" }
-    if (contract.changeKind !== "RENTAL_TERMS") return { applied: false, reason: "unsupported_change" }
 
     const payload = asRecord(contract.changePayload)
+
+    // Продление срока: меняем дату окончания родительского договора и арендатора.
+    if (contract.changeKind === "EXTEND_TERM") {
+      const raw = payload?.newEndDate
+      const newEndDate = raw ? new Date(String(raw)) : null
+      if (!newEndDate || Number.isNaN(newEndDate.getTime())) return { applied: false, reason: "missing_end_date" }
+      if (contract.parentContractId) {
+        await tx.contract.update({ where: { id: contract.parentContractId }, data: { endDate: newEndDate } })
+      }
+      await tx.tenant.update({ where: { id: contract.tenantId }, data: { contractEnd: newEndDate } })
+      await tx.contract.update({ where: { id: contract.id }, data: { appliedAt: new Date() } })
+      return { applied: true, reason: "term_extended" }
+    }
+
+    // Расторжение: завершаем срок аренды и архивируем родительский договор.
+    if (contract.changeKind === "TERMINATE") {
+      const raw = payload?.terminationDate
+      const termDate = raw ? new Date(String(raw)) : new Date()
+      const effective = Number.isNaN(termDate.getTime()) ? new Date() : termDate
+      if (contract.parentContractId) {
+        await tx.contract.update({ where: { id: contract.parentContractId }, data: { status: "ARCHIVED", endDate: effective } })
+      }
+      await tx.tenant.update({ where: { id: contract.tenantId }, data: { contractEnd: effective } })
+      await tx.contract.update({ where: { id: contract.id }, data: { appliedAt: new Date() } })
+      return { applied: true, reason: "terminated" }
+    }
+
+    if (contract.changeKind !== "RENTAL_TERMS") return { applied: false, reason: "unsupported_change" }
+
     const newTerms = asRecord(payload?.newTerms) ?? asRecord(payload?.after)
     if (!newTerms) return { applied: false, reason: "missing_terms" }
 

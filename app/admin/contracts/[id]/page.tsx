@@ -15,6 +15,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
 import { SignedDocxButton } from "@/components/contract-constructor/signed-docx-button"
+import { AddendumActions } from "@/components/contract-constructor/addendum-actions"
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT:             { label: "Черновик",       color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
@@ -187,6 +188,13 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           )}
         </div>
       </div>
+
+      {contract.status === "SIGNED" && contract.type !== "ADDENDUM" && (
+        <Section title="Дополнительные соглашения" icon={FileText}>
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Продлите срок или расторгните договор — ДС уйдёт арендатору на подпись.</p>
+          <AddendumActions contractId={contract.id} />
+        </Section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Левая колонка: контент + история */}
