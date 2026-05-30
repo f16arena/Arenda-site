@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ContractConstructor } from "@/components/contract-constructor/contract-constructor"
 import { AvrConstructor } from "@/components/contract-constructor/avr-constructor"
+import { InvoiceConstructor } from "./invoice-constructor"
 import { DocumentQuickGen } from "./document-quick-gen"
 import type { DocumentTenantOption } from "@/lib/document-tenants"
 
@@ -42,7 +43,7 @@ export function DocumentCreate({
       </div>
       {tab === "contract" && <ContractConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "avr" && <AvrConstructor embedded initialTenantId={initialTenantId} />}
-      {tab === "invoice" && <DocumentQuickGen kind="invoice" tenants={tenants} initialTenantId={initialTenantId} />}
+      {tab === "invoice" && <InvoiceConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "reconciliation" && <DocumentQuickGen kind="reconciliation" tenants={tenants} initialTenantId={initialTenantId} />}
     </div>
   )
