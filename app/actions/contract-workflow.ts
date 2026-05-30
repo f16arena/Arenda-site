@@ -224,6 +224,35 @@ export async function sendContractForSignature(
 }
 
 /**
+ * Канонический payload (base64) договора для подписи арендодателем ЭЦП.
+ * Используется конструктором: создать договор → получить payload → подписать в NCALayer.
+ */
+export async function getLandlordSignPayload(
+  contractId: string,
+): Promise<{ ok: true; payloadB64: string } | { ok: false; error: string }> {
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { orgId } = await requireOrgAccess()
+  const c = await db.contract.findFirst({
+    where: { id: contractId, ...contractScope(orgId) },
+    select: {
+      number: true, type: true, content: true, startDate: true, endDate: true,
+      tenant: { select: { companyName: true } },
+    },
+  })
+  if (!c) return { ok: false, error: "Договор не найден" }
+  const payloadB64 = contractPayloadBase64({
+    number: c.number,
+    type: c.type,
+    content: c.content,
+    startDate: c.startDate,
+    endDate: c.endDate,
+    tenantCompany: c.tenant.companyName,
+  })
+  return { ok: true, payloadB64 }
+}
+
+/**
  * Отметить договор подписанным со стороны арендодателя (после ЭЦП через
  * NCALayer или ручного подтверждения).
  */

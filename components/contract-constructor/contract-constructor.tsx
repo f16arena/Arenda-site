@@ -18,7 +18,10 @@ import {
   Sparkles,
   FilePlus2,
   Send,
+  ShieldCheck,
 } from "lucide-react"
+import { signWithNCALayer } from "@/lib/ncalayer"
+import { getLandlordSignPayload, signContractByLandlordEcp, sendContractForSignature } from "@/app/actions/contract-workflow"
 import { Button } from "@/components/ui/button"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import {
@@ -95,6 +98,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
   const [draftName, setDraftName] = useState("Без названия")
   const [drafts, setDrafts] = useState<DraftListItem[]>([])
   const [pending, startTransition] = useTransition()
+  const [signing, setSigning] = useState(false)
 
   const set = (mut: Mutator) => setState((prev) => { const n = structuredClone(prev); mut(n); return n })
 
@@ -209,6 +213,35 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     })
   }
 
+  // Создать → подписать ЭЦП владельца (NCALayer, пароль) → отправить арендатору.
+  async function doCreateSignEcpSend() {
+    if (!selTenant) { toast.error("Сначала выберите арендатора в списке вверху формы"); return }
+    setSigning(true)
+    try {
+      // 1) создаём договор (черновик)
+      const created = await createContractFromBuilder(selTenant, state, { autoNumber })
+      if (!created.ok || !created.contractId) { toast.error(created.error ?? "Не удалось создать договор"); return }
+      const contractId = created.contractId
+      // 2) канонический текст для подписи
+      const pl = await getLandlordSignPayload(contractId)
+      if (!pl.ok) { toast.error(`${pl.error}. Договор сохранён как черновик — подпишите на его странице.`); return }
+      // 3) подпись ЭЦП через NCALayer (запросит пароль к ключу)
+      const sig = await signWithNCALayer(pl.payloadB64, "cms", { tsp: true })
+      if (!sig.ok) { toast.error(`${sig.error || "Подпись не выполнена"}. Договор сохранён как черновик.`); return }
+      // 4) фиксируем подпись владельца
+      const saved = await signContractByLandlordEcp(contractId, sig.signature)
+      if (!saved.ok) { toast.error(`${saved.error ?? "Не удалось сохранить подпись"}. Договор — черновик.`); return }
+      // 5) отправляем арендатору на подпись
+      const sent = await sendContractForSignature(contractId)
+      if (!sent.ok) { toast.error(`Подписано, но не отправлено: ${sent.error}. Отправьте со страницы договора.`); return }
+      toast.success("Подписано вашей ЭЦП и отправлено арендатору на подпись")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка подписания")
+    } finally {
+      setSigning(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* header */}
@@ -238,8 +271,9 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
         <input className={`${inputCls} w-44`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" />
         <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить</Button>
         <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>DOCX</Button>
-        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate({})}>Создать договор</Button>
-        <Button variant="primary" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={() => doCreate({ send: true, landlordSign: true })}>Подписать и отправить</Button>
+        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing} onClick={() => doCreate({})}>Создать договор (черновик)</Button>
+        <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing} onClick={() => doCreate({ send: true })}>Отправить без подписи</Button>
+        <Button variant="primary" size="sm" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending} onClick={doCreateSignEcpSend}>Подписать ЭЦП и отправить</Button>
         {hardErrors.length > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
             <AlertTriangle className="h-3 w-3" /> {hardErrors.length} ошибок
