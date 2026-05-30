@@ -25,6 +25,16 @@ function toPartyType(legalType: string | null | undefined): PartyType {
   return "too" // TOO/AO/OTHER
 }
 
+// Подтип физлица для конструктора (подсветка выпадашки; имя/основание уже в БД).
+function toIndividualSubtype(legalType: string | null | undefined): "regular" | "chsi" | "advokat" | "notarius" | undefined {
+  const t = String(legalType ?? "").toUpperCase()
+  if (t === "CHSI") return "chsi"
+  if (t === "ADVOKAT") return "advokat"
+  if (t === "NOTARIUS") return "notarius"
+  if (t === "PHYSICAL") return "regular"
+  return undefined
+}
+
 // Server actions конструктора договоров (Фаза 3). Работают с НОВОЙ таблицей
 // contract_drafts, не трогая contracts / document_templates / подпись.
 
@@ -208,6 +218,7 @@ export async function prefillFromTenant(
     // Арендодатель = организация. Контакты по умолчанию — владельца (если заданы), иначе организации.
     s.landlord = {
       type: toPartyType(org.legalType),
+      individualSubtype: toIndividualSubtype(org.legalType),
       name: org.fullName,
       signatory: org.director || org.directorShort || "",
       bin: org.bin, iin: org.iin, iik: org.iik, bank: org.bank, bik: org.bik,
@@ -220,6 +231,7 @@ export async function prefillFromTenant(
     const tb = tenant.bankAccounts.find((b) => b.isPrimary) ?? tenant.bankAccounts[0]
     s.tenant = {
       type: toPartyType(tenant.legalType),
+      individualSubtype: toIndividualSubtype(tenant.legalType),
       name: tenant.companyName,
       signatory: tenant.directorName ?? "",
       bin: tenant.bin ?? "", iin: tenant.iin ?? "",

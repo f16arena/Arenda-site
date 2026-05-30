@@ -51,6 +51,7 @@ import {
   type HandoverAct,
   type Party,
   type PartyType,
+  type IndividualSubtype,
   type UtilityKey,
   type UtilityMode,
   type OperatingMethod,
@@ -73,6 +74,24 @@ const BASIS_BY_TYPE: Record<PartyType, string> = {
   too: "Устава",
   ip: "Свидетельства/Уведомления о регистрации ИП",
   individual: "удостоверения личности",
+}
+// Подтипы физлица: префикс к наименованию + шаблон основания (лицензия).
+const INDIVIDUAL_SUBTYPES: { v: IndividualSubtype; label: string; prefix: string; basis: string }[] = [
+  { v: "regular", label: "Физлицо", prefix: "", basis: "удостоверения личности" },
+  { v: "chsi", label: "ЧСИ", prefix: "Частный судебный исполнитель ", basis: "государственной лицензии № ____ от __.__.____ г." },
+  { v: "advokat", label: "Адвокат", prefix: "Адвокат ", basis: "лицензии на занятие адвокатской деятельностью № ____ от __.__.____ г." },
+  { v: "notarius", label: "Нотариус", prefix: "Нотариус ", basis: "лицензии на занятие нотариальной деятельностью № ____ от __.__.____ г." },
+]
+const SUBTYPE_PREFIXES = INDIVIDUAL_SUBTYPES.map((s) => s.prefix).filter(Boolean)
+const SUBTYPE_BASES = INDIVIDUAL_SUBTYPES.map((s) => s.basis)
+/** Снять известный префикс подтипа с наименования (чтобы не дублировать). */
+function stripSubtypePrefix(name: string): string {
+  for (const pre of SUBTYPE_PREFIXES) if (name.startsWith(pre)) return name.slice(pre.length)
+  return name
+}
+/** Основание похоже на авто-шаблон (можно перезаписать), а не на введённое вручную. */
+function isTemplateBasis(basis: string): boolean {
+  return basis.trim() === "" || basis === BASIS_BY_TYPE.individual || SUBTYPE_BASES.includes(basis)
 }
 const UTILITY_MODES: { v: UtilityMode; label: string }[] = [
   { v: "included", label: "в аренду" },
@@ -389,7 +408,22 @@ function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (m
   return (
     <div>
       <div className={secTitleCls}>{role}</div>
-      <div className="mb-2"><Seg value={p.type} options={PARTY_TYPES} onChange={(v) => onChange((x) => { x.type = v; x.basis = BASIS_BY_TYPE[v] })} /></div>
+      <div className="mb-2"><Seg value={p.type} options={PARTY_TYPES} onChange={(v) => onChange((x) => { x.type = v; x.basis = BASIS_BY_TYPE[v]; if (v !== "individual") x.individualSubtype = undefined; else if (!x.individualSubtype) x.individualSubtype = "regular" })} /></div>
+      {p.type === "individual" && (
+        <div className="mb-2">
+          <Seg
+            value={p.individualSubtype ?? "regular"}
+            options={INDIVIDUAL_SUBTYPES.map((s) => ({ v: s.v, label: s.label }))}
+            onChange={(v) => onChange((x) => {
+              const meta = INDIVIDUAL_SUBTYPES.find((s) => s.v === v)!
+              x.individualSubtype = v
+              // префикс к наименованию (без дублирования) + шаблон основания, если оно ещё авто
+              x.name = meta.prefix + stripSubtypePrefix(x.name)
+              if (isTemplateBasis(x.basis)) x.basis = meta.basis
+            })}
+          />
+        </div>
+      )}
       <div className="mb-2"><label className={labelCls}>Наименование</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
       {p.type !== "individual" && (
         <div className="mb-2"><label className={labelCls}>Подписант (в лице)</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>

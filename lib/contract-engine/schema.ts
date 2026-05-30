@@ -12,6 +12,14 @@ export type Money = number // тенге, целое
 
 export type PartyType = "too" | "ip" | "individual"
 
+/**
+ * Подтип физлица. Юридически все — физические лица (ИИН, действуют на основании),
+ * но ЧСИ/адвокат/нотариус удобно выбирать отдельно: конструктор сам подставит
+ * префикс к наименованию и шаблон основания (лицензия). На форму договора влияет
+ * только через итоговые поля name/basis — отдельной орг-правовой формы у них нет.
+ */
+export type IndividualSubtype = "regular" | "chsi" | "advokat" | "notarius"
+
 export type UtilityKey =
   | "electricity"
   | "coldWater"
@@ -29,6 +37,8 @@ export type ReconciliationPeriod = "monthly" | "quarterly" | "annual"
 
 export interface Party {
   type: PartyType
+  /** Подтип физлица (только при type==="individual"); по умолч. regular. */
+  individualSubtype?: IndividualSubtype
   name: string
   address: string
   bin?: string // ТОО/ИП
