@@ -13,6 +13,9 @@ import {
 } from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { LandlordSignButton } from "@/components/documents/landlord-sign-button"
+
+const LANDLORD_SIGNABLE_TYPES = new Set(["ACT", "RECONCILIATION", "INVOICE"])
 
 const TYPE_LABELS: Record<string, string> = {
   CONTRACT: "Договор",
@@ -213,6 +216,9 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     const isDeleting = deletingRowId === row.id && pending
     return (
       <div className="flex items-center justify-end gap-2">
+        {row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
+          <LandlordSignButton documentId={row.generatedId} />
+        )}
         {row.isSigned && row.deleteId && (
           <Link
             href={`/verify/${row.deleteId}`}
