@@ -68,6 +68,7 @@ export function ReconciliationConstructor({ embedded = false, initialTenantId }:
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [autoNumber, setAutoNum] = useState(true)
+  const [notifyTenant, setNotifyTenant] = useState(true)
   const [pending, startTransition] = useTransition()
 
   const set = (mut: Mutator) => setState((prev) => { const n = structuredClone(prev); mut(n); return n })
@@ -121,7 +122,7 @@ export function ReconciliationConstructor({ embedded = false, initialTenantId }:
   function doCreate() {
     if (!selTenant) { toast.error("Сначала выберите арендатора"); return }
     startTransition(async () => {
-      const r = await createReconFromBuilder(selTenant, state, { autoNumber })
+      const r = await createReconFromBuilder(selTenant, state, { autoNumber, requestSignature: notifyTenant })
       if (!r.ok) { toast.error(r.error ?? "Не удалось создать акт сверки"); return }
       toast.success(`Акт сверки № ${r.number} создан и сохранён в Документы`)
     })
@@ -158,6 +159,9 @@ export function ReconciliationConstructor({ embedded = false, initialTenantId }:
         <div className="w-[140px]"><label className={labelCls}>Период с</label><input type="month" className={inputCls} value={from} max={to} onChange={(e) => onChangeFrom(e.target.value)} /></div>
         <div className="w-[140px]"><label className={labelCls}>по</label><input type="month" className={inputCls} value={to} min={from} onChange={(e) => onChangeTo(e.target.value)} /></div>
         <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>DOCX</Button>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title="Прислать арендатору уведомление с просьбой подписать">
+          <input type="checkbox" checked={notifyTenant} onChange={(e) => setNotifyTenant(e.target.checked)} /> уведомить на подпись
+        </label>
         <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>Создать акт</Button>
       </div>
 

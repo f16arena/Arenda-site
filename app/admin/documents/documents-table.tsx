@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from "react"
 import Link from "next/link"
 import {
   Download, FileText, Archive, Loader2, ChevronDown, ChevronRight,
-  List, Folder, Trash2, Lock,
+  List, Folder, Trash2, Lock, ShieldCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -233,6 +233,16 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     const isDeleting = deletingRowId === row.id && pending
     return (
       <div className="flex items-center justify-end gap-2">
+        {row.isSigned && row.deleteId && (
+          <Link
+            href={`/verify/${row.deleteId}`}
+            target="_blank"
+            className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/25"
+            title="Кто подписал — страница проверки ЭЦП"
+          >
+            <ShieldCheck className="h-3 w-3" /> Подписи
+          </Link>
+        )}
         {row.downloadHref ? (
           <a
             href={row.downloadHref}

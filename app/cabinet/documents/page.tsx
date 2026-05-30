@@ -102,9 +102,9 @@ export default async function CabinetDocuments() {
                 <div className="flex flex-wrap items-center gap-2 sm:self-center">
                   {(doc.documentType === "ACT" || doc.documentType === "RECONCILIATION") && (
                     signedIssuedIds.has(doc.id) ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                      <Link href={`/verify/${doc.id}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/30" title="Открыть страницу проверки подписи">
                         <CheckCircle2 className="h-3.5 w-3.5" /> Подписано
-                      </span>
+                      </Link>
                     ) : (
                       <DocumentSignButton documentId={doc.id} />
                     )

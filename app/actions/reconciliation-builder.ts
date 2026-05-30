@@ -10,6 +10,7 @@ import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { resolveMonthRange } from "@/lib/period-range"
 import { type ReconState, type ReconPartyType, type ReconEntry, defaultReconState, reconClosing } from "@/lib/reconciliation-engine"
 import { renderReconDocx } from "@/lib/reconciliation-engine/docx"
+import { notifyUser } from "@/lib/notify"
 
 function toPartyType(legalType: string | null | undefined): ReconPartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -132,7 +133,7 @@ export async function generateReconDocx(state: ReconState): Promise<{ ok: boolea
 export async function createReconFromBuilder(
   tenantId: string,
   state: ReconState,
-  opts?: { autoNumber?: boolean },
+  opts?: { autoNumber?: boolean; requestSignature?: boolean },
 ): Promise<{ ok: boolean; error?: string; documentId?: string; number?: string }> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
@@ -140,7 +141,7 @@ export async function createReconFromBuilder(
     const session = await auth()
     if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }
 
-    const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true } })
+    const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true, user: { select: { id: true } } } })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
 
     const number = opts?.autoNumber ? await computeNextReconNumber(orgId) : (state.meta.number || "").trim() || "Б/Н"
@@ -168,6 +169,16 @@ export async function createReconFromBuilder(
     })
     revalidatePath("/admin/documents")
     revalidatePath(`/admin/tenants/${tenant.id}`)
+    if (opts?.requestSignature && tenant.user?.id) {
+      await notifyUser({
+        userId: tenant.user.id,
+        type: "DOCUMENT_SIGN_REQUEST",
+        title: "Акт сверки на подпись",
+        message: `Вам выставлен Акт сверки № ${number} — подпишите в кабинете → Документы.`,
+        link: "/cabinet/documents",
+        sendEmail: false,
+      }).catch(() => {})
+    }
     return { ok: true, documentId: doc.id, number }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать акт сверки" }

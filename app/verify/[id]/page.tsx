@@ -26,35 +26,61 @@ const onlyDigits = (v?: string | null) => String(v ?? "").replace(/\D/g, "")
 export default async function VerifyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
+  // Документ может быть договором (Contract) или выставленным актом/счётом (GeneratedDocument).
   const contract = await db.contract.findUnique({
     where: { id },
-    select: {
-      id: true, number: true, type: true, status: true,
-      signedAt: true, signedByTenantAt: true, signedByLandlordAt: true,
-      startDate: true, endDate: true,
-      tenant: { select: { companyName: true, bin: true, iin: true, user: { select: { organizationId: true } } } },
-    },
+    select: { number: true, type: true, status: true, signedAt: true, tenant: { select: { companyName: true, bin: true, iin: true, user: { select: { organizationId: true } } } } },
   })
-  if (!contract) notFound()
+
+  let docNumber = "—"
+  let docTitle = "Документ"
+  let tenantName = ""
+  let signedAt: Date | null = null
+  let docFullySigned = false
+  let orgId: string | null = null
+  let tenantIds: string[] = []
+
+  if (contract) {
+    docNumber = contract.number || "—"
+    docTitle = contract.type === "ADDENDUM" ? "Дополнительное соглашение" : "Договор аренды"
+    tenantName = contract.tenant.companyName
+    signedAt = contract.signedAt
+    docFullySigned = contract.status === "SIGNED"
+    orgId = contract.tenant.user.organizationId
+    tenantIds = [onlyDigits(contract.tenant.bin), onlyDigits(contract.tenant.iin)].filter((x): x is string => !!x)
+  } else {
+    const gen = await db.generatedDocument.findUnique({
+      where: { id },
+      select: { number: true, documentType: true, tenantName: true, tenantId: true, organizationId: true },
+    })
+    if (!gen) notFound()
+    const TYPE_LABEL: Record<string, string> = {
+      ACT: "Акт выполненных работ", RECONCILIATION: "Акт сверки", INVOICE: "Счёт на оплату",
+      CONTRACT: "Договор", HANDOVER: "Акт приёма-передачи",
+    }
+    docNumber = gen.number || "—"
+    docTitle = TYPE_LABEL[gen.documentType] ?? gen.documentType
+    tenantName = gen.tenantName
+    orgId = gen.organizationId
+    const t = gen.tenantId ? await db.tenant.findUnique({ where: { id: gen.tenantId }, select: { bin: true, iin: true } }) : null
+    tenantIds = [onlyDigits(t?.bin), onlyDigits(t?.iin)].filter((x): x is string => !!x)
+  }
 
   const signatures = await db.documentSignature.findMany({
-    where: { documentType: "CONTRACT", documentId: id },
+    where: { documentId: id },
     select: { id: true, signerName: true, signerIin: true, signerOrgBin: true, validFrom: true, validTo: true, algorithm: true, signedAt: true, signatureB64: true },
     orderBy: { signedAt: "asc" },
   })
 
-  // Реквизиты сторон — чтобы подписать роль (Арендатор/Арендодатель) по ИИН/БИН.
-  const orgId = contract.tenant.user.organizationId
   const org = orgId ? await getOrganizationRequisites(orgId).catch(() => null) : null
-  const tenantIds = [onlyDigits(contract.tenant.bin), onlyDigits(contract.tenant.iin)].filter(Boolean)
-  const orgIds = org ? [onlyDigits(org.bin), onlyDigits(org.iin), onlyDigits(org.taxId)].filter(Boolean) : []
+  const orgIds = org ? [onlyDigits(org.bin), onlyDigits(org.iin), onlyDigits(org.taxId)].filter((x): x is string => !!x) : []
 
   const ncanodeEnabled = !!process.env.NCANODE_SECRET
   const rows = await Promise.all(
     signatures.map(async (s) => {
       let liveValid: boolean | null = null
       let liveReason: string | undefined
-      if (ncanodeEnabled) {
+      if (ncanodeEnabled && s.signatureB64) {
         const v = await verifyCmsWithNcanode(s.signatureB64)
         liveValid = v.valid
         liveReason = v.reason
@@ -66,10 +92,9 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
     }),
   )
 
-  const fullySigned = contract.status === "SIGNED"
-  const allLiveOk = !ncanodeEnabled || rows.every((r) => r.liveValid === true)
+  const fullySigned = contract ? docFullySigned : rows.length > 0
+  const allLiveOk = rows.every((r) => r.liveValid !== false)
   const overall = fullySigned && allLiveOk && rows.length > 0 ? "ok" : rows.length === 0 ? "none" : "partial"
-  const docTitle = contract.type === "ADDENDUM" ? "Дополнительное соглашение" : "Договор аренды"
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-10 dark:bg-slate-950">
@@ -93,7 +118,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
               : "Документ подписан частично"}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {docTitle} № {contract.number || "—"} · проверка commrent.kz
+            {docTitle} № {docNumber} · проверка commrent.kz
           </p>
         </div>
 
@@ -101,10 +126,10 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
         <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2 font-semibold text-slate-900 dark:text-slate-100"><FileSignature className="h-4 w-4" /> Документ</div>
           <dl className="grid grid-cols-2 gap-y-2 text-slate-600 dark:text-slate-400">
-            <dt>Номер</dt><dd className="text-right text-slate-900 dark:text-slate-100">{contract.number || "—"}</dd>
+            <dt>Номер</dt><dd className="text-right text-slate-900 dark:text-slate-100">{docNumber}</dd>
             <dt>Тип</dt><dd className="text-right text-slate-900 dark:text-slate-100">{docTitle}</dd>
-            <dt>Арендатор</dt><dd className="text-right text-slate-900 dark:text-slate-100">{contract.tenant.companyName}</dd>
-            {contract.signedAt && (<><dt>Подписан</dt><dd className="text-right tabular-nums text-slate-900 dark:text-slate-100">{fmtDateTime(contract.signedAt)}</dd></>)}
+            <dt>Арендатор</dt><dd className="text-right text-slate-900 dark:text-slate-100">{tenantName}</dd>
+            {signedAt && (<><dt>Подписан</dt><dd className="text-right tabular-nums text-slate-900 dark:text-slate-100">{fmtDateTime(signedAt)}</dd></>)}
           </dl>
         </div>
 

@@ -82,6 +82,7 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
   const [selTenant, setSelTenant] = useState("")
   const [period, setPeriod] = useState("")
   const [autoNumber, setAutoNum] = useState(true)
+  const [notifyTenant, setNotifyTenant] = useState(true)
   const [pending, startTransition] = useTransition()
 
   const set = (mut: Mutator) => setState((prev) => { const n = structuredClone(prev); mut(n); return n })
@@ -142,7 +143,7 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
   function doCreate() {
     if (!selTenant) { toast.error("Сначала выберите арендатора"); return }
     startTransition(async () => {
-      const r = await createAvrFromBuilder(selTenant, state, { autoNumber })
+      const r = await createAvrFromBuilder(selTenant, state, { autoNumber, requestSignature: notifyTenant })
       if (!r.ok) { toast.error(r.error ?? "Не удалось создать акт"); return }
       toast.success(`Акт № ${r.number} создан и сохранён в Документы`)
     })
@@ -188,6 +189,9 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
           <input type="month" className={inputCls} value={period} onChange={(e) => onChangePeriod(e.target.value)} />
         </div>
         <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>DOCX</Button>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title="Прислать арендатору уведомление с просьбой подписать">
+          <input type="checkbox" checked={notifyTenant} onChange={(e) => setNotifyTenant(e.target.checked)} /> уведомить на подпись
+        </label>
         <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>Создать акт</Button>
       </div>
 
