@@ -15,6 +15,7 @@ import { verifyCmsWithNcanode } from "@/lib/ncanode"
 import { contractPayloadBase64, type ContractSigningFields } from "@/lib/contract-signing-payload"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
+import { buildSignedAddendumDocxBuffer } from "@/lib/contract-engine/signed-addendum-docx"
 import { convertDocxToPdf } from "@/lib/pdf-convert"
 
 // Жёсткие предупреждения, при которых подпись отклоняется (а не просто логируется).
@@ -348,8 +349,9 @@ export async function getSignedContractPdfByToken(
   const contract = await db.contract.findFirst({
     where: { signToken: token, deletedAt: null },
     select: {
-      id: true, number: true, status: true, builderState: true,
+      id: true, number: true, status: true, type: true, content: true, builderState: true,
       signedByLandlordAt: true, signedByTenantAt: true,
+      tenant: { select: { companyName: true, bin: true, iin: true, user: { select: { organizationId: true } } } },
     },
   })
   if (!contract) return { ok: false, error: "Договор не найден" }
@@ -357,29 +359,32 @@ export async function getSignedContractPdfByToken(
     return { ok: false, error: "Скачивание будет доступно после подписи обеих сторон" }
   }
   try {
-    const docx = await buildSignedContractDocxBuffer(contract)
-    if (!docx) return { ok: false, error: "Договор создан вне конструктора — обратитесь к арендодателю за копией" }
-    const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
-    const pdf = await convertDocxToPdf(docx, `Договор_${num}.docx`)
+    // Договор из конструктора → полный рендер по builderState; ДС (текст) → отдельный рендер.
+    const docx = contract.builderState
+      ? await buildSignedContractDocxBuffer(contract)
+      : await buildSignedAddendumDocxBuffer(contract)
+    if (!docx) return { ok: false, error: "Документ создан вне конструктора — обратитесь к арендодателю за копией" }
+    const num = (contract.number || "doc").replace(/[^\w.-]+/g, "_")
+    const pdf = await convertDocxToPdf(docx, `${num}.docx`)
     return { ok: true, fileName: signedContractFileName(contract), base64: pdf.toString("base64") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать PDF" }
   }
 }
 
-/** Человекочитаемое имя файла: «Договор аренды № 001 — ИП … от 01.06.2026.pdf». */
-function signedContractFileName(contract: { number: string | null; builderState: unknown }): string {
+/** Имя файла: «Договор аренды № 001 — ИП … от 01.06.2026.pdf» / «Доп. соглашение № 001-ДС1 — ….pdf». */
+function signedContractFileName(contract: { number: string | null; type: string; builderState: unknown; tenant: { companyName: string } }): string {
   const st = contract.builderState as { tenant?: { name?: string }; meta?: { contractDate?: string } } | null
-  const tenantName = String(st?.tenant?.name ?? "").replace(/[«»"]/g, "").trim()
+  const tenantName = String(st?.tenant?.name ?? contract.tenant.companyName ?? "").replace(/[«»"]/g, "").trim()
   let dateStr = ""
   const raw = st?.meta?.contractDate
   if (raw) { const d = new Date(raw); if (!Number.isNaN(d.getTime())) dateStr = d.toLocaleDateString("ru-RU") }
+  const kind = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор аренды"
   const parts = [
-    `Договор аренды${contract.number ? ` № ${contract.number}` : ""}`,
+    `${kind}${contract.number ? ` № ${contract.number}` : ""}`,
     tenantName,
     dateStr ? `от ${dateStr}` : "",
   ].filter(Boolean)
-  // Убираем символы, недопустимые в именах файлов.
   const name = parts.join(" — ").replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim()
   return `${name}.pdf`
 }

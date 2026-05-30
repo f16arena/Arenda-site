@@ -10,6 +10,16 @@ function fmt(d: Date | string): string {
   return new Date(d).toLocaleDateString("ru-RU")
 }
 
+/** Железобетон: дата ДС не может быть раньше даты начала договора. */
+function notBeforeContractStart(date: Date, parentStart: Date | string | null, label: string): string | null {
+  if (!parentStart) return null
+  const s = new Date(parentStart)
+  const d0 = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const s0 = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+  if (d0 < s0) return `${label} (${fmt(date)}) не может быть раньше даты договора (${fmt(s)})`
+  return null
+}
+
 export interface ParentContractOption {
   id: string
   number: string
@@ -51,7 +61,7 @@ async function loadParent(contractId: string, orgId: string) {
   const c = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
     select: {
-      id: true, number: true, startDate: true, status: true, type: true, tenantId: true,
+      id: true, number: true, startDate: true, endDate: true, status: true, type: true, tenantId: true,
       tenant: { select: { companyName: true } },
     },
   })
@@ -81,6 +91,12 @@ export async function createExtensionAddendum(
     const r = await loadParent(contractId, orgId)
     if ("error" in r) return { ok: false, error: r.error }
     const parent = r.contract
+
+    const startErr = notBeforeContractStart(end, parent.startDate, "Новая дата окончания")
+    if (startErr) return { ok: false, error: startErr }
+    if (parent.endDate && new Date(end.getFullYear(), end.getMonth(), end.getDate()) <= new Date(new Date(parent.endDate).getFullYear(), new Date(parent.endDate).getMonth(), new Date(parent.endDate).getDate())) {
+      return { ok: false, error: `Новая дата окончания должна быть позже текущей (${fmt(parent.endDate)})` }
+    }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
     const today = new Date()
@@ -136,6 +152,9 @@ export async function createTerminationAddendum(
     const r = await loadParent(contractId, orgId)
     if ("error" in r) return { ok: false, error: r.error }
     const parent = r.contract
+
+    const termErr = notBeforeContractStart(term, parent.startDate, "Дата расторжения")
+    if (termErr) return { ok: false, error: termErr }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
     const today = new Date()
@@ -218,6 +237,8 @@ export async function createRentalTermsAddendum(
 
     const eff = effectiveDateStr ? new Date(effectiveDateStr) : new Date()
     if (Number.isNaN(eff.getTime())) return { ok: false, error: "Укажите корректную дату вступления в силу" }
+    const effErr = notBeforeContractStart(eff, parent.startDate, "Дата вступления ДС в силу")
+    if (effErr) return { ok: false, error: effErr }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
     const today = new Date()
@@ -339,6 +360,8 @@ export async function createServicesAddendum(
 
     const eff = effectiveDateStr ? new Date(effectiveDateStr) : new Date()
     if (Number.isNaN(eff.getTime())) return { ok: false, error: "Укажите корректную дату вступления в силу" }
+    const effErr = notBeforeContractStart(eff, parent.startDate, "Дата вступления ДС в силу")
+    if (effErr) return { ok: false, error: effErr }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
     const today = new Date()
