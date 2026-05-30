@@ -19,6 +19,17 @@ import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx
 // Жёсткие предупреждения, при которых подпись отклоняется (а не просто логируется).
 const BLOCKING_WARNINGS = ["Срок действия сертификата истёк", "Сертификат ещё не вступил в силу"]
 
+// Срок годности ссылки на подпись (дней с момента отправки арендатору). По истечении
+// ссылка не позволяет подписать — нужно переотправить договор. Без отдельной колонки:
+// считаем от sentAt.
+const SIGN_LINK_TTL_DAYS = 90
+function isSignLinkExpired(sentAt: Date | null | undefined, status: string): boolean {
+  if (status === "SIGNED" || status === "REJECTED") return false
+  if (!sentAt) return false
+  const ageDays = (Date.now() - new Date(sentAt).getTime()) / 86_400_000
+  return ageDays > SIGN_LINK_TTL_DAYS
+}
+
 interface ContractForSign extends ContractSigningFields {
   id: string
   organizationId: string
@@ -292,7 +303,7 @@ export async function getContractByToken(token: string) {
       data: { viewedAt: new Date(), status: contract.status === "SENT" ? "VIEWED" : contract.status },
     })
   }
-  return contract
+  return { ...contract, signLinkExpired: isSignLinkExpired(contract.sentAt, contract.status) }
 }
 
 /**
@@ -363,6 +374,7 @@ export async function signContractByTenantEcp(
       status: true,
       startDate: true,
       endDate: true,
+      sentAt: true,
       signedByLandlordAt: true,
       tenant: {
         select: {
@@ -377,6 +389,9 @@ export async function signContractByTenantEcp(
   if (!contract) return { ok: false, error: "Договор не найден" }
   if (contract.status === "SIGNED" || contract.status === "REJECTED") {
     return { ok: false, error: "Договор уже завершён" }
+  }
+  if (isSignLinkExpired(contract.sentAt, contract.status)) {
+    return { ok: false, error: `Ссылка на подпись устарела (старше ${SIGN_LINK_TTL_DAYS} дней). Попросите арендодателя отправить договор повторно.` }
   }
   const orgId = contract.tenant.user.organizationId
   if (!orgId) return { ok: false, error: "Договор не привязан к организации" }

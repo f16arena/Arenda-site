@@ -97,6 +97,9 @@ export async function applySignedContractChanges(contractId: string) {
       needsCleaning?: boolean
       paymentDueDay?: number
       penaltyPercent?: number
+      depositAmount?: number | null
+      rentFreeMonths?: number
+      moveInDate?: Date | null
     } = {
       customRate: rentChoice.customRate,
       fixedMonthlyRent: rentChoice.fixedMonthlyRent,
@@ -113,6 +116,29 @@ export async function applySignedContractChanges(contractId: string) {
 
     const penaltyPercent = numberInRange(newTerms.penaltyPercent, 0, 100)
     if (penaltyPercent !== null) data.penaltyPercent = penaltyPercent
+
+    // Депозит: явный null сбрасывает (= 1 месяц аренды), число ≥ 0 — фиксирует.
+    if (Object.prototype.hasOwnProperty.call(newTerms, "depositAmount")) {
+      const raw = newTerms.depositAmount
+      if (raw === null || raw === "") data.depositAmount = null
+      else {
+        const n = typeof raw === "number" ? raw : Number(String(raw).replace(",", "."))
+        if (Number.isFinite(n) && n >= 0) data.depositAmount = Math.round(n * 100) / 100
+      }
+    }
+
+    const rentFreeMonths = numberInRange(newTerms.rentFreeMonths, 0, 24)
+    if (rentFreeMonths !== null) data.rentFreeMonths = Math.round(rentFreeMonths)
+
+    // Дата заселения: явный null сбрасывает (= дата начала договора).
+    if (Object.prototype.hasOwnProperty.call(newTerms, "moveInDate")) {
+      const raw = newTerms.moveInDate
+      if (raw === null || raw === "") data.moveInDate = null
+      else {
+        const d = new Date(String(raw))
+        if (!Number.isNaN(d.getTime())) data.moveInDate = d
+      }
+    }
 
     await tx.tenant.update({
       where: { id: contract.tenantId },

@@ -193,8 +193,18 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
           </div>
         </div>
 
+        {/* Ссылка устарела */}
+        {!isCompleted && contract.signLinkExpired && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+            <p className="text-sm font-semibold text-amber-900">Ссылка устарела</p>
+            <p className="text-xs text-amber-700 mt-1">
+              Срок действия ссылки на подпись истёк. Попросите арендодателя отправить договор повторно.
+            </p>
+          </div>
+        )}
+
         {/* Действия */}
-        {!isCompleted && !tenantSigned && (
+        {!isCompleted && !tenantSigned && !contract.signLinkExpired && (
           <SignActions token={token} payloadB64={signingPayloadB64} />
         )}
 

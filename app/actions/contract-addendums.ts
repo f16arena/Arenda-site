@@ -180,6 +180,10 @@ export interface RentalTermsChange {
   needsCleaning?: boolean | null
   paymentDueDay?: number | null
   penaltyPercent?: number | null
+  depositAmount?: number | null
+  rentFreeMonths?: number | null
+  /** YYYY-MM-DD или null (сброс к дате начала договора) */
+  moveInDate?: string | null
 }
 
 function money(v: number | null | undefined): string {
@@ -222,11 +226,19 @@ export async function createRentalTermsAddendum(
       ...(typeof terms.needsCleaning === "boolean" ? { needsCleaning: terms.needsCleaning } : {}),
       ...(typeof terms.paymentDueDay === "number" ? { paymentDueDay: terms.paymentDueDay } : {}),
       ...(typeof terms.penaltyPercent === "number" ? { penaltyPercent: terms.penaltyPercent } : {}),
+      ...(terms.depositAmount !== undefined ? { depositAmount: terms.depositAmount } : {}),
+      ...(typeof terms.rentFreeMonths === "number" ? { rentFreeMonths: terms.rentFreeMonths } : {}),
+      ...(terms.moveInDate !== undefined ? { moveInDate: terms.moveInDate } : {}),
     }
     const rentLine = hasFixed
       ? `аренда составляет ${money(terms.fixedMonthlyRent)}/мес (фиксированная сумма)`
       : `ставка аренды составляет ${money(terms.customRate)}/м² в месяц`
-    const content = [
+    const extra: string[] = []
+    if (typeof terms.cleaningFee === "number") extra.push(`Стоимость уборки: ${money(terms.cleaningFee)}/мес.`)
+    if (typeof terms.depositAmount === "number") extra.push(`Гарантийный депозит: ${money(terms.depositAmount)}.`)
+    if (typeof terms.rentFreeMonths === "number") extra.push(`Арендные каникулы: ${terms.rentFreeMonths} мес.`)
+    if (terms.moveInDate) extra.push(`Дата заселения: ${fmt(terms.moveInDate)}.`)
+    const lines = [
       `ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ № ${number}`,
       `к Договору аренды № ${parent.number}${parent.startDate ? ` от ${fmt(parent.startDate)}` : ""}`,
       "",
@@ -234,10 +246,11 @@ export async function createRentalTermsAddendum(
       "",
       `Арендодатель и Арендатор (${parent.tenant.companyName}) договорились о нижеследующем:`,
       `1. С ${fmt(eff)} ${rentLine}.`,
-      ...(typeof terms.cleaningFee === "number" ? [`2. Стоимость уборки: ${money(terms.cleaningFee)}/мес.`] : []),
-      `${typeof terms.cleaningFee === "number" ? "3" : "2"}. Остальные условия Договора остаются без изменений.`,
-      `${typeof terms.cleaningFee === "number" ? "4" : "3"}. Настоящее соглашение является неотъемлемой частью Договора и составлено в двух экземплярах.`,
-    ].join("\n")
+      ...extra.map((t, i) => `${i + 2}. ${t}`),
+      `${extra.length + 2}. Остальные условия Договора остаются без изменений.`,
+      `${extra.length + 3}. Настоящее соглашение является неотъемлемой частью Договора и составлено в двух экземплярах.`,
+    ]
+    const content = lines.join("\n")
 
     const addendum = await db.contract.create({
       data: {

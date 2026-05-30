@@ -26,9 +26,13 @@ export function AddendumActions({ contractId }: { contractId: string }) {
   const [rentKind, setRentKind] = useState<"RATE" | "FIXED">("FIXED")
   const [rentValue, setRentValue] = useState("")
   const [cleaning, setCleaning] = useState("")
+  const [deposit, setDeposit] = useState("")
+  const [rentFree, setRentFree] = useState("")
+  const [moveIn, setMoveIn] = useState("")
 
   function reset() {
     setMode(null); setDate(""); setReason(""); setRentValue(""); setCleaning("")
+    setDeposit(""); setRentFree(""); setMoveIn("")
   }
 
   async function submit() {
@@ -50,6 +54,9 @@ export function AddendumActions({ contractId }: { contractId: string }) {
             customRate: rentKind === "RATE" ? v : null,
             fixedMonthlyRent: rentKind === "FIXED" ? v : null,
             cleaningFee: cleaning.trim() ? Number(cleaning.replace(",", ".")) : undefined,
+            depositAmount: deposit.trim() ? Number(deposit.replace(",", ".")) : undefined,
+            rentFreeMonths: rentFree.trim() ? Number(rentFree) : undefined,
+            moveInDate: moveIn || undefined,
           },
           date || undefined,
         )
@@ -118,6 +125,18 @@ export function AddendumActions({ contractId }: { contractId: string }) {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Уборка ₸/мес (необязательно)</label>
                   <input type="number" min={0} step="0.01" className={inputCls} value={cleaning} onChange={(e) => setCleaning(e.target.value)} placeholder="не менять — оставьте пустым" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Депозит ₸ (необязательно)</label>
+                  <input type="number" min={0} step="0.01" className={inputCls} value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="не менять — оставьте пустым" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Каникулы, мес. (необязательно)</label>
+                  <input type="number" min={0} max={24} step={1} className={inputCls} value={rentFree} onChange={(e) => setRentFree(e.target.value)} placeholder="не менять — оставьте пустым" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Дата заселения (необязательно)</label>
+                  <input type="date" className={inputCls} value={moveIn} onChange={(e) => setMoveIn(e.target.value)} />
                 </div>
               </div>
               <div>
