@@ -167,6 +167,27 @@ export default async function CabinetDashboard() {
     (contract.status === "SENT" || contract.status === "VIEWED") && !!contract.signToken
   )).length
 
+  // Выставленные АВР/акты сверки, которые арендатор ещё не подписал.
+  const signableDocs = await safe(
+    "cabinet.dashboard.signableDocs",
+    db.generatedDocument.findMany({
+      where: { tenantId: tenant.id, deletedAt: null, documentType: { in: ["ACT", "RECONCILIATION"] } },
+      select: { id: true, documentType: true, number: true },
+    }),
+    [] as Array<{ id: string; documentType: string; number: string | null }>,
+  )
+  const signedDocIds = new Set(
+    (await safe(
+      "cabinet.dashboard.signedDocs",
+      db.documentSignature.findMany({
+        where: { documentType: { in: ["ACT", "RECONCILIATION"] }, documentId: { in: signableDocs.map((d) => d.id) }, signerUserId: session!.user.id },
+        select: { documentId: true },
+      }),
+      [] as Array<{ documentId: string | null }>,
+    )).map((s) => s.documentId),
+  )
+  const pendingSignDocs = signableDocs.filter((d) => !signedDocIds.has(d.id))
+
   const docTypeLabels: Record<string, string> = {
     INVOICE: "Счёт на оплату",
     ACT: "Акт услуг",
@@ -234,7 +255,7 @@ export default async function CabinetDashboard() {
             )}
           </div>
           <div className={`flex h-16 w-16 items-center justify-center rounded-2xl shrink-0 ${
-            overdueTotal > 0 ? "bg-red-200 dark:bg-red-500/30/50" : totalDebt > 0 ? "bg-amber-200 dark:bg-amber-500/30/50" : "bg-emerald-200 dark:bg-emerald-500/30/50"
+            overdueTotal > 0 ? "bg-red-200 dark:bg-red-500/30" : totalDebt > 0 ? "bg-amber-200 dark:bg-amber-500/30" : "bg-emerald-200 dark:bg-emerald-500/30"
           }`}>
             <CreditCard className={`h-8 w-8 ${
               overdueTotal > 0 ? "text-red-600 dark:text-red-400" : totalDebt > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
@@ -253,7 +274,7 @@ export default async function CabinetDashboard() {
         paymentPurpose={paymentPurpose}
       />
 
-      {(tenantMustSignCount > 0 || pendingPaymentReports.length > 0) && (
+      {(tenantMustSignCount > 0 || pendingPaymentReports.length > 0 || pendingSignDocs.length > 0) && (
         <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/30 dark:bg-blue-500/10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -302,6 +323,20 @@ export default async function CabinetDashboard() {
                 </div>
               </Link>
             ))}
+            {pendingSignDocs.length > 0 && (
+              <Link
+                href="/cabinet/documents"
+                className="rounded-lg border border-blue-200 bg-white p-3 text-sm transition hover:border-blue-300 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-900 dark:hover:bg-blue-500/10"
+              >
+                <div className="flex items-start gap-2">
+                  <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">Акты ждут вашей подписи</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{pendingSignDocs.length} шт. · АВР / акт сверки — подпишите в «Документах»</p>
+                  </div>
+                </div>
+              </Link>
+            )}
           </div>
         </section>
       )}
@@ -458,7 +493,7 @@ export default async function CabinetDashboard() {
                 <Link
                   key={m.id}
                   href="/cabinet/messages"
-                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50 dark:bg-blue-500/10/30" : ""}`}
+                  className={`flex items-start gap-3 px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition ${!m.isRead ? "bg-blue-50 dark:bg-blue-500/20" : ""}`}
                 >
                   {!m.isRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />}
                   <div className="flex-1 min-w-0">
