@@ -361,10 +361,27 @@ export async function getSignedContractPdfByToken(
     if (!docx) return { ok: false, error: "Договор создан вне конструктора — обратитесь к арендодателю за копией" }
     const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
     const pdf = await convertDocxToPdf(docx, `Договор_${num}.docx`)
-    return { ok: true, fileName: `Договор_${num}_подписан.pdf`, base64: pdf.toString("base64") }
+    return { ok: true, fileName: signedContractFileName(contract), base64: pdf.toString("base64") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать PDF" }
   }
+}
+
+/** Человекочитаемое имя файла: «Договор аренды № 001 — ИП … от 01.06.2026.pdf». */
+function signedContractFileName(contract: { number: string | null; builderState: unknown }): string {
+  const st = contract.builderState as { tenant?: { name?: string }; meta?: { contractDate?: string } } | null
+  const tenantName = String(st?.tenant?.name ?? "").replace(/[«»"]/g, "").trim()
+  let dateStr = ""
+  const raw = st?.meta?.contractDate
+  if (raw) { const d = new Date(raw); if (!Number.isNaN(d.getTime())) dateStr = d.toLocaleDateString("ru-RU") }
+  const parts = [
+    `Договор аренды${contract.number ? ` № ${contract.number}` : ""}`,
+    tenantName,
+    dateStr ? `от ${dateStr}` : "",
+  ].filter(Boolean)
+  // Убираем символы, недопустимые в именах файлов.
+  const name = parts.join(" — ").replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim()
+  return `${name}.pdf`
 }
 
 /**
