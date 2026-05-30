@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Prisma } from "@/app/generated/prisma/client"
 import { tenantScope, contractScope } from "@/lib/tenant-scope"
+import { getCurrentBuildingId } from "@/lib/current-building"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
@@ -122,8 +123,20 @@ export interface ConstructorTenant {
 /** Список арендаторов организации для выбора в конструкторе (с зданием). */
 export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
   const { orgId } = await requireOrgAccess()
+  // Жёсткая изоляция по зданию: если выбрано конкретное здание (верхний селектор),
+  // показываем только его арендаторов; в режиме «Все здания» — всех по организации.
+  const buildingId = await getCurrentBuildingId()
+  const buildingFilter = buildingId
+    ? {
+        OR: [
+          { space: { floor: { buildingId } } },
+          { tenantSpaces: { some: { space: { floor: { buildingId } } } } },
+          { fullFloors: { some: { buildingId } } },
+        ],
+      }
+    : {}
   const rows = await db.tenant.findMany({
-    where: tenantScope(orgId),
+    where: { AND: [tenantScope(orgId), buildingFilter] },
     orderBy: { companyName: "asc" },
     take: 500,
     select: {
