@@ -232,22 +232,17 @@ export async function signWithNCALayer(
     return signCall({ module: COMMON, method: "signXml", args: [storage, "SIGNATURE", dataB64, "", ""] })
   }
 
-  // 1) Базовая CMS-подпись (attached): данные включены в подпись (флаг = true).
-  const base = await signCall({
+  // CMS-подпись (attached): данные включены в подпись (флаг = true).
+  // ВАЖНО: метку доверенного времени (TSP) НЕ прикладываем отдельным шагом
+  // applyCAdEST — на ключе-файле .p12 это вызывает повторный запрос пароля
+  // (второе открытие хранилища). Подпись валидна и без TSP (сертификат + OCSP).
+  // opts.tsp оставлен для совместимости, но второй вызов больше не делаем.
+  void opts
+  return signCall({
     module: COMMON,
     method: "createCMSSignatureFromBase64",
     args: [storage, "SIGNATURE", dataB64, true],
   })
-  if (!base.ok || !opts?.tsp) return base
-
-  // 2) Метка доверенного времени (TSP) — канонический applyCAdEST (CAdES-T).
-  const stamped = await signCall({
-    module: COMMON,
-    method: "applyCAdEST",
-    args: [storage, "SIGNATURE", base.signature],
-  })
-  // Если TSA недоступна/старый NCALayer — отдаём валидную подпись без метки.
-  return stamped.ok ? stamped : base
 }
 
 /**
