@@ -130,11 +130,11 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/admin/buildings" className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+        <Link href="/admin/buildings" className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
           <ArrowLeft className="h-4 w-4" />К зданиям
         </Link>
         <span className="text-slate-300">/</span>
-        <Link href={`/admin/buildings`} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+        <Link href={`/admin/buildings`} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
           {floor.building.name}
         </Link>
         <span className="text-slate-300">/</span>

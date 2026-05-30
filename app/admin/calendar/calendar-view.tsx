@@ -239,7 +239,7 @@ export function CalendarView({
                   onClick={() => setSelectedDate(null)}
                   aria-label="Закрыть выбранную дату"
                   title="Закрыть"
-                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
                 >
                   <X className="h-4 w-4" />
                 </button>

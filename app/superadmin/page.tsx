@@ -199,7 +199,7 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
           {sorted.map((o) => (
             <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
               <td className="px-5 py-2.5">
-                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400">
+                <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:hover:text-purple-400">
                   {o.name}
                 </Link>
                 <div>
@@ -207,7 +207,7 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
                     href={`https://${o.slug}.${ROOT_HOST}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 font-mono inline-flex items-center gap-0.5"
+                    className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 font-mono inline-flex items-center gap-0.5"
                   >
                     {o.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                   </a>

@@ -7,7 +7,7 @@ import { ImportTenantsClient } from "./import-client"
 export default function ImportTenantsPage() {
   return (
     <div className="space-y-5 max-w-4xl">
-      <Link href="/admin/import" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+      <Link href="/admin/import" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
         <ArrowLeft className="h-4 w-4" /> К импорту
       </Link>
 

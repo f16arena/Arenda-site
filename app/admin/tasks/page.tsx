@@ -222,14 +222,14 @@ export default async function TasksPage({
                 <div className="flex items-center gap-2">
                   {task.status === "NEW" && (
                     <form action={async () => { "use server"; await updateTaskStatus(task.id, "IN_PROGRESS") }}>
-                      <button type="submit" className="text-xs px-2 py-1 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:bg-amber-500/30">
+                      <button type="submit" className="text-xs px-2 py-1 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/30">
                         В работу
                       </button>
                     </form>
                   )}
                   {task.status === "IN_PROGRESS" && (
                     <form action={async () => { "use server"; await updateTaskStatus(task.id, "DONE") }}>
-                      <button type="submit" className="text-xs px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:bg-emerald-500/30">
+                      <button type="submit" className="text-xs px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30">
                         Выполнено
                       </button>
                     </form>

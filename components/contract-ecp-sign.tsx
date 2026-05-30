@@ -75,7 +75,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
 
   if (phase === "done") {
     return (
-      <div className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700">
+      <div className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300">
         <CheckCircle2 className="h-4 w-4" /> Подписано ЭЦП
       </div>
     )
@@ -96,7 +96,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
       </button>
 
       {phase === "error" && error && (
-        <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+        <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:border-red-500/30 dark:text-red-300">
           <div className="flex items-start gap-1.5">
             <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>{error}</span>
@@ -112,7 +112,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
       </p>
 
       {showHelp && (
-        <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-900 max-w-sm">
+        <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-900 max-w-sm dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-200">
           <p className="font-medium mb-1">ЭЦП через NCALayer</p>
           <p>
             Государственная программа НУЦ РК для подписания. Скачайте на{" "}

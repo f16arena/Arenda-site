@@ -34,7 +34,7 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Новый сотрудник</h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
+              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -120,7 +120,7 @@ export function EditStaffDialog({ user, buildings }: { user: StaffUser; building
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Редактировать сотрудника</h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
+              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -272,7 +272,7 @@ export function DeactivateButton({ userId, isActive }: { userId: string; isActiv
         className={`text-xs flex items-center gap-1 ${
           isActive
             ? "text-red-500 hover:text-red-700 dark:text-red-300"
-            : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:text-emerald-200"
+            : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200"
         } disabled:opacity-50`}
       >
         {isActive ? <UserX className="h-3 w-3" /> : <UserCheck className="h-3 w-3" />}

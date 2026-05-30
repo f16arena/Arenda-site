@@ -116,7 +116,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
     <div className="space-y-5 print:space-y-0">
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3">
-          <Link href="/admin/documents" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+          <Link href="/admin/documents" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>

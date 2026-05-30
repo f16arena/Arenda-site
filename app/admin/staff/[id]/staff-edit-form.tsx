@@ -88,7 +88,7 @@ export function StaffEditForm({
             name="role"
             defaultValue={initial.role}
             disabled={isCurrentUser}
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 disabled:bg-slate-50 dark:bg-slate-800/50 disabled:text-slate-500 dark:text-slate-400"
+            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 disabled:bg-slate-50 dark:disabled:bg-slate-800/50 disabled:text-slate-500 dark:disabled:text-slate-400"
           >
             {ROLES.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -155,7 +155,7 @@ export function StaffEditForm({
             })
           }
           className={`text-xs font-medium ${
-            initial.isActive ? "text-red-600 dark:text-red-400 hover:text-red-700 dark:text-red-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:text-emerald-300"
+            initial.isActive ? "text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300"
           } disabled:text-slate-400 dark:text-slate-500`}
           title={isCurrentUser ? "Себя уволить нельзя" : ""}
         >

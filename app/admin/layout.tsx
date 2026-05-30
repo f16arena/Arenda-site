@@ -106,7 +106,7 @@ async function renderAdminLayout(children: React.ReactNode) {
   // через Suspense, поэтому страница (children) начинает рендериться немедленно,
   // а не ждёт shell-данные. Это резко снижает TTFB всех /admin-страниц.
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <CommandPaletteLoader />
       <Suspense fallback={<aside className="hidden lg:block w-60 shrink-0 bg-slate-900" />}>
         <SidebarChrome
@@ -282,7 +282,7 @@ async function HeaderChrome({
                 {getDisplayInitial(displayUserName)}
               </span>
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {displayUserName}
             </span>
           </Link>

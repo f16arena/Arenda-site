@@ -33,7 +33,7 @@ export function AdminSelectOrg({ orgs, userName }: { orgs: Org[]; userName: stri
             <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Платформенный режим</span>
             <span className="text-xs text-slate-500 dark:text-slate-400">· {userName}</span>
           </div>
-          <Link href="/superadmin" className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:text-purple-300">
+          <Link href="/superadmin" className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300">
             ← Вернуться в супер-админ
           </Link>
         </div>

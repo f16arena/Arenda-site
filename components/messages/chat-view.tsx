@@ -237,7 +237,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                             trigger={
                               <button
                                 type="button"
-                                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
+                                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
                                 aria-label="Удалить"
                               >
                                 <Trash2 className="h-3 w-3" />

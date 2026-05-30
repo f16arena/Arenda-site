@@ -89,7 +89,7 @@ function TabBtn({
       className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition relative ${
         active
           ? "bg-slate-900 dark:bg-slate-700 text-white"
-          : "text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800"
+          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/60"
       }`}
     >
       <Icon className="h-4 w-4" />

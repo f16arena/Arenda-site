@@ -52,7 +52,7 @@ export default async function CabinetLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <TenantSidebar companyName={tenant?.companyName} />
       <div className="flex flex-1 flex-col overflow-hidden">
         {userMail && !userMail.emailVerifiedAt && (

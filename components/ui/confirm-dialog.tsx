@@ -71,7 +71,7 @@ export function ConfirmDialog({
               <button
                 onClick={close}
                 aria-label="Закрыть"
-                className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400"
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
               >
                 <X className="h-5 w-5" />
               </button>

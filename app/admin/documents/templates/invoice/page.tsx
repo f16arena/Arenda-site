@@ -97,7 +97,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
     <div className="space-y-5">
       <div className="flex items-center justify-between no-print">
         <div className="flex items-center gap-3">
-          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+          <Link href="/admin/finances" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>

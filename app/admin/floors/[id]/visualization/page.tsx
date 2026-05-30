@@ -22,7 +22,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
   if (!hasFloorEditor) {
     return (
       <div className="space-y-4">
-        <Link href={`/admin/floors/${id}`} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 w-fit">
+        <Link href={`/admin/floors/${id}`} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 w-fit">
           <ArrowLeft className="h-4 w-4" />К настройкам этажа
         </Link>
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-500/5 dark:to-indigo-500/5 border border-purple-200 dark:border-purple-500/30 rounded-xl p-8 text-center max-w-2xl mx-auto mt-12">
@@ -82,7 +82,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Link href={`/admin/floors/${floor.id}`} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+        <Link href={`/admin/floors/${floor.id}`} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
           <ArrowLeft className="h-4 w-4" />
           К настройкам этажа
         </Link>

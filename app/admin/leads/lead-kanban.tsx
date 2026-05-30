@@ -163,7 +163,7 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
             confirmLabel="Удалить"
             onConfirm={onDelete}
             trigger={
-              <button className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:text-red-400">
+              <button className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
                 <Trash2 className="h-3 w-3" />
               </button>
             }

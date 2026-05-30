@@ -105,7 +105,7 @@ export default async function SpacesPage() {
             <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Кабинеты и помещения в зданиях</p>
           </div>
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-8 text-center">
+          <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-8 text-center">
             <Building2 className="h-10 w-10 text-amber-500 mx-auto mb-3" />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
               Сначала создайте здание

@@ -156,7 +156,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/superadmin/orgs" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100">
+        <Link href="/superadmin/orgs" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="flex-1">

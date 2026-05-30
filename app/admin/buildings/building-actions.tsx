@@ -157,7 +157,7 @@ export function BuildingActions({
       {canEdit && (
       <button
         onClick={() => setEditOpen(true)}
-        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-200"
+        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
         title="Редактировать"
       >
         <Edit2 className="h-4 w-4" />
@@ -185,7 +185,7 @@ export function BuildingActions({
             })
           }
           trigger={
-            <button className={isActive ? "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:text-emerald-200"} title={isActive ? "Деактивировать" : "Активировать"}>
+            <button className={isActive ? "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200"} title={isActive ? "Деактивировать" : "Активировать"}>
               <Power className="h-4 w-4" />
             </button>
           }

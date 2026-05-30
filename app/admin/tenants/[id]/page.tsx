@@ -384,7 +384,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       <div className="flex items-center gap-4">
         <Link
           href="/admin/tenants"
-          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Назад

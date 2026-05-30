@@ -456,7 +456,7 @@ export default async function CabinetDashboard() {
                   <a
                     href={`/api/documents/archive/${d.id}`}
                     download={d.fileName}
-                    className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:text-blue-400 shrink-0"
+                    className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
                     title="Скачать"
                   >
                     <Download className="h-4 w-4" />

@@ -70,7 +70,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-center gap-3">
-        <Link href="/admin/requests" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">
+        <Link href="/admin/requests" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
