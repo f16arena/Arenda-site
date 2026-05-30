@@ -57,6 +57,41 @@ export async function listParentContractsForAddendum(): Promise<ParentContractOp
   }))
 }
 
+/** Сезонные тарифы эксплуатационного сбора здания договора — для предзаполнения ДС «Доп. услуги». */
+export async function getContractServiceFee(
+  contractId: string,
+): Promise<{ winterRate: number | null; summerRate: number | null; allInclusive: boolean } | null> {
+  const { orgId } = await requireOrgAccess()
+  const c = await db.contract.findFirst({
+    where: { id: contractId, ...contractScope(orgId) },
+    select: {
+      tenant: {
+        select: {
+          space: { select: { floor: { select: { buildingId: true } } } },
+          tenantSpaces: { take: 1, select: { space: { select: { floor: { select: { buildingId: true } } } } } },
+          fullFloors: { take: 1, select: { buildingId: true } },
+        },
+      },
+    },
+  })
+  const buildingId =
+    c?.tenant.space?.floor.buildingId ??
+    c?.tenant.tenantSpaces[0]?.space.floor.buildingId ??
+    c?.tenant.fullFloors[0]?.buildingId ??
+    null
+  if (!buildingId) return null
+  const b = await db.building.findUnique({
+    where: { id: buildingId },
+    select: { serviceFeeWinterRate: true, serviceFeeSummerRate: true, utilitiesInServiceFee: true },
+  })
+  if (!b || (b.serviceFeeWinterRate == null && b.serviceFeeSummerRate == null)) return null
+  return {
+    winterRate: b.serviceFeeWinterRate,
+    summerRate: b.serviceFeeSummerRate,
+    allInclusive: !!(b.utilitiesInServiceFee && b.utilitiesInServiceFee.trim()),
+  }
+}
+
 async function loadParent(contractId: string, orgId: string) {
   const c = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },

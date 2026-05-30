@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { CalendarPlus, FileX, Loader2, Coins, Wrench } from "lucide-react"
@@ -9,6 +9,7 @@ import {
   createTerminationAddendum,
   createRentalTermsAddendum,
   createServicesAddendum,
+  getContractServiceFee,
 } from "@/app/actions/contract-addendums"
 
 const inputCls =
@@ -40,6 +41,24 @@ export function AddendumActions({ contractId }: { contractId: string }) {
   const [svcPhone, setSvcPhone] = useState(false)
   const [svcSecurity, setSvcSecurity] = useState("")
   const [svcOther, setSvcOther] = useState("")
+  // Тарифы эксплуатационного сбора здания договора (для предзаполнения).
+  const [bldFee, setBldFee] = useState<{ winterRate: number | null; summerRate: number | null; allInclusive: boolean } | null>(null)
+
+  useEffect(() => {
+    getContractServiceFee(contractId).then(setBldFee).catch(() => {})
+  }, [contractId])
+
+  /** Открыть «Доп. услуги», предзаполнив эксплуатационные расходы тарифами здания. */
+  function openServices() {
+    if (mode === "services") { setMode(null); return }
+    setMode("services"); setDate("")
+    if (bldFee && (bldFee.winterRate != null || bldFee.summerRate != null)) {
+      setOpOn(true)
+      setOpWinter(bldFee.winterRate != null ? String(bldFee.winterRate) : "")
+      setOpSummer(bldFee.summerRate != null ? String(bldFee.summerRate) : "")
+      setOpAll(bldFee.allInclusive)
+    }
+  }
 
   function reset() {
     setMode(null); setDate(""); setReason(""); setRentValue(""); setCleaning("")
@@ -118,7 +137,7 @@ export function AddendumActions({ contractId }: { contractId: string }) {
         </button>
         <button
           type="button"
-          onClick={() => { setMode(mode === "services" ? null : "services"); setDate("") }}
+          onClick={openServices}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           <Wrench className="h-4 w-4" /> Доп. услуги / расходы (ДС)
