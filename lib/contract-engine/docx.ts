@@ -183,10 +183,10 @@ function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string
 
 // ───────────────────────── annexes ─────────────────────────
 
-function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
+function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers: DocxSigners | undefined, annexNo: number): (Paragraph | Table)[] {
   const p = s.premises
   const out: (Paragraph | Table)[] = []
-  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 1 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
+  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № ${annexNo} к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
   out.push(h1("АКТ"))
   out.push(new Paragraph({ text: "приёма-передачи нежилого помещения", alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
   out.push(metaTable(s.meta.city, s.meta.contractDate))
@@ -203,10 +203,10 @@ function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null
   return out
 }
 
-function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
+function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers: DocxSigners | undefined, annexNo: number): (Paragraph | Table)[] {
   const sv = s.financials.additionalServices
   const out: (Paragraph | Table)[] = []
-  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 2 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
+  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № ${annexNo} к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
   out.push(h1("ЗАЯВЛЕНИЕ"))
   out.push(new Paragraph({ text: "на дополнительные услуги", alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
   out.push(para(`Арендатор: ${s.tenant.name || "________"}. Помещение: ${s.premises.buildingAddress || "________"}, ${s.premises.spaceAreaSqm || "____"} кв. м.`))
@@ -240,11 +240,11 @@ function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string |
   return out
 }
 
-function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers?: DocxSigners): (Paragraph | Table)[] {
+function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: string | null, signers: DocxSigners | undefined, annexNo: number): (Paragraph | Table)[] {
   const f = s.financials
   const op = f.operatingCosts
   const out: (Paragraph | Table)[] = []
-  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № 3 к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
+  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № ${annexNo} к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
   out.push(h1("РАСЧЁТ"))
   out.push(new Paragraph({ text: "эксплуатационных расходов", alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
 
@@ -299,15 +299,15 @@ export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: 
 
   if (c.annexes.act) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex1Act(s, qr, verifyUrl, signers))
+    children.push(...annex1Act(s, qr, verifyUrl, signers, c.annexNumbers.act))
   }
   if (c.annexes.services) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex2Services(s, qr, verifyUrl, signers))
+    children.push(...annex2Services(s, qr, verifyUrl, signers, c.annexNumbers.services))
   }
   if (c.annexes.operatingCosts) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
-    children.push(...annex3OperatingCosts(s, qr, verifyUrl, signers))
+    children.push(...annex3OperatingCosts(s, qr, verifyUrl, signers, c.annexNumbers.operatingCosts))
   }
 
   const doc = new Document({

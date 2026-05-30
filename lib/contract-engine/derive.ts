@@ -15,9 +15,16 @@ export interface UtilityRef {
 }
 
 export interface DerivedAnnexes {
-  act: boolean // Прил.№1
-  services: boolean // Прил.№2 (derived)
-  operatingCosts: boolean // Прил.№3 (derived)
+  act: boolean // Акт приёма-передачи
+  services: boolean // Доп. услуги (derived)
+  operatingCosts: boolean // Эксплуатационные расходы (derived)
+}
+
+/** Фактические (последовательные) номера приложений — 0 если приложение выключено. */
+export interface DerivedAnnexNumbers {
+  act: number
+  services: number
+  operatingCosts: number
 }
 
 export interface DerivedContext {
@@ -27,6 +34,7 @@ export interface DerivedContext {
   metered: UtilityRef[]
   inOperating: UtilityRef[]
   annexes: DerivedAnnexes
+  annexNumbers: DerivedAnnexNumbers
   utilitiesClause: string // п.1.5
   signageClause: string // п.1.6
   /** статьи, покрываемые эксплуатационными расходами (Прил.№3) */
@@ -65,6 +73,14 @@ export function deriveContext(s: ContractState): DerivedContext {
     operatingCosts: opEnabled,
   }
 
+  // Сквозная нумерация по факту включённых приложений (отключил Акт — расчёт
+  // эксплуатационных расходов становится №1, а не №3).
+  let an = 0
+  const annexNumbers: DerivedAnnexNumbers = { act: 0, services: 0, operatingCosts: 0 }
+  if (annexes.act) annexNumbers.act = ++an
+  if (annexes.services) annexNumbers.services = ++an
+  if (annexes.operatingCosts) annexNumbers.operatingCosts = ++an
+
   // п.1.5 — сводка порядка оплаты коммунальных услуг
   const parts: string[] = []
   if (included.length) parts.push(`коммунальные услуги (${listLabels(included)}) включены в арендную плату`)
@@ -92,5 +108,5 @@ export function deriveContext(s: ContractState): DerivedContext {
     covers = covers.concat(inOperating.map((r) => r.label.toLowerCase()))
   }
 
-  return { opEnabled, anyService, included, metered, inOperating, annexes, utilitiesClause, signageClause, covers }
+  return { opEnabled, anyService, included, metered, inOperating, annexes, annexNumbers, utilitiesClause, signageClause, covers }
 }

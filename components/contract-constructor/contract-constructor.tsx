@@ -612,11 +612,11 @@ function ContractPreview({ state }: { state: ContractState }) {
   )
 }
 
-function Annex1Preview({ state }: { state: ContractState }) {
+function Annex1Preview({ state, annexNo }: { state: ContractState; annexNo: number }) {
   const p = state.premises
   return (
     <div className="space-y-2 text-slate-700 dark:text-slate-300">
-      <div className={docTagCls}>Приложение № 1 к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
+      <div className={docTagCls}>Приложение № {annexNo} к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
       <div className={docTitleCls}>АКТ</div>
       <div className={docSubCls}>приёма-передачи нежилого помещения</div>
       <p>{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
@@ -630,7 +630,7 @@ function Annex1Preview({ state }: { state: ContractState }) {
   )
 }
 
-function Annex2Preview({ state }: { state: ContractState }) {
+function Annex2Preview({ state, annexNo }: { state: ContractState; annexNo: number }) {
   const sv = state.financials.additionalServices
   const rows: [string, boolean, string][] = [
     ["Уборка внутри помещения", sv.premisesCleaning.ordered, sv.premisesCleaning.ratePerSqm ? `${money(sv.premisesCleaning.ratePerSqm)} за кв. м/мес` : "____ за кв. м/мес"],
@@ -640,7 +640,7 @@ function Annex2Preview({ state }: { state: ContractState }) {
   ]
   return (
     <div className="space-y-2 text-slate-700 dark:text-slate-300">
-      <div className={docTagCls}>Приложение № 2 к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
+      <div className={docTagCls}>Приложение № {annexNo} к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
       <div className={docTitleCls}>ЗАЯВЛЕНИЕ</div>
       <div className={docSubCls}>на дополнительные услуги</div>
       <p>Арендатор: {state.tenant.name || "________"}. Помещение: {state.premises.buildingAddress || "________"}, {state.premises.spaceAreaSqm || "____"} кв. м.</p>
@@ -652,13 +652,13 @@ function Annex2Preview({ state }: { state: ContractState }) {
   )
 }
 
-function Annex3Preview({ state }: { state: ContractState }) {
+function Annex3Preview({ state, annexNo }: { state: ContractState; annexNo: number }) {
   const op = state.financials.operatingCosts
   const a = assemble(state)
   const area = state.premises.spaceAreaSqm || 0
   return (
     <div className="space-y-2 text-slate-700 dark:text-slate-300">
-      <div className={docTagCls}>Приложение № 3 к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
+      <div className={docTagCls}>Приложение № {annexNo} к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
       <div className={docTitleCls}>РАСЧЁТ</div>
       <div className={docSubCls}>эксплуатационных расходов</div>
       {op.method === "fixed_per_sqm" ? (
@@ -689,9 +689,9 @@ function AnnexesPreview({ state }: { state: ContractState }) {
   }
   return (
     <div className="space-y-8">
-      {c.annexes.act && <Annex1Preview state={state} />}
-      {c.annexes.services && <Annex2Preview state={state} />}
-      {c.annexes.operatingCosts && <Annex3Preview state={state} />}
+      {c.annexes.act && <Annex1Preview state={state} annexNo={c.annexNumbers.act} />}
+      {c.annexes.services && <Annex2Preview state={state} annexNo={c.annexNumbers.services} />}
+      {c.annexes.operatingCosts && <Annex3Preview state={state} annexNo={c.annexNumbers.operatingCosts} />}
     </div>
   )
 }

@@ -59,7 +59,7 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
           id: "cl_subject_act",
           html: () =>
             s.modules.actEnabled
-              ? "Помещение передаётся Арендатору по Акту приёма-передачи (Приложение № 1 к Договору), в котором фиксируется техническое состояние Помещения, показания счётчиков и перечень передаваемого оборудования. Акт является неотъемлемой частью Договора."
+              ? `Помещение передаётся Арендатору по Акту приёма-передачи (Приложение № ${c.annexNumbers.act} к Договору), в котором фиксируется техническое состояние Помещения, показания счётчиков и перечень передаваемого оборудования. Акт является неотъемлемой частью Договора.`
               : "Помещение передаётся Арендатору в день подписания Договора без оформления отдельного акта приёма-передачи; техническое состояние и показания приборов учёта при необходимости фиксируются Сторонами в свободной форме.",
         },
         {
@@ -153,26 +153,26 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
               when: () => c.opEnabled,
               html: () => {
                 if (op.method === "fixed_per_sqm") {
-                  return `Эксплуатационные расходы${op.scope === "all_inclusive" ? " (включая коммунальные услуги Помещения)" : " (содержание мест общего пользования)"} — по фиксированному тарифу: с октября по апрель ${money(op.fixed?.winterRate ?? 0)} за 1 кв. м/мес, с мая по сентябрь ${money(op.fixed?.summerRate ?? 0)} за 1 кв. м/мес (Приложение № 3). Включаются в счёт отдельной строкой.`
+                  return `Эксплуатационные расходы${op.scope === "all_inclusive" ? " (включая коммунальные услуги Помещения)" : " (содержание мест общего пользования)"} — по фиксированному тарифу: с октября по апрель ${money(op.fixed?.winterRate ?? 0)} за 1 кв. м/мес, с мая по сентябрь ${money(op.fixed?.summerRate ?? 0)} за 1 кв. м/мес (Приложение № ${c.annexNumbers.operatingCosts}). Включаются в счёт отдельной строкой.`
                 }
                 const recalc =
                   op.pooled?.basis === "estimated_with_reconciliation"
                     ? `Оплата производится по авансовой ставке ${money(op.pooled?.estimatedRatePerSqm ?? 0)} за 1 кв. м/мес с последующим перерасчётом по факту (${PERIOD_LABEL[op.pooled?.reconciliationPeriod ?? "quarterly"]}); разница подлежит доплате/возврату в течение ${op.pooled?.reconciliationDays ?? 10} рабочих дней.`
                     : "Размер определяется ежемесячно по фактическим расходам."
-                return `Эксплуатационные расходы определяются как доля Арендатора в фактических расходах Арендодателя на содержание здания, пропорциональная площади: ЭР = (сумма фактических расходов за расчётный период ÷ общая арендуемая площадь здания ${s.building.totalRentableAreaSqm || "____"} кв. м) × площадь Помещения ${area} кв. м. ${recalc} Расчёт приведён в Приложении № 3.`
+                return `Эксплуатационные расходы определяются как доля Арендатора в фактических расходах Арендодателя на содержание здания, пропорциональная площади: ЭР = (сумма фактических расходов за расчётный период ÷ общая арендуемая площадь здания ${s.building.totalRentableAreaSqm || "____"} кв. м) × площадь Помещения ${area} кв. м. ${recalc} Расчёт приведён в Приложении № ${c.annexNumbers.operatingCosts}.`
               },
             },
             {
               id: "cl_svc_comm",
               when: () => f.additionalServices.internet.ordered || f.additionalServices.phone.ordered,
               html: () =>
-                `Услуги связи (${[f.additionalServices.phone.ordered ? "стационарный телефон" : "", f.additionalServices.internet.ordered ? "доступ в интернет" : ""].filter(Boolean).join(", ")}) — на основании Заявления Арендатора (Приложение № 2) и счетов Арендодателя или оператора связи.`,
+                `Услуги связи (${[f.additionalServices.phone.ordered ? "стационарный телефон" : "", f.additionalServices.internet.ordered ? "доступ в интернет" : ""].filter(Boolean).join(", ")}) — на основании Заявления Арендатора (Приложение № ${c.annexNumbers.services}) и счетов Арендодателя или оператора связи.`,
             },
             {
               id: "cl_svc_clean",
               when: () => f.additionalServices.premisesCleaning.ordered,
               html: () =>
-                "Уборка внутри Помещения — поручена Арендодателю (Приложение № 2); стоимость указывается отдельной строкой в счёте.",
+                `Уборка внутри Помещения — поручена Арендодателю (Приложение № ${c.annexNumbers.services}); стоимость указывается отдельной строкой в счёте.`,
             },
           ],
         },
@@ -397,9 +397,9 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
           id: "cl_annex_list",
           html: () => {
             const list: string[] = []
-            if (c.annexes.act) list.push("Приложение № 1 — Акт приёма-передачи Помещения")
-            if (c.annexes.services) list.push("Приложение № 2 — Заявление на дополнительные услуги")
-            if (c.annexes.operatingCosts) list.push("Приложение № 3 — Расчёт эксплуатационных расходов")
+            if (c.annexes.act) list.push(`Приложение № ${c.annexNumbers.act} — Акт приёма-передачи Помещения`)
+            if (c.annexes.services) list.push(`Приложение № ${c.annexNumbers.services} — Заявление на дополнительные услуги`)
+            if (c.annexes.operatingCosts) list.push(`Приложение № ${c.annexNumbers.operatingCosts} — Расчёт эксплуатационных расходов`)
             return list.length
               ? "Приложения, являющиеся неотъемлемой частью Договора: " + list.join("; ") + "."
               : "Приложения к Договору не предусмотрены."
