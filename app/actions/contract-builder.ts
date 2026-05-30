@@ -250,10 +250,26 @@ export async function prefillFromTenant(
     if (buildingId) {
       const agg = await db.space.aggregate({ where: { kind: "RENTABLE", floor: { buildingId } }, _sum: { area: true } })
       s.building.totalRentableAreaSqm = agg._sum.area ?? 0
-      // Контакты администратора здания для переключателя «Администратор».
-      const b = await db.building.findUnique({ where: { id: buildingId }, select: { administrator: { select: { phone: true, email: true } } } })
+      // Контакты администратора + ставки эксплуатационного сбора здания.
+      const b = await db.building.findUnique({
+        where: { id: buildingId },
+        select: {
+          administrator: { select: { phone: true, email: true } },
+          serviceFeeWinterRate: true, serviceFeeSummerRate: true, utilitiesInServiceFee: true,
+        },
+      })
       const a = b?.administrator
       if (a && (a.phone || a.email)) adminContacts = { phone: a.phone ?? "", email: a.email ?? "" }
+      // Эксплуатационные расходы: подтягиваем сезонные тарифы из настроек здания
+      // (страница «Эксплуатационный сбор»), чтобы не вбивать вручную в конструкторе.
+      if (b && (b.serviceFeeWinterRate != null || b.serviceFeeSummerRate != null)) {
+        s.financials.operatingCosts.method = "fixed_per_sqm"
+        s.financials.operatingCosts.fixed = {
+          winterRate: b.serviceFeeWinterRate ?? 0,
+          summerRate: b.serviceFeeSummerRate ?? 0,
+        }
+        s.financials.operatingCosts.scope = (b.utilitiesInServiceFee && b.utilitiesInServiceFee.trim()) ? "all_inclusive" : "common_area"
+      }
     }
 
     // Финансы
