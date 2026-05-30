@@ -96,8 +96,13 @@ function connect(): Promise<WebSocket> {
 
 const COMMON = "kz.gov.pki.knca.commonUtils"
 
-/** Низкоуровневый вызов NCALayer: открыть ws, отправить запрос, вернуть сырой ответ. */
-function rpc(request: unknown): Promise<{ ok: true; msg: NcaWsMessage } | { ok: false; error: string; code?: string }> {
+/**
+ * Низкоуровневый вызов NCALayer. Возвращает СЫРОЙ разобранный ответ для любого
+ * полученного JSON (успех определяет вызывающий — по наличию подписи, а не по коду,
+ * т.к. формат поля code/status разнится между версиями NCALayer). ok:false — только
+ * транспортные сбои (нет соединения / таймаут / не-JSON).
+ */
+function rawRpc(request: unknown): Promise<{ ok: true; msg: NcaWsMessage } | { ok: false; error: string; code: string }> {
   return new Promise((resolve) => {
     connect().then((ws) => {
       const timeout = setTimeout(() => {
@@ -110,23 +115,9 @@ function rpc(request: unknown): Promise<{ ok: true; msg: NcaWsMessage } | { ok: 
         try {
           const msg = JSON.parse(event.data) as NcaWsMessage
           try { ws.close() } catch { /* noop */ }
-
-          // Успех: code === "200" ИЛИ status === true
-          const isSuccess = msg.code === "200" || msg.status === true
-          if (!isSuccess) {
-            const code = msg.errorCode ?? msg.code ?? "unknown"
-            const human =
-              code === "USER_CANCELLED" ? "Подписание отменено пользователем" :
-              code === "EMPTY_KEY_STORE" ? "Ключ не найден: выберите файл ЭЦП (.p12 / RSA…) или вставьте токен" :
-              code === "WRONG_PASSWORD" ? "Неверный пароль/PIN к ключу" :
-              code === "NO_TOKENS_FOUND" ? "Не найдено ни одного ключа/токена в NCALayer" :
-              (msg.message ? `NCALayer: ${msg.message} (код ${code})` : `Ошибка NCALayer (код ${code})`)
-            resolve({ ok: false, error: human, code })
-            return
-          }
           resolve({ ok: true, msg })
-        } catch (e) {
-          resolve({ ok: false, error: e instanceof Error ? e.message : "JSON parse error", code: "PARSE_ERROR" })
+        } catch {
+          resolve({ ok: false, error: "NCALayer вернул не-JSON ответ", code: "PARSE_ERROR" })
         }
       }
 
@@ -142,13 +133,34 @@ function rpc(request: unknown): Promise<{ ok: true; msg: NcaWsMessage } | { ok: 
   })
 }
 
-/** Вызов, ожидающий подпись (CMS) в ответе. */
+/** Человекочитаемая ошибка из ответа NCALayer (когда подписи в ответе нет). */
+function errorFromMsg(msg: NcaWsMessage): { error: string; code: string } {
+  const code = String(msg.errorCode ?? msg.code ?? "unknown")
+  const known =
+    code === "USER_CANCELLED" ? "Подписание отменено пользователем" :
+    code === "EMPTY_KEY_STORE" ? "Ключ не найден: выберите файл ЭЦП (.p12 / RSA…) или вставьте токен" :
+    code === "WRONG_PASSWORD" ? "Неверный пароль/PIN к ключу" :
+    code === "NO_TOKENS_FOUND" ? "Не найдено ни одного ключа/токена в NCALayer" :
+    null
+  if (known) return { error: known, code }
+  if (msg.message) return { error: `NCALayer: ${msg.message}`, code }
+  // Совсем неизвестный формат — покажем сырой ответ (обрезанный) для диагностики.
+  let raw = ""
+  try { raw = JSON.stringify(msg).slice(0, 200) } catch { /* noop */ }
+  return { error: `NCALayer вернул ответ без подписи. Ответ: ${raw || "(пусто)"}`, code }
+}
+
+/** Вызов, ожидающий подпись (CMS). Успех = подпись извлечена из ответа (любой формат). */
 async function signCall(request: unknown): Promise<NcaSignResponse> {
-  const r = await rpc(request)
+  const r = await rawRpc(request)
   if (!r.ok) return { ok: false, error: r.error, code: r.code }
+  // Если в ответе есть строка подписи — значит успех, независимо от поля code.
   const signature = extractSignature(r.msg)
-  if (signature) return { ok: true, signature, signerCert: signature, signerInfo: {} }
-  return { ok: false, error: "Неожиданный формат ответа NCALayer (нет подписи)", code: "NO_SIGNATURE" }
+  if (signature && signature.length > 100) {
+    return { ok: true, signature, signerCert: signature, signerInfo: {} }
+  }
+  const { error, code } = errorFromMsg(r.msg)
+  return { ok: false, error, code }
 }
 
 /**
@@ -157,7 +169,7 @@ async function signCall(request: unknown): Promise<NcaSignResponse> {
  * давало ошибку «ключ не найден». Теперь спрашиваем NCALayer (getActiveTokens).
  */
 async function detectStorage(): Promise<string> {
-  const r = await rpc({ module: COMMON, method: "getActiveTokens" })
+  const r = await rawRpc({ module: COMMON, method: "getActiveTokens" })
   if (r.ok) {
     const ro: unknown = (r.msg.responseObject as unknown) ?? (r.msg.result as unknown)
     const list: string[] = Array.isArray(ro)
