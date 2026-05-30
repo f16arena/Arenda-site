@@ -139,7 +139,7 @@ export default async function EmailLogsPage({
                 const meta = STATUS_META[log.status] ?? STATUS_META.SENT
                 const StatusIcon = meta.icon
                 return (
-                  <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition">
+                  <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
                     <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                       {new Date(log.sentAt).toLocaleString("ru-RU", {
                         day: "2-digit", month: "2-digit",

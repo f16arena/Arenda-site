@@ -133,7 +133,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
           </label>
         ) : (
           <label className={`block border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition ${
-            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
+            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10"
           }`}>
             <input
               type="file"

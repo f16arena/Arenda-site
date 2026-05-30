@@ -425,7 +425,7 @@ export default async function SettingsPage() {
         <ServerForm
           action={createTariff.bind(null, building.id)}
           successMessage="Тариф добавлен"
-          className="border-t border-dashed border-slate-200 dark:border-slate-800 px-5 py-4 grid grid-cols-[120px_1fr_120px_100px_auto] gap-3 items-end bg-slate-50 dark:bg-slate-800/50/50"
+          className="border-t border-dashed border-slate-200 dark:border-slate-800 px-5 py-4 grid grid-cols-[120px_1fr_120px_100px_auto] gap-3 items-end bg-slate-50 dark:bg-slate-800/50"
         >
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип *</label>
@@ -512,7 +512,7 @@ export default async function SettingsPage() {
         <ServerForm
           action={addEmergencyContact.bind(null, building.id)}
           successMessage="Контакт добавлен"
-          className="border-t border-dashed border-slate-200 dark:border-slate-800 px-5 py-4 grid grid-cols-4 gap-3 items-end bg-slate-50 dark:bg-slate-800/50/50"
+          className="border-t border-dashed border-slate-200 dark:border-slate-800 px-5 py-4 grid grid-cols-4 gap-3 items-end bg-slate-50 dark:bg-slate-800/50"
         >
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Категория</label>

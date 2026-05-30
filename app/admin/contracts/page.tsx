@@ -151,7 +151,7 @@ function Section({
       </div>
       <table className="w-full min-w-[720px] text-sm">
         <thead>
-          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
             <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Помещение</th>
             <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Срок договора</th>
@@ -171,8 +171,8 @@ function Section({
             return (
               <tr key={t.id} className={cn(
                 "border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50",
-                highlight === "amber" && "bg-amber-50 dark:bg-amber-500/10/30",
-                highlight === "red" && "bg-red-50 dark:bg-red-500/10/30"
+                highlight === "amber" && "bg-amber-50 dark:bg-amber-500/10",
+                highlight === "red" && "bg-red-50 dark:bg-red-500/10"
               )}>
                 <td className="px-5 py-3">
                   <p className="font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>

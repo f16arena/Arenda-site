@@ -170,7 +170,7 @@ export default async function StaffDetailPage({
               </div>
               <table className="w-full min-w-[480px] text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                     <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Период</th>
                     <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
                     <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>

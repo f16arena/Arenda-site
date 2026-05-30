@@ -68,7 +68,7 @@ export function ImportTenantsClient() {
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8">
         <label
           className={`block border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${
-            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10/30"
+            pending ? "border-blue-400 bg-blue-50 dark:bg-blue-500/10" : "border-slate-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:bg-blue-500/10"
           }`}
         >
           <input

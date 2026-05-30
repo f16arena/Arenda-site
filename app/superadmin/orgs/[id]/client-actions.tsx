@@ -192,7 +192,7 @@ export function DangerZone({
   const [showDelete, setShowDelete] = useState(false)
 
   return (
-    <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10/50 p-5 space-y-4">
+    <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-5 space-y-4">
       <div className="flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
         <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">Опасная зона</p>

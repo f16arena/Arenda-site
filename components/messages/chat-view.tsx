@@ -173,7 +173,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50 dark:bg-slate-800/50/30">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-slate-50 dark:bg-slate-800/50">
               {selectedId === BROADCAST_ID ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center max-w-sm">

@@ -186,7 +186,7 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
       </div>
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+          <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Организация</th>
             <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тариф</th>
             <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">MRR</th>
@@ -197,7 +197,7 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
         </thead>
         <tbody>
           {sorted.map((o) => (
-            <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50/50 transition">
+            <tr key={o.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition">
               <td className="px-5 py-2.5">
                 <Link href={`/superadmin/orgs/${o.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-600 dark:text-purple-400">
                   {o.name}

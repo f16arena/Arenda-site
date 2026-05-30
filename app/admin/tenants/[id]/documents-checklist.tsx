@@ -84,7 +84,7 @@ export function DocumentsChecklist({
 
         {/* Other uploaded docs that aren't in the required list */}
         {documents.filter((d) => !required.find((r) => r.type === d.type)).map((d) => (
-          <div key={d.id} className="px-5 py-3 flex items-start gap-3 bg-slate-50 dark:bg-slate-800/50/50">
+          <div key={d.id} className="px-5 py-3 flex items-start gap-3 bg-slate-50 dark:bg-slate-800/50">
             <CheckCircle2 className="h-4 w-4 text-slate-400 dark:text-slate-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{d.name}</p>
