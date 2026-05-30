@@ -87,10 +87,14 @@ export async function signIssuedDocumentEcp(documentId: string, cmsB64: string):
       return { ok: false, error: "Подпись не соответствует документу (возможно, файл изменён)" }
     }
 
-    // Сверка личности: ИИН/БИН сертификата == реквизиты арендатора.
+    // Сверка личности (строго): реквизиты арендатора обязаны быть заполнены,
+    // и ИИН/БИН сертификата должен совпасть с ними.
     const expected = [tenant.bin, tenant.iin].map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
+    if (!expected.length) {
+      return { ok: false, error: "У арендатора не заполнен ИИН/БИН — подпись невозможна. Обратитесь к арендодателю, чтобы указал ваши реквизиты." }
+    }
     const got = [signer.iin, signer.bin].filter((x): x is string => !!x)
-    if (expected.length && !got.some((g) => expected.includes(g))) {
+    if (!got.some((g) => expected.includes(g))) {
       return { ok: false, error: `ЭЦП подписана не тем лицом: ИИН/БИН (${got.join("/") || "—"}) не совпадает с арендатором` }
     }
 

@@ -54,11 +54,15 @@ export async function signIssuedDocumentByLandlordEcp(
       return { ok: false, error: "Подпись не соответствует документу (возможно, файл изменён)" }
     }
 
-    // Сверка личности: ИИН/БИН сертификата == реквизиты организации (арендодателя).
+    // Сверка личности (строго): реквизиты организации обязаны быть заполнены,
+    // и ИИН/БИН сертификата должен совпасть с ними.
     const req = await getOrganizationRequisites(orgId).catch(() => null)
     const expected = [req?.bin, req?.iin, req?.taxId].map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
+    if (!expected.length) {
+      return { ok: false, error: "Не заполнены реквизиты организации (БИН/ИИН) — подпись невозможна. Укажите их в настройках организации." }
+    }
     const got = [signer.iin, signer.bin].filter((x): x is string => !!x)
-    if (expected.length && !got.some((g) => expected.includes(g))) {
+    if (!got.some((g) => expected.includes(g))) {
       return { ok: false, error: `ЭЦП подписана не той стороной: ИИН/БИН (${got.join("/") || "—"}) не совпадает с реквизитами организации` }
     }
 
