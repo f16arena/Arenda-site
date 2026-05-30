@@ -415,10 +415,8 @@ export default async function CabinetDashboard() {
         />
       </div>
 
-      {/* Календарь оплат — компактный, не на всю ширину */}
-      <div className="max-w-md">
-        <PaymentsMiniCalendarLoader paymentDueDay={tenant.paymentDueDay ?? 10} />
-      </div>
+      {/* Календарь оплат — в стиле владельца (/admin/calendar) */}
+      <PaymentsMiniCalendarLoader paymentDueDay={tenant.paymentDueDay ?? 10} />
 
       {/* Двухколоночный блок */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
