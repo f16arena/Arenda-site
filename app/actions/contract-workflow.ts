@@ -15,6 +15,7 @@ import { verifyCmsWithNcanode } from "@/lib/ncanode"
 import { contractPayloadBase64, type ContractSigningFields } from "@/lib/contract-signing-payload"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
+import { convertDocxToPdf } from "@/lib/pdf-convert"
 
 // Жёсткие предупреждения, при которых подпись отклоняется (а не просто логируется).
 const BLOCKING_WARNINGS = ["Срок действия сертификата истёк", "Сертификат ещё не вступил в силу"]
@@ -336,11 +337,11 @@ export async function getContractByToken(token: string) {
 }
 
 /**
- * Публичное скачивание подписанного договора по токену (для арендатора).
- * Доступно ТОЛЬКО когда договор подписан обеими сторонами (status SIGNED) и не удалён.
- * Возвращает DOCX со штампами ЭЦП (тот же рендер, что у арендодателя).
+ * Публичное скачивание подписанного договора по токену (для арендатора) — ТОЛЬКО PDF.
+ * Доступно когда договор подписан обеими сторонами (status SIGNED) и не удалён.
+ * Рендерим DOCX со штампами ЭЦП → конвертируем в PDF на VPS (LibreOffice).
  */
-export async function getSignedContractDocxByToken(
+export async function getSignedContractPdfByToken(
   token: string,
 ): Promise<{ ok: true; fileName: string; base64: string } | { ok: false; error: string }> {
   if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
@@ -356,12 +357,13 @@ export async function getSignedContractDocxByToken(
     return { ok: false, error: "Скачивание будет доступно после подписи обеих сторон" }
   }
   try {
-    const buf = await buildSignedContractDocxBuffer(contract)
-    if (!buf) return { ok: false, error: "Договор создан вне конструктора — обратитесь к арендодателю за копией" }
+    const docx = await buildSignedContractDocxBuffer(contract)
+    if (!docx) return { ok: false, error: "Договор создан вне конструктора — обратитесь к арендодателю за копией" }
     const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
-    return { ok: true, fileName: `Договор_${num}_подписан.docx`, base64: buf.toString("base64") }
+    const pdf = await convertDocxToPdf(docx, `Договор_${num}.docx`)
+    return { ok: true, fileName: `Договор_${num}_подписан.pdf`, base64: pdf.toString("base64") }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать документ" }
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать PDF" }
   }
 }
 

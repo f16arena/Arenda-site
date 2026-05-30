@@ -214,7 +214,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Готовый документ</p>
             <DownloadSigned token={token} />
             <p className="mt-2 text-[11px] text-slate-400">
-              DOCX со штампами ЭЦП обеих сторон и QR-кодом для проверки подлинности.
+              PDF со штампами ЭЦП обеих сторон и QR-кодом для проверки подлинности.
             </p>
           </div>
         )}
