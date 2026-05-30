@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect, useReducer } from "react"
 import { formatKzIinBirthDate, validateKazakhstanIin } from "@/lib/kz-iin"
 import {
   normalizeTenantLegalType,
@@ -21,6 +21,20 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
   const [taxId, setTaxId] = useState(() =>
     tenantTaxIdValue({ legalType: initialLegalType, bin: initialBin, iin: initialIin }),
   )
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const [, forceRender] = useReducer((x: number) => x + 1, 0)
+
+  // React 19 после server-action делает form.reset(): нативный сброс обнуляет DOM
+  // контролируемых полей (select → первый вариант, input → пусто), а React не
+  // перерисовывает (state не менялся) — сброс остаётся видимым. Ловим событие reset
+  // и принудительно перерисовываем, чтобы вернуть контролируемые value из state.
+  useEffect(() => {
+    const form = selectRef.current?.form
+    if (!form) return
+    const onReset = () => requestAnimationFrame(forceRender)
+    form.addEventListener("reset", onReset)
+    return () => form.removeEventListener("reset", onReset)
+  }, [])
   const usesBin = tenantLegalTypeUsesBin(legalType)
   const taxIdLabel = tenantTaxIdLabel(legalType)
   const iinValidation = !usesBin && taxId.length === 12 ? validateKazakhstanIin(taxId) : null
@@ -32,6 +46,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
           Правовая форма
         </label>
         <select
+          ref={selectRef}
           name="legalType"
           value={legalType}
           onChange={(event) => {
