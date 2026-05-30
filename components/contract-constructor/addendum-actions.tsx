@@ -3,17 +3,18 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { CalendarPlus, FileX, Loader2, Coins } from "lucide-react"
+import { CalendarPlus, FileX, Loader2, Coins, Wrench } from "lucide-react"
 import {
   createExtensionAddendum,
   createTerminationAddendum,
   createRentalTermsAddendum,
+  createServicesAddendum,
 } from "@/app/actions/contract-addendums"
 
 const inputCls =
   "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
 
-type Mode = null | "extend" | "terminate" | "rent"
+type Mode = null | "extend" | "terminate" | "rent" | "services"
 
 /** ДС к подписанному договору: продление, расторжение или изменение условий аренды. */
 export function AddendumActions({ contractId }: { contractId: string }) {
@@ -29,10 +30,22 @@ export function AddendumActions({ contractId }: { contractId: string }) {
   const [deposit, setDeposit] = useState("")
   const [rentFree, setRentFree] = useState("")
   const [moveIn, setMoveIn] = useState("")
+  // Доп. услуги / эксплуатационные расходы
+  const [opOn, setOpOn] = useState(false)
+  const [opWinter, setOpWinter] = useState("")
+  const [opSummer, setOpSummer] = useState("")
+  const [opAll, setOpAll] = useState(false)
+  const [svcCleaning, setSvcCleaning] = useState("")
+  const [svcInternet, setSvcInternet] = useState("")
+  const [svcPhone, setSvcPhone] = useState(false)
+  const [svcSecurity, setSvcSecurity] = useState("")
+  const [svcOther, setSvcOther] = useState("")
 
   function reset() {
     setMode(null); setDate(""); setReason(""); setRentValue(""); setCleaning("")
     setDeposit(""); setRentFree(""); setMoveIn("")
+    setOpOn(false); setOpWinter(""); setOpSummer(""); setOpAll(false)
+    setSvcCleaning(""); setSvcInternet(""); setSvcPhone(false); setSvcSecurity(""); setSvcOther("")
   }
 
   async function submit() {
@@ -57,6 +70,20 @@ export function AddendumActions({ contractId }: { contractId: string }) {
             depositAmount: deposit.trim() ? Number(deposit.replace(",", ".")) : undefined,
             rentFreeMonths: rentFree.trim() ? Number(rentFree) : undefined,
             moveInDate: moveIn || undefined,
+          },
+          date || undefined,
+        )
+      } else if (mode === "services") {
+        const num = (s: string) => (s.trim() ? Number(s.replace(",", ".")) : undefined)
+        r = await createServicesAddendum(
+          contractId,
+          {
+            operatingCosts: opOn ? { winterRate: num(opWinter), summerRate: num(opSummer), allInclusive: opAll } : null,
+            cleaning: svcCleaning.trim() ? { fee: num(svcCleaning) } : null,
+            internet: svcInternet.trim() ? { monthly: num(svcInternet) } : null,
+            phone: svcPhone || null,
+            security: svcSecurity.trim() ? { monthly: num(svcSecurity) } : null,
+            other: svcOther.trim() || null,
           },
           date || undefined,
         )
@@ -88,6 +115,13 @@ export function AddendumActions({ contractId }: { contractId: string }) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           <Coins className="h-4 w-4" /> Изменить условия аренды (ДС)
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode(mode === "services" ? null : "services"); setDate("") }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <Wrench className="h-4 w-4" /> Доп. услуги / расходы (ДС)
         </button>
         <button
           type="button"
@@ -138,6 +172,55 @@ export function AddendumActions({ contractId }: { contractId: string }) {
                   <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Дата заселения (необязательно)</label>
                   <input type="date" className={inputCls} value={moveIn} onChange={(e) => setMoveIn(e.target.value)} />
                 </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Дата вступления в силу</label>
+                <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+              </div>
+            </div>
+          ) : mode === "services" ? (
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <input type="checkbox" checked={opOn} onChange={(e) => setOpOn(e.target.checked)} className="rounded" />
+                Ввести эксплуатационные расходы
+              </label>
+              {opOn && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 pl-6">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Тариф зима (окт–апр) ₸/м²</label>
+                    <input type="number" min={0} step="0.01" className={inputCls} value={opWinter} onChange={(e) => setOpWinter(e.target.value)} placeholder="например, 608" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Тариф лето (май–сен) ₸/м²</label>
+                    <input type="number" min={0} step="0.01" className={inputCls} value={opSummer} onChange={(e) => setOpSummer(e.target.value)} placeholder="например, 270" />
+                  </div>
+                  <label className="sm:col-span-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <input type="checkbox" checked={opAll} onChange={(e) => setOpAll(e.target.checked)} className="rounded" />
+                    Включая коммунальные услуги Помещения (all-inclusive)
+                  </label>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Уборка / мытьё полов ₸/мес</label>
+                  <input type="number" min={0} step="0.01" className={inputCls} value={svcCleaning} onChange={(e) => setSvcCleaning(e.target.value)} placeholder="не добавлять — оставьте пустым" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Интернет ₸/мес</label>
+                  <input type="number" min={0} step="0.01" className={inputCls} value={svcInternet} onChange={(e) => setSvcInternet(e.target.value)} placeholder="не добавлять — оставьте пустым" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Охрана помещения ₸/мес</label>
+                  <input type="number" min={0} step="0.01" className={inputCls} value={svcSecurity} onChange={(e) => setSvcSecurity(e.target.value)} placeholder="не добавлять — оставьте пустым" />
+                </div>
+                <label className="flex items-end gap-2 pb-2 text-sm text-slate-700 dark:text-slate-300">
+                  <input type="checkbox" checked={svcPhone} onChange={(e) => setSvcPhone(e.target.checked)} className="rounded" />
+                  Стационарный телефон
+                </label>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Прочие изменения (свободный текст)</label>
+                <textarea className={`${inputCls} resize-none`} rows={2} value={svcOther} onChange={(e) => setSvcOther(e.target.value)} placeholder="например, с 01.07.2026 изменяется порядок оплаты…" />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Дата вступления в силу</label>

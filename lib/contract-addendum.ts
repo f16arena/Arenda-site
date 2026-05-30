@@ -80,6 +80,31 @@ export async function applySignedContractChanges(contractId: string) {
       return { applied: true, reason: "terminated" }
     }
 
+    // Доп. услуги / эксплуатационные расходы: уборку применяем к арендатору
+    // (needsCleaning/cleaningFee — поля арендатора), остальное фиксируется как
+    // согласованный текст ДС (неотъемлемая часть договора).
+    if (contract.changeKind === "SERVICES") {
+      const services = asRecord(payload?.services)
+      const cleaning = asRecord(services?.cleaning)
+      const data: { needsCleaning?: boolean; cleaningFee?: number } = {}
+      if (cleaning) {
+        data.needsCleaning = true
+        const fee = numberInRange(cleaning.fee, 0, 1_000_000_000)
+        if (fee !== null) data.cleaningFee = fee
+      }
+      if (Object.keys(data).length) {
+        await tx.tenant.update({ where: { id: contract.tenantId }, data })
+      }
+      await tx.contract.update({ where: { id: contract.id }, data: { appliedAt: new Date() } })
+      return { applied: true, reason: "services_applied" }
+    }
+
+    // Прочие изменения (свободный текст) — фиксируем факт подписания, без структурных правок.
+    if (contract.changeKind === "OTHER") {
+      await tx.contract.update({ where: { id: contract.id }, data: { appliedAt: new Date() } })
+      return { applied: true, reason: "other_applied" }
+    }
+
     if (contract.changeKind !== "RENTAL_TERMS") return { applied: false, reason: "unsupported_change" }
 
     const newTerms = asRecord(payload?.newTerms) ?? asRecord(payload?.after)

@@ -274,3 +274,104 @@ export async function createRentalTermsAddendum(
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать ДС об изменении условий" }
   }
 }
+
+export interface ServicesChange {
+  /** Эксплуатационные расходы: тарифы зима/лето (₸/м²/мес) + охват. */
+  operatingCosts?: { winterRate?: number; summerRate?: number; allInclusive?: boolean } | null
+  /** Уборка/мытьё полов — применяется к арендатору (₸/мес). */
+  cleaning?: { fee?: number } | null
+  /** Интернет (₸/мес). */
+  internet?: { monthly?: number } | null
+  /** Стационарный телефон. */
+  phone?: boolean | null
+  /** Охрана помещения (₸/мес). */
+  security?: { monthly?: number } | null
+  /** Прочие изменения — свободный текст. */
+  other?: string | null
+}
+
+/**
+ * ДС о дополнительных услугах / эксплуатационных расходах: вводит/меняет
+ * эксплуатационные расходы, уборку, интернет, телефон, охрану и прочие условия.
+ * Создаёт ADDENDUM (SERVICES) и отправляет арендатору на ЭЦП-подпись. После подписи
+ * уборка применяется к арендатору, остальное закрепляется текстом ДС (ст. 401, 402 ГК РК).
+ */
+export async function createServicesAddendum(
+  contractId: string,
+  services: ServicesChange,
+  effectiveDateStr?: string,
+): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+
+    const op = services.operatingCosts
+    const items: string[] = []
+    if (op && (typeof op.winterRate === "number" || typeof op.summerRate === "number")) {
+      items.push(
+        `Вводятся эксплуатационные расходы${op.allInclusive ? " (включая коммунальные услуги Помещения)" : " (содержание мест общего пользования)"} по фиксированному тарифу: ` +
+        `с октября по апрель ${money(op.winterRate ?? 0)}/м² в месяц, с мая по сентябрь ${money(op.summerRate ?? 0)}/м² в месяц. ` +
+        `Расходы включаются в счёт отдельной строкой`,
+      )
+    }
+    if (services.cleaning && typeof services.cleaning.fee === "number") {
+      items.push(`Вводится услуга уборки (мытьё полов) внутри Помещения — ${money(services.cleaning.fee)}/мес, отдельной строкой в счёте`)
+    }
+    if (services.internet && typeof services.internet.monthly === "number") {
+      items.push(`Подключается услуга «Интернет» — ${money(services.internet.monthly)}/мес`)
+    }
+    if (services.phone) {
+      items.push("Подключается услуга «Стационарный телефон» — по тарифам оператора")
+    }
+    if (services.security && typeof services.security.monthly === "number") {
+      items.push(`Подключается услуга «Охрана Помещения» — ${money(services.security.monthly)}/мес`)
+    }
+    if (services.other && services.other.trim()) {
+      items.push(services.other.trim())
+    }
+    if (!items.length) return { ok: false, error: "Выберите хотя бы одно изменение/услугу для ДС" }
+
+    const r = await loadParent(contractId, orgId)
+    if ("error" in r) return { ok: false, error: r.error }
+    const parent = r.contract
+
+    const eff = effectiveDateStr ? new Date(effectiveDateStr) : new Date()
+    if (Number.isNaN(eff.getTime())) return { ok: false, error: "Укажите корректную дату вступления в силу" }
+
+    const number = await nextAddendumNumber(parent.id, parent.number)
+    const today = new Date()
+    const lines = [
+      `ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ № ${number}`,
+      `к Договору аренды № ${parent.number}${parent.startDate ? ` от ${fmt(parent.startDate)}` : ""}`,
+      "",
+      `г. ${today.toLocaleDateString("ru-RU")}`,
+      "",
+      `Арендодатель и Арендатор (${parent.tenant.companyName}) договорились о нижеследующем:`,
+      `1. С ${fmt(eff)} внести в Договор следующие изменения и дополнения:`,
+      ...items.map((t, i) => `1.${i + 1}. ${t}.`),
+      `2. Остальные условия Договора остаются без изменений.`,
+      `3. Настоящее соглашение является неотъемлемой частью Договора и составлено в двух экземплярах, имеющих равную юридическую силу.`,
+    ]
+
+    const addendum = await db.contract.create({
+      data: {
+        tenantId: parent.tenantId,
+        number,
+        type: "ADDENDUM",
+        content: lines.join("\n"),
+        parentContractId: parent.id,
+        changeKind: "SERVICES",
+        changePayload: JSON.parse(JSON.stringify({ services })),
+        effectiveDate: eff,
+        startDate: today,
+        status: "DRAFT",
+      },
+      select: { id: true },
+    })
+
+    const sent = await sendContractForSignature(addendum.id)
+    return { ok: true, contractId: addendum.id, signUrl: sent.ok ? sent.signUrl : undefined }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать ДС о доп. услугах" }
+  }
+}
