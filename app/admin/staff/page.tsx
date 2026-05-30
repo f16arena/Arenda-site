@@ -51,7 +51,7 @@ export default async function StaffPage() {
         </div>
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50/50">
+            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Сотрудник</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Роль</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Должность</th>
@@ -66,14 +66,14 @@ export default async function StaffPage() {
             {active.map((u) => {
               const lastPayment = u.staff?.salaryPayments?.[0]
               return (
-                <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
+                <tr key={u.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3.5">
                     <Link href={`/admin/staff/${u.id}`} className="flex items-center gap-3 group">
-                      <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 group-hover:bg-blue-100 dark:hover:bg-blue-500/20 dark:bg-blue-500/20 transition">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-blue-600 dark:text-blue-400">{u.name[0]?.toUpperCase()}</span>
+                      <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0 group-hover:bg-blue-100 dark:group-hover:bg-blue-500/20 transition">
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">{u.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:text-blue-400 transition">{u.name}</p>
+                        <p className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition">{u.name}</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500">{u.email ?? u.phone ?? "—"}</p>
                       </div>
                     </Link>
@@ -147,13 +147,13 @@ export default async function StaffPage() {
           <table className="w-full min-w-[640px] text-sm">
             <tbody>
               {inactive.map((u) => (
-                <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:bg-slate-800/50 transition-colors">
+                <tr key={u.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-5 py-3 w-full">
                     <Link href={`/admin/staff/${u.id}`} className="flex items-center gap-3 group">
                       <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                         <span className="text-xs text-slate-400 dark:text-slate-500">{u.name[0]?.toUpperCase()}</span>
                       </div>
-                      <span className="text-slate-400 dark:text-slate-500 line-through group-hover:text-slate-600 dark:text-slate-400">{u.name}</span>
+                      <span className="text-slate-400 dark:text-slate-500 line-through group-hover:text-slate-600 dark:group-hover:text-slate-300">{u.name}</span>
                       <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", ROLE_COLORS[u.role])}>
                         {ROLES[u.role as keyof typeof ROLES] ?? u.role}
                       </span>

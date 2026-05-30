@@ -182,10 +182,11 @@ export async function prefillFromTenant(
     const org = await getOrganizationRequisites(orgId)
     const s = defaultState()
 
-    // Контакты: владелец (текущий пользователь/аккаунт) vs администратор (контакты организации).
+    // Контакты: владелец (текущий пользователь/аккаунт) vs администратор ЗДАНИЯ
+    // (Building.administrator). adminContacts уточняется ниже, когда известно здание.
     const ownerUser = await db.user.findUnique({ where: { id: userId }, select: { phone: true, email: true } })
     const ownerContacts = { phone: ownerUser?.phone ?? "", email: ownerUser?.email ?? "" }
-    const adminContacts = { phone: org.phone ?? "", email: org.email ?? "" }
+    let adminContacts = { phone: org.phone ?? "", email: org.email ?? "" }
 
     // Арендодатель = организация. Контакты по умолчанию — владельца (если заданы), иначе организации.
     s.landlord = {
@@ -235,6 +236,10 @@ export async function prefillFromTenant(
     if (buildingId) {
       const agg = await db.space.aggregate({ where: { kind: "RENTABLE", floor: { buildingId } }, _sum: { area: true } })
       s.building.totalRentableAreaSqm = agg._sum.area ?? 0
+      // Контакты администратора здания для переключателя «Администратор».
+      const b = await db.building.findUnique({ where: { id: buildingId }, select: { administrator: { select: { phone: true, email: true } } } })
+      const a = b?.administrator
+      if (a && (a.phone || a.email)) adminContacts = { phone: a.phone ?? "", email: a.email ?? "" }
     }
 
     // Финансы
