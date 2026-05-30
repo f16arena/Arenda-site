@@ -48,6 +48,7 @@ import {
   partyRequisites,
   dateLong,
   type ContractState,
+  type HandoverAct,
   type Party,
   type PartyType,
   type UtilityKey,
@@ -92,6 +93,8 @@ const ADV_BOX: Record<string, string> = {
 }
 
 export function ContractConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
+  // Старые черновики/договоры могли сохраняться без handoverAct — дополняем дефолтом.
+  const withDefaults = (s: ContractState): ContractState => (s.handoverAct ? s : { ...s, handoverAct: defaultState().handoverAct })
   const [state, setState] = useState<ContractState>(defaultState)
   const [tab, setTab] = useState<"contract" | "annexes">("contract")
   const [draftId, setDraftId] = useState<string | null>(null)
@@ -161,7 +164,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     startTransition(async () => {
       const r = await prefillFromTenant(id)
       if (r.ok && r.state) {
-        setState(r.state)
+        setState(withDefaults(r.state))
         setLandlordContacts(r.landlordContacts ?? null)
         setDraftName(r.state.tenant.name || "Без названия")
         if (autoNumber) applyAutoNumber() // prefill сбрасывает номер — вернуть автономер
@@ -180,7 +183,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     if (!id) return
     startTransition(async () => {
       const r = await loadContractDraft(id)
-      if (r.ok && r.builderState) { setState(r.builderState); setDraftId(id); setDraftName(r.name ?? "Без названия"); setAutoNum(false); toast.success("Черновик загружен") } else toast.error(r.error ?? "Не удалось загрузить")
+      if (r.ok && r.builderState) { setState(withDefaults(r.builderState)); setDraftId(id); setDraftName(r.name ?? "Без названия"); setAutoNum(false); toast.success("Черновик загружен") } else toast.error(r.error ?? "Не удалось загрузить")
     })
   }
   function doDownload() {
@@ -550,6 +553,34 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
     <>
       <div className={secTitleCls}>Модули</div>
       <ToggleRow on={state.modules.actEnabled} title="Акт приёма-передачи (Прил. № 1)" hint="Рекомендуется держать включённым" onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
+      {state.modules.actEnabled && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 my-1 space-y-2 dark:border-slate-800 dark:bg-slate-800/40">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Состояние помещения и счётчики для Акта (необязательно — пустые останутся прочерком)</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {([
+              ["conditionWalls", "Стены"], ["conditionFloor", "Пол"], ["conditionCeiling", "Потолок"],
+              ["conditionWindowsDoors", "Окна, двери"], ["conditionElectrical", "Электропроводка, освещение"],
+              ["conditionPlumbing", "Сантехника, отопление"], ["conditionOther", "Иное"],
+            ] as [keyof HandoverAct, string][]).map(([key, label]) => (
+              <label key={key} className="block">
+                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                <input className={inputCls} value={state.handoverAct[key]} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })} placeholder="состояние / описание" />
+              </label>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {([
+              ["meterElectricity", "Эл-энергия, кВт·ч"], ["meterColdWater", "Хол. вода, м³"],
+              ["meterHotWater", "Гор. вода, м³"], ["keysCount", "Ключи, компл."],
+            ] as [keyof HandoverAct, string][]).map(([key, label]) => (
+              <label key={key} className="block">
+                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                <input className={inputCls} value={state.handoverAct[key]} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })} placeholder="—" />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       <ToggleRow on={state.modules.insuranceEnabled} title="Страхование (раздел 7)" onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
       <ToggleRow on={state.modules.signageEnabled} title="Вывески (п. 1.6, 6.2.3)" onToggle={() => set((s) => { s.modules.signageEnabled = !s.modules.signageEnabled })} />
       <div className={secTitleCls}>Дополнительные услуги (Прил. № 2)</div>
@@ -622,9 +653,16 @@ function Annex1Preview({ state, annexNo }: { state: ContractState; annexNo: numb
       <p>{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
       <p>1. Передано нежилое помещение по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
       <p>2. Состояние помещения на момент передачи:</p>
-      <ul className="ml-4 list-disc space-y-0.5">{["стены", "пол", "потолок", "окна, двери", "электропроводка, освещение", "сантехника, отопление", "иное"].map((x) => <li key={x}>{x}: ____________________</li>)}</ul>
-      <p>3. Показания счётчиков: электроэнергия ______ кВт·ч; холодная вода ______ куб. м; горячая вода ______ куб. м.</p>
-      <p>4. Передаваемые ключи: ____ комплектов.</p>
+      <ul className="ml-4 list-disc space-y-0.5">
+        {([
+          ["стены", state.handoverAct.conditionWalls], ["пол", state.handoverAct.conditionFloor],
+          ["потолок", state.handoverAct.conditionCeiling], ["окна, двери", state.handoverAct.conditionWindowsDoors],
+          ["электропроводка, освещение", state.handoverAct.conditionElectrical],
+          ["сантехника, отопление", state.handoverAct.conditionPlumbing], ["иное", state.handoverAct.conditionOther],
+        ] as [string, string][]).map(([k, v]) => <li key={k}>{k}: {v?.trim() ? v : "____________________"}</li>)}
+      </ul>
+      <p>3. Показания счётчиков: электроэнергия {state.handoverAct.meterElectricity?.trim() || "______"} кВт·ч; холодная вода {state.handoverAct.meterColdWater?.trim() || "______"} куб. м; горячая вода {state.handoverAct.meterHotWater?.trim() || "______"} куб. м.</p>
+      <p>4. Передаваемые ключи: {state.handoverAct.keysCount?.trim() || "____"} комплектов.</p>
       <p>5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.</p>
     </div>
   )

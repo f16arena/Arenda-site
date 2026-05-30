@@ -192,12 +192,23 @@ function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null
   out.push(metaTable(s.meta.city, s.meta.contractDate))
   out.push(para(`${s.landlord.name || "Арендодатель"} (Арендодатель) и ${s.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:`))
   out.push(para(`1. Арендодатель передал, а Арендатор принял нежилое помещение по адресу: ${p.buildingAddress || "________"}${p.placement ? ", " + p.placement : ""}, общей площадью ${p.spaceAreaSqm || "____"} кв. м.`))
-  out.push(para("2. Состояние Помещения на момент передачи:"))
-  for (const x of ["стены", "пол", "потолок", "окна, двери", "электропроводка, освещение", "сантехника, отопление", "иное"]) {
-    out.push(new Paragraph({ children: [new TextRun(`— ${x}: ____________________________`)], indent: { left: 360 }, spacing: { after: 30 } }))
+  const h = s.handoverAct ?? {
+    conditionWalls: "", conditionFloor: "", conditionCeiling: "", conditionWindowsDoors: "",
+    conditionElectrical: "", conditionPlumbing: "", conditionOther: "",
+    keysCount: "", meterElectricity: "", meterColdWater: "", meterHotWater: "",
   }
-  out.push(para("3. Показания счётчиков: электроэнергия ________ кВт·ч; холодная вода ________ куб. м; горячая вода ________ куб. м."))
-  out.push(para("4. Передаваемые ключи: ____ комплектов."))
+  const fill = (v: string, blank = "____________________________") => (v && v.trim() ? v.trim() : blank)
+  out.push(para("2. Состояние Помещения на момент передачи:"))
+  const conditions: [string, string][] = [
+    ["стены", h.conditionWalls], ["пол", h.conditionFloor], ["потолок", h.conditionCeiling],
+    ["окна, двери", h.conditionWindowsDoors], ["электропроводка, освещение", h.conditionElectrical],
+    ["сантехника, отопление", h.conditionPlumbing], ["иное", h.conditionOther],
+  ]
+  for (const [label, value] of conditions) {
+    out.push(new Paragraph({ children: [new TextRun(`— ${label}: ${fill(value)}`)], indent: { left: 360 }, spacing: { after: 30 } }))
+  }
+  out.push(para(`3. Показания счётчиков: электроэнергия ${fill(h.meterElectricity, "________")} кВт·ч; холодная вода ${fill(h.meterColdWater, "________")} куб. м; горячая вода ${fill(h.meterHotWater, "________")} куб. м.`))
+  out.push(para(`4. Передаваемые ключи: ${fill(h.keysCount, "____")} комплектов.`))
   out.push(para("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет."))
   out.push(...requisitesBlock(s, qr, verifyUrl, signers))
   return out

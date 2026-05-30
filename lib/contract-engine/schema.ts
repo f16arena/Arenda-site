@@ -131,6 +131,21 @@ export interface Modules {
   actEnabled: boolean // Прил.№1 (default true)
 }
 
+/** Данные Акта приёма-передачи (Приложение). Пусто → в документе остаётся прочерк. */
+export interface HandoverAct {
+  conditionWalls: string        // стены
+  conditionFloor: string        // пол
+  conditionCeiling: string      // потолок
+  conditionWindowsDoors: string // окна, двери
+  conditionElectrical: string   // электропроводка, освещение
+  conditionPlumbing: string     // сантехника, отопление
+  conditionOther: string        // иное
+  keysCount: string             // кол-во комплектов ключей
+  meterElectricity: string      // показание счётчика электроэнергии, кВт·ч
+  meterColdWater: string        // холодная вода, куб. м
+  meterHotWater: string         // горячая вода, куб. м
+}
+
 export interface ContractMeta {
   contractNumber: string
   contractDate: string // ISO
@@ -146,6 +161,7 @@ export interface ContractState {
   financials: Financials
   term: Term
   modules: Modules
+  handoverAct: HandoverAct
   /** зафиксирован ли договор (после подписания меняется только через ДС) */
   signed: boolean
 }
@@ -215,6 +231,11 @@ export function defaultState(): ContractState {
     },
     term: { startDate: "", endDate: "" },
     modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true },
+    handoverAct: {
+      conditionWalls: "", conditionFloor: "", conditionCeiling: "", conditionWindowsDoors: "",
+      conditionElectrical: "", conditionPlumbing: "", conditionOther: "",
+      keysCount: "", meterElectricity: "", meterColdWater: "", meterHotWater: "",
+    },
     signed: false,
   }
 }
