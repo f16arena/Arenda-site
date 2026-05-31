@@ -21,6 +21,7 @@ export type OwnerBuildingMetric = {
 
 type TenantPlacementRow = {
   id: string
+  buildingId: string | null
   space: { floor: { buildingId: string } } | null
   tenantSpaces: Array<{ space: { floor: { buildingId: string } } }>
   fullFloors: Array<{ buildingId: string }>
@@ -79,6 +80,8 @@ export async function getOwnerBuildingMetrics({
       { space: { floorId: { in: floorIds } } },
       { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
       { fullFloors: { some: { buildingId: { in: activeBuildingIds } } } },
+      // «Крышные» арендаторы без помещения — привязаны к зданию напрямую.
+      { buildingId: { in: activeBuildingIds } },
     ],
   }
 
@@ -89,6 +92,7 @@ export async function getOwnerBuildingMetrics({
         where: tenantInBuildingsWhere,
         select: {
           id: true,
+          buildingId: true,
           space: { select: { floor: { select: { buildingId: true } } } },
           tenantSpaces: { select: { space: { select: { floor: { select: { buildingId: true } } } } } },
           fullFloors: { select: { buildingId: true } },
@@ -164,6 +168,7 @@ export async function getOwnerBuildingMetrics({
   }
 
   for (const tenant of tenantPlacements) {
+    addTenantBuilding(tenant.id, tenant.buildingId)
     addTenantBuilding(tenant.id, tenant.space?.floor.buildingId)
     for (const placement of tenant.tenantSpaces) addTenantBuilding(tenant.id, placement.space.floor.buildingId)
     for (const floor of tenant.fullFloors) addTenantBuilding(tenant.id, floor.buildingId)

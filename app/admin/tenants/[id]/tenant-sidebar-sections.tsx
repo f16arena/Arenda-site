@@ -34,6 +34,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
           signedByLandlordAt: true,
           signToken: true,
           version: true,
+          attachmentFileId: true,
         },
       }),
       [],
@@ -63,7 +64,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
             label: contract.status,
             cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
           }
-          const docLabel = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+          const docLabel = contract.type === "ADDENDUM" ? "Доп. соглашение" : contract.type === "EXTERNAL" ? "Внешний договор" : "Договор"
 
           return (
             <div key={contract.id} className="px-4 py-3">
@@ -95,15 +96,32 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
                 </p>
               )}
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                <ContractWorkflowActions contract={contract} />
-                {contract.type !== "ADDENDUM" && contract.status !== "ARCHIVED" && (
-                  <ContractVersionButton
-                    contractId={contract.id}
-                    contractNumber={contract.number}
-                    currentVersion={contract.version}
-                    defaultStartDate={contract.startDate ? contract.startDate.toISOString().slice(0, 10) : null}
-                    defaultEndDate={contract.endDate ? contract.endDate.toISOString().slice(0, 10) : null}
-                  />
+                {contract.type === "EXTERNAL" ? (
+                  contract.attachmentFileId ? (
+                    <a
+                      href={`/api/storage/${contract.attachmentFileId}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Скачать PDF
+                    </a>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">PDF не приложен</span>
+                  )
+                ) : (
+                  <>
+                    <ContractWorkflowActions contract={contract} />
+                    {contract.type !== "ADDENDUM" && contract.status !== "ARCHIVED" && (
+                      <ContractVersionButton
+                        contractId={contract.id}
+                        contractNumber={contract.number}
+                        currentVersion={contract.version}
+                        defaultStartDate={contract.startDate ? contract.startDate.toISOString().slice(0, 10) : null}
+                        defaultEndDate={contract.endDate ? contract.endDate.toISOString().slice(0, 10) : null}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </div>

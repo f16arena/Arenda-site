@@ -78,6 +78,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
         bin: true,
         iin: true,
         category: true,
+        placementNote: true,
         user: { select: { name: true, phone: true, email: true } },
         space: {
           select: {
@@ -154,6 +155,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
     bin: t.bin,
     iin: t.iin,
     category: t.category,
+    placementNote: t.placementNote,
     user: { name: t.user.name, phone: t.user.phone, email: t.user.email },
     space: t.space,
     tenantSpaces: t.tenantSpaces,

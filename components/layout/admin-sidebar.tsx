@@ -11,7 +11,7 @@ import {
   Mail, History, TrendingUp,
   LogOut, Building,
   CalendarDays, ChevronDown,
-  Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles,
+  Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles, FileBarChart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -87,6 +87,7 @@ const nav: NavSection[] = [
     title: "АНАЛИТИКА",
     items: [
       { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
+      { href: "/admin/reports", label: "Отчётность", icon: FileBarChart, section: "analytics", ownerOnly: true },
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
       // /admin/data-quality удалён из sidebar — содержимое теперь в /admin/onboarding
       // (объединённый экран «Здоровье платформы»). Сама страница пока живёт по

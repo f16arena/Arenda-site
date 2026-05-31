@@ -94,6 +94,7 @@ export default async function DocumentsPage({
           startDate: true,
           endDate: true,
           createdAt: true,
+          attachmentFileId: true,
           tenant: { select: { id: true, companyName: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -110,6 +111,7 @@ export default async function DocumentsPage({
         startDate: Date | null
         endDate: Date | null
         createdAt: Date
+        attachmentFileId: string | null
         tenant: { id: string; companyName: string }
       }>,
     ),
@@ -191,8 +193,9 @@ export default async function DocumentsPage({
       totalAmount: null,
       generatedAt: c.createdAt,
       source: "contract",
-      downloadHref: null,
-      viewHref: `/admin/contracts/${c.id}`,
+      // Внешний договор — отдаём приложенный PDF напрямую; у обычных — карточка договора.
+      downloadHref: c.type === "EXTERNAL" && c.attachmentFileId ? `/api/storage/${c.attachmentFileId}` : null,
+      viewHref: c.type === "EXTERNAL" ? null : `/admin/contracts/${c.id}`,
       category,
       deleteId: c.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,

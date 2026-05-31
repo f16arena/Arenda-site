@@ -43,6 +43,10 @@ export async function createTenant(formData: FormData) {
   const spaceIds = parseTenantSpaceIds(formData)
   const spaceId = spaceIds[0] ?? ""
   const buildingId = String(formData.get("buildingId") ?? "").trim()
+  // «Крышные» арендаторы без помещения: размещение + фикс. аренда.
+  const placementNote = String(formData.get("placementNote") ?? "").trim()
+  const fixedRentRaw = String(formData.get("fixedMonthlyRent") ?? "").trim()
+  const fixedMonthlyRent = fixedRentRaw ? Number(fixedRentRaw.replace(/\s/g, "")) : null
   const contractStart = String(formData.get("contractStart") ?? "")
   const contractEnd = String(formData.get("contractEnd") ?? "")
   // Если флажок включён — отправить welcome-письмо с логином/паролем на email
@@ -175,6 +179,11 @@ export async function createTenant(formData: FormData) {
         data: {
           userId,
           spaceId: spaceId || null,
+          // Прямая привязка к зданию только для арендатора БЕЗ помещения (крышные).
+          // У обычных здание выводится через space — дублировать не нужно.
+          buildingId: spaceIds.length === 0 && buildingId ? buildingId : null,
+          placementNote: placementNote || null,
+          fixedMonthlyRent: Number.isFinite(fixedMonthlyRent as number) && (fixedMonthlyRent as number) > 0 ? fixedMonthlyRent : null,
           companyName,
           legalType,
           bin: bin || null,

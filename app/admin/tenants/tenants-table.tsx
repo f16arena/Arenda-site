@@ -3,7 +3,7 @@
 import { useMemo, useCallback, useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText, UsersRound } from "lucide-react"
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText, UsersRound, Antenna } from "lucide-react"
 import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { tenantTaxIdValue } from "@/lib/tenant-identity"
 import { DeleteTenantButton } from "./delete-tenant-button"
@@ -24,6 +24,8 @@ export interface TenantRow {
   }>
   // Этажи где арендатор сдан целиком — может быть несколько
   fullFloors: Array<{ id: string; name: string; totalArea: number | null; fixedMonthlyRent: number | null }>
+  // Размещение без помещения (крышные: вышки/камеры)
+  placementNote: string | null
   debt: number
 }
 
@@ -434,6 +436,15 @@ function SpaceCell({ tenant }: { tenant: TenantRow }) {
 
   const spaces = tenantSpaces(tenant)
   if (spaces.length === 0) {
+    // Крышные арендаторы без помещения — показываем размещение.
+    if (tenant.placementNote) {
+      return (
+        <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-300">
+          <Antenna className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+          {tenant.placementNote}
+        </span>
+      )
+    }
     return <span className="text-slate-400 dark:text-slate-500">Не назначено</span>
   }
 

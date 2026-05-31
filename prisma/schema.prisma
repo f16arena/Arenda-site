@@ -501,6 +501,7 @@ model Building {
   leads             Lead[]
   userAccess        UserBuildingAccess[]
   storedFiles       StoredFile[]
+  directTenants     Tenant[]             @relation("BuildingDirectTenants")
 
   @@index([organizationId])
   @@index([organizationId, isActive])
@@ -587,6 +588,13 @@ model Tenant {
   id               String    @id @default(cuid())
   userId           String    @unique @map("user_id")
   spaceId          String?   @unique @map("space_id")
+  // Прямая привязка к зданию для арендаторов БЕЗ помещения («крышные»: вышки
+  // Beeline/Altel, камеры Сергек — на крыше, платят аренду, но не занимают space).
+  // Для обычных арендаторов здание выводится через space/tenantSpaces/fullFloors.
+  buildingId       String?   @map("building_id")
+  // Описание размещения для арендаторов без помещения («Крыша — антенно-мачтовое
+  // сооружение Beeline»). Показывается вместо колонки «Помещение».
+  placementNote    String?   @map("placement_note")
   companyName      String    @map("company_name")
   bin              String?
   iin              String?
@@ -642,6 +650,7 @@ model Tenant {
 
   user           User                @relation(fields: [userId], references: [id])
   space          Space?              @relation(fields: [spaceId], references: [id])
+  building       Building?           @relation("BuildingDirectTenants", fields: [buildingId], references: [id], onDelete: SetNull)
   tenantSpaces   TenantSpace[]
   charges        Charge[]
   payments       Payment[]
@@ -657,6 +666,7 @@ model Tenant {
   // createdAt — для orderBy в /admin/tenants (DESC).
   @@index([createdAt(sort: Desc)])
   @@index([deletedAt])
+  @@index([buildingId])
   @@map("tenants")
 }
 
@@ -740,10 +750,14 @@ model Contract {
   parentVersionId    String?   @map("parent_version_id")
   // Снимок ContractState из конструктора (для перерисовки DOCX с QR после подписи).
   builderState       Json?     @map("builder_state")
+  // Внешний договор (type=EXTERNAL): загруженный PDF контрагента (вышки/камеры,
+  // которые не принимают нашу редакцию). Подписан офлайн, конструктор/ЭЦП не нужны.
+  attachmentFileId   String?   @unique @map("attachment_file_id")
   createdAt          DateTime  @default(now()) @map("created_at")
   deletedAt          DateTime? @map("deleted_at")
 
   tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  attachmentFile StoredFile? @relation("ContractAttachment", fields: [attachmentFileId], references: [id], onDelete: SetNull)
   parentContract Contract?  @relation("ContractAddenda", fields: [parentContractId], references: [id], onDelete: SetNull)
   addenda        Contract[] @relation("ContractAddenda")
   parentVersion  Contract?  @relation("ContractVersions", fields: [parentVersionId], references: [id], onDelete: SetNull)
@@ -1012,6 +1026,7 @@ model StoredFile {
   uploadedBy     User?           @relation("StoredFileUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   tenantDocument TenantDocument? @relation("TenantDocumentStorage")
   paymentReports PaymentReport[] @relation("PaymentReceiptStorage")
+  contractAttachment Contract?    @relation("ContractAttachment")
 
   @@index([organizationId, ownerType, ownerId])
   @@index([organizationId, buildingId, category, createdAt])

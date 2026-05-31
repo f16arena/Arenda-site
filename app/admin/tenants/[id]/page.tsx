@@ -38,6 +38,7 @@ import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-pla
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
+import { ExternalContractButton } from "./external-contract-button"
 import { Tabs, Tab } from "@/components/ui/server-tabs"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
@@ -988,10 +989,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
             {canCreateDocuments && (
               <div className="border-t border-slate-100 dark:border-slate-800">
-                <div className="px-5 pt-5 pb-2 flex items-center gap-2">
+                <div className="px-5 pt-5 pb-2 flex flex-wrap items-center gap-2">
                   <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Создать документ</h3>
-                  <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">счёт / АВР / договор</span>
+                  <div className="ml-auto">
+                    <ExternalContractButton tenantId={tenant.id} />
+                  </div>
                 </div>
                 <DocumentsActionsLoader
                   tenantId={tenant.id}
