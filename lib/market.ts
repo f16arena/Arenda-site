@@ -52,11 +52,20 @@ export type MarketTypeStat = {
   sampleCount: number
 }
 
+// Срез сравнения: «Город» (вся область) или конкретный район. Пользователь
+// сужает/расширяет область, чтобы видеть рынок ближе к своему адресу или шире.
+export type MarketScope = {
+  key: string // "city" | district name
+  label: string
+  isCity: boolean
+  types: MarketTypeStat[]
+}
+
 export type MarketComparison = {
   cityLabel: string
   citySlug: string
   collectedAt: string | null
-  types: MarketTypeStat[]
+  scopes: MarketScope[] // [0] = Город, далее районы с данными
   ownerPerSqm: number | null
   ownerArea: number
 }
@@ -108,30 +117,53 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
   }
   if (!city) return null
 
-  // Последний снимок по городу, district=null, по каждому типу.
+  // Последние снимки по городу (и город целиком district=null, и районы).
+  // Источник цены — krisha (OLX недостоверен на уровне списка, см. README сборщика).
   const rows = await db.marketRentStat.findMany({
-    where: { city: city.slug, district: null },
+    where: { city: city.slug, source: "krisha" },
     orderBy: { collectedAt: "desc" },
-    take: 200,
+    take: 600,
   })
-  const latestByType = new Map<string, (typeof rows)[number]>()
-  let collectedAt: Date | null = null
-  for (const r of rows) {
-    if (!latestByType.has(r.propertyType)) latestByType.set(r.propertyType, r)
-    if (!collectedAt || r.collectedAt > collectedAt) collectedAt = r.collectedAt
-  }
 
   const order = ["OFFICE", "FREE", "RETAIL", "WAREHOUSE", "OTHER"]
-  const types: MarketTypeStat[] = [...latestByType.values()]
-    .map((r) => ({
-      propertyType: r.propertyType,
-      label: MARKET_TYPE_LABELS[r.propertyType] ?? r.propertyType,
-      perSqmMedian: Math.round(r.perSqmMedian),
-      perSqmMin: r.perSqmMin !== null ? Math.round(r.perSqmMin) : null,
-      perSqmMax: r.perSqmMax !== null ? Math.round(r.perSqmMax) : null,
-      sampleCount: r.sampleCount,
-    }))
-    .sort((a, b) => order.indexOf(a.propertyType) - order.indexOf(b.propertyType))
+  let collectedAt: Date | null = null
+  // группируем по scopeKey (city|district) → последняя строка на тип
+  const byScope = new Map<string, Map<string, (typeof rows)[number]>>()
+  for (const r of rows) {
+    if (!collectedAt || r.collectedAt > collectedAt) collectedAt = r.collectedAt
+    const key = r.district ?? "__city__"
+    if (!byScope.has(key)) byScope.set(key, new Map())
+    const tmap = byScope.get(key)!
+    if (!tmap.has(r.propertyType)) tmap.set(r.propertyType, r)
+  }
+
+  const toTypes = (tmap: Map<string, (typeof rows)[number]>): MarketTypeStat[] =>
+    [...tmap.values()]
+      .map((r) => ({
+        propertyType: r.propertyType,
+        label: MARKET_TYPE_LABELS[r.propertyType] ?? r.propertyType,
+        perSqmMedian: Math.round(r.perSqmMedian),
+        perSqmMin: r.perSqmMin !== null ? Math.round(r.perSqmMin) : null,
+        perSqmMax: r.perSqmMax !== null ? Math.round(r.perSqmMax) : null,
+        sampleCount: r.sampleCount,
+      }))
+      .sort((a, b) => order.indexOf(a.propertyType) - order.indexOf(b.propertyType))
+
+  const scopes: MarketScope[] = []
+  const cityMap = byScope.get("__city__")
+  if (cityMap) scopes.push({ key: "city", label: `Весь город (${city.label})`, isCity: true, types: toTypes(cityMap) })
+  for (const [key, tmap] of byScope) {
+    if (key === "__city__") continue
+    scopes.push({ key, label: key, isCity: false, types: toTypes(tmap) })
+  }
+  // районы — по убыванию выборки (надёжнее сверху)
+  scopes.sort((a, b) => {
+    if (a.isCity) return -1
+    if (b.isCity) return 1
+    const an = a.types.reduce((s, t) => s + t.sampleCount, 0)
+    const bn = b.types.reduce((s, t) => s + t.sampleCount, 0)
+    return bn - an
+  })
 
   const owner = await computeOwnerPerSqm(buildingIds)
 
@@ -139,7 +171,7 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
     cityLabel: city.label,
     citySlug: city.slug,
     collectedAt: collectedAt ? collectedAt.toISOString() : null,
-    types,
+    scopes,
     ownerPerSqm: owner.perSqm,
     ownerArea: owner.area,
   }
