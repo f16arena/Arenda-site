@@ -11,6 +11,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 import { VatSection } from "@/components/settings/vat-section"
 import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
+import { TaxSettingsSection } from "@/components/settings/tax-settings-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
 import { safeServerValue } from "@/lib/server-fallback"
@@ -335,6 +336,9 @@ export default async function SettingsPage() {
 
       {/* Дополнительные начисления — вкл/выкл раздела в карточке арендатора */}
       {organization && <AdditionalChargesSection organization={organization} />}
+
+      {/* Налоговая ставка для отчёта владельца */}
+      {organization && <TaxSettingsSection organization={organization} />}
 
       {/* Document numbering */}
       <DocumentNumberingSection building={building} />

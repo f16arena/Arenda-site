@@ -83,6 +83,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     category: "fairness",
     severity: "info",
     when: (s) =>
+      s.financials.deposit.enabled !== false &&
       !!s.financials.monthlyRent &&
       !!s.financials.deposit.amount &&
       s.financials.deposit.amount !== s.financials.monthlyRent,

@@ -52,7 +52,7 @@ export function validate(s: ContractState, c: DerivedContext): ValidationResult 
 
   // soft
   if (!f.monthlyRent) soft.push("Не указана арендная плата.")
-  if (!f.deposit.amount) soft.push("Не указан размер гарантийного депозита (обычно = 1 месячной плате).")
+  if (f.deposit.enabled !== false && !f.deposit.amount) soft.push("Не указан размер гарантийного депозита (обычно = 1 месячной плате).")
   if (
     f.penalty.tenantPerDay !== f.penalty.landlordPerDay ||
     f.penalty.tenantCapPercent !== f.penalty.landlordCapPercent

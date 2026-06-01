@@ -13,7 +13,9 @@ import { db } from "@/lib/db"
 import { safeServerValue } from "@/lib/server-fallback"
 import { CHARGE_TYPES } from "@/lib/utils"
 
-export const TAX_RATE_SIMPLIFIED = 3 // % упрощёнка (910.00), от оборота
+// Дефолт: упрощёнка по новому НК РК с 2026 = 4% от оборота (маслихат ±50% → 2–6%).
+// Фактическая ставка настраивается в /admin/settings и приходит параметром.
+export const TAX_RATE_SIMPLIFIED = 4
 
 /** Категории расходов (совпадают с формой addExpense). */
 export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
@@ -98,10 +100,12 @@ export async function getOwnerPnL({
   buildingIds,
   from,
   to,
+  taxRatePercent = TAX_RATE_SIMPLIFIED,
 }: {
   buildingIds: string[]
   from: Date
   to: Date
+  taxRatePercent?: number
 }): Promise<OwnerPnL | null> {
   if (buildingIds.length === 0) return null
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
@@ -253,7 +257,7 @@ export async function getOwnerPnL({
     collectionRate,
     outstandingDebt: Math.round(debt._sum.amount ?? 0),
     outstandingDebtCount: debt._count._all ?? 0,
-    taxRatePercent: TAX_RATE_SIMPLIFIED,
+    taxRatePercent,
     monthly,
   }
 }

@@ -7,7 +7,9 @@ import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { db } from "@/lib/db"
 import { getOwnerPnL } from "@/lib/reports/owner-pnl"
+import { getTaxRatePercent } from "@/lib/org-features"
 import { ReportView } from "./report-view"
 
 type Period = "month" | "prev" | "quarter" | "year"
@@ -51,7 +53,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const period = (PERIOD_TABS.some((t) => t.key === sp.period) ? sp.period : "month") as Period
   const { from, to } = resolveRange(period, new Date())
 
-  const data = buildingIds.length > 0 ? await getOwnerPnL({ buildingIds, from, to }) : null
+  const org = await db.organization.findUnique({ where: { id: orgId }, select: { features: true } })
+  const taxRatePercent = getTaxRatePercent(org?.features)
+
+  const data = buildingIds.length > 0 ? await getOwnerPnL({ buildingIds, from, to, taxRatePercent }) : null
 
   return (
     <div className="space-y-5">

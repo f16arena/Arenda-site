@@ -39,6 +39,15 @@ export interface DerivedContext {
   signageClause: string // п.1.6
   /** статьи, покрываемые эксплуатационными расходами (Прил.№3) */
   covers: string[]
+  /**
+   * Карта «статический номер раздела (registry.n) → фактический отображаемый
+   * номер после ренумерации». Заполняется в assemble() ДО рендера html(), чтобы
+   * перекрёстные ссылки в тексте («раздела 9») не ломались при выключении
+   * опциональных разделов (например страхования). Fallback в html — на статический n.
+   */
+  sectionNumbers: Record<number, number>
+  /** Фактический номер раздела «Реквизиты и подписи» (последний, динамический). */
+  requisitesDisplayNum: number
 }
 
 function listLabels(refs: UtilityRef[]): string {
@@ -108,5 +117,6 @@ export function deriveContext(s: ContractState): DerivedContext {
     covers = covers.concat(inOperating.map((r) => r.label.toLowerCase()))
   }
 
-  return { opEnabled, anyService, included, metered, inOperating, annexes, annexNumbers, utilitiesClause, signageClause, covers }
+  // sectionNumbers/requisitesDisplayNum заполняет assemble() (двухпроходно).
+  return { opEnabled, anyService, included, metered, inOperating, annexes, annexNumbers, utilitiesClause, signageClause, covers, sectionNumbers: {}, requisitesDisplayNum: 0 }
 }

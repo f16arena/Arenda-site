@@ -112,9 +112,11 @@ export interface Indexation {
 }
 
 export interface Deposit {
+  /** Можно отключить: тогда раздел «Депозит» и ВСЕ упоминания депозита в тексте
+   *  убираются, а нумерация разделов пересчитывается. */
+  enabled: boolean
   amount: Money
   installmentAllowed: boolean
-  // enabled всегда true (исправл. 3.7): депозит отключать нельзя
 }
 
 export interface Financials {
@@ -230,7 +232,7 @@ export function defaultState(): ContractState {
           reconciliationDays: 10,
         },
       },
-      deposit: { amount: 0, installmentAllowed: false },
+      deposit: { enabled: true, amount: 0, installmentAllowed: false },
       additionalServices: {
         premisesCleaning: { ordered: false, ratePerSqm: 0 },
         internet: { ordered: false, monthly: 0 },

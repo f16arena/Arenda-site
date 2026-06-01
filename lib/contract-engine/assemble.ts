@@ -47,6 +47,20 @@ export function assemble(s: ContractState): AssemblyResult {
   const validation = validate(s, ctx)
   const secs = buildClauses(s, ctx)
 
+  // Пред-проход: вычисляем фактические номера включённых разделов и кладём в ctx
+  // ДО рендера html(). html()-замыкания захватывают ctx по ссылке, поэтому
+  // перекрёстные ссылки («раздела 9», «раздел 13») берут актуальный номер и не
+  // ломаются при выключении опциональных разделов (страхование и т.п.).
+  {
+    let n = 0
+    for (const sec of secs) {
+      if (sec.when && !sec.when()) continue
+      n++
+      ctx.sectionNumbers[sec.n] = n
+    }
+    ctx.requisitesDisplayNum = n + 1
+  }
+
   const sections: AssembledSection[] = []
   const snapshot: Record<string, string> = {}
   let secNum = 0

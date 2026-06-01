@@ -113,7 +113,21 @@ const ADV_BOX: Record<string, string> = {
 
 export function ContractConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
   // Старые черновики/договоры могли сохраняться без handoverAct — дополняем дефолтом.
-  const withDefaults = (s: ContractState): ContractState => (s.handoverAct ? s : { ...s, handoverAct: defaultState().handoverAct })
+  // Достраиваем дефолты для черновиков, сохранённых до появления новых полей
+  // (handoverAct, deposit.enabled, penalty caps) — иначе раздел депозита/поля пени
+  // «пропадут» у старых драфтов. Спред дефолта первым, сохранённое перекрывает.
+  const withDefaults = (s: ContractState): ContractState => {
+    const d = defaultState()
+    return {
+      ...s,
+      handoverAct: s.handoverAct ?? d.handoverAct,
+      financials: {
+        ...s.financials,
+        deposit: { ...d.financials.deposit, ...s.financials?.deposit },
+        penalty: { ...d.financials.penalty, ...s.financials?.penalty },
+      },
+    }
+  }
   const [state, setState] = useState<ContractState>(defaultState)
   const [tab, setTab] = useState<"contract" | "annexes">("contract")
   const [draftId, setDraftId] = useState<string | null>(null)
@@ -572,14 +586,24 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
       )}
 
       <div className={secTitleCls}>Депозит</div>
-      <div className="mb-1"><label className={labelCls}>Сумма, ₸</label><input type="number" className={inputCls} value={f.deposit.amount || ""} onChange={(e) => set((s) => { s.financials.deposit.amount = Number(e.target.value) })} /></div>
-      <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.deposit.installmentAllowed} onChange={(e) => set((s) => { s.financials.deposit.installmentAllowed = e.target.checked })} /> Разрешить рассрочку депозита</label>
+      <ToggleRow on={f.deposit.enabled} title="Гарантийный депозит" hint="Выкл — раздел депозита и все упоминания убираются из договора, нумерация пересчитывается." onToggle={() => set((s) => { s.financials.deposit.enabled = !s.financials.deposit.enabled })} />
+      {f.deposit.enabled && (
+        <>
+          <div className="mb-1"><label className={labelCls}>Сумма, ₸</label><input type="number" className={inputCls} value={f.deposit.amount || ""} onChange={(e) => set((s) => { s.financials.deposit.amount = Number(e.target.value) })} /></div>
+          <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.deposit.installmentAllowed} onChange={(e) => set((s) => { s.financials.deposit.installmentAllowed = e.target.checked })} /> Разрешить рассрочку депозита</label>
+        </>
+      )}
 
       <div className={secTitleCls}>Пеня и индексация</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Пеня арендатора, %/день</label><input type="number" step="0.1" className={inputCls} value={f.penalty.tenantPerDay} onChange={(e) => set((s) => { s.financials.penalty.tenantPerDay = Number(e.target.value) })} /></div>
-        <div><label className={labelCls}>Пеня арендодателя, %/день</label><input type="number" step="0.1" className={inputCls} value={f.penalty.landlordPerDay} onChange={(e) => set((s) => { s.financials.penalty.landlordPerDay = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>Пеня арендатора, %/день</label><input type="number" step="0.1" min="0" className={inputCls} value={f.penalty.tenantPerDay} onChange={(e) => set((s) => { s.financials.penalty.tenantPerDay = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>Пеня арендодателя, %/день</label><input type="number" step="0.1" min="0" className={inputCls} value={f.penalty.landlordPerDay} onChange={(e) => set((s) => { s.financials.penalty.landlordPerDay = Number(e.target.value) })} /></div>
       </div>
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div><label className={labelCls}>Макс. пеня арендатора, % от платежа</label><input type="number" step="1" min="0" className={inputCls} value={f.penalty.tenantCapPercent} onChange={(e) => set((s) => { s.financials.penalty.tenantCapPercent = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>Макс. пеня арендодателя, %</label><input type="number" step="1" min="0" className={inputCls} value={f.penalty.landlordCapPercent} onChange={(e) => set((s) => { s.financials.penalty.landlordCapPercent = Number(e.target.value) })} /></div>
+      </div>
+      <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">Пеня капается за каждый день просрочки, но суммарно не более указанного % от платежа.</p>
       <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.indexation.enabled} onChange={(e) => set((s) => { s.financials.indexation.enabled = e.target.checked })} /> Индексация (только через ДС)</label>
     </>
   )
@@ -619,7 +643,7 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
           </div>
         </div>
       )}
-      <ToggleRow on={state.modules.insuranceEnabled} title="Страхование (раздел 7)" onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
+      <ToggleRow on={state.modules.insuranceEnabled} title="Страхование" hint="Отдельный раздел про страхование ответственности. Выкл — раздел убирается, нумерация и ссылки пересчитываются." onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
       <ToggleRow on={state.modules.signageEnabled} title="Вывески (п. 1.6, 6.2.3)" onToggle={() => set((s) => { s.modules.signageEnabled = !s.modules.signageEnabled })} />
       <div className={secTitleCls}>Дополнительные услуги (Прил. № 2)</div>
       <ToggleRow on={sv.premisesCleaning.ordered} title="Уборка внутри помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesCleaning.ordered = !sv.premisesCleaning.ordered })} />

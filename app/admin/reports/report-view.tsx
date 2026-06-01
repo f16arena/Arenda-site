@@ -57,7 +57,7 @@ export function ReportView({ data, exportHref }: { data: OwnerPnL; exportHref: s
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card title="Доход" value={formatMoney(income)} icon={TrendingUp} accent="emerald" />
         <Card title="Расход" value={formatMoney(data.expense)} icon={TrendingDown} accent="red" />
-        <Card title={`Налог · ${data.taxRatePercent}%`} value={formatMoney(tax)} icon={Receipt} accent="amber" hint="упрощёнка, оценочно" />
+        <Card title={`Налог · ${data.taxRatePercent}%`} value={formatMoney(tax)} icon={Receipt} accent="amber" hint="с оборота, оценочно" />
         <Card title="Чистая прибыль" value={formatMoney(net)} icon={Wallet} accent={net >= 0 ? "blue" : "red"} />
       </div>
 
@@ -95,7 +95,8 @@ export function ReportView({ data, exportHref }: { data: OwnerPnL; exportHref: s
 
       <p className="flex items-start gap-1.5 text-[11.5px] text-slate-400 dark:text-slate-500">
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        Оценочный отчёт, не заменяет бухгалтерский учёт. Налог по упрощёнке (910.00) считается от оборота; депозиты исключены из дохода. Расходы видны только если внесены в разделе «Финансы».
+        Оценочный отчёт, не заменяет бухгалтерский учёт. Налог ({data.taxRatePercent}%) считается от оборота; депозиты исключены из дохода. Ставку можно изменить в{" "}
+        <a href="/admin/settings" className="underline hover:text-slate-600 dark:hover:text-slate-300">Настройках</a> (по новому НК РК с 2026 упрощёнка = 4%, маслихат может корректировать 2–6%). Расходы видны только если внесены в разделе «Финансы».
       </p>
     </div>
   )

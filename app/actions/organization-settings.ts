@@ -46,6 +46,37 @@ export async function updateOrganizationFeatures(orgId: string, formData: FormDa
   }
 }
 
+/** Налоговая ставка для отчёта владельца (хранится в Organization.features JSON). */
+export async function updateOrganizationTax(orgId: string, formData: FormData) {
+  try {
+    await requireCapabilityAndFeature("settings.updateOrganization")
+    const { orgId: scopeOrgId } = await requireOrgAccess()
+    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+
+    const org = await db.organization.findUnique({ where: { id: orgId }, select: { features: true } })
+    let features: Record<string, unknown> = {}
+    try { const v = JSON.parse(org?.features ?? "{}"); if (v && typeof v === "object") features = v } catch { /* ignore */ }
+
+    const raw = String(formData.get("taxRatePercent") ?? "").trim().replace(",", ".")
+    const parsed = parseFloat(raw)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 20) {
+      throw new Error("Ставка налога должна быть числом от 0 до 20%")
+    }
+    features.taxRatePercent = Math.round(parsed * 100) / 100
+    const regime = String(formData.get("taxRegime") ?? "").trim()
+    if (regime) features.taxRegime = regime.slice(0, 60)
+
+    await db.organization.update({ where: { id: orgId }, data: { features: JSON.stringify(features) } })
+
+    revalidatePath("/admin/settings")
+    revalidatePath("/admin/reports")
+    revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+    return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
