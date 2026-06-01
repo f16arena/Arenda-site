@@ -17,6 +17,86 @@ function fmtFull(n: number): string {
   return new Intl.NumberFormat("ru-RU").format(Math.round(n)) + " ₸"
 }
 
+// ──────────── Водопад: Доход → −Расход → −Налог → Прибыль ────────────
+
+export function Waterfall({
+  income,
+  expense,
+  tax,
+  net,
+}: {
+  income: number
+  expense: number
+  tax: number
+  net: number
+}) {
+  const W = 520
+  const H = 240
+  const padT = 24
+  const padB = 44
+  const innerH = H - padT - padB
+  const maxV = Math.max(income, expense + tax + Math.max(net, 0), 1)
+  const y = (v: number) => padT + innerH - (v / maxV) * innerH
+
+  // top/bottom — границы столбца; end — накопленный итог после столбца (для коннектора).
+  const cols = [
+    { key: "income", label: "Доход", color: "#10b981", top: income, bottom: 0, value: income, end: income },
+    { key: "expense", label: "Расход", color: "#ef4444", top: income, bottom: income - expense, value: -expense, end: income - expense },
+    { key: "tax", label: "Налог", color: "#f59e0b", top: income - expense, bottom: net, value: -tax, end: net },
+    { key: "net", label: "Прибыль", color: net >= 0 ? "#3b82f6" : "#ef4444", top: Math.max(net, 0), bottom: Math.min(net, 0), value: net, end: net },
+  ]
+
+  const slot = W / cols.length
+  const barW = Math.min(74, slot * 0.5)
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-[240px] w-full min-w-[420px]">
+        {/* базовая линия 0 */}
+        <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke="currentColor" className="text-slate-200 dark:text-slate-700" strokeWidth={1} />
+        {cols.map((c, i) => {
+          const cx = slot * i + slot / 2
+          const yTop = y(Math.max(c.top, c.bottom))
+          const yBot = y(Math.min(c.top, c.bottom))
+          const h = Math.max(2, yBot - yTop)
+          const next = cols[i + 1]
+          return (
+            <g key={c.key}>
+              {/* пунктирный коннектор к следующему столбцу (уровень переноса) */}
+              {next && (
+                <line
+                  x1={cx + barW / 2}
+                  x2={slot * (i + 1) + slot / 2 - barW / 2}
+                  y1={y(c.end)}
+                  y2={y(c.end)}
+                  stroke="currentColor"
+                  className="text-slate-300 dark:text-slate-600"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+              )}
+              <rect x={cx - barW / 2} y={yTop} width={barW} height={h} rx={3} fill={c.color}>
+                <title>{`${c.label}: ${fmtFull(Math.abs(c.value))}`}</title>
+              </rect>
+              {/* сумма над столбцом */}
+              <text x={cx} y={yTop - 6} textAnchor="middle" className="fill-slate-700 dark:fill-slate-200" fontSize={12} fontWeight={600}>
+                {c.value < 0 ? "−" : ""}{fmtCompact(Math.abs(c.value))}
+              </text>
+              {/* подпись снизу */}
+              <text x={cx} y={H - 22} textAnchor="middle" className="fill-slate-500 dark:fill-slate-400" fontSize={11}>
+                {c.label}
+              </text>
+              <text x={cx} y={H - 8} textAnchor="middle" className="fill-slate-400 dark:fill-slate-500" fontSize={10}>
+                {fmtFull(Math.abs(c.value))}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
 // ───────────────────────── Пончик (структура) ─────────────────────────
 
 export function Donut({ items, empty }: { items: { label: string; amount: number }[]; empty?: string }) {

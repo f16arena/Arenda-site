@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Download, TrendingUp, TrendingDown, Receipt, Wallet, AlertCircle } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
 import type { OwnerPnL } from "@/lib/reports/owner-pnl"
-import { Donut, IncomeExpenseChart } from "./charts"
+import { Donut, IncomeExpenseChart, Waterfall } from "./charts"
 
 type Basis = "accrual" | "cash"
 
@@ -15,6 +15,7 @@ export function ReportView({ data, exportHref }: { data: OwnerPnL; exportHref: s
   const rate = data.taxRatePercent / 100
   const tax = Math.round(income * rate)
   const net = income - data.expense - tax
+  const margin = income > 0 ? Math.round((net / income) * 100) : 0
 
   const months = data.monthly.map((m) => {
     const mi = basis === "accrual" ? m.accrualIncome : m.cashIncome
@@ -60,6 +61,24 @@ export function ReportView({ data, exportHref }: { data: OwnerPnL; exportHref: s
         <Card title={`Налог · ${data.taxRatePercent}%`} value={formatMoney(tax)} icon={Receipt} accent="amber" hint="с оборота, оценочно" />
         <Card title="Чистая прибыль" value={formatMoney(net)} icon={Wallet} accent={net >= 0 ? "blue" : "red"} />
       </div>
+
+      {/* Водопад: как доход превращается в прибыль */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Доход и расход за период</h3>
+          <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${margin >= 0 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300"}`}>
+            Рентабельность {margin}%
+          </span>
+        </div>
+        <p className="mb-2 text-[11.5px] text-slate-400 dark:text-slate-500">
+          Из дохода вычитаются расходы и налог — остаётся чистая прибыль.
+        </p>
+        {income > 0 ? (
+          <Waterfall income={income} expense={data.expense} tax={tax} net={net} />
+        ) : (
+          <div className="flex h-[180px] items-center justify-center text-sm text-slate-400 dark:text-slate-500">Нет дохода за период</div>
+        )}
+      </section>
 
       {/* Собираемость / долг */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
