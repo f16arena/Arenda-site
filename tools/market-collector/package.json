@@ -1,0 +1,14 @@
+{
+  "name": "commrent-market-collector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Сборщик рыночной аренды ₸/м² (krisha+OLX) для Commrent. Запускается на VPS Алматы по cron, постит агрегаты в /api/market/ingest.",
+  "scripts": {
+    "collect": "node collect.mjs",
+    "dry": "node collect.mjs --dry"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  }
+}

@@ -968,6 +968,29 @@ model Expense {
   @@map("expenses")
 }
 
+// Рыночная статистика аренды ₸/м² (платформенная, общая для всех орг — это
+// внешние данные рынка, не привязаны к организации). Наполняется сборщиком на
+// VPS (krisha+OLX) раз в неделю; каждый прогон пишет новый снимок (collectedAt).
+// Сравнение со ставкой владельца — по совпадающему city×district×propertyType.
+model MarketRentStat {
+  id           String   @id @default(cuid())
+  city         String   // slug города, напр. "ust-kamenogorsk"
+  district     String?  // район/микрорайон; null = по городу целиком
+  // Нормализованный тип: OFFICE | FREE | RETAIL | WAREHOUSE | OTHER
+  propertyType String   @map("property_type")
+  source       String   // "krisha" | "olx"
+  perSqmMedian Float    @map("per_sqm_median")
+  perSqmAvg    Float?   @map("per_sqm_avg")
+  perSqmMin    Float?   @map("per_sqm_min")
+  perSqmMax    Float?   @map("per_sqm_max")
+  sampleCount  Int      @map("sample_count")
+  collectedAt  DateTime @default(now()) @map("collected_at")
+
+  @@index([city, district, propertyType, collectedAt])
+  @@index([collectedAt])
+  @@map("market_rent_stats")
+}
+
 model SalaryPayment {
   id        String    @id @default(cuid())
   staffId   String    @map("staff_id")

@@ -10,7 +10,9 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { getOwnerPnL } from "@/lib/reports/owner-pnl"
 import { getTaxRatePercent } from "@/lib/org-features"
+import { getMarketComparison } from "@/lib/market"
 import { ReportView } from "./report-view"
+import { MarketSection } from "./market-section"
 
 type Period = "month" | "prev" | "quarter" | "year"
 
@@ -56,7 +58,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const org = await db.organization.findUnique({ where: { id: orgId }, select: { features: true } })
   const taxRatePercent = getTaxRatePercent(org?.features)
 
-  const data = buildingIds.length > 0 ? await getOwnerPnL({ buildingIds, from, to, taxRatePercent }) : null
+  const [data, market] = await Promise.all([
+    buildingIds.length > 0 ? getOwnerPnL({ buildingIds, from, to, taxRatePercent }) : Promise.resolve(null),
+    buildingIds.length > 0 ? getMarketComparison({ buildingIds }) : Promise.resolve(null),
+  ])
 
   return (
     <div className="space-y-5">
@@ -83,7 +88,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       </div>
 
       {data ? (
-        <ReportView data={data} exportHref="/api/export/owner-report" />
+        <>
+          <ReportView data={data} exportHref="/api/export/owner-report" />
+          <MarketSection data={market} />
+        </>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           Нет доступных зданий для отчёта
