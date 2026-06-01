@@ -127,7 +127,7 @@ async function renderAdminLayout(children: React.ReactNode) {
             isImpersonating={!!impersonate}
           />
         </Suspense>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   )
@@ -258,7 +258,7 @@ async function HeaderChrome({
       {freshUser?.email && !freshUser.emailVerifiedAtIso && (
         <EmailNotVerifiedBanner email={freshUser.email} profileHref="/admin/profile" />
       )}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 pl-16 lg:pl-6">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-6 pl-16 lg:pl-6">
         <BuildingSwitcher
           current={building ? { id: building.id, name: building.name, address: building.address } : null}
           options={allBuildings}
@@ -266,7 +266,7 @@ async function HeaderChrome({
           aggregateLabel={allBuildings.length > 1 || !building ? aggregateLabel : undefined}
           aggregateSubtitle={aggregateSubtitle}
         />
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-4">
           <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
             Ctrl+K — поиск
           </kbd>
@@ -274,15 +274,15 @@ async function HeaderChrome({
           <NotificationBell unreadCount={unreadNotifications} />
           <Link
             href="/admin/profile"
-            className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
+            className="flex items-center gap-2 rounded-lg px-1.5 py-1 sm:px-2 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
             title="Открыть профиль"
           >
-            <div className="h-7 w-7 rounded-full bg-blue-600 flex items-center justify-center">
+            <div className="h-7 w-7 shrink-0 rounded-full bg-blue-600 flex items-center justify-center">
               <span className="text-[11px] font-semibold text-white">
                 {getDisplayInitial(displayUserName)}
               </span>
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            <span className="hidden sm:inline text-sm font-medium text-slate-700 dark:text-slate-300 max-w-[12rem] truncate">
               {displayUserName}
             </span>
           </Link>

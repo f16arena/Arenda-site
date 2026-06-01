@@ -265,7 +265,7 @@ export default async function BuildingsPage() {
             <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Здания</h1>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Здания</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               {active.length} активных
               {inactive.length > 0 && ` · ${inactive.length} неактивных`}

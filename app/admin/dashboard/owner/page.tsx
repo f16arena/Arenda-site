@@ -253,7 +253,7 @@ export default async function OwnerDashboardPage() {
             <BarChart3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Дашборд владельца</h1>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Дашборд владельца</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               Графики и прогноз cashflow по {visibleBuildingIds.length === 1 ? "зданию" : `${visibleBuildingIds.length} зданиям`}
             </p>

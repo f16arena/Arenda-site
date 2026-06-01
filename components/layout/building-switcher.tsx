@@ -50,16 +50,16 @@ export function BuildingSwitcher({
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-1.5 text-sm"
+        className="flex max-w-[58vw] items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2.5 py-1.5 text-sm sm:max-w-none"
       >
-        <Building2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        <div className="text-left">
-          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 leading-tight">{current?.name ?? aggregateLabel ?? "Выберите здание"}</p>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+        <Building2 className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+        <div className="min-w-0 text-left">
+          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100 leading-tight">{current?.name ?? aggregateLabel ?? "Выберите здание"}</p>
+          <p className="hidden truncate text-[10px] text-slate-500 dark:text-slate-400 leading-tight sm:block">
             {current?.address ?? aggregateSubtitle ?? ""}
           </p>
         </div>
-        <ChevronDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
       </button>
 
       {open && (
@@ -68,7 +68,7 @@ export function BuildingSwitcher({
               иначе панель прячется за левой колонкой при разворачивании
               из верхнего левого угла. */}
           <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-[60] w-72 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="absolute left-0 top-11 z-[60] w-[min(18rem,calc(100vw-1.5rem))] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden sm:left-auto sm:right-0 sm:w-72">
             <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Здания</p>
             </div>

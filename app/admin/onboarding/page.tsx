@@ -106,7 +106,7 @@ export default async function OnboardingPage() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Запуск владельца</h1>
+                <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Запуск владельца</h1>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   {org?.name ?? "организация"}
                 </span>

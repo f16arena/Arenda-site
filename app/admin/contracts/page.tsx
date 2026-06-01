@@ -62,9 +62,9 @@ export default async function ContractsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Договоры</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Договоры</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {tenants.length} арендаторов · {buckets.expiringSoon.length} истекают в ближайшие 20 дней
           </p>

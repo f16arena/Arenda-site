@@ -66,7 +66,7 @@ export default async function SettingsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Настройки</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Настройки</h1>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Реквизиты организации и параметры объектов</p>
         </div>
         <SettingsSourceMap buildingName={null} />
@@ -96,7 +96,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Настройки объекта</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Настройки объекта</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Управление информацией о бизнес-центре</p>
       </div>
 

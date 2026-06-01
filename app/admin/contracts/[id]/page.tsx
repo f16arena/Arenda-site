@@ -142,7 +142,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
               {TYPE_LABELS[contract.type] ?? contract.type} № {contract.number}
             </h1>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusMeta.color}`}>

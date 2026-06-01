@@ -295,8 +295,47 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         Показано {filtered.length} из {tenants.length}
       </p>
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+      {/* Мобильные карточки (узкие экраны) — таблица режется, поэтому карточный вид */}
+      <div className="space-y-2.5 sm:hidden">
+        {filtered.map((t) => (
+          <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/admin/tenants/${t.id}`} className="min-w-0 flex-1">
+                <p className="truncate font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
+                <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+              </Link>
+              <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center"><SpaceCell tenant={t} /></span>
+              {tenantArea(t) > 0 && <span>{tenantArea(t).toFixed(0)} м²</span>}
+              {(t.user.phone || t.user.email) && <span className="font-mono">{t.user.phone ?? t.user.email}</span>}
+            </div>
+            <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
+              {t.debt > 0 ? (
+                <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatMoney(t.debt)}</span>
+              ) : (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">Нет долга</span>
+              )}
+              <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+            <EmptyState
+              icon={<Search className="h-5 w-5" />}
+              title={tenants.length === 0 ? "Арендаторы ещё не добавлены" : "По фильтрам ничего не найдено"}
+              description={tenants.length === 0 ? "Начните с первого арендатора или импорта из Excel." : "Измените поиск или фильтры."}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Table (sm и шире) */}
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 sm:block">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
             <tr className="border-b border-slate-100 dark:border-slate-800">

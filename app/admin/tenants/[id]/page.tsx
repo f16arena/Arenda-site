@@ -391,7 +391,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           Назад
         </Link>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{tenant.companyName}</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">{tenant.companyName}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             {LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType}
             {tenant.category ? ` · ${tenant.category}` : ""}

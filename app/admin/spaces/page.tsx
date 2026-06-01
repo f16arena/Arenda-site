@@ -102,7 +102,7 @@ export default async function SpacesPage() {
       return (
         <div className="space-y-5">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Помещения</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Кабинеты и помещения в зданиях</p>
           </div>
           <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-8 text-center">
@@ -203,7 +203,7 @@ export default async function SpacesPage() {
     return (
       <div className="space-y-5">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Помещения</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             Все доступные здания · {buildings.length} {buildings.length === 1 ? "здание" : "зданий"}
           </p>
@@ -322,9 +322,9 @@ export default async function SpacesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Помещения</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Помещения</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
         <div className="flex items-center gap-2">

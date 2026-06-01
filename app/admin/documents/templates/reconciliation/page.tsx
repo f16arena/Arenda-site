@@ -99,7 +99,7 @@ export default async function ReconciliationPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between no-print">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Акт сверки</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Акт сверки</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
             Взаиморасчёты за период {fromDate.toLocaleDateString("ru-RU")} – {toEndDate.toLocaleDateString("ru-RU")}
           </p>

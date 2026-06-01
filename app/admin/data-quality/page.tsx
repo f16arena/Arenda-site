@@ -799,7 +799,7 @@ export default async function DataQualityPage() {
             <ClipboardCheck className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Качество данных</h1>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Качество данных</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {building ? `Проверка по зданию ${building.name}` : "Проверка по всей организации"}
             </p>

@@ -94,7 +94,7 @@ export default async function StaffDetailPage({
           </span>
         </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{user.name}</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">{user.name}</h1>
           <div className="flex items-center gap-2 mt-1">
             <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLORS[user.role])}>
               {ROLES[user.role as keyof typeof ROLES] ?? user.role}

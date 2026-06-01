@@ -141,9 +141,9 @@ export default async function TasksPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Задачи</h1>
+          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Задачи</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{stats.total} задач · {stats.inProgress} в работе</p>
         </div>
         <TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} />

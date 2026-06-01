@@ -101,7 +101,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счёт на оплату</h1>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Счёт на оплату</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{periodLabel} · {organization?.name ?? landlord.shortName}</p>
           </div>
         </div>
