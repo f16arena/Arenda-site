@@ -95,6 +95,7 @@ export default async function DocumentsPage({
           endDate: true,
           createdAt: true,
           attachmentFileId: true,
+          builderState: true,
           tenant: { select: { id: true, companyName: true } },
         },
         orderBy: { createdAt: "desc" },
@@ -112,6 +113,7 @@ export default async function DocumentsPage({
         endDate: Date | null
         createdAt: Date
         attachmentFileId: string | null
+        builderState: unknown
         tenant: { id: string; companyName: string }
       }>,
     ),
@@ -189,8 +191,15 @@ export default async function DocumentsPage({
       number: c.number,
       tenantName: c.tenant.companyName,
       tenantId: c.tenant.id,
-      period: null,
-      totalAmount: null,
+      // У договора «Период» = срок аренды, «Сумма» = месячная аренда (из конструктора).
+      period: c.startDate
+        ? `${c.startDate.toLocaleDateString("ru-RU")} – ${c.endDate ? c.endDate.toLocaleDateString("ru-RU") : "…"}`
+        : null,
+      totalAmount: (() => {
+        const bs = c.builderState as { financials?: { monthlyRent?: number } } | null
+        const rent = bs?.financials?.monthlyRent
+        return typeof rent === "number" && rent > 0 ? rent : null
+      })(),
       generatedAt: c.createdAt,
       source: "contract",
       // Внешний договор — отдаём приложенный PDF напрямую; у обычных — карточка договора.
