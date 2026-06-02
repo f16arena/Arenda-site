@@ -124,7 +124,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   const hasRelated = contract.versions.length > 0 || contract.addenda.length > 0 || !!contract.parentContract || !!contract.parentVersion
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       <Breadcrumbs
         items={[
           { label: "Главная", href: "/admin" },
