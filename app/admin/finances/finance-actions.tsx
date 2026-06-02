@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, X, DollarSign, TrendingDown } from "lucide-react"
-import { recordPayment, addExpense, generateMonthlyCharges } from "@/app/actions/finance"
+import { Plus, X, DollarSign, TrendingDown, FileText } from "lucide-react"
+import { recordPayment, addExpense, generateMonthlyCharges, generateMonthlyInvoicesNow } from "@/app/actions/finance"
 // calculatePenalties удалена — пени теперь только cron-ом.
 import { Button } from "@/components/ui/button"
 
@@ -223,6 +223,32 @@ export function ExpenseDialog({
 }
 
 // PenaltyButton удалён (см. app/actions/penalties.ts). Пени теперь автоматические.
+
+export function GenerateInvoicesButton() {
+  const [pending, startTransition] = useTransition()
+  const [result, setResult] = useState<string | null>(null)
+  const period = new Date().toISOString().slice(0, 7)
+
+  return (
+    <div className="flex items-center gap-3">
+      {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
+      <button
+        type="button"
+        onClick={() => startTransition(async () => {
+          const r = await generateMonthlyInvoicesNow(period)
+          setResult(r.created > 0 ? `✓ Выставлено ${r.created} счетов за ${period}` : "Счета за этот месяц уже выставлены (или нет начислений)")
+          setTimeout(() => setResult(null), 5000)
+        })}
+        disabled={pending}
+        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-60"
+        title="Сформировать счета на оплату из начислений и отправить арендаторам в кабинет"
+      >
+        <FileText className="h-4 w-4" />
+        {pending ? "Генерация..." : `Выставить счета за ${period}`}
+      </button>
+    </div>
+  )
+}
 
 export function GenerateChargesButton() {
   const [pending, startTransition] = useTransition()

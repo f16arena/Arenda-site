@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { generateMonthlyInvoicesForOrg } from "@/lib/monthly-documents"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
@@ -196,6 +197,17 @@ export async function recordPayment(formData: FormData) {
   revalidatePath("/admin/finances/balance")
   revalidatePath(`/admin/tenants/${tenantId}`)
   return { success: true, paymentId: payment.id, autoDistributed: autoDistributed.ids.length }
+}
+
+/** Ручной запуск авто-генерации счетов за период (то же, что делает cron). */
+export async function generateMonthlyInvoicesNow(period: string) {
+  await requireCapabilityAndFeature("finance.createInvoice")
+  const { orgId } = await requireOrgAccess()
+  const p = /^\d{4}-\d{2}$/.test(period) ? period : new Date().toISOString().slice(0, 7)
+  const r = await generateMonthlyInvoicesForOrg(orgId, p)
+  revalidatePath("/admin/documents")
+  revalidatePath("/admin/finances")
+  return r
 }
 
 export async function generateMonthlyCharges(period: string) {

@@ -7,7 +7,7 @@ import Link from "next/link"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
 // Дублирующая ручная кнопка приводила к рассинхрону (см. AUDIT_2026-05-26.md).
-import { PaymentDialog, ExpenseDialog, GenerateChargesButton } from "./finance-actions"
+import { PaymentDialog, ExpenseDialog, GenerateChargesButton, GenerateInvoicesButton } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { ChargesBulkActions } from "./charges-bulk-actions"
@@ -360,6 +360,7 @@ async function renderFinancesPage({
             Excel
           </a>
           <GenerateChargesButton />
+          <GenerateInvoicesButton />
           <BatchBillingButton defaultPeriod={currentPeriod} />
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
           <PaymentDialog
