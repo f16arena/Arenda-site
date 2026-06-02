@@ -367,6 +367,16 @@ export async function createContractFromBuilder(
     })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
 
+    // Запрет дубля: у арендатора не должно быть второго незавершённого договора.
+    const existing = await db.contract.findFirst({
+      where: { tenantId: tenant.id, type: { not: "ADDENDUM" }, status: { in: ["DRAFT", "SENT", "VIEWED", "SIGNED_BY_TENANT", "SIGNED"] } },
+      orderBy: [{ version: "desc" }, { createdAt: "desc" }],
+      select: { number: true },
+    })
+    if (existing) {
+      return { ok: false, error: `У этого арендатора уже есть договор № ${existing.number}. Новый создать нельзя — измените условия через ДС или расторгните старый, затем создайте заново.` }
+    }
+
     const a = assemble(builderState)
     if (a.validation.hard.length) {
       return { ok: false, error: "Договор содержит ошибки: " + a.validation.hard.join("; ") }

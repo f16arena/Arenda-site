@@ -144,6 +144,8 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
 
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
+  // У выбранного арендатора уже есть незавершённый договор → создавать новый нельзя.
+  const dupContract = tenants.find((t) => t.id === selTenant)?.existingContract ?? null
   // Контакты арендодателя на выбор: владелец (аккаунт) или администратор (контакты организации).
   const [landlordContacts, setLandlordContacts] = useState<{ owner: { phone: string; email: string }; admin: { phone: string; email: string } } | null>(null)
   // Автонумерация договора (001, 002, …). Выкл — владелец задаёт номер вручную.
@@ -307,9 +309,14 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
         <input className={`${inputCls} w-44`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" />
         <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить</Button>
         <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>DOCX</Button>
-        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing} onClick={() => doCreate({})}>Создать договор (черновик)</Button>
-        <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing} onClick={() => doCreate({ send: true })}>Отправить без подписи</Button>
-        <Button variant="primary" size="sm" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending} onClick={doCreateSignEcpSend}>Подписать ЭЦП и отправить</Button>
+        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract} onClick={() => doCreate({})}>Создать договор (черновик)</Button>
+        <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract} onClick={() => doCreate({ send: true })}>Отправить без подписи</Button>
+        <Button variant="primary" size="sm" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending || !!dupContract} onClick={doCreateSignEcpSend}>Подписать ЭЦП и отправить</Button>
+        {dupContract && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+            Договор № {dupContract.number} уже есть — создание заблокировано
+          </span>
+        )}
         {hardErrors.length > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
             <AlertTriangle className="h-3 w-3" /> {hardErrors.length} ошибок
@@ -336,7 +343,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
               const st: Record<string, string> = { DRAFT: "черновик", SENT: "отправлен", VIEWED: "просмотрен", SIGNED_BY_TENANT: "подписан арендатором", SIGNED: "подписан" }
               return (
                 <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                  ⚠ У этого арендатора уже есть договор <b>№ {ec.number}</b> ({st[ec.status] ?? ec.status}). Создание нового — <b>дубликат</b>. Лучше изменить условия через <b>ДС</b> либо сделать новую версию из карточки договора, а старый расторгнуть.
+                  ⛔ У этого арендатора уже есть договор <b>№ {ec.number}</b> ({st[ec.status] ?? ec.status}) — создать новый <b>нельзя</b>. Измените условия через <b>ДС</b>, сделайте новую версию из карточки договора, либо расторгните старый и создайте заново.
                 </div>
               )
             })()}
