@@ -158,7 +158,7 @@ export default async function ReconciliationPage({
             </div>
           </div>
 
-          <table className="w-full text-sm border-collapse mb-6">
+          <div className="overflow-x-auto"><table className="w-full text-sm border-collapse mb-6">
             <thead>
               <tr className="border border-slate-300 bg-slate-50 dark:bg-slate-800/50">
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">№</th>
@@ -195,7 +195,7 @@ export default async function ReconciliationPage({
                 <td className="border border-slate-300 px-3 py-2 text-right text-xs">{totalCredit.toLocaleString("ru-RU")}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
 
           <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-5 py-4 mb-8 text-sm">
             <div className="flex items-center justify-between">

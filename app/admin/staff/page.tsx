@@ -44,8 +44,57 @@ export default async function StaffPage() {
         </div>
       </div>
 
-      {/* Active staff */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+      {/* Active staff — карточки на мобиле */}
+      <div className="space-y-2.5 sm:hidden">
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Активные сотрудники</p>
+        {active.map((u) => {
+          const lastPayment = u.staff?.salaryPayments?.[0]
+          return (
+            <div key={u.id} className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-2">
+                <Link href={`/admin/staff/${u.id}`} className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{u.name[0]?.toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-900 dark:text-slate-100">{u.name}</p>
+                    <p className="truncate text-xs text-slate-400 dark:text-slate-500">{u.email ?? u.phone ?? "—"}</p>
+                  </div>
+                </Link>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", ROLE_COLORS[u.role])}>{ROLES[u.role as keyof typeof ROLES] ?? u.role}</span>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                {u.staff?.position && <span>{u.staff.position}</span>}
+                {u.phone && <span className="font-mono">{u.phone}</span>}
+                {u.staff && <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoney(u.staff.salary)}</span>}
+                <span>{u.role === "OWNER" ? "Все здания" : u.buildingAccess.length > 0 ? u.buildingAccess.map((a) => a.building.name).join(", ") : "Здания не назначены"}</span>
+              </div>
+              <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                {lastPayment ? (
+                  <span className="flex items-center gap-2">
+                    <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", lastPayment.status === "PAID" ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300")}>
+                      {lastPayment.status === "PAID" ? "Выплачено" : "Ожидает"}
+                    </span>
+                    {lastPayment.status === "PENDING" && <MarkSalaryPaidButton salaryPaymentId={lastPayment.id} />}
+                  </span>
+                ) : <span className="text-xs text-slate-400 dark:text-slate-500">Зарплата не начислена</span>}
+                <div className="flex items-center gap-3">
+                  <EditStaffDialog user={{
+                    id: u.id, name: u.name, phone: u.phone, email: u.email, role: u.role, isActive: u.isActive,
+                    staff: u.staff ? { id: u.staff.id, position: u.staff.position, salary: u.staff.salary } : null,
+                    buildingIds: u.buildingAccess.map((a) => a.buildingId),
+                  }} buildings={buildings} />
+                  <DeactivateButton userId={u.id} isActive={u.isActive} />
+                </div>
+              </div>
+            </div>
+          )
+        })}
+        {active.length === 0 && <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">Нет активных сотрудников</p>}
+      </div>
+
+      {/* Active staff — таблица (sm+) */}
+      <div className="hidden bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto sm:block">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Активные сотрудники</p>
         </div>

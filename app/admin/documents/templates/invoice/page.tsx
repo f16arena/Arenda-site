@@ -166,7 +166,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
             </div>
           </div>
 
-          <table className="w-full text-sm border-collapse mb-4">
+          <div className="overflow-x-auto"><table className="w-full text-sm border-collapse mb-4">
             <thead>
               <tr className="border border-slate-300 bg-slate-50 dark:bg-slate-800/50">
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">№</th>
@@ -201,7 +201,7 @@ export default async function InvoicePage({ searchParams }: { searchParams: Prom
                 <td className="border border-slate-300 px-3 py-2 text-right text-xs">{formatMoney(total)}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
 
           {!withVat && <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Без НДС (поставщик не плательщик НДС).</p>}
 

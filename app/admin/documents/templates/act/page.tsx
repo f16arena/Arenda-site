@@ -138,7 +138,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
             а Заказчик принял эти услуги без претензий по объёму, качеству и срокам оказания:
           </p>
 
-          <table className="w-full text-sm border-collapse mb-4">
+          <div className="overflow-x-auto"><table className="w-full text-sm border-collapse mb-4">
             <thead>
               <tr className="border border-slate-300 bg-slate-50 dark:bg-slate-800/50">
                 <th className="border border-slate-300 px-3 py-2 text-left text-xs">№</th>
@@ -171,7 +171,7 @@ export default async function ActPage({ searchParams }: { searchParams: Promise<
                 <td className="border border-slate-300 px-3 py-2 text-right text-xs">{formatMoney(total)}</td>
               </tr>
             </tbody>
-          </table>
+          </table></div>
 
           <p className="text-sm text-slate-700 dark:text-slate-300 mb-2">
             Всего на сумму: <b>{formatMoney(total)} тенге</b>{withVat ? `, в т.ч. НДС ${vatRate}% — ${formatMoney(vatAmount)} тенге` : " (без НДС, Исполнитель не плательщик НДС)"}.
