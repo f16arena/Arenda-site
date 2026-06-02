@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
@@ -126,6 +127,21 @@ export async function generateInvoiceDocx(state: InvoiceState): Promise<{ ok: bo
     return { ok: true, base64: buf.toString("base64"), fileName: `Счёт_${num}_${state.period || ""}.docx` }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации" }
+  }
+}
+
+/** Счёт строго в PDF (DOCX → конвертер на VPS). */
+export async function generateInvoicePdf(state: InvoiceState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireOrgAccess()
+    if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
+    const buf = await renderInvoiceDocx(state)
+    const num = (state.meta.number || "").trim() || "счёт"
+    const pdf = await convertDocxToPdf(buf, `Счёт_${num}.docx`)
+    return { ok: true, base64: pdf.toString("base64"), fileName: `Счёт_${num}_${state.period || ""}.pdf` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации PDF" }
   }
 }
 

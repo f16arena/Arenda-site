@@ -10,7 +10,7 @@ import {
   defaultReconState, reconDebit, reconCredit, reconClosing, reconPeriodLabel, fmtEntryDate,
   type ReconState, type ReconParty,
 } from "@/lib/reconciliation-engine"
-import { prefillReconFromTenant, generateReconDocx, createReconFromBuilder, getNextReconNumber } from "@/app/actions/reconciliation-builder"
+import { prefillReconFromTenant, generateReconPdf, createReconFromBuilder, getNextReconNumber } from "@/app/actions/reconciliation-builder"
 import { listConstructorTenants, type ConstructorTenant } from "@/app/actions/contract-builder"
 
 const inputCls =
@@ -111,12 +111,12 @@ export function ReconciliationConstructor({ embedded = false, initialTenantId }:
 
   function doDownload() {
     startTransition(async () => {
-      const r = await generateReconDocx(state)
+      const r = await generateReconPdf(state)
       if (!r.ok || !r.base64) { toast.error(r.error ?? "Ошибка генерации"); return }
       const bytes = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })
+      const blob = new Blob([bytes], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
-      const a = document.createElement("a"); a.href = url; a.download = r.fileName ?? "Акт_сверки.docx"; a.click(); URL.revokeObjectURL(url)
+      const a = document.createElement("a"); a.href = url; a.download = r.fileName ?? "Акт_сверки.pdf"; a.click(); URL.revokeObjectURL(url)
     })
   }
   function doCreate() {
@@ -158,7 +158,7 @@ export function ReconciliationConstructor({ embedded = false, initialTenantId }:
         </div>
         <div className="w-[140px]"><label className={labelCls}>Период с</label><input type="month" className={inputCls} value={from} max={to} onChange={(e) => onChangeFrom(e.target.value)} /></div>
         <div className="w-[140px]"><label className={labelCls}>по</label><input type="month" className={inputCls} value={to} min={from} onChange={(e) => onChangeTo(e.target.value)} /></div>
-        <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>DOCX</Button>
+        <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>PDF</Button>
         <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title="Прислать арендатору уведомление с просьбой подписать">
           <input type="checkbox" checked={notifyTenant} onChange={(e) => setNotifyTenant(e.target.checked)} /> уведомить на подпись
         </label>

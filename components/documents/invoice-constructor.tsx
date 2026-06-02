@@ -11,7 +11,7 @@ import {
   defaultInvoiceState, itemSum, invSubtotal, invVat, invTotal,
   type InvoiceState, type InvoiceSeller, type InvoiceBuyer,
 } from "@/lib/invoice-engine"
-import { prefillInvoiceFromTenant, generateInvoiceDocx, createInvoiceFromBuilder, getNextInvoiceNumber } from "@/app/actions/invoice-builder"
+import { prefillInvoiceFromTenant, generateInvoicePdf, createInvoiceFromBuilder, getNextInvoiceNumber } from "@/app/actions/invoice-builder"
 import { listConstructorTenants, type ConstructorTenant } from "@/app/actions/contract-builder"
 
 const inputCls =
@@ -93,12 +93,12 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
 
   function doDownload() {
     startTransition(async () => {
-      const r = await generateInvoiceDocx(state)
+      const r = await generateInvoicePdf(state)
       if (!r.ok || !r.base64) { toast.error(r.error ?? "Ошибка генерации"); return }
       const bytes = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })
+      const blob = new Blob([bytes], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
-      const a = document.createElement("a"); a.href = url; a.download = r.fileName ?? "Счёт.docx"; a.click(); URL.revokeObjectURL(url)
+      const a = document.createElement("a"); a.href = url; a.download = r.fileName ?? "Счёт.pdf"; a.click(); URL.revokeObjectURL(url)
     })
   }
   function doCreate() {
@@ -139,7 +139,7 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
           </select>
         </div>
         <div className="w-[160px]"><label className={labelCls}>Месяц</label><input type="month" className={inputCls} value={period} onChange={(e) => onChangePeriod(e.target.value)} /></div>
-        <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>DOCX</Button>
+        <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>PDF</Button>
         <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>Создать счёт</Button>
       </div>
 

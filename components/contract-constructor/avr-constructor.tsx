@@ -19,7 +19,7 @@ import {
 } from "@/lib/avr-engine"
 import {
   prefillAvrFromTenant,
-  generateAvrDocx,
+  generateAvrPdf,
   createAvrFromBuilder,
   getNextActNumber,
 } from "@/app/actions/avr-builder"
@@ -128,14 +128,14 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
 
   function doDownload() {
     startTransition(async () => {
-      const r = await generateAvrDocx(state)
+      const r = await generateAvrPdf(state)
       if (!r.ok || !r.base64) { toast.error(r.error ?? "Ошибка генерации"); return }
       const bytes = Uint8Array.from(atob(r.base64), (ch) => ch.charCodeAt(0))
-      const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })
+      const blob = new Blob([bytes], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
-      link.download = r.fileName ?? "АВР.docx"
+      link.download = r.fileName ?? "АВР.pdf"
       link.click()
       URL.revokeObjectURL(url)
     })
@@ -188,7 +188,7 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
           <label className={labelCls}>Месяц</label>
           <input type="month" className={inputCls} value={period} onChange={(e) => onChangePeriod(e.target.value)} />
         </div>
-        <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>DOCX</Button>
+        <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>PDF</Button>
         <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title="Прислать арендатору уведомление с просьбой подписать">
           <input type="checkbox" checked={notifyTenant} onChange={(e) => setNotifyTenant(e.target.checked)} /> уведомить на подпись
         </label>

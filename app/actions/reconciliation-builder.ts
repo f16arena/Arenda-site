@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
@@ -127,6 +128,21 @@ export async function generateReconDocx(state: ReconState): Promise<{ ok: boolea
     return { ok: true, base64: buf.toString("base64"), fileName: `Акт_сверки_${num}.docx` }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации" }
+  }
+}
+
+/** Акт сверки строго в PDF (DOCX → конвертер на VPS). */
+export async function generateReconPdf(state: ReconState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireOrgAccess()
+    if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
+    const buf = await renderReconDocx(state)
+    const num = (state.meta.number || "").trim() || "сверка"
+    const pdf = await convertDocxToPdf(buf, `Акт_сверки_${num}.docx`)
+    return { ok: true, base64: pdf.toString("base64"), fileName: `Акт_сверки_${num}.pdf` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации PDF" }
   }
 }
 

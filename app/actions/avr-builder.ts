@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
@@ -143,6 +144,21 @@ export async function generateAvrDocx(state: AvrState): Promise<{ ok: boolean; e
     return { ok: true, base64: buf.toString("base64"), fileName: `АВР_${num}_${state.period || ""}.docx` }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации" }
+  }
+}
+
+/** АВР строго в PDF (DOCX → конвертер на VPS). Word наружу не отдаём. */
+export async function generateAvrPdf(state: AvrState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireOrgAccess()
+    if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
+    const buf = await renderAvrDocx(state)
+    const num = (state.meta.number || "").trim() || "акт"
+    const pdf = await convertDocxToPdf(buf, `АВР_${num}.docx`)
+    return { ok: true, base64: pdf.toString("base64"), fileName: `АВР_${num}_${state.period || ""}.pdf` }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации PDF" }
   }
 }
 
