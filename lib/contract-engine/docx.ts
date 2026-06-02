@@ -223,8 +223,8 @@ function annex2Services(s: ContractState, qr: Buffer | null, verifyUrl: string |
   out.push(para(`Арендатор: ${s.tenant.name || "________"}. Помещение: ${s.premises.buildingAddress || "________"}, ${s.premises.spaceAreaSqm || "____"} кв. м.`))
   out.push(para("Арендатор поручает Арендодателю оказание следующих услуг:"))
   const rows: [string, boolean, string][] = [
-    ["Уборка внутри Помещения", sv.premisesCleaning.ordered, sv.premisesCleaning.ratePerSqm ? money(sv.premisesCleaning.ratePerSqm) + " за 1 кв. м/мес" : "____ за 1 кв. м/мес"],
-    ["Стационарная телефонная линия", sv.phone.ordered, "по тарифам оператора"],
+    ["Уборка внутри Помещения", sv.premisesCleaning.ordered, sv.premisesCleaning.monthly ? money(sv.premisesCleaning.monthly) + "/мес" : sv.premisesCleaning.ratePerSqm ? money(sv.premisesCleaning.ratePerSqm) + " за 1 кв. м/мес" : "____/мес"],
+    ["Стационарная телефонная линия", sv.phone.ordered, sv.phone.monthly ? money(sv.phone.monthly) + "/мес" : "по тарифам оператора"],
     ["Доступ в интернет (Wi-Fi)", sv.internet.ordered, sv.internet.monthly ? money(sv.internet.monthly) + "/мес" : "____/мес"],
     ["Охрана помещения (тревожная кнопка / пульт)", sv.premisesSecurity.ordered, sv.premisesSecurity.monthly ? money(sv.premisesSecurity.monthly) + "/мес" : "____/мес"],
   ]

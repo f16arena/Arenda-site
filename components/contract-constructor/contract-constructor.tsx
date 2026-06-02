@@ -646,10 +646,42 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
       <ToggleRow on={state.modules.insuranceEnabled} title="Страхование" hint="Отдельный раздел про страхование ответственности. Выкл — раздел убирается, нумерация и ссылки пересчитываются." onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
       <ToggleRow on={state.modules.signageEnabled} title="Вывески (п. 1.6, 6.2.3)" onToggle={() => set((s) => { s.modules.signageEnabled = !s.modules.signageEnabled })} />
       <div className={secTitleCls}>Дополнительные услуги (Прил. № 2)</div>
+
       <ToggleRow on={sv.premisesCleaning.ordered} title="Уборка внутри помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesCleaning.ordered = !sv.premisesCleaning.ordered })} />
+      {sv.premisesCleaning.ordered && (
+        <div className="mb-2 -mt-0.5 pl-1">
+          <label className={labelCls}>Стоимость уборки, ₸/мес (фикс.)</label>
+          <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesCleaning.monthly || ""} placeholder="например, 30000"
+            onChange={(e) => set((s) => { s.financials.additionalServices.premisesCleaning.monthly = Number(e.target.value) || 0 })} />
+        </div>
+      )}
+
       <ToggleRow on={sv.internet.ordered} title="Интернет" onToggle={() => set((s) => { s.financials.additionalServices.internet.ordered = !sv.internet.ordered })} />
+      {sv.internet.ordered && (
+        <div className="mb-2 -mt-0.5 pl-1">
+          <label className={labelCls}>Стоимость интернета, ₸/мес</label>
+          <input type="number" min="0" step="1000" className={inputCls} value={sv.internet.monthly || ""} placeholder="например, 10000"
+            onChange={(e) => set((s) => { s.financials.additionalServices.internet.monthly = Number(e.target.value) || 0 })} />
+        </div>
+      )}
+
       <ToggleRow on={sv.phone.ordered} title="Телефон" onToggle={() => set((s) => { s.financials.additionalServices.phone.ordered = !sv.phone.ordered })} />
+      {sv.phone.ordered && (
+        <div className="mb-2 -mt-0.5 pl-1">
+          <label className={labelCls}>Стоимость телефона, ₸/мес (пусто — «по тарифам оператора»)</label>
+          <input type="number" min="0" step="500" className={inputCls} value={sv.phone.monthly || ""} placeholder="по тарифам оператора"
+            onChange={(e) => set((s) => { s.financials.additionalServices.phone.monthly = Number(e.target.value) || 0 })} />
+        </div>
+      )}
+
       <ToggleRow on={sv.premisesSecurity.ordered} title="Охрана помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesSecurity.ordered = !sv.premisesSecurity.ordered })} />
+      {sv.premisesSecurity.ordered && (
+        <div className="mb-2 -mt-0.5 pl-1">
+          <label className={labelCls}>Стоимость охраны, ₸/мес</label>
+          <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesSecurity.monthly || ""} placeholder="например, 25000"
+            onChange={(e) => set((s) => { s.financials.additionalServices.premisesSecurity.monthly = Number(e.target.value) || 0 })} />
+        </div>
+      )}
     </>
   )
 }
@@ -733,8 +765,8 @@ function Annex1Preview({ state, annexNo }: { state: ContractState; annexNo: numb
 function Annex2Preview({ state, annexNo }: { state: ContractState; annexNo: number }) {
   const sv = state.financials.additionalServices
   const rows: [string, boolean, string][] = [
-    ["Уборка внутри помещения", sv.premisesCleaning.ordered, sv.premisesCleaning.ratePerSqm ? `${money(sv.premisesCleaning.ratePerSqm)} за кв. м/мес` : "____ за кв. м/мес"],
-    ["Стационарный телефон", sv.phone.ordered, "по тарифам оператора"],
+    ["Уборка внутри помещения", sv.premisesCleaning.ordered, sv.premisesCleaning.monthly ? `${money(sv.premisesCleaning.monthly)}/мес` : sv.premisesCleaning.ratePerSqm ? `${money(sv.premisesCleaning.ratePerSqm)} за кв. м/мес` : "____/мес"],
+    ["Стационарный телефон", sv.phone.ordered, sv.phone.monthly ? `${money(sv.phone.monthly)}/мес` : "по тарифам оператора"],
     ["Интернет (Wi-Fi)", sv.internet.ordered, sv.internet.monthly ? `${money(sv.internet.monthly)}/мес` : "____/мес"],
     ["Охрана помещения", sv.premisesSecurity.ordered, sv.premisesSecurity.monthly ? `${money(sv.premisesSecurity.monthly)}/мес` : "____/мес"],
   ]
