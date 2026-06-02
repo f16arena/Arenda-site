@@ -13,6 +13,7 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
 import { renderContractDocx } from "@/lib/contract-engine/docx"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
+import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { sendContractForSignature, markContractSignedByLandlord } from "@/app/actions/contract-workflow"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
@@ -464,5 +465,41 @@ export async function generateSignedContractDocx(
     return { ok: true, fileName: `Договор_${num}_подписан.docx`, base64: buf.toString("base64") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать" }
+  }
+}
+
+/** Скачать ПОДПИСАННЫЙ договор строго в PDF (DOCX → конвертер на VPS). Word наружу не отдаём. */
+export async function generateSignedContractPdf(
+  contractId: string,
+): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.uploadTemplate")
+    const { orgId } = await requireOrgAccess()
+    const contract = await db.contract.findFirst({
+      where: { id: contractId, ...contractScope(orgId) },
+      select: {
+        id: true, number: true, status: true, type: true, startDate: true,
+        signedByLandlordAt: true, signedByTenantAt: true, builderState: true,
+        tenant: { select: { companyName: true } },
+      },
+    })
+    if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
+    if (!contract.builderState) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    if (!pdfConvertConfigured()) {
+      return { ok: false, error: "PDF-конвертер не настроен. Задайте PDF_CONVERT_URL и PDF_CONVERT_SECRET в окружении." }
+    }
+
+    const docx = await buildSignedContractDocxBuffer(contract)
+    if (!docx) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
+    const pdf = await convertDocxToPdf(docx, `${num}.docx`)
+
+    const dateStr = contract.startDate ? new Date(contract.startDate).toLocaleDateString("ru-RU") : ""
+    const docLabel = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор аренды"
+    const fileName = `${docLabel} № ${contract.number} — ${contract.tenant.companyName}${dateStr ? ` от ${dateStr}` : ""}.pdf`
+      .replace(/[\\/:*?"<>|]+/g, "·")
+    return { ok: true, fileName, base64: pdf.toString("base64") }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сформировать PDF" }
   }
 }

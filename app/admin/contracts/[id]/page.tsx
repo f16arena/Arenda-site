@@ -6,7 +6,7 @@ import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft, FileText, Calendar, ShieldCheck,
-  Clock, Users, Receipt, History as HistoryIcon, Download,
+  Clock, Users, Receipt, History as HistoryIcon,
 } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
@@ -14,7 +14,7 @@ import { assertContractInOrg } from "@/lib/scope-guards"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
-import { SignedDocxButton } from "@/components/contract-constructor/signed-docx-button"
+import { SignedPdfButton } from "@/components/contract-constructor/signed-pdf-button"
 import { AddendumActions } from "@/components/contract-constructor/addendum-actions"
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -167,14 +167,14 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <a
-            href={`/api/contracts/generate?tenantId=${contract.tenant.id}&number=${encodeURIComponent(contract.number)}${contract.startDate ? `&start=${contract.startDate.toISOString().slice(0, 10)}` : ""}${contract.endDate ? `&end=${contract.endDate.toISOString().slice(0, 10)}` : ""}`}
-            download
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Download className="h-4 w-4" />
-            Скачать DOCX
-          </a>
+          {/* Скачивание — строго PDF (Word наружу не отдаём). */}
+          {contract.builderState ? (
+            <SignedPdfButton contractId={contract.id} />
+          ) : (
+            <p className="max-w-[14rem] text-[11px] text-slate-400 dark:text-slate-500">
+              PDF доступен для договоров из конструктора.
+            </p>
+          )}
           {landlordPayloadB64 && (
             <ContractEcpSign
               payloadB64={landlordPayloadB64}
@@ -182,9 +182,6 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               contractId={contract.id}
               label="Подписать ЭЦП (арендодатель)"
             />
-          )}
-          {contract.builderState && (contract.signedByLandlordAt || contract.signedByTenantAt || contract.status === "SIGNED") && (
-            <SignedDocxButton contractId={contract.id} />
           )}
         </div>
       </div>
