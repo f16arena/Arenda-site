@@ -44,11 +44,30 @@ export async function applySignedContractChanges(contractId: string) {
         changePayload: true,
         appliedAt: true,
         parentContractId: true,
+        startDate: true,
+        endDate: true,
       },
     })
 
     if (!contract) return { applied: false, reason: "not_found" }
-    if (contract.type !== "ADDENDUM") return { applied: false, reason: "not_addendum" }
+
+    // Обычный договор (STANDARD/версия), а не ДС: при подписании срок аренды из
+    // САМОГО ДОГОВОРА (его start/end из конструктора) записываем в карточку
+    // арендатора — карточка драйвит биллинг, и дата должна браться из договора,
+    // а не из ранее введённых вручную полей. Покрывает все пути подписи разом.
+    if (contract.type !== "ADDENDUM") {
+      if (contract.status === "SIGNED" && (contract.startDate || contract.endDate)) {
+        await tx.tenant.update({
+          where: { id: contract.tenantId },
+          data: {
+            ...(contract.startDate ? { contractStart: contract.startDate } : {}),
+            ...(contract.endDate ? { contractEnd: contract.endDate } : {}),
+          },
+        })
+        return { applied: true, reason: "contract_dates_synced" }
+      }
+      return { applied: false, reason: "not_addendum" }
+    }
     if (contract.status !== "SIGNED") return { applied: false, reason: "not_signed" }
     if (contract.appliedAt) return { applied: false, reason: "already_applied" }
 
