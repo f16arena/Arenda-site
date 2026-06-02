@@ -611,6 +611,8 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
 
 function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
   const sv = state.financials.additionalServices
+  // Режим уборки: фикс ₸/мес или ставка за м². Инициализируем по тому, что заполнено.
+  const [cleaningMode, setCleaningMode] = useState<"fixed" | "sqm">(sv.premisesCleaning.ratePerSqm ? "sqm" : "fixed")
   return (
     <>
       <div className={secTitleCls}>Модули</div>
@@ -649,10 +651,37 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
 
       <ToggleRow on={sv.premisesCleaning.ordered} title="Уборка внутри помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesCleaning.ordered = !sv.premisesCleaning.ordered })} />
       {sv.premisesCleaning.ordered && (
-        <div className="mb-2 -mt-0.5 pl-1">
-          <label className={labelCls}>Стоимость уборки, ₸/мес (фикс.)</label>
-          <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesCleaning.monthly || ""} placeholder="например, 30000"
-            onChange={(e) => set((s) => { s.financials.additionalServices.premisesCleaning.monthly = Number(e.target.value) || 0 })} />
+        <div className="mb-2 -mt-0.5 space-y-1.5 pl-1">
+          <Seg
+            value={cleaningMode}
+            options={[{ v: "fixed", label: "Фикс. ₸/мес" }, { v: "sqm", label: "За м²" }]}
+            onChange={(m) => {
+              setCleaningMode(m)
+              set((s) => {
+                const c = s.financials.additionalServices.premisesCleaning
+                if (m === "fixed") c.ratePerSqm = 0
+                else c.monthly = 0
+              })
+            }}
+          />
+          {cleaningMode === "fixed" ? (
+            <div>
+              <label className={labelCls}>Стоимость уборки, ₸/мес (фиксированная)</label>
+              <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesCleaning.monthly || ""} placeholder="например, 30000"
+                onChange={(e) => set((s) => { s.financials.additionalServices.premisesCleaning.monthly = Number(e.target.value) || 0 })} />
+            </div>
+          ) : (
+            <div>
+              <label className={labelCls}>Ставка уборки, ₸ за м²/мес</label>
+              <input type="number" min="0" step="50" className={inputCls} value={sv.premisesCleaning.ratePerSqm || ""} placeholder="например, 300"
+                onChange={(e) => set((s) => { s.financials.additionalServices.premisesCleaning.ratePerSqm = Number(e.target.value) || 0 })} />
+              {(sv.premisesCleaning.ratePerSqm ?? 0) > 0 && state.premises.spaceAreaSqm > 0 && (
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                  ≈ {money(Math.round((sv.premisesCleaning.ratePerSqm ?? 0) * state.premises.spaceAreaSqm))}/мес за {state.premises.spaceAreaSqm} м²
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
