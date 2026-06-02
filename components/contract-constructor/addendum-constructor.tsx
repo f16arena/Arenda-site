@@ -37,7 +37,7 @@ export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; i
   const selected = contracts?.find((c) => c.id === sel)
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5">
       <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-3 flex items-center gap-2">
           <FileText className="h-5 w-5 text-slate-400" />
