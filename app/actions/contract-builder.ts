@@ -132,6 +132,8 @@ export interface ConstructorTenant {
   id: string
   name: string
   building: string | null
+  // Незавершённый договор арендатора (если есть) — чтобы предупредить о дубликате.
+  existingContract: { number: string; status: string } | null
 }
 
 /** Список арендаторов организации для выбора в конструкторе (с зданием). */
@@ -159,6 +161,13 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
       space: { select: { floor: { select: { building: { select: { name: true } } } } } },
       tenantSpaces: { take: 1, select: { space: { select: { floor: { select: { building: { select: { name: true } } } } } } } },
       fullFloors: { take: 1, select: { building: { select: { name: true } } } },
+      // Последний незавершённый договор (не архив/не отклонён/не истёк) — для предупреждения о дубликате.
+      contracts: {
+        where: { type: { not: "ADDENDUM" }, status: { in: ["DRAFT", "SENT", "VIEWED", "SIGNED_BY_TENANT", "SIGNED"] } },
+        orderBy: [{ version: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: { number: true, status: true },
+      },
     },
   })
   return rows.map((t) => ({
@@ -169,6 +178,7 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
       t.tenantSpaces[0]?.space.floor.building.name ??
       t.fullFloors[0]?.building.name ??
       null,
+    existingContract: t.contracts[0] ? { number: t.contracts[0].number, status: t.contracts[0].status } : null,
   }))
 }
 

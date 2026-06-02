@@ -330,6 +330,16 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
                 </optgroup>
               ))}
             </select>
+            {(() => {
+              const ec = tenants.find((t) => t.id === selTenant)?.existingContract
+              if (!ec) return null
+              const st: Record<string, string> = { DRAFT: "черновик", SENT: "отправлен", VIEWED: "просмотрен", SIGNED_BY_TENANT: "подписан арендатором", SIGNED: "подписан" }
+              return (
+                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                  ⚠ У этого арендатора уже есть договор <b>№ {ec.number}</b> ({st[ec.status] ?? ec.status}). Создание нового — <b>дубликат</b>. Лучше изменить условия через <b>ДС</b> либо сделать новую версию из карточки договора, а старый расторгнуть.
+                </div>
+              )
+            })()}
             <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Реквизиты сторон, помещение, ставка, депозит и срок подставятся автоматически — дальше можно поправить вручную.</p>
           </div>
           <CollapsibleCard title="Стороны" icon={Users} defaultOpen>

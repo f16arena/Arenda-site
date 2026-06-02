@@ -144,6 +144,16 @@ export async function createReconFromBuilder(
     const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true, user: { select: { id: true } } } })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
 
+    // Защита от дубля: один акт сверки на (арендатор × период).
+    if (state.period?.from && state.period?.to) {
+      const periodStr = `${state.period.from}…${state.period.to}`
+      const dup = await db.generatedDocument.findFirst({
+        where: { organizationId: orgId, documentType: "RECONCILIATION", tenantId: tenant.id, period: periodStr },
+        select: { number: true },
+      })
+      if (dup) return { ok: false, error: `Акт сверки за этот период (№ ${dup.number}) уже создан. Чтобы пересоздать — удалите старый в разделе «Документы».` }
+    }
+
     const number = opts?.autoNumber ? await computeNextReconNumber(orgId) : (state.meta.number || "").trim() || "Б/Н"
     const finalState: ReconState = { ...state, meta: { ...state.meta, number } }
     const buf = await renderReconDocx(finalState)

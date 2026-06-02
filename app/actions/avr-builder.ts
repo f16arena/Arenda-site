@@ -165,6 +165,15 @@ export async function createAvrFromBuilder(
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
     if (state.items.length === 0) return { ok: false, error: "Добавьте хотя бы одну строку услуг" }
 
+    // Защита от дубля: один АВР на (арендатор × период).
+    if (state.period && /^\d{4}-\d{2}$/.test(state.period)) {
+      const dup = await db.generatedDocument.findFirst({
+        where: { organizationId: orgId, documentType: "ACT", tenantId: tenant.id, period: state.period },
+        select: { number: true },
+      })
+      if (dup) return { ok: false, error: `За период ${state.period} АВР № ${dup.number} уже создан. Чтобы пересоздать — удалите старый в разделе «Документы».` }
+    }
+
     const number = opts?.autoNumber ? await computeNextActNumber(orgId) : (state.meta.number || "").trim() || "Б/Н"
     const finalState: AvrState = { ...state, meta: { ...state.meta, number } }
     const buf = await renderAvrDocx(finalState)
