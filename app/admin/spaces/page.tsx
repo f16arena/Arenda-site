@@ -517,8 +517,64 @@ export default async function SpacesPage() {
                 <div className="space-y-3">
                   {hasFloorEditor && <FloorPlanLazy floorId={floor.id} />}
 
-                  {/* Table */}
-                  <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+                  {/* Карточки на мобиле */}
+                  <div className="space-y-2 sm:hidden">
+                    {floor.spaces.map((space) => {
+                      const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
+                      const displayTenant = tenant ?? fullFloorTenant
+                      const occupancyTenant = tenant
+                        ? { id: tenant.id, companyName: tenant.companyName }
+                        : fullFloorTenant
+                          ? { id: fullFloorTenant.id, companyName: `${fullFloorTenant.companyName} (этаж целиком)` }
+                          : null
+                      const rentAmount = tenant
+                        ? calculateTenantMonthlyRent({
+                            customRate: tenant.customRate,
+                            fixedMonthlyRent: tenant.fixedMonthlyRent,
+                            fullFloors: tenant.fullFloors,
+                            tenantSpaces: tenant.tenantSpaces,
+                            space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
+                          })
+                        : space.area * floor.ratePerSqm
+                      return (
+                        <div key={space.id} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</span>
+                            <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[space.status])}>
+                              {STATUS_LABELS[space.status] ?? space.status}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                            <span>{space.area} м²</span>
+                            <span>{tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}/мес</span>
+                          </div>
+                          <div className="mt-1 text-xs">
+                            {displayTenant ? (
+                              <Link href={`/admin/tenants/${displayTenant.id}`} className="text-blue-600 dark:text-blue-400">
+                                {displayTenant.companyName}{!tenant && fullFloorTenant ? " · этаж целиком" : ""}
+                              </Link>
+                            ) : <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
+                          </div>
+                          {space.description && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{space.description}</p>}
+                          {(canEditSpaces || canDeleteSpaces) && (
+                            <div className="mt-2 flex items-center gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
+                              {canEditSpaces && (
+                                <EditSpaceDialog
+                                  space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description, tenant: occupancyTenant }}
+                                  tenants={canAssignSpaces ? assignableTenants : []}
+                                  buildingId={building?.id}
+                                />
+                              )}
+                              {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Table (sm+) */}
+                  <div className="hidden overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800 sm:block">
                   <table className="w-full min-w-[720px] text-xs">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
