@@ -6,7 +6,7 @@ import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft, FileText, Calendar, ShieldCheck,
-  Clock, Users, Receipt, History as HistoryIcon,
+  Clock, Users, Receipt, History as HistoryIcon, ChevronDown,
 } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
@@ -40,6 +40,8 @@ const CHANGE_KIND_LABELS: Record<string, string> = {
   TERMINATION: "Расторжение",
   OTHER: "Прочие изменения",
 }
+
+const fmtDate = (d: Date | null) => (d ? d.toLocaleDateString("ru-RU") : "—")
 
 export default async function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -79,19 +81,9 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       changeKind: true,
       createdAt: true,
       builderState: true,
-      tenant: {
-        select: {
-          id: true,
-          companyName: true,
-          legalType: true,
-        },
-      },
-      parentContract: {
-        select: { id: true, number: true, type: true },
-      },
-      parentVersion: {
-        select: { id: true, number: true, version: true },
-      },
+      tenant: { select: { id: true, companyName: true, legalType: true } },
+      parentContract: { select: { id: true, number: true, type: true } },
+      parentVersion: { select: { id: true, number: true, version: true } },
       addenda: {
         select: { id: true, number: true, status: true, createdAt: true, changeKind: true },
         orderBy: { createdAt: "desc" },
@@ -121,8 +113,18 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       })
     : null
 
+  const steps = [
+    { label: "Создан", date: contract.createdAt },
+    { label: "Отправлен", date: contract.sentAt },
+    { label: "Открыт", date: contract.viewedAt },
+    { label: "Подписан арендатором", date: contract.signedByTenantAt, hint: contract.signedByTenantName ?? undefined },
+    { label: "Подписан арендодателем", date: contract.signedByLandlordAt },
+    { label: "Готов — обе стороны", date: contract.signedAt },
+  ]
+  const hasRelated = contract.versions.length > 0 || contract.addenda.length > 0 || !!contract.parentContract || !!contract.parentVersion
+
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-4 max-w-5xl">
       <Breadcrumbs
         items={[
           { label: "Главная", href: "/admin" },
@@ -131,250 +133,169 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         ]}
       />
 
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <Link
-          href="/admin/contracts"
-          className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Назад
+      {/* Шапка-карточка */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <Link href="/admin/contracts" className="mb-3 inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
+          <ArrowLeft className="h-3.5 w-3.5" /> К списку договоров
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
-              {TYPE_LABELS[contract.type] ?? contract.type} № {contract.number}
-            </h1>
-            <span className={`rounded px-2 py-0.5 text-xs font-medium ${statusMeta.color}`}>
-              {statusMeta.label}
-            </span>
-            {contract.version > 1 && (
-              <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">
-                Версия {contract.version}
-              </span>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
+                {TYPE_LABELS[contract.type] ?? contract.type} № {contract.number}
+              </h1>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusMeta.color}`}>{statusMeta.label}</span>
+              {contract.version > 1 && (
+                <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">Версия {contract.version}</span>
+              )}
+            </div>
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+              Арендатор:{" "}
+              <Link href={`/admin/tenants/${contract.tenant.id}`} className="font-medium text-blue-600 hover:underline dark:text-blue-400">
+                {contract.tenant.companyName}
+              </Link>
+              {" · создан "}{fmtDate(contract.createdAt)}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+            {contract.builderState ? (
+              <SignedPdfButton contractId={contract.id} />
+            ) : (
+              <p className="max-w-[14rem] text-[11px] text-slate-400 dark:text-slate-500">PDF доступен для договоров из конструктора.</p>
+            )}
+            {landlordPayloadB64 && (
+              <ContractEcpSign payloadB64={landlordPayloadB64} mode="landlord" contractId={contract.id} label="Подписать ЭЦП (арендодатель)" />
             )}
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Арендатор:{" "}
-            <Link
-              href={`/admin/tenants/${contract.tenant.id}`}
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              {contract.tenant.companyName}
-            </Link>
-            {" · создан "}
-            {contract.createdAt.toLocaleDateString("ru-RU")}
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          {/* Скачивание — строго PDF (Word наружу не отдаём). */}
-          {contract.builderState ? (
-            <SignedPdfButton contractId={contract.id} />
-          ) : (
-            <p className="max-w-[14rem] text-[11px] text-slate-400 dark:text-slate-500">
-              PDF доступен для договоров из конструктора.
-            </p>
-          )}
-          {landlordPayloadB64 && (
-            <ContractEcpSign
-              payloadB64={landlordPayloadB64}
-              mode="landlord"
-              contractId={contract.id}
-              label="Подписать ЭЦП (арендодатель)"
-            />
-          )}
         </div>
       </div>
 
-      {contract.status === "SIGNED" && contract.type !== "ADDENDUM" && (
-        <Section title="Дополнительные соглашения" icon={FileText}>
+      {/* Сводка-карточки */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard icon={Calendar} label="Начало" value={fmtDate(contract.startDate)} />
+        <StatCard icon={Calendar} label="Окончание" value={fmtDate(contract.endDate)} />
+        <StatCard icon={Receipt} label="Начислений" value={String(contract._count.charges)} />
+        <StatCard icon={Users} label="Арендатор" value={contract.tenant.companyName} href={`/admin/tenants/${contract.tenant.id}`} />
+      </div>
+      {isAddendum && contract.effectiveDate && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Дата вступления ДС в силу: <b>{fmtDate(contract.effectiveDate)}</b>
+          {contract.appliedAt && <span className="ml-2 text-emerald-600 dark:text-emerald-400">✓ применено {fmtDate(contract.appliedAt)}</span>}
+        </p>
+      )}
+
+      {/* Таймлайн подписания (горизонтальный) */}
+      <Section title="Подписание" icon={Clock}>
+        <ol className="flex flex-wrap items-start gap-x-2 gap-y-4">
+          {steps.map((s, i) => {
+            const done = s.date !== null || (s.label === "Создан")
+            return (
+              <li key={s.label} className="flex items-center">
+                <div className="flex flex-col items-center text-center" style={{ minWidth: 96 }}>
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500"}`}>
+                    {done ? "✓" : i + 1}
+                  </span>
+                  <span className={`mt-1.5 text-[11px] leading-tight ${done ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.date ? s.date.toLocaleDateString("ru-RU") : "—"}</span>
+                  {s.hint && <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.hint}</span>}
+                </div>
+                {i < steps.length - 1 && <span className="mx-1 hidden h-px w-5 bg-slate-200 dark:bg-slate-700 sm:block" />}
+              </li>
+            )
+          })}
+        </ol>
+        {contract.rejectedAt && (
+          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
+            Отклонён {contract.rejectedAt.toLocaleDateString("ru-RU")}{contract.rejectionReason ? ` · ${contract.rejectionReason}` : ""}
+          </div>
+        )}
+      </Section>
+
+      {/* Доп. соглашения — действия */}
+      {contract.status === "SIGNED" && !isAddendum && (
+        <Section title="Дополнительные соглашения" icon={ShieldCheck}>
           <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Продлите срок или расторгните договор — ДС уйдёт арендатору на подпись.</p>
           <AddendumActions contractId={contract.id} />
         </Section>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Левая колонка: контент + история */}
-        <div className="space-y-5 lg:col-span-2">
-          {/* Период */}
-          <Section title="Период действия" icon={Calendar}>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Начало</p>
-                <p className="font-medium text-slate-900 dark:text-slate-100">
-                  {contract.startDate ? contract.startDate.toLocaleDateString("ru-RU") : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Окончание</p>
-                <p className="font-medium text-slate-900 dark:text-slate-100">
-                  {contract.endDate ? contract.endDate.toLocaleDateString("ru-RU") : "—"}
-                </p>
-              </div>
-              {isAddendum && contract.effectiveDate && (
-                <div className="col-span-2">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Дата вступления в силу (ДС)</p>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">
-                    {contract.effectiveDate.toLocaleDateString("ru-RU")}
-                    {contract.appliedAt && (
-                      <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">
-                        ✓ применено {contract.appliedAt.toLocaleDateString("ru-RU")}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-            </div>
-          </Section>
+      {/* Текст договора — сворачиваемый */}
+      <details className="group rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+          Текст договора
+          <ChevronDown className="ml-auto h-4 w-4 text-slate-400 transition group-open:rotate-180" />
+        </summary>
+        <pre className="max-h-[600px] overflow-y-auto whitespace-pre-wrap border-t border-slate-100 px-5 py-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-800 dark:text-slate-300">
+          {contract.content || "(пусто)"}
+        </pre>
+      </details>
 
-          {/* Workflow подписания */}
-          <Section title="Workflow подписания" icon={Clock}>
-            <ul className="space-y-2 text-sm">
-              <WorkflowItem label="Создан" date={contract.createdAt} done />
-              <WorkflowItem label="Отправлен арендатору" date={contract.sentAt} />
-              <WorkflowItem label="Открыт арендатором" date={contract.viewedAt} />
-              <WorkflowItem
-                label="Подписан арендатором"
-                date={contract.signedByTenantAt}
-                hint={contract.signedByTenantName ?? undefined}
-              />
-              <WorkflowItem label="Подписан арендодателем" date={contract.signedByLandlordAt} />
-              <WorkflowItem label="Подписан (обе стороны)" date={contract.signedAt} />
-              {contract.rejectedAt && (
-                <WorkflowItem
-                  label="Отклонён"
-                  date={contract.rejectedAt}
-                  hint={contract.rejectionReason ?? undefined}
-                  isError
-                />
-              )}
-            </ul>
-          </Section>
-
-          {/* Содержимое */}
-          <Section title="Содержимое договора" icon={FileText}>
-            <pre className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 font-sans leading-relaxed max-h-[600px] overflow-y-auto">
-              {contract.content || "(пусто)"}
-            </pre>
-          </Section>
-        </div>
-
-        {/* Правая колонка: связи + статистика */}
-        <div className="space-y-5">
-          {/* Связи (родитель/предок) */}
+      {/* Связанные документы */}
+      {hasRelated && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {(contract.parentContract || contract.parentVersion) && (
             <Section title="Связи" icon={Users}>
               {contract.parentContract && (
                 <div className="text-sm">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Основной договор</p>
-                  <Link
-                    href={`/admin/contracts/${contract.parentContract.id}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                  >
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">Основной договор</p>
+                  <Link href={`/admin/contracts/${contract.parentContract.id}`} className="text-blue-600 hover:underline dark:text-blue-400">
                     № {contract.parentContract.number} ({TYPE_LABELS[contract.parentContract.type] ?? contract.parentContract.type})
                   </Link>
                 </div>
               )}
               {contract.parentVersion && (
-                <div className="text-sm mt-3">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Предыдущая версия</p>
-                  <Link
-                    href={`/admin/contracts/${contract.parentVersion.id}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                  >
+                <div className="mt-3 text-sm">
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">Предыдущая версия</p>
+                  <Link href={`/admin/contracts/${contract.parentVersion.id}`} className="text-blue-600 hover:underline dark:text-blue-400">
                     № {contract.parentVersion.number} (v{contract.parentVersion.version})
                   </Link>
                 </div>
               )}
             </Section>
           )}
-
-          {/* Версии */}
           {contract.versions.length > 0 && (
             <Section title={`Версии (${contract.versions.length})`} icon={HistoryIcon}>
               <ul className="space-y-2 text-sm">
                 {contract.versions.map((v) => (
                   <li key={v.id}>
-                    <Link
-                      href={`/admin/contracts/${v.id}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:hover:bg-blue-500/10"
-                    >
-                      <span>
-                        <span className="font-medium text-slate-900 dark:text-slate-100">v{v.version}</span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 ml-2">
-                          {v.createdAt.toLocaleDateString("ru-RU")}
-                        </span>
-                      </span>
-                      <span className={`text-xs rounded px-1.5 py-0.5 ${STATUS_LABELS[v.status]?.color ?? "bg-slate-100"}`}>
-                        {STATUS_LABELS[v.status]?.label ?? v.status}
-                      </span>
+                    <Link href={`/admin/contracts/${v.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:border-slate-800 dark:hover:bg-blue-500/10">
+                      <span><span className="font-medium text-slate-900 dark:text-slate-100">v{v.version}</span><span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{fmtDate(v.createdAt)}</span></span>
+                      <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_LABELS[v.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[v.status]?.label ?? v.status}</span>
                     </Link>
                   </li>
                 ))}
               </ul>
             </Section>
           )}
-
-          {/* Доп. соглашения */}
           {contract.addenda.length > 0 && (
             <Section title={`Доп. соглашения (${contract.addenda.length})`} icon={ShieldCheck}>
               <ul className="space-y-2 text-sm">
                 {contract.addenda.map((a) => (
                   <li key={a.id}>
-                    <Link
-                      href={`/admin/contracts/${a.id}`}
-                      className="flex flex-col gap-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:hover:bg-blue-500/10"
-                    >
+                    <Link href={`/admin/contracts/${a.id}`} className="flex flex-col gap-1 rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:border-slate-800 dark:hover:bg-blue-500/10">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-slate-900 dark:text-slate-100">
-                          ДС № {a.number}
-                        </span>
-                        <span className={`text-xs rounded px-1.5 py-0.5 ${STATUS_LABELS[a.status]?.color ?? "bg-slate-100"}`}>
-                          {STATUS_LABELS[a.status]?.label ?? a.status}
-                        </span>
+                        <span className="font-medium text-slate-900 dark:text-slate-100">ДС № {a.number}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_LABELS[a.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[a.status]?.label ?? a.status}</span>
                       </div>
-                      {a.changeKind && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {CHANGE_KIND_LABELS[a.changeKind] ?? a.changeKind}
-                        </span>
-                      )}
-                      <span className="text-xs text-slate-400 dark:text-slate-500">
-                        {a.createdAt.toLocaleDateString("ru-RU")}
-                      </span>
+                      {a.changeKind && <span className="text-xs text-slate-500 dark:text-slate-400">{CHANGE_KIND_LABELS[a.changeKind] ?? a.changeKind}</span>}
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(a.createdAt)}</span>
                     </Link>
                   </li>
                 ))}
               </ul>
             </Section>
           )}
-
-          {/* Статистика начислений */}
-          <Section title="Начисления" icon={Receipt}>
-            <p className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-              {contract._count.charges}
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              записей привязано к этому договору
-            </p>
-          </Section>
         </div>
-      </div>
+      )}
     </div>
   )
 }
 
-function Section({
-  title,
-  icon: Icon,
-  children,
-}: {
-  title: string
-  icon: typeof FileText
-  children: React.ReactNode
-}) {
+function Section({ title, icon: Icon, children }: { title: string; icon: typeof FileText; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
         <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
       </div>
@@ -383,43 +304,14 @@ function Section({
   )
 }
 
-function WorkflowItem({
-  label,
-  date,
-  hint,
-  done,
-  isError,
-}: {
-  label: string
-  date: Date | null
-  hint?: string
-  done?: boolean
-  isError?: boolean
-}) {
-  const has = done || date !== null
-  const dotClass = isError
-    ? "bg-red-500"
-    : has
-      ? "bg-emerald-500"
-      : "bg-slate-300 dark:bg-slate-700"
-  return (
-    <li className="flex items-start gap-3">
-      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotClass}`} />
-      <div className="flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className={`text-sm ${has ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
-            {label}
-          </span>
-          {date && (
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              {date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-        </div>
-        {hint && (
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{hint}</p>
-        )}
+function StatCard({ icon: Icon, label, value, href }: { icon: typeof FileText; label: string; value: string; href?: string }) {
+  const body = (
+    <div className="h-full rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        <Icon className="h-3.5 w-3.5" /> {label}
       </div>
-    </li>
+      <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100" title={value}>{value}</div>
+    </div>
   )
+  return href ? <Link href={href} className="block transition hover:opacity-80">{body}</Link> : body
 }
