@@ -264,13 +264,14 @@ export async function markContractSignedByLandlord(
   const { orgId } = await requireOrgAccess()
   const contract = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
-    select: { id: true, status: true, signedByTenantAt: true },
+    select: { id: true, status: true, signedByTenantAt: true, sentAt: true },
   })
   if (!contract) return { ok: false, error: "Договор не найден" }
 
   const now = new Date()
-  // Если арендатор уже подписал — обе стороны → SIGNED
-  const newStatus = contract.signedByTenantAt ? "SIGNED" : "SENT"
+  // Обе стороны → SIGNED. Иначе «SENT» только если договор реально отправлен
+  // арендатору (есть sentAt); подпись арендодателя сама по себе ≠ отправка.
+  const newStatus = contract.signedByTenantAt ? "SIGNED" : (contract.sentAt ? "SENT" : contract.status)
   await db.contract.update({
     where: { id: contractId },
     data: {
@@ -514,6 +515,7 @@ export async function signContractByLandlordEcp(
       startDate: true,
       endDate: true,
       signedByTenantAt: true,
+      sentAt: true,
       tenant: { select: { companyName: true } },
     },
   })
@@ -541,7 +543,9 @@ export async function signContractByLandlordEcp(
     )
 
     const now = new Date()
-    const newStatus = contract.signedByTenantAt ? "SIGNED" : "SENT"
+    // «SENT» только если договор реально отправлен арендатору (есть sentAt);
+    // подпись арендодателя сама по себе ≠ отправка.
+    const newStatus = contract.signedByTenantAt ? "SIGNED" : (contract.sentAt ? "SENT" : contract.status)
     await db.contract.update({
       where: { id: contract.id },
       data: {

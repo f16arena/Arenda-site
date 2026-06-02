@@ -15,6 +15,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
 import { SignedPdfButton } from "@/components/contract-constructor/signed-pdf-button"
+import { SendForSignatureButton } from "@/components/contract-constructor/send-for-signature-button"
 import { AddendumActions } from "@/components/contract-constructor/addendum-actions"
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -148,6 +149,9 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             )}
             {landlordPayloadB64 && (
               <ContractEcpSign payloadB64={landlordPayloadB64} mode="landlord" contractId={contract.id} label="Подписать ЭЦП (арендодатель)" />
+            )}
+            {contract.status !== "SIGNED" && contract.status !== "REJECTED" && contract.status !== "ARCHIVED" && (
+              <SendForSignatureButton contractId={contract.id} alreadySent={!!contract.sentAt} />
             )}
           </div>
         </div>
