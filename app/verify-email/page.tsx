@@ -15,14 +15,21 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
     )
   }
 
-  const result = await confirmEmailChange(token)
+  // confirmEmailChange делает запись в БД — оборачиваем, чтобы транзиентный сбой
+  // или гонка по email не роняли всю страницу (был critical Server Component render).
+  let result: { ok: boolean; message?: string; error?: string }
+  try {
+    result = await confirmEmailChange(token)
+  } catch {
+    result = { ok: false, error: "Не удалось подтвердить email. Попробуйте открыть ссылку ещё раз." }
+  }
 
   return (
     <Layout>
       {result.ok ? (
         <Status type="ok" title="Email подтверждён" message={result.message ?? "Готово"} />
       ) : (
-        <Status type="error" title="Ошибка" message={result.error} />
+        <Status type="error" title="Ошибка" message={result.error ?? "Не удалось подтвердить email"} />
       )}
     </Layout>
   )

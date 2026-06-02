@@ -165,14 +165,20 @@ export async function confirmEmailChange(token: string): Promise<Result> {
     return { ok: false, error: "Email тем временем занят другим пользователем" }
   }
 
-  await db.user.update({
-    where: { id: t.userId },
-    data: { email: t.target, emailVerifiedAt: new Date() },
-  })
-  await db.verificationToken.update({
-    where: { id: t.id },
-    data: { usedAt: new Date() },
-  })
+  try {
+    await db.user.update({
+      where: { id: t.userId },
+      data: { email: t.target, emailVerifiedAt: new Date() },
+    })
+    await db.verificationToken.update({
+      where: { id: t.id },
+      data: { usedAt: new Date() },
+    })
+  } catch {
+    // Гонка (email заняли между проверкой и записью) или транзиентный сбой БД —
+    // возвращаем мягкую ошибку, а не роняем рендер страницы /verify-email.
+    return { ok: false, error: "Email тем временем занят или произошёл сбой. Попробуйте ещё раз." }
+  }
 
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   return { ok: true, message: "Email подтверждён и обновлён" }

@@ -508,7 +508,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                           {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
                         </td>
                         <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
-                          {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
+                          <span suppressHydrationWarning>{new Date(r.generatedAt).toLocaleDateString("ru-RU")}</span>
                         </td>
                         <td className="px-5 py-3 text-right">{renderActions(r)}</td>
                       </tr>
@@ -559,7 +559,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                     {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(r.generatedAt).toLocaleDateString("ru-RU")}
+                    <span suppressHydrationWarning>{new Date(r.generatedAt).toLocaleDateString("ru-RU")}</span>
                   </td>
                   <td className="px-5 py-3 text-right">{renderActions(r)}</td>
                 </tr>

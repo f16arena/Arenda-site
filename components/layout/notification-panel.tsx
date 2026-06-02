@@ -312,7 +312,7 @@ function NotificationRow({
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{item.title}</p>
           </div>
           <p className="mt-0.5 line-clamp-2 text-xs text-slate-600 dark:text-slate-400">{item.message}</p>
-          <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+          <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500" suppressHydrationWarning>
             {new Date(item.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
