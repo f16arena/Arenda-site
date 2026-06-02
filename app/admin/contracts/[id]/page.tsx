@@ -58,29 +58,13 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   const contract = await db.contract.findFirst({
     where: { id, ...contractScope(orgId) },
     select: {
-      id: true,
-      number: true,
-      type: true,
-      status: true,
-      content: true,
-      signedAt: true,
-      sentAt: true,
-      viewedAt: true,
-      signedByTenantAt: true,
-      signedByTenantName: true,
-      signedByLandlordAt: true,
-      rejectedAt: true,
-      rejectionReason: true,
-      startDate: true,
-      endDate: true,
-      effectiveDate: true,
-      appliedAt: true,
-      version: true,
-      parentContractId: true,
-      parentVersionId: true,
-      changeKind: true,
-      createdAt: true,
-      builderState: true,
+      id: true, number: true, type: true, status: true, content: true,
+      signedAt: true, sentAt: true, viewedAt: true,
+      signedByTenantAt: true, signedByTenantName: true, signedByLandlordAt: true,
+      rejectedAt: true, rejectionReason: true,
+      startDate: true, endDate: true, effectiveDate: true, appliedAt: true,
+      version: true, parentContractId: true, parentVersionId: true, changeKind: true,
+      createdAt: true, builderState: true,
       tenant: { select: { id: true, companyName: true, legalType: true } },
       parentContract: { select: { id: true, number: true, type: true } },
       parentVersion: { select: { id: true, number: true, version: true } },
@@ -121,7 +105,6 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     { label: "Подписан арендодателем", date: contract.signedByLandlordAt },
     { label: "Готов — обе стороны", date: contract.signedAt },
   ]
-  const hasRelated = contract.versions.length > 0 || contract.addenda.length > 0 || !!contract.parentContract || !!contract.parentVersion
 
   return (
     <div className="space-y-4">
@@ -170,70 +153,71 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {/* Сводка-карточки */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard icon={Calendar} label="Начало" value={fmtDate(contract.startDate)} />
-        <StatCard icon={Calendar} label="Окончание" value={fmtDate(contract.endDate)} />
-        <StatCard icon={Receipt} label="Начислений" value={String(contract._count.charges)} />
-        <StatCard icon={Users} label="Арендатор" value={contract.tenant.companyName} href={`/admin/tenants/${contract.tenant.id}`} />
-      </div>
-      {isAddendum && contract.effectiveDate && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Дата вступления ДС в силу: <b>{fmtDate(contract.effectiveDate)}</b>
-          {contract.appliedAt && <span className="ml-2 text-emerald-600 dark:text-emerald-400">✓ применено {fmtDate(contract.appliedAt)}</span>}
-        </p>
-      )}
+      {/* Две колонки: контент слева, сводка + связи справа */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          {/* Таймлайн подписания */}
+          <Section title="Подписание" icon={Clock}>
+            <ol className="flex flex-wrap items-start gap-x-2 gap-y-4">
+              {steps.map((s, i) => {
+                const done = s.date !== null || s.label === "Создан"
+                return (
+                  <li key={s.label} className="flex items-center">
+                    <div className="flex w-24 flex-col items-center text-center">
+                      <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500"}`}>
+                        {done ? "✓" : i + 1}
+                      </span>
+                      <span className={`mt-1.5 text-[11px] leading-tight ${done ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.date ? s.date.toLocaleDateString("ru-RU") : "—"}</span>
+                      {s.hint && <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.hint}</span>}
+                    </div>
+                    {i < steps.length - 1 && <span className="mx-1 hidden h-px w-4 bg-slate-200 dark:bg-slate-700 sm:block" />}
+                  </li>
+                )
+              })}
+            </ol>
+            {contract.rejectedAt && (
+              <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
+                Отклонён {contract.rejectedAt.toLocaleDateString("ru-RU")}{contract.rejectionReason ? ` · ${contract.rejectionReason}` : ""}
+              </div>
+            )}
+          </Section>
 
-      {/* Таймлайн подписания (горизонтальный) */}
-      <Section title="Подписание" icon={Clock}>
-        <ol className="flex flex-wrap items-start gap-x-2 gap-y-4">
-          {steps.map((s, i) => {
-            const done = s.date !== null || (s.label === "Создан")
-            return (
-              <li key={s.label} className="flex items-center">
-                <div className="flex flex-col items-center text-center" style={{ minWidth: 96 }}>
-                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500"}`}>
-                    {done ? "✓" : i + 1}
-                  </span>
-                  <span className={`mt-1.5 text-[11px] leading-tight ${done ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.date ? s.date.toLocaleDateString("ru-RU") : "—"}</span>
-                  {s.hint && <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.hint}</span>}
-                </div>
-                {i < steps.length - 1 && <span className="mx-1 hidden h-px w-5 bg-slate-200 dark:bg-slate-700 sm:block" />}
-              </li>
-            )
-          })}
-        </ol>
-        {contract.rejectedAt && (
-          <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
-            Отклонён {contract.rejectedAt.toLocaleDateString("ru-RU")}{contract.rejectionReason ? ` · ${contract.rejectionReason}` : ""}
-          </div>
-        )}
-      </Section>
+          {/* Доп. соглашения — действия */}
+          {contract.status === "SIGNED" && !isAddendum && (
+            <Section title="Дополнительные соглашения" icon={ShieldCheck}>
+              <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Продлите срок или расторгните договор — ДС уйдёт арендатору на подпись.</p>
+              <AddendumActions contractId={contract.id} />
+            </Section>
+          )}
 
-      {/* Доп. соглашения — действия */}
-      {contract.status === "SIGNED" && !isAddendum && (
-        <Section title="Дополнительные соглашения" icon={ShieldCheck}>
-          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Продлите срок или расторгните договор — ДС уйдёт арендатору на подпись.</p>
-          <AddendumActions contractId={contract.id} />
-        </Section>
-      )}
+          {/* Текст договора — сворачиваемый */}
+          <details className="group overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+              Текст договора
+              <ChevronDown className="ml-auto h-4 w-4 text-slate-400 transition group-open:rotate-180" />
+            </summary>
+            <pre className="max-h-[600px] overflow-y-auto whitespace-pre-wrap border-t border-slate-100 px-5 py-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-800 dark:text-slate-300">
+              {contract.content || "(пусто)"}
+            </pre>
+          </details>
+        </div>
 
-      {/* Текст договора — сворачиваемый */}
-      <details className="group rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
-          <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          Текст договора
-          <ChevronDown className="ml-auto h-4 w-4 text-slate-400 transition group-open:rotate-180" />
-        </summary>
-        <pre className="max-h-[600px] overflow-y-auto whitespace-pre-wrap border-t border-slate-100 px-5 py-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-800 dark:text-slate-300">
-          {contract.content || "(пусто)"}
-        </pre>
-      </details>
+        {/* Правая колонка */}
+        <div className="space-y-4">
+          <Section title="Сводка" icon={Calendar}>
+            <dl className="space-y-2.5 text-sm">
+              <Row label="Начало" value={fmtDate(contract.startDate)} />
+              <Row label="Окончание" value={fmtDate(contract.endDate)} />
+              {isAddendum && contract.effectiveDate && (
+                <Row label="Вступает в силу" value={`${fmtDate(contract.effectiveDate)}${contract.appliedAt ? " ✓" : ""}`} />
+              )}
+              <Row label="Начислений" value={String(contract._count.charges)} icon={Receipt} />
+              <Row label="Арендатор" value={contract.tenant.companyName} href={`/admin/tenants/${contract.tenant.id}`} icon={Users} />
+            </dl>
+          </Section>
 
-      {/* Связанные документы */}
-      {hasRelated && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {(contract.parentContract || contract.parentVersion) && (
             <Section title="Связи" icon={Users}>
               {contract.parentContract && (
@@ -254,6 +238,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               )}
             </Section>
           )}
+
           {contract.versions.length > 0 && (
             <Section title={`Версии (${contract.versions.length})`} icon={HistoryIcon}>
               <ul className="space-y-2 text-sm">
@@ -268,6 +253,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               </ul>
             </Section>
           )}
+
           {contract.addenda.length > 0 && (
             <Section title={`Доп. соглашения (${contract.addenda.length})`} icon={ShieldCheck}>
               <ul className="space-y-2 text-sm">
@@ -287,7 +273,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             </Section>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -304,14 +290,15 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
   )
 }
 
-function StatCard({ icon: Icon, label, value, href }: { icon: typeof FileText; label: string; value: string; href?: string }) {
-  const body = (
-    <div className="h-full rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        <Icon className="h-3.5 w-3.5" /> {label}
-      </div>
-      <div className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100" title={value}>{value}</div>
+function Row({ label, value, href, icon: Icon }: { label: string; value: string; href?: string; icon?: typeof FileText }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+        {Icon && <Icon className="h-3.5 w-3.5" />} {label}
+      </dt>
+      <dd className="min-w-0 truncate text-right font-medium text-slate-900 dark:text-slate-100" title={value}>
+        {href ? <Link href={href} className="text-blue-600 hover:underline dark:text-blue-400">{value}</Link> : value}
+      </dd>
     </div>
   )
-  return href ? <Link href={href} className="block transition hover:opacity-80">{body}</Link> : body
 }
