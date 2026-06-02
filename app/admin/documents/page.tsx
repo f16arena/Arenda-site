@@ -212,6 +212,35 @@ export default async function DocumentsPage({
     }
   })
 
+  // Статус оплаты счетов — по начислениям за (арендатор × период).
+  const invoiceKeys = generated
+    .filter((g) => g.documentType === "INVOICE" && g.tenantId && g.period && /^\d{4}-\d{2}$/.test(g.period))
+    .map((g) => ({ tenantId: g.tenantId as string, period: g.period as string }))
+  const paidStatusByKey = new Map<string, "paid" | "debt">()
+  if (invoiceKeys.length > 0) {
+    const tenantIds = [...new Set(invoiceKeys.map((k) => k.tenantId))]
+    const periods = [...new Set(invoiceKeys.map((k) => k.period))]
+    const charges = await safe(
+      "admin.documents.invoiceCharges",
+      db.charge.findMany({
+        where: { tenantId: { in: tenantIds }, period: { in: periods } },
+        select: { tenantId: true, period: true, isPaid: true },
+      }),
+      [] as Array<{ tenantId: string; period: string; isPaid: boolean }>,
+    )
+    const agg = new Map<string, { any: boolean; unpaid: boolean }>()
+    for (const c of charges) {
+      const key = `${c.tenantId}|${c.period}`
+      const a = agg.get(key) ?? { any: false, unpaid: false }
+      a.any = true
+      if (!c.isPaid) a.unpaid = true
+      agg.set(key, a)
+    }
+    for (const [key, a] of agg) {
+      if (a.any) paidStatusByKey.set(key, a.unpaid ? "debt" : "paid")
+    }
+  }
+
   const generatedRows: DocRow[] = generated.map((g) => {
     const isSigned = (
       signedById.has(`${g.documentType}:${g.id}`)
@@ -228,13 +257,17 @@ export default async function DocumentsPage({
       totalAmount: g.totalAmount,
       generatedAt: g.generatedAt,
       source: "generated",
-      downloadHref: `/api/documents/archive/${g.id}`,
+      // Скачивание счёта/АВР/акта — в PDF (конвертация DOCX→PDF на VPS, fallback DOCX).
+      downloadHref: `/api/documents/archive/${g.id}?format=pdf`,
       viewHref: null,
       category: "active" as const,
       generatedId: g.id,
       deleteId: g.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
+      paymentStatus: g.documentType === "INVOICE" && g.tenantId && g.period
+        ? (paidStatusByKey.get(`${g.tenantId}|${g.period}`) ?? "none")
+        : null,
     }
   })
 

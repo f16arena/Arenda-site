@@ -55,6 +55,8 @@ export interface DocRow {
   deleteId?: string
   canDelete?: boolean
   isSigned?: boolean
+  /** Статус оплаты для счёта (по начислениям периода): оплачен / долг / нет начислений. */
+  paymentStatus?: "paid" | "debt" | "none" | null
 }
 
 export const DOC_CATEGORY_TABS: { key: DocCategory; label: string }[] = [
@@ -234,6 +236,26 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
       setLocalRows(snapshot)
       toast.error("Не удалось удалить документы. Возможно, не хватает прав.")
     })
+  }
+
+  function renderAmount(r: DocRow) {
+    if (r.totalAmount == null && (!r.paymentStatus || r.paymentStatus === "none")) return <>—</>
+    const badge = r.paymentStatus && r.paymentStatus !== "none" ? (
+      <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${r.paymentStatus === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"}`}>
+        {r.paymentStatus === "paid" ? "оплачен" : "долг"}
+      </span>
+    ) : null
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {badge}
+        {r.totalAmount != null ? (
+          <span>
+            {formatMoney(r.totalAmount)}
+            {r.type === "CONTRACT" && <span className="ml-0.5 text-xs font-normal text-slate-400 dark:text-slate-500">/мес</span>}
+          </span>
+        ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
+      </div>
+    )
   }
 
   function renderActions(row: DocRow) {
@@ -505,7 +527,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                         <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
                         <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{r.period ?? "—"}</td>
                         <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">
-                          {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
+                          {renderAmount(r)}
                         </td>
                         <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
                           <span suppressHydrationWarning>{new Date(r.generatedAt).toLocaleDateString("ru-RU")}</span>
@@ -556,7 +578,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                   </td>
                   <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{r.period ?? "—"}</td>
                   <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300 font-medium">
-                    {r.totalAmount != null ? formatMoney(r.totalAmount) : "—"}
+                    {renderAmount(r)}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
                     <span suppressHydrationWarning>{new Date(r.generatedAt).toLocaleDateString("ru-RU")}</span>
