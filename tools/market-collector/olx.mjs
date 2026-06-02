@@ -48,7 +48,7 @@ async function fetchHtml(url, attempt = 1) {
     if (res.status === 404) return null
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.text()
-  } catch (e) {
+  } catch {
     if (attempt < 3) { await sleep(2000 * attempt); return fetchHtml(url, attempt + 1) }
     return null
   }

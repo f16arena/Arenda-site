@@ -107,12 +107,13 @@ export function Donut({ items, empty }: { items: { label: string; amount: number
   const R = 70
   const STROKE = 28
   const C = 2 * Math.PI * R
-  let offset = 0
+  // Накопительные смещения без мутации в рендере (react-hooks/immutability):
+  // offset i-го сегмента = сумма долей предыдущих.
+  const fracs = items.map((it) => it.amount / total)
   const segs = items.map((it, i) => {
-    const frac = it.amount / total
-    const seg = { ...it, color: PALETTE[i % PALETTE.length], dash: frac * C, offset: offset * C, pct: Math.round(frac * 100) }
-    offset += frac
-    return seg
+    const frac = fracs[i]
+    const offsetFrac = fracs.slice(0, i).reduce((s, f) => s + f, 0)
+    return { ...it, color: PALETTE[i % PALETTE.length], dash: frac * C, offset: offsetFrac * C, pct: Math.round(frac * 100) }
   })
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">

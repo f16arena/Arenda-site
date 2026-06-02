@@ -8,7 +8,7 @@
 import { db } from "@/lib/db"
 import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
-import { type InvoiceState, type InvoicePartyType, type InvoiceItem, defaultInvoiceState, invTotal } from "@/lib/invoice-engine"
+import { type InvoicePartyType, type InvoiceItem, defaultInvoiceState, invTotal } from "@/lib/invoice-engine"
 import { renderInvoiceDocx } from "@/lib/invoice-engine/docx"
 
 const CHARGE_TYPE_LABEL: Record<string, string> = {
