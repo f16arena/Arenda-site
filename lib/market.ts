@@ -122,7 +122,9 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
   const rows = await db.marketRentStat.findMany({
     where: { city: city.slug, source: "krisha" },
     orderBy: { collectedAt: "desc" },
-    take: 600,
+    // Берём самые свежие строки; дедуп до последней на (район, тип) ниже.
+    // Combos одного города ограничены (≤~44), 140 покрывает последний снимок.
+    take: 140,
   })
 
   const order = ["OFFICE", "FREE", "RETAIL", "WAREHOUSE", "OTHER"]

@@ -151,7 +151,7 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
   const rows = await db.tenant.findMany({
     where: { AND: [tenantScope(orgId), buildingFilter] },
     orderBy: { companyName: "asc" },
-    take: 500,
+    take: 140,
     select: {
       id: true,
       companyName: true,

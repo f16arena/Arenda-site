@@ -44,7 +44,7 @@ export async function listParentContractsForAddendum(): Promise<ParentContractOp
       id: true, number: true, status: true, startDate: true, endDate: true, tenantId: true,
       tenant: { select: { companyName: true } },
     },
-    take: 500,
+    take: 140,
   })
   return rows.map((r) => ({
     id: r.id,

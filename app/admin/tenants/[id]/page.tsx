@@ -39,6 +39,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { ExternalContractButton } from "./external-contract-button"
+import { RentalPeriodCard } from "./rental-period-card"
 import { Tabs, Tab } from "@/components/ui/server-tabs"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
@@ -724,31 +725,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   ИП — Талона (Уведомления о начале деятельности), ТОО — Устава, ЧСИ — лицензии. Если пусто — фраза по форме собственности без БИН.
                 </p>
               </div>
-              {/* Период аренды берётся из активного Договора. Если контракта
-                  нет — показываем подсказку «Создайте договор». 2026-05-27 */}
-              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300">
-                <p className="mb-1 font-medium text-slate-700 dark:text-slate-200">Период аренды</p>
-                {activeContract ? (
-                  <>
-                    <p>
-                      Договор № {activeContract.number ?? "—"} ·{" "}
-                      {activeContract.startDate ? new Date(activeContract.startDate).toLocaleDateString("ru-RU") : "—"}
-                      {" — "}
-                      {activeContract.endDate ? new Date(activeContract.endDate).toLocaleDateString("ru-RU") : "—"}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                      Чтобы изменить — создайте новый договор через раздел «Документы».
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-amber-700 dark:text-amber-300">Договор ещё не создан</p>
-                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                      Срок аренды появится после создания договора в разделе «Документы».
-                    </p>
-                  </>
-                )}
-              </div>
+              {/* Период аренды — из активного Договора (вынесено в компонент). */}
+              <RentalPeriodCard activeContract={activeContract} />
               <IndexationHint
                 initialContractEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
                 initialRate={ratePerSqm}
