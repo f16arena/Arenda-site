@@ -137,7 +137,7 @@ export function OrganizationBankFields({
           name={iikName}
           value={iik}
           onChange={(event) => setIik(normalizeIikInput(event.target.value))}
-          maxLength={20}
+          maxLength={32}
           className={`${inputClass} font-mono uppercase`}
           placeholder="KZ86125KZT1001300335"
         />

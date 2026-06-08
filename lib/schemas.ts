@@ -40,7 +40,10 @@ export const PositiveMoneySchema = NonNegativeMoneySchema.refine((v) => v > 0, {
 
 // Казахстанские реквизиты
 export const BinSchema = z.string().regex(/^\d{12}$/, "БИН/ИИН должен содержать 12 цифр")
-export const IikSchema = z.string().regex(/^KZ\d{18}$/i, "ИИК должен начинаться с KZ и содержать 20 символов")
+export const IikSchema = z
+  .string()
+  .transform((v) => v.replace(/\s+/g, "").toUpperCase())
+  .refine((v) => /^KZ[0-9]{2}[A-Z0-9]{3}[A-Z0-9]{13}$/.test(v), "ИИК должен начинаться с KZ и содержать 20 символов")
 export const BikSchema = z.string().regex(/^[A-Z]{8,11}$/i, "БИК — это 8-11 латинских символов")
 
 // ── User ────────────────────────────────────────────────────────────────────

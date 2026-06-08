@@ -326,7 +326,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     data.bankName = v || null
   }
   if (formData.has("iik")) {
-    const v = String(formData.get("iik") ?? "").trim()
+    const v = normalizeIik(String(formData.get("iik") ?? ""))
     data.iik = v || null
   }
   if (formData.has("bik")) {

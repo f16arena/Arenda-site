@@ -225,8 +225,8 @@ function BankFields({
           value={iik}
           onChange={(event) => setIik(normalizeIikInput(event.target.value))}
           placeholder="KZ123456789012345678"
-          pattern="^KZ\d{18}$"
-          maxLength={20}
+          pattern="^KZ[A-Za-z0-9]{18}$"
+          maxLength={32}
           className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
             !iik
               ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
