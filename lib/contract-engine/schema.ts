@@ -141,6 +141,12 @@ export interface Modules {
   insuranceEnabled: boolean // раздел 7
   signageEnabled: boolean // п.1.6, 6.2.3
   actEnabled: boolean // Прил.№1 (default true)
+  // Право арендатора на односторонний отказ при непригодности Помещения + возврат
+  // депозита (п. «Изменение и расторжение» и п. «Депозит»). Опционально и по
+  // умолчанию ВЫКЛ для обратной совместимости: у ранее подписанных договоров этого
+  // поля в builderState нет → новые пункты не подмешиваются в их перерисованный
+  // DOCX/PDF (он обязан совпадать с подписанным content). defaultState() ставит true.
+  tenantExitOnUnusableEnabled?: boolean
 }
 
 /** Данные Акта приёма-передачи (Приложение). Пусто → в документе остаётся прочерк. */
@@ -242,7 +248,7 @@ export function defaultState(): ContractState {
       },
     },
     term: { startDate: "", endDate: "" },
-    modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true },
+    modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true, tenantExitOnUnusableEnabled: true },
     handoverAct: {
       conditionWalls: "", conditionFloor: "", conditionCeiling: "", conditionWindowsDoors: "",
       conditionElectrical: "", conditionPlumbing: "", conditionOther: "",
