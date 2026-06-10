@@ -18,6 +18,8 @@ import { parseHost } from "@/lib/host"
 // Пути, разрешённые на корневом домене
 const PUBLIC_ROOT_PATHS = new Set([
   "/", "/login", "/signup", "/offer", "/privacy", "/terms", "/sla",
+  // Публичное демо: вход в демо-организацию одним кликом (lib/demo.ts).
+  "/demo",
   "/verify-email", "/forgot-password", "/reset-password",
   // Принудительная смена пароля при первом входе. Доступна и до полного admin/cabinet
   // редиректа: пользователь сюда попадает из admin/layout, гард не должен ронять его на лендинг.
