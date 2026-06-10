@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useRef, useCallback, MouseEvent as ReactMouseEvent } from "react"
+import { useState, useRef, useCallback, useMemo, MouseEvent as ReactMouseEvent } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { X, ZoomIn, ZoomOut, Move, Box, Square, Loader2 } from "lucide-react"
+import { X, ZoomIn, ZoomOut, Move, Box, Square, Loader2, RotateCw } from "lucide-react"
 import {
   type FloorLayoutV2,
   type FloorElement,
   elementCenter,
+  rotateLayout90,
 } from "@/lib/floor-layout"
 import { formatMoney } from "@/lib/utils"
 
@@ -93,6 +94,20 @@ export function FloorView({
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [selected, setSelected] = useState<string | null>(null)
   const [view, setView] = useState<"2d" | "3d">("2d")
+  // Ориентация: вертикальный план можно повернуть горизонтально (и наоборот).
+  // Выбор запоминается для каждого этажа (компонент грузится только в браузере, ssr:false).
+  const rotationKey = `floorplan:rotated:${floorMeta?.id ?? "default"}`
+  const [rotated, setRotated] = useState<boolean>(() => {
+    try { return localStorage.getItem(rotationKey) === "1" } catch { return false }
+  })
+  const toggleRotation = () => {
+    const next = !rotated
+    setRotated(next)
+    try { localStorage.setItem(rotationKey, next ? "1" : "0") } catch { /* приватный режим */ }
+    setPan({ x: 0, y: 0 })
+    setZoom(1)
+  }
+  const displayLayout = useMemo(() => (rotated ? rotateLayout90(layout) : layout), [rotated, layout])
   // Hover-подсказка: какой элемент под курсором и где рисовать тултип (px от
   // контейнера). containerWidth снимается в обработчике, чтобы прижимать тултип к краю.
   const [hovered, setHovered] = useState<{ elId: string; x: number; y: number; containerWidth: number } | null>(null)
@@ -130,7 +145,7 @@ export function FloorView({
     setZoom((z) => Math.max(0.3, Math.min(3, z * (e.deltaY > 0 ? 0.9 : 1.1))))
   }, [])
 
-  const selectedEl = layout.elements.find((e) => e.id === selected)
+  const selectedEl = displayLayout.elements.find((e) => e.id === selected)
   const selectedSpace = selectedEl && "spaceId" in selectedEl && selectedEl.spaceId
     ? spaces.find((s) => s.id === selectedEl.spaceId)
     : null
@@ -187,10 +202,18 @@ export function FloorView({
         >
           <Box className="h-3.5 w-3.5" /> 3D
         </button>
+        <button
+          type="button"
+          onClick={toggleRotation}
+          title={rotated ? "Вернуть исходную ориентацию плана" : "Повернуть план на 90° (вертикальный ↔ горизонтальный)"}
+          className={`flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-medium ${rotated ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" : "text-slate-600 dark:text-slate-400"}`}
+        >
+          <RotateCw className="h-3.5 w-3.5" /> 90°
+        </button>
       </div>
 
       {view === "3d" && (
-        <Floor3D layout={layout} spaces={spaces} selectedId={selected} onSelect={setSelected} />
+        <Floor3D layout={displayLayout} spaces={spaces} selectedId={selected} onSelect={setSelected} />
       )}
 
       {view === "2d" && (
@@ -208,14 +231,15 @@ export function FloorView({
             data-bg="1"
             x={0}
             y={0}
-            width={layout.width * PX_PER_METER}
-            height={layout.height * PX_PER_METER}
+            width={displayLayout.width * PX_PER_METER}
+            height={displayLayout.height * PX_PER_METER}
             fill="white"
             stroke="#e2e8f0"
             strokeWidth={1 / zoom}
           />
 
-          {/* Подложка-чертёж (PDF/картинка из редактора): зоны рисуются полупрозрачно поверх. */}
+          {/* Подложка-чертёж (PDF/картинка из редактора): зоны рисуются полупрозрачно поверх.
+              При повороте плана картинка поворачивается SVG-transform'ом в ту же систему координат. */}
           {hasUnderlay && (
             <image
               href={layout.underlayUrl!}
@@ -226,10 +250,11 @@ export function FloorView({
               preserveAspectRatio="none"
               opacity={0.95}
               pointerEvents="none"
+              transform={rotated ? `translate(${layout.height * PX_PER_METER} 0) rotate(90)` : undefined}
             />
           )}
 
-          {layout.elements.map((el) => (
+          {displayLayout.elements.map((el) => (
             <ViewElement
               key={el.id}
               el={el}

@@ -97,6 +97,45 @@ export const DEFAULT_LAYOUT: FloorLayoutV2 = {
   elements: [],
 }
 
+/**
+ * Поворот плана на 90° по часовой для отображения (вертикальный ↔ горизонтальный).
+ * Точка (x, y) → (H − y, x), холст W×H → H×W. Поворачиваются КООРДИНАТЫ элементов,
+ * поэтому подписи комнат остаются горизонтальными. Подложку-картинку рендерер
+ * поворачивает отдельно SVG-transform'ом (см. floor-view).
+ */
+export function rotateLayout90(layout: FloorLayoutV2): FloorLayoutV2 {
+  const H = layout.height
+  const pt = (p: Point): Point => ({ x: H - p.y, y: p.x })
+  return {
+    ...layout,
+    width: layout.height,
+    height: layout.width,
+    elements: layout.elements.map((el): FloorElement => {
+      switch (el.type) {
+        case "rect":
+          return { ...el, x: H - el.y - el.height, y: el.x, width: el.height, height: el.width }
+        case "polygon":
+          return { ...el, points: el.points.map(pt) }
+        case "wall": {
+          const p1 = pt({ x: el.x1, y: el.y1 })
+          const p2 = pt({ x: el.x2, y: el.y2 })
+          return { ...el, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y }
+        }
+        case "door":
+        case "window": {
+          const p = pt({ x: el.x, y: el.y })
+          return { ...el, x: p.x, y: p.y, rotation: ((el.rotation ?? 0) + 90) % 360 }
+        }
+        case "icon":
+        case "label": {
+          const p = pt({ x: el.x, y: el.y })
+          return { ...el, x: p.x, y: p.y }
+        }
+      }
+    }),
+  }
+}
+
 export function isLayoutV2(obj: unknown): obj is FloorLayoutV2 {
   return typeof obj === "object" && obj !== null && (obj as { version?: number }).version === 2
 }
