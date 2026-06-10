@@ -9,6 +9,7 @@ import {
   type FloorElement,
   elementCenter,
 } from "@/lib/floor-layout"
+import { formatMoney } from "@/lib/utils"
 
 // 3D-вид грузится лениво (three.js тяжёлый) и только в браузере.
 const Floor3D = dynamic(() => import("./floor-3d"), {
@@ -27,6 +28,7 @@ export type SpaceInfo = {
   number: string
   area: number
   status: string
+  kind?: string
   description: string | null
   tenant?: {
     id: string
@@ -34,6 +36,12 @@ export type SpaceInfo = {
     debt: number
     contractEnd: Date | null
   } | null
+}
+
+export type FloorMeta = {
+  id: string
+  name: string
+  ratePerSqm: number
 }
 
 export const STATUS_FILL: Record<string, string> = {
@@ -75,9 +83,11 @@ export function detectStatus(space: SpaceInfo | undefined): string {
 export function FloorView({
   layout,
   spaces,
+  floorMeta,
 }: {
   layout: FloorLayoutV2
   spaces: SpaceInfo[]
+  floorMeta?: FloorMeta
 }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -136,7 +146,29 @@ export function FloorView({
     setHovered({ elId, x: e.clientX - rect.left, y: e.clientY - rect.top, containerWidth: rect.width })
   }
 
+  // Сводка этажа в стиле pro.rent: занято % · свободно N · диапазон площадей · ставка.
+  const rentable = spaces.filter((s) => s.kind !== "COMMON")
+  const occupied = rentable.filter((s) => s.tenant || s.status === "OCCUPIED")
+  const vacant = rentable.filter((s) => !s.tenant && s.status === "VACANT")
+  const totalArea = Math.round(rentable.reduce((sum, s) => sum + s.area, 0) * 10) / 10
+  const areas = rentable.map((s) => s.area).sort((a, b) => a - b)
+  const occupiedPct = rentable.length > 0 ? Math.round((occupied.length / rentable.length) * 100) : 0
+  const hasUnderlay = !!layout.underlayUrl
+
   return (
+    <div className="space-y-2">
+      {rentable.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-slate-500 dark:text-slate-400">
+          {floorMeta && <span className="font-semibold text-slate-900 dark:text-slate-100">{floorMeta.name}</span>}
+          <span>Занято <b className={occupiedPct > 0 ? "text-blue-600 dark:text-blue-400" : ""}>{occupiedPct}%</b></span>
+          <span>Свободно <b className="text-emerald-600 dark:text-emerald-400">{vacant.length}</b></span>
+          <span>S = {areas[0]}…{areas[areas.length - 1]} м² · всего {totalArea} м²</span>
+          {layout.ceilingHeight ? <span>H = {layout.ceilingHeight} м</span> : null}
+          {floorMeta && floorMeta.ratePerSqm > 0 && (
+            <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoney(floorMeta.ratePerSqm)}/м² в месяц</span>
+          )}
+        </div>
+      )}
     <div ref={containerRef} className={`relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden ${view === "3d" ? "h-[440px]" : "h-[260px]"}`}>
       {/* Переключатель 2D/3D */}
       <div className="absolute top-3 left-3 z-10 flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
@@ -183,12 +215,27 @@ export function FloorView({
             strokeWidth={1 / zoom}
           />
 
+          {/* Подложка-чертёж (PDF/картинка из редактора): зоны рисуются полупрозрачно поверх. */}
+          {hasUnderlay && (
+            <image
+              href={layout.underlayUrl!}
+              x={0}
+              y={0}
+              width={layout.width * PX_PER_METER}
+              height={layout.height * PX_PER_METER}
+              preserveAspectRatio="none"
+              opacity={0.95}
+              pointerEvents="none"
+            />
+          )}
+
           {layout.elements.map((el) => (
             <ViewElement
               key={el.id}
               el={el}
               spaces={spaces}
               selected={selected === el.id}
+              translucent={hasUnderlay}
               zoom={zoom}
               onClick={() => {
                 if ("spaceId" in el && el.spaceId) {
@@ -317,22 +364,61 @@ export function FloorView({
             ) : (
               <p className="text-xs text-slate-400 dark:text-slate-500 italic border-t border-slate-100 dark:border-slate-800 pt-2">Помещение свободно</p>
             )}
+            {/* Цена аренды: ставка × площадь (как у pro.rent) */}
+            {floorMeta && floorMeta.ratePerSqm > 0 && (
+              <div className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-2 text-xs">
+                <span className="text-slate-500 dark:text-slate-400">
+                  {selectedSpace.area} м² × {formatMoney(floorMeta.ratePerSqm)}
+                </span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">
+                  = {formatMoney(Math.round(selectedSpace.area * floorMeta.ratePerSqm))} / мес
+                </span>
+              </div>
+            )}
             {selectedSpace.description && (
               <p className="text-xs text-slate-500 dark:text-slate-400 italic border-t border-slate-100 dark:border-slate-800 pt-2">{selectedSpace.description}</p>
             )}
+            <div className="flex gap-2 border-t border-slate-100 dark:border-slate-800 pt-2.5">
+              {selectedSpace.tenant ? (
+                <Link
+                  href={`/admin/tenants/${selectedSpace.tenant.id}`}
+                  className="flex-1 rounded-lg bg-slate-900 px-3 py-1.5 text-center text-xs font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                >
+                  Подробнее
+                </Link>
+              ) : (
+                <Link
+                  href="/admin/tenants/new"
+                  className="flex-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-center text-xs font-medium text-white hover:bg-emerald-700"
+                >
+                  Заселить
+                </Link>
+              )}
+              {floorMeta && (
+                <Link
+                  href={`/admin/floors/${floorMeta.id}/visualization`}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-center text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Изменить на плане
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       )}
+    </div>
     </div>
   )
 }
 
 function ViewElement({
-  el, spaces, selected, zoom, onClick, onHoverMove, onHoverEnd,
+  el, spaces, selected, translucent, zoom, onClick, onHoverMove, onHoverEnd,
 }: {
   el: FloorElement
   spaces: SpaceInfo[]
   selected: boolean
+  /** Подложка-чертёж видна: зоны рисуем полупрозрачно с пунктиром (стиль pro.rent). */
+  translucent?: boolean
   zoom: number
   onClick: () => void
   onHoverMove?: (e: ReactMouseEvent) => void
@@ -346,7 +432,9 @@ function ViewElement({
   const fill = isCommon ? COMMON_FILL : STATUS_FILL[status]
   const stroke = selected ? "#3b82f6" : isCommon ? COMMON_STROKE : STATUS_STROKE[status]
   const strokeWidth = selected ? 3 / zoom : 1.5 / zoom
-  const strokeDasharray = isCommon && !selected ? `${4 / zoom} ${3 / zoom}` : undefined
+  // Поверх подложки-чертежа зоны полупрозрачны и обведены пунктиром (как pro.rent).
+  const fillOpacity = translucent ? (isCommon ? 0.35 : 0.5) : 1
+  const strokeDasharray = (isCommon || translucent) && !selected ? `${4 / zoom} ${3 / zoom}` : undefined
   const clickable = !!space
 
   if (el.type === "rect") {
@@ -364,6 +452,7 @@ function ViewElement({
           width={el.width * PX_PER_METER}
           height={el.height * PX_PER_METER}
           fill={fill}
+          fillOpacity={fillOpacity}
           stroke={stroke}
           strokeWidth={strokeWidth}
           strokeDasharray={strokeDasharray}
@@ -408,7 +497,7 @@ function ViewElement({
         onMouseLeave={onHoverEnd}
         style={{ cursor: clickable ? "pointer" : "default" }}
       >
-        <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
+        <polygon points={points} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
         <text
           x={center.x * PX_PER_METER}
           y={center.y * PX_PER_METER}

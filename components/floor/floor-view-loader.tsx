@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
-import type { SpaceInfo } from "./floor-view"
+import type { SpaceInfo, FloorMeta } from "./floor-view"
 
 const FloorView = dynamic(() => import("./floor-view").then((mod) => mod.FloorView), {
   ssr: false,
@@ -14,9 +14,11 @@ const FloorView = dynamic(() => import("./floor-view").then((mod) => mod.FloorVi
 export function FloorViewLoader({
   layout,
   spaces,
+  floorMeta,
 }: {
   layout: FloorLayoutV2
   spaces: SpaceInfo[]
+  floorMeta?: FloorMeta
 }) {
-  return <FloorView layout={layout} spaces={spaces} />
+  return <FloorView layout={layout} spaces={spaces} floorMeta={floorMeta} />
 }

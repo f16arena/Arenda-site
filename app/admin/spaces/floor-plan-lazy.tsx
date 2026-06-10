@@ -4,11 +4,12 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 
 import { FloorViewLoader } from "@/components/floor/floor-view-loader"
-import type { SpaceInfo } from "@/components/floor/floor-view"
+import type { SpaceInfo, FloorMeta } from "@/components/floor/floor-view"
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 
 type FloorPlanPayload = {
   layout: FloorLayoutV2 | null
+  floor?: FloorMeta
   spaces: Array<Omit<SpaceInfo, "tenant"> & {
     tenant?: {
       id: string
@@ -78,7 +79,7 @@ export function FloorPlanLazy({ floorId }: { floorId: string }) {
       : null,
   }))
 
-  return <FloorViewLoader layout={state.data.layout} spaces={spaces} />
+  return <FloorViewLoader layout={state.data.layout} spaces={spaces} floorMeta={state.data.floor} />
 }
 
 function EmptyFloorPlan({ floorId }: { floorId: string }) {

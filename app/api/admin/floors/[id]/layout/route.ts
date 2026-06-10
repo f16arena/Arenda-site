@@ -28,6 +28,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       ],
     },
     select: {
+      id: true,
+      name: true,
+      number: true,
+      ratePerSqm: true,
       layoutJson: true,
       spaces: {
         orderBy: { number: "asc" },
@@ -36,6 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           number: true,
           area: true,
           status: true,
+          kind: true,
           description: true,
           tenant: {
             select: {
@@ -91,6 +96,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   return NextResponse.json({
     layout,
+    floor: {
+      id: floor.id,
+      name: floor.name,
+      number: floor.number,
+      ratePerSqm: floor.ratePerSqm,
+    },
     spaces: floor.spaces.map((space) => {
       const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
       return {
@@ -98,6 +109,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         number: space.number,
         area: space.area,
         status: space.status,
+        kind: space.kind,
         description: space.description,
         tenant: tenant
           ? {
