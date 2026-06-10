@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect, useReducer } from "react"
+import { useState, useRef, useEffect, useReducer, useTransition } from "react"
+import { Download, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { lookupTaxpayerAction } from "@/app/actions/taxpayer-lookup"
 import { formatKzIinBirthDate, validateKazakhstanIin } from "@/lib/kz-iin"
 import {
   normalizeTenantLegalType,
@@ -38,6 +41,36 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
   const usesBin = tenantLegalTypeUsesBin(legalType)
   const taxIdLabel = tenantTaxIdLabel(legalType)
   const iinValidation = !usesBin && taxId.length === 12 ? validateKazakhstanIin(taxId) : null
+  const [lookupPending, startLookup] = useTransition()
+
+  // Автозаполнение из справочника КГД: подставляем наименование/адрес/директора
+  // в соседние поля ТОЙ ЖЕ формы (поля по name — работает в диалоге, мастере и карточке).
+  function fillFromRegistry() {
+    startLookup(async () => {
+      const r = await lookupTaxpayerAction(taxId)
+      if (!r.ok) { toast.error(r.error); return }
+      const form = selectRef.current?.form
+      if (!form) return
+      const setField = (name: string, value: string | null, overwrite = true) => {
+        if (!value) return false
+        const input = form.elements.namedItem(name)
+        if (!(input instanceof HTMLInputElement) && !(input instanceof HTMLTextAreaElement)) return false
+        if (!overwrite && input.value.trim()) return false
+        input.value = value
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+        return true
+      }
+      const filled = [
+        setField("companyName", r.info.name),
+        setField("legalAddress", r.info.address),
+        setField("directorName", r.info.director),
+        // ФИО контакта — только если поле ещё пустое (не перетираем введённое).
+        setField("name", r.info.director, false),
+      ].filter(Boolean).length
+      if (filled > 0) toast.success(`Заполнено из справочника: ${[r.info.name && "наименование", r.info.address && "адрес", r.info.director && "руководитель"].filter(Boolean).join(", ")}`)
+      else toast.info("Справочник ответил, но подходящих полей в этой форме нет")
+    })
+  }
 
   return (
     <>
@@ -94,6 +127,18 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
               : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20",
           ].join(" ")}
         />
+        {taxId.length === 12 && (
+          <button
+            type="button"
+            onClick={fillFromRegistry}
+            disabled={lookupPending}
+            title="Подтянуть наименование, адрес и руководителя из справочника налогоплательщиков КГД"
+            className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+          >
+            {lookupPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+            Заполнить из КГД
+          </button>
+        )}
         {!iinValidation && (
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">12 цифр без пробелов</p>
         )}
