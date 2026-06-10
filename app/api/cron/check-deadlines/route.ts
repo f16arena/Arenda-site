@@ -52,6 +52,7 @@ export async function GET(req: Request) {
     penaltiesAccrued: 0,
     penaltiesAmount: 0,
     indexationsApplied: 0,
+    signRemindersSent: 0,
     notificationsCreated: 0,
     telegramSent: 0,
     errors: [] as string[],
@@ -209,12 +210,13 @@ export async function GET(req: Request) {
     }
 
     // ── 2. Платежи ──────────────────────────────────────────────
+    // deletedAt: null — удалённые начисления не должны порождать ложные напоминания.
     const tenantsWithDebt = await db.tenant.findMany({
-      where: { charges: { some: { isPaid: false } } },
+      where: { charges: { some: { isPaid: false, deletedAt: null } } },
       include: {
         user: { select: { id: true, name: true, telegramChatId: true } },
         charges: {
-          where: { isPaid: false },
+          where: { isPaid: false, deletedAt: null },
           select: { id: true, amount: true, type: true, period: true, dueDate: true },
         },
       },
@@ -280,6 +282,92 @@ export async function GET(req: Request) {
           })
           results.notificationsCreated++
           if (s.telegramChatId) results.telegramSent++
+        }
+      }
+    }
+
+    // ── 2b. Документы ждут подписи АРЕНДАТОРА: договор/ДС (SENT/VIEWED) и
+    //        заявки на подпись (АВР/акт сверки). Напоминаем раз в 3 дня,
+    //        начиная со 2-го дня ожидания (аудит 2026-06-10: автонапоминания).
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 3600 * 1000)
+    const pendingContracts = await db.contract.findMany({
+      where: { deletedAt: null, status: { in: ["SENT", "VIEWED"] }, sentAt: { lt: twoDaysAgo } },
+      select: {
+        number: true,
+        type: true,
+        sentAt: true,
+        tenant: { select: { userId: true } },
+      },
+      take: 500,
+    })
+    for (const c of pendingContracts) {
+      const waitDays = c.sentAt ? Math.floor((now.getTime() - c.sentAt.getTime()) / 86_400_000) : 0
+      const docTitle = c.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+      await notifyUser({
+        userId: c.tenant.userId,
+        type: "DOCUMENT_SIGN_REQUEST",
+        title: `${docTitle} № ${c.number} ждёт вашей подписи`,
+        message: `${docTitle} № ${c.number} отправлен вам на подпись ${waitDays} дн. назад и ещё не подписан. Откройте кабинет → Документы, проверьте условия и подпишите (или отклоните с причиной).`,
+        link: "/cabinet/documents",
+        dedupWindowHours: 71, // не чаще раза в ~3 дня
+      })
+      results.signRemindersSent++
+    }
+
+    const pendingSignRequests = await db.documentSignatureRequest.findMany({
+      where: { status: { in: ["PENDING", "VIEWED"] }, createdAt: { lt: twoDaysAgo } },
+      select: { recipientUserId: true, title: true },
+      take: 500,
+    })
+    for (const r of pendingSignRequests) {
+      await notifyUser({
+        userId: r.recipientUserId,
+        type: "DOCUMENT_SIGN_REQUEST",
+        title: "Документ ждёт вашей подписи",
+        message: `«${r.title}» ожидает подписания. Откройте раздел «Документы» и подпишите.`,
+        link: "/cabinet/documents",
+        dedupWindowHours: 71,
+      })
+      results.signRemindersSent++
+    }
+
+    // ── 2c. Счёт/АВР без подписи ВЛАДЕЛЬЦА: автосозданные документы лежат в
+    //        архиве, пока владелец не подпишет — после подписи уходят арендатору.
+    //        Напоминаем владельцу и админам раз в 3 дня.
+    const currentPeriodStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    const periodDocs = await db.generatedDocument.findMany({
+      where: {
+        documentType: { in: ["INVOICE", "ACT"] },
+        period: currentPeriodStr,
+        deletedAt: null,
+        generatedAt: { lt: twoDaysAgo },
+      },
+      select: { id: true, organizationId: true },
+      take: 1000,
+    })
+    if (periodDocs.length > 0) {
+      const signedDocIds = new Set(
+        (await db.documentSignature.findMany({
+          where: { documentType: { in: ["INVOICE", "ACT"] }, documentId: { in: periodDocs.map((d) => d.id) } },
+          select: { documentId: true },
+        })).map((s) => s.documentId).filter((x): x is string => !!x),
+      )
+      const unsignedByOrg = new Map<string, number>()
+      for (const d of periodDocs) {
+        if (signedDocIds.has(d.id)) continue
+        unsignedByOrg.set(d.organizationId, (unsignedByOrg.get(d.organizationId) ?? 0) + 1)
+      }
+      for (const [orgId, count] of unsignedByOrg) {
+        for (const s of await getStaffForOrg(staffCache, orgId)) {
+          await notifyUser({
+            userId: s.id,
+            type: "DOCUMENT_SIGN_REQUEST",
+            title: `${count} документ(ов) ждут вашей подписи`,
+            message: `Счета и АВР за ${currentPeriodStr} (${count} шт) созданы, но не подписаны. После подписи ЭЦП они автоматически уйдут арендаторам. Раздел «Документы».`,
+            link: "/admin/documents",
+            dedupWindowHours: 71,
+          })
+          results.signRemindersSent++
         }
       }
     }

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useMemo, MouseEvent as ReactMouseEvent } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import { X, ZoomIn, ZoomOut, Move, Box, Square, Loader2, RotateCw } from "lucide-react"
+import { X, ZoomIn, ZoomOut, Move, Box, Square, Loader2, RotateCw, ChevronDown, ChevronUp } from "lucide-react"
 import {
   type FloorLayoutV2,
   type FloorElement,
@@ -108,6 +108,18 @@ export function FloorView({
     setZoom(1)
   }
   const displayLayout = useMemo(() => (rotated ? rotateLayout90(layout) : layout), [rotated, layout])
+
+  // Сворачивание плана этажа (чтобы длинные списки этажей не занимали всю страницу).
+  // Состояние запоминается для каждого этажа.
+  const collapseKey = `floorplan:collapsed:${floorMeta?.id ?? "default"}`
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem(collapseKey) === "1" } catch { return false }
+  })
+  const toggleCollapsed = () => {
+    const next = !collapsed
+    setCollapsed(next)
+    try { localStorage.setItem(collapseKey, next ? "1" : "0") } catch { /* приватный режим */ }
+  }
   // Hover-подсказка: какой элемент под курсором и где рисовать тултип (px от
   // контейнера). containerWidth снимается в обработчике, чтобы прижимать тултип к краю.
   const [hovered, setHovered] = useState<{ elId: string; x: number; y: number; containerWidth: number } | null>(null)
@@ -172,18 +184,29 @@ export function FloorView({
 
   return (
     <div className="space-y-2">
-      {rentable.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-slate-500 dark:text-slate-400">
-          {floorMeta && <span className="font-semibold text-slate-900 dark:text-slate-100">{floorMeta.name}</span>}
-          <span>Занято <b className={occupiedPct > 0 ? "text-blue-600 dark:text-blue-400" : ""}>{occupiedPct}%</b></span>
-          <span>Свободно <b className="text-emerald-600 dark:text-emerald-400">{vacant.length}</b></span>
-          <span>S = {areas[0]}…{areas[areas.length - 1]} м² · всего {totalArea} м²</span>
-          {layout.ceilingHeight ? <span>H = {layout.ceilingHeight} м</span> : null}
-          {floorMeta && floorMeta.ratePerSqm > 0 && (
-            <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoney(floorMeta.ratePerSqm)}/м² в месяц</span>
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-slate-500 dark:text-slate-400">
+        {floorMeta && <span className="font-semibold text-slate-900 dark:text-slate-100">{floorMeta.name}</span>}
+        {rentable.length > 0 && (
+          <>
+            <span>Занято <b className={occupiedPct > 0 ? "text-blue-600 dark:text-blue-400" : ""}>{occupiedPct}%</b></span>
+            <span>Свободно <b className="text-emerald-600 dark:text-emerald-400">{vacant.length}</b></span>
+            <span>S = {areas[0]}…{areas[areas.length - 1]} м² · всего {totalArea} м²</span>
+            {layout.ceilingHeight ? <span>H = {layout.ceilingHeight} м</span> : null}
+            {floorMeta && floorMeta.ratePerSqm > 0 && (
+              <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoney(floorMeta.ratePerSqm)}/м² в месяц</span>
+            )}
+          </>
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="ml-auto inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          {collapsed ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />}
+          {collapsed ? "Развернуть план" : "Свернуть"}
+        </button>
+      </div>
+    {!collapsed && (
     <div ref={containerRef} className={`relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden ${view === "3d" ? "h-[440px]" : "h-[260px]"}`}>
       {/* Переключатель 2D/3D */}
       <div className="absolute top-3 left-3 z-10 flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
@@ -432,6 +455,7 @@ export function FloorView({
         </div>
       )}
     </div>
+    )}
     </div>
   )
 }
