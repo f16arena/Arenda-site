@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import Link from "next/link"
+import { Wand2 } from "lucide-react"
 import { TenantDialog } from "./tenant-dialog"
 import { BulkNotifyButton } from "./bulk-notify-button"
 import { TenantsTableLoader } from "./tenants-table-loader"
@@ -179,6 +181,16 @@ export default async function TenantsPage(props: TenantsPageProps) {
         </div>
         <div className="flex items-center gap-2">
           <BulkNotifyButton available={bulkNotificationsAvailable} totalTenants={totalTenants} />
+          {allowedCapabilities.has("tenants.create") && (
+            <Link
+              href="/admin/tenants/new"
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+              title="Заселение за 3 шага: контакты → помещение и условия → договор"
+            >
+              <Wand2 className="h-4 w-4" />
+              Мастер заселения
+            </Link>
+          )}
           {allowedCapabilities.has("tenants.create") && (
             <TenantDialog
               buildingId={buildingId}
