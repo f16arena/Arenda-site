@@ -6,7 +6,61 @@ import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 120
+
+// JSON-схема ответа (structured outputs): API сам гарантирует валидный JSON
+// нужной формы — никаких «верни строго JSON» и ручного парсинга markdown.
+const RECOGNIZE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["buildingWidthMeters", "ceilingHeightMeters", "rooms"],
+  properties: {
+    buildingWidthMeters: { anyOf: [{ type: "number" }, { type: "null" }] },
+    ceilingHeightMeters: { anyOf: [{ type: "number" }, { type: "null" }] },
+    rooms: {
+      type: "array",
+      items: {
+        anyOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["shape", "name", "kind", "x", "y", "width", "height", "area"],
+            properties: {
+              shape: { type: "string", enum: ["rect"] },
+              name: { type: "string" },
+              kind: { type: "string", enum: ["rentable", "common"] },
+              x: { type: "number" },
+              y: { type: "number" },
+              width: { type: "number" },
+              height: { type: "number" },
+              area: { anyOf: [{ type: "number" }, { type: "null" }] },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["shape", "name", "kind", "points", "area"],
+            properties: {
+              shape: { type: "string", enum: ["polygon"] },
+              name: { type: "string" },
+              kind: { type: "string", enum: ["rentable", "common"] },
+              points: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["x", "y"],
+                  properties: { x: { type: "number" }, y: { type: "number" } },
+                },
+              },
+              area: { anyOf: [{ type: "number" }, { type: "null" }] },
+            },
+          },
+        ],
+      },
+    },
+  },
+} as const
 
 type RectRoom = {
   shape: "rect"
@@ -202,26 +256,21 @@ export async function POST(req: Request) {
 
   const userText = `На картинке план этажа${body.floorName ? ` «${body.floorName}»` : ""}${
     body.floorNumber !== undefined ? ` (этаж ${body.floorNumber})` : ""
-  }.
-
-ВАЖНО: Твой ответ должен быть СТРОГО ОДНИМ JSON-объектом, и ничем больше:
-- Никакого вступительного текста ("Вот результат...", "Я распознал...").
-- Никаких markdown-обёрток (\`\`\`json и \`\`\`).
-- Никаких объяснений или комментариев.
-- Никакого финального текста после JSON.
-- ПЕРВЫЙ символ ответа должен быть {. ПОСЛЕДНИЙ символ — }.
-
-Внутри JSON допустимо использовать только структуру из системной инструкции.`
+  }. Распознай помещения по системной инструкции. Перед ответом мысленно проверь каждую комнату: совпадают ли её границы с реальными стенами и согласуется ли подписанная площадь с геометрией.`
 
   const client = new Anthropic({ apiKey })
 
   let response: Anthropic.Messages.Message
   try {
     response = await client.messages.create({
-      // Sonnet 4.6 — заметно точнее в распознавании геометрии чертежей,
-      // ~$0.01 за PDF (всё ещё дёшево).
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
+      // Opus 4.8: high-res vision (до 2576px, координаты 1:1 с пикселями) +
+      // адаптивное мышление — существенно точнее геометрия стен, чем Sonnet.
+      // ~$0.05-0.10 за план; лимит 10 распознаваний/час защищает бюджет.
+      model: "claude-opus-4-8",
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      // Structured outputs: ответ гарантированно соответствует схеме.
+      output_config: { format: { type: "json_schema", schema: RECOGNIZE_SCHEMA } },
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -239,6 +288,13 @@ export async function POST(req: Request) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI-сервис недоступен"
     return NextResponse.json({ error: `Ошибка AI: ${msg}` }, { status: 502 })
+  }
+
+  if (response.stop_reason === "max_tokens") {
+    return NextResponse.json({ error: "План слишком сложный — ответ AI не уместился. Попробуйте распознать план по частям." }, { status: 502 })
+  }
+  if (response.stop_reason === "refusal") {
+    return NextResponse.json({ error: "AI отказался обрабатывать это изображение" }, { status: 502 })
   }
 
   const textBlock = response.content.find((b) => b.type === "text")

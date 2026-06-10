@@ -106,9 +106,10 @@ export async function compressDataUrl(
   opts: { maxDim?: number; quality?: number } = {},
 ): Promise<string> {
   // Чем больше maxDim — тем больше деталей видит AI (важно для геометрии).
-  // 3000px по большей стороне даёт ~4 МБ JPEG q=0.92, что укладывается в Vercel 4.5 МБ.
-  // Выше — рискованно из-за лимита тела запроса.
-  const maxDim = opts.maxDim ?? 3000
+  // 2576px = максимум high-res vision у Claude Opus 4.8 (больше API всё равно
+  // ужмёт). Меньше пикселей → меньше байтов → выше JPEG-качество в лимите
+  // Vercel 4.5 МБ → читабельнее синие метки площадей и размеры стен.
+  const maxDim = opts.maxDim ?? 2576
   const initialQuality = opts.quality ?? 0.92
 
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
