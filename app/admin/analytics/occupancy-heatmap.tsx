@@ -2,11 +2,14 @@ import { Flame } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function OccupancyHeatmap({ data }: {
-  data: { spaceId: string; spaceNumber: string; area: number; percent: number }[]
+  data: { spaceId: string; spaceNumber: string; floorName?: string; area: number; percent: number }[]
 }) {
   if (data.length === 0) return null
 
-  const sorted = [...data].sort((a, b) => b.percent - a.percent)
+  // Группируем по этажам: «210» без контекста этажа неинформативно.
+  const sorted = [...data].sort((a, b) =>
+    (a.floorName ?? "").localeCompare(b.floorName ?? "", "ru") || b.percent - a.percent,
+  )
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
@@ -32,9 +35,12 @@ export function OccupancyHeatmap({ data }: {
                   s.percent >= 90 ? "border-red-300 dark:border-red-500/40" : s.percent >= 50 ? "border-amber-300 dark:border-amber-500/40" : "border-slate-200 dark:border-slate-800"
                 )}
                 style={{ background: bg }}
-                title={`Каб. ${s.spaceNumber} · ${s.area} м² · занят ${s.percent}% времени`}
+                title={`Каб. ${s.spaceNumber}${s.floorName ? ` · ${s.floorName}` : ""} · ${s.area} м² · занят ${s.percent}% времени`}
               >
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{s.spaceNumber}</p>
+                {s.floorName && (
+                  <p className="max-w-full truncate text-[9px] leading-tight text-slate-500 dark:text-slate-400">{s.floorName}</p>
+                )}
                 <p className={cn(
                   "text-[10px]",
                   s.percent >= 70 ? "text-white font-bold" : "text-slate-600 dark:text-slate-400"

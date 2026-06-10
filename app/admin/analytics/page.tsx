@@ -144,7 +144,7 @@ export default async function AnalyticsPage() {
       db.tenant.findMany({
         where: tenantWhere,
         select: {
-          space: { select: { id: true, number: true, area: true } },
+          space: { select: { id: true, number: true, area: true, floor: { select: { name: true, number: true } } } },
           contractStart: true,
           contractEnd: true,
         },
@@ -195,10 +195,13 @@ export default async function AnalyticsPage() {
     return {
       spaceId: t.space.id,
       spaceNumber: t.space.number,
+      // Этаж в подписи ячейки — номера помещений сами по себе неинформативны
+      // («all», «Весь» и т.п.), нужен контекст «какой этаж».
+      floorName: t.space.floor?.name?.trim() || `Этаж ${t.space.floor?.number ?? "?"}`,
       area: t.space.area,
       percent,
     }
-  }).filter(Boolean) as { spaceId: string; spaceNumber: string; area: number; percent: number }[]
+  }).filter(Boolean) as { spaceId: string; spaceNumber: string; floorName: string; area: number; percent: number }[]
 
   // ===== analyticsBasic блоки =====
   // Топ-10 должников (по сумме неоплаченных начислений).

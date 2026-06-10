@@ -9,7 +9,7 @@ import {
   Save, Square, Pentagon, DoorOpen, Type, Minus,
   MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Sparkles,
   Image as ImageIcon, X as XIcon, Undo2, Redo2, Copy, MoreHorizontal,
-  Ruler, Box, Maximize2, Eraser,
+  Ruler, Box, Maximize2, Eraser, RotateCw,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -18,6 +18,7 @@ import {
   type RoomKind,
   DEFAULT_LAYOUT,
   uid,
+  rotateLayout90,
 } from "@/lib/floor-layout"
 import { RenderElement, type FloorEditorSpaceLite as SpaceLite } from "./floor-render-element"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -377,6 +378,23 @@ export function FloorEditor({
   const deleteElement = (id: string) => {
     setLayout((prev) => ({ ...prev, elements: prev.elements.filter((e) => e.id !== id) }))
     if (selectedId === id) setSelectedId(null)
+  }
+
+  // ── Поворот всего плана на 90° (вертикальный ↔ горизонтальный) ──
+  // Элементы поворачиваются координатно (rotateLayout90), подложка — как
+  // картинка через canvas, чтобы после сохранения всё осталось согласованным.
+  const rotatePlan = async () => {
+    let rotatedUnderlay = layout.underlayUrl ?? null
+    if (layout.underlayUrl) {
+      try {
+        rotatedUnderlay = await rotateImage90(layout.underlayUrl)
+      } catch (e) {
+        console.warn("[floor-editor] не удалось повернуть подложку:", e)
+        toast.error("Подложку повернуть не удалось (внешняя картинка?) — повернулись только элементы")
+      }
+    }
+    setLayout((prev) => ({ ...rotateLayout90(prev), underlayUrl: rotatedUnderlay }))
+    toast.success("План повёрнут на 90° — не забудьте сохранить")
   }
 
   // ── Mouse handlers on canvas ─────────────────────────────────
@@ -1196,6 +1214,16 @@ export function FloorEditor({
               <Ruler className="h-4 w-4" />
             </button>
 
+            <button
+              type="button"
+              onClick={rotatePlan}
+              aria-label="Повернуть план на 90°"
+              title="Повернуть план на 90° (вертикальный ↔ горизонтальный): холст, подложка и элементы"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
+
             <span className="w-px h-5 bg-slate-200 mx-1" />
 
             <button
@@ -1682,4 +1710,26 @@ function scaleElement(el: FloorElement, k: number): FloorElement {
   if (el.type === "wall") return { ...el, x1: el.x1 * k, y1: el.y1 * k, x2: el.x2 * k, y2: el.y2 * k, thickness: (el.thickness ?? 0.15) * k }
   if (el.type === "icon") return { ...el, x: el.x * k, y: el.y * k, size: el.size * k }
   return el
+}
+
+/** Поворот картинки-подложки на 90° по часовой (canvas → dataURL), синхронно с rotateLayout90. */
+function rotateImage90(src: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = img.naturalHeight
+      canvas.height = img.naturalWidth
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { reject(new Error("canvas 2d недоступен")); return }
+      ctx.translate(img.naturalHeight, 0)
+      ctx.rotate(Math.PI / 2)
+      ctx.drawImage(img, 0, 0)
+      const isPng = src.startsWith("data:image/png")
+      resolve(canvas.toDataURL(isPng ? "image/png" : "image/jpeg", 0.92))
+    }
+    img.onerror = () => reject(new Error("картинка не загрузилась"))
+    img.crossOrigin = "anonymous"
+    img.src = src
+  })
 }
