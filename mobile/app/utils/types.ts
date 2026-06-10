@@ -17,12 +17,22 @@ import type {
   TenantOverview,
   TenantRequestsPayload,
 } from "@/types/mobile"
-import type { TenantAdminContact, TenantMessageDto } from "@/lib/api"
+import type { AdminMeterDto, AdminMessageThread, AdminTasksPayload, TenantAdminContact, TenantMessageDto } from "@/lib/api"
 
 export type TenantMessagesPayload = {
   unread: number
   admins: TenantAdminContact[]
   data: TenantMessageDto[]
+}
+
+export type AdminMessagesPayload = {
+  unread: number
+  threads: AdminMessageThread[]
+  data: TenantMessageDto[]
+}
+
+export type AdminMetersPayload = {
+  data: AdminMeterDto[]
 }
 
 export type AppData = {
@@ -40,6 +50,9 @@ export type AppData = {
   adminTenants: AdminTenantsPayload | null
   adminTenantDetails: Record<string, AdminTenantDetailPayload>
   adminDocuments: AdminDocumentsPayload | null
+  adminTasks: AdminTasksPayload | null
+  adminMessages: AdminMessagesPayload | null
+  adminMeters: AdminMetersPayload | null
   ownerOverview: OwnerOverviewPayload | null
   notifications: MobileNotificationsPayload | null
   notificationSettings: MobileNotificationSettingsPayload | null
@@ -60,6 +73,9 @@ export const emptyData: AppData = {
   adminTenants: null,
   adminTenantDetails: {},
   adminDocuments: null,
+  adminTasks: null,
+  adminMessages: null,
+  adminMeters: null,
   ownerOverview: null,
   notifications: null,
   notificationSettings: null,
@@ -93,7 +109,7 @@ export function rootTab(tab: string) {
 
 export function isReachableTab(tabs: Array<{ key: string }>, tab: string) {
   const key = rootTab(tab)
-  return tabs.some((item) => item.key === key) || ["notifications", "settings"].includes(key)
+  return tabs.some((item) => item.key === key) || ["notifications", "settings", "tasks", "chat", "meters"].includes(key)
 }
 
 export function backTargetForTab(tab: string) {
@@ -108,6 +124,7 @@ export function backTargetForTab(tab: string) {
   if (tabKey === "documents" && tabParam) return `tenant:${tabParam}`
   if (tabKey === "notifications") return "more"
   if (tabKey === "settings") return "more"
+  if (tabKey === "tasks" || tabKey === "chat" || tabKey === "meters") return "more"
   return null
 }
 
@@ -130,6 +147,9 @@ export function hasTabData(data: AppData, role: string, tabKey: string, tabParam
   if (tabKey === "payments") return !!data.adminPayments
   if (tabKey === "buildings") return !!data.adminBuildings
   if (tabKey === "building") return !!data.adminBuildings
+  if (tabKey === "tasks") return !!data.adminTasks
+  if (tabKey === "chat") return !!data.adminMessages
+  if (tabKey === "meters") return !!data.adminMeters
   return true
 }
 
@@ -165,7 +185,7 @@ export function tabsForRole(role?: string | null) {
 }
 
 export async function pickUploadFile(
-  kind: "receipt" | "request",
+  kind: "receipt" | "request" | "document",
 ): Promise<import("@/types/mobile").PickedUploadFile | null> {
   const ImagePicker = await import("expo-image-picker")
   const DocumentPicker = await import("expo-document-picker")

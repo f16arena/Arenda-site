@@ -745,6 +745,25 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
       if (!Number.isNaN(d.getTime())) moveInDate = d
     }
   }
+  // Индексация аренды: % в год (пусто/0 = выключена) + дата следующего повышения.
+  let indexationPct: number | null | undefined
+  if (formData.has("indexationPct")) {
+    const raw = String(formData.get("indexationPct") ?? "").trim()
+    if (raw === "" || raw === "0") indexationPct = null
+    else {
+      const n = parseFloat(raw.replace(",", "."))
+      if (Number.isFinite(n) && n > 0 && n <= 100) indexationPct = n
+    }
+  }
+  let nextIndexationAt: Date | null | undefined
+  if (formData.has("nextIndexationAt")) {
+    const raw = String(formData.get("nextIndexationAt") ?? "").trim()
+    if (raw === "") nextIndexationAt = null
+    else {
+      const d = new Date(raw)
+      if (!Number.isNaN(d.getTime())) nextIndexationAt = d
+    }
+  }
 
   const before: RentalTermsSnapshot = {
     customRate: normalizeMoney(tenant.customRate),
@@ -849,18 +868,22 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
           ...(rentFreeMonths !== undefined ? { rentFreeMonths } : {}),
           ...(depositAmount !== undefined ? { depositAmount } : {}),
           ...(moveInDate !== undefined ? { moveInDate } : {}),
+          ...(indexationPct !== undefined ? { indexationPct } : {}),
+          ...(nextIndexationAt !== undefined ? { nextIndexationAt } : {}),
         },
       })
     } else {
       // При addendum-режиме доп. поля обновляем напрямую — они
       // не часть rental-terms snapshot, не требуют доп. соглашения.
-      if (rentFreeMonths !== undefined || depositAmount !== undefined || moveInDate !== undefined) {
+      if (rentFreeMonths !== undefined || depositAmount !== undefined || moveInDate !== undefined || indexationPct !== undefined || nextIndexationAt !== undefined) {
         await tx.tenant.update({
           where: { id: tenantId },
           data: {
             ...(rentFreeMonths !== undefined ? { rentFreeMonths } : {}),
             ...(depositAmount !== undefined ? { depositAmount } : {}),
             ...(moveInDate !== undefined ? { moveInDate } : {}),
+            ...(indexationPct !== undefined ? { indexationPct } : {}),
+            ...(nextIndexationAt !== undefined ? { nextIndexationAt } : {}),
           },
         })
       }

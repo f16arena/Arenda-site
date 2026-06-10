@@ -41,6 +41,7 @@ type BuildingListItem = {
     id: string
     number: number
     name: string
+    kind: string
     ratePerSqm: number
     totalArea: number | null
     _count: { spaces: number }
@@ -61,6 +62,7 @@ type LegacyBuildingListItem = {
     id: string
     number: number
     name: string
+    kind: string
     ratePerSqm: number
     _count: { spaces: number }
   }>
@@ -127,6 +129,7 @@ export default async function BuildingsPage() {
             id: true,
             number: true,
             name: true,
+            kind: true,
             ratePerSqm: true,
             totalArea: true,
             _count: { select: { spaces: true } },
@@ -161,6 +164,7 @@ export default async function BuildingsPage() {
           id: true,
           number: true,
           name: true,
+          kind: true,
           ratePerSqm: true,
           _count: { select: { spaces: true } },
         },
@@ -430,6 +434,7 @@ export default async function BuildingsPage() {
                   id: f.id,
                   number: f.number,
                   name: f.name,
+                  kind: f.kind,
                   ratePerSqm: f.ratePerSqm,
                   totalArea: f.totalArea,
                   spacesCount: f._count.spaces,

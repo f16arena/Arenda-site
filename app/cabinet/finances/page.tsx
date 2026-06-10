@@ -37,6 +37,16 @@ export default async function CabinetFinances() {
     where: { tenantId: tenant.id, isPaid: false, deletedAt: null },
     _sum: { amount: true },
   }).then((result) => result._sum.amount ?? 0).catch(() => 0)
+  // Депозит входит в долг — показываем его долю отдельной строкой, чтобы не путать с арендой.
+  const unpaidDeposit = await db.charge.aggregate({
+    where: { tenantId: tenant.id, isPaid: false, deletedAt: null, type: "DEPOSIT" },
+    _sum: { amount: true },
+  }).then((result) => result._sum.amount ?? 0).catch(() => 0)
+  // Аванс (переплата): нераспределённые остатки платежей, зачитываются автоматически.
+  const tenantCredit = await db.payment.aggregate({
+    where: { tenantId: tenant.id, deletedAt: null, unappliedAmount: { gt: 0 } },
+    _sum: { unappliedAmount: true },
+  }).then((result) => Math.round((result._sum.unappliedAmount ?? 0) * 100) / 100).catch(() => 0)
   const area = getTenantAreaTotal(tenant)
   const rate = calculateTenantRatePerSqm(tenant) ?? 0
   const monthlyRent = calculateTenantMonthlyRent(tenant)
@@ -91,7 +101,10 @@ export default async function CabinetFinances() {
           <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {formatMoney(totalDebt)}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Задолженность</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Задолженность{unpaidDeposit > 0 ? ` · в т.ч. депозит ${formatMoney(unpaidDeposit)}` : ""}
+            {tenantCredit > 0 ? ` · аванс ${formatMoney(tenantCredit)}` : ""}
+          </p>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{area} м²</p>

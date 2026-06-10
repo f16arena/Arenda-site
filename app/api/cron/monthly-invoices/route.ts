@@ -3,6 +3,8 @@ import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { calculateServiceFeeForPeriod } from "@/lib/service-fee"
+import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
+import { notifyUser } from "@/lib/notify"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import { isUniqueConstraintError } from "@/lib/prisma-errors"
 
@@ -188,16 +190,20 @@ export async function GET(req: Request) {
           }
         }
 
+        // Накопленный аванс (переплата) автоматически гасит свежесозданные начисления.
+        await applyTenantCreditToCharges(tenant.id)
+
         try {
           const totalCharge = rentSchedule.amount + (tenant.needsCleaning ? tenant.cleaningFee : 0)
-          await db.notification.create({
-            data: {
-              userId: tenant.userId,
-              type: "PAYMENT_DUE",
-              title: `Начислена аренда за ${chargePeriod}`,
-              message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${dueDate.toLocaleDateString("ru-RU")}.`,
-              link: "/cabinet/finances",
-            },
+          // notifyUser вместо голого notification.create: уважает настройки каналов
+          // и доносит начисление по email/Telegram, а не только в колокольчик.
+          await notifyUser({
+            userId: tenant.userId,
+            type: "PAYMENT_DUE",
+            title: `Начислена аренда за ${chargePeriod}`,
+            message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${dueDate.toLocaleDateString("ru-RU")}.`,
+            link: "/cabinet/finances",
+            dedupWindowHours: 20,
           })
         } catch {
           // Notifications are best-effort: charge creation should not fail because of them.

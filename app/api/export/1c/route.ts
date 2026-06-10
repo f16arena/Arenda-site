@@ -43,6 +43,8 @@ export async function GET(req: Request) {
   const payments = await db.payment.findMany({
     where: {
       paymentDate: { gte: from, lte: to },
+      // deletedAt: null — удалённые платежи не должны попадать в 1С (аудит 2026-06-10, п.2).
+      deletedAt: null,
       tenant: { space: { floorId: { in: floorIds } } },
     },
     include: { tenant: { select: { companyName: true, bin: true, iin: true } } },

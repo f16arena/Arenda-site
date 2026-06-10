@@ -20,6 +20,10 @@ type RentalTermsInitial = {
   depositAmount?: number | null
   /** YYYY-MM-DD строкой (если задана); используется для defaultValue input[type=date] */
   moveInDate?: string | null
+  /** Индексация аренды: % в год; null — без индексации. */
+  indexationPct?: number | null
+  /** YYYY-MM-DD: дата следующего автоповышения. */
+  nextIndexationAt?: string | null
 }
 
 type Props = {
@@ -127,6 +131,12 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           )}
           {initial.moveInDate && (
             <Row label="Дата заселения" value={new Date(initial.moveInDate).toLocaleDateString("ru-RU")} />
+          )}
+          {typeof initial.indexationPct === "number" && initial.indexationPct > 0 && (
+            <Row
+              label="Индексация"
+              value={`${initial.indexationPct}% в год${initial.nextIndexationAt ? `, следующая ${new Date(initial.nextIndexationAt).toLocaleDateString("ru-RU")}` : ""}`}
+            />
           )}
         </dl>
         <p className="text-[11px] text-slate-400 dark:text-slate-500">
@@ -324,6 +334,41 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
           При просрочке (0 = без пени)
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          Индексация, % в год
+        </label>
+        <input
+          name="indexationPct"
+          type="number"
+          step="0.1"
+          min={0}
+          max={100}
+          defaultValue={initial.indexationPct ?? ""}
+          disabled={pending}
+          className={inputClass}
+          placeholder="0 = без индексации"
+        />
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          Автоповышение ставки/суммы аренды раз в год
+        </p>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+          Дата следующей индексации
+        </label>
+        <input
+          name="nextIndexationAt"
+          type="date"
+          defaultValue={initial.nextIndexationAt ?? ""}
+          disabled={pending}
+          className={inputClass}
+        />
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+          В эту дату аренда повысится автоматически, дата сдвинется на год
         </p>
       </div>
 

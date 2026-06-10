@@ -63,3 +63,6 @@ prisma/*-dump.json
 
 # Obsidian vault — локальные настройки/workspace юзера, не код проекта
 .obsidian/
+
+.vercel
+.env*.local

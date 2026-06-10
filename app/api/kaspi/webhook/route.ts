@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     // a) конкретный charge из reference — закрываем первым, если сумма позволяет
     if (referencedChargeId) {
       const ref = await tx.charge.findFirst({
-        where: { id: referencedChargeId, tenantId: resolvedTenantId, isPaid: false },
+        where: { id: referencedChargeId, tenantId: resolvedTenantId, isPaid: false, deletedAt: null },
         select: { id: true, amount: true },
       })
       if (ref && remaining + 0.01 >= ref.amount) {
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     // b) остаток — FIFO по старым неоплаченным charge (только целиком)
     if (remaining > 0.01) {
       const unpaid = await tx.charge.findMany({
-        where: { tenantId: resolvedTenantId, isPaid: false },
+        where: { tenantId: resolvedTenantId, isPaid: false, deletedAt: null },
         orderBy: { createdAt: "asc" },
         select: { id: true, amount: true },
       })
@@ -129,6 +129,11 @@ export async function POST(request: Request) {
         remaining = Math.round((remaining - c.amount) * 100) / 100
         if (remaining < 0.01) break
       }
+    }
+
+    // Остаток — аванс: не теряется, зачтётся в следующие начисления (аудит 2026-06-10, п.5).
+    if (remaining > 0.01) {
+      await tx.payment.update({ where: { id: payment.id }, data: { unappliedAmount: remaining } })
     }
 
     return { paymentId: payment.id, chargesPaid }

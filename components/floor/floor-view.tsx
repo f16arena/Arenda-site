@@ -41,6 +41,14 @@ const STATUS_STROKE: Record<string, string> = {
   DEBT: "#f59e0b",
   OVERDUE: "#ef4444",
 }
+const STATUS_RU: Record<string, string> = {
+  VACANT: "Свободно",
+  OCCUPIED: "Занято",
+  MAINTENANCE: "Обслуживание",
+  UNLINKED: "Не привязано",
+  DEBT: "Долг",
+  OVERDUE: "Просрочка",
+}
 
 function detectStatus(space: SpaceInfo | undefined): string {
   if (!space) return "UNLINKED"
@@ -63,6 +71,10 @@ export function FloorView({
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [selected, setSelected] = useState<string | null>(null)
+  // Hover-подсказка: какой элемент под курсором и где рисовать тултип (px от
+  // контейнера). containerWidth снимается в обработчике, чтобы прижимать тултип к краю.
+  const [hovered, setHovered] = useState<{ elId: string; x: number; y: number; containerWidth: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<{ startX: number; startY: number; startPan: { x: number; y: number } } | null>(null)
 
@@ -101,8 +113,19 @@ export function FloorView({
     ? spaces.find((s) => s.id === selectedEl.spaceId)
     : null
 
+  const hoveredEl = hovered ? layout.elements.find((e) => e.id === hovered.elId) : null
+  const hoveredSpace = hoveredEl && "spaceId" in hoveredEl && hoveredEl.spaceId
+    ? spaces.find((s) => s.id === hoveredEl.spaceId)
+    : null
+
+  const updateHover = (elId: string) => (e: ReactMouseEvent) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setHovered({ elId, x: e.clientX - rect.left, y: e.clientY - rect.top, containerWidth: rect.width })
+  }
+
   return (
-    <div className="relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-[260px]">
+    <div ref={containerRef} className="relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden h-[260px]">
       <svg
         ref={svgRef}
         className="w-full h-full"
@@ -136,6 +159,8 @@ export function FloorView({
                   setSelected(el.id)
                 }
               }}
+              onHoverMove={"spaceId" in el && el.spaceId ? updateHover(el.id) : undefined}
+              onHoverEnd={() => setHovered((h) => (h?.elId === el.id ? null : h))}
             />
           ))}
         </g>
@@ -180,6 +205,29 @@ export function FloorView({
         <div className="flex items-center gap-2"><span className="w-3 h-3 rounded" style={{ background: STATUS_FILL.OVERDUE, border: `1px solid ${STATUS_STROKE.OVERDUE}` }} /> Просрочка</div>
       </div>
 
+      {/* Hover tooltip: номер, площадь, кем занято */}
+      {hoveredSpace && hovered && hovered.elId !== selected && (
+        <div
+          className="absolute z-10 pointer-events-none max-w-[240px] rounded-lg bg-slate-900/95 dark:bg-slate-800 px-3 py-2 text-xs text-white shadow-lg"
+          style={{
+            left: Math.min(hovered.x + 12, hovered.containerWidth - 200),
+            top: Math.max(4, hovered.y - 8),
+          }}
+        >
+          <p className="font-semibold">Каб. {hoveredSpace.number} · {hoveredSpace.area} м²</p>
+          {hoveredSpace.tenant ? (
+            <p className="mt-0.5 text-slate-300">
+              {hoveredSpace.tenant.companyName}
+              {hoveredSpace.tenant.debt > 0 && (
+                <span className="text-red-300"> · долг {hoveredSpace.tenant.debt.toLocaleString("ru-RU")} ₸</span>
+              )}
+            </p>
+          ) : (
+            <p className="mt-0.5 text-emerald-300">{STATUS_RU[detectStatus(hoveredSpace)] ?? "Свободно"}</p>
+          )}
+        </div>
+      )}
+
       {/* Popup */}
       {selectedSpace && selectedEl && (
         <div className="absolute right-3 bottom-3 w-72 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl">
@@ -202,7 +250,7 @@ export function FloorView({
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500 dark:text-slate-400">Статус:</span>
-              <span className="font-medium">{detectStatus(selectedSpace)}</span>
+              <span className="font-medium">{STATUS_RU[detectStatus(selectedSpace)] ?? detectStatus(selectedSpace)}</span>
             </div>
             {selectedSpace.tenant ? (
               <>
@@ -241,13 +289,15 @@ export function FloorView({
 }
 
 function ViewElement({
-  el, spaces, selected, zoom, onClick,
+  el, spaces, selected, zoom, onClick, onHoverMove, onHoverEnd,
 }: {
   el: FloorElement
   spaces: SpaceInfo[]
   selected: boolean
   zoom: number
   onClick: () => void
+  onHoverMove?: (e: ReactMouseEvent) => void
+  onHoverEnd?: () => void
 }) {
   const space = "spaceId" in el && el.spaceId ? spaces.find((s) => s.id === el.spaceId) : undefined
   const isCommon = (el.type === "rect" || el.type === "polygon") && el.kind === "common"
@@ -263,7 +313,12 @@ function ViewElement({
   if (el.type === "rect") {
     const center = elementCenter(el)
     return (
-      <g onClick={onClick} style={{ cursor: clickable ? "pointer" : "default" }}>
+      <g
+        onClick={onClick}
+        onMouseMove={onHoverMove}
+        onMouseLeave={onHoverEnd}
+        style={{ cursor: clickable ? "pointer" : "default" }}
+      >
         <rect
           x={el.x * PX_PER_METER}
           y={el.y * PX_PER_METER}
@@ -308,7 +363,12 @@ function ViewElement({
     const center = elementCenter(el)
     const points = el.points.map((p) => `${p.x * PX_PER_METER},${p.y * PX_PER_METER}`).join(" ")
     return (
-      <g onClick={onClick} style={{ cursor: clickable ? "pointer" : "default" }}>
+      <g
+        onClick={onClick}
+        onMouseMove={onHoverMove}
+        onMouseLeave={onHoverEnd}
+        style={{ cursor: clickable ? "pointer" : "default" }}
+      >
         <polygon points={points} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeDasharray={strokeDasharray} />
         <text
           x={center.x * PX_PER_METER}

@@ -30,7 +30,7 @@ export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
 }
 
 // Из дохода исключаем возвратные/служебные начисления.
-const INCOME_EXCLUDED_TYPES = new Set(["DEPOSIT"])
+const INCOME_EXCLUDED_TYPES = new Set(["DEPOSIT", "DEPOSIT_REFUND"])
 
 export type PnLBreakdownItem = { key: string; label: string; amount: number }
 export type PnLMonthPoint = {
@@ -193,6 +193,8 @@ export async function getOwnerPnL({
   for (const r of chargeRows) {
     const amt = r._sum.amount ?? 0
     if (!selSet.has(r.period)) continue
+    // Возврат депозита — деньги «из кассы», не начисление: не входит даже в accruedAll.
+    if (r.type === "DEPOSIT_REFUND") continue
     accruedAll += amt
     if (INCOME_EXCLUDED_TYPES.has(r.type)) continue
     accrualIncome += amt

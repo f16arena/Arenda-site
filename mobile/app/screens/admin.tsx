@@ -2,12 +2,28 @@ import { useEffect, useRef, useState } from "react"
 import { Linking, Pressable, Text, View } from "react-native"
 import {
   createBuildingNotice,
+  createSignatureRequest,
+  createAdminTask,
+  createAdminMeter,
+  deleteAdminMeter,
+  deleteAdminTask,
   getAdminDocuments,
+  getAdminMessages,
+  getAdminMeters,
   getAdminRequests,
+  getAdminTasks,
   getAdminTenants,
   reviewAdminPaymentReport,
+  sendAdminMessage,
   updateAdminRequest,
+  updateAdminTask,
+  type AdminMessageThread,
+  type AdminMeterDto,
+  type AdminTaskDto,
+  type AdminTasksPayload,
+  type TenantMessageDto,
 } from "@/lib/api"
+import type { AdminMessagesPayload, AdminMetersPayload } from "@/app/utils/types"
 import {
   categoryTitle,
   colors,
@@ -773,7 +789,14 @@ export function AdminDocumentDetail({
           <OpenAuthorizedFileButton title={document.fileName} url={document.downloadUrl} />
           {document.tenantId ? <ActionRow icon="person.2.fill" title="Арендатор" value="открыть" color={colors.teal} onPress={() => onNavigate(`tenant:${document.tenantId}`)} /> : null}
           {document.tenantId ? <ActionRow icon="doc.text.fill" title="Документы арендатора" value="открыть" color={colors.blue} onPress={() => onNavigate(`documents:tenant:${document.tenantId}`)} /> : null}
-          <ActionRow icon="signature" title="Подписание" value="черновик" color={colors.orange} onPress={() => onNavigate("documents")} />
+          {document.tenantId ? (
+            <SendForSignatureBlock
+              tenantId={document.tenantId}
+              documentType={document.documentType}
+              documentId={document.id}
+              defaultTitle={`${documentTypeLabel(document.documentType)} ${document.number ?? ""}`.trim()}
+            />
+          ) : null}
         </Card>
       </>
     )
@@ -1570,6 +1593,515 @@ function NoticeComposer({ buildings, onChanged }: { buildings: MobileBootstrap["
         <Field label="Сообщение" value={message} onChangeText={setMessage} placeholder="Сегодня с 15:00 до 17:00..." multiline />
         {result ? <InlineMessage message={result} tone={result.includes("Не ") ? "error" : "success"} /> : null}
         <PrimaryButton title={busy ? "Отправляем..." : "Отправить push"} disabled={busy || title.trim().length < 3 || message.trim().length < 5} onPress={submit} />
+      </Card>
+    </>
+  )
+}
+
+// =============================================================================
+// Расширения P0-P2: отправка на подпись, Tasks, Messages (admin), Meters CRUD.
+// =============================================================================
+
+function SendForSignatureBlock({
+  tenantId,
+  documentType,
+  documentId,
+  defaultTitle,
+}: {
+  tenantId: string
+  documentType: string
+  documentId?: string | null
+  defaultTitle?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState(defaultTitle ?? `${documentTypeLabel(documentType)} на подпись`)
+  const [message, setMessage] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<{ text: string; tone: "error" | "success" } | null>(null)
+
+  async function submit() {
+    if (busy) return
+    if (title.trim().length < 3) {
+      setResult({ text: "Заголовок слишком короткий", tone: "error" })
+      return
+    }
+    setBusy(true)
+    setResult(null)
+    try {
+      await createSignatureRequest({
+        tenantId,
+        documentType: documentType.toUpperCase(),
+        documentId: documentId ?? undefined,
+        title: title.trim(),
+        message: message.trim() || undefined,
+        allowedMethods: ["SMS_OTP_DRAFT", "NCA_LAYER_DRAFT"],
+      })
+      setResult({ text: "Документ отправлен арендатору на подпись", tone: "success" })
+      setOpen(false)
+    } catch (e) {
+      setResult({ text: e instanceof Error ? e.message : "Не удалось отправить", tone: "error" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <View style={{ gap: 8 }}>
+      <SecondaryButton title={open ? "Скрыть" : "Отправить арендатору на подпись"} icon="signature" onPress={() => setOpen((o) => !o)} />
+      {open ? (
+        <View style={{ gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10 }}>
+          <Field label="Заголовок" value={title} onChangeText={setTitle} />
+          <Field label="Сообщение (необязательно)" value={message} onChangeText={setMessage} multiline />
+          <PrimaryButton title={busy ? "Отправляем..." : "Отправить"} onPress={submit} disabled={busy} />
+        </View>
+      ) : null}
+      {result ? <InlineMessage message={result.text} tone={result.tone} /> : null}
+    </View>
+  )
+}
+
+const TASK_CATEGORIES: Array<[string, string]> = [
+  ["MAINTENANCE", "Обслуж."],
+  ["REPAIR", "Ремонт"],
+  ["INSPECTION", "Осмотр"],
+  ["CLEANING", "Уборка"],
+  ["PLUMBING", "Сантех."],
+  ["ELECTRICAL", "Электр."],
+  ["SECURITY", "Безоп."],
+  ["OTHER", "Прочее"],
+]
+
+const TASK_PRIORITIES: Array<[string, string]> = [
+  ["LOW", "Низкий"],
+  ["MEDIUM", "Средн."],
+  ["HIGH", "Высок."],
+  ["URGENT", "Срочно"],
+]
+
+const TASK_STATUSES: Array<[string, string]> = [
+  ["NEW", "Новая"],
+  ["IN_PROGRESS", "В работе"],
+  ["DONE", "Готова"],
+  ["CLOSED", "Закрыта"],
+  ["CANCELLED", "Отмена"],
+]
+
+export function AdminTasks({
+  payload,
+  bootstrap,
+  onChanged,
+}: {
+  payload: AdminTasksPayload
+  bootstrap: MobileBootstrap
+  onChanged: () => void
+}) {
+  const [filterStatus, setFilterStatus] = useState("ALL")
+  const [filterPriority, setFilterPriority] = useState("ALL")
+  const [showForm, setShowForm] = useState(false)
+  const [buildingId, setBuildingId] = useState<string>(bootstrap.buildings[0]?.id ?? "")
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
+  const [category, setCategory] = useState("MAINTENANCE")
+  const [priority, setPriority] = useState("MEDIUM")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<{ text: string; tone: "error" | "success" } | null>(null)
+
+  const filtered = payload.data.filter((task) => {
+    if (filterStatus !== "ALL" && task.status !== filterStatus) return false
+    if (filterPriority !== "ALL" && task.priority !== filterPriority) return false
+    return true
+  })
+
+  async function submit() {
+    if (busy) return
+    if (title.trim().length < 2) {
+      setMessage({ text: "Введите название задачи", tone: "error" })
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      await createAdminTask({
+        buildingId: buildingId || undefined,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        category,
+        priority,
+      })
+      setTitle("")
+      setDescription("")
+      setShowForm(false)
+      setMessage({ text: "Задача создана", tone: "success" })
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось создать", tone: "error" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function changeStatus(taskId: string, status: string) {
+    try {
+      await updateAdminTask(taskId, { status })
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось обновить", tone: "error" })
+    }
+  }
+
+  async function removeTask(taskId: string) {
+    try {
+      await deleteAdminTask(taskId)
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось удалить", tone: "error" })
+    }
+  }
+
+  return (
+    <>
+      <SectionTitle title="Задачи" />
+      <Card>
+        <MetricGrid
+          variant="row"
+          items={[
+            { label: "Всего", value: String(payload.counters.total), color: colors.slate },
+            { label: "Открыто", value: String(payload.counters.open), color: payload.counters.open > 0 ? colors.blue : colors.green },
+            { label: "Срочные", value: String(payload.counters.urgent), color: payload.counters.urgent > 0 ? colors.red : colors.green },
+          ]}
+        />
+      </Card>
+      <Card>
+        <ChoiceRow
+          options={[["ALL", "Все"], ...TASK_STATUSES]}
+          value={filterStatus}
+          onChange={setFilterStatus}
+        />
+        <ChoiceRow
+          options={[["ALL", "Все"], ...TASK_PRIORITIES]}
+          value={filterPriority}
+          onChange={setFilterPriority}
+        />
+        <SecondaryButton title={showForm ? "Скрыть форму" : "Создать задачу"} icon="plus" onPress={() => setShowForm((open) => !open)} />
+        {showForm ? (
+          <View style={{ gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10 }}>
+            {bootstrap.buildings.length > 1 ? (
+              <ChoiceRow
+                options={bootstrap.buildings.map((b) => [b.id, b.name])}
+                value={buildingId}
+                onChange={setBuildingId}
+              />
+            ) : null}
+            <Field label="Название" value={title} onChangeText={setTitle} placeholder="Заменить лампочки на 3 этаже" />
+            <Field label="Описание" value={description} onChangeText={setDescription} placeholder="Подробности" multiline />
+            <ChoiceRow options={TASK_CATEGORIES} value={category} onChange={setCategory} />
+            <ChoiceRow options={TASK_PRIORITIES} value={priority} onChange={setPriority} />
+            <PrimaryButton title={busy ? "Создаём..." : "Создать"} onPress={submit} disabled={busy} />
+          </View>
+        ) : null}
+        {message ? <InlineMessage message={message.text} tone={message.tone} /> : null}
+      </Card>
+      <SectionTitle title="Список" />
+      <Card>
+        {filtered.length === 0 ? (
+          <EmptyState inline icon="checklist" title="Задач нет" subtitle="Создайте первую задачу с помощью кнопки выше." />
+        ) : null}
+        {filtered.map((task) => <AdminTaskRow key={task.id} task={task} onChangeStatus={changeStatus} onDelete={removeTask} />)}
+      </Card>
+    </>
+  )
+}
+
+function AdminTaskRow({
+  task,
+  onChangeStatus,
+  onDelete,
+}: {
+  task: AdminTaskDto
+  onChangeStatus: (taskId: string, status: string) => void
+  onDelete: (taskId: string) => void
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const priorityColor = task.priority === "URGENT" ? colors.red : task.priority === "HIGH" ? colors.orange : task.priority === "MEDIUM" ? colors.blue : colors.slate
+  const statusLabel = TASK_STATUSES.find(([key]) => key === task.status)?.[1] ?? task.status
+  const priorityLabel = TASK_PRIORITIES.find(([key]) => key === task.priority)?.[1] ?? task.priority
+
+  return (
+    <View style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 6 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>{task.title}</Text>
+          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>
+            {task.building?.name ?? "без здания"} · {task.dueDate ? `до ${formatDate(task.dueDate)}` : "без срока"}
+          </Text>
+        </View>
+        <StatusPill label={priorityLabel} color={priorityColor} />
+      </View>
+      {task.description ? <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{task.description}</Text> : null}
+      <Text style={{ color: colors.muted, fontSize: 12 }}>Статус: {statusLabel}</Text>
+      <ChoiceRow options={TASK_STATUSES} value={task.status} onChange={(value) => onChangeStatus(task.id, value)} />
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <SecondaryButton title={confirmDelete ? "Подтвердить удаление" : "Удалить"} icon="trash" onPress={() => confirmDelete ? onDelete(task.id) : setConfirmDelete(true)} />
+        </View>
+        {confirmDelete ? (
+          <View style={{ flex: 1 }}>
+            <SecondaryButton title="Отмена" icon="xmark" onPress={() => setConfirmDelete(false)} />
+          </View>
+        ) : null}
+      </View>
+    </View>
+  )
+}
+
+export function AdminMessages({
+  payload,
+  onChanged,
+}: {
+  payload: AdminMessagesPayload
+  onChanged: () => void
+}) {
+  const [activeUserId, setActiveUserId] = useState<string | null>(payload.threads[0]?.counterpartId ?? null)
+  const [text, setText] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<{ text: string; tone: "error" | "success" } | null>(null)
+
+  const thread = payload.threads.find((t) => t.counterpartId === activeUserId) ?? null
+  const messages = activeUserId
+    ? payload.data.filter((m) => m.from.id === activeUserId || m.to.id === activeUserId)
+    : []
+
+  async function send() {
+    if (busy) return
+    if (!activeUserId) {
+      setMessage({ text: "Выберите арендатора", tone: "error" })
+      return
+    }
+    if (text.trim().length < 2) {
+      setMessage({ text: "Введите сообщение", tone: "error" })
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      await sendAdminMessage({
+        toUserId: activeUserId,
+        subject: thread?.tenantName ? `${thread.tenantName}` : undefined,
+        body: text.trim(),
+      })
+      setText("")
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось отправить", tone: "error" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <SectionTitle title="Чат с арендаторами" />
+      {payload.threads.length === 0 ? (
+        <EmptyState icon="message.fill" title="Переписок пока нет" subtitle="Арендатор может первым написать в чат через свой кабинет." />
+      ) : (
+        <Card>
+          {payload.threads.map((t) => (
+            <Pressable
+              key={t.counterpartId}
+              onPress={() => setActiveUserId(t.counterpartId)}
+              style={({ pressed }) => ({
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: activeUserId === t.counterpartId ? colors.blue : colors.border,
+                backgroundColor: pressed ? colors.surfaceMuted : "#fff",
+                padding: 10,
+                gap: 4,
+              })}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text selectable style={{ flex: 1, color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>
+                  {t.tenantName ?? t.counterpartName}
+                </Text>
+                {t.unread > 0 ? <StatusPill label={`${t.unread} нов.`} color={colors.red} /> : null}
+              </View>
+              <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 13 }}>{t.lastBody}</Text>
+              <Text style={{ color: colors.muted, fontSize: 11 }}>{formatDateTime(t.lastMessageAt)}</Text>
+            </Pressable>
+          ))}
+        </Card>
+      )}
+      {thread ? (
+        <>
+          <SectionTitle title={`Переписка · ${thread.tenantName ?? thread.counterpartName}`} />
+          <Card>
+            {messages.length === 0 ? <Text style={{ color: colors.muted }}>Сообщений ещё нет</Text> : null}
+            {messages.map((m) => (
+              <View
+                key={m.id}
+                style={{
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  padding: 10,
+                  gap: 4,
+                  backgroundColor: m.direction === "out" ? "#eff6ff" : "#fff",
+                  alignSelf: m.direction === "out" ? "flex-end" : "flex-start",
+                  maxWidth: "85%",
+                }}
+              >
+                <Text selectable style={{ color: colors.text, fontSize: 14, lineHeight: 19 }}>{m.body}</Text>
+                <Text style={{ color: colors.muted, fontSize: 11 }}>{formatDateTime(m.createdAt)}</Text>
+              </View>
+            ))}
+            <Field label="Сообщение" value={text} onChangeText={setText} placeholder="Напишите..." multiline />
+            <PrimaryButton title={busy ? "Отправляем..." : "Отправить"} onPress={send} disabled={busy} />
+            {message ? <InlineMessage message={message.text} tone={message.tone} /> : null}
+          </Card>
+        </>
+      ) : null}
+    </>
+  )
+}
+
+const METER_TYPE_LABELS: Record<string, string> = {
+  ELECTRICITY: "Электричество",
+  WATER: "Вода",
+  HEAT: "Тепло",
+}
+
+export function AdminMeters({
+  payload,
+  onChanged,
+}: {
+  payload: AdminMetersPayload
+  onChanged: () => void
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [spaceId, setSpaceId] = useState("")
+  const [type, setType] = useState<"ELECTRICITY" | "WATER" | "HEAT">("ELECTRICITY")
+  const [number, setNumber] = useState("")
+  const [initialValue, setInitialValue] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<{ text: string; tone: "error" | "success" } | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+
+  const knownSpaces = Array.from(new Set(payload.data.map((meter) => meter.space.id))).slice(0, 12)
+
+  async function submit() {
+    if (busy) return
+    if (!spaceId.trim()) {
+      setMessage({ text: "Укажите ID помещения", tone: "error" })
+      return
+    }
+    if (!number.trim()) {
+      setMessage({ text: "Укажите номер счётчика", tone: "error" })
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      const initial = initialValue ? Number(initialValue.replace(",", ".")) : undefined
+      await createAdminMeter({
+        spaceId: spaceId.trim(),
+        type,
+        number: number.trim(),
+        initialValue: initial !== undefined && Number.isFinite(initial) ? initial : undefined,
+      })
+      setSpaceId("")
+      setNumber("")
+      setInitialValue("")
+      setShowForm(false)
+      setMessage({ text: "Счётчик создан", tone: "success" })
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось создать", tone: "error" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(meterId: string) {
+    try {
+      await deleteAdminMeter(meterId)
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось удалить", tone: "error" })
+    } finally {
+      setConfirmId(null)
+    }
+  }
+
+  return (
+    <>
+      <SectionTitle title="Счётчики" />
+      <Card>
+        <SecondaryButton title={showForm ? "Скрыть форму" : "Добавить счётчик"} icon="plus" onPress={() => setShowForm((open) => !open)} />
+        {showForm ? (
+          <View style={{ gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10 }}>
+            <ChoiceRow
+              options={[["ELECTRICITY", "Свет"], ["WATER", "Вода"], ["HEAT", "Тепло"]]}
+              value={type}
+              onChange={(value) => setType(value as "ELECTRICITY" | "WATER" | "HEAT")}
+            />
+            <Field label="ID помещения" value={spaceId} onChangeText={setSpaceId} placeholder="cuid помещения" autoCapitalize="none" />
+            {knownSpaces.length > 0 ? (
+              <View style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Подсказки из существующих счётчиков:</Text>
+                <ChoiceRow
+                  options={knownSpaces.map((id) => [id, id.slice(-6)])}
+                  value={spaceId}
+                  onChange={setSpaceId}
+                />
+              </View>
+            ) : null}
+            <Field label="Номер счётчика" value={number} onChangeText={setNumber} placeholder="123456" />
+            <Field label="Начальное показание (необязательно)" value={initialValue} onChangeText={setInitialValue} keyboardType="decimal-pad" />
+            <PrimaryButton title={busy ? "Создаём..." : "Создать"} onPress={submit} disabled={busy} />
+          </View>
+        ) : null}
+        {message ? <InlineMessage message={message.text} tone={message.tone} /> : null}
+      </Card>
+      <SectionTitle title="Список счётчиков" />
+      <Card>
+        {payload.data.length === 0 ? (
+          <EmptyState inline icon="speedometer" title="Счётчиков нет" subtitle="Создайте первый счётчик с помощью кнопки выше." />
+        ) : null}
+        {payload.data.map((meter) => {
+          const last = meter.readings[0]
+          const previous = meter.readings[1]
+          return (
+            <View key={meter.id} style={{ borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text selectable style={{ color: colors.text, fontSize: 15, fontFamily: fonts.black, fontWeight: "900" }}>
+                    {METER_TYPE_LABELS[meter.type] ?? meter.type} · № {meter.number}
+                  </Text>
+                  <Text selectable style={{ color: colors.muted, fontSize: 12 }}>
+                    {meter.space.floor.building?.name ?? "Здание"} · этаж {meter.space.floor.name ?? "?"} · помещение {meter.space.number}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 13 }}>
+                {last ? `Последнее: ${last.value} (${last.period})` : "Показаний нет"}
+                {previous ? ` · ранее ${previous.value}` : ""}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <SecondaryButton
+                    title={confirmId === meter.id ? "Подтвердить удаление" : "Удалить"}
+                    icon="trash"
+                    onPress={() => confirmId === meter.id ? remove(meter.id) : setConfirmId(meter.id)}
+                  />
+                </View>
+                {confirmId === meter.id ? (
+                  <View style={{ flex: 1 }}>
+                    <SecondaryButton title="Отмена" icon="xmark" onPress={() => setConfirmId(null)} />
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          )
+        })}
       </Card>
     </>
   )

@@ -51,12 +51,93 @@ export async function GET(req: Request) {
     paymentsWarned: 0,
     penaltiesAccrued: 0,
     penaltiesAmount: 0,
+    indexationsApplied: 0,
     notificationsCreated: 0,
     telegramSent: 0,
     errors: [] as string[],
   }
 
   const staffCache = new Map<string, { id: string; name: string; telegramChatId: string | null }[]>()
+
+  // ── 0. Индексация аренды: в дату nextIndexationAt повышаем ставку/сумму на
+  //       indexationPct % и сдвигаем дату на год вперёд (аудит 2026-06-10, п.14).
+  try {
+    const dueIndexation = await db.tenant.findMany({
+      where: {
+        deletedAt: null,
+        indexationPct: { gt: 0 },
+        nextIndexationAt: { lte: now },
+      },
+      select: {
+        id: true,
+        companyName: true,
+        userId: true,
+        customRate: true,
+        fixedMonthlyRent: true,
+        indexationPct: true,
+        nextIndexationAt: true,
+      },
+    })
+    for (const t of dueIndexation) {
+      const pct = t.indexationPct ?? 0
+      const factor = 1 + pct / 100
+      const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
+      const data: { customRate?: number; fixedMonthlyRent?: number; nextIndexationAt: Date } = {
+        nextIndexationAt: new Date(new Date(t.nextIndexationAt!).setFullYear(t.nextIndexationAt!.getFullYear() + 1)),
+      }
+      let summary = ""
+      if (typeof t.fixedMonthlyRent === "number" && t.fixedMonthlyRent > 0) {
+        data.fixedMonthlyRent = round2(t.fixedMonthlyRent * factor)
+        summary = `аренда ${t.fixedMonthlyRent.toLocaleString("ru-RU")} → ${data.fixedMonthlyRent.toLocaleString("ru-RU")} ₸/мес`
+      } else if (typeof t.customRate === "number" && t.customRate > 0) {
+        data.customRate = round2(t.customRate * factor)
+        summary = `ставка ${t.customRate.toLocaleString("ru-RU")} → ${data.customRate.toLocaleString("ru-RU")} ₸/м²`
+      } else {
+        // Аренда по ставке этажа — повышать нечего у арендатора. Сообщаем владельцу
+        // и сдвигаем дату, чтобы не спамить каждый день.
+        await db.tenant.update({ where: { id: t.id }, data: { nextIndexationAt: data.nextIndexationAt } })
+        const orgId = await tenantOrgId(t.id)
+        if (orgId) {
+          for (const staff of await getStaffForOrg(staffCache, orgId)) {
+            await notifyUser({
+              userId: staff.id,
+              type: "BULK_INFO",
+              title: `Индексация «${t.companyName}»: ставка этажная`,
+              message: `У арендатора настроена индексация ${pct}%/год, но аренда считается по ставке этажа. Повысьте ставку этажа вручную или задайте индивидуальную ставку.`,
+              link: `/admin/tenants/${t.id}`,
+            }).catch(() => {})
+          }
+        }
+        continue
+      }
+
+      await db.tenant.update({ where: { id: t.id }, data } )
+      results.indexationsApplied++
+
+      const orgId = await tenantOrgId(t.id)
+      if (orgId) {
+        for (const staff of await getStaffForOrg(staffCache, orgId)) {
+          await notifyUser({
+            userId: staff.id,
+            type: "BULK_INFO",
+            title: `Индексация аренды: ${t.companyName}`,
+            message: `Применена индексация ${pct}%: ${summary}. Следующая — ${data.nextIndexationAt.toLocaleDateString("ru-RU")}. Новая сумма попадёт в начисления со следующего месяца.`,
+            link: `/admin/tenants/${t.id}`,
+          }).catch(() => {})
+        }
+      }
+      // Арендатору — уведомление о повышении (договорное условие).
+      await notifyUser({
+        userId: t.userId,
+        type: "BULK_INFO",
+        title: "Индексация арендной платы",
+        message: `Согласно условиям договора применена ежегодная индексация ${pct}%: ${summary}.`,
+        link: "/cabinet/finances",
+      }).catch(() => {})
+    }
+  } catch (e) {
+    results.errors.push(`indexation: ${e instanceof Error ? e.message : String(e)}`)
+  }
 
   try {
     // ── 1. Договоры — проверяем contractEnd ─────────────────────
@@ -253,7 +334,6 @@ export async function GET(req: Request) {
       const penaltyPercent = c.tenant.penaltyPercent ?? 1
       const penaltyAmount = Math.round((c.amount * penaltyPercent / 100) * daysOverdue)
       const cap = Math.round(c.amount * 0.1)
-      const actualPenalty = Math.min(penaltyAmount, cap)
 
       const existingPenaltyToday = await db.charge.findFirst({
         where: {
@@ -264,6 +344,23 @@ export async function GET(req: Request) {
         },
       })
       if (existingPenaltyToday) continue
+
+      // Уже ОПЛАЧЕННЫЕ пени по этому начислению вычитаем из накопительной суммы —
+      // иначе оплативший пеню арендатор на следующий день получит её заново целиком
+      // (аудит 2026-06-10, п.3).
+      const paidPenalties = await db.charge.aggregate({
+        where: {
+          tenantId: c.tenant.id,
+          type: "PENALTY",
+          isPaid: true,
+          deletedAt: null,
+          description: { contains: c.id },
+        },
+        _sum: { amount: true },
+      })
+      const alreadyPaid = Math.round(paidPenalties._sum.amount ?? 0)
+      const actualPenalty = Math.min(penaltyAmount, cap) - alreadyPaid
+      if (actualPenalty <= 0) continue
 
       await db.charge.deleteMany({
         where: {
@@ -280,7 +377,7 @@ export async function GET(req: Request) {
           period: todayStr,
           type: "PENALTY",
           amount: actualPenalty,
-          description: `Пеня по начислению ${c.id} (${daysOverdue} дн. × ${penaltyPercent}%, не более 10%)`,
+          description: `Пеня по начислению ${c.id} (${daysOverdue} дн. × ${penaltyPercent}%, не более 10%${alreadyPaid > 0 ? `, оплачено ранее ${alreadyPaid}` : ""})`,
           dueDate: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
         },
       })

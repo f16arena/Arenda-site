@@ -7,43 +7,14 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { tenantScope } from "@/lib/tenant-scope"
-import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
-import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
-import { type AvrState, type AvrPartyType, type AvrItem, defaultAvrState, periodEndDate, avrTotal } from "@/lib/avr-engine"
+import { type AvrState, avrTotal } from "@/lib/avr-engine"
 import { renderAvrDocx } from "@/lib/avr-engine/docx"
+import { buildAvrStateForTenant } from "@/lib/avr-engine/prefill"
+import { nextDocumentNumber } from "@/lib/document-number"
 import { notifyUser } from "@/lib/notify"
+import { getActiveContractForTenant, NO_ACTIVE_CONTRACT_ERROR } from "@/lib/active-contract"
 
-function toAvrPartyType(legalType: string | null | undefined): AvrPartyType {
-  const t = String(legalType ?? "").toUpperCase()
-  if (t === "PHYSICAL") return "individual"
-  if (t === "IP") return "ip"
-  return "too"
-}
-
-const CHARGE_TYPE_LABEL: Record<string, string> = {
-  RENT: "Аренда нежилого помещения",
-  CLEANING: "Уборка помещения",
-  SERVICE_FEE: "Эксплуатационные расходы",
-  SERVICE_FEE_INDEXED: "Эксплуатационные расходы (с индексацией)",
-  SERVICE_DELIVERED: "Оказанные услуги",
-  PENALTY: "Пеня",
-  DEPOSIT: "Гарантийный взнос (депозит)",
-  OTHER: "Прочие услуги",
-}
-
-/** Следующий номер акта по организации (001, 002, …) среди чисто числовых. */
-async function computeNextActNumber(orgId: string): Promise<string> {
-  const rows = await db.generatedDocument.findMany({
-    where: { organizationId: orgId, documentType: "ACT" },
-    select: { number: true },
-  })
-  let max = 0
-  for (const r of rows) {
-    const t = (r.number ?? "").trim()
-    if (/^\d+$/.test(t)) { const n = parseInt(t, 10); if (n > max) max = n }
-  }
-  return String(max + 1).padStart(3, "0")
-}
+const computeNextActNumber = (orgId: string) => nextDocumentNumber(orgId, "ACT")
 
 export async function getNextActNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
   try {
@@ -68,67 +39,9 @@ export async function prefillAvrFromTenant(
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
     const { orgId } = await requireOrgAccess()
-    if (!period || !/^\d{4}-\d{2}$/.test(period)) return { ok: false, error: "Укажите период (месяц)" }
-
-    const [tenant, organization] = await Promise.all([
-      db.tenant.findFirst({
-        where: { AND: [tenantScope(orgId), { id: tenantId }] },
-        select: {
-          companyName: true, legalType: true, bin: true, iin: true, legalAddress: true, actualAddress: true,
-          directorName: true, directorPosition: true,
-          user: { select: { name: true, phone: true, email: true } },
-          charges: { where: { period }, orderBy: { createdAt: "asc" }, select: { type: true, amount: true, description: true } },
-          contracts: { orderBy: { createdAt: "desc" }, take: 1, select: { number: true, startDate: true } },
-        },
-      }),
-      db.organization.findUnique({ where: { id: orgId }, select: { ...ORGANIZATION_REQUISITES_SELECT, isVatPayer: true, vatRate: true } }),
-    ])
-    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
-
-    const req = organizationToRequisites(organization)
-    const s = defaultAvrState()
-    s.period = period
-    const now = new Date()
-    s.meta.date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
-
-    s.executor = {
-      type: toAvrPartyType(req.legalType),
-      name: req.fullName,
-      binIin: req.taxId || req.bin || req.iin,
-      address: req.legalAddress,
-      comm: [req.phone, req.email].filter(Boolean).join(", "),
-      signatory: req.directorShort || req.director,
-      position: req.directorPosition || "Директор",
-    }
-    s.customer = {
-      type: toAvrPartyType(tenant.legalType),
-      name: tenant.companyName,
-      binIin: tenant.bin || tenant.iin || "",
-      address: tenant.legalAddress || tenant.actualAddress || "",
-      comm: [tenant.user?.phone, tenant.user?.email].filter(Boolean).join(", "),
-      signatory: tenant.directorName || tenant.user?.name || "",
-      position: tenant.directorPosition || "Директор",
-    }
-
-    const contract = tenant.contracts[0]
-    if (contract) {
-      s.contractRef.number = contract.number
-      if (contract.startDate) s.contractRef.date = new Date(contract.startDate).toISOString().slice(0, 10)
-    }
-
-    const date = periodEndDate(period)
-    const items: AvrItem[] = []
-    for (const c of tenant.charges) {
-      items.push({ name: c.description || CHARGE_TYPE_LABEL[c.type] || c.type, date, report: "", unit: "усл.", qty: 1, price: Math.round(c.amount) })
-    }
-    if (items.length === 0) {
-      items.push({ name: `Аренда нежилого помещения за ${period}`, date, report: "", unit: "мес", qty: 1, price: 0 })
-    }
-    s.items = items
-
-    s.vat = { enabled: !!organization?.isVatPayer, rate: coerceKzVatRate(organization?.vatRate, DEFAULT_KZ_VAT_RATE) }
-
-    return { ok: true, state: s }
+    // Вся сборка (включая правило действующего договора и строки из договора) —
+    // в lib/avr-engine/prefill, общая с автогенерацией при подписании.
+    return await buildAvrStateForTenant(orgId, tenantId, period)
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить данные" }
   }
@@ -180,6 +93,10 @@ export async function createAvrFromBuilder(
     const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true, user: { select: { id: true } } } })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
     if (state.items.length === 0) return { ok: false, error: "Добавьте хотя бы одну строку услуг" }
+
+    // Правило: АВР создаётся только контрагенту с действующим договором.
+    const activeContract = await getActiveContractForTenant(tenant.id)
+    if (!activeContract) return { ok: false, error: NO_ACTIVE_CONTRACT_ERROR }
 
     // Защита от дубля: один АВР на (арендатор × период).
     if (state.period && /^\d{4}-\d{2}$/.test(state.period)) {

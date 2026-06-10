@@ -8,6 +8,11 @@ import { audit } from "@/lib/audit"
 import { revalidatePath } from "next/cache"
 import { assertContractInOrg } from "@/lib/scope-guards"
 import { applySignedContractChanges } from "@/lib/contract-addendum"
+import { ensureDepositCharge } from "@/lib/deposit"
+import { sendSignedContractEmails } from "@/lib/contract-signed-email"
+import { autoCreateDocumentsForSignedContract } from "@/lib/auto-documents"
+import { sendGeneratedDocumentToTenant } from "@/lib/document-delivery"
+import { after } from "next/server"
 import { parseCmsSignature, validateSigner, signerDisplayName } from "@/lib/ncalayer-cms"
 import { verifyCmsWithNcanode } from "@/lib/ncanode"
 
@@ -122,10 +127,22 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
       }).catch(() => { /* документ может быть удалён */ })
       if (contract) {
         await applySignedContractChanges(contract.id)
+        await ensureDepositCharge(contract.id)
+        // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
+        after(() => sendSignedContractEmails(contract.id))
+        // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.
+        after(() => autoCreateDocumentsForSignedContract(contract.id))
         revalidatePath(`/admin/tenants/${contract.tenantId}`)
       }
       revalidatePath(`/admin/contracts`)
       revalidatePath(`/admin/documents`)
+    }
+
+    // Счёт/АВР/акт сверки: после подписи арендодателем документ автоматически
+    // уходит арендатору (email с PDF + уведомление в кабинете).
+    if (input.documentType !== "CONTRACT" && input.documentId) {
+      const documentId = input.documentId
+      after(() => sendGeneratedDocumentToTenant(documentId))
     }
 
     return { ok: true, id: sig.id }

@@ -289,11 +289,12 @@ export function FloorsList({
   buildingId, floors, canCreate, canDelete,
 }: {
   buildingId: string
-  floors: { id: string; number: number; name: string; ratePerSqm: number; totalArea: number | null; spacesCount: number }[]
+  floors: { id: string; number: number; name: string; kind: string; ratePerSqm: number; totalArea: number | null; spacesCount: number }[]
   canCreate: boolean
   canDelete: boolean
 }) {
   const [open, setOpen] = useState(false)
+  const [newKind, setNewKind] = useState<"FLOOR" | "TERRITORY">("FLOOR")
   const [pending, startTransition] = useTransition()
 
   return (
@@ -322,9 +323,16 @@ export function FloorsList({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{f.name}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5">
+                      <span className="truncate">{f.name}</span>
+                      {f.kind === "TERRITORY" && (
+                        <span className="shrink-0 rounded-full bg-lime-100 dark:bg-lime-500/20 px-1.5 py-0.5 text-[10px] font-medium text-lime-700 dark:text-lime-300">
+                          Территория
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} помещ.
+                      {formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} {f.kind === "TERRITORY" ? "участк." : "помещ."}
                     </p>
                     {f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
                   </div>
@@ -353,7 +361,7 @@ export function FloorsList({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Новый этаж</h2>
+              <h2 className="text-base font-semibold">{newKind === "TERRITORY" ? "Новая территория" : "Новый этаж"}</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
@@ -370,9 +378,27 @@ export function FloorsList({
               }
               className="p-6 space-y-4"
             >
+              <div>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип *</label>
+                <select
+                  name="kind"
+                  value={newKind}
+                  onChange={(e) => setNewKind(e.target.value === "TERRITORY" ? "TERRITORY" : "FLOOR")}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
+                >
+                  <option value="FLOOR">Этаж здания</option>
+                  <option value="TERRITORY">Территория (двор, парковка, площадки)</option>
+                </select>
+                {newKind === "TERRITORY" && (
+                  <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    Участки и парковочные места заводятся как помещения этой территории и сдаются
+                    как обычно. Площадь территории не входит в площадь здания.
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Номер *" name="number" type="number" placeholder="1" required />
-                <Field label="Название *" name="name" placeholder="1 этаж" required />
+                <Field label="Номер *" name="number" type="number" placeholder={newKind === "TERRITORY" ? "0" : "1"} required />
+                <Field label="Название *" name="name" placeholder={newKind === "TERRITORY" ? "Территория / двор" : "1 этаж"} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Ставка ₸/м²" name="ratePerSqm" type="number" step="0.01" placeholder="2500" />

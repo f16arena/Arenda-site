@@ -179,7 +179,7 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
             <option value="">— выберите арендатора —</option>
             {tenantGroups.map(([building, list]) => (
               <optgroup key={building} label={building}>
-                {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {list.map((t) => <option key={t.id} value={t.id} disabled={!t.activeContract}>{t.name}{t.activeContract ? "" : " — нет действующего договора"}</option>)}
               </optgroup>
             ))}
           </select>
@@ -220,8 +220,8 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
                 <div><label className={labelCls}>Дата составления</label><input type="date" className={inputCls} value={state.meta.date} onChange={(e) => set((s) => { s.meta.date = e.target.value })} /></div>
               </div>
               <div className="mb-2 grid grid-cols-2 gap-2">
-                <div><label className={labelCls}>Договор №</label><input className={inputCls} value={state.contractRef.number} onChange={(e) => set((s) => { s.contractRef.number = e.target.value })} /></div>
-                <div><label className={labelCls}>Дата договора</label><input type="date" className={inputCls} value={state.contractRef.date} onChange={(e) => set((s) => { s.contractRef.date = e.target.value })} /></div>
+                <div><label className={labelCls}>Договор № <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из договора</span></label><input className={`${inputCls} disabled:opacity-60`} value={state.contractRef.number} disabled readOnly title="Подставляется автоматически из действующего договора выбранного арендатора" /></div>
+                <div><label className={labelCls}>Дата договора <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из договора</span></label><input type="date" className={`${inputCls} disabled:opacity-60`} value={state.contractRef.date} disabled readOnly title="Подставляется автоматически из действующего договора выбранного арендатора" /></div>
               </div>
               <div className="mb-2 grid grid-cols-2 gap-2">
                 <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">

@@ -334,6 +334,7 @@ async function DashboardOperational({
     openRequestsCount,
     openTasksCount,
     documentsOnSignature,
+    unpaidDeposits,
   ] = await measureServerStep("/admin", "today-metrics", Promise.all([
     safe(
       "admin.dashboard.overdueCharges",
@@ -493,6 +494,20 @@ async function DashboardOperational({
       }),
       0,
     ),
+    safe(
+      "admin.dashboard.unpaidDeposits",
+      db.charge.aggregate({
+        where: {
+          type: "DEPOSIT",
+          isPaid: false,
+          deletedAt: null,
+          tenant: tenantWhereInBuilding,
+        },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      { _sum: { amount: 0 }, _count: { _all: 0 } },
+    ),
   ]))
 
   const attentionItems: AttentionItem[] = [
@@ -528,8 +543,60 @@ async function DashboardOperational({
       tone: "blue" as const,
       active: expiringContracts > 0,
     },
+    {
+      href: "/admin/finances/deposits",
+      title: "Депозиты не внесены",
+      value: (unpaidDeposits._count._all ?? 0) > 0 ? `${unpaidDeposits._count._all} шт` : "Нет",
+      sub: (unpaidDeposits._sum.amount ?? 0) > 0 ? formatMoney(unpaidDeposits._sum.amount ?? 0) : "Все депозиты получены",
+      tone: "amber" as const,
+      active: (unpaidDeposits._count._all ?? 0) > 0,
+    },
   ].sort((left, right) => Number(right.active) - Number(left.active))
   const ownerPrimaryAction = attentionItems.find((item) => item.active) ?? null
+
+  // ── Цикл месяца: начисления → счета → АВР → оплаты (аудит 2026-06-10, п.12) ──
+  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  const [cycleCharges, cyclePaidCharges, cycleInvoices, cycleActs, cycleActiveTenants] = await Promise.all([
+    safe("admin.dashboard.cycleCharges", db.charge.count({ where: { period: currentPeriod, deletedAt: null, type: { not: "DEPOSIT_REFUND" }, tenant: tenantWhereInBuilding } }), 0),
+    safe("admin.dashboard.cyclePaid", db.charge.count({ where: { period: currentPeriod, deletedAt: null, isPaid: true, type: { not: "DEPOSIT_REFUND" }, tenant: tenantWhereInBuilding } }), 0),
+    safe("admin.dashboard.cycleInvoices", db.generatedDocument.count({ where: { organizationId: orgId, documentType: "INVOICE", period: currentPeriod, deletedAt: null } }), 0),
+    safe("admin.dashboard.cycleActs", db.generatedDocument.count({ where: { organizationId: orgId, documentType: "ACT", period: currentPeriod, deletedAt: null } }), 0),
+    safe("admin.dashboard.cycleTenants", db.tenant.count({
+      where: {
+        AND: [
+          tenantWhereInBuilding,
+          { OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }] },
+          { contracts: { some: { status: "SIGNED", deletedAt: null } } },
+        ],
+      },
+    }), 0),
+  ])
+  const cycleSteps = [
+    {
+      label: "Начисления",
+      done: cycleCharges > 0,
+      value: cycleCharges > 0 ? `${cycleCharges} шт` : "не созданы",
+      href: "/admin/finances",
+    },
+    {
+      label: "Счета",
+      done: cycleActiveTenants > 0 && cycleInvoices >= cycleActiveTenants,
+      value: `${cycleInvoices} из ${cycleActiveTenants}`,
+      href: "/admin/documents/new/invoice",
+    },
+    {
+      label: "АВР",
+      done: cycleActiveTenants > 0 && cycleActs >= cycleActiveTenants,
+      value: `${cycleActs} из ${cycleActiveTenants}`,
+      href: "/admin/documents/new/act",
+    },
+    {
+      label: "Оплаты",
+      done: cycleCharges > 0 && cyclePaidCharges >= cycleCharges,
+      value: cycleCharges > 0 ? `${cyclePaidCharges} из ${cycleCharges}` : "—",
+      href: "/admin/finances?chargeStatus=unpaid",
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -593,6 +660,39 @@ async function DashboardOperational({
             value={(yesterdayPayments._sum.amount ?? 0) > 0 ? formatMoney(yesterdayPayments._sum.amount ?? 0) : "Нет"}
             sub={`за вчера${(yesterdayPayments._count._all ?? 0) > 0 ? ` · ${yesterdayPayments._count._all} платеж(ей)` : ""}`}
           />
+        </div>
+      </div>
+
+      {/* Цикл месяца: что уже сделано в этом месяце, что осталось */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Цикл месяца · {currentPeriod}</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Начисления → счета → АВР → оплаты</p>
+          </div>
+          <a
+            href={`/api/export/documents-zip?period=${currentPeriod}`}
+            download
+            className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            Скачать все документы (ZIP)
+          </a>
+        </div>
+        <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
+          {cycleSteps.map((step, i) => (
+            <Link
+              key={step.label}
+              href={step.href}
+              className={`rounded-lg border p-3 transition-colors ${step.done
+                ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-500/5"
+                : "border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-500/40"}`}
+            >
+              <p className="text-xs text-slate-500 dark:text-slate-400">{i + 1}. {step.label}</p>
+              <p className={`mt-1 text-sm font-semibold ${step.done ? "text-emerald-700 dark:text-emerald-300" : "text-slate-900 dark:text-slate-100"}`}>
+                {step.done ? "✓ " : ""}{step.value}
+              </p>
+            </Link>
+          ))}
         </div>
       </div>
 

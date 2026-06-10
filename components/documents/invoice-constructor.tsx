@@ -124,7 +124,7 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
       {!embedded && (
         <div>
           <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Конструктор счёта</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Счёт на оплату. Позиции подтягиваются из начислений за выбранный месяц.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Счёт на оплату по действующему договору. Позиции — из начислений за месяц, а если их ещё нет — из договора (аренда, эксплуатационные расходы, уборка и доп. услуги).</p>
         </div>
       )}
 
@@ -134,7 +134,7 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
           <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
             <option value="">— выберите арендатора —</option>
             {tenantGroups.map(([building, list]) => (
-              <optgroup key={building} label={building}>{list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>
+              <optgroup key={building} label={building}>{list.map((t) => <option key={t.id} value={t.id} disabled={!t.activeContract}>{t.name}{t.activeContract ? "" : " — нет действующего договора"}</option>)}</optgroup>
             ))}
           </select>
         </div>
@@ -167,7 +167,7 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
                 <div><label className={labelCls}>Дата счёта</label><input type="date" className={inputCls} value={state.meta.date} onChange={(e) => set((s) => { s.meta.date = e.target.value })} /></div>
               </div>
               <div className="mb-2 grid grid-cols-2 gap-2">
-                <div><label className={labelCls}>Договор №</label><input className={inputCls} value={state.contractRef.number} onChange={(e) => set((s) => { s.contractRef.number = e.target.value })} /></div>
+                <div><label className={labelCls}>Договор № <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из договора</span></label><input className={`${inputCls} disabled:opacity-60`} value={state.contractRef.number} disabled readOnly title="Подставляется автоматически из действующего договора выбранного арендатора" /></div>
                 <div><label className={labelCls}>Оплатить до</label><input type="date" className={inputCls} value={state.dueDate} onChange={(e) => set((s) => { s.dueDate = e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">

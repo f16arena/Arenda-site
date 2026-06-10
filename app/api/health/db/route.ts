@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { auth } from "@/auth"
+import { authorizeCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -27,9 +29,21 @@ const REQUIRED_HEALTH_SCHEMA = [
 ] as const
 
 // GET /api/health/db
-// Подробная диагностика подключения к БД, без авторизации.
-// Открывайте на Vercel https://your-app.vercel.app/api/health/db чтобы увидеть статус.
-export async function GET() {
+// Подробная диагностика подключения к БД — ТОЛЬКО для владельца платформы или
+// по секрету cron (Bearer CRON_SECRET). Раньше отдавала структуру БД без
+// авторизации (аудит 2026-06-10, п.1). Неавторизованным — только { ok }.
+export async function GET(req: Request) {
+  const session = await auth().catch(() => null)
+  const authorized = authorizeCronRequest(req) || !!session?.user?.isPlatformOwner
+  if (!authorized) {
+    try {
+      await db.$queryRawUnsafe("SELECT 1")
+      return NextResponse.json({ ok: true })
+    } catch {
+      return NextResponse.json({ ok: false }, { status: 503 })
+    }
+  }
+
   const checks: { name: string; ok: boolean; ms: number; result?: unknown; error?: string }[] = []
 
   // 1. Простейший SELECT 1

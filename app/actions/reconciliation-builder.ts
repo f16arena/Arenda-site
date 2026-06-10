@@ -12,6 +12,7 @@ import { resolveMonthRange } from "@/lib/period-range"
 import { type ReconState, type ReconPartyType, type ReconEntry, defaultReconState, reconClosing } from "@/lib/reconciliation-engine"
 import { renderReconDocx } from "@/lib/reconciliation-engine/docx"
 import { notifyUser } from "@/lib/notify"
+import { getActiveContractForTenant, NO_ACTIVE_CONTRACT_ERROR } from "@/lib/active-contract"
 
 function toPartyType(legalType: string | null | undefined): ReconPartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -65,18 +66,23 @@ export async function prefillReconFromTenant(
         select: {
           companyName: true, legalType: true, bin: true, iin: true, directorName: true, directorPosition: true,
           user: { select: { name: true } },
-          charges: { where: { period: { gte: range.from, lte: range.to } }, orderBy: { createdAt: "asc" }, select: { type: true, amount: true, description: true, period: true, createdAt: true } },
-          payments: { where: { paymentDate: { gte: range.fromDate, lt: range.toEndExclusive } }, orderBy: { paymentDate: "asc" }, select: { amount: true, paymentDate: true, method: true, note: true } },
+          // deletedAt: null — удалённые начисления/платежи не должны попадать в официальный акт (аудит 2026-06-10, п.2).
+          charges: { where: { period: { gte: range.from, lte: range.to }, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { type: true, amount: true, description: true, period: true, createdAt: true } },
+          payments: { where: { paymentDate: { gte: range.fromDate, lt: range.toEndExclusive }, deletedAt: null }, orderBy: { paymentDate: "asc" }, select: { amount: true, paymentDate: true, method: true, note: true } },
         },
       }),
       getOrganizationRequisites(orgId),
     ])
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
 
+    // Правило: акт сверки выставляется только по действующему договору.
+    const activeContract = await getActiveContractForTenant(tenantId)
+    if (!activeContract) return { ok: false, error: NO_ACTIVE_CONTRACT_ERROR }
+
     // Входящее сальдо: начисления до периода − оплаты до периода.
     const [chargesBefore, paymentsBefore] = await Promise.all([
-      db.charge.findMany({ where: { tenantId, period: { lt: range.from } }, select: { amount: true } }),
-      db.payment.findMany({ where: { tenantId, paymentDate: { lt: range.fromDate } }, select: { amount: true } }),
+      db.charge.findMany({ where: { tenantId, period: { lt: range.from }, deletedAt: null }, select: { amount: true } }),
+      db.payment.findMany({ where: { tenantId, paymentDate: { lt: range.fromDate }, deletedAt: null }, select: { amount: true } }),
     ])
     const opening = Math.round(
       chargesBefore.reduce((s, c) => s + c.amount, 0) - paymentsBefore.reduce((s, p) => s + p.amount, 0),
@@ -159,6 +165,10 @@ export async function createReconFromBuilder(
 
     const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true, user: { select: { id: true } } } })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+
+    // Правило: акт сверки создаётся только контрагенту с действующим договором.
+    const activeContract = await getActiveContractForTenant(tenant.id)
+    if (!activeContract) return { ok: false, error: NO_ACTIVE_CONTRACT_ERROR }
 
     // Защита от дубля: один акт сверки на (арендатор × период).
     if (state.period?.from && state.period?.to) {

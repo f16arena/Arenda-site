@@ -14,6 +14,7 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
   const [title, setTitle] = useState("")
   const [message, setMessage] = useState("")
   const [alsoEmail, setAlsoEmail] = useState(false)
+  const [scope, setScope] = useState<"all" | "debtors">("all")
   const [pending, startTransition] = useTransition()
 
   function close() {
@@ -27,7 +28,7 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
     }
     startTransition(async () => {
       const r = await sendBulkNotificationToTenants({
-        scope: "all",
+        scope,
         title,
         message,
         alsoEmail,
@@ -84,8 +85,21 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
             </div>
             <div className="space-y-4 px-6 py-5">
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Уведомление получат <b>все {totalTenants} арендаторов</b> текущей организации (в колокольчике; письмо — по галочке).
+                {scope === "all"
+                  ? <>Уведомление получат <b>все {totalTenants} арендаторов</b> текущей организации (в колокольчике; письмо — по галочке).</>
+                  : <>Уведомление получат <b>только арендаторы с неоплаченными начислениями</b> (в колокольчике; письмо — по галочке).</>}
               </p>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Кому</label>
+                <select
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value === "debtors" ? "debtors" : "all")}
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">Всем арендаторам</option>
+                  <option value="debtors">Только должникам (есть неоплаченные начисления)</option>
+                </select>
+              </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Заголовок</label>
                 <input
@@ -120,7 +134,7 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
-                {pending ? "Отправляю…" : `Отправить ${totalTenants}`}
+                {pending ? "Отправляю…" : scope === "all" ? `Отправить ${totalTenants}` : "Отправить должникам"}
               </button>
             </div>
           </div>

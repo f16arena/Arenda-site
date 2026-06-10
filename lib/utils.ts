@@ -45,6 +45,8 @@ export const ROLE_COLORS: Record<string, string> = {
 
 export const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда",
+  DEPOSIT: "Гарантийный депозит",
+  DEPOSIT_REFUND: "Возврат депозита",
   SERVICE_FEE: "Эксплуатационный сбор",
   ELECTRICITY: "Электричество",
   WATER: "Вода",

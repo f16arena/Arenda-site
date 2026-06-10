@@ -12,7 +12,7 @@ import { revalidatePath } from "next/cache"
  * Gate: фича bulkNotifications в плане организации (Starter+).
  */
 export async function sendBulkNotificationToTenants(input: {
-  scope: "all" | "selected"
+  scope: "all" | "selected" | "debtors"
   tenantIds?: string[]
   title: string
   message: string
@@ -42,10 +42,12 @@ export async function sendBulkNotificationToTenants(input: {
   const message = input.message?.trim() ?? ""
   if (!title || !message) return { ok: false, error: "Заголовок и текст обязательны" }
 
-  // Выбор арендаторов: либо выделенные, либо все видимые в скоупе организации.
+  // Выбор арендаторов: выделенные / только должники / все видимые в скоупе организации.
   const where = input.scope === "selected" && input.tenantIds?.length
     ? { id: { in: input.tenantIds }, ...tenantScope(orgId) }
-    : tenantScope(orgId)
+    : input.scope === "debtors"
+      ? { ...tenantScope(orgId), charges: { some: { isPaid: false, deletedAt: null } } }
+      : tenantScope(orgId)
 
   const tenants = await db.tenant.findMany({
     where,

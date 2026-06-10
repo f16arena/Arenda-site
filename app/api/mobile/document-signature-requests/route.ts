@@ -65,6 +65,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null) as {
     recipientUserId?: string
+    tenantId?: string
     documentType?: string
     documentId?: string
     documentRef?: string
@@ -75,7 +76,15 @@ export async function POST(req: Request) {
     expiresAt?: string
   } | null
 
-  const recipientUserId = body?.recipientUserId?.trim()
+  let recipientUserId = body?.recipientUserId?.trim()
+  if (!recipientUserId && body?.tenantId) {
+    const tenant = await db.tenant.findFirst({
+      where: { id: body.tenantId, user: { organizationId: result.ctx.org.id } },
+      select: { userId: true },
+    })
+    if (!tenant?.userId) return mobileError("У арендатора нет пользователя для подписи", 404)
+    recipientUserId = tenant.userId
+  }
   const documentType = body?.documentType?.trim().toUpperCase()
   const documentId = body?.documentId?.trim() || null
   const title = body?.title?.trim().slice(0, 180)
@@ -167,6 +176,7 @@ async function getTenantContractSignatureLinks(req: Request, userId: string, org
       signToken: true,
       sentAt: true,
       viewedAt: true,
+      createdAt: true,
       tenant: { select: { companyName: true } },
     },
     orderBy: { sentAt: "desc" },
@@ -186,7 +196,7 @@ async function getTenantContractSignatureLinks(req: Request, userId: string, org
     preferredMethod: "SIMPLE_CONFIRMATION",
     expiresAt: null,
     viewedAt: contract.viewedAt,
-    createdAt: contract.sentAt,
+    createdAt: contract.sentAt ?? contract.createdAt,
     webUrl: `${origin}/sign/${contract.signToken}`,
   }))
 }

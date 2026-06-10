@@ -177,6 +177,9 @@ export async function createFloor(buildingId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim()
   const ratePerSqmStr = String(formData.get("ratePerSqm") ?? "")
   const totalAreaStr = String(formData.get("totalArea") ?? "")
+  // FLOOR — обычный этаж; TERRITORY — прилегающая территория (двор, парковка).
+  const kindRaw = String(formData.get("kind") ?? "FLOOR").trim().toUpperCase()
+  const kind = kindRaw === "TERRITORY" ? "TERRITORY" : "FLOOR"
 
   if (!name) throw new Error("Название этажа обязательно")
   const number = parseInt(numberStr)
@@ -189,6 +192,7 @@ export async function createFloor(buildingId: string, formData: FormData) {
       buildingId,
       number,
       name,
+      kind,
       ratePerSqm: ratePerSqmStr ? parseFloat(ratePerSqmStr) : 0,
       totalArea: newTotalArea,
     },

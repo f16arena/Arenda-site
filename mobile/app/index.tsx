@@ -43,9 +43,12 @@ import {
   AdminBuildings,
   AdminDocumentDetail,
   AdminDocuments,
+  AdminMessages,
+  AdminMeters,
   AdminPayments,
   AdminRequestDetail,
   AdminRequests,
+  AdminTasks,
   AdminTenantDetail,
   AdminTenants,
   AdminToday,
@@ -54,8 +57,11 @@ import {
 import {
   getAdminBuildings,
   getAdminDocuments,
+  getAdminMessages,
+  getAdminMeters,
   getAdminPaymentReports,
   getAdminRequests,
+  getAdminTasks,
   getAdminTenantDetail,
   getAdminTenants,
   getAdminToday,
@@ -152,6 +158,9 @@ export default function HomeScreen() {
         adminTenants: null,
         adminTenantDetails: {},
         adminDocuments: null,
+        adminTasks: null,
+        adminMessages: null,
+        adminMeters: null,
         ownerOverview,
         notifications,
         notificationSettings,
@@ -240,6 +249,9 @@ export default function HomeScreen() {
         else if (tabKey === "requests" || tabKey === "request") patch = { adminRequests: await getAdminRequests({ buildingId: tabKey === "requests" ? tabParam : undefined }) }
         else if (tabKey === "payments" && canReviewPayments) patch = { adminPayments: await getAdminPaymentReports({ buildingId: tabParam }) }
         else if (tabKey === "buildings" || tabKey === "building") patch = { adminBuildings: await getAdminBuildings() }
+        else if (tabKey === "tasks") patch = { adminTasks: await getAdminTasks({ buildingId: tabParam }) }
+        else if (tabKey === "chat") patch = { adminMessages: await getAdminMessages() }
+        else if (tabKey === "meters") patch = { adminMeters: await getAdminMeters({ buildingId: tabParam }) }
       }
 
       if (Object.keys(patch).length > 0) {
@@ -558,7 +570,7 @@ function TabContent({
     if (tabKey === "requests") return data.tenantRequests ? <TenantRequests requests={data.tenantRequests} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     if (tabKey === "messages") return <TenantMessages />
     if (tabKey === "meters") return data.tenantMeters ? <TenantMeters meters={data.tenantMeters} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
-    if (tabKey === "documents") return data.tenantDocuments ? <TenantDocuments documents={data.tenantDocuments} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+    if (tabKey === "documents") return data.tenantDocuments ? <TenantDocuments documents={data.tenantDocuments} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
     if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />
     if (tabKey === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} />
     return <TenantHome overview={data.tenantOverview} notices={data.notices} onNavigate={onNavigate} />
@@ -603,6 +615,9 @@ function TabContent({
     return data.adminPayments ? <AdminPayments payload={data.adminPayments} buildingId={tabParam} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   }
   if (tabKey === "buildings") return data.adminBuildings ? <AdminBuildings payload={data.adminBuildings} onNavigate={onNavigate} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "tasks") return data.adminTasks ? <AdminTasks payload={data.adminTasks} bootstrap={bootstrap} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "chat") return data.adminMessages ? <AdminMessages payload={data.adminMessages} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
+  if (tabKey === "meters") return data.adminMeters ? <AdminMeters payload={data.adminMeters} onChanged={onChanged} /> : <TabLoading error={tabError} loading={loadingTabs[tabKey]} />
   if (tabKey === "settings") return <More title="Настройки" bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} settingsOnly />
   if (tabKey === "more") return <More bootstrap={bootstrap} buildings={bootstrap.buildings} settings={data.notificationSettings} onChanged={onChanged} onNavigate={onNavigate} />
   return data.adminToday ? <AdminToday payload={data.adminToday} notices={data.notices} bootstrap={bootstrap} onChanged={onChanged} onNavigate={onNavigate} /> : <CenteredLoader />

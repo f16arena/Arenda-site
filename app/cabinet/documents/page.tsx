@@ -6,6 +6,7 @@ import { Download, FileText, Printer, Receipt, Upload, Wallet, CheckCircle2 } fr
 import Link from "next/link"
 import { MyDocumentUpload, MyDocumentDelete } from "@/components/cabinet/my-document-upload"
 import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
+import { RequestExtensionButton } from "./request-extension-button"
 
 export default async function CabinetDocuments() {
   const session = await auth()
@@ -45,6 +46,14 @@ export default async function CabinetDocuments() {
 
   const pendingSignatureCount = tenant.contracts.filter((contract) => ["SENT", "VIEWED"].includes(contract.status)).length
   const signedContractsCount = tenant.contracts.filter((contract) => contract.status === "SIGNED").length
+
+  // «Запросить продление» показываем у подписанных договоров, истекающих в
+  // ближайшие 90 дней (и не позднее 30 дней после истечения).
+  const nowTs = new Date().getTime()
+  const canRequestExtension = (c: { status: string; type: string; endDate: Date | null }) =>
+    c.status === "SIGNED" && c.type !== "ADDENDUM" && !!c.endDate &&
+    c.endDate.getTime() - nowTs < 90 * 86_400_000 &&
+    c.endDate.getTime() > nowTs - 30 * 86_400_000
 
   const typeLabel: Record<string, string> = {
     STANDARD: "Договор аренды",
@@ -187,6 +196,7 @@ export default async function CabinetDocuments() {
                   <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[c.status])}>
                     {STATUS_LABELS[c.status] ?? c.status}
                   </span>
+                  {canRequestExtension(c) && <RequestExtensionButton contractId={c.id} />}
                   {(c.status === "SENT" || c.status === "VIEWED") && c.signToken && (
                     <Link href={`/sign/${c.signToken}`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
                       Подписать

@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react"
-import { KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native"
+import { Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native"
 import * as Sharing from "expo-sharing"
 import {
   createTenantRequest,
+  deleteTenantUploadedDocument,
   downloadAuthorizedFile,
   getTenantMessages,
+  getTenantPaymentQr,
   reportTenantPayment,
+  respondToSignatureRequest,
   sendTenantMessage,
-  startDocumentSignatureDraft,
   submitTenantMeterReading,
+  uploadTenantDocument,
+  type PaymentQrPayload,
   type TenantAdminContact,
   type TenantMessageDto,
 } from "@/lib/api"
@@ -146,6 +150,24 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
   const [receipt, setReceipt] = useState<PickedUploadFile | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [qrBusy, setQrBusy] = useState(false)
+  const [qr, setQr] = useState<PaymentQrPayload | null>(null)
+  const [qrError, setQrError] = useState<string | null>(null)
+
+  async function showQr() {
+    if (qrBusy) return
+    setQrBusy(true)
+    setQrError(null)
+    try {
+      const numeric = Number(amount.replace(/\s/g, "").replace(",", "."))
+      const data = await getTenantPaymentQr(Number.isFinite(numeric) && numeric > 0 ? numeric : undefined)
+      setQr(data)
+    } catch (e) {
+      setQrError(e instanceof Error ? e.message : "Не удалось получить QR")
+    } finally {
+      setQrBusy(false)
+    }
+  }
 
   async function submit() {
     haptic.medium()
@@ -195,6 +217,15 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
           </View>
         ))}
         <Text selectable style={{ color: colors.muted, fontSize: 12 }}>Назначение: {finances.summary.paymentPurpose}</Text>
+        <SecondaryButton title={qrBusy ? "Готовим QR..." : qr ? "Скрыть QR" : "Показать QR для перевода"} icon="qrcode" onPress={() => (qr ? setQr(null) : showQr())} />
+        {qr ? (
+          <View style={{ alignItems: "center", gap: 8 }}>
+            <Image source={{ uri: qr.qrDataUrl }} style={{ width: 240, height: 240, borderRadius: 8, backgroundColor: "#fff" }} />
+            <Text selectable style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>Покажите QR в приложении банка или Kaspi для автозаполнения реквизитов.</Text>
+            {qr.amount ? <Text selectable style={{ color: colors.text, fontSize: 14, fontFamily: fonts.extraBold, fontWeight: "800" }}>Сумма в QR: {formatMoney(qr.amount)}</Text> : null}
+          </View>
+        ) : null}
+        {qrError ? <InlineMessage message={qrError} tone="error" /> : null}
       </Card>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -413,7 +444,7 @@ function MeterCard({ meter, period, onChanged }: { meter: TenantMetersPayload["d
   )
 }
 
-export function TenantDocuments({ documents }: { documents: TenantDocumentsPayload }) {
+export function TenantDocuments({ documents, onChanged }: { documents: TenantDocumentsPayload; onChanged?: () => void }) {
   const [documentFilter, setDocumentFilter] = useState("ALL")
   const pendingRequests = documents.signatureRequests.filter((item) => ["PENDING", "VIEWED"].includes(item.status))
   const pendingContracts = documents.contractLinks.filter((item) => ["SENT", "VIEWED", "SIGNED_BY_TENANT"].includes(item.status))
@@ -422,6 +453,53 @@ export function TenantDocuments({ documents }: { documents: TenantDocumentsPaylo
   const invoices = documents.generated.filter((document) => documentTypeCategory(document.documentType) === "INVOICE").length
   const acts = documents.generated.filter((document) => documentTypeCategory(document.documentType) === "ACT").length
   const reconciliations = documents.generated.filter((document) => documentTypeCategory(document.documentType) === "RECONCILIATION").length
+
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [uploadType, setUploadType] = useState("OTHER")
+  const [uploadName, setUploadName] = useState("")
+  const [uploadFile, setUploadFile] = useState<PickedUploadFile | null>(null)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState<{ text: string; tone: "error" | "success" } | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  async function submitUpload() {
+    if (uploadBusy) return
+    if (!uploadName.trim()) {
+      setUploadMessage({ text: "Укажите название документа", tone: "error" })
+      return
+    }
+    if (!uploadFile) {
+      setUploadMessage({ text: "Прикрепите файл", tone: "error" })
+      return
+    }
+    setUploadBusy(true)
+    setUploadMessage(null)
+    try {
+      await uploadTenantDocument({ type: uploadType, name: uploadName.trim(), file: uploadFile })
+      setUploadFile(null)
+      setUploadName("")
+      setUploadOpen(false)
+      setUploadMessage({ text: "Документ загружен", tone: "success" })
+      onChanged?.()
+    } catch (e) {
+      setUploadMessage({ text: e instanceof Error ? e.message : "Не удалось загрузить", tone: "error" })
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
+  async function removeDocument(id: string) {
+    if (deletingId) return
+    setDeletingId(id)
+    try {
+      await deleteTenantUploadedDocument(id)
+      onChanged?.()
+    } catch (e) {
+      setUploadMessage({ text: e instanceof Error ? e.message : "Не удалось удалить", tone: "error" })
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <>
@@ -476,13 +554,41 @@ export function TenantDocuments({ documents }: { documents: TenantDocumentsPaylo
       </Card>
       <SectionTitle title="Файлы арендатора" />
       <Card>
+        <SecondaryButton title={uploadOpen ? "Скрыть форму" : "Загрузить документ"} icon="paperclip" onPress={() => setUploadOpen((open) => !open)} />
+        {uploadOpen ? (
+          <View style={{ gap: 8 }}>
+            <ChoiceRow
+              options={[
+                ["ID_CARD", "Удостоверение"],
+                ["CHARTER", "Устав"],
+                ["IP_CERTIFICATE", "ИП"],
+                ["OTHER", "Прочее"],
+              ]}
+              value={uploadType}
+              onChange={setUploadType}
+            />
+            <Field label="Название" value={uploadName} onChangeText={setUploadName} placeholder="Например: Удостоверение директора" />
+            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+              <SecondaryButton title={uploadFile ? uploadFile.name : "Выбрать файл"} icon="paperclip" onPress={async () => setUploadFile(await pickUploadFile("document"))} />
+              {uploadFile ? <SecondaryButton title="Убрать" icon="xmark" onPress={() => setUploadFile(null)} /> : null}
+            </View>
+            <PrimaryButton title={uploadBusy ? "Загружаем..." : "Загрузить"} onPress={submitUpload} disabled={uploadBusy} />
+          </View>
+        ) : null}
+        {uploadMessage ? <InlineMessage message={uploadMessage.text} tone={uploadMessage.tone} /> : null}
         {documents.tenantDocuments.map((document) => (
-          <DocumentRow
-            key={document.id}
-            title={document.name}
-            subtitle={`${documentTypeLabel(document.type)} · ${formatDate(document.createdAt)}`}
-            url={document.downloadUrl ?? document.fileUrl}
-          />
+          <View key={document.id} style={{ gap: 4 }}>
+            <DocumentRow
+              title={document.name}
+              subtitle={`${documentTypeLabel(document.type)} · ${formatDate(document.createdAt)}`}
+              url={document.downloadUrl ?? document.fileUrl}
+            />
+            <SecondaryButton
+              title={deletingId === document.id ? "Удаляем..." : "Удалить"}
+              icon="trash"
+              onPress={() => removeDocument(document.id)}
+            />
+          </View>
         ))}
         {documents.tenantDocuments.length === 0 ? <EmptyState inline icon="paperclip" title="Файлов пока нет" subtitle="Сюда попадут загруженные договоры, приложения и вложения арендатора." /> : null}
       </Card>
@@ -583,14 +689,27 @@ export function OpenAuthorizedFileButton({ title, url }: { title: string; url?: 
 
 export function SignatureRequestCard({ request }: { request: TenantSignatureRequest }) {
   const [message, setMessage] = useState<string | null>(null)
+  const [rejectOpen, setRejectOpen] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [rejectBusy, setRejectBusy] = useState(false)
 
-  async function startDraft(method: "SMS_OTP_DRAFT" | "NCA_LAYER_DRAFT") {
+  async function reject() {
+    if (rejectBusy) return
+    if (rejectReason.trim().length < 5) {
+      setMessage("Опишите причину отказа (минимум 5 символов)")
+      return
+    }
+    setRejectBusy(true)
     setMessage(null)
     try {
-      const result = await startDocumentSignatureDraft({ requestId: request.id, method })
-      setMessage(result.message ?? "Черновик подписания подготовлен")
+      await respondToSignatureRequest(request.id, { action: "REJECT", reason: rejectReason.trim() })
+      setMessage("Документ отклонён")
+      setRejectOpen(false)
+      setRejectReason("")
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Не удалось подготовить подписание")
+      setMessage(e instanceof Error ? e.message : "Не удалось отклонить")
+    } finally {
+      setRejectBusy(false)
     }
   }
 
@@ -605,13 +724,20 @@ export function SignatureRequestCard({ request }: { request: TenantSignatureRequ
         <StatusPill label={signatureStatusLabel(request.status)} color={colors.orange} />
       </View>
       {request.message ? <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{request.message}</Text> : null}
-      <Text selectable style={{ color: colors.orange, fontSize: 13, lineHeight: 18, fontFamily: fonts.bold, fontWeight: "700" }}>
-        SMS и ЭЦП сейчас работают как черновик: приложение подготовит заявку на подпись, финальная интеграция подключается позже.
+      {/* Черновики SMS/ЭЦП скрыты до готовности интеграции (аудит 2026-06-10, п.18):
+          подпись ЭЦП работает в веб-кабинете — туда и ведём. */}
+      <Text selectable style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+        Подписание ЭЦП доступно в веб-кабинете (раздел «Документы»). Подпись прямо в приложении появится позже.
       </Text>
       <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-        <SecondaryButton title="SMS черновик" icon="message.fill" onPress={() => startDraft("SMS_OTP_DRAFT")} />
-        <SecondaryButton title="ЭЦП черновик" icon="checkmark.seal.fill" onPress={() => startDraft("NCA_LAYER_DRAFT")} />
+        <SecondaryButton title={rejectOpen ? "Отмена" : "Отказаться"} icon="xmark.circle.fill" onPress={() => setRejectOpen((open) => !open)} />
       </View>
+      {rejectOpen ? (
+        <View style={{ gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10, backgroundColor: "#fff" }}>
+          <Field label="Причина отказа" value={rejectReason} onChangeText={setRejectReason} placeholder="Например: ошибка в реквизитах" multiline />
+          <PrimaryButton title={rejectBusy ? "Отправляем..." : "Подтвердить отказ"} onPress={reject} disabled={rejectBusy} />
+        </View>
+      ) : null}
       {message ? <InlineMessage message={message} tone={message.includes("Не ") ? "error" : "success"} /> : null}
     </View>
   )

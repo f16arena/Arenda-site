@@ -152,7 +152,7 @@ export function ReconciliationConstructor({ embedded = false, initialTenantId }:
           <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
             <option value="">— выберите арендатора —</option>
             {tenantGroups.map(([building, list]) => (
-              <optgroup key={building} label={building}>{list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup>
+              <optgroup key={building} label={building}>{list.map((t) => <option key={t.id} value={t.id} disabled={!t.activeContract}>{t.name}{t.activeContract ? "" : " — нет действующего договора"}</option>)}</optgroup>
             ))}
           </select>
         </div>

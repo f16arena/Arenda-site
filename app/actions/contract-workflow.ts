@@ -8,7 +8,11 @@ import { contractScope } from "@/lib/tenant-scope"
 import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 import { applySignedContractChanges } from "@/lib/contract-addendum"
+import { ensureDepositCharge } from "@/lib/deposit"
+import { sendSignedContractEmails } from "@/lib/contract-signed-email"
+import { autoCreateDocumentsForSignedContract } from "@/lib/auto-documents"
 import { headers } from "next/headers"
+import { after } from "next/server"
 import crypto from "crypto"
 import { parseCmsSignature, validateSigner, signerDisplayName } from "@/lib/ncalayer-cms"
 import { verifyCmsWithNcanode } from "@/lib/ncanode"
@@ -282,6 +286,11 @@ export async function markContractSignedByLandlord(
   })
   if (newStatus === "SIGNED") {
     await applySignedContractChanges(contract.id)
+    await ensureDepositCharge(contract.id)
+    // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
+    after(() => sendSignedContractEmails(contract.id))
+    // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.
+    after(() => autoCreateDocumentsForSignedContract(contract.id))
   }
 
   revalidatePath("/admin/documents")
@@ -481,6 +490,11 @@ export async function signContractByTenantEcp(
     })
     if (newStatus === "SIGNED") {
       await applySignedContractChanges(contract.id)
+      await ensureDepositCharge(contract.id)
+      // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
+      after(() => sendSignedContractEmails(contract.id))
+      // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.
+      after(() => autoCreateDocumentsForSignedContract(contract.id))
     }
 
     revalidatePath("/admin/documents")
@@ -556,6 +570,11 @@ export async function signContractByLandlordEcp(
     })
     if (newStatus === "SIGNED") {
       await applySignedContractChanges(contract.id)
+      await ensureDepositCharge(contract.id)
+      // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
+      after(() => sendSignedContractEmails(contract.id))
+      // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.
+      after(() => autoCreateDocumentsForSignedContract(contract.id))
     }
 
     revalidatePath(`/admin/contracts/${contract.id}`)
@@ -577,8 +596,10 @@ export async function rejectContractByTenant(
   const r = reason.trim().slice(0, 1000)
   if (r.length < 5) return { ok: false, error: "Опишите причину отказа (минимум 5 символов)" }
 
-  const contract = await db.contract.findUnique({
-    where: { signToken: token },
+  // findFirst + deletedAt: null — soft-delete НЕ перехватывает findUnique (lib/db.ts):
+  // удалённый арендодателем договор нельзя отклонить по старой ссылке.
+  const contract = await db.contract.findFirst({
+    where: { signToken: token, deletedAt: null },
     select: { id: true, status: true },
   })
   if (!contract) return { ok: false, error: "Договор не найден" }

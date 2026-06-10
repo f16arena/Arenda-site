@@ -8,6 +8,9 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { tenantScope, chargeScope, paymentScope } from "@/lib/tenant-scope"
 import { recordPaymentCash, reversePaymentCash, reapplyPaymentCash } from "@/lib/payment-cash"
+import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
+import { notifyUser } from "@/lib/notify"
+import { CHARGE_TYPES } from "@/lib/utils"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import {
@@ -97,10 +100,24 @@ export async function recordPayment(formData: FormData) {
   // Если admin не выбрал charges явно — авто-распределение FIFO: гасим самые
   // старые неоплаченные начисления, пока хватает суммы. Только полностью
   // покрытые начисления — partial coverage не делаем (упрощение).
+  // Остаток платежа НЕ теряется: хранится в Payment.unappliedAmount как аванс
+  // и зачитывается в следующие начисления (аудит 2026-06-10, п.5). В пул
+  // гашения включается и ранее накопленный аванс.
+  const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
   const autoDistributed: { ids: string[]; periods: string[] } = { ids: [], periods: [] }
   let finalNote = note ?? null
+  let newUnapplied = 0
+  let creditConsumed = 0
+  let priorCredits: { id: string; unappliedAmount: number }[] = []
 
   if (chargeIds.length === 0 && amount > 0) {
+    priorCredits = await db.payment.findMany({
+      where: { tenantId, deletedAt: null, unappliedAmount: { gt: 0 } },
+      orderBy: { paymentDate: "asc" },
+      select: { id: true, unappliedAmount: true },
+    })
+    const priorCreditSum = round2(priorCredits.reduce((s, p) => s + p.unappliedAmount, 0))
+
     const unpaidCharges = await db.charge.findMany({
       where: {
         AND: [
@@ -112,13 +129,18 @@ export async function recordPayment(formData: FormData) {
       select: { id: true, amount: true, period: true },
     })
 
-    let remaining = amount
+    let remaining = round2(amount + priorCreditSum)
     for (const c of unpaidCharges) {
       if (remaining + 0.01 < c.amount) break // нельзя частично — целиком или ничего
       autoDistributed.ids.push(c.id)
       autoDistributed.periods.push(c.period)
-      remaining = Math.round((remaining - c.amount) * 100) / 100
+      remaining = round2(remaining - c.amount)
     }
+
+    // Сколько из покрытия пришлось на новый платёж, а сколько — на прошлый аванс.
+    const coveredTotal = round2(amount + priorCreditSum - remaining)
+    creditConsumed = Math.max(0, round2(coveredTotal - amount))
+    newUnapplied = Math.max(0, round2(amount - coveredTotal))
 
     if (autoDistributed.ids.length > 0) {
       // Дописываем в payment.note информацию о покрытых начислениях.
@@ -129,6 +151,10 @@ export async function recordPayment(formData: FormData) {
         : `${sortedPeriods[0]}..${sortedPeriods[sortedPeriods.length - 1]}`
       const autoNote = `Автоматически закрыто: ${autoDistributed.ids.length} начислений за ${periodSummary}`
       finalNote = finalNote ? `${finalNote} · ${autoNote}` : autoNote
+    }
+    if (newUnapplied > 0.01) {
+      const advanceNote = `Аванс: ${newUnapplied.toLocaleString("ru-RU")} ₸ (зачтётся в следующие начисления)`
+      finalNote = finalNote ? `${finalNote} · ${advanceNote}` : advanceNote
     }
   }
 
@@ -145,7 +171,7 @@ export async function recordPayment(formData: FormData) {
           { id: { in: chargeIds }, tenantId },
         ],
       },
-      select: { id: true },
+      select: { id: true, amount: true },
     })
     const validIds = validCharges.map((c) => c.id)
 
@@ -153,6 +179,9 @@ export async function recordPayment(formData: FormData) {
       throw new Error("Некоторые начисления недоступны для текущей организации")
     }
     chargeIdsToMark = validIds
+    // Переплата сверх выбранных начислений — тоже аванс.
+    const selectedSum = round2(validCharges.reduce((s, c) => s + c.amount, 0))
+    newUnapplied = Math.max(0, round2(amount - selectedSum))
   } else if (autoDistributed.ids.length > 0) {
     // FIFO авто-распределение: помечаем выбранные charges оплаченными.
     chargeIdsToMark = autoDistributed.ids
@@ -171,8 +200,23 @@ export async function recordPayment(formData: FormData) {
         method,
         note: finalNote,
         paymentDate: paymentDate ?? new Date(),
+        unappliedAmount: newUnapplied,
       },
     })
+
+    // Списываем использованный в гашении прошлый аванс (старейшие платежи первыми).
+    if (creditConsumed > 0.01) {
+      let toConsume = creditConsumed
+      for (const p of priorCredits) {
+        if (toConsume <= 0.01) break
+        const take = Math.min(p.unappliedAmount, toConsume)
+        await tx.payment.update({
+          where: { id: p.id },
+          data: { unappliedAmount: round2(p.unappliedAmount - take) },
+        })
+        toConsume = round2(toConsume - take)
+      }
+    }
 
     if (cashAccountId) {
       await recordPaymentCash(tx, {
@@ -344,6 +388,21 @@ export async function addCharge(formData: FormData) {
       dueDate: dueDateStr ? new Date(dueDateStr) : null,
     },
   })
+
+  // Накопленный аванс арендатора автоматически гасит новое начисление.
+  await applyTenantCreditToCharges(tenantId)
+
+  // Арендатор должен узнать о новом начислении сразу (аудит 2026-06-10, п.8).
+  const tenantUser = await db.tenant.findUnique({ where: { id: tenantId }, select: { userId: true } })
+  if (tenantUser?.userId) {
+    await notifyUser({
+      userId: tenantUser.userId,
+      type: "PAYMENT_DUE",
+      title: `Новое начисление за ${period}`,
+      message: `${CHARGE_TYPES[type] ?? type}: ${amount.toLocaleString("ru-RU")} ₸${dueDateStr ? `, оплатить до ${new Date(dueDateStr).toLocaleDateString("ru-RU")}` : ""}.`,
+      link: "/cabinet/finances",
+    }).catch(() => {})
+  }
 
   revalidatePath("/admin/finances")
   revalidatePath(`/admin/tenants/${tenantId}`)

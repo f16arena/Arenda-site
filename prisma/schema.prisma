@@ -547,6 +547,10 @@ model Floor {
   buildingId        String  @map("building_id")
   number            Int
   name              String
+  // FLOOR — обычный этаж здания; TERRITORY — прилегающая территория (двор,
+  // парковка, открытые площадки). Территория сдаётся теми же Space, но её
+  // площадь не входит в площадь здания.
+  kind              String  @default("FLOOR")
   ratePerSqm        Float   @default(0) @map("rate_per_sqm")
   totalArea         Float?  @map("total_area")
   layoutJson        String? @map("layout_json")
@@ -645,6 +649,14 @@ model Tenant {
   // нового арендатора с таким БИН/ИИН (предупреждение администратору).
   blacklistedAt    DateTime? @map("blacklisted_at")
   blacklistReason  String?   @map("blacklist_reason")
+  // Внутренние заметки владельца/админа («позвонил 5-го, обещал оплатить»).
+  // Арендатору НЕ видны нигде.
+  internalNotes    String?   @map("internal_notes")
+  // Индексация аренды: ежегодное повышение ставки на N % (ст. договора).
+  // Cron в дату nextIndexationAt повышает customRate/fixedMonthlyRent на
+  // indexationPct и сдвигает дату на год вперёд. NULL — индексации нет.
+  indexationPct    Float?    @map("indexation_pct")
+  nextIndexationAt DateTime? @map("next_indexation_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   deletedAt        DateTime? @map("deleted_at")
 
@@ -813,6 +825,10 @@ model Payment {
   paymentDate DateTime  @map("payment_date")
   method      String    @default("TRANSFER")
   note        String?
+  // Нераспределённый остаток платежа (аванс/переплата): FIFO гасит начисления только
+  // целиком, остаток хранится здесь и автоматически закрывает следующие начисления
+  // (lib/tenant-credit.ts). Раньше остаток «терялся» (аудит 2026-06-10, п.5).
+  unappliedAmount Float @default(0) @map("unapplied_amount")
   // Идентификатор из внешней системы (Kaspi txnId, импортированная строка
   // банковской выписки и т.п.) для идемпотентности webhook'ов / повторных импортов.
   externalRef String?   @unique @map("external_ref")

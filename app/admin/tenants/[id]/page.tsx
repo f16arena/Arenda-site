@@ -27,6 +27,9 @@ import {
 import Link from "next/link"
 import { DeleteTenantButton } from "../delete-tenant-button"
 import { BlacklistButton } from "./blacklist-button"
+import { PaymentReminderButton } from "./payment-reminder-button"
+import { TenantNotes } from "./tenant-notes"
+import { RenewContractButton } from "./renew-contract-button"
 import { IndexationHint } from "./indexation-hint"
 import {
   DocumentsActionsLoader,
@@ -34,6 +37,7 @@ import {
   RequisitesFormLoader,
 } from "./client-section-loaders"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
+import { computeDepositStatus, DEPOSIT_STATUS_LABELS } from "@/lib/deposit"
 import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
@@ -149,6 +153,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       basisDocument: true,
       rentFreeMonths: true,
       depositAmount: true,
+      internalNotes: true,
+      indexationPct: true,
+      nextIndexationAt: true,
       moveInDate: true,
       cleaningFee: true,
       needsCleaning: true,
@@ -218,7 +225,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       status: { in: ["SIGNED", "DRAFT", "SIGNED_BY_TENANT", "SENT", "ACTIVE"] },
       type: { not: "ADDENDUM" },
     },
-    select: { startDate: true, endDate: true, status: true, number: true },
+    select: { id: true, startDate: true, endDate: true, status: true, number: true },
     orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
   }).catch(() => null)
 
@@ -248,7 +255,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     ],
   }
 
-  const [vacantSpacesPreview, debtAgg] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
+  const [vacantSpacesPreview, debtAgg, depositCharges, creditAgg] = await measureServerStep("/admin/tenants/[id]", "assignable-spaces-and-debt", Promise.all([
     db.space.findMany({
       where: vacantSpacesWhere,
       select: {
@@ -268,6 +275,23 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       }),
       { _sum: { amount: 0 }, _count: { _all: 0 } },
     ),
+    safe(
+      "tenantDetail.depositCharges",
+      db.charge.findMany({
+        where: { tenantId: tenant.id, type: { in: ["DEPOSIT", "DEPOSIT_REFUND"] }, deletedAt: null },
+        select: { type: true, amount: true, isPaid: true },
+      }),
+      [] as { type: string; amount: number; isPaid: boolean }[],
+    ),
+    safe(
+      "tenantDetail.creditAggregate",
+      // Аванс (переплата): нераспределённые остатки платежей.
+      db.payment.aggregate({
+        where: { tenantId: tenant.id, deletedAt: null, unappliedAmount: { gt: 0 } },
+        _sum: { unappliedAmount: true },
+      }),
+      { _sum: { unappliedAmount: 0 } },
+    ),
   ]))
 
   const vacantSpacesHasMore = vacantSpacesPreview.length > 50
@@ -275,6 +299,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const signedContractsCount = tenant._count.contracts
   const totalDebt = debtAgg._sum.amount ?? 0
   const debtCount = debtAgg._count._all ?? 0
+  const tenantCredit = Math.round((creditAgg._sum.unappliedAmount ?? 0) * 100) / 100
 
   const myFullFloors = tenant.fullFloors.map((f) => ({
     id: f.id,
@@ -306,6 +331,25 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const hasContact = Boolean((tenant.user.phone ?? "").trim() || (tenant.user.email ?? "").trim())
   const hasBankDetails = tenant.bankAccounts.length > 0 || Boolean((tenant.bankName ?? "").trim() && (tenant.iik ?? "").trim() && (tenant.bik ?? "").trim())
   const hasSignedContract = signedContractsCount > 0
+  // Депозит: требуемая сумма (0 = отключён, null = 1 мес. аренды) против оплаченных
+  // DEPOSIT-начислений за вычетом возвратов (DEPOSIT_REFUND).
+  const depositRequired = tenant.depositAmount === 0 ? 0 : (tenant.depositAmount ?? monthlyRent)
+  const depositHeld = depositCharges.reduce((sum, c) => {
+    if (c.type === "DEPOSIT_REFUND") return sum - c.amount
+    return c.isPaid ? sum + c.amount : sum
+  }, 0)
+  const depositStatus = computeDepositStatus({
+    required: depositRequired,
+    held: depositHeld,
+    hasUnpaid: depositCharges.some((c) => c.type === "DEPOSIT" && !c.isPaid && c.amount > 0),
+    hasAnyCharge: depositCharges.length > 0,
+    hasRefund: depositCharges.some((c) => c.type === "DEPOSIT_REFUND"),
+  })
+  const depositOk = depositStatus === "PAID" || depositStatus === "NOT_REQUIRED" || depositStatus === "RETURNED"
+  // Неоплаченный депозит входит в «долг» — подписываем его долю явно (аудит 2026-06-10, п.6а).
+  const unpaidDepositAmount = depositCharges
+    .filter((c) => c.type === "DEPOSIT" && !c.isPaid)
+    .reduce((sum, c) => sum + c.amount, 0)
   const tenantHealthItems: TenantHealthItem[] = [
     {
       label: "Долг",
@@ -318,6 +362,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       value: hasSignedContract ? "подписан" : "нет подписанного",
       ok: hasSignedContract,
       href: `/admin/documents?create=contract&tenantId=${tenant.id}`,
+    },
+    {
+      label: "Депозит",
+      value: DEPOSIT_STATUS_LABELS[depositStatus].toLowerCase(),
+      ok: depositOk,
+      href: "/admin/finances/deposits",
     },
     {
       label: "Помещение",
@@ -399,6 +449,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {activeContract?.status === "SIGNED" && (
+            <RenewContractButton
+              contractId={activeContract.id}
+              contractNumber={activeContract.number}
+              currentEnd={activeContract.endDate?.toISOString().slice(0, 10) ?? null}
+            />
+          )}
+          {totalDebt > 0 && <PaymentReminderButton tenantId={tenant.id} />}
           {canBlacklistTenant && (
           <BlacklistButton
             tenantId={tenant.id}
@@ -425,7 +483,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             label="Текущий долг"
             value={totalDebt > 0 ? formatMoney(totalDebt) : "Нет"}
             valueClass={totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}
-            sub={totalDebt > 0 ? `${debtCount} начислений` : "Все оплачено"}
+            sub={totalDebt > 0
+              ? `${debtCount} начислений${unpaidDepositAmount > 0 ? ` · в т.ч. депозит ${formatMoney(unpaidDepositAmount)}` : ""}${tenantCredit > 0 ? ` · аванс ${formatMoney(tenantCredit)}` : ""}`
+              : tenantCredit > 0 ? `Аванс ${formatMoney(tenantCredit)}` : "Все оплачено"}
           />
           <QuickStat
             icon={Building2}
@@ -513,6 +573,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       </div>
 
       <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
+
+      <TenantNotes tenantId={tenant.id} initial={tenant.internalNotes ?? ""} />
 
       <TenantLazySectionsProvider
         tenantId={tenant.id}
@@ -812,6 +874,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   rentFreeMonths: tenant.rentFreeMonths ?? 0,
                   depositAmount: tenant.depositAmount,
                   moveInDate: tenant.moveInDate?.toISOString().slice(0, 10) ?? null,
+                  indexationPct: tenant.indexationPct,
+                  nextIndexationAt: tenant.nextIndexationAt?.toISOString().slice(0, 10) ?? null,
                 }}
               />
             ) : (

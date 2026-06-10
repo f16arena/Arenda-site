@@ -50,6 +50,8 @@ export async function GET(req: Request) {
     db.charge.findMany({
       where: {
         createdAt: { gte: from, lte: to },
+        // deletedAt: null — удалённые строки не должны попадать в выгрузку (аудит 2026-06-10, п.2).
+        deletedAt: null,
         tenant: tenantWhere,
       },
       include: { tenant: { select: { companyName: true, bin: true, iin: true } } },
@@ -58,6 +60,7 @@ export async function GET(req: Request) {
     db.payment.findMany({
       where: {
         paymentDate: { gte: from, lte: to },
+        deletedAt: null,
         tenant: tenantWhere,
       },
       include: { tenant: { select: { companyName: true, bin: true, iin: true } } },

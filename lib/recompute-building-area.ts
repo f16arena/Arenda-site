@@ -5,8 +5,9 @@
 import { db } from "@/lib/db"
 
 export async function recomputeBuildingArea(buildingId: string): Promise<number> {
+  // Территория (kind=TERRITORY) — двор/парковка, в площадь ЗДАНИЯ не входит.
   const floors = await db.floor.findMany({
-    where: { buildingId },
+    where: { buildingId, kind: { not: "TERRITORY" } },
     select: { totalArea: true },
   })
   const sum = floors.reduce((s, f) => s + (f.totalArea ?? 0), 0)

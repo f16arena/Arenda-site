@@ -614,6 +614,365 @@ export async function unregisterPushDevice() {
   })
 }
 
+// ============================================================================
+// P0/P1/P2: профиль, безопасность, документы, Telegram, задачи, счётчики, QR.
+// ============================================================================
+
+export type MobileMe = {
+  user: {
+    id: string
+    name: string | null
+    email: string | null
+    phone: string | null
+    role: string | null
+    emailVerifiedAt: string | null
+    phoneVerifiedAt: string | null
+    telegramChatId: string | null
+    totpEnabledAt: string | null
+    mustChangePassword: boolean
+  }
+  organization: { id: string; name: string; slug: string; isSuspended: boolean }
+}
+
+export async function getMobileMe() {
+  return authFetch<MobileMe>("/api/mobile/auth/me")
+}
+
+export async function updateMobileProfile(input: { name?: string; phone?: string | null }) {
+  return authFetch<{ user: MobileMe["user"] }>("/api/mobile/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  })
+}
+
+export async function changeMobilePassword(input: {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}) {
+  return authFetch<{ ok: boolean }>("/api/mobile/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export async function enrollMobileTotp() {
+  return authFetch<{ secret: string; otpauthUrl: string; qrDataUrl: string }>(
+    "/api/mobile/auth/totp/enroll",
+    { method: "POST", body: JSON.stringify({}) },
+  )
+}
+
+export async function verifyMobileTotp(input: { secret: string; code: string }) {
+  return authFetch<{ ok: boolean; backupCodes: string[] }>("/api/mobile/auth/totp/verify", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export async function disableMobileTotp(input: { password: string }) {
+  return authFetch<{ ok: boolean }>("/api/mobile/auth/totp/disable", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export async function sendMobileEmailVerification() {
+  return authFetch<{ ok: boolean; sent: boolean; previewUrl?: string }>(
+    "/api/mobile/auth/verify-email",
+    { method: "POST", body: JSON.stringify({}) },
+  )
+}
+
+export async function confirmMobileEmailVerification(token: string) {
+  return authFetch<{ ok: boolean }>("/api/mobile/auth/verify-email", {
+    method: "PATCH",
+    body: JSON.stringify({ token }),
+  })
+}
+
+export async function linkMobileTelegram() {
+  return authFetch<{ url: string; expiresAt: string }>("/api/mobile/profile/telegram", {
+    method: "POST",
+    body: JSON.stringify({}),
+  })
+}
+
+export async function disconnectMobileTelegram() {
+  return authFetch<{ ok: boolean }>("/api/mobile/profile/telegram", { method: "DELETE" })
+}
+
+export async function createSignatureRequest(input: {
+  recipientUserId?: string
+  tenantId?: string
+  documentType: string
+  documentId?: string
+  documentRef?: string
+  title: string
+  message?: string
+  allowedMethods?: string[]
+  preferredMethod?: string
+  expiresAt?: string
+}) {
+  const res = await authFetch<{
+    data: {
+      id: string
+      documentType: string
+      documentId: string | null
+      documentRef: string | null
+      title: string
+      message: string | null
+      status: string
+      allowedMethods: string[]
+      preferredMethod: string
+      expiresAt: string | null
+      createdAt: string
+    }
+  }>("/api/mobile/document-signature-requests", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+  return res.data
+}
+
+export async function respondToSignatureRequest(
+  requestId: string,
+  input: { action: "VIEW" | "REJECT" | "CANCEL"; reason?: string },
+) {
+  return authFetch<{ ok?: boolean; status?: string }>(
+    `/api/mobile/document-signature-requests/${encodeURIComponent(requestId)}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  )
+}
+
+export type AdminMessageThread = {
+  counterpartId: string
+  counterpartName: string
+  tenantId: string | null
+  tenantName: string | null
+  lastMessageAt: string
+  lastBody: string
+  unread: number
+}
+
+export async function getAdminMessages() {
+  return authFetch<{
+    unread: number
+    threads: AdminMessageThread[]
+    data: TenantMessageDto[]
+  }>("/api/mobile/admin/messages")
+}
+
+export async function sendAdminMessage(input: {
+  toUserId?: string
+  tenantId?: string
+  subject?: string
+  body: string
+}) {
+  const res = await authFetch<{ data: Omit<TenantMessageDto, "from" | "direction"> }>(
+    "/api/mobile/admin/messages",
+    { method: "POST", body: JSON.stringify(input) },
+  )
+  return res.data
+}
+
+export type MobileTenantUploadedDocument = {
+  id: string
+  type: string
+  name: string
+  fileUrl: string | null
+  storageFileId: string | null
+  createdAt: string
+  source: "tenant_document"
+  fileName: string
+  mimeType: string | null
+  fileSize: number | null
+  downloadUrl: string | null
+}
+
+export async function uploadTenantDocument(input: {
+  type: string
+  name: string
+  file: PickedUploadFile
+}) {
+  const form = new FormData()
+  form.append("type", input.type)
+  form.append("name", input.name)
+  await appendUploadFile(form, "file", input.file)
+
+  const res = await authFetch<{ data: MobileTenantUploadedDocument }>(
+    "/api/mobile/tenant/documents",
+    { method: "POST", body: form },
+  )
+  return res.data
+}
+
+export async function deleteTenantUploadedDocument(documentId: string) {
+  return authFetch<{ ok: boolean }>(
+    `/api/mobile/tenant/documents?id=${encodeURIComponent(documentId)}`,
+    { method: "DELETE" },
+  )
+}
+
+export type AdminTaskDto = {
+  id: string
+  title: string
+  description: string | null
+  category: string
+  priority: string
+  status: string
+  floorNumber: number | null
+  spaceNumber: string | null
+  estimatedCost: number | null
+  actualCost: number | null
+  dueDate: string | null
+  createdAt: string
+  updatedAt: string
+  building: { id: string; name: string } | null
+  createdBy?: { id: string; name: string | null }
+  assignedTo: { id: string; name: string | null; role: string } | null
+}
+
+export type AdminTasksPayload = {
+  counters: {
+    total: number
+    open: number
+    urgent: number
+    byStatus: Record<string, number>
+  }
+  data: AdminTaskDto[]
+}
+
+export async function getAdminTasks(
+  params: {
+    status?: string
+    priority?: string
+    buildingId?: string
+    assignedToMe?: boolean
+  } = {},
+) {
+  const query = queryString({
+    status: params.status,
+    priority: params.priority,
+    buildingId: params.buildingId,
+    assignedToMe: params.assignedToMe ? "1" : undefined,
+  })
+  return authFetch<AdminTasksPayload>(`/api/mobile/admin/tasks${query}`)
+}
+
+export async function createAdminTask(input: {
+  buildingId?: string
+  title: string
+  description?: string
+  category?: string
+  priority?: string
+  floorNumber?: number
+  spaceNumber?: string
+  estimatedCost?: number
+  dueDate?: string
+  assignedToId?: string
+}) {
+  const res = await authFetch<{ data: AdminTaskDto }>("/api/mobile/admin/tasks", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+  return res.data
+}
+
+export async function updateAdminTask(
+  taskId: string,
+  input: Partial<{
+    title: string
+    description: string | null
+    category: string
+    priority: string
+    status: string
+    estimatedCost: number | null
+    actualCost: number | null
+    dueDate: string | null
+    assignedToId: string | null
+  }>,
+) {
+  const res = await authFetch<{ data: AdminTaskDto }>(
+    `/api/mobile/admin/tasks/${encodeURIComponent(taskId)}`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  )
+  return res.data
+}
+
+export async function deleteAdminTask(taskId: string) {
+  return authFetch<{ ok: boolean }>(
+    `/api/mobile/admin/tasks/${encodeURIComponent(taskId)}`,
+    { method: "DELETE" },
+  )
+}
+
+export type AdminMeterDto = {
+  id: string
+  type: string
+  number: string
+  space: {
+    id: string
+    number: string
+    area: number | null
+    floor: {
+      id: string
+      name: string | null
+      buildingId: string
+      building: { id: string; name: string } | null
+    }
+  }
+  readings: { id: string; value: number; previous: number; period: string; createdAt: string }[]
+}
+
+export async function getAdminMeters(params: { buildingId?: string; spaceId?: string } = {}) {
+  return authFetch<{ data: AdminMeterDto[] }>(
+    `/api/mobile/admin/meters${queryString(params)}`,
+  )
+}
+
+export async function createAdminMeter(input: {
+  spaceId: string
+  type: "ELECTRICITY" | "WATER" | "HEAT"
+  number: string
+  initialValue?: number
+}) {
+  const res = await authFetch<{ data: { id: string; type: string; number: string; spaceId: string } }>(
+    "/api/mobile/admin/meters",
+    { method: "POST", body: JSON.stringify(input) },
+  )
+  return res.data
+}
+
+export async function deleteAdminMeter(meterId: string) {
+  return authFetch<{ ok: boolean; readingsDeleted: number }>(
+    `/api/mobile/admin/meters?id=${encodeURIComponent(meterId)}`,
+    { method: "DELETE" },
+  )
+}
+
+export type PaymentQrPayload = {
+  qrDataUrl: string
+  payload: string
+  requisites: {
+    fullName: string
+    bin: string
+    iik: string
+    bik: string
+    bank: string
+    kbe: string
+    knp: string
+  }
+  period: string
+  purpose: string
+  amount: number | null
+}
+
+export async function getTenantPaymentQr(amount?: number) {
+  const query = amount ? `?amount=${encodeURIComponent(String(amount))}` : ""
+  return authFetch<PaymentQrPayload>(`/api/mobile/tenant/payments/qr${query}`)
+}
+
 async function authFetch<T>(path: string, options: RequestInit = {}, retry = true): Promise<T> {
   const accessToken = await getValidAccessToken()
   const isMultipart = typeof FormData !== "undefined" && options.body instanceof FormData
