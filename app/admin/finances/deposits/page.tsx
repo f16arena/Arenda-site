@@ -68,10 +68,17 @@ export default async function DepositsPage() {
       t.contracts.length > 0 || t.charges.length > 0,
     )
     .map((t) => {
-      // depositAmount = 0 — депозит явно не требуется; null — дефолт 1 мес. аренды.
-      const required = t.depositAmount === 0
-        ? 0
-        : Math.round((t.depositAmount ?? calculateTenantMonthlyRent(t)) * 100) / 100
+      // Приоритет «требуется»: выставленные DEPOSIT-начисления (сумма из
+      // договора) → depositAmount карточки (0 = явно не требуется) → 1 мес.
+      // аренды как дефолт-оценка.
+      const issuedDeposit = Math.round(
+        t.charges.filter((c) => c.type === "DEPOSIT").reduce((sum, c) => sum + c.amount, 0) * 100,
+      ) / 100
+      const required = issuedDeposit > 0
+        ? issuedDeposit
+        : t.depositAmount === 0
+          ? 0
+          : Math.round((t.depositAmount ?? calculateTenantMonthlyRent(t)) * 100) / 100
       // Удерживается = оплаченные DEPOSIT − DEPOSIT_REFUND (возвраты — отдельным типом).
       const held = Math.round(
         t.charges.reduce((sum, c) => {

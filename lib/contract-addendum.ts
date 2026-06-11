@@ -46,6 +46,7 @@ export async function applySignedContractChanges(contractId: string) {
         parentContractId: true,
         startDate: true,
         endDate: true,
+        builderState: true,
       },
     })
 
@@ -56,15 +57,35 @@ export async function applySignedContractChanges(contractId: string) {
     // арендатора — карточка драйвит биллинг, и дата должна браться из договора,
     // а не из ранее введённых вручную полей. Покрывает все пути подписи разом.
     if (contract.type !== "ADDENDUM") {
-      if (contract.status === "SIGNED" && (contract.startDate || contract.endDate)) {
-        await tx.tenant.update({
-          where: { id: contract.tenantId },
-          data: {
-            ...(contract.startDate ? { contractStart: contract.startDate } : {}),
-            ...(contract.endDate ? { contractEnd: contract.endDate } : {}),
-          },
-        })
-        return { applied: true, reason: "contract_dates_synced" }
+      if (contract.status === "SIGNED") {
+        // Договор — источник правды для биллинга: помимо срока синхронизируем
+        // ставку аренды и депозит из конструктора в карточку арендатора.
+        // Иначе cron/страницы считают по ставке этажа (м² × тариф), и при
+        // договорной цене счета расходятся с подписанным договором.
+        const financials = asRecord(asRecord(contract.builderState)?.financials)
+        const contractRent = numberOrNull(financials?.monthlyRent)
+        const deposit = asRecord(financials?.deposit)
+        const depositEnabled = boolOrNull(deposit?.enabled)
+        const depositAmount = numberOrNull(deposit?.amount)
+
+        const data: Record<string, unknown> = {
+          ...(contract.startDate ? { contractStart: contract.startDate } : {}),
+          ...(contract.endDate ? { contractEnd: contract.endDate } : {}),
+          // Фиксированная договорная аренда; customRate обнуляем, чтобы не было
+          // «двойной аренды» (она же — проверка качества данных на дашборде).
+          ...(contractRent ? { fixedMonthlyRent: contractRent, customRate: null } : {}),
+          // Депозит: явно отключён в конструкторе → 0 (не требуется); задана
+          // сумма → она; иначе поле не трогаем.
+          ...(depositEnabled === false
+            ? { depositAmount: 0 }
+            : depositAmount
+              ? { depositAmount }
+              : {}),
+        }
+        if (Object.keys(data).length > 0) {
+          await tx.tenant.update({ where: { id: contract.tenantId }, data })
+          return { applied: true, reason: "contract_terms_synced" }
+        }
       }
       return { applied: false, reason: "not_addendum" }
     }
