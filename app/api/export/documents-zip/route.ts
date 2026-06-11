@@ -34,12 +34,23 @@ export async function GET(req: Request) {
   const types = typesRaw.split(",").map((t) => t.trim().toUpperCase()).filter((t) => TYPE_LABEL[t])
   if (types.length === 0) return NextResponse.json({ error: "Неизвестные типы документов" }, { status: 400 })
 
-  const docs = await db.generatedDocument.findMany({
-    where: { organizationId: orgId, documentType: { in: types }, period, deletedAt: null },
-    select: { documentType: true, number: true, tenantName: true, fileName: true, fileBytes: true },
-    orderBy: [{ documentType: "asc" }, { number: "asc" }],
-    take: 500,
-  })
+  // Cursor-пагинация: выгружаем ВСЕ документы периода, не обрезая на лимите
+  type ZipDoc = { id: string; documentType: string; number: string | null; tenantName: string; fileName: string; fileBytes: Buffer | Uint8Array }
+  const docs: ZipDoc[] = []
+  let zipCursor: string | undefined
+  for (;;) {
+    const batch = await db.generatedDocument.findMany({
+      where: { organizationId: orgId, documentType: { in: types }, period, deletedAt: null },
+      select: { id: true, documentType: true, number: true, tenantName: true, fileName: true, fileBytes: true },
+      orderBy: { id: "asc" },
+      take: 100,
+      ...(zipCursor ? { skip: 1, cursor: { id: zipCursor } } : {}),
+    })
+    docs.push(...(batch as unknown as ZipDoc[]))
+    if (batch.length < 100) break
+    zipCursor = batch[batch.length - 1].id
+  }
+  docs.sort((a, b) => a.documentType.localeCompare(b.documentType) || String(a.number ?? "").localeCompare(String(b.number ?? ""), "ru"))
   if (docs.length === 0) {
     return NextResponse.json({ error: `За ${period} документов не найдено` }, { status: 404 })
   }

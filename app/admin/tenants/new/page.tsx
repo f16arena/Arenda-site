@@ -36,7 +36,7 @@ export default async function NewTenantWizardPage() {
       floor: { select: { name: true, ratePerSqm: true, building: { select: { id: true, name: true } } } },
     },
     orderBy: [{ floor: { building: { name: "asc" } } }, { floor: { number: "asc" } }, { number: "asc" }],
-    take: 300,
+    take: 140,
   })
 
   return (

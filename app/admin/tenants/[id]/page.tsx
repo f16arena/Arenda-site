@@ -12,7 +12,6 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { spaceScope } from "@/lib/tenant-scope"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import {
-  updateTenant,
   updateTenantUser,
   assignTenantSpace,
   unassignTenantSpace,
@@ -30,7 +29,6 @@ import { BlacklistButton } from "./blacklist-button"
 import { PaymentReminderButton } from "./payment-reminder-button"
 import { TenantNotes } from "./tenant-notes"
 import { RenewContractButton } from "./renew-contract-button"
-import { IndexationHint } from "./indexation-hint"
 import {
   DocumentsActionsLoader,
   RentalTermsFormLoader,
@@ -40,16 +38,14 @@ import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRe
 import { computeDepositStatus, DEPOSIT_STATUS_LABELS } from "@/lib/deposit"
 import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
-import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
-import { TenantIdentityFields } from "../tenant-identity-fields"
 import { ExternalContractButton } from "./external-contract-button"
-import { RentalPeriodCard } from "./rental-period-card"
+import { CompanyForm } from "./company-form"
 import { Tabs, Tab } from "@/components/ui/server-tabs"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
-import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
+import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import {
@@ -648,164 +644,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             icon={Building2}
             meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"} · ${tenant.isVatPayer ? `НДС ${tenantVatRate}%` : "без НДС"}`}
           >
-            <form
-              action={async (formData: FormData) => {
-                "use server"
-                await updateTenant(tenant.id, formData)
-              }}
-              className="p-5 grid grid-cols-2 gap-4"
-            >
-              {/* Эта форма НЕ редактирует bankName/iik/bik/cleaningFee/customRate/
-                  fixedMonthlyRent — они в других формах. Убраны вредные hidden-inputs
-                  (раньше затирали значения нулём/пустотой при сохранении).
-                  Sentinel «isVatPayerForm=1» сообщает action что НДС-чекбокс в этой
-                  форме — иначе несохранённая галка не превратится в false. */}
-              <input type="hidden" name="isVatPayerForm" value="1" />
-
-              <fieldset disabled={!canEditCompany} className="contents">
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название компании</label>
-                <input
-                  name="companyName"
-                  defaultValue={tenant.companyName}
-                  required
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <TenantIdentityFields
-                initialLegalType={tenant.legalType}
-                initialBin={tenant.bin}
-                initialIin={tenant.iin}
-              />
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
-                <input
-                  name="category"
-                  defaultValue={tenant.category ?? ""}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300">
-                    <input
-                      name="isVatPayer"
-                      type="checkbox"
-                      defaultChecked={tenant.isVatPayer}
-                      className="mt-1 rounded border-slate-300"
-                    />
-                    <span>
-                      <span className="block font-medium text-slate-900 dark:text-slate-100">Арендатор — плательщик НДС</span>
-                      <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-                        Для карточки контрагента, документов и будущего ЭСФ-контура.
-                      </span>
-                    </span>
-                  </label>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ставка НДС арендатора</label>
-                    <select
-                      name="vatRate"
-                      defaultValue={String(tenantVatRate)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900"
-                    >
-                      {KZ_VAT_RATE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                      Можно выбрать только ставки, предусмотренные НК РК: 0%, 5%, 10% или 16%.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>
-                <AddressAutocompleteInput
-                  name="legalAddress"
-                  defaultValue={tenant.legalAddress ?? ""}
-                  includeStructuredFields={false}
-                  placeholder="г. Усть-Каменогорск, ул..."
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Фактический адрес</label>
-                <AddressAutocompleteInput
-                  name="actualAddress"
-                  defaultValue={tenant.actualAddress ?? ""}
-                  includeStructuredFields={false}
-                  placeholder="Если совпадает с юридическим — оставьте пустым"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО руководителя</label>
-                <input
-                  name="directorName"
-                  defaultValue={tenant.directorName ?? ""}
-                  placeholder="Иванов Иван Иванович"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Должность руководителя</label>
-                <input
-                  name="directorPosition"
-                  defaultValue={tenant.directorPosition ?? ""}
-                  placeholder="Директор / Учредитель"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div className="col-span-full">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                  Целевое использование помещения
-                </label>
-                <input
-                  name="usePurpose"
-                  defaultValue={tenant.usePurpose ?? ""}
-                  placeholder="например: офиса частного судебного исполнителя / розничной торговли / салона красоты"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  Подставится в п. 1.1 договора: «для использования в целях <span className="font-mono">размещения [текст]</span>». Если пусто — «по согласованному Сторонами назначению».
-                </p>
-              </div>
-              <div className="col-span-full">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                  Действует на основании
-                </label>
-                <input
-                  name="basisDocument"
-                  defaultValue={tenant.basisDocument ?? ""}
-                  placeholder="ИП: Талона №KZ16UWQ03665823 от 01.07.2022 / ТОО: Устава / ЧСИ: лицензии №..."
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  Подставится в шапке договора: «…действующий <span className="font-mono">на основании [текст]</span>».
-                  ИП — Талона (Уведомления о начале деятельности), ТОО — Устава, ЧСИ — лицензии. Если пусто — фраза по форме собственности без БИН.
-                </p>
-              </div>
-              {/* Период аренды — из активного Договора (вынесено в компонент). */}
-              <RentalPeriodCard activeContract={activeContract} />
-              <IndexationHint
-                initialContractEnd={tenant.contractEnd?.toISOString().slice(0, 10) ?? null}
-                initialRate={ratePerSqm}
-                monthlyRent={monthlyRent}
-              />
-              <div className="col-span-2 flex justify-end">
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={!canEditCompany}
-                  className="font-medium"
-                >
-                  Сохранить
-                </Button>
-              </div>
-              </fieldset>
-            </form>
+            {/* Форма вынесена в company-form.tsx (perf-gate: страница < 55 КБ) */}
+            <CompanyForm
+              tenant={tenant}
+              canEditCompany={canEditCompany}
+              tenantVatRate={tenantVatRate}
+              activeContract={activeContract}
+              ratePerSqm={ratePerSqm}
+              monthlyRent={monthlyRent}
+            />
 
             {/* === Объединено 2026-05-27: Банковские реквизиты теперь
                 раздел внутри «Данные компании» === */}

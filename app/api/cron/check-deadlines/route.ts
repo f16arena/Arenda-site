@@ -290,61 +290,88 @@ export async function GET(req: Request) {
     //        заявки на подпись (АВР/акт сверки). Напоминаем раз в 3 дня,
     //        начиная со 2-го дня ожидания (аудит 2026-06-10: автонапоминания).
     const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 3600 * 1000)
-    const pendingContracts = await db.contract.findMany({
-      where: { deletedAt: null, status: { in: ["SENT", "VIEWED"] }, sentAt: { lt: twoDaysAgo } },
-      select: {
-        number: true,
-        type: true,
-        sentAt: true,
-        tenant: { select: { userId: true } },
-      },
-      take: 500,
-    })
-    for (const c of pendingContracts) {
-      const waitDays = c.sentAt ? Math.floor((now.getTime() - c.sentAt.getTime()) / 86_400_000) : 0
-      const docTitle = c.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
-      await notifyUser({
-        userId: c.tenant.userId,
-        type: "DOCUMENT_SIGN_REQUEST",
-        title: `${docTitle} № ${c.number} ждёт вашей подписи`,
-        message: `${docTitle} № ${c.number} отправлен вам на подпись ${waitDays} дн. назад и ещё не подписан. Откройте кабинет → Документы, проверьте условия и подпишите (или отклоните с причиной).`,
-        link: "/cabinet/documents",
-        dedupWindowHours: 71, // не чаще раза в ~3 дня
+    // Cursor-пагинация: не обрезаем хвост (notifyUser сам дедуплицирует 71ч)
+    let contractCursor: string | undefined
+    for (;;) {
+      const batch = await db.contract.findMany({
+        where: { deletedAt: null, status: { in: ["SENT", "VIEWED"] }, sentAt: { lt: twoDaysAgo } },
+        select: {
+          id: true,
+          number: true,
+          type: true,
+          sentAt: true,
+          tenant: { select: { userId: true } },
+        },
+        orderBy: { id: "asc" },
+        take: 100,
+        ...(contractCursor ? { skip: 1, cursor: { id: contractCursor } } : {}),
       })
-      results.signRemindersSent++
+      if (batch.length === 0) break
+      for (const c of batch) {
+        const waitDays = c.sentAt ? Math.floor((now.getTime() - c.sentAt.getTime()) / 86_400_000) : 0
+        const docTitle = c.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+        await notifyUser({
+          userId: c.tenant.userId,
+          type: "DOCUMENT_SIGN_REQUEST",
+          title: `${docTitle} № ${c.number} ждёт вашей подписи`,
+          message: `${docTitle} № ${c.number} отправлен вам на подпись ${waitDays} дн. назад и ещё не подписан. Откройте кабинет → Документы, проверьте условия и подпишите (или отклоните с причиной).`,
+          link: "/cabinet/documents",
+          dedupWindowHours: 71, // не чаще раза в ~3 дня
+        })
+        results.signRemindersSent++
+      }
+      if (batch.length < 100) break
+      contractCursor = batch[batch.length - 1].id
     }
 
-    const pendingSignRequests = await db.documentSignatureRequest.findMany({
-      where: { status: { in: ["PENDING", "VIEWED"] }, createdAt: { lt: twoDaysAgo } },
-      select: { recipientUserId: true, title: true },
-      take: 500,
-    })
-    for (const r of pendingSignRequests) {
-      await notifyUser({
-        userId: r.recipientUserId,
-        type: "DOCUMENT_SIGN_REQUEST",
-        title: "Документ ждёт вашей подписи",
-        message: `«${r.title}» ожидает подписания. Откройте раздел «Документы» и подпишите.`,
-        link: "/cabinet/documents",
-        dedupWindowHours: 71,
+    let requestCursor: string | undefined
+    for (;;) {
+      const batch = await db.documentSignatureRequest.findMany({
+        where: { status: { in: ["PENDING", "VIEWED"] }, createdAt: { lt: twoDaysAgo } },
+        select: { id: true, recipientUserId: true, title: true },
+        orderBy: { id: "asc" },
+        take: 100,
+        ...(requestCursor ? { skip: 1, cursor: { id: requestCursor } } : {}),
       })
-      results.signRemindersSent++
+      if (batch.length === 0) break
+      for (const r of batch) {
+        await notifyUser({
+          userId: r.recipientUserId,
+          type: "DOCUMENT_SIGN_REQUEST",
+          title: "Документ ждёт вашей подписи",
+          message: `«${r.title}» ожидает подписания. Откройте раздел «Документы» и подпишите.`,
+          link: "/cabinet/documents",
+          dedupWindowHours: 71,
+        })
+        results.signRemindersSent++
+      }
+      if (batch.length < 100) break
+      requestCursor = batch[batch.length - 1].id
     }
 
     // ── 2c. Счёт/АВР без подписи ВЛАДЕЛЬЦА: автосозданные документы лежат в
     //        архиве, пока владелец не подпишет — после подписи уходят арендатору.
     //        Напоминаем владельцу и админам раз в 3 дня.
     const currentPeriodStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-    const periodDocs = await db.generatedDocument.findMany({
-      where: {
-        documentType: { in: ["INVOICE", "ACT"] },
-        period: currentPeriodStr,
-        deletedAt: null,
-        generatedAt: { lt: twoDaysAgo },
-      },
-      select: { id: true, organizationId: true },
-      take: 1000,
-    })
+    const periodDocs: Array<{ id: string; organizationId: string }> = []
+    let docCursor: string | undefined
+    for (;;) {
+      const batch = await db.generatedDocument.findMany({
+        where: {
+          documentType: { in: ["INVOICE", "ACT"] },
+          period: currentPeriodStr,
+          deletedAt: null,
+          generatedAt: { lt: twoDaysAgo },
+        },
+        select: { id: true, organizationId: true },
+        orderBy: { id: "asc" },
+        take: 100,
+        ...(docCursor ? { skip: 1, cursor: { id: docCursor } } : {}),
+      })
+      periodDocs.push(...batch)
+      if (batch.length < 100) break
+      docCursor = batch[batch.length - 1].id
+    }
     if (periodDocs.length > 0) {
       const signedDocIds = new Set(
         (await db.documentSignature.findMany({
