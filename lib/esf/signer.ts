@@ -26,6 +26,9 @@ const ESF_SIGN_URL = (process.env.ESF_SIGN_URL || "").replace(/\/$/, "")
 const ESF_SIGN_CERT_PATH = process.env.ESF_SIGN_CERT_PATH || ""
 const ESF_SIGN_CERT_PIN = process.env.ESF_SIGN_CERT_PIN || ""
 const ESF_SIGN_NS = process.env.ESF_SIGN_NS || "esf"
+// Секрет Caddy-маршрута на VPS (тот же приём, что X-Ncanode-Secret):
+// сервис подписи проксируется через https://ecp.commrent.kz/LocalService.
+const ESF_SIGN_SECRET = process.env.ESF_SIGN_SECRET || ""
 
 export function esfSignerConfigured(): boolean {
   return !!(ESF_SIGN_URL && ESF_SIGN_CERT_PATH && ESF_SIGN_CERT_PIN)
@@ -74,7 +77,11 @@ export async function signAwpXml(awpXml: string): Promise<EsfSignResult> {
   try {
     const res = await fetch(ESF_SIGN_URL, {
       method: "POST",
-      headers: { "Content-Type": "text/xml; charset=utf-8", SOAPAction: "" },
+      headers: {
+        "Content-Type": "text/xml; charset=utf-8",
+        SOAPAction: "",
+        ...(ESF_SIGN_SECRET ? { "X-Esf-Sign-Secret": ESF_SIGN_SECRET } : {}),
+      },
       body: envelope,
       signal: AbortSignal.timeout(20_000),
       cache: "no-store",
