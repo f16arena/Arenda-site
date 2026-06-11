@@ -92,7 +92,10 @@ export async function buildAvrStateForTenant(
   // (аренда + эксплуатационные расходы + уборка/доп. услуги).
   const date = periodEndDate(period)
   const items: AvrItem[] = []
+  // АВР — акт об ОКАЗАННЫХ УСЛУГАХ: депозит, возвраты и пеня услугами не
+  // являются и в акт не попадают.
   for (const c of tenant.charges) {
+    if (c.type === "DEPOSIT" || c.type === "DEPOSIT_REFUND" || c.type === "PENALTY") continue
     items.push({ name: c.description || CHARGE_TYPE_LABEL[c.type] || c.type, date, report: "", unit: "усл.", qty: 1, price: Math.round(c.amount) })
   }
   if (items.length === 0) {

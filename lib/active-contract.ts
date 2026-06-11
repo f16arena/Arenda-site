@@ -98,17 +98,37 @@ export async function buildContractPositions(
     }
   }
 
-  if (tenant.needsCleaning && (tenant.cleaningFee ?? 0) > 0) {
-    positions.push({ name: `Уборка помещения за ${period}`, amount: Math.round(tenant.cleaningFee ?? 0) })
+  // Доп. услуги из конструктора договора (Приложение № 2: уборка/охрана/интернет).
+  type OrderedService = { ordered?: boolean; monthly?: number }
+  const st = contract.builderState as {
+    financials?: {
+      additionalServices?: {
+        internet?: OrderedService
+        premisesCleaning?: OrderedService
+        premisesSecurity?: OrderedService
+      }
+    }
+  } | null
+  const add = st?.financials?.additionalServices
+  const orderedAmount = (s: OrderedService | undefined) =>
+    s?.ordered && typeof s.monthly === "number" && s.monthly > 0 ? Math.round(s.monthly) : 0
+
+  // Уборка: карточка арендатора первична (синхронизируется при подписании);
+  // для договоров, подписанных до синка, — fallback на договор.
+  const cleaningFromCard = tenant.needsCleaning && (tenant.cleaningFee ?? 0) > 0 ? Math.round(tenant.cleaningFee ?? 0) : 0
+  const cleaning = cleaningFromCard || orderedAmount(add?.premisesCleaning)
+  if (cleaning > 0) {
+    positions.push({ name: `Уборка помещения за ${period}`, amount: cleaning })
   }
 
-  // Доп. услуги из конструктора договора (если в договоре заказаны с суммой).
-  const st = contract.builderState as {
-    financials?: { additionalServices?: { internet?: { ordered?: boolean; monthly?: number } } }
-  } | null
-  const internet = st?.financials?.additionalServices?.internet
-  if (internet?.ordered && typeof internet.monthly === "number" && internet.monthly > 0) {
-    positions.push({ name: `Услуги интернета за ${period}`, amount: Math.round(internet.monthly) })
+  const security = orderedAmount(add?.premisesSecurity)
+  if (security > 0) {
+    positions.push({ name: `Охрана помещения за ${period}`, amount: security })
+  }
+
+  const internet = orderedAmount(add?.internet)
+  if (internet > 0) {
+    positions.push({ name: `Услуги интернета за ${period}`, amount: internet })
   }
 
   return positions

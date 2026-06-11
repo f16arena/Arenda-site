@@ -86,8 +86,11 @@ export async function buildInvoiceStateForTenant(
 
   // Позиции: начисления за период (биллинг — источник истины). Если их ещё нет —
   // собираем по договору: аренда + эксплуатационные расходы (+ уборка, доп. услуги).
+  // Депозит — НЕ позиция месячного счёта (отдельный поток «Финансы → Депозиты»):
+  // иначе счёт свежеподписанного договора состоял бы из одного депозита без аренды.
   const items: InvoiceItem[] = []
   for (const c of tenant.charges) {
+    if (c.type === "DEPOSIT" || c.type === "DEPOSIT_REFUND") continue
     items.push({ name: c.description || CHARGE_TYPE_LABEL[c.type] || c.type, unit: "услуга", qty: 1, price: Math.round(c.amount) })
   }
   if (items.length === 0) {

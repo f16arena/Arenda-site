@@ -67,6 +67,11 @@ export async function applySignedContractChanges(contractId: string) {
         const deposit = asRecord(financials?.deposit)
         const depositEnabled = boolOrNull(deposit?.enabled)
         const depositAmount = numberOrNull(deposit?.amount)
+        // Уборка из заявления на доп. услуги (Приложение № 2) — биллинг берёт
+        // её из карточки (needsCleaning/cleaningFee), синхронизируем.
+        const cleaning = asRecord(asRecord(financials?.additionalServices)?.premisesCleaning)
+        const cleaningOrdered = boolOrNull(cleaning?.ordered)
+        const cleaningMonthly = numberOrNull(cleaning?.monthly)
 
         const data: Record<string, unknown> = {
           ...(contract.startDate ? { contractStart: contract.startDate } : {}),
@@ -80,6 +85,11 @@ export async function applySignedContractChanges(contractId: string) {
             ? { depositAmount: 0 }
             : depositAmount
               ? { depositAmount }
+              : {}),
+          ...(cleaningOrdered === true && cleaningMonthly
+            ? { needsCleaning: true, cleaningFee: cleaningMonthly }
+            : cleaningOrdered === false
+              ? { needsCleaning: false, cleaningFee: 0 }
               : {}),
         }
         if (Object.keys(data).length > 0) {
