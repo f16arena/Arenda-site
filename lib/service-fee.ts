@@ -57,25 +57,33 @@ export function getTenantBuildingId(tenant: Pick<TenantForServiceFee, "space" | 
 }
 
 /**
- * Считает общую арендуемую площадь = space + tenantSpaces + fullFloors.
- * Только из помещений/этажей того же здания, что вернёт getTenantBuildingId.
+ * Считает арендуемую площадь арендатора в здании БЕЗ задвоения.
+ * Привязки часто дублируют друг друга (space и tenantSpaces указывают на одно
+ * помещение; «этаж целиком» включает помещения этажа), поэтому источники
+ * берутся по приоритету, а не суммируются (та же логика, что в lib/rent и
+ * lib/tenant-placement):
+ *   1) этажи целиком (totalArea) — покрывают свои помещения;
+ *   2) иначе связи tenantSpaces;
+ *   3) иначе прямая привязка space.
  */
 export function getTenantArea(tenant: Pick<TenantForServiceFee, "space" | "tenantSpaces" | "fullFloors">, buildingId: string): number {
-  let total = 0
-  if (tenant.space?.floor.buildingId === buildingId && tenant.space.area) {
-    total += tenant.space.area
-  }
-  for (const ts of tenant.tenantSpaces) {
-    if (ts.space.floor.buildingId === buildingId && ts.space.area) {
-      total += ts.space.area
-    }
-  }
+  let fullFloorTotal = 0
   for (const ff of tenant.fullFloors) {
     if (ff.buildingId === buildingId && ff.totalArea) {
-      total += ff.totalArea
+      fullFloorTotal += ff.totalArea
     }
   }
-  return total
+  if (fullFloorTotal > 0) return fullFloorTotal
+
+  const linked = tenant.tenantSpaces.filter((ts) => ts.space.floor.buildingId === buildingId && ts.space.area)
+  if (linked.length > 0) {
+    return linked.reduce((sum, ts) => sum + (ts.space.area ?? 0), 0)
+  }
+
+  if (tenant.space?.floor.buildingId === buildingId && tenant.space.area) {
+    return tenant.space.area
+  }
+  return 0
 }
 
 /**
