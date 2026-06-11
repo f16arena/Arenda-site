@@ -76,6 +76,14 @@ function shouldSkipDeployMigrations(url) {
   if (process.env.SKIP_DEPLOY_MIGRATIONS === "1") return true
   if (process.env.FORCE_DEPLOY_MIGRATIONS === "1") return false
 
+  // Preview-билды (ветки) делят базу с продом: когда ветку и main пушат почти
+  // одновременно, два `migrate deploy` стартуют параллельно и один падает на
+  // «column already exists», блокируя все следующие деплои (P3009).
+  // Миграции применяет только production-билд.
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production") {
+    return true
+  }
+
   if (!url) {
     return process.env.CI === "true"
   }
