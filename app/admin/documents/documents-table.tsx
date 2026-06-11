@@ -14,6 +14,7 @@ import {
 import { formatMoney } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LandlordSignButton } from "@/components/documents/landlord-sign-button"
+import { EsfControl } from "./esf-send-button"
 
 const LANDLORD_SIGNABLE_TYPES = new Set(["ACT", "RECONCILIATION", "INVOICE"])
 
@@ -57,6 +58,10 @@ export interface DocRow {
   isSigned?: boolean
   /** Статус оплаты для счёта (по начислениям периода): оплачен / долг / нет начислений. */
   paymentStatus?: "paid" | "debt" | "none" | null
+  /** Интеграция ИС ЭСФ (для АВР): статус, рег. номер, последняя ошибка */
+  esfStatus?: string | null
+  esfRegNumber?: string | null
+  esfError?: string | null
 }
 
 export const DOC_CATEGORY_TABS: { key: DocCategory; label: string }[] = [
@@ -264,6 +269,15 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
       <div className="flex items-center justify-end gap-2">
         {row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
           <LandlordSignButton documentId={row.generatedId} />
+        )}
+        {/* Электронный АВР в ИС ЭСФ (КГД): отправка + статус подтверждения арендатором */}
+        {row.source === "generated" && row.generatedId && row.type === "ACT" && (
+          <EsfControl
+            documentId={row.generatedId}
+            status={row.esfStatus ?? null}
+            regNumber={row.esfRegNumber ?? null}
+            error={row.esfError ?? null}
+          />
         )}
         {row.isSigned && row.deleteId && (
           <Link

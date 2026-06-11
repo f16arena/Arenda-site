@@ -269,6 +269,9 @@ export default async function DocumentsPage({
       paymentStatus: g.documentType === "INVOICE" && g.tenantId && g.period
         ? (paidStatusByKey.get(`${g.tenantId}|${g.period}`) ?? "none")
         : null,
+      esfStatus: g.esfStatus,
+      esfRegNumber: g.esfRegNumber,
+      esfError: g.esfError,
     }
   })
 

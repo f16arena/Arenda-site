@@ -1243,6 +1243,15 @@ model GeneratedDocument {
   generatedAt    DateTime  @default(now()) @map("generated_at")
   templateUsedId String?   @map("template_used_id")
   deletedAt      DateTime? @map("deleted_at")
+  // Договор-источник: счёт/АВР/сверка выписаны по нему (номер, дата, суммы).
+  // Жёсткая связь для «дерева документов» арендатора и ссылок ЭСФ.
+  contractId     String?   @map("contract_id")
+  // Интеграция с ИС ЭСФ (КГД): id и рег. номер в госсистеме + статус
+  esfId          String?   @map("esf_id")
+  esfRegNumber   String?   @map("esf_reg_number")
+  esfStatus      String?   @map("esf_status") // SENT | DELIVERED | CONFIRMED | DECLINED | CANCELED | FAILED
+  esfSentAt      DateTime? @map("esf_sent_at")
+  esfError       String?   @map("esf_error")
 
   @@index([organizationId, documentType])
   @@index([organizationId, documentType, generatedAt])
@@ -1255,6 +1264,7 @@ model GeneratedDocument {
   // когда запрос ещё и фильтрует по organizationId.
   @@index([organizationId, tenantId])
   @@index([deletedAt])
+  @@index([contractId])
   @@map("generated_documents")
 }
 

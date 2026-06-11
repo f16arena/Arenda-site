@@ -7,6 +7,7 @@ import { avrTotal, type AvrState } from "@/lib/avr-engine"
 import { buildInvoiceStateForTenant } from "@/lib/invoice-engine/prefill"
 import { buildAvrStateForTenant } from "@/lib/avr-engine/prefill"
 import { nextDocumentNumber } from "@/lib/document-number"
+import { getActiveContractForTenant } from "@/lib/active-contract"
 import { notifyUser } from "@/lib/notify"
 
 /**
@@ -52,6 +53,7 @@ export async function createInvoiceForTenant(
     console.warn("[auto-documents] счёт не создан:", r.error)
     return null
   }
+  const contract = await getActiveContractForTenant(tenantId)
   const number = await nextDocumentNumber(orgId, "INVOICE")
   const state: InvoiceState = { ...r.state, meta: { ...r.state.meta, number } }
   const buf = await renderInvoiceDocx(state)
@@ -63,6 +65,7 @@ export async function createInvoiceForTenant(
       tenantId,
       tenantName,
       period,
+      contractId: contract?.id ?? null,
       totalAmount: invTotal(state),
       fileName: `Счёт_${number}_${period}.docx`,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -92,6 +95,7 @@ export async function createActForTenant(
     console.warn("[auto-documents] АВР не создан:", r.error)
     return null
   }
+  const contract = await getActiveContractForTenant(tenantId)
   const number = await nextDocumentNumber(orgId, "ACT")
   const state: AvrState = { ...r.state, meta: { ...r.state.meta, number } }
   const buf = await renderAvrDocx(state)
@@ -103,6 +107,7 @@ export async function createActForTenant(
       tenantId,
       tenantName,
       period,
+      contractId: contract?.id ?? null,
       totalAmount: avrTotal(state),
       fileName: `АВР_${number}_${period}.docx`,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
