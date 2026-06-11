@@ -31,8 +31,9 @@ export interface TaxpayerInfo {
   status: string | null
 }
 
+// print=false — обязательный по инструкции КГД параметр (false = JSON, true = PDF base64)
 const KGD_PORTAL_URL =
-  "https://portal.kgd.gov.kz/services/isnaportalsync/public/taxpayer-data?taxpayerCode={taxId}&taxpayerType={taxpayerType}"
+  "https://portal.kgd.gov.kz/services/isnaportalsync/public/taxpayer-data?taxpayerCode={taxId}&taxpayerType={taxpayerType}&print=false"
 
 export function kgdConfigured(): boolean {
   return !!(process.env.KGD_API_URL || process.env.KGD_API_KEY)
@@ -66,17 +67,25 @@ function findString(value: unknown, keys: string[], depth = 0): string | null {
   return null
 }
 
+type PortalEndReason = { code?: string | null; ru?: string | null; en?: string | null } | null
 type PortalEntry = {
   errorMessage?: string | null
   messageResult?: string | null
   code?: string | null
   taxpayerType?: string | null
-  fullName?: string | { lastName?: string; firstName?: string; middleName?: string } | null
-  registrationType?: { ru?: string; kk?: string; en?: string } | string | null
+  /** ЮЛ и ИП: наименование/ФИО строкой */
+  name?: string | null
+  /** ЛЗЧП (нотариус/адвокат/ЧСИ): ФИО объектом */
+  fullName?: { lastName?: string | null; firstName?: string | null; middleName?: string | null } | string | null
   beginDate?: string | null
   endDate?: string | null
-  additionalInfo?: string | null
-  taxOrg?: string | null
+  endReason?: PortalEndReason
+  lzchpTypes?: Array<{
+    lzchpType?: string | null
+    beginDate?: string | null
+    endDate?: string | null
+    endReason?: PortalEndReason
+  }> | null
 }
 
 function cleanStr(v: unknown): string | null {
@@ -85,37 +94,69 @@ function cleanStr(v: unknown): string | null {
   return s && s.toLowerCase() !== "null" ? s : null
 }
 
+/** "2022-01-05" → "05.01.2022" (иначе — как есть) */
+function fmtDate(v: string | null): string | null {
+  if (!v) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v)
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : v
+}
+
+const TAXPAYER_TYPE_RU: Record<string, string> = { UL: "Юрлицо", IP: "ИП", LZCHP: "Частная практика" }
+const LZCHP_TYPE_RU: Record<string, string> = {
+  NOTARY: "Нотариус",
+  ADVOCATE: "Адвокат",
+  LAWYER: "Адвокат",
+  PRIVATE_BAILIFF: "Частный судебный исполнитель",
+  CHSI: "Частный судебный исполнитель",
+  MEDIATOR: "Медиатор",
+}
+
+/** «на учёте с …» / «снят с учёта … — Ликвидация» */
+function registrationSpan(begin: string | null, end: string | null, endReason: PortalEndReason): string | null {
+  if (end) {
+    const reason = cleanStr(endReason?.ru)
+    return `снят с учёта ${fmtDate(end)}${reason ? ` — ${reason}` : ""}`
+  }
+  if (begin) return `действующий, на учёте с ${fmtDate(begin)}`
+  return null
+}
+
 /** Формат официального API портала КГД: { taxpayerPortalSearchResponses: [...] } */
 function parseKgdPortal(data: unknown): TaxpayerInfo | null {
   const arr = (data as { taxpayerPortalSearchResponses?: unknown })?.taxpayerPortalSearchResponses
   if (!Array.isArray(arr) || arr.length === 0) return null
   const entries = arr as PortalEntry[]
-  const entry = entries.find((e) => e && !cleanStr(e.errorMessage)) ?? entries[0]
+  const ok = (e: PortalEntry | undefined) => {
+    if (!e || cleanStr(e.errorMessage)) return false
+    const result = cleanStr(e.messageResult)
+    return !result || result.toUpperCase() === "SUCCESS"
+  }
+  const entry = entries.find(ok)
   if (!entry) return null
-  if (cleanStr(entry.errorMessage)) return null
 
-  let name: string | null = null
-  if (typeof entry.fullName === "string") {
-    name = cleanStr(entry.fullName)
-  } else if (entry.fullName && typeof entry.fullName === "object") {
+  // ЮЛ/ИП — name строкой; ЛЗЧП — fullName объектом (Фамилия Имя Отчество)
+  let name = cleanStr(entry.name)
+  if (!name && typeof entry.fullName === "string") name = cleanStr(entry.fullName)
+  if (!name && entry.fullName && typeof entry.fullName === "object") {
     name = [entry.fullName.lastName, entry.fullName.firstName, entry.fullName.middleName]
       .map(cleanStr)
       .filter(Boolean)
       .join(" ") || null
   }
 
-  const regType = typeof entry.registrationType === "object" && entry.registrationType
-    ? cleanStr(entry.registrationType.ru)
-    : cleanStr(entry.registrationType)
-  const begin = cleanStr(entry.beginDate)
-  const end = cleanStr(entry.endDate)
-  const status = [
-    regType,
-    begin ? `на учёте с ${begin}` : null,
-    end ? `снят с учёта ${end}` : null,
-    cleanStr(entry.taxOrg) ? `орган: ${cleanStr(entry.taxOrg)}` : null,
-    cleanStr(entry.additionalInfo),
-  ].filter(Boolean).join(" · ")
+  const bits: Array<string | null> = [TAXPAYER_TYPE_RU[cleanStr(entry.taxpayerType)?.toUpperCase() ?? ""] ?? null]
+  const lzchp = Array.isArray(entry.lzchpTypes) ? entry.lzchpTypes : []
+  if (lzchp.length > 0) {
+    // У ЛЗЧП может быть несколько регистраций (нотариус + медиатор) — показываем все
+    for (const t of lzchp) {
+      const label = LZCHP_TYPE_RU[cleanStr(t.lzchpType)?.toUpperCase() ?? ""] ?? cleanStr(t.lzchpType)
+      const span = registrationSpan(cleanStr(t.beginDate), cleanStr(t.endDate), t.endReason ?? null)
+      bits.push([label, span].filter(Boolean).join(": "))
+    }
+  } else {
+    bits.push(registrationSpan(cleanStr(entry.beginDate), cleanStr(entry.endDate), entry.endReason ?? null))
+  }
+  const status = bits.filter(Boolean).join(" · ")
 
   if (!name && !status) return null
   return { name, address: null, director: null, status: status || null }
@@ -131,10 +172,12 @@ function buildUrl(urlTemplate: string, taxId: string, taxpayerType: string): str
   return url
 }
 
+export type TaxpayerKind = "UL" | "IP" | "LZCHP"
+
 export async function lookupTaxpayer(
   taxIdRaw: string,
-  /** Подсказка от формы: БИН (юрлицо) или ИИН (ИП/частная практика). Влияет на порядок перебора taxpayerType. */
-  kind: "UL" | "IP" = "UL",
+  /** Подсказка от формы: БИН (юрлицо), ИИН (ИП) или частная практика (нотариус/адвокат/ЧСИ). Влияет на порядок перебора taxpayerType. */
+  kind: TaxpayerKind = "UL",
 ): Promise<{ ok: true; info: TaxpayerInfo } | { ok: false; error: string }> {
   const taxId = String(taxIdRaw ?? "").replace(/\D/g, "")
   if (taxId.length !== 12) return { ok: false, error: "ИИН/БИН должен содержать 12 цифр" }
@@ -156,9 +199,9 @@ export async function lookupTaxpayer(
   }
 
   // Если URL различает тип налогоплательщика — пробуем сначала подсказанный формой,
-  // затем альтернативный (вдруг под ИИН зарегистрировано ИП, а ввели как юрлицо).
+  // затем альтернативные (вдруг под ИИН зарегистрировано ИП, а ввели как юрлицо).
   const types = urlTemplate.includes("{taxpayerType}")
-    ? (kind === "UL" ? ["UL", "IP"] : ["IP", "UL"])
+    ? kind === "UL" ? ["UL", "IP"] : kind === "LZCHP" ? ["LZCHP", "IP"] : ["IP", "UL"]
     : ["UL"]
 
   let lastError = "Налогоплательщик с таким ИИН/БИН не найден"

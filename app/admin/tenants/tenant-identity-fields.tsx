@@ -47,7 +47,13 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
   // в соседние поля ТОЙ ЖЕ формы (поля по name — работает в диалоге, мастере и карточке).
   function fillFromRegistry() {
     startLookup(async () => {
-      const r = await lookupTaxpayerAction(taxId, usesBin ? "UL" : "IP")
+      // Нотариус/адвокат/ЧСИ в КГД — «лицо, занимающееся частной практикой» (LZCHP)
+      const kgdKind = usesBin
+        ? ("UL" as const)
+        : legalType === "CHSI" || legalType === "ADVOKAT" || legalType === "NOTARIUS"
+          ? ("LZCHP" as const)
+          : ("IP" as const)
+      const r = await lookupTaxpayerAction(taxId, kgdKind)
       if (!r.ok) { toast.error(r.error); return }
       const form = selectRef.current?.form
       if (!form) return
