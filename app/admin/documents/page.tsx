@@ -9,6 +9,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { DocumentsBrowser } from "./documents-browser"
+import { BackfillDocumentsButton } from "./backfill-documents-button"
 import { DocumentsHub } from "@/components/documents/documents-hub"
 import { DocumentCreate } from "@/components/documents/document-create"
 import type { DocRow } from "./documents-table"
@@ -279,6 +280,7 @@ export default async function DocumentsPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
+        {canCreateDocuments && <BackfillDocumentsButton />}
       </div>
 
       <DocumentsHub
