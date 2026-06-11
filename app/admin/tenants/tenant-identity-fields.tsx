@@ -47,7 +47,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
   // в соседние поля ТОЙ ЖЕ формы (поля по name — работает в диалоге, мастере и карточке).
   function fillFromRegistry() {
     startLookup(async () => {
-      const r = await lookupTaxpayerAction(taxId)
+      const r = await lookupTaxpayerAction(taxId, usesBin ? "UL" : "IP")
       if (!r.ok) { toast.error(r.error); return }
       const form = selectRef.current?.form
       if (!form) return
@@ -68,7 +68,10 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
         setField("name", r.info.director, false),
       ].filter(Boolean).length
       if (filled > 0) toast.success(`Заполнено из справочника: ${[r.info.name && "наименование", r.info.address && "адрес", r.info.director && "руководитель"].filter(Boolean).join(", ")}`)
+      else if (r.info.status) toast.info("Заполнять нечего, но налогоплательщик найден")
       else toast.info("Справочник ответил, но подходящих полей в этой форме нет")
+      // Статус регистрации в КГД (вид регистрации, дата постановки/снятия с учёта)
+      if (r.info.status) toast.message("Статус в КГД", { description: r.info.status, duration: 8000 })
     })
   }
 

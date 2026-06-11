@@ -10,9 +10,10 @@ import { lookupTaxpayer, type TaxpayerInfo } from "@/lib/kgd"
  */
 export async function lookupTaxpayerAction(
   taxId: string,
+  kind: "UL" | "IP" = "UL",
 ): Promise<{ ok: true; info: TaxpayerInfo } | { ok: false; error: string }> {
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
   await requireOrgAccess()
-  return lookupTaxpayer(taxId)
+  return lookupTaxpayer(taxId, kind === "IP" ? "IP" : "UL")
 }
