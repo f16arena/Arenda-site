@@ -5,7 +5,7 @@ import { db } from "@/lib/db"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
 import { floorScope } from "@/lib/tenant-scope"
-import { parseSpacePhotos } from "@/app/actions/space-photos"
+import { parseSpacePhotos } from "@/lib/space-photos"
 
 export const dynamic = "force-dynamic"
 

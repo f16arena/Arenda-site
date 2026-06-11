@@ -6,7 +6,7 @@ import { Building2, MapPin, Phone, Mail, Calendar } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
 import { BookingForm } from "./booking-form"
 import { getBuildingTenantAdminContacts } from "@/lib/tenant-admin-contact"
-import { parseSpacePhotos } from "@/app/actions/space-photos"
+import { parseSpacePhotos } from "@/lib/space-photos"
 import { ImageOff } from "lucide-react"
 
 export default async function PublicBookingPage({ params }: { params: Promise<{ orgSlug: string }> }) {

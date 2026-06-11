@@ -5,7 +5,7 @@ import { Plus, X, Edit2 } from "lucide-react"
 import { toast } from "sonner"
 import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
 import { SpacePhotosField } from "./space-photos-field"
-import { parseSpacePhotos } from "@/app/actions/space-photos"
+import { parseSpacePhotos } from "@/lib/space-photos"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { Button } from "@/components/ui/button"
 

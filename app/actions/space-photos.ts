@@ -11,17 +11,6 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 const MAX_PHOTOS = 8
 const MAX_PHOTO_LEN = 600_000 // ~440КБ бинаря на фото после клиентского сжатия
 
-/** Прочитать фото помещения как массив data-URL. */
-export function parseSpacePhotos(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try {
-    const arr = JSON.parse(raw)
-    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : []
-  } catch {
-    return []
-  }
-}
-
 async function assertCanEditSpaces(orgId: string, userId: string, role: string, isPlatformOwner: boolean) {
   if (role === "OWNER" || isPlatformOwner) return
   const caps = new Set(await getAllowedCapabilityKeysForUser({ userId, role, isPlatformOwner, orgId }))
