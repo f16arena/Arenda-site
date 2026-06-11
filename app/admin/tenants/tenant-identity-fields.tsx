@@ -86,8 +86,21 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
         input.dispatchEvent(new Event("input", { bubbles: true }))
         return true
       }
-      // У ИП/частной практики наименование = ФИО предпринимателя → контактное лицо
-      const personName = t === "IP" || t === "LZCHP" ? r.info.name : r.info.director
+      // У ИП/частной практики наименование = ФИО предпринимателя → контактное лицо.
+      // КГД отдаёт официальное название («ИП "Тулебаев Б.К."») — для контакта
+      // убираем префикс ИП и кавычки, остаётся чистое ФИО.
+      const stripIpPrefix = (raw: string | null): string | null => {
+        if (!raw) return null
+        const cleaned = raw
+          .replace(/^индивидуальный\s+предприниматель/i, "")
+          .replace(/^ИП\b\.?/i, "")
+          .trim()
+          .replace(/^["'«»]+/, "")
+          .replace(/["'«»]+$/, "")
+          .trim()
+        return cleaned || raw
+      }
+      const personName = t === "IP" || t === "LZCHP" ? stripIpPrefix(r.info.name) : r.info.director
       const filled = [
         setField("companyName", r.info.name),
         setField("legalAddress", r.info.address),
