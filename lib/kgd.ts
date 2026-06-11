@@ -11,7 +11,11 @@ import "server-only"
  * taxpayerPortalSearchResponses: статус регистрации, наименование/ФИО.
  * Адрес и руководителя этот API не отдаёт.
  *
- * Альтернативный источник (adata/kompra/data.egov и т.п.) — через env:
+ * Второй источник — ГБД «Юридические лица» Минюста через data.egov.kz
+ * (env DATA_EGOV_API_KEY, бесплатный ключ после регистрации на портале):
+ * доливает юр. адрес и ФИО руководителя, которых нет в ответе КГД.
+ *
+ * Альтернативный источник вместо КГД (adata/kompra и т.п.) — через env:
  *   KGD_API_URL        — URL запроса; «{taxId}» подставляется как ИИН/БИН,
  *                        «{taxpayerType}» (опционально) — как UL/IP.
  *   KGD_API_KEY        — ключ API.
@@ -40,11 +44,11 @@ const KGD_PORTAL_URL =
   "https://portal.kgd.gov.kz/services/isnaportalsync/public/taxpayer-data?taxpayerCode={taxId}&taxpayerType={taxpayerType}&print=false"
 
 export function kgdConfigured(): boolean {
-  return !!(process.env.KGD_API_URL || process.env.KGD_API_KEY)
+  return !!(process.env.KGD_API_URL || process.env.KGD_API_KEY || process.env.DATA_EGOV_API_KEY)
 }
 
 const NAME_KEYS = ["fullname", "name_ru", "nameru", "name", "title", "taxpayername", "shortname", "company_name", "companyname"]
-const ADDRESS_KEYS = ["legal_address", "legaladdress", "registration_address", "registrationaddress", "address_ru", "addressru", "address"]
+const ADDRESS_KEYS = ["legal_address", "legaladdress", "registration_address", "registrationaddress", "address_ru", "addressru", "law_address", "lawaddress", "address"]
 const DIRECTOR_KEYS = ["director_name", "directorname", "director", "head", "leader", "fio", "ceo"]
 
 /** Рекурсивный поиск первого строкового значения по списку ключей (без регистра). */
@@ -174,6 +178,56 @@ function parseKgdPortal(data: unknown): TaxpayerInfo | null {
   }
 }
 
+/**
+ * ГБД «Юридические лица» Минюста (data.egov.kz, датасет gbd_ul): юр. адрес и
+ * ФИО руководителя по БИН. Бесплатный apiKey — env DATA_EGOV_API_KEY.
+ * ИП/частной практики в ГБД ЮЛ нет — только юрлица, филиалы, представительства.
+ */
+async function lookupEgovUl(taxId: string): Promise<Pick<TaxpayerInfo, "name" | "address" | "director"> | null> {
+  const apiKey = process.env.DATA_EGOV_API_KEY
+  if (!apiKey) return null
+  const source = encodeURIComponent(JSON.stringify({ size: 5, query: { match: { bin: taxId } } }))
+  const url = `https://data.egov.kz/api/v4/gbd_ul/v1?apiKey=${apiKey}&source=${source}`
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000), cache: "no-store" })
+    if (!res.ok) {
+      console.warn(`[kgd] data.egov.kz ответил ${res.status}`)
+      return null
+    }
+    const data = (await res.json()) as unknown
+    const rows = Array.isArray(data) ? data : (data as { data?: unknown })?.data
+    if (!Array.isArray(rows) || rows.length === 0) return null
+    // match-запрос нестрогий — берём запись с точным совпадением БИН
+    const rec = rows.find((r) => {
+      const bin = (r as Record<string, unknown>)?.bin
+      return typeof bin === "string" && bin.replace(/\D/g, "") === taxId
+    }) ?? rows[0]
+    if (!rec || typeof rec !== "object") return null
+    return {
+      name: findString(rec, NAME_KEYS),
+      address: findString(rec, ADDRESS_KEYS),
+      director: findString(rec, DIRECTOR_KEYS),
+    }
+  } catch (e) {
+    console.warn("[kgd] data.egov.kz недоступен:", e instanceof Error ? e.message : e)
+    return null
+  }
+}
+
+/** Долить из ГБД ЮЛ адрес/директора, которых не даёт КГД (только для юрлиц). */
+async function enrichWithEgov(info: TaxpayerInfo, taxId: string): Promise<TaxpayerInfo> {
+  if (info.address && info.director) return info
+  if (info.taxpayerType && info.taxpayerType !== "UL") return info
+  const egov = await lookupEgovUl(taxId)
+  if (!egov) return info
+  return {
+    ...info,
+    name: info.name ?? egov.name,
+    address: info.address ?? egov.address,
+    director: info.director ?? egov.director,
+  }
+}
+
 function buildUrl(urlTemplate: string, taxId: string, taxpayerType: string): string {
   let url = urlTemplate.includes("{taxId}")
     ? urlTemplate.replaceAll("{taxId}", taxId)
@@ -197,6 +251,14 @@ export async function lookupTaxpayer(
   const key = process.env.KGD_API_KEY
   const urlTemplate = process.env.KGD_API_URL || (key ? KGD_PORTAL_URL : null)
   if (!urlTemplate) {
+    // Без КГД, но с ключом data.egov.kz — ищем только в ГБД ЮЛ
+    if (process.env.DATA_EGOV_API_KEY && kind === "UL") {
+      const egov = await lookupEgovUl(taxId)
+      if (egov && (egov.name || egov.address)) {
+        return { ok: true, info: { ...egov, status: null, taxpayerType: "UL", lzchpType: null } }
+      }
+      return { ok: false, error: "Юрлицо с таким БИН не найдено в ГБД ЮЛ" }
+    }
     return {
       ok: false,
       error: "Справочник КГД не настроен: добавьте KGD_API_KEY (X-Portal-Token портала КГД) в переменные окружения",
@@ -235,7 +297,7 @@ export async function lookupTaxpayer(
       const data = (await res.json()) as unknown
 
       const portal = parseKgdPortal(data)
-      if (portal) return { ok: true, info: portal }
+      if (portal) return { ok: true, info: await enrichWithEgov(portal, taxId) }
 
       const info: TaxpayerInfo = {
         name: findString(data, NAME_KEYS),
@@ -245,7 +307,7 @@ export async function lookupTaxpayer(
         taxpayerType: null,
         lzchpType: null,
       }
-      if (info.name || info.address) return { ok: true, info }
+      if (info.name || info.address) return { ok: true, info: await enrichWithEgov(info, taxId) }
 
       console.warn("[kgd] ответ получен, но поля не распознаны:", JSON.stringify(data).slice(0, 500))
       lastError = "Ответ справочника не распознан — пришлите пример ответа, поправим маппинг"
@@ -253,6 +315,14 @@ export async function lookupTaxpayer(
       lastError = e instanceof Error && e.name === "TimeoutError"
         ? "Справочник не ответил за 8 секунд"
         : `Не удалось запросить справочник: ${e instanceof Error ? e.message : "сетевая ошибка"}`
+    }
+  }
+
+  // КГД не нашёл/недоступен — последний шанс: ГБД ЮЛ по БИН
+  if (kind === "UL") {
+    const egov = await lookupEgovUl(taxId)
+    if (egov && (egov.name || egov.address)) {
+      return { ok: true, info: { ...egov, status: null, taxpayerType: "UL", lzchpType: null } }
     }
   }
   return { ok: false, error: lastError }
