@@ -37,11 +37,18 @@ export interface TaxpayerInfo {
   taxpayerType: "UL" | "IP" | "LZCHP" | null
   /** Вид частной практики (NOTARY/ADVOCATE/PRIVATE_BAILIFF…) при taxpayerType=LZCHP */
   lzchpType: string | null
+  /** Состоит ли на учёте по НДС (null — источник не ответил/не поддерживает) */
+  vatPayer: boolean | null
+  /** Человекочитаемый НДС-статус («Плательщик НДС с …» / «Снят с учёта НДС …») */
+  vatStatus: string | null
 }
 
 // print=false — обязательный по инструкции КГД параметр (false = JSON, true = PDF base64)
 const KGD_PORTAL_URL =
   "https://portal.kgd.gov.kz/services/isnaportalsync/public/taxpayer-data?taxpayerCode={taxId}&taxpayerType={taxpayerType}&print=false"
+// Сервис КГД «Поиск плательщиков НДС» (тот же X-Portal-Token)
+const KGD_NDS_URL =
+  "https://portal.kgd.gov.kz/services/isnaportalsync/public/search-payer-data?taxpayerCode="
 
 export function kgdConfigured(): boolean {
   return !!(process.env.KGD_API_URL || process.env.KGD_API_KEY || process.env.DATA_EGOV_API_KEY)
@@ -175,6 +182,53 @@ function parseKgdPortal(data: unknown): TaxpayerInfo | null {
     status: status || null,
     taxpayerType: typeRaw === "UL" || typeRaw === "IP" || typeRaw === "LZCHP" ? typeRaw : null,
     lzchpType: lzchp.length > 0 ? cleanStr(lzchp[0]?.lzchpType) : null,
+    vatPayer: null,
+    vatStatus: null,
+  }
+}
+
+/**
+ * НДС-статус из сервиса КГД «Поиск плательщиков НДС».
+ * Плательщик = есть дата постановки и нет более поздней даты снятия.
+ * null — сервис не ответил (статус неизвестен, галочку не трогаем).
+ */
+async function lookupNdsStatus(
+  taxId: string,
+  headers: Record<string, string>,
+): Promise<{ vatPayer: boolean; vatStatus: string } | null> {
+  try {
+    const res = await fetch(`${KGD_NDS_URL}${taxId}`, {
+      headers,
+      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
+    })
+    if (res.status === 404) {
+      return { vatPayer: false, vatStatus: "Не состоит на учёте по НДС" }
+    }
+    if (!res.ok) return null
+    const data = (await res.json()) as {
+      ndsRegistrationDate?: string | null
+      ndsDeregistrationDate?: string | null
+      ndsDeregistrationReason?: { ru?: string | null } | null
+    } | null
+    if (!data || typeof data !== "object") return null
+    const reg = cleanStr(data.ndsRegistrationDate)
+    const dereg = cleanStr(data.ndsDeregistrationDate)
+    if (!reg && !dereg) {
+      return { vatPayer: false, vatStatus: "Не состоит на учёте по НДС" }
+    }
+    // Снятие позже постановки → сейчас НЕ плательщик
+    const active = !!reg && (!dereg || new Date(dereg).getTime() < new Date(reg).getTime())
+    if (active) {
+      return { vatPayer: true, vatStatus: `Плательщик НДС с ${fmtDate(reg)}` }
+    }
+    const reason = cleanStr(data.ndsDeregistrationReason?.ru)
+    return {
+      vatPayer: false,
+      vatStatus: `Снят с учёта НДС ${fmtDate(dereg) ?? ""}${reason ? ` — ${reason}` : ""}`.trim(),
+    }
+  } catch {
+    return null
   }
 }
 
@@ -255,7 +309,7 @@ export async function lookupTaxpayer(
     if (process.env.DATA_EGOV_API_KEY && kind === "UL") {
       const egov = await lookupEgovUl(taxId)
       if (egov && (egov.name || egov.address)) {
-        return { ok: true, info: { ...egov, status: null, taxpayerType: "UL", lzchpType: null } }
+        return { ok: true, info: { ...egov, status: null, taxpayerType: "UL", lzchpType: null, vatPayer: null, vatStatus: null } }
       }
       return { ok: false, error: "Юрлицо с таким БИН не найдено в ГБД ЮЛ" }
     }
@@ -271,6 +325,9 @@ export async function lookupTaxpayer(
     const headerName = process.env.KGD_API_KEY_HEADER || (usesPortal ? "X-Portal-Token" : "X-API-KEY")
     headers[headerName] = headerName.toLowerCase() === "authorization" ? `Bearer ${key}` : key
   }
+
+  // НДС-статус — параллельно с основным поиском (отдельный сервис портала КГД)
+  const ndsPromise = usesPortal ? lookupNdsStatus(taxId, headers) : Promise.resolve(null)
 
   // Если URL различает тип налогоплательщика — пробуем сначала подсказанный формой,
   // затем альтернативные (вдруг под ИИН зарегистрировано ИП, а ввели как юрлицо).
@@ -297,7 +354,10 @@ export async function lookupTaxpayer(
       const data = (await res.json()) as unknown
 
       const portal = parseKgdPortal(data)
-      if (portal) return { ok: true, info: await enrichWithEgov(portal, taxId) }
+      if (portal) {
+        const [enriched, nds] = await Promise.all([enrichWithEgov(portal, taxId), ndsPromise])
+        return { ok: true, info: { ...enriched, vatPayer: nds?.vatPayer ?? null, vatStatus: nds?.vatStatus ?? null } }
+      }
 
       const info: TaxpayerInfo = {
         name: findString(data, NAME_KEYS),
@@ -306,8 +366,13 @@ export async function lookupTaxpayer(
         status: null,
         taxpayerType: null,
         lzchpType: null,
+        vatPayer: null,
+        vatStatus: null,
       }
-      if (info.name || info.address) return { ok: true, info: await enrichWithEgov(info, taxId) }
+      if (info.name || info.address) {
+        const [enriched, nds] = await Promise.all([enrichWithEgov(info, taxId), ndsPromise])
+        return { ok: true, info: { ...enriched, vatPayer: nds?.vatPayer ?? null, vatStatus: nds?.vatStatus ?? null } }
+      }
 
       console.warn("[kgd] ответ получен, но поля не распознаны:", JSON.stringify(data).slice(0, 500))
       lastError = "Ответ справочника не распознан — пришлите пример ответа, поправим маппинг"
@@ -322,7 +387,8 @@ export async function lookupTaxpayer(
   if (kind === "UL") {
     const egov = await lookupEgovUl(taxId)
     if (egov && (egov.name || egov.address)) {
-      return { ok: true, info: { ...egov, status: null, taxpayerType: "UL", lzchpType: null } }
+      const nds = await ndsPromise
+      return { ok: true, info: { ...egov, status: null, taxpayerType: "UL", lzchpType: null, vatPayer: nds?.vatPayer ?? null, vatStatus: nds?.vatStatus ?? null } }
     }
   }
   return { ok: false, error: lastError }

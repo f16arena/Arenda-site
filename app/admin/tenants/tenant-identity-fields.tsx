@@ -101,24 +101,39 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
         return cleaned || raw
       }
       const personName = t === "IP" || t === "LZCHP" ? stripIpPrefix(r.info.name) : r.info.director
+      // Галочка «плательщик НДС» — из сервиса КГД «Поиск плательщиков НДС».
+      // null = сервис не ответил → галочку не трогаем.
+      const setCheckbox = (name: string, value: boolean | null) => {
+        if (value === null) return false
+        const input = form.elements.namedItem(name)
+        if (!(input instanceof HTMLInputElement) || input.type !== "checkbox") return false
+        if (input.checked !== value) {
+          input.checked = value
+          input.dispatchEvent(new Event("change", { bubbles: true }))
+        }
+        return true
+      }
       const filled = [
         setField("companyName", r.info.name),
         setField("legalAddress", r.info.address),
         setField("directorName", r.info.director),
         // ФИО контакта — только если поле ещё пустое (не перетираем введённое).
         setField("name", personName, false),
+        setCheckbox("isVatPayer", r.info.vatPayer),
       ].filter(Boolean).length
       const parts = [
         r.info.name && "наименование",
         detected && "правовая форма",
         r.info.address && "адрес",
         r.info.director && "руководитель",
+        r.info.vatPayer !== null && "НДС",
       ].filter(Boolean).join(", ")
       if (filled > 0 || detected) toast.success(`Заполнено из КГД: ${parts}`)
       else if (r.info.status) toast.info("Налогоплательщик найден, но заполнять нечего")
       else toast.info("Справочник ответил, но подходящих полей в этой форме нет")
-      // Статус регистрации в КГД (вид регистрации, дата постановки/снятия с учёта)
-      if (r.info.status) toast.message("Статус в КГД", { description: r.info.status, duration: 8000 })
+      // Статус регистрации + НДС-статус (постановка/снятие с учёта)
+      const statusLine = [r.info.status, r.info.vatStatus].filter(Boolean).join(" · ")
+      if (statusLine) toast.message("Статус в КГД", { description: statusLine, duration: 8000 })
     })
   }
 
