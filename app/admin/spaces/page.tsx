@@ -21,6 +21,7 @@ import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { Button } from "@/components/ui/button"
+import { PageHeader, StatGrid, StatCard } from "@/components/ui/page"
 
 type SafeQuery = <T>(source: string, promise: Promise<T>, fallback: T) => Promise<T>
 
@@ -102,10 +103,7 @@ export default async function SpacesPage() {
     if (accessibleBuildingIds.length === 0) {
       return (
         <div className="space-y-5">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Помещения</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Кабинеты и помещения в зданиях</p>
-          </div>
+          <PageHeader icon={Building2} title="Помещения" subtitle="Кабинеты и помещения в зданиях" />
           <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-8 text-center">
             <Building2 className="h-10 w-10 text-amber-500 mx-auto mb-3" />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
@@ -203,26 +201,18 @@ export default async function SpacesPage() {
 
     return (
       <div className="space-y-5">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Помещения</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Все доступные здания · {buildings.length} {buildings.length === 1 ? "здание" : "зданий"}
-          </p>
-        </div>
+        <PageHeader
+          icon={Building2}
+          title="Помещения"
+          subtitle={`Все доступные здания · ${buildings.length} ${buildings.length === 1 ? "здание" : "зданий"}`}
+        />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: "Зданий", value: String(buildings.length), color: "text-slate-900 dark:text-slate-100" },
-            { label: "Помещений", value: String(rentableSpacesCount), color: "text-slate-900 dark:text-slate-100" },
-            { label: "Занято", value: String(occupied), color: "text-blue-600 dark:text-blue-400" },
-            { label: "Свободно", value: String(vacant), color: "text-emerald-600 dark:text-emerald-400" },
-          ].map((s) => (
-            <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
-            </div>
-          ))}
-        </div>
+        <StatGrid>
+          <StatCard label="Зданий" value={buildings.length} />
+          <StatCard label="Помещений" value={rentableSpacesCount} />
+          <StatCard label="Занято" value={occupied} tone="blue" />
+          <StatCard label="Свободно" value={vacant} tone="emerald" />
+        </StatGrid>
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Общая арендопригодная площадь</p>
@@ -323,47 +313,41 @@ export default async function SpacesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Помещения</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{building?.name} · {building?.address}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {building && hasFloorEditor && (
-            <Link
-              href={`/admin/buildings/${building.id}/3d`}
-              title="Объёмный вид здания целиком: этажи, помещения, территория"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
-            >
-              <Box className="h-4 w-4" />
-              3D здания
-            </Link>
-          )}
-          {canDeleteSpaces && building && allSpaces.length > 0 && (
-            <WipeAllSpacesButton
-              buildingId={building.id}
-              buildingName={building.name}
-              spacesCount={allSpaces.length}
-            />
-          )}
-          {canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
-        </div>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Помещения"
+        subtitle={`${building?.name} · ${building?.address}`}
+        actions={
+          <>
+            {building && hasFloorEditor && (
+              <Link
+                href={`/admin/buildings/${building.id}/3d`}
+                title="Объёмный вид здания целиком: этажи, помещения, территория"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
+              >
+                <Box className="h-4 w-4" />
+                3D здания
+              </Link>
+            )}
+            {canDeleteSpaces && building && allSpaces.length > 0 && (
+              <WipeAllSpacesButton
+                buildingId={building.id}
+                buildingName={building.name}
+                spacesCount={allSpaces.length}
+              />
+            )}
+            {canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
+          </>
+        }
+      />
 
       {/* Counts */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Всего помещений", value: String(total), color: "text-slate-900 dark:text-slate-100" },
-          { label: "Занято", value: String(occupied), color: "text-blue-600 dark:text-blue-400" },
-          { label: "Свободно", value: String(vacant), color: "text-emerald-600 dark:text-emerald-400" },
-          { label: "Заполняемость", value: `${total ? Math.round((occupied / total) * 100) : 0}%`, color: "text-slate-900 dark:text-slate-100" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
-          </div>
-        ))}
-      </div>
+      <StatGrid>
+        <StatCard label="Всего помещений" value={total} />
+        <StatCard label="Занято" value={occupied} tone="blue" />
+        <StatCard label="Свободно" value={vacant} tone="emerald" />
+        <StatCard label="Заполняемость" value={`${total ? Math.round((occupied / total) * 100) : 0}%`} />
+      </StatGrid>
 
       {/* Area hierarchy: Σ Space.area ≤ Σ Floor.totalArea ≤ Building.totalArea */}
       {(() => {

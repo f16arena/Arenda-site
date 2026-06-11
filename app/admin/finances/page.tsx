@@ -16,6 +16,7 @@ import { DataTable } from "@/components/ui/data-table"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
+import { PageHeader } from "@/components/ui/page"
 import { deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
@@ -329,12 +330,12 @@ async function renderFinancesPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Финансы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{formatPeriod(currentPeriod)}</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
+      <PageHeader
+        icon={Wallet}
+        title="Финансы"
+        subtitle={formatPeriod(currentPeriod)}
+        actions={
+          <>
           <Link
             href="/admin/finances/balance"
             className="flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
@@ -393,8 +394,9 @@ async function renderFinancesPage({
             initialTenantId={selectedPaymentTenant?.id}
             autoOpen={Boolean(selectedPaymentTenant)}
           />
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <PaymentReportsPanel reports={paymentReports} cashAccounts={cashAccounts} />
 

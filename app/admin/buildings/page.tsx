@@ -13,6 +13,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-access"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { safeServerValue } from "@/lib/server-fallback"
+import { PageHeader } from "@/components/ui/page"
 
 type BuildingListItem = {
   id: string
@@ -263,21 +264,12 @@ export default async function BuildingsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
-            <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Здания</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              {active.length} активных
-              {inactive.length > 0 && ` · ${inactive.length} неактивных`}
-            </p>
-          </div>
-        </div>
-        {canCreateBuildings && <CreateBuildingButton />}
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Здания"
+        subtitle={`${active.length} активных${inactive.length > 0 ? ` · ${inactive.length} неактивных` : ""}`}
+        actions={canCreateBuildings && <CreateBuildingButton />}
+      />
 
       {buildings.length === 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">

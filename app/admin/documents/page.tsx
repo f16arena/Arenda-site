@@ -15,6 +15,8 @@ import { DocumentCreate } from "@/components/documents/document-create"
 import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import { PageHeader } from "@/components/ui/page"
+import { FileText } from "lucide-react"
 
 // Грузим расширенный набор — фильтрация/поиск/пагинация делаются на клиенте.
 const DOCUMENT_SOURCE_LIMIT = 200
@@ -281,10 +283,11 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
-        {canCreateDocuments && <BackfillDocumentsButton />}
-      </div>
+      <PageHeader
+        icon={FileText}
+        title="Документы"
+        actions={canCreateDocuments && <BackfillDocumentsButton />}
+      />
 
       <DocumentsHub
         canCreate={canCreateDocuments}

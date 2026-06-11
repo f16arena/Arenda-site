@@ -9,6 +9,7 @@ import { updateTaskStatus, deleteTask } from "@/app/actions/tasks"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
+import { PageHeader } from "@/components/ui/page"
 import { requireOrgAccess } from "@/lib/org"
 import { taskScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -141,13 +142,12 @@ export default async function TasksPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Задачи</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{stats.total} задач · {stats.inProgress} в работе</p>
-        </div>
-        <TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
-      </div>
+      <PageHeader
+        icon={CheckSquare}
+        title="Задачи"
+        subtitle={`${stats.total} задач · ${stats.inProgress} в работе`}
+        actions={<TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} />}
+      />
 
       {/* Status tabs */}
       <div className="flex gap-2">
