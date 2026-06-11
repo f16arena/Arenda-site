@@ -21,9 +21,18 @@ import {
   rotateLayout90,
 } from "@/lib/floor-layout"
 import { RenderElement, type FloorEditorSpaceLite as SpaceLite } from "./floor-render-element"
+import type { SpaceInfo as Floor3DSpaceInfo } from "@/components/floor/floor-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Tool = "select" | "rect" | "polygon" | "door" | "window" | "label" | "wall" | "stairs" | "elevator" | "toilet"
+
+// Живое 3D в сплит-экране: three.js тяжёлый — только в браузере и только при включении
+const Floor3DPanel = dynamic(() => import("@/components/floor/floor-3d"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center text-xs text-slate-400">Загрузка 3D…</div>
+  ),
+})
 
 const InsertRoomPanel = dynamic(() => import("./floor-editor-panels").then((mod) => mod.InsertRoomPanel), {
   loading: () => <PanelSkeleton />,
@@ -103,6 +112,16 @@ function findNearestVertex(
   return best
 }
 
+/** Дебаунс значения: 3D-сцена пересобирается не на каждый пиксель drag-а, а раз в N мс */
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return debounced
+}
+
 export function FloorEditor({
   floorId,
   floorName,
@@ -170,6 +189,43 @@ export function FloorEditor({
   const setLayoutDraft = useCallback((next: FloorLayoutV2 | ((prev: FloorLayoutV2) => FloorLayoutV2)) => {
     setLayoutRaw(next)
   }, [])
+
+  // ── Живое 3D (сплит-экран): дебаунс плана + перенос данных помещений ──
+  const layout3d = useDebounced(layout, 300)
+  const spaces3d = useMemo<Floor3DSpaceInfo[]>(
+    () => spaces.map((s) => ({
+      id: s.id,
+      number: s.number,
+      area: s.area ?? 0,
+      status: s.status,
+      description: null,
+      tenant: null,
+    })),
+    [spaces],
+  )
+  // Перетаскивание комнаты/иконки прямо в 3D — сдвиг элемента с записью в историю
+  const moveElementBy = useCallback((id: string, dx: number, dy: number) => {
+    if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return
+    setLayout((prev) => ({
+      ...prev,
+      elements: prev.elements.map((el): FloorElement => {
+        if (el.id !== id) return el
+        switch (el.type) {
+          case "rect":
+            return { ...el, x: el.x + dx, y: el.y + dy }
+          case "polygon":
+            return { ...el, points: el.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
+          case "wall":
+            return { ...el, x1: el.x1 + dx, y1: el.y1 + dy, x2: el.x2 + dx, y2: el.y2 + dy }
+          case "door":
+          case "window":
+          case "icon":
+          case "label":
+            return { ...el, x: el.x + dx, y: el.y + dy }
+        }
+      }),
+    }))
+  }, [setLayout])
 
   const rememberLayoutForDrag = useCallback(() => {
     if (dragHistoryCapturedRef.current) return
@@ -1197,8 +1253,8 @@ export function FloorEditor({
             <button
               type="button"
               onClick={() => setView3D(!view3D)}
-              aria-label="3D-вид"
-              title="Изометрический 3D-вид"
+              aria-label="Живое 3D (сплит-экран)"
+              title="Живое 3D: рисуйте слева — справа сразу растёт объёмный этаж. Комнаты можно таскать прямо в 3D."
               className={`p-2 rounded-lg ${view3D ? "bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800"}`}
             >
               <Box className="h-4 w-4" />
@@ -1389,7 +1445,7 @@ export function FloorEditor({
           </div>
         </div>
 
-        <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative">
+        <div className="flex-1 flex bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden relative">
           {/* Информер по калибровке */}
           {calibration.active && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-orange-100 dark:bg-orange-500/20 border border-orange-300 dark:border-orange-500/40 rounded-lg px-4 py-2 text-xs text-orange-800 dark:text-orange-200 shadow-lg">
@@ -1401,14 +1457,12 @@ export function FloorEditor({
             </div>
           )}
 
+          <div className={`relative h-full ${view3D ? "w-1/2 border-r-2 border-slate-300 dark:border-slate-700" : "w-full"}`}>
           <svg
             ref={svgRef}
             className="w-full h-full"
             style={{
               cursor: calibration.active ? "crosshair" : tool === "select" ? "default" : "crosshair",
-              transform: view3D ? "perspective(1500px) rotateX(55deg) rotateZ(-30deg)" : "none",
-              transformOrigin: "center",
-              transition: "transform 0.4s ease",
             }}
             onMouseDown={onSvgMouseDown}
             onMouseMove={onSvgMouseMove}
@@ -1542,6 +1596,24 @@ export function FloorEditor({
             <div style={{ width: px, height: 6, background: "linear-gradient(to right, black 50%, white 50%)", border: "1px solid black" }} />
             1 метр
           </div>
+          </div>
+
+          {/* Живое 3D: обновляется по мере рисования, комнаты можно таскать прямо в 3D */}
+          {view3D && (
+            <div className="relative h-full w-1/2 bg-slate-50 dark:bg-slate-900">
+              <Floor3DPanel
+                layout={layout3d}
+                spaces={spaces3d}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                editable
+                onMoveElement={moveElementBy}
+              />
+              <div className="absolute top-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-slate-900/70 px-3 py-1 text-[10px] text-white backdrop-blur pointer-events-none whitespace-nowrap">
+                Живое 3D · вращение мышью · комнаты и объекты можно перетаскивать
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

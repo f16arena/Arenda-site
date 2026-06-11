@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
-import { Building2 } from "lucide-react"
+import { Building2, Box } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
@@ -328,6 +328,16 @@ export default async function SpacesPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{building?.name} · {building?.address}</p>
         </div>
         <div className="flex items-center gap-2">
+          {building && hasFloorEditor && (
+            <Link
+              href={`/admin/buildings/${building.id}/3d`}
+              title="Объёмный вид здания целиком: этажи, помещения, территория"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
+            >
+              <Box className="h-4 w-4" />
+              3D здания
+            </Link>
+          )}
           {canDeleteSpaces && building && allSpaces.length > 0 && (
             <WipeAllSpacesButton
               buildingId={building.id}

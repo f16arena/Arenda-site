@@ -7,7 +7,7 @@ import {
   polygonArea,
 } from "@/lib/floor-layout"
 
-export type FloorEditorSpaceLite = { id: string; number: string; status: string }
+export type FloorEditorSpaceLite = { id: string; number: string; status: string; area?: number }
 
 const PX_PER_METER = 40
 

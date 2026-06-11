@@ -5,7 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import Link from "next/link"
-import { Building2, MapPin, Layers, Users, Check, Sparkles } from "lucide-react"
+import { Building2, MapPin, Layers, Users, Check, Sparkles, Box } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
@@ -351,6 +351,15 @@ export default async function BuildingsPage() {
                     )}
                   </div>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/admin/buildings/${b.id}/3d`}
+                    title="Объёмный вид здания: этажи, помещения, территория"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
+                  >
+                    <Box className="h-3.5 w-3.5" />
+                    3D
+                  </Link>
                 <BuildingActions
                   buildingId={b.id}
                   isCurrent={isCurrent}
@@ -380,6 +389,7 @@ export default async function BuildingsPage() {
                     contractPrefix: prefixMap.get(b.id) ?? null,
                   }}
                 />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-5 border-b border-slate-100 dark:border-slate-800">

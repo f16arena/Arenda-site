@@ -64,7 +64,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
   const floor = await db.floor.findUnique({
     where: { id },
     include: {
-      spaces: { orderBy: { number: "asc" }, select: { id: true, number: true, status: true } },
+      spaces: { orderBy: { number: "asc" }, select: { id: true, number: true, status: true, area: true } },
     },
   })
 
