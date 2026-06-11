@@ -34,7 +34,7 @@ export async function buildAvrStateForTenant(
   orgId: string,
   tenantId: string,
   period: string,
-): Promise<{ ok: true; state: AvrState } | { ok: false; error: string }> {
+): Promise<{ ok: true; state: AvrState; source: "charges" | "contract" } | { ok: false; error: string }> {
   if (!period || !/^\d{4}-\d{2}$/.test(period)) return { ok: false, error: "Укажите период (месяц)" }
 
   const [tenant, organization] = await Promise.all([
@@ -98,6 +98,7 @@ export async function buildAvrStateForTenant(
     if (c.type === "DEPOSIT" || c.type === "DEPOSIT_REFUND" || c.type === "PENALTY") continue
     items.push({ name: c.description || CHARGE_TYPE_LABEL[c.type] || c.type, date, report: "", unit: "усл.", qty: 1, price: Math.round(c.amount) })
   }
+  const source: "charges" | "contract" = items.length > 0 ? "charges" : "contract"
   if (items.length === 0) {
     const positions = await buildContractPositions(tenantId, period, contract)
     for (const p of positions) {
@@ -111,5 +112,5 @@ export async function buildAvrStateForTenant(
 
   s.vat = { enabled: !!organization?.isVatPayer, rate: coerceKzVatRate(organization?.vatRate, DEFAULT_KZ_VAT_RATE) }
 
-  return { ok: true, state: s }
+  return { ok: true, state: s, source }
 }

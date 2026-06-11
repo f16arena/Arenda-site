@@ -35,7 +35,7 @@ export async function getNextActNumber(): Promise<{ ok: boolean; number?: string
 export async function prefillAvrFromTenant(
   tenantId: string,
   period: string,
-): Promise<{ ok: boolean; error?: string; state?: AvrState }> {
+): Promise<{ ok: boolean; error?: string; state?: AvrState; source?: "charges" | "contract" }> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
     const { orgId } = await requireOrgAccess()

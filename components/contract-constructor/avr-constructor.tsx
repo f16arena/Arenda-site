@@ -119,7 +119,10 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
       if (r.ok && r.state) {
         setState(r.state)
         if (autoNumber) applyAutoNumber()
-        toast.success("Данные подставлены из начислений за период")
+        // Честный источник: начисления уже есть или позиции собраны по договору
+        toast.success(r.source === "contract"
+          ? "Начислений за период ещё нет — позиции собраны по договору"
+          : "Данные подставлены из начислений за период")
       } else toast.error(r.error ?? "Не удалось подставить данные")
     })
   }

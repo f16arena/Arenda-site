@@ -28,7 +28,7 @@ export async function getNextInvoiceNumber(): Promise<{ ok: boolean; number?: st
 export async function prefillInvoiceFromTenant(
   tenantId: string,
   period: string,
-): Promise<{ ok: boolean; error?: string; state?: InvoiceState }> {
+): Promise<{ ok: boolean; error?: string; state?: InvoiceState; source?: "charges" | "contract" }> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
     const { orgId } = await requireOrgAccess()
