@@ -31,6 +31,7 @@ export type SpaceInfo = {
   status: string
   kind?: string
   description: string | null
+  photos?: string[]
   tenant?: {
     id: string
     companyName: string
@@ -377,6 +378,17 @@ export function FloorView({
               <X className="h-4 w-4" />
             </button>
           </div>
+          {selectedSpace.photos && selectedSpace.photos.length > 0 && (
+            <div className="relative aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={selectedSpace.photos[0]} alt={`Каб. ${selectedSpace.number}`} className="h-full w-full object-cover" />
+              {selectedSpace.photos.length > 1 && (
+                <span className="absolute bottom-1.5 right-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                  +{selectedSpace.photos.length - 1}
+                </span>
+              )}
+            </div>
+          )}
           <div className="p-4 text-sm space-y-2">
             <div className="flex justify-between">
               <span className="text-slate-500 dark:text-slate-400">Площадь:</span>

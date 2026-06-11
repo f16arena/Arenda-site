@@ -6,6 +6,8 @@ import { Building2, MapPin, Phone, Mail, Calendar } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
 import { BookingForm } from "./booking-form"
 import { getBuildingTenantAdminContacts } from "@/lib/tenant-admin-contact"
+import { parseSpacePhotos } from "@/app/actions/space-photos"
+import { ImageOff } from "lucide-react"
 
 export default async function PublicBookingPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
@@ -39,6 +41,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                   number: true,
                   area: true,
                   description: true,
+                  photos: true,
                 },
                 orderBy: { number: "asc" },
               },
@@ -143,26 +146,56 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                         {b.address}
                       </p>
                     </div>
-                    <div className="divide-y divide-slate-100">
-                      {buildingSpaces.map((s) => (
-                        <div key={s.id} className="px-5 py-3 flex items-center justify-between hover:bg-slate-50/50">
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              Кабинет {s.number} <span className="text-slate-400 font-normal">· {s.floorName}</span>
-                            </p>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {s.area} м² · {formatMoney(s.area * s.ratePerSqm)}/мес
-                              {s.description ? ` · ${s.description}` : ""}
-                            </p>
+                    {/* Визуальные карточки с фото */}
+                    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+                      {buildingSpaces.map((s) => {
+                        const photos = parseSpacePhotos(s.photos)
+                        const cover = photos[0] ?? null
+                        return (
+                          <div key={s.id} className="overflow-hidden rounded-xl border border-slate-200 transition hover:shadow-md">
+                            <div className="relative aspect-[4/3] w-full bg-slate-100">
+                              {cover ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={cover} alt={`Помещение ${s.number}`} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-300">
+                                  <ImageOff className="h-8 w-8" />
+                                  <span className="text-[11px]">фото нет</span>
+                                </div>
+                              )}
+                              {photos.length > 1 && (
+                                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                                  +{photos.length - 1} фото
+                                </span>
+                              )}
+                              <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                                свободно
+                              </span>
+                            </div>
+                            <div className="p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">Кабинет {s.number}</p>
+                                  <p className="text-xs text-slate-500">{s.floorName}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-bold text-slate-900">{formatMoney(s.area * s.ratePerSqm)}</p>
+                                  <p className="text-[10px] text-slate-400">в месяц</p>
+                                </div>
+                              </div>
+                              <p className="mt-2 text-xs text-slate-600">
+                                {s.area} м²{s.description ? ` · ${s.description}` : ""}
+                              </p>
+                              <a
+                                href="#booking-form"
+                                className="mt-3 block w-full rounded-lg bg-slate-900 py-2 text-center text-xs font-medium text-white hover:bg-slate-800"
+                              >
+                                Записаться на просмотр →
+                              </a>
+                            </div>
                           </div>
-                          <a
-                            href={`#booking-form`}
-                            className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap"
-                          >
-                            Записаться →
-                          </a>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )

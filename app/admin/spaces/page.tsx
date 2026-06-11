@@ -54,6 +54,7 @@ type SelectedSpaceInfo = {
   status: string
   kind: string
   description: string | null
+  photos: string | null
   tenant: SpaceTenantInfo | null
   tenantSpaces: Array<{ tenant: SpaceTenantInfo }>
 }
@@ -570,7 +571,7 @@ export default async function SpacesPage() {
                             <div className="mt-2 flex items-center gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
                               {canEditSpaces && (
                                 <EditSpaceDialog
-                                  space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description, tenant: occupancyTenant }}
+                                  space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description, photos: space.photos, tenant: occupancyTenant }}
                                   tenants={canAssignSpaces ? assignableTenants : []}
                                   buildingId={building?.id}
                                 />
@@ -646,6 +647,7 @@ export default async function SpacesPage() {
                                       area: space.area,
                                       status: space.status,
                                       description: space.description,
+                                      photos: space.photos,
                                       tenant: occupancyTenant,
                                     }}
                                     tenants={canAssignSpaces ? assignableTenants : []}
@@ -760,6 +762,7 @@ async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise
                 status: true,
                 kind: true,
                 description: true,
+                photos: true,
                 tenant: {
                   select: {
                     id: true,
@@ -837,6 +840,7 @@ async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise
                 area: true,
                 status: true,
                 description: true,
+                photos: true,
                 tenant: {
                   select: {
                     id: true,
@@ -892,6 +896,7 @@ function normalizeLegacySelectedBuilding(building: {
         status: space.status,
         kind: "RENTABLE",
         description: space.description,
+        photos: (space as { photos?: string | null }).photos ?? null,
         tenant: space.tenant ? normalizeLegacyTenant(space.tenant, space.area, floor.ratePerSqm) : null,
         tenantSpaces: [],
       })),

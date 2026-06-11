@@ -580,6 +580,9 @@ model Space {
   // не сдаётся, не считается в заполняемости, не появляется в списке свободных.
   kind        String  @default("RENTABLE")
   description String?
+  // Фото помещения: JSON-массив сжатых data-URL (на клиенте ужимаются до ~1280px).
+  // Показываются в карточке, попапе плана и на публичной витрине свободных площадей.
+  photos      String? @map("photos")
 
   floor        Floor         @relation(fields: [floorId], references: [id])
   tenant       Tenant?

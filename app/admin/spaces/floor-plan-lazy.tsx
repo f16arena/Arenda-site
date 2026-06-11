@@ -10,7 +10,8 @@ import type { FloorLayoutV2 } from "@/lib/floor-layout"
 type FloorPlanPayload = {
   layout: FloorLayoutV2 | null
   floor?: FloorMeta
-  spaces: Array<Omit<SpaceInfo, "tenant"> & {
+  spaces: Array<Omit<SpaceInfo, "tenant" | "photos"> & {
+    photos?: string[]
     tenant?: {
       id: string
       companyName: string

@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
 import { floorScope } from "@/lib/tenant-scope"
+import { parseSpacePhotos } from "@/app/actions/space-photos"
 
 export const dynamic = "force-dynamic"
 
@@ -42,6 +43,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
           status: true,
           kind: true,
           description: true,
+          photos: true,
           tenant: {
             select: {
               id: true,
@@ -111,6 +113,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         status: space.status,
         kind: space.kind,
         description: space.description,
+        photos: parseSpacePhotos(space.photos),
         tenant: tenant
           ? {
               id: tenant.id,

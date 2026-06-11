@@ -4,6 +4,8 @@ import { useEffect, useState, useTransition } from "react"
 import { Plus, X, Edit2 } from "lucide-react"
 import { toast } from "sonner"
 import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
+import { SpacePhotosField } from "./space-photos-field"
+import { parseSpacePhotos } from "@/app/actions/space-photos"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { Button } from "@/components/ui/button"
 
@@ -14,7 +16,7 @@ type Floor = {
   totalArea?: number | null  // общая площадь этажа (если задана)
   usedArea?: number          // Σ Space.area на этом этаже (без редактируемого)
 }
-type Space = { id: string; number: string; area: number; status: string; description: string | null; kind?: string }
+type Space = { id: string; number: string; area: number; status: string; description: string | null; kind?: string; photos?: string | null }
 type TenantOption = {
   id: string
   companyName: string
@@ -345,6 +347,8 @@ export function EditSpaceDialog({
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
                 <input name="description" defaultValue={space.description ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
+              {/* Фото — сохраняются отдельным action сразу при добавлении/удалении */}
+              <SpacePhotosField spaceId={space.id} initialPhotos={parseSpacePhotos(space.photos)} />
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
                 <Button
