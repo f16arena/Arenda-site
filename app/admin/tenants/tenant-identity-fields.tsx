@@ -45,7 +45,8 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
 
   // Автозаполнение из справочника КГД: подставляем наименование/адрес/директора
   // в соседние поля ТОЙ ЖЕ формы (поля по name — работает в диалоге, мастере и карточке).
-  function fillFromRegistry() {
+  // auto=true — фоновый запуск при вводе 12 цифр: ошибки «не найден» молчат.
+  function fillFromRegistry(auto = false) {
     startLookup(async () => {
       // Нотариус/адвокат/ЧСИ в КГД — «лицо, занимающееся частной практикой» (LZCHP)
       const kgdKind = usesBin
@@ -54,7 +55,26 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
           ? ("LZCHP" as const)
           : ("IP" as const)
       const r = await lookupTaxpayerAction(taxId, kgdKind)
-      if (!r.ok) { toast.error(r.error); return }
+      if (!r.ok) {
+        if (!auto) toast.error(r.error)
+        return
+      }
+
+      // Правовая форма из типа налогоплательщика КГД (UL → ТОО/АО по названию,
+      // IP → ИП, LZCHP → нотариус/адвокат/ЧСИ по виду практики).
+      const t = r.info.taxpayerType
+      let detected: TenantLegalType | null = null
+      if (t === "UL") detected = /акционерное общество/i.test(r.info.name ?? "") ? "AO" : "TOO"
+      else if (t === "IP") detected = "IP"
+      else if (t === "LZCHP") {
+        const k = (r.info.lzchpType ?? "").toUpperCase()
+        detected = k.includes("NOTAR") ? "NOTARIUS"
+          : k.includes("ADVOC") || k.includes("LAWYER") ? "ADVOKAT"
+          : k.includes("BAILIFF") || k.includes("CHSI") ? "CHSI"
+          : null
+      }
+      if (detected && detected !== legalType) setLegalType(detected)
+
       const form = selectRef.current?.form
       if (!form) return
       const setField = (name: string, value: string | null, overwrite = true) => {
@@ -66,20 +86,43 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
         input.dispatchEvent(new Event("input", { bubbles: true }))
         return true
       }
+      // У ИП/частной практики наименование = ФИО предпринимателя → контактное лицо
+      const personName = t === "IP" || t === "LZCHP" ? r.info.name : r.info.director
       const filled = [
         setField("companyName", r.info.name),
         setField("legalAddress", r.info.address),
         setField("directorName", r.info.director),
         // ФИО контакта — только если поле ещё пустое (не перетираем введённое).
-        setField("name", r.info.director, false),
+        setField("name", personName, false),
       ].filter(Boolean).length
-      if (filled > 0) toast.success(`Заполнено из справочника: ${[r.info.name && "наименование", r.info.address && "адрес", r.info.director && "руководитель"].filter(Boolean).join(", ")}`)
-      else if (r.info.status) toast.info("Заполнять нечего, но налогоплательщик найден")
+      const parts = [
+        r.info.name && "наименование",
+        detected && "правовая форма",
+        r.info.address && "адрес",
+        r.info.director && "руководитель",
+      ].filter(Boolean).join(", ")
+      if (filled > 0 || detected) toast.success(`Заполнено из КГД: ${parts}`)
+      else if (r.info.status) toast.info("Налогоплательщик найден, но заполнять нечего")
       else toast.info("Справочник ответил, но подходящих полей в этой форме нет")
       // Статус регистрации в КГД (вид регистрации, дата постановки/снятия с учёта)
       if (r.info.status) toast.message("Статус в КГД", { description: r.info.status, duration: 8000 })
     })
   }
+
+  // Автопоиск: как только введены все 12 цифр — сами дёргаем КГД (без клика).
+  // Повторно для того же номера не запрашиваем; при открытии карточки с уже
+  // заполненным ИИН/БИН тоже не дёргаем (initial значение записано в ref).
+  const fillRef = useRef(fillFromRegistry)
+  useEffect(() => { fillRef.current = fillFromRegistry })
+  const autoLookedUpRef = useRef<string | null>(taxId.length === 12 ? taxId : null)
+  useEffect(() => {
+    if (taxId.length !== 12 || autoLookedUpRef.current === taxId) return
+    const timer = setTimeout(() => {
+      autoLookedUpRef.current = taxId
+      fillRef.current(true)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [taxId])
 
   return (
     <>
@@ -139,7 +182,7 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
         {taxId.length === 12 && (
           <button
             type="button"
-            onClick={fillFromRegistry}
+            onClick={() => fillFromRegistry()}
             disabled={lookupPending}
             title="Подтянуть наименование, адрес и руководителя из справочника налогоплательщиков КГД"
             className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"

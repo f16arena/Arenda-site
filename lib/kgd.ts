@@ -29,6 +29,10 @@ export interface TaxpayerInfo {
   director: string | null
   /** Статус регистрации в КГД (вид регистрации, даты, орган) — для подсказки в UI */
   status: string | null
+  /** Тип налогоплательщика из ответа КГД — для автовыбора правовой формы */
+  taxpayerType: "UL" | "IP" | "LZCHP" | null
+  /** Вид частной практики (NOTARY/ADVOCATE/PRIVATE_BAILIFF…) при taxpayerType=LZCHP */
+  lzchpType: string | null
 }
 
 // print=false — обязательный по инструкции КГД параметр (false = JSON, true = PDF base64)
@@ -159,7 +163,15 @@ function parseKgdPortal(data: unknown): TaxpayerInfo | null {
   const status = bits.filter(Boolean).join(" · ")
 
   if (!name && !status) return null
-  return { name, address: null, director: null, status: status || null }
+  const typeRaw = cleanStr(entry.taxpayerType)?.toUpperCase() ?? null
+  return {
+    name,
+    address: null,
+    director: null,
+    status: status || null,
+    taxpayerType: typeRaw === "UL" || typeRaw === "IP" || typeRaw === "LZCHP" ? typeRaw : null,
+    lzchpType: lzchp.length > 0 ? cleanStr(lzchp[0]?.lzchpType) : null,
+  }
 }
 
 function buildUrl(urlTemplate: string, taxId: string, taxpayerType: string): string {
@@ -230,6 +242,8 @@ export async function lookupTaxpayer(
         address: findString(data, ADDRESS_KEYS),
         director: findString(data, DIRECTOR_KEYS),
         status: null,
+        taxpayerType: null,
+        lzchpType: null,
       }
       if (info.name || info.address) return { ok: true, info }
 
