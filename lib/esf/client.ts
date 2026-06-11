@@ -41,10 +41,23 @@ function pickAll(xml: string, tagName: string): string[] {
   return out
 }
 
-async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000): Promise<string> {
+/** WS-Security UsernameToken заголовок (нужен для createSession). */
+function wsseHeader(username: string, password: string): string {
+  const WSSE = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
+  const WSU = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
+  const PWTYPE = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordText"
+  return `<soapenv:Header>`
+    + `<wsse:Security soapenv:mustUnderstand="1" xmlns:wsse="${WSSE}" xmlns:wsu="${WSU}">`
+    + `<wsse:UsernameToken wsu:Id="UsernameToken-1">`
+    + `<wsse:Username>${escXml(username)}</wsse:Username>`
+    + `<wsse:Password Type="${PWTYPE}">${escXml(password)}</wsse:Password>`
+    + `</wsse:UsernameToken></wsse:Security></soapenv:Header>`
+}
+
+async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000, headerXml = "<soapenv:Header/>"): Promise<string> {
   const envelope = `<?xml version="1.0" encoding="UTF-8"?>`
     + `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">`
-    + `<soapenv:Header/><soapenv:Body>${bodyXml}</soapenv:Body></soapenv:Envelope>`
+    + `${headerXml}<soapenv:Body>${bodyXml}</soapenv:Body></soapenv:Envelope>`
 
   const res = await fetch(url, {
     method: "POST",
@@ -63,14 +76,19 @@ async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000): Promi
   return text
 }
 
-/** Открыть сессию: ИИН/БИН + PEM-сертификат (base64, без BEGIN/END-обёртки или с ней). */
-export async function createSession(tin: string, x509CertificatePem: string): Promise<string> {
+/**
+ * Открыть сессию. Обязателен WS-Security UsernameToken в заголовке
+ * (Username = БИН/ИИН, Password = пароль ЭЦП-контейнера) — без него ИС ЭСФ
+ * отвечает «A security error was encountered when verifying the message».
+ * В теле — tin + сертификат подписанта (base64).
+ */
+export async function createSession(tin: string, x509CertificatePem: string, password: string): Promise<string> {
   const cert = x509CertificatePem.replace(/-----(BEGIN|END) CERTIFICATE-----|\s/g, "")
   const body = `<ns:createSessionRequest xmlns:ns="esf">`
     + `<tin>${escXml(tin)}</tin>`
     + `<x509Certificate>${escXml(cert)}</x509Certificate>`
     + `</ns:createSessionRequest>`
-  const xml = await soapCall(SESSION_URL, body)
+  const xml = await soapCall(SESSION_URL, body, 30_000, wsseHeader(tin, password))
   const sessionId = pick(xml, "sessionId")
   if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId")
   return sessionId

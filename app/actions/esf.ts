@@ -134,7 +134,7 @@ export async function sendActToEsf(documentId: string): Promise<
       return { ok: false, error: "Не удалось получить сертификат подписанта (ESF_SIGN_CERT_PEM)" }
     }
 
-    const sessionId = await createSession(orgTin, signed.certificatePem)
+    const sessionId = await createSession(orgTin, signed.certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
     try {
       const result = await uploadAwp({
         sessionId,
@@ -184,7 +184,7 @@ export async function refreshEsfStatus(documentId: string): Promise<
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { bin: true, iin: true } })
     const orgTin = (org?.bin || org?.iin || "").replace(/\D/g, "")
     const signed = await signAwpXml("status-check") // только ради сертификата сессии
-    const sessionId = await createSession(orgTin, signed.certificatePem)
+    const sessionId = await createSession(orgTin, signed.certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
     try {
       const result = await queryAwpStatusById(sessionId, doc.esfId)
       await db.generatedDocument.update({
