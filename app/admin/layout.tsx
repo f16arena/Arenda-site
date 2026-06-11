@@ -111,6 +111,7 @@ async function renderAdminLayout(children: React.ReactNode) {
       <Suspense fallback={<aside className="hidden lg:block w-60 shrink-0 bg-slate-900" />}>
         <SidebarChrome
           userId={session.user.id}
+          userName={session.user.name}
           role={session.user.role}
           isPlatformOwner={isPlatformOwner}
           currentOrgId={currentOrgId}
@@ -135,11 +136,13 @@ async function renderAdminLayout(children: React.ReactNode) {
 
 async function SidebarChrome({
   userId,
+  userName,
   role,
   isPlatformOwner,
   currentOrgId,
 }: {
   userId: string
+  userName?: string | null
   role: string
   isPlatformOwner: boolean
   currentOrgId: string | null
@@ -170,6 +173,7 @@ async function SidebarChrome({
     <AdminSidebar
       buildingName={building?.name ?? aggregateLabel}
       userRole={role}
+      userName={formatPersonShortName(userName)}
       allowedSections={allowedSections}
       allowedCapabilities={allowedCapabilities}
       isPlatformOwner={isPlatformOwner}

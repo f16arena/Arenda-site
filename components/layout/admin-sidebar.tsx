@@ -12,6 +12,7 @@ import {
   LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles, FileBarChart,
+  PanelLeftClose, PanelLeftOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -25,14 +26,36 @@ type NavItem = {
   platformOnly?: boolean
   section?: string
   capability?: string
+  /** Ключ живого счётчика из /api/admin/nav-counters */
+  counter?: CounterKey
 }
 type NavSection = {
   title?: string
   items: NavItem[]
   ownerOnly?: boolean
   /** Свёрнутая по умолчанию секция (раскрывается по клику). Состояние
-   *  сохраняется в localStorage по ключу `sidebar:section:<title>`. */
+   *  сохраняется в localStorage по ключу `sidebar:collapsed`. */
   collapsible?: boolean
+}
+
+type CounterKey = "requests" | "messages" | "tasks" | "complaints" | "documents"
+type Counters = Partial<Record<CounterKey, number>>
+
+/** Цвет бейджа: красный — требует реакции, синий — входящие, янтарный — в работе */
+const COUNTER_STYLE: Record<CounterKey, string> = {
+  requests: "bg-red-500 text-white",
+  complaints: "bg-red-500 text-white",
+  messages: "bg-blue-500 text-white",
+  tasks: "bg-amber-500 text-slate-900",
+  documents: "bg-violet-500 text-white",
+}
+
+const ROLE_RU: Record<string, string> = {
+  OWNER: "Владелец",
+  ADMIN: "Администратор",
+  MANAGER: "Менеджер",
+  ACCOUNTANT: "Бухгалтер",
+  STAFF: "Сотрудник",
 }
 
 const nav: NavSection[] = [
@@ -69,17 +92,17 @@ const nav: NavSection[] = [
   {
     title: "ДОКУМЕНТЫ",
     items: [
-      { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents" },
+      { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents", counter: "documents" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
   {
     title: "ОБСЛУЖИВАНИЕ",
     items: [
-      { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests" },
-      { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks" },
-      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages" },
-      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints" },
+      { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests", counter: "requests" },
+      { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks", counter: "tasks" },
+      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages", counter: "messages" },
+      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints", counter: "complaints" },
       { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
     ],
   },
@@ -89,11 +112,7 @@ const nav: NavSection[] = [
       { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
       { href: "/admin/reports", label: "Отчётность", icon: FileBarChart, section: "analytics", ownerOnly: true },
       { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
-      // /admin/data-quality удалён из sidebar — содержимое теперь в /admin/onboarding
-      // (объединённый экран «Здоровье платформы»). Сама страница пока живёт по
-      // прямой ссылке для обратной совместимости.
-      // /admin/system-health удалён из admin sidebar — техническая страница,
-      // доступна только в /superadmin/system-health для платформ-админа Turanix.
+      // /admin/data-quality и /admin/system-health убраны из sidebar — см. историю в git.
     ],
   },
   {
@@ -102,11 +121,7 @@ const nav: NavSection[] = [
       { href: "/admin/faq", label: "FAQ", icon: CircleHelp },
     ],
   },
-  // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию. Раньше эти пункты жили
-  // в /admin/profile?tab=management, но владельцы не находили их там —
-  // искали в sidebar. Возвращаем сюда, чтобы «настройки организации» были
-  // там, где их ищут. Дубли с другими секциями (Здания/Финансы/Аналитика)
-  // намеренно не переносим — они и так в sidebar.
+  // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию.
   {
     title: "НАСТРОЙКИ",
     ownerOnly: true,
@@ -124,11 +139,16 @@ const nav: NavSection[] = [
   },
 ]
 
+function formatBadge(n: number): string {
+  return n > 99 ? "99+" : String(n)
+}
+
 export function AdminSidebar({
-  buildingName, userRole, allowedSections, allowedCapabilities, isPlatformOwner = false,
+  buildingName, userRole, userName, allowedSections, allowedCapabilities, isPlatformOwner = false,
 }: {
   buildingName?: string
   userRole?: string
+  userName?: string | null
   allowedSections?: string[]
   allowedCapabilities?: string[]
   isPlatformOwner?: boolean
@@ -138,16 +158,14 @@ export function AdminSidebar({
   const allowed = new Set(allowedSections ?? [])
   const capabilities = new Set(allowedCapabilities ?? [])
   const [mobileOpen, setMobileOpen] = useState(false)
-  // Collapsible-секции: ключ — title секции. Дефолтное состояние
-  // (свёрнуто/раскрыто) приходит из логики ниже — если активный путь
-  // внутри секции, она раскрывается. Иначе читаем из localStorage.
+  // Узкая «рейка» иконок на десктопе (lg+); на мобиле drawer всегда полный.
+  const [rail, setRail] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  const [counters, setCounters] = useState<Counters>({})
   // Hydration-flag: на сервере {} → SSR HTML, на клиенте при первом рендере
-  // подгружаем из localStorage и обновляем state. Используем паттерн
-  // «adjusting state during render» (React 18+) вместо useEffect —
-  // ESLint правило react-hooks/set-state-in-effect блокирует setState
-  // внутри эффекта. Этот паттерн идиоматичен и React сам перерендерит
-  // без cascading effects. См. react.dev/learn/you-might-not-need-an-effect.
+  // подгружаем из localStorage и обновляем state. Паттерн «adjusting state
+  // during render» (react.dev/learn/you-might-not-need-an-effect) — ESLint
+  // правило react-hooks/set-state-in-effect блокирует setState в эффекте.
   const [hydrated, setHydrated] = useState(false)
   if (!hydrated) {
     setHydrated(true)
@@ -155,6 +173,7 @@ export function AdminSidebar({
       try {
         const raw = window.localStorage.getItem("sidebar:collapsed")
         if (raw) setCollapsed(JSON.parse(raw) as Record<string, boolean>)
+        if (window.localStorage.getItem("sidebar:rail") === "1") setRail(true)
       } catch {
         // localStorage может быть недоступен (приватный режим) — игнорируем.
       }
@@ -166,6 +185,28 @@ export function AdminSidebar({
     const id = window.setTimeout(() => setMobileOpen(false), 0)
     return () => window.clearTimeout(id)
   }, [pathname])
+
+  // Живые счётчики: при загрузке, раз в 60с и при возврате на вкладку.
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      if (document.visibilityState === "hidden") return
+      fetch("/api/admin/nav-counters")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: Counters | null) => {
+          if (!cancelled && data) setCounters(data)
+        })
+        .catch(() => { /* сеть/авторизация — бейджи просто не покажем */ })
+    }
+    load()
+    const interval = window.setInterval(load, 60_000)
+    document.addEventListener("visibilitychange", load)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", load)
+    }
+  }, [])
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href
@@ -181,6 +222,17 @@ export function AdminSidebar({
         // ignore
       }
       return next
+    })
+  }
+
+  function toggleRail() {
+    setRail((prev) => {
+      try {
+        window.localStorage.setItem("sidebar:rail", prev ? "0" : "1")
+      } catch {
+        // ignore
+      }
+      return !prev
     })
   }
 
@@ -200,6 +252,14 @@ export function AdminSidebar({
       }),
     }))
     .filter((s) => s.items.length > 0)
+
+  const initials = (userName ?? "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("") || "?"
+  const roleLabel = (userRole && ROLE_RU[userRole]) ?? userRole ?? ""
 
   return (
     <>
@@ -221,110 +281,201 @@ export function AdminSidebar({
       )}
 
       <div className={cn(
-        "flex h-full flex-col bg-slate-900 z-50 transition-transform",
-        // Десктоп: всегда виден слева 60w
-        "lg:relative lg:w-60 lg:translate-x-0",
-        // Мобиль: фиксированный drawer
+        "flex h-full flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 z-50",
+        "transition-[width,transform] duration-300 ease-out",
+        // Десктоп: всегда виден слева; ширина зависит от режима рейки
+        "lg:relative lg:translate-x-0",
+        rail ? "lg:w-[72px]" : "lg:w-60",
+        // Мобиль: фиксированный drawer (всегда полная ширина)
         "fixed top-0 left-0 w-64 -translate-x-full",
         mobileOpen && "translate-x-0"
       )}>
       {/* Кнопка закрыть на мобиле */}
       <button
         onClick={() => setMobileOpen(false)}
-        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-800"
+        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800"
         aria-label="Закрыть меню"
       >
         <X className="h-5 w-5" />
       </button>
 
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600">
+      <div className={cn(
+        "flex items-center gap-3 border-b border-slate-800/80 px-5 py-5",
+        rail && "lg:justify-center lg:px-2",
+      )}>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-md shadow-blue-950/50">
           <Building className="h-4 w-4 text-white" />
         </div>
-        <div className="min-w-0">
+        <div className={cn("min-w-0", rail && "lg:hidden")}>
           <p className="text-sm font-semibold text-white truncate">
             {buildingName ?? "Commrent"}
           </p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">Панель управления</p>
+          <p className="text-[11px] text-slate-400">Панель управления</p>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+      <nav className={cn("flex-1 overflow-y-auto py-4 px-3 space-y-4", rail && "lg:px-2 lg:space-y-2")}>
         {visibleNav.map((section, si) => {
           // Активный путь внутри секции — раскрываем принудительно,
-          // даже если пользователь её свернул. Это уберегает от ситуации
-          // «зашёл по ссылке, а в sidebar её нет — кажется что страница потеряна».
+          // даже если пользователь её свернул.
           const hasActive = section.items.some((it) => isActive(it.href, it.exact))
           const userCollapsed = section.title ? collapsed[section.title] : false
-          // По умолчанию collapsible-секции свёрнуты (если в localStorage
-          // нет явной записи), обычные — всегда раскрыты.
           const isExplicitState = section.title ? section.title in collapsed : false
           const defaultCollapsed = section.collapsible && !isExplicitState
           const isCollapsed = !hasActive && (userCollapsed ?? defaultCollapsed)
+          // Сумма счётчиков внутри свёрнутой секции — чтобы цифры не терялись
+          const sectionCount = section.items.reduce(
+            (sum, it) => sum + (it.counter ? counters[it.counter] ?? 0 : 0),
+            0,
+          )
 
           return (
             <div key={si}>
-              {section.title && section.collapsible ? (
+              {section.title ? (
                 <button
                   type="button"
                   onClick={() => toggleSection(section.title!)}
-                  className="w-full px-2 mb-1 flex items-center justify-between text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase hover:text-slate-300 transition-colors"
+                  className={cn(
+                    "w-full px-2 mb-1 flex items-center justify-between text-[10px] font-semibold tracking-widest text-slate-500 uppercase transition-colors hover:text-slate-300",
+                    rail && "lg:hidden",
+                  )}
                   aria-expanded={!isCollapsed}
                 >
-                  <span>{section.title}</span>
-                  <ChevronDown
-                    className={cn(
-                      "h-3 w-3 transition-transform",
-                      isCollapsed && "-rotate-90"
+                  <span className="flex items-center gap-1.5">
+                    {section.title}
+                    {isCollapsed && sectionCount > 0 && (
+                      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white normal-case tracking-normal">
+                        {formatBadge(sectionCount)}
+                      </span>
                     )}
+                  </span>
+                  <ChevronDown
+                    className={cn("h-3 w-3 transition-transform duration-200", isCollapsed && "-rotate-90")}
                   />
                 </button>
-              ) : section.title ? (
-                <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
-                  {section.title}
-                </p>
               ) : null}
-              {!isCollapsed && (
-                <ul className="space-y-0.5">
-                  {section.items.map((item) => (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                          isActive(item.href, "exact" in item ? item.exact : undefined)
-                            ? "bg-blue-600/20 text-white border-l-2 border-blue-500 pl-[10px]"
-                            : "text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200"
-                        )}
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        {item.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+              {/* Разделитель между секциями в режиме рейки */}
+              {section.title && si > 0 && rail && (
+                <div className="hidden lg:block mx-3 mb-2 border-t border-slate-800/80" />
               )}
+              {/* grid-rows трюк: плавное сворачивание без измерения высоты.
+                  В режиме рейки секции на десктопе всегда раскрыты (заголовков нет). */}
+              <div className={cn(
+                "grid transition-[grid-template-rows] duration-200 ease-out",
+                isCollapsed ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+                rail && "lg:grid-rows-[1fr]",
+              )}>
+                <ul className="overflow-hidden space-y-0.5">
+                  {section.items.map((item) => {
+                    const active = isActive(item.href, "exact" in item ? item.exact : undefined)
+                    const count = item.counter ? counters[item.counter] ?? 0 : 0
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          title={item.label}
+                          className={cn(
+                            "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
+                            "transition-all duration-200",
+                            rail && "lg:justify-center lg:px-0 lg:py-2.5",
+                            active
+                              ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md shadow-blue-950/40"
+                              : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100 hover:translate-x-0.5",
+                            active && rail && "lg:from-blue-600 lg:to-blue-600",
+                          )}
+                        >
+                          <span className="relative shrink-0">
+                            <item.icon className={cn(
+                              "h-4 w-4 transition-transform duration-200",
+                              !active && "group-hover:scale-110",
+                            )} />
+                            {/* Бейдж-точка на иконке в режиме рейки */}
+                            {count > 0 && (
+                              <span className={cn(
+                                "hidden",
+                                rail && "lg:flex absolute -top-1.5 -right-2 h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none",
+                                rail && COUNTER_STYLE[item.counter!],
+                              )}>
+                                {formatBadge(count)}
+                              </span>
+                            )}
+                          </span>
+                          <span className={cn("truncate", rail && "lg:hidden")}>{item.label}</span>
+                          {/* Бейдж-пилюля в полном режиме */}
+                          {count > 0 && (
+                            <span className={cn(
+                              "ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none",
+                              COUNTER_STYLE[item.counter!],
+                              active && "bg-white/25 text-white",
+                              rail && "lg:hidden",
+                            )}>
+                              {formatBadge(count)}
+                            </span>
+                          )}
+                          {/* Тултип в режиме рейки */}
+                          <span className={cn(
+                            "pointer-events-none absolute left-full z-50 ml-2 hidden whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white shadow-lg",
+                            rail && "lg:group-hover:block",
+                          )}>
+                            {item.label}{count > 0 ? ` · ${formatBadge(count)}` : ""}
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
             </div>
           )
         })}
       </nav>
 
-      {/* Logout: API route → browser выполняет полную навигацию,
-          получает Set-Cookie с очисткой и редирект на корневой /login.
-          Server action не используется, потому что он непредсказуемо
-          взаимодействует с cookie на slug-поддоменах. */}
-      <div className="border-t border-slate-800 p-3">
-        <form action="/api/logout" method="post">
-          <button
-            type="submit"
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+      {/* Футер: профиль + рейка + выход.
+          Logout через API route → браузер делает полную навигацию, получает
+          Set-Cookie с очисткой и редирект на корневой /login. Server action
+          не используется — непредсказуем с cookie на slug-поддоменах. */}
+      <div className={cn("border-t border-slate-800/80 p-3 space-y-1", rail && "lg:p-2")}>
+        <button
+          type="button"
+          onClick={toggleRail}
+          className={cn(
+            "hidden lg:flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-800/80 hover:text-slate-200",
+            rail && "lg:justify-center lg:px-0",
+          )}
+          title={rail ? "Развернуть меню" : "Свернуть в иконки"}
+        >
+          {rail ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
+          <span className={cn(rail && "lg:hidden")}>Свернуть меню</span>
+        </button>
+
+        <div className={cn(
+          "flex items-center gap-2.5 rounded-lg px-2 py-2",
+          rail && "lg:flex-col lg:gap-2 lg:px-0",
+        )}>
+          <Link
+            href="/admin/profile"
+            title="Открыть профиль"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[11px] font-bold text-white shadow-md shadow-blue-950/50 transition-transform hover:scale-105"
           >
-            <LogOut className="h-4 w-4" />
-            Выйти
-          </button>
-        </form>
+            {initials}
+          </Link>
+          <div className={cn("min-w-0 flex-1", rail && "lg:hidden")}>
+            <p className="truncate text-xs font-medium text-slate-200">{userName ?? "Профиль"}</p>
+            {roleLabel && <p className="truncate text-[10px] text-slate-500">{roleLabel}</p>}
+          </div>
+          <form action="/api/logout" method="post" className="shrink-0">
+            <button
+              type="submit"
+              title="Выйти"
+              aria-label="Выйти"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </form>
+        </div>
       </div>
       </div>
     </>
