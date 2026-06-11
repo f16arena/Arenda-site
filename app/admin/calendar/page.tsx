@@ -13,6 +13,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
+import { PageHeader } from "@/components/ui/page"
 
 const CALENDAR_EVENT_SOURCE_LIMIT = 80
 
@@ -212,17 +213,11 @@ async function renderCalendarPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-            <CalendarIcon className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-            Календарь
-          </h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Платежи, договоры, задачи · {events.length} событий в этом месяце{isCalendarCapped ? " (показаны первые)" : ""}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={CalendarIcon}
+        title="Календарь"
+        subtitle={`Платежи, договоры, задачи · ${events.length} событий в этом месяце${isCalendarCapped ? " (показаны первые)" : ""}`}
+      />
 
       {isCalendarCapped && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
