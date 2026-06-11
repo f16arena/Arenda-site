@@ -24,6 +24,7 @@ export type AdminShellOrg = {
   directorName: string | null
   isSuspended: boolean | null
   planExpiresAtIso: string | null
+  logoUrl: string | null
 }
 
 export type AdminShellUser = {
@@ -36,7 +37,7 @@ export const getCachedAdminShellOrg = unstable_cache(
   async (orgId: string): Promise<AdminShellOrg | null> => {
     const org = await db.organization.findUnique({
       where: { id: orgId },
-      select: { id: true, name: true, shortName: true, directorName: true, isSuspended: true, planExpiresAt: true },
+      select: { id: true, name: true, shortName: true, directorName: true, isSuspended: true, planExpiresAt: true, logoUrl: true },
     })
     if (!org) return null
     return {
@@ -46,6 +47,7 @@ export const getCachedAdminShellOrg = unstable_cache(
       directorName: org.directorName,
       isSuspended: org.isSuspended,
       planExpiresAtIso: org.planExpiresAt?.toISOString() ?? null,
+      logoUrl: org.logoUrl ?? null,
     }
   },
   ["admin-shell-org"],

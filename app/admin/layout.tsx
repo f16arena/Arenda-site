@@ -147,7 +147,7 @@ async function SidebarChrome({
   isPlatformOwner: boolean
   currentOrgId: string | null
 }) {
-  const [allBuildings, allowedSections, allowedCapabilities] = await measureServerStep("/admin/layout", "sidebar-data", Promise.all([
+  const [allBuildings, allowedSections, allowedCapabilities, sidebarOrg] = await measureServerStep("/admin/layout", "sidebar-data", Promise.all([
     currentOrgId
       ? safeServerValue(
           getCachedAdminShellBuildings(userId, currentOrgId, role, isPlatformOwner),
@@ -157,6 +157,13 @@ async function SidebarChrome({
       : Promise.resolve([] as Array<{ id: string; name: string; address: string }>),
     getCachedAdminShellSections(userId, role, isPlatformOwner),
     getCachedAdminShellCapabilities(userId, role, isPlatformOwner, currentOrgId),
+    currentOrgId
+      ? safeServerValue(
+          getCachedAdminShellOrg(currentOrgId),
+          null,
+          { source: "admin.layout.sidebarOrg", route: "/admin", orgId: currentOrgId, userId },
+        )
+      : Promise.resolve(null),
   ]))
 
   const store = await cookies()
@@ -172,6 +179,7 @@ async function SidebarChrome({
   return (
     <AdminSidebar
       buildingName={building?.name ?? aggregateLabel}
+      orgLogoUrl={sidebarOrg?.logoUrl ?? null}
       userRole={role}
       userName={formatPersonShortName(userName)}
       allowedSections={allowedSections}

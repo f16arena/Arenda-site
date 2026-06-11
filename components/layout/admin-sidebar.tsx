@@ -144,9 +144,11 @@ function formatBadge(n: number): string {
 }
 
 export function AdminSidebar({
-  buildingName, userRole, userName, allowedSections, allowedCapabilities, isPlatformOwner = false,
+  buildingName, orgLogoUrl, userRole, userName, allowedSections, allowedCapabilities, isPlatformOwner = false,
 }: {
   buildingName?: string
+  /** Логотип организации (брендирование из настроек); null → логотип Commrent */
+  orgLogoUrl?: string | null
   userRole?: string
   userName?: string | null
   allowedSections?: string[]
@@ -304,14 +306,23 @@ export function AdminSidebar({
         "flex items-center gap-3 border-b border-slate-800/80 px-5 py-5",
         rail && "lg:justify-center lg:px-2",
       )}>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 shadow-md shadow-blue-950/50">
-          <Building className="h-4 w-4 text-white" />
-        </div>
+        {/* Брендирование: логотип организации; без него — логотип Commrent */}
+        {orgLogoUrl ? (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-md shadow-slate-950/50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={orgLogoUrl} alt="Логотип организации" className="h-full w-full object-contain p-0.5" />
+          </div>
+        ) : (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95 shadow-md shadow-slate-950/50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/commrent-mark.png" alt="Commrent" className="h-full w-full object-contain p-0.5" />
+          </div>
+        )}
         <div className={cn("min-w-0", rail && "lg:hidden")}>
           <p className="text-sm font-semibold text-white truncate">
             {buildingName ?? "Commrent"}
           </p>
-          <p className="text-[11px] text-slate-400">Панель управления</p>
+          <p className="text-[11px] text-slate-400">{orgLogoUrl ? "Панель управления" : "Commrent · панель управления"}</p>
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import { VatSection } from "@/components/settings/vat-section"
 import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
 import { TaxSettingsSection } from "@/components/settings/tax-settings-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
+import { BrandingSection } from "@/components/settings/branding-section"
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
 import { safeServerValue } from "@/lib/server-fallback"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
@@ -41,6 +42,7 @@ export default async function SettingsPage() {
           vatNumber: true,
           defaultPenaltyPercent: true,
           features: true,
+          logoUrl: true,
         },
       }),
       null,
@@ -101,6 +103,11 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsSourceMap buildingName={building.name} />
+
+      {/* Брендирование: логотип организации в сайдбаре (только владелец) */}
+      {session.user.role === "OWNER" && (
+        <BrandingSection currentLogoUrl={organization?.logoUrl ?? null} />
+      )}
 
       {/* Building info */}
       <div id="building-settings" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">

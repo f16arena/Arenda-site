@@ -102,6 +102,9 @@ model Organization {
   legalType           String?   @map("legal_type")
   legalName           String?   @map("legal_name")
   shortName           String?   @map("short_name")
+  // Логотип организации (data-URL ~до 200КБ): брендирование сайдбара.
+  // Если не задан — показывается логотип Commrent.
+  logoUrl             String?   @map("logo_url")
   bin                 String?
   iin                 String?
   directorName        String?   @map("director_name")
