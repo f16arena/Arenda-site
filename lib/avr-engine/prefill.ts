@@ -58,8 +58,11 @@ export async function buildAvrStateForTenant(
   const req = organizationToRequisites(organization)
   const s = defaultAvrState()
   s.period = period
-  const now = new Date()
-  s.meta.date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+  // АВР датируется последним днём периода: акт об ОКАЗАННЫХ услугах оформляется
+  // по факту, концом месяца (бухгалтерская практика РК), а не днём генерации.
+  const [py, pm] = period.split("-").map(Number)
+  const lastDay = new Date(py, pm, 0).getDate()
+  s.meta.date = `${py}-${String(pm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
 
   s.executor = {
     type: avrPartyType(req.legalType),

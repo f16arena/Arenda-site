@@ -6,7 +6,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
-import { autoCreateDocumentsForSignedContract } from "@/lib/auto-documents"
+import { createActForTenant, createInvoiceForTenant } from "@/lib/auto-documents"
 
 /**
  * Догенерация счетов и АВР за текущий месяц по ВСЕМ подписанным договорам.
@@ -30,26 +30,24 @@ export async function backfillMonthlyDocuments(): Promise<
   // Последний подписанный договор каждого арендатора (не ДС)
   const contracts = await db.contract.findMany({
     where: { AND: [contractScope(orgId), { status: "SIGNED", type: { not: "ADDENDUM" } }] },
-    select: { id: true, tenantId: true },
+    select: { tenantId: true, tenant: { select: { companyName: true } } },
     orderBy: [{ version: "desc" }, { signedAt: "desc" }, { createdAt: "desc" }],
   })
   const latestByTenant = new Map<string, string>()
   for (const c of contracts) {
-    if (!latestByTenant.has(c.tenantId)) latestByTenant.set(c.tenantId, c.id)
+    if (!latestByTenant.has(c.tenantId)) latestByTenant.set(c.tenantId, c.tenant.companyName)
   }
   if (latestByTenant.size === 0) return { ok: false, error: "Подписанных договоров нет" }
 
-  const countDocs = () => db.generatedDocument.count({
-    where: { organizationId: orgId, documentType: { in: ["INVOICE", "ACT"] }, period, deletedAt: null },
-  })
-  const before = await countDocs()
-
-  // Последовательно: nextDocumentNumber инкрементирует счётчик — параллельность даст дубли номеров
-  for (const contractId of latestByTenant.values()) {
-    await autoCreateDocumentsForSignedContract(contractId)
+  // Ручной режим: владелец явно попросил — создаём И счёт, И АВР за период
+  // (авто-конвейер сам по себе делает счёт при подписании, АВР — в конце месяца).
+  // Последовательно: nextDocumentNumber инкрементирует счётчик — параллельность даст дубли номеров.
+  let created = 0
+  for (const [tenantId, companyName] of latestByTenant) {
+    if (await createInvoiceForTenant(orgId, tenantId, companyName, period)) created++
+    if (await createActForTenant(orgId, tenantId, companyName, period)) created++
   }
 
-  const after = await countDocs()
   revalidatePath("/admin/documents")
-  return { ok: true, created: after - before, tenants: latestByTenant.size }
+  return { ok: true, created, tenants: latestByTenant.size }
 }
