@@ -1,73 +1,102 @@
 import "server-only"
 
 /**
- * Подпись АВР/ЭСФ для ИС ЭСФ КГД РК.
+ * Подпись АВР/документов для ИС ЭСФ КГД РК.
  *
- * ВАЖНО про формат: ИС ЭСФ ждёт НЕ обычный CMS и НЕ XMLDSig, а проприетарную
- * подпись «универсальной формы» — её эталонно делает класс КГД
- * UFormSignatureHelper.sign(body, credential) поверх Kalkan (см. SDK:
- * vstore-sdk → VstoreLocalService.generateSignature). Наш NCANode (верификатор
- * CMS) этот формат из коробки НЕ воспроизводит — поэтому raw-подпись через
- * NCANode давала 404/неверную подпись.
+ * Формат подписи — проприетарный (TrustyUtils.sign поверх Kalkan), его делает
+ * ЭТАЛОННОЕ приложение из SDK КГД: esf_local_server.jar (метод SOAP
+ * generateDocumentSignature). Воспроизводить его на Node нельзя — поэтому
+ * разворачиваем этот jar как сервис подписи на нашем VPS (рядом с NCANode,
+ * порт 6666) и зовём по SOAP.
  *
- * Правильная схема — отдельный микросервис подписи УФ на нашем VPS (тот же,
- * где NCANode): по сути «localserver» из SDK КГД (Java + Kalkan), который
- * принимает signableData + ключ и возвращает { signedData, signature }.
- * Конфиг:
- *   ESF_SIGN_URL    — URL сервиса подписи УФ (POST JSON {signableData})
- *   ESF_SIGN_SECRET — секрет заголовка X-Esf-Sign-Secret
- *   ESF_SIGN_CERT_PEM — сертификат подписанта (PEM/base64) для createSession/upload
+ * Развёртывание (НЕ трогая NCANode):
+ *   1) на VPS: java -jar esf_local_server.jar  (слушает http://0.0.0.0:6666/LocalService)
+ *   2) рядом положить GOSTKNCA-ключ организации (.p12)
+ *   3) env приложения:
+ *        ESF_SIGN_URL       — http://<vps>:6666/LocalService (внутренний, не наружу)
+ *        ESF_SIGN_CERT_PATH — путь к .p12 на VPS (видит jar)
+ *        ESF_SIGN_CERT_PIN  — пароль контейнера
+ *        ESF_SIGN_NS        — (опц.) namespace WSDL сервиса, по умолчанию "esf"
  *
- * Пока сервис не развёрнут — signAwpXml бросает понятную ошибку, и кнопка
- * «В ЭСФ» сообщает, что подпись ещё подключается (прод не «падает» 404-ом).
+ * Ответ метода: { signedData, signature, certificate(base64) } — signature идёт
+ * в uploadAwp, certificate — в createSession/uploadAwp как x509Certificate.
  */
 
 const ESF_SIGN_URL = (process.env.ESF_SIGN_URL || "").replace(/\/$/, "")
-const ESF_SIGN_SECRET = process.env.ESF_SIGN_SECRET || ""
+const ESF_SIGN_CERT_PATH = process.env.ESF_SIGN_CERT_PATH || ""
+const ESF_SIGN_CERT_PIN = process.env.ESF_SIGN_CERT_PIN || ""
+const ESF_SIGN_NS = process.env.ESF_SIGN_NS || "esf"
 
 export function esfSignerConfigured(): boolean {
-  return !!ESF_SIGN_URL
+  return !!(ESF_SIGN_URL && ESF_SIGN_CERT_PATH && ESF_SIGN_CERT_PIN)
 }
 
 export interface EsfSignResult {
   /** base64 подпись XML-представления документа (поле signature в uploadAwp) */
   signature: string
-  /** PEM/base64 сертификата подписанта (поле x509Certificate) */
+  /** base64 сертификата подписанта (поле x509Certificate) */
   certificatePem: string
 }
 
+function escXml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
+function pick(xml: string, tag: string): string | null {
+  const m = new RegExp(`<(?:[\\w.]+:)?${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w.]+:)?${tag}>`).exec(xml)
+  return m ? m[1].trim() : null
+}
+
 /**
- * Подписать XML АВР через сервис подписи УФ.
- * Бросает понятную ошибку, если сервис не настроен или вернул не то.
+ * Подписать XML документа (АВР) через сервис подписи КГД (esf_local_server.jar).
+ * Бросает понятную ошибку, если сервис не настроен/недоступен.
  */
 export async function signAwpXml(awpXml: string): Promise<EsfSignResult> {
-  if (!ESF_SIGN_URL) {
+  if (!esfSignerConfigured()) {
     throw new Error(
-      "Электронная подпись для ИС ЭСФ ещё подключается: нужен сервис подписи универсальной формы (КГД-формат UFormSignature). "
-      + "Обычная CMS/NCANode-подпись здесь не подходит. Настройте ESF_SIGN_URL.",
+      "Подпись для ИС ЭСФ ещё не подключена: разверните esf_local_server.jar на VPS и задайте "
+      + "ESF_SIGN_URL / ESF_SIGN_CERT_PATH / ESF_SIGN_CERT_PIN.",
     )
   }
 
-  const res = await fetch(ESF_SIGN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(ESF_SIGN_SECRET ? { "X-Esf-Sign-Secret": ESF_SIGN_SECRET } : {}),
-    },
-    body: JSON.stringify({ signableData: awpXml }),
-    signal: AbortSignal.timeout(20_000),
-    cache: "no-store",
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => "")
-    throw new Error(`Сервис подписи ИС ЭСФ ответил ${res.status}: ${text.slice(0, 300)}`)
+  // CXF BARE: один параметр-обёртка documentSignatureRequest в namespace сервиса
+  const envelope = `<?xml version="1.0" encoding="UTF-8"?>`
+    + `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:esf="${ESF_SIGN_NS}">`
+    + `<soapenv:Body>`
+    + `<esf:documentSignatureRequest>`
+    + `<signableData>${escXml(awpXml)}</signableData>`
+    + `<certificatePath>${escXml(ESF_SIGN_CERT_PATH)}</certificatePath>`
+    + `<certificatePin>${escXml(ESF_SIGN_CERT_PIN)}</certificatePin>`
+    + `</esf:documentSignatureRequest>`
+    + `</soapenv:Body></soapenv:Envelope>`
+
+  let xml: string
+  try {
+    const res = await fetch(ESF_SIGN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/xml; charset=utf-8", SOAPAction: "" },
+      body: envelope,
+      signal: AbortSignal.timeout(20_000),
+      cache: "no-store",
+    })
+    xml = await res.text()
+    if (!res.ok) {
+      const fault = pick(xml, "faultstring")
+      throw new Error(fault || `Сервис подписи ответил ${res.status}`)
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("Сервис подписи")) throw e
+    throw new Error(`Сервис подписи ИС ЭСФ недоступен: ${e instanceof Error ? e.message : "ошибка сети"}`)
   }
-  const data = (await res.json()) as { signature?: string; signedData?: string; certificate?: string }
-  if (!data.signature) {
-    throw new Error("Сервис подписи ИС ЭСФ вернул ответ без подписи")
+
+  const signature = pick(xml, "signature")
+  const certificate = pick(xml, "certificate")
+  if (!signature) {
+    const fault = pick(xml, "faultstring")
+    throw new Error(fault ? `Сервис подписи: ${fault}` : "Сервис подписи вернул ответ без подписи")
   }
   return {
-    signature: data.signature,
-    certificatePem: data.certificate || process.env.ESF_SIGN_CERT_PEM || "",
+    signature,
+    certificatePem: certificate || process.env.ESF_SIGN_CERT_PEM || "",
   }
 }
