@@ -8,6 +8,7 @@ import Link from "next/link"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
+import { PageHeader, Card } from "@/components/ui/page"
 import { deleteRequest } from "@/app/actions/requests"
 import { requireOrgAccess } from "@/lib/org"
 import { requestScope } from "@/lib/tenant-scope"
@@ -126,12 +127,11 @@ export default async function RequestsPage({
 
   return (
     <div className="space-y-5">
-      <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Заявки арендаторов</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          {filterCounts.new} новых · {filterCounts.active} в работе
-        </p>
-      </div>
+      <PageHeader
+        icon={ClipboardList}
+        title="Заявки арендаторов"
+        subtitle={`${filterCounts.new} новых · ${filterCounts.active} в работе`}
+      />
 
       {/* Filters */}
       <div className="space-y-3">
@@ -196,7 +196,7 @@ export default async function RequestsPage({
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+      <Card padded={false} className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -283,7 +283,7 @@ export default async function RequestsPage({
             type: selectedType || null,
           }}
         />
-      </div>
+      </Card>
     </div>
   )
 }
