@@ -10,9 +10,13 @@ type BaseInputProps = {
   defaultValue?: string | null
   required?: boolean
   className?: string
+  /** Переопределить автозаполнение браузера: "off" — когда вводятся данные
+   *  ДРУГОГО человека (создание сотрудника/арендатора), чтобы браузер не
+   *  подставлял контакты текущего пользователя. */
+  autoComplete?: string
 }
 
-export function KzPhoneInput({ name, defaultValue, required, className }: BaseInputProps) {
+export function KzPhoneInput({ name, defaultValue, required, className, autoComplete }: BaseInputProps) {
   const [value, setValue] = useState(formatKzPhoneInput(defaultValue ?? ""))
 
   return (
@@ -20,7 +24,7 @@ export function KzPhoneInput({ name, defaultValue, required, className }: BaseIn
       name={name}
       type="text"
       inputMode="numeric"
-      autoComplete="tel"
+      autoComplete={autoComplete ?? "tel"}
       required={required}
       value={value}
       onFocus={() => {
@@ -53,7 +57,7 @@ export function KzPhoneInput({ name, defaultValue, required, className }: BaseIn
   )
 }
 
-export function AsciiEmailInput({ name, defaultValue, required, className }: BaseInputProps) {
+export function AsciiEmailInput({ name, defaultValue, required, className, autoComplete }: BaseInputProps) {
   const [value, setValue] = useState(cleanEmail(defaultValue ?? ""))
 
   return (
@@ -61,7 +65,7 @@ export function AsciiEmailInput({ name, defaultValue, required, className }: Bas
       name={name}
       type="email"
       inputMode="email"
-      autoComplete="email"
+      autoComplete={autoComplete ?? "email"}
       required={required}
       value={value}
       onChange={(event) => setValue(cleanEmail(event.target.value))}

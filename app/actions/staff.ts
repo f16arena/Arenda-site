@@ -3,11 +3,15 @@
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
 import bcrypt from "bcryptjs"
+import { randomBytes } from "node:crypto"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { assertStaffInOrg, assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+
+// Владелец в организации один — назначить/создать второго нельзя.
+const ALLOWED_STAFF_ROLES = new Set(["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"])
 
 function parseBuildingIds(formData: FormData) {
   return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
@@ -15,6 +19,15 @@ function parseBuildingIds(formData: FormData) {
 
 function requireBuildingIds(buildingIds: string[]) {
   if (buildingIds.length === 0) throw new Error("Назначьте сотруднику хотя бы одно здание")
+}
+
+/** Перехват уникальных ограничений Prisma → человеческое сообщение */
+function friendlyUniqueError(e: unknown): never {
+  const code = (e as { code?: string })?.code
+  if (code === "P2002") {
+    throw new Error("Пользователь с таким email или телефоном уже существует")
+  }
+  throw e
 }
 
 export async function createStaff(formData: FormData) {
@@ -32,7 +45,16 @@ export async function createStaff(formData: FormData) {
   const buildingIds = parseBuildingIds(formData)
   requireBuildingIds(buildingIds)
 
-  const hash = await bcrypt.hash(password || "change123", 10)
+  if (!ALLOWED_STAFF_ROLES.has(role)) {
+    throw new Error("Недопустимая роль. Владелец в организации один — создать второго нельзя.")
+  }
+
+  // Пароль одноразовый: из формы (сгенерирован клиентом) либо случайный.
+  // Статических дефолтов вроде «change123» не бывает.
+  const oneTimePassword = password && password.length >= 8
+    ? password
+    : randomBytes(8).toString("base64url")
+  const hash = await bcrypt.hash(oneTimePassword, 10)
 
   const user = await db.user.create({
     data: {
@@ -45,7 +67,7 @@ export async function createStaff(formData: FormData) {
       // Пароль выдан администратором — сотрудник обязан сменить при первом входе.
       mustChangePassword: true,
     },
-  })
+  }).catch(friendlyUniqueError)
 
   await db.staff.create({
     data: {
@@ -77,6 +99,19 @@ export async function updateStaff(staffId: string, userId: string, formData: For
   const buildingIds = parseBuildingIds(formData)
   requireBuildingIds(buildingIds)
 
+  // Роль «Владелец» не назначается и не снимается через эту форму:
+  // владелец в организации один, его роль неприкосновенна.
+  const currentUser = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
+  if (role === "OWNER" && currentUser?.role !== "OWNER") {
+    throw new Error("Назначить роль «Владелец» нельзя — владелец в организации один")
+  }
+  if (currentUser?.role === "OWNER" && role !== "OWNER") {
+    throw new Error("Роль владельца изменить нельзя")
+  }
+  if (role !== "OWNER" && !ALLOWED_STAFF_ROLES.has(role)) {
+    throw new Error("Недопустимая роль")
+  }
+
   await db.user.update({
     where: { id: userId },
     data: {
@@ -84,9 +119,10 @@ export async function updateStaff(staffId: string, userId: string, formData: For
       phone,
       email,
       role,
-      ...(newPassword ? { password: await bcrypt.hash(newPassword, 10) } : {}),
+      // Пароль, заданный админом, всегда одноразовый — требует смены при входе.
+      ...(newPassword ? { password: await bcrypt.hash(newPassword, 10), mustChangePassword: true } : {}),
     },
-  })
+  }).catch(friendlyUniqueError)
 
   await db.staff.update({
     where: { id: staffId },

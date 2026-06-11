@@ -1,29 +1,42 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, X, Edit2, UserX, UserCheck, Banknote, CheckCircle } from "lucide-react"
+import { Plus, X, Edit2, UserX, UserCheck, Banknote, CheckCircle, RefreshCw, Copy } from "lucide-react"
+import { toast } from "sonner"
 import { createStaff, updateStaff, deactivateStaff, reactivateStaff } from "@/app/actions/staff"
 import { generateSalaryPayments, markSalaryPaid } from "@/app/actions/salary"
+import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 import { Button } from "@/components/ui/button"
 
+// «Владелец» намеренно отсутствует: владелец в организации один,
+// создать или назначить второго нельзя (защита и на сервере).
 const ROLES = [
-  { value: "OWNER", label: "Владелец" },
   { value: "ADMIN", label: "Администратор" },
   { value: "ACCOUNTANT", label: "Бухгалтер" },
   { value: "FACILITY_MANAGER", label: "Завхоз" },
   { value: "EMPLOYEE", label: "Сотрудник" },
 ]
+const OWNER_ROLE = { value: "OWNER", label: "Владелец" }
+
+/** Одноразовый пароль: без похожих символов (0/O, 1/l/I), криптослучайный */
+function generateOneTimePassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+  const bytes = new Uint32Array(10)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("")
+}
 
 type BuildingOption = { id: string; name: string }
 
 export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }) {
   const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState("")
   const [pending, startTransition] = useTransition()
 
   return (
     <>
       <Button
-        onClick={() => setOpen(true)}
+        onClick={() => { setPassword(generateOneTimePassword()); setOpen(true) }}
         leftIcon={<Plus className="h-4 w-4" />}
       >
         Добавить сотрудника
@@ -39,21 +52,30 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
               </button>
             </div>
             <form
-              action={(fd) => startTransition(async () => { await createStaff(fd); setOpen(false) })}
+              autoComplete="off"
+              action={(fd) => startTransition(async () => {
+                try {
+                  await createStaff(fd)
+                  toast.success("Сотрудник создан — передайте ему одноразовый пароль")
+                  setOpen(false)
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Не удалось создать сотрудника")
+                }
+              })}
               className="p-6 space-y-4"
             >
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО *</label>
-                <input name="name" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <input name="name" required autoComplete="off" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
-                  <input name="phone" type="tel" inputMode="tel" placeholder="+7 700 000 00 00" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <KzPhoneInput name="phone" autoComplete="off" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
-                  <input name="email" type="email" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <AsciiEmailInput name="email" autoComplete="off" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -65,17 +87,45 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Должность</label>
-                  <input name="position" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <input name="position" required autoComplete="off" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Оклад, ₸</label>
-                  <input name="salary" type="number" defaultValue="0" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <input name="salary" type="number" defaultValue="0" autoComplete="off" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Пароль для входа</label>
-                  <input name="password" type="password" placeholder="change123" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Одноразовый пароль</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      name="password"
+                      value={password}
+                      readOnly
+                      className="w-full min-w-0 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 font-mono text-sm focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPassword(generateOneTimePassword())}
+                      title="Сгенерировать другой пароль"
+                      aria-label="Сгенерировать другой пароль"
+                      className="shrink-0 rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { navigator.clipboard.writeText(password).then(() => toast.success("Пароль скопирован")) }}
+                      title="Скопировать пароль"
+                      aria-label="Скопировать пароль"
+                      className="shrink-0 rounded-lg border border-slate-200 dark:border-slate-800 p-2 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                    Передайте сотруднику — при первом входе система потребует сменить пароль.
+                  </p>
                 </div>
               </div>
               <BuildingAccessField buildings={buildings} />
@@ -125,9 +175,15 @@ export function EditStaffDialog({ user, buildings }: { user: StaffUser; building
               </button>
             </div>
             <form
+              autoComplete="off"
               action={(fd) => startTransition(async () => {
-                if (user.staff) await updateStaff(user.staff.id, user.id, fd)
-                setOpen(false)
+                try {
+                  if (user.staff) await updateStaff(user.staff.id, user.id, fd)
+                  toast.success("Сохранено")
+                  setOpen(false)
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Не удалось сохранить")
+                }
               })}
               className="p-6 space-y-4"
             >
@@ -138,19 +194,27 @@ export function EditStaffDialog({ user, buildings }: { user: StaffUser; building
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
-                  <input name="phone" type="tel" inputMode="tel" defaultValue={user.phone ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <KzPhoneInput name="phone" autoComplete="off" defaultValue={user.phone ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
-                  <input name="email" type="email" defaultValue={user.email ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <AsciiEmailInput name="email" autoComplete="off" defaultValue={user.email ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Роль</label>
-                  <select name="role" defaultValue={user.role} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900">
-                    {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  {/* Роль владельца неприкосновенна; остальным «Владелец» недоступен */}
+                  <select
+                    name="role"
+                    defaultValue={user.role}
+                    disabled={user.role === "OWNER"}
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 disabled:opacity-60"
+                  >
+                    {(user.role === "OWNER" ? [OWNER_ROLE] : ROLES).map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
+                  {/* disabled-select не попадает в FormData — дублируем значение */}
+                  {user.role === "OWNER" && <input type="hidden" name="role" value="OWNER" />}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Должность</label>

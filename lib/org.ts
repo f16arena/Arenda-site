@@ -437,7 +437,12 @@ export async function checkLimit(orgId: string, type: "buildings" | "tenants" | 
       },
     })
   } else if (type === "users") {
-    current = await db.user.count({ where: { organizationId: orgId, isActive: true } })
+    // Лимит «пользователей» = сотрудники (владелец/админ/бухгалтер/…).
+    // Арендаторы сюда НЕ входят — у них собственный лимит max_tenants,
+    // иначе каждый заселённый арендатор съедал бы слот сотрудника.
+    current = await db.user.count({
+      where: { organizationId: orgId, isActive: true, role: { not: "TENANT" } },
+    })
   } else if (type === "leads") {
     current = await db.lead.count({
       where: { buildingId: { in: await orgBuildingIds(orgId) } },
