@@ -3,8 +3,9 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import Link from "next/link"
-import { Wand2, Users } from "lucide-react"
-import { PageHeader } from "@/components/ui/page"
+import { Wand2, Users, AlertTriangle, Wallet, CircleCheck } from "lucide-react"
+import { formatMoney } from "@/lib/utils"
+import { PageHeader, StatGrid, StatCard } from "@/components/ui/page"
 import { TenantDialog } from "./tenant-dialog"
 import { BulkNotifyButton } from "./bulk-notify-button"
 import { TenantsTableLoader } from "./tenants-table-loader"
@@ -132,6 +133,15 @@ export default async function TenantsPage(props: TenantsPageProps) {
     : []
   const debtMap = new Map(debtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
 
+  // Сводка по долгам по всей видимой базе (а не только по текущей странице) — для карточек метрик.
+  const debtAgg = await db.charge.groupBy({
+    by: ["tenantId"],
+    where: { isPaid: false, tenant: tenantWhere },
+    _sum: { amount: true },
+  })
+  const debtorsCount = debtAgg.filter((row) => (row._sum.amount ?? 0) > 0).length
+  const totalDebt = debtAgg.reduce((sum, row) => sum + (row._sum.amount ?? 0), 0)
+
   const vacantSpaces = await db.space.findMany({
     where: {
       AND: [
@@ -205,6 +215,30 @@ export default async function TenantsPage(props: TenantsPageProps) {
           </>
         }
       />
+
+      <StatGrid>
+        <StatCard icon={Users} label="Всего арендаторов" value={totalTenants} tone="blue" />
+        <StatCard
+          icon={AlertTriangle}
+          label="С долгом"
+          value={debtorsCount}
+          sub={debtorsCount > 0 ? `${Math.round((debtorsCount / Math.max(totalTenants, 1)) * 100)}% от всех` : "все платят вовремя"}
+          tone={debtorsCount > 0 ? "amber" : "slate"}
+        />
+        <StatCard
+          icon={Wallet}
+          label="Сумма долга"
+          value={formatMoney(totalDebt)}
+          sub="неоплаченные начисления"
+          tone={totalDebt > 0 ? "red" : "slate"}
+        />
+        <StatCard
+          icon={CircleCheck}
+          label="Без долга"
+          value={Math.max(totalTenants - debtorsCount, 0)}
+          tone="emerald"
+        />
+      </StatGrid>
 
       <TenantsTableLoader tenants={rows} />
       <PaginationControls

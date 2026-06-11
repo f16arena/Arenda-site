@@ -8,6 +8,8 @@ import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { tenantTaxIdValue } from "@/lib/tenant-identity"
 import { DeleteTenantButton } from "./delete-tenant-button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { TONE_CHIP, TONE_BADGE, type Tone } from "@/lib/ui-tones"
+import { cn } from "@/lib/utils"
 
 export interface TenantRow {
   id: string
@@ -300,12 +302,15 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
         {filtered.map((t) => (
           <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-start justify-between gap-2">
-              <Link href={`/admin/tenants/${t.id}`} className="min-w-0 flex-1">
-                <p className="truncate font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
-                <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+              <Link href={`/admin/tenants/${t.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
+                <Avatar name={t.companyName} legalType={t.legalType} size="sm" />
+                <span className="min-w-0">
+                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
+                  <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+                </span>
               </Link>
-              <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}
+              <span className="shrink-0">
+                <LegalBadge legalType={t.legalType} />
               </span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
@@ -314,11 +319,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
               {(t.user.phone || t.user.email) && <span className="font-mono">{t.user.phone ?? t.user.email}</span>}
             </div>
             <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
-              {t.debt > 0 ? (
-                <span className="text-sm font-medium text-red-600 dark:text-red-400">{formatMoney(t.debt)}</span>
-              ) : (
-                <span className="text-xs text-emerald-600 dark:text-emerald-400">Нет долга</span>
-              )}
+              <DebtPill debt={t.debt} />
               <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />
             </div>
           </div>
@@ -355,15 +356,16 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
                 className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
                 <td className="px-5 py-3.5">
-                  <Link href={`/admin/tenants/${t.id}`} className="block group">
-                    <p className="font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{t.companyName}</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+                  <Link href={`/admin/tenants/${t.id}`} className="group flex items-center gap-3">
+                    <Avatar name={t.companyName} legalType={t.legalType} />
+                    <span className="min-w-0">
+                      <p className="truncate font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{t.companyName}</p>
+                      <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+                    </span>
                   </Link>
                 </td>
                 <td className="px-5 py-3.5">
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}
-                  </span>
+                  <LegalBadge legalType={t.legalType} />
                 </td>
                 <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
                   {t.fullFloors.length > 0 ? (
@@ -389,11 +391,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
                   {t.user.phone ?? t.user.email ?? "—"}
                 </td>
                 <td className="px-5 py-3.5 text-right">
-                  {t.debt > 0 ? (
-                    <span className="font-medium text-red-600 dark:text-red-400">{formatMoney(t.debt)}</span>
-                  ) : (
-                    <span className="text-emerald-600 dark:text-emerald-400 text-xs">Нет долга</span>
-                  )}
+                  <DebtPill debt={t.debt} />
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center justify-end gap-3">
@@ -454,6 +452,60 @@ function tenantArea(tenant: TenantRow) {
     return tenant.fullFloors.reduce((sum, floor) => sum + (floor.totalArea ?? 0), 0)
   }
   return tenantSpaces(tenant).reduce((sum, space) => sum + space.area, 0)
+}
+
+/** Цвет аватара/бейджа по правовой форме арендатора. */
+const LEGAL_TONE: Record<string, Tone> = {
+  IP: "blue",
+  CHSI: "emerald",
+  TOO: "violet",
+  AO: "teal",
+  GP: "amber",
+  PHYSICAL: "slate",
+}
+function legalTone(legalType: string): Tone {
+  return LEGAL_TONE[legalType] ?? "slate"
+}
+
+/** Инициалы из названия компании/ФИО — до двух букв. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return "?"
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase()
+  return (words[0][0] + words[1][0]).toUpperCase()
+}
+
+/** Кружок-аватар с инициалами, цвет — по правовой форме. */
+function Avatar({ name, legalType, size = "md" }: { name: string; legalType: string; size?: "sm" | "md" }) {
+  const dim = size === "sm" ? "h-8 w-8 text-[11px]" : "h-9 w-9 text-xs"
+  return (
+    <span className={cn("flex shrink-0 items-center justify-center rounded-full font-semibold", dim, TONE_CHIP[legalTone(legalType)])}>
+      {initials(name)}
+    </span>
+  )
+}
+
+function LegalBadge({ legalType }: { legalType: string }) {
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", TONE_BADGE[legalTone(legalType)])}>
+      {LEGAL_TYPE_LABELS[legalType] ?? legalType}
+    </span>
+  )
+}
+
+function DebtPill({ debt }: { debt: number }) {
+  if (debt > 0) {
+    return (
+      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold", TONE_BADGE.red)}>
+        {formatMoney(debt)}
+      </span>
+    )
+  }
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", TONE_BADGE.emerald)}>
+      Нет долга
+    </span>
+  )
 }
 
 function SpaceCell({ tenant }: { tenant: TenantRow }) {
