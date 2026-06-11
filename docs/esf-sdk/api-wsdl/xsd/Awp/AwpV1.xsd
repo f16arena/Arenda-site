@@ -1,0 +1,392 @@
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+    <soap:Body>
+        <ns2:queryAwpXsdResponse xmlns:ns2="awp">
+            <xsdList>
+                <xsd><?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema version="1.0" targetNamespace="v1.awp" xmlns:tns="v1.awp" xmlns:v1="v1.awp" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ns1="abstractAwp.awp">
+
+  <xs:import/>
+
+  <xs:import namespace="abstractAwp.awp"/>
+
+  <xs:element name="awp" type="tns:AwpV1"/>
+
+  <xs:complexType name="AwpV1">
+    <xs:annotation>
+      <xs:documentation>АВР</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="ns1:AbstractAwp">
+        <xs:sequence>
+          <xs:element name="additionalInfo" type="xs:string" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Дополнительные сведения/Сведения об отчете о научных исследованиях, маркетинговых. Консультационных и прочих услугах (дата, номер. Количество страниц) (при их наличии) (H)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="contract" type="tns:AwpContract" minOccurs="1">
+            <xs:annotation>
+              <xs:documentation>Договор (Контракт) (F)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="recipients" minOccurs="0">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="recipient" type="tns:AwpRecipientParticipant" maxOccurs="unbounded">
+                  <xs:annotation>
+                    <xs:documentation>Реквизиты Заказчика (Получателя) (D), (E)</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="senders" minOccurs="0">
+            <xs:complexType>
+              <xs:sequence>
+                <xs:element name="sender" type="tns:AwpSenderParticipant" maxOccurs="unbounded">
+                  <xs:annotation>
+                    <xs:documentation>Реквизиты Исполнителя (Поставщика) (B), (C)</xs:documentation>
+                  </xs:annotation>
+                </xs:element>
+              </xs:sequence>
+            </xs:complexType>
+          </xs:element>
+          <xs:element name="worksPerformed" type="tns:AwpWorksPerformed" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Данные по выполненным работам (Оказанным услугам) (G)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="AwpContract">
+    <xs:annotation>
+      <xs:documentation>Договор (контракт)</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="date" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Дата</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="isContract" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Признак наличия договора (контракта) на выполнение работ (оказание услуг)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="number" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Номер</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="registrationNumber" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Регистрационный номер договора</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="AwpRecipientParticipant">
+    <xs:annotation>
+      <xs:documentation>Реквизиты заказчика (получателя)</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="ns1:abstractAwpParticipant">
+        <xs:sequence>
+          <xs:element name="bankDetails" type="tns:AwpBankDetails" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Банковские реквизиты Заказчика (получателя) (E)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="name" type="xs:string">
+            <xs:annotation>
+              <xs:documentation>Наименование Заказчика (Получателя)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="nonResident" type="xs:string">
+            <xs:annotation>
+              <xs:documentation>Нерезидент</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="registrationType" type="RegistrationType" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Тип регистрационного учета Заказчика (Получателя)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="AwpBankDetails">
+    <xs:annotation>
+      <xs:documentation>Банковские реквизиты участников АВР</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="bank" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Наименование банка</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="bik" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>БИК</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="iik" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>ИИК</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="kbe" type="xs:int" minOccurs="0"&gt;
+        <xs:annotation>
+          <xs:documentation>КБе</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="AwpSenderParticipant">
+    <xs:annotation>
+      <xs:documentation>Реквизиты исполнителя (поставщика)</xs:documentation>
+    </xs:annotation>
+    <xs:complexContent>
+      <xs:extension base="ns1:abstractAwpParticipant">
+        <xs:sequence>
+          <xs:element name="bankDetails" type="tns:AwpBankDetails" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Банковские реквизиты Исполнителя (поставщика) (C)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="certificateNum" type="xs:string" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Номер свидетельства плательщика НДС</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="certificateSeries" type="xs:string" minOccurs="0">
+            <xs:annotation>
+              <xs:documentation>Серия свидетельства плательщика НДС</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+          <xs:element name="name" type="xs:string">
+            <xs:annotation>
+              <xs:documentation>Наименование Исполнителя (Поставщика)</xs:documentation>
+            </xs:annotation>
+          </xs:element>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="AwpWorksPerformed">
+    <xs:annotation>
+      <xs:documentation>Данные по выполненным работам (Оказанным услугам)</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="currencyCode" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Код валюты</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="rate" type="xs:decimal" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Курс валюты</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="total" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Итого</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="totalNdsAmount" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Итоговая сумма НДС</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="totalSumWithTax" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Итоговая стоимость работ, услуг с учетом косвенных налогов</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="totalSumWithoutTax" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Итоговая стоимость работ, услуг без косвенных налогов</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="totalTurnoverSize" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Итоговый размер оборота по реализации (облагаемый/необлагаемый оборот)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="works" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="work" type="tns:AwpWork" maxOccurs="unbounded">
+              <xs:annotation>
+                <xs:documentation>Работы, услуги</xs:documentation>
+              </xs:annotation>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="AwpWork">
+    <xs:annotation>
+      <xs:documentation>Работа, услуга</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="additionalInfo" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Дополнительные сведения (G11)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="measureUnitCode" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Код единицы измерения (G3)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="name" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Наименование выполненных работ (оказанных услуг) (G2)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ndsAmount" type="xs:decimal" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Сумма НДС (G9)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="ndsRate" type="xs:int">
+        <xs:annotation>
+          <xs:documentation>Ставка НДС (G8)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="quantity" type="xs:decimal" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Кол-во (Объем) (G4)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="sumWithTax" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Стоимость работ, услуг с учетом косвенных налогов (G10)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="sumWithoutTax" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Стоимость работ, услуг без косвенных налогов (G6)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="turnoverSize" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Размер оборота по реализации (облагаемый/необлагаемый оборот) (G7)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="unitPriceWithoutTax" type="xs:decimal">
+        <xs:annotation>
+          <xs:documentation>Цена (тариф) за единицу работ, услуг без косвенных налогов (G5)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema></xsd>
+            <xsd><?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema version="1.0" targetNamespace="abstractAwp.awp" xmlns:aawp="abstractAwp.awp" xmlns:tns="abstractAwp.awp" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:element name="awp" type="tns:AbstractAwp"/>
+
+  <xs:complexType name="AbstractAwp" abstract="true">
+    <xs:annotation>
+      <xs:documentation>Базовая информация о АВР для всех версий АВР в системе</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="date" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Дата выписки</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="number" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Номер учетной системы</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="performedDate" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Дата выполнения работ (оказания услуг)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="registrationNumber" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Регистрационный номер</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="abstractAwpParticipant" abstract="true">
+    <xs:annotation>
+      <xs:documentation>Участник АВР</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="additionalInfo" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Дополнительные сведения</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="address" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Адрес места нахождения</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="branchTin" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>БИН структурного подразделения юридического лица</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="invitationEmail" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Е-mail участника, для отправки приглашения пройти регистрацию</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="tin" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>ИИН/БИН</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema></xsd>
+        <xsd><?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema version="1.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:simpleType name="RegistrationType">
+    <xs:annotation>
+      <xs:documentation>Тип регистрации НП в ИС ЭСФ</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ENTERPRISE">
+        <xs:annotation>
+          <xs:documentation>Юридическое лицо</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="ENTREPRENEUR">
+        <xs:annotation>
+          <xs:documentation>Индивидуальный предприниматель</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="INDIVIDUAL">
+        <xs:annotation>
+          <xs:documentation>Физическое лицо</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>
+
+</xsd>
+    </xsdList>
+</ns2:queryAwpXsdResponse>
+</soap:Body>
+</soap:Envelope>

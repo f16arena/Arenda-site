@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema version="1.0" targetNamespace="esf" xmlns:tns="esf" xmlns:esf="esf" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:import/>
+
+  <xs:element name="invoiceInfo" type="tns:InvoiceInfo"/>
+
+  <xs:complexType name="InvoiceInfo">
+    <xs:annotation>
+      <xs:documentation>Информация о зарегистрированном ЭСФ включая бланк</xs:documentation>
+    </xs:annotation>
+    <xs:all>
+      <xs:element name="invoiceBody" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>ЭСФ (XML)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="invoiceId" type="xs:long" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Идентификатор ЭСФ в системе</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="registrationNumber" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Регистрационный номер ЭСФ</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="inputDate" type="xs:dateTime">
+        <xs:annotation>
+          <xs:documentation>Дата поступления ЭСФ в систему</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="deliveryDate" type="xs:dateTime" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Дата доставки</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="lastUpdateDate" type="xs:dateTime">
+        <xs:annotation>
+          <xs:documentation>Дата обновления ЭСФ</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="signatureValid" type="xs:boolean">
+        <xs:annotation>
+          <xs:documentation>Статус ЭЦП</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="invoiceStatus" type="tns:InvoiceStatus" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Статус ЭСФ в системе</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="cancelReason" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Причина аннулирования</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="version" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Версия ЭСФ</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="hash" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Хэш</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="signature" minOccurs="1">
+        <xs:annotation>
+          <xs:documentation>ЭЦП (J)</xs:documentation>
+        </xs:annotation>
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:maxLength value="400"/>
+            <xs:minLength value="0"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="signatureType" type="SignatureType" minOccurs="1">
+        <xs:annotation>
+          <xs:documentation>Тип ЭЦП (J)</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="certificate" type="xs:string">
+        <xs:annotation>
+          <xs:documentation>Сертификат для проверки подписи СФ, который содержит также информацию о пользователе — владельце сертификата, который и создал ЭСФ</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="deadline" type="deadline" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Дэдлайн отклонения</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="kogd" type="xs:string" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>Код органа государственных доходов</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:simpleType name="InvoiceStatus">
+    <xs:annotation>
+      <xs:documentation>Статус ЭСФ в системе</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="IN_QUEUE">
+        <xs:annotation>
+          <xs:documentation>В очереди</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="IN_PROCESSING">
+        <xs:annotation>
+          <xs:documentation>В обработке</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="CREATED">
+        <xs:annotation>
+          <xs:documentation>Созданный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="DELIVERED">
+        <xs:annotation>
+          <xs:documentation>Доставленный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="CANCELED">
+        <xs:annotation>
+          <xs:documentation>Аннулированный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="CANCELED_BY_OGD">
+        <xs:annotation>
+          <xs:documentation>Аннулирован ИС ЭСФ для отнесения в зачет и на вычеты</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="CANCELED_BY_SNT_DECLINE">
+        <xs:annotation>
+          <xs:documentation>Аннулирован при отклонении СНТ</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="CANCELED_BY_SNT_REVOKE">
+        <xs:annotation>
+          <xs:documentation>Аннулирован при отзыве СНТ</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="REVOKED">
+        <xs:annotation>
+          <xs:documentation>Отозванный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="IMPORTED">
+        <xs:annotation>
+          <xs:documentation>Импортированный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="DRAFT">
+        <xs:annotation>
+          <xs:documentation>Черновик</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="FAILED">
+        <xs:annotation>
+          <xs:documentation>Ошибочный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="DELETED">
+        <xs:annotation>
+          <xs:documentation>Удаленный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+      <xs:enumeration value="DECLINED">
+        <xs:annotation>
+          <xs:documentation>Отклоненный</xs:documentation>
+        </xs:annotation>
+      </xs:enumeration>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:schema>

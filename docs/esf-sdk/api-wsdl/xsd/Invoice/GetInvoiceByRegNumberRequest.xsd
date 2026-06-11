@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xs:schema version="1.0" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+    <xs:complexType name="GetInvoiceByRegNumberRequest">
+        <xs:sequence>
+            <xs:element name="login" type="xs:string"/>
+            <xs:element name="password" type="xs:string"/>
+            <xs:element name="regNumber" type="xs:string"/>
+            <xs:element name="lang" type="PrintLang" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="PrintLang">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="ru"/>
+            <xs:enumeration value="kk"/>
+        </xs:restriction>
+    </xs:simpleType>
+</xs:schema>
