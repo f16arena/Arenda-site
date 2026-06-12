@@ -32,6 +32,7 @@ import {
   UserRow,
 } from "./user-actions"
 import { APPROVAL_PENDING, APPROVAL_REJECTED, approvalLabel } from "@/lib/approval"
+import { PageHeader } from "@/components/ui/page"
 
 type EffectiveCapabilityState = {
   allowed: boolean
@@ -258,31 +259,26 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-            <Shield className="h-5 w-5 text-purple-300" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Пользователи и доступ</h1>
-            <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">
-              Назначайте должности, здания и доступы. Свои должности создаются в разделе «Должности и права».
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/audit?type=permissions"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
-          >
-            <History className="h-4 w-4" />
-            Журнал прав
-          </Link>
-          {currentCapabilities.has("users.invite") && (
-            <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
-          )}
-        </div>
-      </div>
+      <PageHeader
+        icon={Shield}
+        tone="violet"
+        title="Пользователи и доступ"
+        subtitle="Назначайте должности, здания и доступы. Свои должности создаются в разделе «Должности и права»."
+        actions={
+          <>
+            <Link
+              href="/admin/audit?type=permissions"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+            >
+              <History className="h-4 w-4" />
+              Журнал прав
+            </Link>
+            {currentCapabilities.has("users.invite") && (
+              <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {roleOptions.slice(0, 10).map((role) => (
