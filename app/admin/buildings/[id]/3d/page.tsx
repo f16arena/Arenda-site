@@ -43,6 +43,12 @@ export default async function Building3DPage({ params }: { params: Promise<{ id:
             <p className="text-xs text-slate-500 dark:text-slate-400">{building.address}</p>
           </div>
         </div>
+        <Link
+          href="/admin/builder"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-violet-500 px-3 py-1.5 text-sm font-medium text-white shadow hover:opacity-90"
+        >
+          <Box className="h-4 w-4" /> Building Studio (β)
+        </Link>
       </div>
       <div className="min-h-0 flex-1">
         <Building3DLoader buildingId={building.id} />

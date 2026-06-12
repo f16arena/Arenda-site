@@ -162,7 +162,7 @@ export function BuilderApp() {
   }, [ready])
 
   return (
-    <div className="fixed inset-0 overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
+    <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
       <BuilderCanvas onReady={handleReady} />
       <BuilderToolbar />
       <LevelPanel />
