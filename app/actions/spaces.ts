@@ -64,6 +64,17 @@ export async function setObjectPosition(spaceId: string, x: number, z: number) {
   return { success: true }
 }
 
+/** Сохранить поворот объекта зоны (градусы вокруг вертикали). */
+export async function setObjectRotation(spaceId: string, deg: number) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertSpaceInOrg(spaceId, orgId)
+  const rot = Number.isFinite(deg) ? ((deg % 360) + 360) % 360 : 0
+  await db.space.update({ where: { id: spaceId }, data: { posRot: rot } })
+  revalidatePath("/admin/spaces")
+  return { success: true }
+}
+
 /**
  * Создать объект зоны (крыша/территория) без м² и сразу — опционально —
  * назначить арендатора с фиксированной арендой. Один шаг вместо трёх

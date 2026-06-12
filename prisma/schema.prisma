@@ -587,6 +587,8 @@ model Space {
   // Используется 3D-видом, чтобы объект стоял там, где его поставили.
   posX        Float?  @map("pos_x")
   posZ        Float?  @map("pos_z")
+  // Поворот объекта зоны (градусы вокруг вертикали) для 3D. NULL = 0°.
+  posRot      Float?  @map("pos_rot")
 
   floor        Floor         @relation(fields: [floorId], references: [id])
   tenant       Tenant?

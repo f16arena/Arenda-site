@@ -5,10 +5,10 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon, Move } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
-import { setObjectPosition } from "@/app/actions/spaces"
+import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { type SpaceInfo, STATUS_FILL, detectStatus } from "@/components/floor/floor-view"
 import {
@@ -127,6 +127,7 @@ export default function Building3D({
   const editModeRef = useRef(editMode)
   useEffect(() => { editModeRef.current = editMode }, [editMode])
   const wallMaterialsRef = useRef<Map<string, THREE.MeshStandardMaterial>>(new Map())
+  const objectModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
   const cameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
   // Обычные этажи — стопкой; крыши — площадкой поверх здания; территории — рядом.
@@ -230,6 +231,8 @@ export default function Building3D({
     const clickable: THREE.Object3D[] = []
     const wallMaterials = wallMaterialsRef.current
     wallMaterials.clear()
+    const objectModels = objectModelsRef.current
+    objectModels.clear()
 
     const slabMat = new THREE.MeshStandardMaterial({ color: 0xe7e5e4 })
 
@@ -255,6 +258,8 @@ export default function Building3D({
         const statusHex = STATUS_FILL[detectStatus(sp)] ?? "#94a3b8"
         const model = buildObjectModel(sp.number, statusHex)
         model.position.set(x, origin.y, z)
+        model.rotation.y = ((sp.posRot ?? 0) * Math.PI) / 180
+        objectModels.set(sp.id, model)
         // Клик по любой части модели открывает карточку объекта.
         model.traverse((o) => {
           o.userData.elId = sp.id
@@ -434,6 +439,10 @@ export default function Building3D({
         const obj = dragging
         dragging = null
         controls.enabled = true
+        // Выделяем объект — чтобы показать панель «Повернуть/Удалить».
+        setSelected({ floorId: obj.userData.floorId as string, elId: obj.userData.elId as string })
+        const moved = downAt ? Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) : 0
+        if (moved <= 5) return // это клик, не перетаскивание — позиция не менялась
         const spaceId = obj.userData.spaceId as string
         const offX = Math.round((obj.position.x - (obj.userData.zoneCx as number)) * 100) / 100
         const offZ = Math.round((obj.position.z - (obj.userData.zoneCz as number)) * 100) / 100
@@ -505,6 +514,23 @@ export default function Building3D({
     // Объекты крыши/территории кликаются напрямую — userData.elId = space.id.
     : selectedFloor?.spaces.find((s) => s.id === selected?.elId)
   const selectedIsObject = !!selectedSpace && isObjectSpace(selectedSpace.kind)
+
+  // Повернуть выбранный объект на +45° (читаем текущий угол прямо из модели).
+  const rotateSelectedObject = () => {
+    if (!selectedSpace) return
+    const model = objectModelsRef.current.get(selectedSpace.id)
+    if (!model) return
+    model.rotation.y += Math.PI / 4
+    const deg = Math.round((model.rotation.y * 180) / Math.PI)
+    void setObjectRotation(selectedSpace.id, deg).catch(() => toast.error("Не удалось сохранить поворот"))
+  }
+  const deleteSelectedObject = () => {
+    if (!selectedSpace) return
+    if (!window.confirm(`Удалить объект «${selectedSpace.number}»?`)) return
+    void deleteSpace(selectedSpace.id)
+      .then(() => { toast.success("Объект удалён"); window.location.reload() })
+      .catch(() => toast.error("Не удалось удалить"))
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
@@ -636,6 +662,24 @@ export default function Building3D({
                 <span className="font-bold text-slate-900 dark:text-slate-100">
                   = {formatMoney(Math.round(selectedSpace.area * selectedFloor.ratePerSqm))} / мес
                 </span>
+              </div>
+            )}
+            {editMode && selectedIsObject && (
+              <div className="flex gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={rotateSelectedObject}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <RotateCw className="h-3.5 w-3.5" /> Повернуть
+                </button>
+                <button
+                  type="button"
+                  onClick={deleteSelectedObject}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Удалить
+                </button>
               </div>
             )}
             <div className="flex gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">

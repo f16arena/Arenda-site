@@ -35,6 +35,8 @@ export type SpaceInfo = {
   // Позиция объекта зоны (крыша/территория) в метрах. NULL → авто-сетка.
   posX?: number | null
   posZ?: number | null
+  // Поворот объекта (градусы вокруг вертикали). NULL → 0°.
+  posRot?: number | null
   tenant?: {
     id: string
     companyName: string
