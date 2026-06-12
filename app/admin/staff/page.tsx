@@ -6,6 +6,8 @@ import { formatMoney, ROLES, ROLE_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { CreateStaffDialog, EditStaffDialog, DeactivateButton, GenerateSalaryButton, MarkSalaryPaidButton } from "./staff-modals"
 import { requireOrgAccess } from "@/lib/org"
+import { PageHeader } from "@/components/ui/page"
+import { UsersRound } from "lucide-react"
 
 export default async function StaffPage() {
   const { orgId } = await requireOrgAccess()
@@ -33,16 +35,17 @@ export default async function StaffPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Сотрудники</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{active.length} активных · {inactive.length} уволенных</p>
-        </div>
-        <div className="flex gap-2">
-          <GenerateSalaryButton period={currentPeriod} />
-          <CreateStaffDialog buildings={buildings} />
-        </div>
-      </div>
+      <PageHeader
+        icon={UsersRound}
+        title="Сотрудники"
+        subtitle={`${active.length} активных · ${inactive.length} уволенных`}
+        actions={
+          <>
+            <GenerateSalaryButton period={currentPeriod} />
+            <CreateStaffDialog buildings={buildings} />
+          </>
+        }
+      />
 
       {/* Active staff — карточки на мобиле */}
       <div className="space-y-2.5 sm:hidden">

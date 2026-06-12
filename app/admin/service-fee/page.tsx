@@ -6,6 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Sparkles, Snowflake, Sun, ArrowRight, AlertCircle } from "lucide-react"
 import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
+import { PageHeader } from "@/components/ui/page"
 
 export default async function ServiceFeeListPage() {
   await requireCapabilityAndFeature("buildings.view")
@@ -31,17 +32,12 @@ export default async function ServiceFeeListPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-500" />
-          Эксплуатационный сбор
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Сезонные тарифы на каждом здании. Применяются автоматически: каждое 1-е число
-          месяца cron создаёт начисление SERVICE_FEE для каждого активного арендатора
-          (площадь × тариф сезона), плюс автоматическая годовая индексация.
-        </p>
-      </div>
+      <PageHeader
+        icon={Sparkles}
+        tone="amber"
+        title="Эксплуатационный сбор"
+        subtitle="Сезонные тарифы на каждом здании. Применяются автоматически: каждое 1-е число месяца cron создаёт начисление SERVICE_FEE для каждого активного арендатора (площадь × тариф сезона), плюс автоматическая годовая индексация."
+      />
 
       {missing.length > 0 && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-4 py-3">

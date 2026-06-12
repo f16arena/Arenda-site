@@ -10,6 +10,7 @@ import { NotificationSettingsForm } from "@/components/profile/notification-sett
 import { TwoFactorCard } from "@/components/two-factor-card"
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 import { formatPersonShortName } from "@/lib/display-name"
+import { PageHeader } from "@/components/ui/page"
 // Вкладка «Управление» (ManagementHub) удалена 2026-05-26:
 // её 14 тайлов либо дублировали sidebar, либо были настройками,
 // которые теперь живут в свёрнутой секции «НАСТРОЙКИ» в sidebar.
@@ -55,17 +56,12 @@ export default async function ProfilePage({ searchParams }: { searchParams?: Pro
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
-          <User className="h-5 w-5 text-slate-700 dark:text-slate-300" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {formatPersonShortName(user.name)} · {ROLE_LABELS[user.role] ?? user.role}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={User}
+        tone="slate"
+        title="Мой профиль"
+        subtitle={`${formatPersonShortName(user.name)} · ${ROLE_LABELS[user.role] ?? user.role}`}
+      />
 
       <ProfileTabs
         currentName={user.name}
