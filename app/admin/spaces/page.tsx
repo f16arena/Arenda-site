@@ -214,7 +214,7 @@ export default async function SpacesPage() {
           <StatCard label="Свободно" value={vacant} tone="emerald" />
         </StatGrid>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Общая арендопригодная площадь</p>
           <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{totalArea.toFixed(1)} м²</p>
           <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
@@ -224,7 +224,7 @@ export default async function SpacesPage() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           {buildingSummaries.map((building) => (
-            <div key={building.id} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div key={building.id} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{building.name}</h2>
@@ -359,7 +359,7 @@ export default async function SpacesPage() {
         const utilizationVsFloors = hasFloorAreas ? (rentableArea / sumFloorArea) * 100 : 0
         const coverageVsBuilding = hasBuildingArea ? (sumFloorArea / buildingTotalArea) * 100 : 0
         return (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Площади</h3>
               <span className={`text-xs font-medium ${overFloors || overBuilding ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
@@ -455,7 +455,7 @@ export default async function SpacesPage() {
         return (
           <div key={floor.id} id={`floor-${floor.id}`} className={cn(
             "scroll-mt-20",
-            "bg-white dark:bg-slate-900 rounded-xl border overflow-hidden",
+            "bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden",
             fullFloorTenant
               ? "border-violet-300 dark:border-violet-500/40"
               : "border-slate-200 dark:border-slate-800",
