@@ -616,21 +616,23 @@ export default function Building3D({
     if (!basementActive) {
       const territoriesW = territories.reduce((acc, t) => acc + (t.layout?.width ?? 20) + 3, 0)
       const groundSize = Math.max(maxW, maxH) * 2 + territoriesW * 2 + 40
+      // polygonOffset разносит совпадающие плоскости по буферу глубины (без ряби):
+      // газон уходит дальше всех, асфальт территории — выше, площадка — ещё выше.
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(groundSize, groundSize),
-        new THREE.MeshStandardMaterial({ color: 0x9bc97f }),
+        new THREE.MeshStandardMaterial({ color: 0x9bc97f, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 3 }),
       )
       ground.rotation.x = -Math.PI / 2
-      ground.position.y = -0.02
+      ground.position.y = -0.05
       ground.receiveShadow = true
       scene.add(ground)
 
-      // Площадка под зданием (бетон)
+      // Площадка под зданием (бетон) — верх заметно выше асфальта территории.
       const plaza = new THREE.Mesh(
-        new THREE.BoxGeometry(maxW + 4, 0.06, maxH + 4),
+        new THREE.BoxGeometry(maxW + 4, 0.08, maxH + 4),
         new THREE.MeshStandardMaterial({ color: 0xd6d3d1 }),
       )
-      plaza.position.y = 0.01
+      plaza.position.y = 0.04
       plaza.receiveShadow = true
       scene.add(plaza)
     }
@@ -831,12 +833,13 @@ export default function Building3D({
       const isActive = active === terr.id
 
       if (idx === 0) {
-        // Асфальт участка вокруг здания
+        // Асфальт участка вокруг здания — верх ниже площадки, polygonOffset между
+        // газоном и площадкой, чтобы плоскости не совпадали (без z-fighting/ряби).
         const pad = new THREE.Mesh(
-          new THREE.BoxGeometry(lotHalfW * 2, 0.05, lotHalfD * 2),
-          new THREE.MeshStandardMaterial({ color: 0xb8b5b2 }),
+          new THREE.BoxGeometry(lotHalfW * 2, 0.04, lotHalfD * 2),
+          new THREE.MeshStandardMaterial({ color: 0xb8b5b2, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
         )
-        pad.position.set(0, 0.015, 0)
+        pad.position.set(0, 0, 0)
         pad.receiveShadow = true
         scene.add(pad)
 
