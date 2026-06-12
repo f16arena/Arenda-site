@@ -6,6 +6,8 @@ import { redirect } from "next/navigation"
 import { ChatViewLoader } from "@/components/messages/chat-view-loader"
 import type { ChatUser, ChatMessage } from "@/components/messages/chat-view"
 import { requireOrgAccess } from "@/lib/org"
+import { PageHeader } from "@/components/ui/page"
+import { MessageSquare } from "lucide-react"
 
 const CHAT_MESSAGE_SOURCE_LIMIT = 300
 
@@ -95,10 +97,7 @@ export default async function AdminMessagesPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Сообщения</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Общайтесь с арендаторами и сотрудниками</p>
-      </div>
+      <PageHeader icon={MessageSquare} title="Сообщения" subtitle="Общайтесь с арендаторами и сотрудниками" />
       <ChatViewLoader
         currentUserId={me}
         contacts={contacts}

@@ -12,6 +12,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { safeServerValue } from "@/lib/server-fallback"
+import { PageHeader, Card } from "@/components/ui/page"
 
 const typeLabel: Record<string, string> = {
   ELECTRICITY: "Электричество",
@@ -111,18 +112,19 @@ export default async function MetersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Счётчики</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{meters.length} счётчиков · {currentPeriod}</p>
-        </div>
-        <div className="flex gap-2">
-          <AddMeterDialog spaces={spaces} />
-          <MeterReadingDialog meters={meterProps} />
-        </div>
-      </div>
+      <PageHeader
+        icon={Gauge}
+        title="Счётчики"
+        subtitle={`${meters.length} счётчиков · ${currentPeriod}`}
+        actions={
+          <>
+            <AddMeterDialog spaces={spaces} />
+            <MeterReadingDialog meters={meterProps} />
+          </>
+        }
+      />
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+      <Card padded={false} className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -223,7 +225,7 @@ export default async function MetersPage() {
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   )
 }

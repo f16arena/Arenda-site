@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { CheckCircle } from "lucide-react"
+import { CheckCircle, MessagesSquare } from "lucide-react"
 import { RespondButton } from "./complaint-actions"
+import { PageHeader } from "@/components/ui/page"
 import { requireOrgAccess } from "@/lib/org"
 import { complaintScope } from "@/lib/tenant-scope"
 import { cn } from "@/lib/utils"
@@ -74,12 +75,11 @@ export default async function ComplaintsPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Жалобы и предложения</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          {filterCounts.new} новых · {filterCounts.reviewed} рассмотрено
-        </p>
-      </div>
+      <PageHeader
+        icon={MessagesSquare}
+        title="Жалобы и предложения"
+        subtitle={`${filterCounts.new} новых · ${filterCounts.reviewed} рассмотрено`}
+      />
 
       <div className="flex flex-wrap gap-2">
         {COMPLAINT_FILTERS.map((filter) => {
