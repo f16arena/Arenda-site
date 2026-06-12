@@ -13,6 +13,8 @@ import { getTaxRatePercent } from "@/lib/org-features"
 import { getMarketComparison } from "@/lib/market"
 import { ReportView } from "./report-view"
 import { MarketSection } from "./market-section"
+import { PageHeader } from "@/components/ui/page"
+import { FileBarChart } from "lucide-react"
 
 type Period = "month" | "prev" | "quarter" | "year"
 
@@ -65,27 +67,28 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Отчётность</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Доход, расход, налог и прибыль{buildingId ? " по выбранному зданию" : " по всем зданиям"}</p>
-        </div>
-        <nav className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
-          {PERIOD_TABS.map((t) => (
-            <Link
-              key={t.key}
-              href={`/admin/reports?period=${t.key}`}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                period === t.key
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+      <PageHeader
+        icon={FileBarChart}
+        title="Отчётность"
+        subtitle={`Доход, расход, налог и прибыль${buildingId ? " по выбранному зданию" : " по всем зданиям"}`}
+        actions={
+          <nav className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+            {PERIOD_TABS.map((t) => (
+              <Link
+                key={t.key}
+                href={`/admin/reports?period=${t.key}`}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  period === t.key
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </nav>
+        }
+      />
 
       {data ? (
         <>

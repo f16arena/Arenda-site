@@ -11,6 +11,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
+import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 
 export default async function ContractsPage() {
   const session = await auth()
@@ -62,22 +63,19 @@ export default async function ContractsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Договоры</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {tenants.length} арендаторов · {buckets.expiringSoon.length} истекают в ближайшие 20 дней
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={FileText}
+        title="Договоры"
+        subtitle={`${tenants.length} арендаторов · ${buckets.expiringSoon.length} истекают в ближайшие 20 дней`}
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Активные" value={buckets.active.length} color="emerald" icon={CheckCircle2} />
-        <StatCard label="Истекают (≤ 20 дн)" value={buckets.expiringSoon.length} color="amber" icon={Calendar} />
-        <StatCard label="Просрочены" value={buckets.expired.length} color="red" icon={AlertTriangle} />
-        <StatCard label="Без договора" value={buckets.noContract.length} color="slate" icon={FileText} />
-      </div>
+      <StatGrid>
+        <StatCard label="Активные" value={buckets.active.length} tone="emerald" icon={CheckCircle2} />
+        <StatCard label="Истекают (≤ 20 дн)" value={buckets.expiringSoon.length} tone="amber" icon={Calendar} />
+        <StatCard label="Просрочены" value={buckets.expired.length} tone="red" icon={AlertTriangle} />
+        <StatCard label="Без договора" value={buckets.noContract.length} tone="slate" icon={FileText} />
+      </StatGrid>
 
       {buckets.expiringSoon.length > 0 && (
         <Section title="⏰ Скоро истекают (нужно продление)" tenants={buckets.expiringSoon} now={now} highlight="amber" />
@@ -91,31 +89,6 @@ export default async function ContractsPage() {
       {buckets.noContract.length > 0 && (
         <Section title="❔ Без договора" tenants={buckets.noContract} now={now} />
       )}
-    </div>
-  )
-}
-
-function StatCard({
-  label, value, color, icon: Icon,
-}: {
-  label: string
-  value: number
-  color: "emerald" | "amber" | "red" | "slate"
-  icon: React.ElementType
-}) {
-  const colors = {
-    emerald: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
-    amber: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
-    red: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10",
-    slate: "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50",
-  }
-  return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-      <div className={cn("inline-flex h-9 w-9 items-center justify-center rounded-lg mb-3", colors[color])}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
     </div>
   )
 }
@@ -145,10 +118,7 @@ function Section({
   highlight?: "amber" | "red"
 }) {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-      <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
-      </div>
+    <Card padded={false} className="overflow-x-auto" title={title}>
       <table className="w-full min-w-[720px] text-sm">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -235,6 +205,6 @@ function Section({
           })}
         </tbody>
       </table>
-    </div>
+    </Card>
   )
 }
