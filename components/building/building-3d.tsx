@@ -5,8 +5,10 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move } from "lucide-react"
+import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
+import { setObjectPosition } from "@/app/actions/spaces"
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { type SpaceInfo, STATUS_FILL, detectStatus } from "@/components/floor/floor-view"
 import {
@@ -120,6 +122,10 @@ export default function Building3D({
   // "all" — всё здание; иначе id активного этажа/территории (срез)
   const [active, setActive] = useState<string>("all")
   const [selected, setSelected] = useState<{ floorId: string; elId: string } | null>(null)
+  // Режим расстановки: объекты можно таскать мышью по земле/крыше.
+  const [editMode, setEditMode] = useState(false)
+  const editModeRef = useRef(editMode)
+  useEffect(() => { editModeRef.current = editMode }, [editMode])
   const wallMaterialsRef = useRef<Map<string, THREE.MeshStandardMaterial>>(new Map())
   const cameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
@@ -254,11 +260,19 @@ export default function Building3D({
           o.userData.elId = sp.id
           o.userData.floorId = zone.id
         })
+        // Метаданные для перетаскивания: id объекта, центр зоны, базовый Y, границы.
+        model.userData.spaceId = sp.id
+        model.userData.zoneCx = origin.cx
+        model.userData.zoneCz = origin.cz
+        model.userData.baseY = origin.y
+        model.userData.halfW = origin.w / 2
+        model.userData.halfH = origin.h / 2
+        // Подпись — дочерняя, чтобы двигалась вместе с моделью при перетаскивании.
+        const label = makeLabel(sp.number)
+        label.position.set(0, 4, 0)
+        model.add(label)
         scene.add(model)
         clickable.push(model)
-        const label = makeLabel(sp.number)
-        label.position.set(x, origin.y + 4, z)
-        scene.add(label)
       })
     }
 
@@ -369,15 +383,68 @@ export default function Building3D({
       offsetX += tw + 3
     }
 
-    // ── Клик по комнате ──
+    // ── Клик по комнате / перетаскивание объекта (режим расстановки) ──
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let downAt: { x: number; y: number } | null = null
-    const onDown = (e: PointerEvent) => { downAt = { x: e.clientX, y: e.clientY } }
-    const onUp = (e: PointerEvent) => {
-      if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return
+    let dragging: THREE.Object3D | null = null
+    const dragPlane = new THREE.Plane()
+    const dragPoint = new THREE.Vector3()
+
+    const setPointer = (e: PointerEvent) => {
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1)
+    }
+    // Поднимается вверх по дереву до модели объекта (у неё userData.spaceId).
+    const findObjectRoot = (o: THREE.Object3D | null): THREE.Object3D | null => {
+      let t = o
+      while (t && !t.userData.spaceId) t = t.parent
+      return t
+    }
+
+    const onDown = (e: PointerEvent) => {
+      downAt = { x: e.clientX, y: e.clientY }
+      if (!editModeRef.current) return
+      setPointer(e)
+      raycaster.setFromCamera(pointer, camera)
+      const hit = raycaster.intersectObjects(clickable, true)[0]?.object ?? null
+      const root = findObjectRoot(hit)
+      if (root) {
+        dragging = root
+        controls.enabled = false
+        dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), root.position.clone())
+      }
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return
+      setPointer(e)
+      raycaster.setFromCamera(pointer, camera)
+      if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+        const cx = dragging.userData.zoneCx as number
+        const cz = dragging.userData.zoneCz as number
+        const hw = (dragging.userData.halfW as number) ?? 50
+        const hh = (dragging.userData.halfH as number) ?? 50
+        // Не выпускаем объект за границы зоны.
+        dragging.position.x = Math.max(cx - hw, Math.min(cx + hw, dragPoint.x))
+        dragging.position.z = Math.max(cz - hh, Math.min(cz + hh, dragPoint.z))
+      }
+    }
+    const onUp = (e: PointerEvent) => {
+      if (dragging) {
+        const obj = dragging
+        dragging = null
+        controls.enabled = true
+        const spaceId = obj.userData.spaceId as string
+        const offX = Math.round((obj.position.x - (obj.userData.zoneCx as number)) * 100) / 100
+        const offZ = Math.round((obj.position.z - (obj.userData.zoneCz as number)) * 100) / 100
+        void setObjectPosition(spaceId, offX, offZ)
+          .then(() => toast.success("Позиция объекта сохранена"))
+          .catch(() => toast.error("Не удалось сохранить позицию"))
+        return
+      }
+      // Обычный клик (выбор) — только если курсор почти не двигался.
+      if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return
+      setPointer(e)
       raycaster.setFromCamera(pointer, camera)
       const hits = raycaster.intersectObjects(clickable, true)
       let target: THREE.Object3D | null = hits[0]?.object ?? null
@@ -387,6 +454,7 @@ export default function Building3D({
         : null)
     }
     renderer.domElement.addEventListener("pointerdown", onDown)
+    renderer.domElement.addEventListener("pointermove", onMove)
     renderer.domElement.addEventListener("pointerup", onUp)
 
     let raf = 0
@@ -413,6 +481,7 @@ export default function Building3D({
       cancelAnimationFrame(raf)
       ro.disconnect()
       renderer.domElement.removeEventListener("pointerdown", onDown)
+      renderer.domElement.removeEventListener("pointermove", onMove)
       renderer.domElement.removeEventListener("pointerup", onUp)
       controls.dispose()
       renderer.dispose()
@@ -440,6 +509,26 @@ export default function Building3D({
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <div ref={containerRef} className="absolute inset-0" />
+
+      {/* Режим расстановки объектов (перетаскивание мышью) */}
+      <button
+        type="button"
+        onClick={() => { setEditMode((v) => !v); setSelected(null) }}
+        className={`absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium shadow-lg backdrop-blur transition-colors ${
+          editMode
+            ? "border-emerald-500 bg-emerald-600 text-white"
+            : "border-slate-200 bg-white/95 text-slate-700 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-200"
+        }`}
+        title="Перетаскивайте объекты крыши/территории мышью по поверхности"
+      >
+        <Move className="h-4 w-4" />
+        {editMode ? "Готово" : "Расставить объекты"}
+      </button>
+      {editMode && (
+        <div className="absolute right-3 top-14 z-10 max-w-[220px] rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] text-emerald-800 shadow backdrop-blur dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+          Тащите объект (антенну, машину, щит) мышью — позиция сохранится автоматически.
+        </div>
+      )}
 
       {/* Переключатель этажей (срез как в Sims): верхний этаж сверху */}
       <div className="absolute left-3 top-3 z-10 flex w-44 flex-col gap-1 rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
