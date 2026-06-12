@@ -46,6 +46,7 @@ function makeFloor(level: number): Floor {
     objects: [],
     premiseLinks: {},
     floorMaterialId: "laminate",
+    roomMaterials: {},
   }
 }
 

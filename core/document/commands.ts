@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -229,6 +229,150 @@ export class LinkPremiseCommand implements Command {
       if (this.prev) links[this.roomId] = this.prev
       else delete links[this.roomId]
       return { ...fl, premiseLinks: links }
+    })
+  }
+}
+
+// ── Проёмы (двери/окна) ───────────────────────────────────────────────────────
+export class AddOpeningCommand implements Command {
+  readonly kind = "add-opening"
+  readonly label = "проём"
+  constructor(private floorId: string, private opening: Opening) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: [...fl.openings, this.opening] }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: fl.openings.filter((o) => o.id !== this.opening.id) }))
+  }
+}
+
+export class DeleteOpeningCommand implements Command {
+  readonly kind = "delete-opening"
+  readonly label = "удаление проёма"
+  private removed?: Opening
+  constructor(private floorId: string, private openingId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    this.removed = f?.openings.find((o) => o.id === this.openingId) ?? this.removed
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: fl.openings.filter((o) => o.id !== this.openingId) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    const op = this.removed
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: [...fl.openings, op] }))
+  }
+}
+
+export class MoveOpeningCommand implements Command {
+  readonly kind = "move-opening"
+  readonly label = "сдвиг проёма"
+  private prev?: number
+  private captured = false
+  constructor(private floorId: string, private openingId: string, private offset: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const op = f?.openings.find((o) => o.id === this.openingId)
+    if (op && !this.captured) {
+      this.prev = op.offset
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: fl.openings.map((o) => (o.id === this.openingId ? { ...o, offset: this.offset } : o)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (this.prev === undefined) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: fl.openings.map((o) => (o.id === this.openingId ? { ...o, offset: prev } : o)) }))
+  }
+  merge(next: Command): boolean {
+    if (next instanceof MoveOpeningCommand && next.floorId === this.floorId && next.openingId === this.openingId) {
+      this.offset = next.offset
+      return true
+    }
+    return false
+  }
+}
+
+// ── Лестницы ──────────────────────────────────────────────────────────────────
+export class AddStairCommand implements Command {
+  readonly kind = "add-stair"
+  readonly label = "лестница"
+  constructor(private floorId: string, private stair: Stair) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: [...fl.stairs, this.stair] }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.filter((s) => s.id !== this.stair.id) }))
+  }
+}
+
+export class DeleteStairCommand implements Command {
+  readonly kind = "delete-stair"
+  readonly label = "удаление лестницы"
+  private removed?: Stair
+  constructor(private floorId: string, private stairId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    this.removed = f?.stairs.find((s) => s.id === this.stairId) ?? this.removed
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.filter((s) => s.id !== this.stairId) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    const st = this.removed
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: [...fl.stairs, st] }))
+  }
+}
+
+// ── Материалы (ведро) ─────────────────────────────────────────────────────────
+export class SetWallMaterialCommand implements Command {
+  readonly kind = "set-wall-material"
+  readonly label = "материал стены"
+  private prev?: { facade?: string; interior?: string }
+  private captured = false
+  constructor(private floorId: string, private edgeId: string, private materialId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const e = f?.wallGraph.edges[this.edgeId]
+    if (e && !this.captured) {
+      this.prev = { facade: e.facadeMaterialId, interior: e.interiorMaterialId }
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => {
+      const edges = { ...fl.wallGraph.edges }
+      const edge = edges[this.edgeId]
+      if (edge) edges[this.edgeId] = { ...edge, facadeMaterialId: this.materialId, interiorMaterialId: this.materialId }
+      return { ...fl, wallGraph: { nodes: fl.wallGraph.nodes, edges } }
+    })
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => {
+      const edges = { ...fl.wallGraph.edges }
+      const edge = edges[this.edgeId]
+      if (edge) edges[this.edgeId] = { ...edge, facadeMaterialId: this.prev?.facade, interiorMaterialId: this.prev?.interior }
+      return { ...fl, wallGraph: { nodes: fl.wallGraph.nodes, edges } }
+    })
+  }
+}
+
+export class SetRoomMaterialCommand implements Command {
+  readonly kind = "set-room-material"
+  readonly label = "материал пола"
+  private prev?: string
+  private captured = false
+  constructor(private floorId: string, private roomId: string, private materialId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (f && !this.captured) {
+      this.prev = f.roomMaterials[this.roomId]
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, roomMaterials: { ...fl.roomMaterials, [this.roomId]: this.materialId } }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => {
+      const rm = { ...fl.roomMaterials }
+      if (this.prev) rm[this.roomId] = this.prev
+      else delete rm[this.roomId]
+      return { ...fl, roomMaterials: rm }
     })
   }
 }

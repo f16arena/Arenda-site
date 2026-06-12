@@ -66,6 +66,7 @@ export function LevelPanel() {
       objects: [],
       premiseLinks: {},
       floorMaterialId: "laminate",
+      roomMaterials: {},
     }
     execute(new AddFloorCommand(building.id, floor))
     setActiveLevel(floor.id)

@@ -6,6 +6,7 @@ import { MeshBuilder, Mesh, Vector3, type Scene, type TransformNode } from "@bab
 import earcut from "earcut"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
+import { centroid, pointInPolygon, type Vec2 } from "@/core/geometry/math"
 import { STATUS_COLOR, type PremiseStatus } from "@/lib/builder/materials"
 import type { MaterialRegistry } from "../material-registry"
 
@@ -19,21 +20,25 @@ export function buildFloors(
   scene: Scene,
   reg: MaterialRegistry,
   statusResolver: StatusResolver,
+  holes: Vec2[][] = [],
 ): Mesh[] {
   const meshes: Mesh[] = []
   const rooms = detectRooms(floor.wallGraph)
   for (const room of rooms) {
     const shape = room.polygon.map((p) => new Vector3(p.x * S, 0, p.y * S))
+    // Вырезы (лестницы), чей центр лежит внутри комнаты.
+    const roomHoles = holes.filter((h) => h.length >= 3 && pointInPolygon(centroid(h), room.polygon))
+    const holeShapes = roomHoles.map((h) => h.map((p) => new Vector3(p.x * S, 0, p.y * S)))
     const slab = MeshBuilder.CreatePolygon(
       `floor_${floor.id}_${room.id}`,
-      { shape, sideOrientation: Mesh.DOUBLESIDE },
+      { shape, holes: holeShapes.length ? holeShapes : undefined, sideOrientation: Mesh.DOUBLESIDE },
       scene,
       earcut,
     )
     slab.position.y = 0.02
     slab.parent = parent
     slab.receiveShadows = true
-    slab.material = reg.get(room.floorMaterialId ?? floor.floorMaterialId ?? "laminate")
+    slab.material = reg.get(floor.roomMaterials[room.id] ?? floor.floorMaterialId ?? "laminate")
     slab.metadata = { kind: "room", floorId: floor.id, entityId: room.id, areaMm2: room.areaMm2 }
     meshes.push(slab)
 

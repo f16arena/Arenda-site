@@ -78,6 +78,9 @@ export interface Selection {
   floorId?: string
 }
 
+export type OpeningType = "door" | "window"
+export type StairShape = "straight" | "l" | "u" | "spiral"
+
 export interface EditorState {
   activeTool: Tool
   cameraMode: CameraMode
@@ -86,7 +89,9 @@ export interface EditorState {
   activeLevelId: string // floorId или "site"
   selection: Selection
   hoverId: string | null
-  pointer: { x: number; y: number } | null // мировые мм на активном уровне
+  paintMaterialId: string
+  openingType: OpeningType
+  stairShape: StairShape
   setTool: (t: Tool) => void
   setCameraMode: (m: CameraMode) => void
   setDisplayMode: (m: DisplayMode) => void
@@ -94,7 +99,9 @@ export interface EditorState {
   setActiveLevel: (id: string) => void
   setSelection: (s: Selection) => void
   setHover: (id: string | null) => void
-  setPointer: (p: { x: number; y: number } | null) => void
+  setPaintMaterial: (id: string) => void
+  setOpeningType: (t: OpeningType) => void
+  setStairShape: (s: StairShape) => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -105,7 +112,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   activeLevelId: "",
   selection: { type: "none" },
   hoverId: null,
-  pointer: null,
+  paintMaterialId: "brick",
+  openingType: "door",
+  stairShape: "u",
   setTool: (t) => set({ activeTool: t, selection: { type: "none" } }),
   setCameraMode: (m) => set({ cameraMode: m }),
   setDisplayMode: (m) => set({ displayMode: m }),
@@ -113,5 +122,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setActiveLevel: (id) => set({ activeLevelId: id, selection: { type: "none" } }),
   setSelection: (s) => set({ selection: s }),
   setHover: (id) => set({ hoverId: id }),
-  setPointer: (p) => set({ pointer: p }),
+  setPaintMaterial: (id) => set({ paintMaterialId: id }),
+  setOpeningType: (t) => set({ openingType: t }),
+  setStairShape: (s) => set({ stairShape: s }),
 }))

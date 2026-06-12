@@ -1,7 +1,7 @@
-// ADR: Жизненный цикл движка и пересборка сцены из документа (§4.1, §6.3). Фаза 1:
-// полная пересборка doc-мешей на rev (инкрементальный dirty-flag — Фаза 2). Picking,
-// выделение (HighlightLayer), режимы камеры, базовый инструмент стены (2 клика). Один
-// Engine на canvas, корректный dispose, защита от повторной инициализации (StrictMode).
+// ADR: Жизненный цикл движка и пересборка сцены из документа (§4.1, §6.3). Фаза 2/3:
+// рисование стен цепочкой со snap (узлы/сетка/угол 15°) и вводом длины с клавиатуры;
+// перетаскивание узла (стены следуют); инструменты проёмов (реальные вырезы), лестниц
+// (вырез в перекрытии), ведра материалов; ховер-outline. Один Engine, корректный dispose.
 
 import {
   Camera,
@@ -14,20 +14,40 @@ import {
   UniversalCamera,
   Vector3,
 } from "@babylonjs/core"
+import { uid } from "@/core/id"
 import type { BuilderDocument, Floor } from "@/types/builder"
-import { findFloor, type Command, InsertWallCommand, DeleteWallCommand, DeleteObjectCommand } from "@/core/document/commands"
+import {
+  findFloor,
+  type Command,
+  InsertWallCommand,
+  DeleteWallCommand,
+  DeleteObjectCommand,
+  MoveNodeCommand,
+  AddOpeningCommand,
+  DeleteOpeningCommand,
+  AddStairCommand,
+  DeleteStairCommand,
+  SetWallMaterialCommand,
+  SetRoomMaterialCommand,
+} from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
-import { snapToGrid } from "@/core/geometry/math"
+import { closestOnSegment, distance, snapToGrid, type Vec2 } from "@/core/geometry/math"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
 import { buildWalls } from "./builders/wall-builder"
 import { buildFloors, type StatusResolver } from "./builders/floor-builder"
 import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
+import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
 
 const S = 0.001
 const ACCENT = Color3.FromHexString("#38BDF8")
+const HOVER = Color3.FromHexString("#A78BFA")
+const SNAP_NODE_MM = 300
+
+const DOOR = { width: 900, height: 2100, sill: 0 }
+const WINDOW = { width: 1200, height: 1400, sill: 900 }
 
 export interface MeshMeta {
   kind: string
@@ -49,15 +69,27 @@ export class BuilderEngine {
   private docRoot: TransformNode | null = null
   private meshById = new Map<string, Mesh[]>()
   private walkCamera: UniversalCamera | null = null
+
+  // инструмент стены
   private wallStart: Vector3 | null = null
+  private lastDir: Vec2 = { x: 1, y: 0 }
+  private lengthInput = ""
   private preview: Mesh | null = null
   private startMarker: Mesh | null = null
 
-  // контекст из стора (обновляется приложением)
+  // перетаскивание узла
+  private dragNode: { floorId: string; nodeId: string } | null = null
+  private lastMoveAt = 0
+  private hovered: Mesh | null = null
+
   tool: Tool = "select"
   activeFloorId = ""
+  paintMaterialId = "brick"
+  openingType: "door" | "window" = "door"
+  stairShape = "u"
   onPick: (meta: MeshMeta | null) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
+  onHud: (text: string | null) => void = () => {}
   getDoc: () => BuilderDocument | null = () => null
   statusResolver: StatusResolver = () => undefined
 
@@ -68,11 +100,12 @@ export class BuilderEngine {
     this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
   }
 
-  // ── Пересборка сцены из документа ──────────────────────────────────────────
+  // ── Пересборка сцены ───────────────────────────────────────────────────────
   rebuild(doc: BuilderDocument, ctx: RebuildContext): void {
     const scene = this.bundle.scene
     if (this.docRoot) this.docRoot.dispose()
     this.meshById.clear()
+    this.hovered = null
     this.docRoot = new TransformNode("docRoot", scene)
 
     const register = (id: string | undefined, mesh: Mesh) => {
@@ -82,7 +115,6 @@ export class BuilderEngine {
       this.meshById.set(id, arr)
     }
 
-    // Участок: объекты
     const siteRoot = new TransformNode("siteRoot", scene)
     siteRoot.parent = this.docRoot
     for (const obj of doc.site.objects) {
@@ -95,7 +127,6 @@ export class BuilderEngine {
       })
     }
 
-    // Здания
     for (const b of doc.buildings) {
       const bRoot = new TransformNode(`b_${b.id}`, scene)
       bRoot.parent = this.docRoot
@@ -106,13 +137,32 @@ export class BuilderEngine {
         const fNode = new TransformNode(`f_${f.id}`, scene)
         fNode.parent = bRoot
         fNode.position.y = f.elevation * S
+
+        // вырезы в перекрытии этого этажа от лестниц нижних этажей
+        const holes: Vec2[][] = []
+        for (const other of b.floors) {
+          for (const st of other.stairs) {
+            if (st.toFloorId === f.id) holes.push(stairHoleWorld(st, other.height))
+          }
+        }
+
         const walls = buildWalls(f, fNode, scene, this.reg)
-        const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver)
+        const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
         for (const m of walls) {
           register(m.metadata?.entityId, m)
           this.bundle.shadow.addShadowCaster(m)
         }
         for (const m of floorMeshes) register(m.metadata?.entityId, m)
+
+        for (const st of f.stairs) {
+          const node = buildStair(st, f.height, fNode, scene, this.reg)
+          node.getChildMeshes().forEach((m) => {
+            if (m instanceof Mesh) {
+              register(st.id, m)
+              this.bundle.shadow.addShadowCaster(m)
+            }
+          })
+        }
 
         const roof = buildRoof(f, bRoot, scene, this.reg)
         if (roof) {
@@ -120,18 +170,25 @@ export class BuilderEngine {
           this.bundle.shadow.addShadowCaster(roof)
         }
 
+        // ручки узлов активного этажа (для перетаскивания)
+        if (active && f.id === active.id) {
+          for (const nid in f.wallGraph.nodes) {
+            const n = f.wallGraph.nodes[nid]
+            const handle = MeshBuilder.CreateSphere(`node_${nid}`, { diameter: 0.45, segments: 6 }, scene)
+            handle.position.set(n.x * S, 0.12, n.y * S)
+            handle.parent = fNode
+            handle.material = this.reg.status("#38BDF8")
+            handle.metadata = { kind: "node", floorId: f.id, entityId: nid }
+            register(nid, handle)
+          }
+        }
+
         this.applyFloorVisibility(f, fNode, roof, ctx, active)
       }
     }
   }
 
-  private applyFloorVisibility(
-    f: Floor,
-    fNode: TransformNode,
-    roof: Mesh | null,
-    ctx: RebuildContext,
-    active: Floor | undefined,
-  ): void {
+  private applyFloorVisibility(f: Floor, fNode: TransformNode, roof: Mesh | null, ctx: RebuildContext, active: Floor | undefined): void {
     const setVis = (vis: number, enabled: boolean) => {
       fNode.setEnabled(enabled)
       if (roof) roof.setEnabled(enabled)
@@ -152,16 +209,26 @@ export class BuilderEngine {
       setVis(on ? 1 : 0, on)
       return
     }
-    // ghost: выше активного — полупрозрачные
     if (f.level <= active.level) setVis(1, true)
     else setVis(0.18, true)
   }
 
-  // ── Выделение ───────────────────────────────────────────────────────────────
+  // ── Выделение / ховер ───────────────────────────────────────────────────────
   setSelection(sel: Selection): void {
     this.bundle.highlight.removeAllMeshes()
     if (sel.type !== "none" && sel.id) {
       for (const m of this.meshById.get(sel.id) ?? []) this.bundle.highlight.addMesh(m, ACCENT)
+    }
+  }
+
+  private setHover(mesh: Mesh | null): void {
+    if (this.hovered === mesh) return
+    if (this.hovered) this.hovered.renderOutline = false
+    this.hovered = mesh
+    if (mesh) {
+      mesh.renderOutline = true
+      mesh.outlineColor = HOVER
+      mesh.outlineWidth = 0.04
     }
   }
 
@@ -178,25 +245,25 @@ export class BuilderEngine {
         wc.keysDown = [83]
         wc.keysLeft = [65]
         wc.keysRight = [68]
+        wc.checkCollisions = true
+        wc.applyGravity = false
+        wc.ellipsoid = new Vector3(0.4, 0.85, 0.4)
+        scene.collisionsEnabled = true
         this.walkCamera = wc
       }
       camera.detachControl()
       scene.activeCamera = this.walkCamera
       if (canvas) this.walkCamera.attachControl(canvas, true)
       this.walkCamera.setTarget(new Vector3(0, 1.7, 0))
+      this.enableWallCollisions()
       return
     }
     if (this.walkCamera) this.walkCamera.detachControl()
     scene.activeCamera = camera
     if (canvas) camera.attachControl(canvas, true)
     camera.mode = mode === "plan" ? Camera.ORTHOGRAPHIC_CAMERA : Camera.PERSPECTIVE_CAMERA
-    if (mode === "top" || mode === "plan") {
-      camera.alpha = -Math.PI / 2
-      camera.beta = 0.02
-    } else {
-      camera.alpha = -Math.PI / 4
-      camera.beta = Math.PI / 3.2
-    }
+    camera.alpha = mode === "top" || mode === "plan" ? -Math.PI / 2 : -Math.PI / 4
+    camera.beta = mode === "top" || mode === "plan" ? 0.02 : Math.PI / 3.2
     if (mode === "plan") {
       const r = camera.radius
       const aspect = this.bundle.engine.getAspectRatio(camera)
@@ -207,13 +274,28 @@ export class BuilderEngine {
     }
   }
 
-  // ── Указатель/инструменты ────────────────────────────────────────────────────
+  private enableWallCollisions(): void {
+    if (!this.docRoot) return
+    this.docRoot.getChildMeshes().forEach((m) => {
+      if (m instanceof Mesh && m.metadata?.kind === "wall") m.checkCollisions = true
+    })
+  }
+
+  // ── Указатель ────────────────────────────────────────────────────────────────
   private setupPointer(): void {
     const scene = this.bundle.scene
     scene.onPointerObservable.add((pi) => {
-      if (pi.type === PointerEventTypes.POINTERTAP) this.handleTap()
-      else if (pi.type === PointerEventTypes.POINTERMOVE && this.tool === "wall" && this.wallStart) this.updatePreview()
+      if (pi.type === PointerEventTypes.POINTERDOWN) this.handleDown()
+      else if (pi.type === PointerEventTypes.POINTERMOVE) this.handleMove()
+      else if (pi.type === PointerEventTypes.POINTERUP) this.handleUp()
+      else if (pi.type === PointerEventTypes.POINTERTAP) this.handleTap()
     })
+  }
+
+  private pickMeta(): { meta: MeshMeta | null; point: Vector3 | null } {
+    const { scene } = this.bundle
+    const pick = scene.pick(scene.pointerX, scene.pointerY)
+    return { meta: (pick?.pickedMesh?.metadata ?? null) as MeshMeta | null, point: pick?.pickedPoint ?? null }
   }
 
   private activeFloorPlaneY(): number {
@@ -234,54 +316,195 @@ export class BuilderEngine {
     return ray.origin.add(ray.direction.scale(t))
   }
 
-  private snapPoint(p: Vector3): { mmX: number; mmY: number; world: Vector3 } {
-    const mmX = snapToGrid(p.x * 1000, 100)
-    const mmY = snapToGrid(p.z * 1000, 100)
-    return { mmX, mmY, world: new Vector3(mmX * S, this.activeFloorPlaneY() + 0.02, mmY * S) }
+  private nearestNodeMm(mmX: number, mmY: number): Vec2 | null {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f) return null
+    let best: Vec2 | null = null
+    let bestD = SNAP_NODE_MM
+    for (const id in f.wallGraph.nodes) {
+      const n = f.wallGraph.nodes[id]
+      const d = Math.hypot(n.x - mmX, n.y - mmY)
+      if (d < bestD) {
+        bestD = d
+        best = { x: n.x, y: n.y }
+      }
+    }
+    return best
+  }
+
+  // точка стены: snap к узлу, иначе угол 15° от старта + сетка 100мм
+  private resolveWallPoint(world: Vector3): { mm: Vec2; world: Vector3 } {
+    let mmX = world.x * 1000
+    let mmY = world.z * 1000
+    const node = this.nearestNodeMm(mmX, mmY)
+    if (node) {
+      mmX = node.x
+      mmY = node.y
+    } else if (this.wallStart) {
+      const sx = this.wallStart.x * 1000
+      const sy = this.wallStart.z * 1000
+      const vx = mmX - sx
+      const vy = mmY - sy
+      const dist = Math.max(100, snapToGrid(Math.hypot(vx, vy), 100))
+      const ang = Math.round(Math.atan2(vy, vx) / (Math.PI / 12)) * (Math.PI / 12)
+      mmX = sx + Math.cos(ang) * dist
+      mmY = sy + Math.sin(ang) * dist
+    } else {
+      mmX = snapToGrid(mmX, 100)
+      mmY = snapToGrid(mmY, 100)
+    }
+    return { mm: { x: mmX, y: mmY }, world: new Vector3(mmX * S, this.activeFloorPlaneY() + 0.02, mmY * S) }
+  }
+
+  private handleDown(): void {
+    if (this.tool === "select") {
+      const { meta } = this.pickMeta()
+      if (meta?.kind === "node" && meta.floorId && meta.entityId) {
+        this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId }
+        this.bundle.scene.activeCamera?.detachControl()
+      }
+    }
+  }
+
+  private handleMove(): void {
+    if (this.dragNode) {
+      const p = this.projectToPlane()
+      if (!p) return
+      const mmX = snapToGrid(p.x * 1000, 100)
+      const mmY = snapToGrid(p.z * 1000, 100)
+      const now = performance.now()
+      if (now - this.lastMoveAt > 33) {
+        this.lastMoveAt = now
+        this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
+      }
+      return
+    }
+    if (this.tool === "wall" && this.wallStart) {
+      const p = this.projectToPlane()
+      if (p) this.updateWallPreview(this.resolveWallPoint(p))
+      return
+    }
+    if (this.tool === "select" || this.tool === "material" || this.tool === "delete" || this.tool === "door" || this.tool === "window") {
+      const { meta } = this.pickMeta()
+      const id = meta?.entityId
+      const mesh = id ? (this.meshById.get(id) ?? [])[0] ?? null : null
+      this.setHover(mesh ?? null)
+    }
+  }
+
+  private handleUp(): void {
+    if (this.dragNode) {
+      const p = this.projectToPlane()
+      if (p) {
+        const mmX = snapToGrid(p.x * 1000, 100)
+        const mmY = snapToGrid(p.z * 1000, 100)
+        this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
+      }
+      this.dragNode = null
+      const canvas = this.bundle.engine.getRenderingCanvas()
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+    }
   }
 
   private handleTap(): void {
-    const { scene } = this.bundle
+    if (this.dragNode) return
     if (this.tool === "wall") {
       this.handleWallTap()
       return
     }
-    const pick = scene.pick(scene.pointerX, scene.pointerY)
-    const meta = (pick?.pickedMesh?.metadata ?? null) as MeshMeta | null
+    const { meta, point } = this.pickMeta()
+    if (this.tool === "door" || this.tool === "window") {
+      this.handleOpeningTap(meta, point)
+      return
+    }
+    if (this.tool === "stair") {
+      this.handleStairTap()
+      return
+    }
+    if (this.tool === "material") {
+      this.handlePaintTap(meta)
+      return
+    }
     if (this.tool === "delete") {
       this.handleDelete(meta)
       return
     }
+    if (meta?.kind === "node") {
+      this.onPick(null)
+      return
+    }
     this.onPick(meta && meta.entityId ? meta : null)
+  }
+
+  // ── Стена (цепочка) ────────────────────────────────────────────────────────
+  isDrawingWall(): boolean {
+    return this.tool === "wall" && this.wallStart !== null
   }
 
   private handleWallTap(): void {
     if (!this.activeFloorId) return
     const p = this.projectToPlane()
     if (!p) return
-    const snapped = this.snapPoint(p)
+    const r = this.resolveWallPoint(p)
     if (!this.wallStart) {
-      this.wallStart = snapped.world
-      this.showStartMarker(snapped.world)
+      this.wallStart = r.world
+      this.showStartMarker(r.world)
       return
     }
-    const fromX = snapToGrid(this.wallStart.x * 1000, 100)
-    const fromY = snapToGrid(this.wallStart.z * 1000, 100)
-    if (Math.hypot(snapped.mmX - fromX, snapped.mmY - fromY) >= 100) {
-      this.onCommand(
-        new InsertWallCommand(this.activeFloorId, { x: fromX, y: fromY }, { x: snapped.mmX, y: snapped.mmY }, DEFAULT_WALL),
-      )
-    }
-    this.clearWallTool()
+    this.commitWall(r.mm)
   }
 
-  private handleDelete(meta: MeshMeta | null): void {
-    if (!meta || !meta.entityId) return
-    if (meta.kind === "wall" && meta.floorId) this.onCommand(new DeleteWallCommand(meta.floorId, meta.entityId))
-    else if (meta.kind === "object") {
-      const target = meta.target === "site" ? ({ site: true } as const) : ({ floorId: meta.target ?? "" } as const)
-      this.onCommand(new DeleteObjectCommand(target, meta.entityId))
+  private commitWall(end: Vec2): void {
+    if (!this.wallStart) return
+    const fromX = snapToGrid(this.wallStart.x * 1000, 1)
+    const fromY = snapToGrid(this.wallStart.z * 1000, 1)
+    if (Math.hypot(end.x - fromX, end.y - fromY) >= 100) {
+      this.onCommand(new InsertWallCommand(this.activeFloorId, { x: fromX, y: fromY }, end, DEFAULT_WALL))
+      // цепочка: продолжаем от конечной точки
+      this.wallStart = new Vector3(end.x * S, this.activeFloorPlaneY() + 0.02, end.y * S)
+      this.showStartMarker(this.wallStart)
     }
+    this.lengthInput = ""
+    this.onHud(null)
+  }
+
+  // ввод длины с клавиатуры (вызывается из BuilderApp, чтобы не конфликтовать с хоткеями)
+  handleLengthKey(key: string): void {
+    if (!this.isDrawingWall()) return
+    if (key === "Enter") {
+      const len = parseFloat(this.lengthInput.replace(",", "."))
+      if (Number.isFinite(len) && len > 0 && this.wallStart) {
+        const sx = this.wallStart.x * 1000
+        const sy = this.wallStart.z * 1000
+        const lenMm = len * 1000
+        this.commitWall({ x: snapToGrid(sx + this.lastDir.x * lenMm, 1), y: snapToGrid(sy + this.lastDir.y * lenMm, 1) })
+      }
+      return
+    }
+    if (key === "Backspace") this.lengthInput = this.lengthInput.slice(0, -1)
+    else if (/^[0-9]$/.test(key) || key === ",") this.lengthInput += key
+    this.onHud(this.lengthInput ? `${this.lengthInput} м` : null)
+  }
+
+  private updateWallPreview(r: { mm: Vec2; world: Vector3 }): void {
+    if (!this.wallStart) return
+    const a = this.wallStart
+    const b = r.world
+    const dx = b.x - a.x
+    const dz = b.z - a.z
+    const len = Math.hypot(dx, dz)
+    if (len > 0.01) this.lastDir = { x: dx / len, y: dz / len }
+    this.preview?.dispose()
+    if (len < 0.05) return
+    const box = MeshBuilder.CreateBox("wallPreview", { width: len, depth: 0.2, height: 3 }, this.bundle.scene)
+    box.position.set((a.x + b.x) / 2, this.activeFloorPlaneY() + 1.5, (a.z + b.z) / 2)
+    box.rotation.y = -Math.atan2(dz, dx)
+    box.isPickable = false
+    box.visibility = 0.4
+    box.material = this.reg.status("#38BDF8")
+    this.preview = box
+    if (!this.lengthInput) this.onHud(`${len.toFixed(2)} м`)
   }
 
   private showStartMarker(world: Vector3): void {
@@ -289,44 +512,92 @@ export class BuilderEngine {
     const m = MeshBuilder.CreateSphere("wallStart", { diameter: 0.35 }, this.bundle.scene)
     m.position.copyFrom(world)
     m.isPickable = false
-    const mat = this.reg.status("#38BDF8")
-    m.material = mat
+    m.material = this.reg.status("#38BDF8")
     this.startMarker = m
   }
 
-  private updatePreview(): void {
-    if (!this.wallStart) return
-    const p = this.projectToPlane()
-    if (!p) return
-    const snapped = this.snapPoint(p)
-    this.preview?.dispose()
-    const a = this.wallStart
-    const b = snapped.world
-    const len = Vector3.Distance(a, b)
-    if (len < 0.05) return
-    const box = MeshBuilder.CreateBox("wallPreview", { width: len, depth: 0.2, height: 3 }, this.bundle.scene)
-    box.position.set((a.x + b.x) / 2, this.activeFloorPlaneY() + 1.5, (a.z + b.z) / 2)
-    box.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x)
-    box.isPickable = false
-    box.visibility = 0.4
-    box.material = this.reg.status("#38BDF8")
-    this.preview = box
-  }
-
   cancelWallTool(): void {
-    this.clearWallTool()
-  }
-
-  private clearWallTool(): void {
     this.wallStart = null
+    this.lengthInput = ""
     this.preview?.dispose()
     this.preview = null
     this.startMarker?.dispose()
     this.startMarker = null
+    this.onHud(null)
   }
 
-  focusOrbit(): void {
-    this.setCameraMode("orbit")
+  // ── Проёмы ───────────────────────────────────────────────────────────────────
+  private handleOpeningTap(meta: MeshMeta | null, point: Vector3 | null): void {
+    if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
+      this.onPick(meta)
+      return
+    }
+    if (!meta || meta.kind !== "wall" || !meta.floorId || !meta.entityId || !point) return
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, meta.floorId) : undefined
+    const e = f?.wallGraph.edges[meta.entityId]
+    if (!f || !e) return
+    const a = f.wallGraph.nodes[e.a]
+    const b = f.wallGraph.nodes[e.b]
+    const pMm = { x: point.x * 1000, y: point.z * 1000 }
+    const c = closestOnSegment(pMm, { x: a.x, y: a.y }, { x: b.x, y: b.y })
+    const len = distance({ x: a.x, y: a.y }, { x: b.x, y: b.y })
+    const spec = this.openingType === "window" ? WINDOW : DOOR
+    const offset = Math.max(spec.width / 2 + 50, Math.min(len - spec.width / 2 - 50, c.t * len))
+    if (len < spec.width + 200) return
+    this.onCommand(
+      new AddOpeningCommand(meta.floorId, {
+        id: uid("op"),
+        wallId: meta.entityId,
+        type: this.openingType,
+        width: spec.width,
+        height: spec.height,
+        sillHeight: spec.sill,
+        offset,
+      }),
+    )
+  }
+
+  // ── Лестница ──────────────────────────────────────────────────────────────────
+  private handleStairTap(): void {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f || !doc) return
+    const building = doc.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
+    const upper = building?.floors.find((fl) => fl.level === f.level + 1)
+    const p = this.projectToPlane()
+    if (!p) return
+    this.onCommand(
+      new AddStairCommand(f.id, {
+        id: uid("st"),
+        shape: this.stairShape as "straight" | "l" | "u" | "spiral",
+        fromFloorId: f.id,
+        toFloorId: upper?.id ?? f.id,
+        position: { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) },
+        rotationDeg: 0,
+        width: 1100,
+        railing: true,
+      }),
+    )
+  }
+
+  // ── Ведро ────────────────────────────────────────────────────────────────────
+  private handlePaintTap(meta: MeshMeta | null): void {
+    if (!meta || !meta.floorId || !meta.entityId) return
+    if (meta.kind === "wall") this.onCommand(new SetWallMaterialCommand(meta.floorId, meta.entityId, this.paintMaterialId))
+    else if (meta.kind === "room") this.onCommand(new SetRoomMaterialCommand(meta.floorId, meta.entityId, this.paintMaterialId))
+  }
+
+  // ── Удаление ────────────────────────────────────────────────────────────────
+  private handleDelete(meta: MeshMeta | null): void {
+    if (!meta || !meta.entityId) return
+    if (meta.kind === "wall" && meta.floorId) this.onCommand(new DeleteWallCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "opening" && meta.floorId) this.onCommand(new DeleteOpeningCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "object") {
+      const target = meta.target === "site" ? ({ site: true } as const) : ({ floorId: meta.target ?? "" } as const)
+      this.onCommand(new DeleteObjectCommand(target, meta.entityId))
+    }
   }
 
   resize(): void {
@@ -334,7 +605,7 @@ export class BuilderEngine {
   }
 
   dispose(): void {
-    this.clearWallTool()
+    this.cancelWallTool()
     this.bundle.engine.stopRenderLoop()
     this.reg.dispose()
     this.bundle.scene.dispose()

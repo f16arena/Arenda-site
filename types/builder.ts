@@ -82,6 +82,7 @@ export const FloorSchema = z.object({
   roof: RoofConfigSchema.optional(),
   premiseLinks: z.record(z.string(), z.string()).default({}), // roomId → premiseId
   floorMaterialId: z.string().optional(),
+  roomMaterials: z.record(z.string(), z.string()).default({}), // roomId → materialId (ведро)
 })
 
 export const BuildingSchema = z.object({

@@ -14,6 +14,7 @@ import { DeleteObjectCommand, DeleteWallCommand } from "@/core/document/commands
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 import { BuilderToolbar } from "./BuilderToolbar"
+import { ToolOptions } from "./ToolOptions"
 import { LevelPanel } from "./LevelPanel"
 import { PropertyPanel } from "./PropertyPanel"
 import { AssetCatalog } from "./AssetCatalog"
@@ -64,6 +65,7 @@ export function BuilderApp() {
   const engineRef = useRef<BuilderEngine | null>(null)
   const [ready, setReady] = useState(false)
 
+  const [hud, setHud] = useState<string | null>(null)
   const doc = useDocumentStore((s) => s.doc)
   const rev = useDocumentStore((s) => s.rev)
   const activeTool = useEditorStore((s) => s.activeTool)
@@ -72,6 +74,8 @@ export function BuilderApp() {
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
   const selection = useEditorStore((s) => s.selection)
+  const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
+  const stairShape = useEditorStore((s) => s.stairShape)
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
@@ -79,6 +83,7 @@ export function BuilderApp() {
     engine.getDoc = () => useDocumentStore.getState().doc
     engine.onCommand = (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
+    engine.onHud = (t) => setHud(t)
     const d = useDocumentStore.getState().doc
     const first = d.buildings[0]?.floors?.[0]
     if (first) useEditorStore.getState().setActiveLevel(first.id)
@@ -104,8 +109,11 @@ export function BuilderApp() {
     const e = engineRef.current
     if (!e || !ready) return
     e.tool = activeTool
+    e.paintMaterialId = paintMaterialId
+    e.stairShape = stairShape
+    e.openingType = activeTool === "window" ? "window" : "door"
     if (activeTool !== "wall") e.cancelWallTool()
-  }, [activeTool, ready])
+  }, [activeTool, paintMaterialId, stairShape, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -128,6 +136,13 @@ export function BuilderApp() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault()
         docState.redo()
+        return
+      }
+      // Ввод длины стены имеет приоритет над хоткеями (цифры = пресеты камеры).
+      const eng = engineRef.current
+      if (eng && eng.isDrawingWall() && (/^[0-9]$/.test(e.key) || e.key === "Backspace" || e.key === "Enter" || e.key === ",")) {
+        e.preventDefault()
+        eng.handleLengthKey(e.key)
         return
       }
       const k = e.key.toLowerCase()
@@ -165,11 +180,20 @@ export function BuilderApp() {
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
       <BuilderCanvas onReady={handleReady} />
       <BuilderToolbar />
+      <ToolOptions />
       <LevelPanel />
       <PropertyPanel />
       <CameraControls />
       <AssetCatalog />
       <StatusBar />
+      {hud && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 translate-y-10 rounded-lg px-3 py-1.5 text-sm font-semibold shadow-xl backdrop-blur"
+          style={{ background: "rgba(15,23,42,0.92)", border: `1px solid ${TOKENS.accent}`, color: TOKENS.accent }}
+        >
+          {hud}
+        </div>
+      )}
       {!ready && (
         <div
           className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 transition-opacity duration-500"

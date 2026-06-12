@@ -3,6 +3,8 @@ import { emptyGraph, insertWall, type WallDefaults } from "./wall-graph"
 import { detectRooms } from "./room-detection"
 import { segmentIntersection, polygonArea, signedArea } from "./math"
 import { generateRoof } from "./roof-generator"
+import { wallProfile } from "./wall-profile"
+import { generateStair } from "./stair-generator"
 
 const DEF: WallDefaults = { thickness: 200, height: 3000, kind: "interior" }
 
@@ -56,6 +58,33 @@ describe("wall-graph + room-detection", () => {
     const g = rectGraph(6000, 6000)
     const nodeCount = Object.keys(g.nodes).length
     expect(nodeCount).toBe(4) // углы переиспользуются, а не дублируются
+  })
+})
+
+describe("wall-profile openings", () => {
+  it("cuts solid segments around an opening", () => {
+    const segs = wallProfile({ x: 0, y: 0 }, { x: 10000, y: 0 }, [{ offset: 5000, width: 1000 }])
+    expect(segs.length).toBe(2)
+    expect(segs[0].a.x).toBeCloseTo(0)
+    expect(segs[0].b.x).toBeCloseTo(4500)
+    expect(segs[1].a.x).toBeCloseTo(5500)
+    expect(segs[1].b.x).toBeCloseTo(10000)
+  })
+  it("no openings → single full segment", () => {
+    const segs = wallProfile({ x: 0, y: 0 }, { x: 5000, y: 0 }, [])
+    expect(segs.length).toBe(1)
+  })
+})
+
+describe("stair-generator", () => {
+  it("auto step count from rise and produces a hole", () => {
+    const s = generateStair("straight", 3400, 1100, true)
+    expect(s.steps.length).toBeGreaterThanOrEqual(18)
+    expect(s.hole.maxZ).toBeGreaterThan(s.hole.minZ)
+  })
+  it("u-shape has two runs", () => {
+    const s = generateStair("u", 3400, 1100, false)
+    expect(s.steps.length).toBeGreaterThanOrEqual(18)
   })
 })
 
