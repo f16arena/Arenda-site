@@ -20,6 +20,7 @@ import { AddressAutocompleteInput } from "@/components/forms/address-autocomplet
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { formatMoney } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { isZoneFloor, type FloorKind } from "@/lib/zone-kinds"
 
 const FIELD_CLASS = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
 
@@ -294,8 +295,9 @@ export function FloorsList({
   canDelete: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const [newKind, setNewKind] = useState<"FLOOR" | "TERRITORY">("FLOOR")
+  const [newKind, setNewKind] = useState<FloorKind>("FLOOR")
   const [pending, startTransition] = useTransition()
+  const isZone = newKind === "ROOF" || newKind === "TERRITORY"
 
   return (
     <div className="px-5 py-4">
@@ -325,6 +327,11 @@ export function FloorsList({
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5">
                       <span className="truncate">{f.name}</span>
+                      {f.kind === "ROOF" && (
+                        <span className="shrink-0 rounded-full bg-sky-100 dark:bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+                          Крыша
+                        </span>
+                      )}
                       {f.kind === "TERRITORY" && (
                         <span className="shrink-0 rounded-full bg-lime-100 dark:bg-lime-500/20 px-1.5 py-0.5 text-[10px] font-medium text-lime-700 dark:text-lime-300">
                           Территория
@@ -332,9 +339,11 @@ export function FloorsList({
                       )}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {formatMoney(f.ratePerSqm)}/м² · {f.spacesCount} {f.kind === "TERRITORY" ? "участк." : "помещ."}
+                      {isZoneFloor(f.kind)
+                        ? `${f.spacesCount} объект.`
+                        : `${formatMoney(f.ratePerSqm)}/м² · ${f.spacesCount} помещ.`}
                     </p>
-                    {f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
+                    {!isZoneFloor(f.kind) && f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
                   </div>
                   <ArrowRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
                 </div>
@@ -361,7 +370,9 @@ export function FloorsList({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">{newKind === "TERRITORY" ? "Новая территория" : "Новый этаж"}</h2>
+              <h2 className="text-base font-semibold">
+                {newKind === "ROOF" ? "Новая крыша" : newKind === "TERRITORY" ? "Новая территория" : "Новый этаж"}
+              </h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
@@ -369,7 +380,7 @@ export function FloorsList({
                 startTransition(async () => {
                   try {
                     await createFloor(buildingId, fd)
-                    toast.success("Этаж создан")
+                    toast.success(isZone ? "Зона создана" : "Этаж создан")
                     setOpen(false)
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Не удалось")
@@ -383,27 +394,41 @@ export function FloorsList({
                 <select
                   name="kind"
                   value={newKind}
-                  onChange={(e) => setNewKind(e.target.value === "TERRITORY" ? "TERRITORY" : "FLOOR")}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setNewKind(v === "ROOF" ? "ROOF" : v === "TERRITORY" ? "TERRITORY" : "FLOOR")
+                  }}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
                 >
                   <option value="FLOOR">Этаж здания</option>
+                  <option value="ROOF">Крыша (антенны, щиты, оборудование)</option>
                   <option value="TERRITORY">Территория (двор, парковка, площадки)</option>
                 </select>
-                {newKind === "TERRITORY" && (
+                {isZone && (
                   <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-                    Участки и парковочные места заводятся как помещения этой территории и сдаются
-                    как обычно. Площадь территории не входит в площадь здания.
+                    {newKind === "ROOF"
+                      ? "Антенно-мачтовые сооружения, рекламные щиты, оборудование заводятся как объекты этой крыши и сдаются за фиксированную сумму — без квадратных метров."
+                      : "Парковочные места, веранды, участки заводятся как объекты этой территории и сдаются за фиксированную сумму — без квадратных метров."}
+                    {" "}Площадь зоны не входит в площадь здания.
                   </p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Номер *" name="number" type="number" placeholder={newKind === "TERRITORY" ? "0" : "1"} required />
-                <Field label="Название *" name="name" placeholder={newKind === "TERRITORY" ? "Территория / двор" : "1 этаж"} required />
+                <Field label="Номер *" name="number" type="number" placeholder={isZone ? "0" : "1"} required />
+                <Field
+                  label="Название *"
+                  name="name"
+                  placeholder={newKind === "ROOF" ? "Крыша" : newKind === "TERRITORY" ? "Территория / двор" : "1 этаж"}
+                  required
+                />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Ставка ₸/м²" name="ratePerSqm" type="number" step="0.01" placeholder="2500" />
-                <Field label="Площадь м²" name="totalArea" type="number" step="0.1" />
-              </div>
+              {/* У зон (крыша/территория) нет ставки за м² и площади — объекты сдаются фикс-суммой. */}
+              {!isZone && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Ставка ₸/м²" name="ratePerSqm" type="number" step="0.01" placeholder="2500" />
+                  <Field label="Площадь м²" name="totalArea" type="number" step="0.1" />
+                </div>
+              )}
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
                 <Button type="submit" loading={pending} className="flex-1">

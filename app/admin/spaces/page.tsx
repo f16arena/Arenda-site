@@ -64,6 +64,7 @@ type SelectedFloorInfo = {
   id: string
   number: number
   name: string
+  kind: string
   ratePerSqm: number
   totalArea: number | null
   fullFloorTenant: { id: string; companyName: string; contractEnd: Date | null } | null
@@ -306,6 +307,7 @@ export default async function SpacesPage() {
     id: f.id,
     name: f.name,
     number: f.number,
+    kind: f.kind,
     totalArea: f.totalArea,
     usedArea: f.spaces.reduce((s, sp) => s + sp.area, 0),
   }))
@@ -732,6 +734,7 @@ async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise
             id: true,
             number: true,
             name: true,
+            kind: true,
             ratePerSqm: true,
             totalArea: true,
             fullFloorTenant: {
@@ -815,6 +818,7 @@ async function getSelectedBuilding(buildingId: string, safe: SafeQuery): Promise
             id: true,
             number: true,
             name: true,
+            kind: true,
             ratePerSqm: true,
             spaces: {
               orderBy: { number: "asc" },
@@ -850,6 +854,7 @@ function normalizeLegacySelectedBuilding(building: {
     id: string
     number: number
     name: string
+    kind?: string
     ratePerSqm: number
     spaces: Array<{
       id: string
@@ -870,6 +875,7 @@ function normalizeLegacySelectedBuilding(building: {
       id: floor.id,
       number: floor.number,
       name: floor.name,
+      kind: floor.kind ?? "FLOOR",
       ratePerSqm: floor.ratePerSqm,
       totalArea: null,
       fullFloorTenant: null,

@@ -13,6 +13,7 @@ import { AddSpaceDialog } from "@/app/admin/spaces/space-actions"
 import { AssignTenantButton } from "./assign-tenant-button"
 import { tenantScope } from "@/lib/tenant-scope"
 import { assertBuildingAccess } from "@/lib/building-access"
+import { isZoneFloor, isObjectSpace, FLOOR_KIND_LABEL, type FloorKind } from "@/lib/zone-kinds"
 
 export default async function FloorSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -126,6 +127,8 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   const vacant = rentable.filter((s) => s.status === "VACANT").length
   const totalArea = floor.spaces.reduce((s, sp) => s + sp.area, 0)
   const fullFloorTenant = floor.fullFloorTenant
+  const isZone = isZoneFloor(floor.kind)
+  const unitWord = isZone ? "Объекты" : "Помещения"
 
   return (
     <div className="space-y-5">
@@ -138,8 +141,18 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
           {floor.building.name}
         </Link>
         <span className="text-slate-300">/</span>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           {floor.name}
+          {isZone && (
+            <span className={cn(
+              "rounded-full px-2 py-0.5 text-[11px] font-medium",
+              floor.kind === "ROOF"
+                ? "bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300"
+                : "bg-lime-100 dark:bg-lime-500/20 text-lime-700 dark:text-lime-300",
+            )}>
+              {FLOOR_KIND_LABEL[floor.kind as FloorKind]}
+            </span>
+          )}
         </h1>
       </div>
 
@@ -250,7 +263,7 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Помещения ({floor.spaces.length})
+              {unitWord} ({floor.spaces.length})
             </h2>
           </div>
           <AddSpaceDialog floors={[{
@@ -259,20 +272,18 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
             name: floor.name,
             totalArea: floor.totalArea,
             usedArea: totalArea,
+            kind: floor.kind,
           }]} />
         </div>
         {floor.spaces.length === 0 ? (
           <div className="p-8 text-center">
-            <p className="text-sm text-slate-400 dark:text-slate-500 mb-2">На этаже нет помещений</p>
-            <Link href="/admin/spaces" className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-              Добавить помещение →
-            </Link>
+            <p className="text-sm text-slate-400 dark:text-slate-500 mb-2">{isZone ? "На зоне нет объектов" : "На этаже нет помещений"}</p>
           </div>
         ) : (
           <table className="w-full min-w-[720px] text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                <th className="px-5 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Кабинет</th>
+                <th className="px-5 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{isZone ? "Объект" : "Кабинет"}</th>
                 <th className="px-5 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Площадь</th>
                 <th className="px-5 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Тип</th>
                 <th className="px-5 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Статус</th>
@@ -286,11 +297,13 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                 const debt = tenant ? debtByTenantId.get(tenant.id) ?? 0 : 0
                 return (
                   <tr key={sp.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                    <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">Каб. {sp.number}</td>
-                    <td className="px-5 py-2.5 tabular-nums text-slate-600 dark:text-slate-400">{sp.area} м²</td>
+                    <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{isObjectSpace(sp.kind) ? sp.number : `Каб. ${sp.number}`}</td>
+                    <td className="px-5 py-2.5 tabular-nums text-slate-600 dark:text-slate-400">{isObjectSpace(sp.kind) ? "—" : `${sp.area} м²`}</td>
                     <td className="px-5 py-2.5">
                       {sp.kind === "COMMON" ? (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">Общая зона</span>
+                      ) : isObjectSpace(sp.kind) ? (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300">Объект</span>
                       ) : (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">Аренд.</span>
                       )}

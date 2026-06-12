@@ -8,6 +8,7 @@ import { SpacePhotosField } from "./space-photos-field"
 import { parseSpacePhotos } from "@/lib/space-photos"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { Button } from "@/components/ui/button"
+import { isZoneFloor, SPACE_OBJECT_KIND } from "@/lib/zone-kinds"
 
 type Floor = {
   id: string
@@ -15,6 +16,7 @@ type Floor = {
   number: number
   totalArea?: number | null  // общая площадь этажа (если задана)
   usedArea?: number          // Σ Space.area на этом этаже (без редактируемого)
+  kind?: string              // FLOOR/ROOF/TERRITORY — для зон форма «объекта» без м²
 }
 type Space = { id: string; number: string; area: number; status: string; description: string | null; kind?: string; photos?: string | null }
 type TenantOption = {
@@ -39,11 +41,15 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
   const [areaStr, setAreaStr] = useState("")
 
   const selectedFloor = floors.find((f) => f.id === floorId)
+  const isZone = isZoneFloor(selectedFloor?.kind)
   const total = selectedFloor?.totalArea ?? null
   const used = selectedFloor?.usedArea ?? 0
   const available = total ? Math.max(0, total - used) : null
   const areaNum = parseFloat(areaStr.replace(",", ".")) || 0
-  const exceeds = available !== null && areaNum > available + 0.01
+  const exceeds = !isZone && available !== null && areaNum > available + 0.01
+
+  // Все переданные этажи — зоны (крыша/территория)? Тогда кнопка про объект.
+  const allZones = floors.length > 0 && floors.every((f) => isZoneFloor(f.kind))
 
   return (
     <>
@@ -51,14 +57,14 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
         onClick={() => setOpen(true)}
         leftIcon={<Plus className="h-4 w-4" />}
       >
-        Добавить помещение
+        {allZones ? "Добавить объект" : "Добавить помещение"}
       </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Новое помещение</h2>
+              <h2 className="text-base font-semibold">{isZone ? "Новый объект" : "Новое помещение"}</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
@@ -66,7 +72,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                 startTransition(async () => {
                   try {
                     await createSpace(fd)
-                    toast.success("Помещение создано")
+                    toast.success(isZone ? "Объект создан" : "Помещение создано")
                     setOpen(false)
                     setAreaStr("")
                   } catch (e) {
@@ -77,7 +83,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Этаж *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{isZone ? "Зона *" : "Этаж *"}</label>
                 <select
                   name="floorId"
                   required
@@ -89,7 +95,7 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                     <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
-                {selectedFloor && total !== null && (
+                {!isZone && selectedFloor && total !== null && (
                   <p className={`text-[11px] mt-1 ${exceeds ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
                     Этаж: {total} м² · занято {used.toFixed(1)} м² ·{" "}
                     <b className={exceeds ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-400"}>
@@ -97,67 +103,88 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                     </b>
                   </p>
                 )}
-                {selectedFloor && total === null && (
+                {!isZone && selectedFloor && total === null && (
                   <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400">
                     На этаже не задана общая площадь — лимит не контролируется.
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер кабинета *</label>
-                  <input name="number" required placeholder="101" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м² *</label>
-                  <input
-                    name="area"
-                    type="number"
-                    step="0.1"
-                    required
-                    placeholder="30"
-                    value={areaStr}
-                    onChange={(e) => setAreaStr(e.target.value)}
-                    max={available ?? undefined}
-                    className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${
-                      exceeds
-                        ? "border-red-300 dark:border-red-500/40 focus:border-red-500"
-                        : "border-slate-200 dark:border-slate-800 focus:border-blue-500"
-                    }`}
-                  />
-                  {exceeds && (
-                    <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
-                      Превышение на {(areaNum - (available ?? 0)).toFixed(1)} м²
+
+              {isZone ? (
+                /* Объект на крыше/территории: имя + описание, без площади и типа. */
+                <>
+                  <input type="hidden" name="kind" value={SPACE_OBJECT_KIND} />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название объекта *</label>
+                    <input name="number" required placeholder="Антенна Beeline / Парковка №5 / Щит А" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      Без квадратных метров — аренда задаётся фиксированной суммой при назначении арендатора.
                     </p>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип помещения *</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="cursor-pointer">
-                    <input type="radio" name="kind" value="RENTABLE" defaultChecked className="peer sr-only" />
-                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:dark:bg-emerald-500/10">
-                      <p className="font-medium text-slate-900 dark:text-slate-100">Арендуемое</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Кабинет / офис / магазин</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
+                    <input name="description" placeholder="Антенно-мачтовое сооружение, юго-восток…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер кабинета *</label>
+                      <input name="number" required placeholder="101" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                     </div>
-                  </label>
-                  <label className="cursor-pointer">
-                    <input type="radio" name="kind" value="COMMON" className="peer sr-only" />
-                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-slate-500 peer-checked:bg-slate-50 peer-checked:dark:bg-slate-800">
-                      <p className="font-medium text-slate-900 dark:text-slate-100">Общая зона</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">Коридор / WC / лестница / тех</p>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м² *</label>
+                      <input
+                        name="area"
+                        type="number"
+                        step="0.1"
+                        required
+                        placeholder="30"
+                        value={areaStr}
+                        onChange={(e) => setAreaStr(e.target.value)}
+                        max={available ?? undefined}
+                        className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${
+                          exceeds
+                            ? "border-red-300 dark:border-red-500/40 focus:border-red-500"
+                            : "border-slate-200 dark:border-slate-800 focus:border-blue-500"
+                        }`}
+                      />
+                      {exceeds && (
+                        <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
+                          Превышение на {(areaNum - (available ?? 0)).toFixed(1)} м²
+                        </p>
+                      )}
                     </div>
-                  </label>
-                </div>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                  Общие зоны не сдаются в аренду и не попадают в список свободных.
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                <input name="description" placeholder="Угловой офис, окна на юг…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-              </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип помещения *</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="cursor-pointer">
+                        <input type="radio" name="kind" value="RENTABLE" defaultChecked className="peer sr-only" />
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:dark:bg-emerald-500/10">
+                          <p className="font-medium text-slate-900 dark:text-slate-100">Арендуемое</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Кабинет / офис / магазин</p>
+                        </div>
+                      </label>
+                      <label className="cursor-pointer">
+                        <input type="radio" name="kind" value="COMMON" className="peer sr-only" />
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-slate-500 peer-checked:bg-slate-50 peer-checked:dark:bg-slate-800">
+                          <p className="font-medium text-slate-900 dark:text-slate-100">Общая зона</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Коридор / WC / лестница / тех</p>
+                        </div>
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      Общие зоны не сдаются в аренду и не попадают в список свободных.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
+                    <input name="description" placeholder="Угловой офис, окна на юг…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  </div>
+                </>
+              )}
               <div className="flex gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
                 <Button
