@@ -9,7 +9,7 @@ import {
   Save, Square, Pentagon, DoorOpen, Type, Minus,
   MousePointer2, ZoomIn, ZoomOut, Grid as GridIcon, Sparkles,
   Undo2, Redo2, Copy, MoreHorizontal,
-  Ruler, Box, Maximize2, Eraser, RotateCw,
+  Ruler, Box, Maximize2, Eraser, RotateCw, LayoutTemplate as TemplateIcon,
 } from "lucide-react"
 import {
   type FloorLayoutV2,
@@ -49,6 +49,7 @@ const DangerZone = dynamic(() => import("./floor-editor-danger-zone").then((mod)
 const PropertiesPanel = dynamic(() => import("./floor-editor-panels").then((mod) => mod.PropertiesPanel), {
   loading: () => <PanelSkeleton />,
 })
+const TemplateGallery = dynamic(() => import("./template-gallery").then((mod) => mod.TemplateGallery), { ssr: false })
 
 const PX_PER_METER = 40 // базовый масштаб
 const MIN_ZOOM = 0.3
@@ -58,6 +59,7 @@ export function FloorEditor({
   floorId,
   floorName,
   floorNumber,
+  floorKind,
   f16Template,
   initialLayout,
   initialTotalArea,
@@ -66,6 +68,7 @@ export function FloorEditor({
   floorId: string
   floorName: string
   floorNumber: number
+  floorKind?: string
   f16Template?: FloorLayoutV2 | null
   initialLayout: FloorLayoutV2 | null
   initialTotalArea?: number | null
@@ -92,6 +95,7 @@ export function FloorEditor({
   // Точка магнита (показывается жёлтым кружком когда курсор близко к концу стены/угла)
   const [snapTarget, setSnapTarget] = useState<Point | null>(null)
   const [saving, setSaving] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
   const [underlayOpacity, setUnderlayOpacity] = useState(0.5)
   const [displayMode, setDisplayMode] = useState<"full" | "outline" | "underlay-only">("full")
   const [view3D, setView3D] = useState(false)
@@ -1320,6 +1324,15 @@ export function FloorEditor({
                 </button>
               )
             })()}
+            <button
+              type="button"
+              onClick={() => setShowTemplates(true)}
+              title="Готовые шаблоны планов (этаж/крыша/территория)"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <TemplateIcon className="h-4 w-4" />
+              Шаблоны
+            </button>
             {layout.underlayUrl?.startsWith("data:image/") && (() => {
               const buttonInner = recognizing ? (
                 <>
@@ -1626,6 +1639,20 @@ export function FloorEditor({
           </div>
         )}
       </div>
+
+      {showTemplates && (
+        <TemplateGallery
+          initialCategory={floorKind === "ROOF" ? "roof" : floorKind === "TERRITORY" ? "territory" : "floor"}
+          hasExisting={layout.elements.length > 0}
+          onApply={(next) => {
+            setLayout(next)
+            setSelectedId(null)
+            setPolygonInProgress(null)
+            toast.success("Шаблон загружен — отредактируйте и сохраните")
+          }}
+          onClose={() => setShowTemplates(false)}
+        />
+      )}
     </div>
   )
 }

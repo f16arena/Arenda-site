@@ -95,6 +95,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
         floorId={floor.id}
         floorName={floor.name}
         floorNumber={floor.number}
+        floorKind={floor.kind}
         f16Template={f16Template}
         initialLayout={initialLayout}
         initialTotalArea={floor.totalArea ?? null}
