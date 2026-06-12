@@ -8,6 +8,7 @@ import { ALL_BUILDINGS_COOKIE, assertBuildingAccess } from "@/lib/building-acces
 import { requireOrgAccess, checkLimit } from "@/lib/org"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
+import { normalizeFloorKind } from "@/lib/zone-kinds"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { ADMIN_SHELL_CACHE_TAG, buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
 
@@ -177,9 +178,9 @@ export async function createFloor(buildingId: string, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim()
   const ratePerSqmStr = String(formData.get("ratePerSqm") ?? "")
   const totalAreaStr = String(formData.get("totalArea") ?? "")
-  // FLOOR — обычный этаж; TERRITORY — прилегающая территория (двор, парковка).
-  const kindRaw = String(formData.get("kind") ?? "FLOOR").trim().toUpperCase()
-  const kind = kindRaw === "TERRITORY" ? "TERRITORY" : "FLOOR"
+  // FLOOR — обычный этаж; ROOF — крыша; TERRITORY — прилегающая территория.
+  // Крыша и территория — «зоны»: не входят в площадь здания, сдаются объектами без м².
+  const kind = normalizeFloorKind(formData.get("kind") as string | null)
 
   if (!name) throw new Error("Название этажа обязательно")
   const number = parseInt(numberStr)

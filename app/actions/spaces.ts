@@ -16,18 +16,22 @@ export async function createSpace(formData: FormData) {
   await assertFloorInOrg(floorId, orgId)
 
   const number = formData.get("number") as string
-  const area = parseFloat(formData.get("area") as string)
   const description = formData.get("description") as string
-  // RENTABLE = можно сдать, COMMON = коридор/WC/лестница (не сдаётся)
+  // RENTABLE = можно сдать, COMMON = коридор/WC/лестница (не сдаётся),
+  // OBJECT = объект на крыше/территории без площади (антенна, щит, парковка).
   const kindRaw = String(formData.get("kind") ?? "RENTABLE").toUpperCase()
-  const kind = kindRaw === "COMMON" ? "COMMON" : "RENTABLE"
+  const kind = kindRaw === "COMMON" ? "COMMON" : kindRaw === "OBJECT" ? "OBJECT" : "RENTABLE"
 
-  if (!Number.isFinite(area) || area <= 0) {
-    throw new Error("Введите корректную площадь (м²)")
+  // У объектов (крыша/территория) площади нет — храним 0 и не валидируем.
+  const area = kind === "OBJECT" ? 0 : parseFloat(formData.get("area") as string)
+
+  if (kind !== "OBJECT") {
+    if (!Number.isFinite(area) || area <= 0) {
+      throw new Error("Введите корректную площадь (м²)")
+    }
+    // Σ Space.area не может превысить Floor.totalArea
+    await assertSpaceFitsFloor({ floorId, newArea: area })
   }
-
-  // Σ Space.area не может превысить Floor.totalArea
-  await assertSpaceFitsFloor({ floorId, newArea: area })
 
   // Если этаж сдан целиком — новое помещение сразу занято (оно тоже под full-floor арендатором).
   // Для COMMON помещений всегда VACANT (они вообще не "сдаваемые").
