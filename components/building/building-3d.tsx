@@ -9,7 +9,7 @@ import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Pl
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
-import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor, addWallSegment, setDecorKind, setDecorLen } from "@/app/actions/decor"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor, addWallSegment, setDecorKind, setDecorLen, recreateDecor } from "@/app/actions/decor"
 
 export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; len?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
@@ -518,8 +518,8 @@ export default function Building3D({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const controlsRef = useRef<OrbitControls | null>(null)
   const sceneMetricsRef = useRef<{ span: number; top: number } | null>(null)
-  // Стек добавленных предметов для «Отменить» (удаляет последний добавленный).
-  const undoStackRef = useRef<string[]>([])
+  // Стек обратных операций для «Отменить» (add→delete, move→restore pos, и т.п.).
+  const undoStackRef = useRef<Array<{ label: string; undo: () => Promise<unknown> }>>([])
   const [canUndo, setCanUndo] = useState(false)
 
   // Обычные этажи — стопкой; крыши — площадкой поверх здания; территории — рядом.
@@ -587,6 +587,9 @@ export default function Building3D({
     controls.minDistance = 6
     controls.maxDistance = camDist * 2.2
     controls.enableDamping = true
+    // Тач: один палец — орбита, два — зум/пан; не даём странице скроллиться.
+    controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }
+    renderer.domElement.style.touchAction = "none"
     controlsRef.current = controls
 
     if (cameraStateRef.current) {
@@ -965,6 +968,7 @@ export default function Building3D({
     const pointer = new THREE.Vector2()
     let downAt: { x: number; y: number } | null = null
     let dragging: THREE.Object3D | null = null
+    let dragStartPos: THREE.Vector3 | null = null
     const dragPlane = new THREE.Plane()
     const dragPoint = new THREE.Vector3()
 
@@ -1034,6 +1038,7 @@ export default function Building3D({
       const root = findObjectRoot(hit)
       if (root) {
         dragging = root
+        dragStartPos = root.position.clone()
         controls.enabled = false
         dragPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), root.position.clone())
       }
@@ -1097,13 +1102,15 @@ export default function Building3D({
         const cx = (px + start.x) / 2, cz = (pz + start.z) / 2
         const angle = (Math.atan2(-dz, dx) * 180) / Math.PI
         void addWallSegment(bId, Math.round(cx * 100) / 100, Math.round(cz * 100) / 100, Math.round(len * 100) / 100, angle, wallLevel)
-          .then((r) => { if (r?.id) { undoStackRef.current.push(r.id); setCanUndo(true) } toast.success("Стена добавлена"); onDecorChangedRef.current?.() })
+          .then((r) => { if (r?.id) { undoStackRef.current.push({ label: "стену", undo: () => deleteBuildingDecor(r.id) }); setCanUndo(true) } toast.success("Стена добавлена"); onDecorChangedRef.current?.() })
           .catch(() => toast.error("Не удалось добавить стену"))
         return
       }
       if (dragging) {
         const obj = dragging
+        const startPos = dragStartPos
         dragging = null
+        dragStartPos = null
         controls.enabled = true
         const moved = downAt ? Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) : 0
         // Декор: выделяем и сохраняем мировую позицию.
@@ -1114,6 +1121,11 @@ export default function Building3D({
           if (moved <= 5) return
           const dx = Math.round(obj.position.x * 100) / 100
           const dz = Math.round(obj.position.z * 100) / 100
+          if (startPos) {
+            const ox = Math.round(startPos.x * 100) / 100, oz = Math.round(startPos.z * 100) / 100
+            undoStackRef.current.push({ label: "перемещение", undo: () => setDecorPosition(decorId, ox, oz) })
+            setCanUndo(true)
+          }
           void setDecorPosition(decorId, dx, dz)
             .then(() => toast.success("Позиция сохранена"))
             .catch(() => toast.error("Не удалось сохранить позицию"))
@@ -1228,7 +1240,7 @@ export default function Building3D({
     if (regular.some((f) => f.id === active)) return active
     return "ground"
   }
-  const pushUndo = (id: string) => { undoStackRef.current.push(id); setCanUndo(true) }
+  const recordUndo = (label: string, undo: () => Promise<unknown>) => { undoStackRef.current.push({ label, undo }); setCanUndo(true) }
   const addItem = (kind: string) => {
     if (!buildingId) return
     const level = currentLevel()
@@ -1236,22 +1248,22 @@ export default function Building3D({
     const spawnX = ((n % 5) - 2) * 2.5
     const spawnZ = level === "ground" ? footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5 : ((Math.floor(n / 5) % 3) - 1) * 3
     void addBuildingDecor(buildingId, kind, spawnX, spawnZ, level)
-      .then((r) => { if (r?.id) pushUndo(r.id); toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
+      .then((r) => { if (r?.id) recordUndo("добавление", () => deleteBuildingDecor(r.id)); toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось добавить"))
   }
   const duplicateSelectedDecor = () => {
     if (!selectedDecorId) return
     void duplicateBuildingDecor(selectedDecorId)
-      .then((r) => { if (r?.id) pushUndo(r.id); toast.success("Копия создана"); onDecorChanged?.() })
+      .then((r) => { if (r?.id) recordUndo("копию", () => deleteBuildingDecor(r.id)); toast.success("Копия создана"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось дублировать"))
   }
-  // Отменить — удаляет последний добавленный/дублированный предмет.
+  // Отменить — применяет обратную операцию к последнему действию.
   const undoLast = () => {
-    const id = undoStackRef.current.pop()
+    const entry = undoStackRef.current.pop()
     setCanUndo(undoStackRef.current.length > 0)
-    if (!id) return
-    void deleteBuildingDecor(id)
-      .then(() => { if (selectedDecorId === id) setSelectedDecorId(null); toast.success("Отменено"); onDecorChanged?.() })
+    if (!entry) return
+    void entry.undo()
+      .then(() => { setSelectedDecorId(null); toast.success(`Отменено: ${entry.label}`); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось отменить"))
   }
   // Пресеты вида камеры: сверху / спереди / изометрия.
@@ -1266,18 +1278,24 @@ export default function Building3D({
   }
   const rotateSelectedDecor = (deg = 45) => {
     if (!selectedDecorId) return
-    const model = decorModelsRef.current.get(selectedDecorId)
+    const id = selectedDecorId
+    const model = decorModelsRef.current.get(id)
     if (!model) return
+    const oldDeg = Math.round((model.rotation.y * 180) / Math.PI)
     model.rotation.y += (deg * Math.PI) / 180
-    void setDecorRotation(selectedDecorId, Math.round((model.rotation.y * 180) / Math.PI)).catch(() => toast.error("Не удалось сохранить поворот"))
+    recordUndo("поворот", () => setDecorRotation(id, oldDeg))
+    void setDecorRotation(id, Math.round((model.rotation.y * 180) / Math.PI)).catch(() => toast.error("Не удалось сохранить поворот"))
   }
   const scaleSelectedDecor = (factor: number) => {
     if (!selectedDecorId) return
-    const model = decorModelsRef.current.get(selectedDecorId)
+    const id = selectedDecorId
+    const model = decorModelsRef.current.get(id)
     if (!model) return
+    const oldScale = Math.round(model.scale.x * 100) / 100
     const next = Math.max(0.3, Math.min(5, model.scale.x * factor))
     model.scale.setScalar(next)
-    void setDecorScale(selectedDecorId, Math.round(next * 100) / 100).catch(() => toast.error("Не удалось сохранить размер"))
+    recordUndo("размер", () => setDecorScale(id, oldScale))
+    void setDecorScale(id, Math.round(next * 100) / 100).catch(() => toast.error("Не удалось сохранить размер"))
   }
   // Перемещение предмета между уровнями (этаж/улица/крыша).
   const levelOptions = useMemo(() => {
@@ -1292,23 +1310,32 @@ export default function Building3D({
   const selectedMaterialOptions = selectedDecor ? materialOptions(selectedDecor.kind) : []
   const moveSelectedDecorToLevel = (level: string) => {
     if (!selectedDecorId) return
-    void setDecorLevel(selectedDecorId, level)
+    const id = selectedDecorId
+    const oldLevel = selectedDecor?.level ?? "ground"
+    recordUndo("уровень", () => setDecorLevel(id, oldLevel))
+    void setDecorLevel(id, level)
       .then(() => { toast.success("Перемещено на уровень"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось переместить"))
   }
   // Перекрасить/сменить материал выбранного предмета.
   const recolorSelectedDecor = (kind: string) => {
     if (!selectedDecorId) return
-    void setDecorKind(selectedDecorId, kind)
+    const id = selectedDecorId
+    const oldKind = selectedDecor?.kind
+    if (oldKind) recordUndo("материал", () => setDecorKind(id, oldKind))
+    void setDecorKind(id, kind)
       .then(() => { toast.success("Материал изменён"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось изменить"))
   }
   // Задать точную длину выбранной стены (м).
   const applyWallLen = (raw: string) => {
     if (!selectedDecorId) return
+    const id = selectedDecorId
     const v = parseFloat(raw.replace(",", "."))
     if (!Number.isFinite(v)) return
-    void setDecorLen(selectedDecorId, v)
+    const oldLen = selectedDecor?.len ?? 1
+    recordUndo("длину", () => setDecorLen(id, oldLen))
+    void setDecorLen(id, v)
       .then(() => { toast.success("Длина обновлена"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось изменить длину"))
   }
@@ -1343,7 +1370,17 @@ export default function Building3D({
   }
   const deleteSelectedDecor = () => {
     if (!selectedDecorId) return
-    void deleteBuildingDecor(selectedDecorId)
+    const id = selectedDecorId
+    const d = selectedDecor
+    const bId = buildingId
+    if (d && bId) {
+      // Обратная операция — воссоздать предмет с теми же параметрами.
+      recordUndo("удаление", () => recreateDecor(bId, {
+        kind: d.kind, x: d.x, z: d.z, rot: d.rot, scale: d.scale ?? 1,
+        len: d.len ?? 0, level: d.level ?? "ground", onRoof: !!d.onRoof, modelUrl: d.modelUrl ?? null,
+      }))
+    }
+    void deleteBuildingDecor(id)
       .then(() => { toast.success("Декор удалён"); setSelectedDecorId(null); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось удалить"))
   }
@@ -1401,10 +1438,10 @@ export default function Building3D({
             <button
               type="button"
               onClick={undoLast}
-              title="Удалить последний добавленный предмет"
+              title="Отменить последнее действие (добавление/перемещение/поворот/материал/удаление)"
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 shadow hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
             >
-              <Undo2 className="h-3.5 w-3.5" /> Отменить добавление
+              <Undo2 className="h-3.5 w-3.5" /> Отменить действие
             </button>
           )}
           {buildingId && (

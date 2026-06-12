@@ -99,6 +99,32 @@ export async function duplicateBuildingDecor(decorId: string) {
   return { id: copy.id }
 }
 
+/** Воссоздать предмет (для «отмены удаления») из сохранённых данных. */
+export async function recreateDecor(buildingId: string, data: {
+  kind: string; x: number; z: number; rot: number; scale: number; len: number; level: string; onRoof: boolean; modelUrl: string | null
+}) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+  const kind = isValidKind(data.kind) || data.kind === "custom" || data.kind === "wallrun" ? data.kind : "tree"
+  const decor = await db.buildingDecor.create({
+    data: {
+      buildingId,
+      kind,
+      x: Number.isFinite(data.x) ? data.x : 0,
+      z: Number.isFinite(data.z) ? data.z : 0,
+      rot: Number.isFinite(data.rot) ? data.rot : 0,
+      scale: Number.isFinite(data.scale) && data.scale > 0 ? data.scale : 1,
+      len: Number.isFinite(data.len) ? data.len : 0,
+      level: typeof data.level === "string" && data.level.trim() ? data.level.trim().slice(0, 64) : "ground",
+      onRoof: !!data.onRoof,
+      modelUrl: data.modelUrl ?? null,
+    },
+  })
+  revalidatePath("/admin/buildings")
+  return { id: decor.id }
+}
+
 /** Задать длину нарисованной стены (kind="wallrun"), м. Диапазон 0.5–100. */
 export async function setDecorLen(decorId: string, len: number) {
   await requireCapabilityAndFeature("spaces.edit")
