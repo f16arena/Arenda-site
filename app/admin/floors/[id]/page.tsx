@@ -266,14 +266,17 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
               {unitWord} ({floor.spaces.length})
             </h2>
           </div>
-          <AddSpaceDialog floors={[{
-            id: floor.id,
-            number: floor.number,
-            name: floor.name,
-            totalArea: floor.totalArea,
-            usedArea: totalArea,
-            kind: floor.kind,
-          }]} />
+          <AddSpaceDialog
+            floors={[{
+              id: floor.id,
+              number: floor.number,
+              name: floor.name,
+              totalArea: floor.totalArea,
+              usedArea: totalArea,
+              kind: floor.kind,
+            }]}
+            objectTenants={isZone ? candidates.map((c) => ({ id: c.id, companyName: c.companyName })) : []}
+          />
         </div>
         {floor.spaces.length === 0 ? (
           <div className="p-8 text-center">

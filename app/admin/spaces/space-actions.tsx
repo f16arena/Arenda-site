@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react"
 import { Plus, X, Edit2 } from "lucide-react"
 import { toast } from "sonner"
-import { createSpace, updateSpace, deleteSpace } from "@/app/actions/spaces"
+import { createSpace, createZoneObject, updateSpace, deleteSpace } from "@/app/actions/spaces"
 import { SpacePhotosField } from "./space-photos-field"
 import { parseSpacePhotos } from "@/lib/space-photos"
 import { DeleteAction } from "@/components/ui/delete-action"
@@ -34,11 +34,19 @@ const STATUSES = [
   { value: "MAINTENANCE", label: "Обслуживание" },
 ]
 
-export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
+export function AddSpaceDialog({
+  floors,
+  objectTenants = [],
+}: {
+  floors: Floor[]
+  /** Кандидаты-арендаторы для объектов зоны (крыша/территория). */
+  objectTenants?: { id: string; companyName: string }[]
+}) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [floorId, setFloorId] = useState(floors[0]?.id ?? "")
   const [areaStr, setAreaStr] = useState("")
+  const [objTenantId, setObjTenantId] = useState("")
 
   const selectedFloor = floors.find((f) => f.id === floorId)
   const isZone = isZoneFloor(selectedFloor?.kind)
@@ -71,10 +79,16 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
               action={(fd) =>
                 startTransition(async () => {
                   try {
-                    await createSpace(fd)
-                    toast.success(isZone ? "Объект создан" : "Помещение создано")
+                    if (isZone) {
+                      await createZoneObject(fd)
+                      toast.success(objTenantId ? "Объект создан и арендатор назначен" : "Объект создан")
+                    } else {
+                      await createSpace(fd)
+                      toast.success("Помещение создано")
+                    }
                     setOpen(false)
                     setAreaStr("")
+                    setObjTenantId("")
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Не удалось создать")
                   }
@@ -125,6 +139,36 @@ export function AddSpaceDialog({ floors }: { floors: Floor[] }) {
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
                     <input name="description" placeholder="Антенно-мачтовое сооружение, юго-восток…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Арендатор <span className="font-normal text-slate-400">— необязательно</span></label>
+                    <select
+                      name="tenantId"
+                      value={objTenantId}
+                      onChange={(e) => setObjTenantId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none"
+                    >
+                      <option value="">— без арендатора (свободно) —</option>
+                      {objectTenants.map((t) => (
+                        <option key={t.id} value={t.id}>{t.companyName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {objTenantId && (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Аренда, ₸/мес</label>
+                      <input
+                        name="fixedMonthlyRent"
+                        type="number"
+                        step="1"
+                        min="0"
+                        placeholder="например, 150000"
+                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                      />
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                        Фиксированная сумма за объект. Можно оставить пустым и задать позже в карточке арендатора.
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>

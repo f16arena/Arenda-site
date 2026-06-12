@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
-import { assertFloorInOrg, assertSpaceInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
+import { assertFloorInOrg, assertSpaceInOrg, assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { assertSpaceFitsFloor } from "@/lib/area-validation"
 
 const SPACE_STATUSES = new Set(["VACANT", "OCCUPIED", "MAINTENANCE"])
@@ -47,6 +47,52 @@ export async function createSpace(formData: FormData) {
   })
 
   revalidatePath("/admin/spaces")
+  return { success: true }
+}
+
+/**
+ * Создать объект зоны (крыша/территория) без м² и сразу — опционально —
+ * назначить арендатора с фиксированной арендой. Один шаг вместо трёх
+ * (создать объект → назначить → задать аренду).
+ */
+export async function createZoneObject(formData: FormData) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  const floorId = formData.get("floorId") as string
+  await assertFloorInOrg(floorId, orgId)
+
+  const name = String(formData.get("number") ?? "").trim()
+  if (!name) throw new Error("Введите название объекта")
+  const description = String(formData.get("description") ?? "").trim()
+  const tenantId = String(formData.get("tenantId") ?? "").trim()
+  const fixedRentRaw = String(formData.get("fixedMonthlyRent") ?? "").trim().replace(",", ".")
+  const fixedRent = fixedRentRaw ? parseFloat(fixedRentRaw) : null
+
+  const space = await db.space.create({
+    data: { floorId, number: name, area: 0, description: description || null, status: "VACANT", kind: "OBJECT" },
+  })
+
+  if (tenantId) {
+    await assertTenantInOrg(tenantId, orgId)
+    // Первая привязка арендатора без помещения становится основной (isPrimary).
+    const existing = await db.tenant.findUnique({
+      where: { id: tenantId },
+      select: { spaceId: true, _count: { select: { tenantSpaces: true } } },
+    })
+    const isPrimary = !existing?.spaceId && (existing?._count.tenantSpaces ?? 0) === 0
+    await db.tenantSpace.create({ data: { tenantId, spaceId: space.id, isPrimary } })
+    await db.space.update({ where: { id: space.id }, data: { status: "OCCUPIED" } })
+    if (fixedRent && Number.isFinite(fixedRent) && fixedRent > 0) {
+      // Фиксированная аренда — очищаем ставку за м² (взаимоисключающие режимы).
+      await db.tenant.update({
+        where: { id: tenantId },
+        data: { fixedMonthlyRent: Math.round(fixedRent), customRate: null },
+      })
+    }
+  }
+
+  revalidatePath("/admin/spaces")
+  revalidatePath(`/admin/floors/${floorId}`)
   return { success: true }
 }
 
