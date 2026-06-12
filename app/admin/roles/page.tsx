@@ -20,6 +20,7 @@ import {
   displayRoleLabel,
 } from "@/lib/role-capabilities"
 import { PermissionsMatrix } from "./permissions-matrix"
+import { PageHeader } from "@/components/ui/page"
 
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "bg-purple-500/10 text-purple-300 border-purple-500/30",
@@ -116,34 +117,29 @@ export default async function RolesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-            <Shield className="h-5 w-5 text-purple-300" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Должности и права</h1>
-            <p className="mt-0.5 text-sm text-slate-400">
-              Роль теперь работает как набор разрешений: страницы, кнопки и серверные действия проверяются отдельно.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Link
-            href="/admin/audit?type=permissions"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
-          >
-            <History className="h-4 w-4" />
-            Журнал прав
-          </Link>
-          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-            <p className="font-medium text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={Shield}
+        tone="violet"
+        title="Должности и права"
+        subtitle="Роль теперь работает как набор разрешений: страницы, кнопки и серверные действия проверяются отдельно."
+        actions={
+          <>
+            <Link
+              href="/admin/audit?type=permissions"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+            >
+              <History className="h-4 w-4" />
+              Журнал прав
+            </Link>
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+              <p className="font-medium text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
+              </p>
+            </div>
+          </>
+        }
+      />
 
       {migrationMissing && (
         <Notice

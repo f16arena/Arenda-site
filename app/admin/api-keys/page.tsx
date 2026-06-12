@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { Key, Code } from "lucide-react"
 import { listApiKeys } from "@/app/actions/api-keys"
 import { ApiKeysClient } from "./api-keys-client"
+import { PageHeader, Card } from "@/components/ui/page"
 
 export default async function ApiKeysPage() {
   const session = await auth()
@@ -15,17 +16,12 @@ export default async function ApiKeysPage() {
 
   return (
     <div className="space-y-5 max-w-4xl">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
-          <Key className="h-5 w-5 text-slate-700 dark:text-slate-300" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">API-ключи</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Доступ к данным организации через REST API. Для интеграций с 1С, Excel-скриптами, BI-системами.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Key}
+        tone="slate"
+        title="API-ключи"
+        subtitle="Доступ к данным организации через REST API. Для интеграций с 1С, Excel-скриптами, BI-системами."
+      />
 
       <ApiKeysClient initialKeys={keys.map((k) => ({
         ...k,
@@ -36,11 +32,8 @@ export default async function ApiKeysPage() {
       }))} />
 
       {/* Документация */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
-        <div className="flex items-center gap-2">
-          <Code className="h-4 w-4 text-slate-400" />
-          <h2 className="text-sm font-semibold">Документация API</h2>
-        </div>
+      <Card icon={Code} title="Документация API">
+        <div className="space-y-3">
         <p className="text-xs text-slate-600 dark:text-slate-400">
           Аутентификация: заголовок <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded font-mono">Authorization: Bearer ck_...</code> или параметр <code className="bg-slate-100 dark:bg-slate-800 px-1 rounded font-mono">?api_key=ck_...</code>
         </p>
@@ -65,7 +58,8 @@ export default async function ApiKeysPage() {
             <li>Отзовите ключ если он скомпрометирован</li>
           </ul>
         </div>
-      </div>
+        </div>
+      </Card>
     </div>
   )
 }

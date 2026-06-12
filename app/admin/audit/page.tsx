@@ -11,6 +11,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { auditLogScope } from "@/lib/tenant-scope"
 import { cn } from "@/lib/utils"
 import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
+import { PageHeader, StatCard, Card } from "@/components/ui/page"
 
 const ACTION_COLORS: Record<string, string> = {
   CREATE: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
@@ -124,24 +125,19 @@ export default async function AuditPage({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10">
-          <History className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Журнал операций</h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            Найдено {totalLogs} из {totalAllLogs} действий пользователей
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={History}
+        tone="amber"
+        title="Журнал операций"
+        subtitle={`Найдено ${totalLogs} из ${totalAllLogs} действий пользователей`}
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <AuditSummary label="Всего" value={totalAllLogs} tone="slate" />
-        <AuditSummary label="Права" value={filterCounts.permissions} tone="blue" />
-        <AuditSummary label="Удаления" value={filterCounts.delete} tone="red" />
-        <AuditSummary label="Безопасность" value={filterCounts.security} tone="amber" />
-        <AuditSummary label="Ошибки" value={filterCounts.error} tone="red" />
+        <StatCard icon={History} label="Всего" value={totalAllLogs} tone="slate" />
+        <StatCard icon={ShieldAlert} label="Права" value={filterCounts.permissions} tone="blue" />
+        <StatCard icon={Trash2} label="Удаления" value={filterCounts.delete} tone="red" />
+        <StatCard icon={ShieldAlert} label="Безопасность" value={filterCounts.security} tone="amber" />
+        <StatCard icon={AlertTriangle} label="Ошибки" value={filterCounts.error} tone="red" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -167,7 +163,7 @@ export default async function AuditPage({
         })}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <Card padded={false}>
         {logs.length === 0 ? (
           <div className="py-16 text-center">
             <History className="mx-auto mb-3 h-10 w-10 text-slate-200" />
@@ -238,23 +234,7 @@ export default async function AuditPage({
           total={totalLogs}
           params={{ type: selectedFilter }}
         />
-      </div>
-    </div>
-  )
-}
-
-function AuditSummary({ label, value, tone }: { label: string; value: number; tone: "slate" | "red" | "amber" | "blue" }) {
-  const tones = {
-    slate: "border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100",
-    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
-    red: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
-    amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
-  }
-
-  return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
-      <p className="text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs opacity-80">{label}</p>
+      </Card>
     </div>
   )
 }

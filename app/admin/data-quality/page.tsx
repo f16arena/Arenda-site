@@ -27,6 +27,7 @@ import { userCapabilityRole } from "@/lib/capability-keys"
 import { canManageRoleInOrg, displayRoleLabel, isStaffLikeRole } from "@/lib/role-capabilities"
 import { getRelationshipIntegrityOverview } from "@/lib/relationship-integrity"
 import { RelationshipIntegrityPanelLazy } from "./relationship-integrity-panel-lazy"
+import { PageHeader, StatCard } from "@/components/ui/page"
 
 type Severity = "critical" | "warning" | "info"
 
@@ -793,25 +794,17 @@ export default async function DataQualityPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
-            <ClipboardCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Качество данных</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              {building ? `Проверка по зданию ${building.name}` : "Проверка по всей организации"}
-            </p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={ClipboardCheck}
+        title="Качество данных"
+        subtitle={building ? `Проверка по зданию ${building.name}` : "Проверка по всей организации"}
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <SummaryCard label="Всего проблем" value={totalCount} tone={totalCount > 0 ? "slate" : "emerald"} />
-        <SummaryCard label="Критично" value={criticalCount} tone="red" />
-        <SummaryCard label="Внимание" value={warningCount} tone="amber" />
-        <SummaryCard label="Контроль" value={infoCount} tone="blue" />
+        <StatCard icon={ClipboardCheck} label="Всего проблем" value={totalCount} tone={totalCount > 0 ? "slate" : "emerald"} />
+        <StatCard icon={AlertTriangle} label="Критично" value={criticalCount} tone="red" />
+        <StatCard icon={CircleAlert} label="Внимание" value={warningCount} tone="amber" />
+        <StatCard icon={Info} label="Контроль" value={infoCount} tone="blue" />
       </div>
 
       {activeIssues.length > 0 && (
@@ -890,23 +883,6 @@ function PriorityFixPlan({ issues, totalCount }: { issues: QualityIssue[]; total
         })}
       </div>
     </section>
-  )
-}
-
-function SummaryCard({ label, value, tone }: { label: string; value: number; tone: "slate" | "red" | "amber" | "blue" | "emerald" }) {
-  const tones = {
-    slate: "border-slate-200 bg-white text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100",
-    red: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
-    amber: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
-    blue: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
-  }
-
-  return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
-      <p className="text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs opacity-80">{label}</p>
-    </div>
   )
 }
 

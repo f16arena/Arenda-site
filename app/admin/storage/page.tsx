@@ -15,6 +15,7 @@ import { normalizePage, pageSkip } from "@/lib/pagination"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { safeServerValue } from "@/lib/server-fallback"
+import { PageHeader, StatCard, Card } from "@/components/ui/page"
 import {
   Archive,
   Building2,
@@ -213,29 +214,29 @@ export default async function StoragePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Хранилище</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Файлы этой организации: документы арендаторов, чеки оплат и будущие архивы. Доступ разделён по SaaS-организации и зданиям.
-          </p>
-        </div>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200">
-          <div className="flex items-center gap-2 font-semibold">
-            <ShieldCheck className="h-4 w-4" />
-            Изоляция включена
+      <PageHeader
+        icon={HardDrive}
+        tone="slate"
+        title="Хранилище"
+        subtitle="Файлы этой организации: документы арендаторов, чеки оплат и будущие архивы. Доступ разделён по SaaS-организации и зданиям."
+        actions={
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200">
+            <div className="flex items-center gap-2 font-semibold">
+              <ShieldCheck className="h-4 w-4" />
+              Изоляция включена
+            </div>
+            <p className="mt-1 text-xs">
+              Владелец видит только свою организацию, сотрудники - только доступные здания.
+            </p>
           </div>
-          <p className="mt-1 text-xs">
-            Владелец видит только свою организацию, сотрудники - только доступные здания.
-          </p>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={HardDrive} label="Файлов" value={String(stats._count._all)} />
-        <MetricCard icon={Archive} label="Исходный размер" value={formatBytes(stats._sum.originalSize ?? 0)} />
-        <MetricCard icon={FileArchive} label="В БД после сжатия" value={formatBytes(stats._sum.compressedSize ?? 0)} />
-        <MetricCard icon={Building2} label="Зданий в доступе" value={String(buildingOptions.length)} />
+        <StatCard icon={HardDrive} label="Файлов" value={String(stats._count._all)} tone="blue" />
+        <StatCard icon={Archive} label="Исходный размер" value={formatBytes(stats._sum.originalSize ?? 0)} tone="blue" />
+        <StatCard icon={FileArchive} label="В БД после сжатия" value={formatBytes(stats._sum.compressedSize ?? 0)} tone="blue" />
+        <StatCard icon={Building2} label="Зданий в доступе" value={String(buildingOptions.length)} tone="blue" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -319,7 +320,7 @@ export default async function StoragePage({
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <Card padded={false}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <thead className="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
@@ -444,27 +445,7 @@ export default async function StoragePage({
           total={total}
           params={queryParams}
         />
-      </div>
-    </div>
-  )
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof HardDrive
-  label: string
-  value: string
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{label}</p>
+      </Card>
     </div>
   )
 }

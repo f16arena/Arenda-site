@@ -8,6 +8,7 @@ import { type FaqAudience } from "@/lib/faq-types"
 import { getFaqArticlesForAdmin, getFaqItemsFromDb } from "@/lib/faq-db"
 import { requireOrgAccess } from "@/lib/org"
 import { FaqManager } from "./faq-manager"
+import { PageHeader } from "@/components/ui/page"
 
 export default async function AdminFaqPage() {
   const session = await auth()
@@ -25,21 +26,11 @@ export default async function AdminFaqPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
-              <CircleHelp className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">FAQ и инструкции</h1>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Быстрые ответы по работе владельца и администратора в Commrent.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        icon={CircleHelp}
+        title="FAQ и инструкции"
+        subtitle="Быстрые ответы по работе владельца и администратора в Commrent."
+      />
 
       <FaqSearch
         items={items}
