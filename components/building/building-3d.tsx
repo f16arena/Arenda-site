@@ -487,17 +487,19 @@ export default function Building3D({
       setPointer(e)
       raycaster.setFromCamera(pointer, camera)
       if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
+        // Привязка к сетке 0.5 м — аккуратное размещение.
+        const snap = (v: number) => Math.round(v * 2) / 2
         if (dragging.userData.decorId) {
           // Декор — двигается свободно по земле, без границ зоны.
-          dragging.position.x = dragPoint.x
-          dragging.position.z = dragPoint.z
+          dragging.position.x = snap(dragPoint.x)
+          dragging.position.z = snap(dragPoint.z)
         } else {
           const cx = dragging.userData.zoneCx as number
           const cz = dragging.userData.zoneCz as number
           const hw = (dragging.userData.halfW as number) ?? 50
           const hh = (dragging.userData.halfH as number) ?? 50
-          dragging.position.x = Math.max(cx - hw, Math.min(cx + hw, dragPoint.x))
-          dragging.position.z = Math.max(cz - hh, Math.min(cz + hh, dragPoint.z))
+          dragging.position.x = snap(Math.max(cx - hw, Math.min(cx + hw, dragPoint.x)))
+          dragging.position.z = snap(Math.max(cz - hh, Math.min(cz + hh, dragPoint.z)))
         }
       }
     }
@@ -620,7 +622,11 @@ export default function Building3D({
   )
   const addDecor = (kind: string) => {
     if (!buildingId) return
-    void addBuildingDecor(buildingId, kind, 0, footprintDepth / 2 + 5)
+    // Разносим спавн, чтобы новые элементы не ставились друг на друга.
+    const n = decor.length
+    const spawnX = ((n % 5) - 2) * 2.5
+    const spawnZ = footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5
+    void addBuildingDecor(buildingId, kind, spawnX, spawnZ)
       .then(() => { toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось добавить"))
   }
