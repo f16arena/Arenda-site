@@ -146,7 +146,8 @@ export default async function TenantsPage(props: TenantsPageProps) {
     where: {
       AND: [
         spaceScope(orgId),
-        { status: "VACANT", kind: "RENTABLE" },
+        // RENTABLE — обычные помещения; OBJECT — объекты крыши/территории (без м²).
+        { status: "VACANT", kind: { in: ["RENTABLE", "OBJECT"] } },
         { tenantSpaces: { none: {} } },
         { tenant: null },
         { floor: { buildingId: { in: visibleBuildingIds } } },
@@ -156,7 +157,8 @@ export default async function TenantsPage(props: TenantsPageProps) {
       id: true,
       number: true,
       area: true,
-      floor: { select: { name: true, building: { select: { name: true } } } },
+      kind: true,
+      floor: { select: { name: true, kind: true, building: { select: { name: true } } } },
     },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
@@ -209,6 +211,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
                   floorName: s.floor.name,
                   buildingName: s.floor.building.name,
                   area: s.area,
+                  isObject: s.kind === "OBJECT" || s.floor.kind === "ROOF" || s.floor.kind === "TERRITORY",
                 }))}
               />
             )}

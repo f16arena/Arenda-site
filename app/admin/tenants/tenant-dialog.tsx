@@ -10,7 +10,7 @@ import { TenantIdentityFields } from "./tenant-identity-fields"
 import { DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { Button } from "@/components/ui/button"
 
-type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number }
+type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number; isObject?: boolean }
 
 export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space[]; buildingId?: string | null }) {
   const [open, setOpen] = useState(false)
@@ -175,10 +175,10 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                         />
                         <span>
                           <span className="font-medium text-slate-800 dark:text-slate-100">
-                            {s.buildingName ? `${s.buildingName} · ` : ""}Каб. {s.number}
+                            {s.buildingName ? `${s.buildingName} · ` : ""}{s.isObject ? s.number : `Каб. ${s.number}`}
                           </span>
                           <span className="block text-xs text-slate-500 dark:text-slate-400">
-                            {s.floorName} · {s.area} м²
+                            {s.isObject ? `${s.floorName} · объект (без м²)` : `${s.floorName} · ${s.area} м²`}
                           </span>
                         </span>
                       </label>
