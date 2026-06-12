@@ -13,6 +13,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { safeServerValue } from "@/lib/server-fallback"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 
 export default async function AnalyticsPage() {
   const session = await auth()
@@ -37,12 +38,7 @@ export default async function AnalyticsPage() {
   if (!features.analyticsBasic) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
-            <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          </div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Аналитика</h1>
-        </div>
+        <PageHeader icon={Activity} title="Аналитика" />
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
           <div className="flex items-start gap-3">
             <Lock className="mt-0.5 h-5 w-5 shrink-0" />
@@ -320,27 +316,16 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
-          <Activity className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Аналитика</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Ключевые показатели за {thisYear} год</p>
-        </div>
-      </div>
+      <PageHeader icon={Activity} title="Аналитика" subtitle={`Ключевые показатели за ${thisYear} год`} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi label="Заполняемость" value={`${occupancyRate}%`} icon={Building2} sub={`${occupied} из ${totalSpaces} помещений`} color="blue" />
-        <Kpi label="Доход за год" value={formatMoney(totalRevenue)} icon={TrendingUp} sub={`${activeTenantsCount} арендаторов`} color="emerald" />
-        <Kpi label="Прибыль" value={formatMoney(profit)} icon={Award} sub={`Маржа ${margin}%`} color={profit >= 0 ? "emerald" : "red"} />
-        <Kpi label="Средний срок" value={`${avgMonths} мес.`} icon={Users} sub="по подписанным договорам" color="purple" />
-      </div>
+      <StatGrid>
+        <StatCard label="Заполняемость" value={`${occupancyRate}%`} icon={Building2} sub={`${occupied} из ${totalSpaces} помещений`} tone="blue" />
+        <StatCard label="Доход за год" value={formatMoney(totalRevenue)} icon={TrendingUp} sub={`${activeTenantsCount} арендаторов`} tone="emerald" />
+        <StatCard label="Прибыль" value={formatMoney(profit)} icon={Award} sub={`Маржа ${margin}%`} tone={profit >= 0 ? "emerald" : "red"} />
+        <StatCard label="Средний срок" value={`${avgMonths} мес.`} icon={Users} sub="по подписанным договорам" tone="violet" />
+      </StatGrid>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-        <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ-5 арендаторов по выручке за {thisYear}</h2>
-        </div>
+      <Card padded={false} className="overflow-x-auto" icon={Award} title={`Топ-5 арендаторов по выручке за ${thisYear}`}>
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -367,17 +352,13 @@ export default async function AnalyticsPage() {
             })}
           </tbody>
         </table>
-      </div>
+      </Card>
 
       <OccupancyHeatmap data={occupancyData} />
 
       {/* ===== analyticsBasic: топ-10 должников и прогноз cashflow ===== */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-          <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-red-500" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ-10 должников</h2>
-          </div>
+        <Card padded={false} className="overflow-x-auto" icon={AlertCircle} title="Топ-10 должников">
           <table className="w-full min-w-[360px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -398,13 +379,9 @@ export default async function AnalyticsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-          <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-emerald-600" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Прогноз cashflow</h2>
-          </div>
+        <Card padded={false} icon={Wallet} title="Прогноз cashflow">
           <div className="grid grid-cols-2 gap-3 p-5">
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4">
               <p className="text-xs text-slate-500 dark:text-slate-400">На 6 месяцев</p>
@@ -423,17 +400,13 @@ export default async function AnalyticsPage() {
           <p className="px-5 pb-4 text-[11px] text-slate-400 dark:text-slate-500">
             По активным договорам на сегодня. Не учитывает индексацию, расторжения и просрочки.
           </p>
-        </div>
+        </Card>
       </div>
 
       {/* ===== analyticsAdvanced (Business+) ===== */}
       {advancedEnabled ? (
         <>
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-purple-600" />
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">P&L по объектам ({thisYear})</h2>
-            </div>
+          <Card padded={false} className="overflow-x-auto" icon={BarChart3} title={`P&L по объектам (${thisYear})`}>
             <table className="w-full min-w-[520px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -456,14 +429,10 @@ export default async function AnalyticsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дебиторка по возрасту долга</h2>
-              </div>
+            <Card padded={false} icon={AlertCircle} title="Дебиторка по возрасту долга">
               <div className="grid grid-cols-2 gap-3 p-5">
                 {[
                   { label: "0–30 дней", v: aging.d0_30, color: "text-amber-600 dark:text-amber-400" },
@@ -477,13 +446,9 @@ export default async function AnalyticsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
 
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
-              <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-blue-600" />
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Сравнение зданий</h2>
-              </div>
+            <Card padded={false} className="overflow-x-auto" icon={Building2} title="Сравнение зданий">
               <table className="w-full min-w-[420px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -506,7 +471,7 @@ export default async function AnalyticsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
           </div>
         </>
       ) : (
@@ -543,27 +508,3 @@ export default async function AnalyticsPage() {
   )
 }
 
-function Kpi({ label, value, icon: Icon, sub, color }: {
-  label: string
-  value: string
-  icon: React.ElementType
-  sub: string
-  color: "blue" | "emerald" | "red" | "purple"
-}) {
-  const colors = {
-    blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
-    emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
-    purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
-  }
-  return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-      <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors[color]} mb-3`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
-      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
-    </div>
-  )
-}
