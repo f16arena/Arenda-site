@@ -7,6 +7,7 @@ import Link from "next/link"
 import { MyDocumentUpload, MyDocumentDelete } from "@/components/cabinet/my-document-upload"
 import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
 import { RequestExtensionButton } from "./request-extension-button"
+import { PageHeader } from "@/components/ui/page"
 
 export default async function CabinetDocuments() {
   const session = await auth()
@@ -74,10 +75,7 @@ export default async function CabinetDocuments() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Документы</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Договоры и ваши документы</p>
-      </div>
+      <PageHeader icon={FileText} title="Документы" subtitle="Договоры и ваши документы" />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <DocumentStat label="Ожидают подписи" value={pendingSignatureCount} tone="amber" />

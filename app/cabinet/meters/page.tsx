@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import { Gauge } from "lucide-react"
 import { submitTenantMeterReading } from "@/app/actions/meters"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page"
 
 const typeLabel: Record<string, string> = {
   ELECTRICITY: "Электричество",
@@ -57,12 +58,11 @@ export default async function CabinetMetersPage() {
 
   return (
     <div className="space-y-5 max-w-xl">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Счётчики</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          {assignedSpaces.length > 1 ? `${assignedSpaces.length} помещений` : `Кабинет ${assignedSpaces[0].number}`} · {currentPeriod}
-        </p>
-      </div>
+      <PageHeader
+        icon={Gauge}
+        title="Счётчики"
+        subtitle={`${assignedSpaces.length > 1 ? `${assignedSpaces.length} помещений` : `Кабинет ${assignedSpaces[0].number}`} · ${currentPeriod}`}
+      />
 
       {meters.length === 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">

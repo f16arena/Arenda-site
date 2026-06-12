@@ -4,6 +4,7 @@ import { STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST
 import { cn } from "@/lib/utils"
 import { ClipboardList, Paperclip } from "lucide-react"
 import { RequestDialog } from "./request-dialog"
+import { PageHeader } from "@/components/ui/page"
 
 export default async function CabinetRequests() {
   const session = await auth()
@@ -48,13 +49,12 @@ export default async function CabinetRequests() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мои заявки</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{tenant.requests.length} заявок</p>
-        </div>
-        <RequestDialog />
-      </div>
+      <PageHeader
+        icon={ClipboardList}
+        title="Мои заявки"
+        subtitle={`${tenant.requests.length} заявок`}
+        actions={<RequestDialog />}
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <RequestStat label="Активные" value={activeRequests} tone="blue" />

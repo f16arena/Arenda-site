@@ -5,6 +5,8 @@ import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRe
 import { formatTenantPlacement, getTenantAreaTotal } from "@/lib/tenant-placement"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { PaymentPanel } from "./payment-panel"
+import { PageHeader } from "@/components/ui/page"
+import { Wallet } from "lucide-react"
 
 export default async function CabinetFinances() {
   const session = await auth()
@@ -91,10 +93,7 @@ export default async function CabinetFinances() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Финансы</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Начисления и оплаты</p>
-      </div>
+      <PageHeader icon={Wallet} title="Финансы" subtitle="Начисления и оплаты" />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">

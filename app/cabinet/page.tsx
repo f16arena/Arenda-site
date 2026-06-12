@@ -15,6 +15,7 @@ import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { formatPersonShortName } from "@/lib/display-name"
+import { Card } from "@/components/ui/page"
 
 export default async function CabinetDashboard() {
   return measureServerRoute("/cabinet", async () => {
@@ -421,16 +422,16 @@ export default async function CabinetDashboard() {
       {/* Двухколоночный блок */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Документы (новые от арендодателя) */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              Документы
-            </h2>
+        <Card
+          padded={false}
+          icon={FileText}
+          title="Документы"
+          actions={
             <Link href="/cabinet/documents" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
-          </div>
+          }
+        >
           <div className="divide-y divide-slate-50">
             {recentDocs.length === 0 ? (
               <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
@@ -465,24 +466,28 @@ export default async function CabinetDashboard() {
               ))
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Сообщения */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+        <Card
+          padded={false}
+          icon={MessageSquare}
+          title={
+            <>
               Сообщения
               {unreadMessages > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
                   {unreadMessages}
                 </span>
               )}
-            </h2>
+            </>
+          }
+          actions={
             <Link href="/cabinet/messages" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
-          </div>
+          }
+        >
           <div className="divide-y divide-slate-50">
             {recentMessages.length === 0 ? (
               <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
@@ -514,18 +519,20 @@ export default async function CabinetDashboard() {
               ))
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Платежи и задолженности */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Неоплаченные начисления</h2>
+        <Card
+          padded={false}
+          title="Неоплаченные начисления"
+          actions={
             <Link href="/cabinet/finances" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               Все <ArrowRight className="h-3 w-3" />
             </Link>
-          </div>
+          }
+        >
           <div className="divide-y divide-slate-50">
             {tenant.charges.slice(0, 5).map((c) => {
               const isOverdue = c.dueDate && c.dueDate < today
@@ -561,15 +568,17 @@ export default async function CabinetDashboard() {
               </p>
             )}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние оплаты</h2>
+        <Card
+          padded={false}
+          title="Последние оплаты"
+          actions={
             <Link href="/cabinet/finances" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
               История <ArrowRight className="h-3 w-3" />
             </Link>
-          </div>
+          }
+        >
           <div className="divide-y divide-slate-50">
             {tenant.payments.map((p) => (
               <div key={p.id} className="flex items-center justify-between px-5 py-3">
@@ -586,7 +595,7 @@ export default async function CabinetDashboard() {
               <p className="px-5 py-8 text-sm text-slate-400 dark:text-slate-500 text-center">Нет оплат</p>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       <MobileTenantActionBar
