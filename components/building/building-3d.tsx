@@ -291,10 +291,16 @@ export default function Building3D({
     // Маркер — цветной по статусу столбик + подпись, кликабельный (как комната).
     const placeObjectMarkers = (
       zone: BuildingFloor3D,
-      origin: { cx: number; cz: number; w: number; h: number; y: number },
+      // cx/cz/w/h — зона авто-раскладки; b* — центр и границы для drag/сохранения
+      // (если заданы — объект можно таскать по всему участку, а не только по сетке).
+      origin: { cx: number; cz: number; w: number; h: number; y: number; bx?: number; bz?: number; bhw?: number; bhh?: number },
     ) => {
       const objects = zone.spaces.filter((s) => isObjectSpace(s.kind))
       if (objects.length === 0) return
+      const refCx = origin.bx ?? origin.cx
+      const refCz = origin.bz ?? origin.cz
+      const refHW = origin.bhw ?? origin.w / 2
+      const refHH = origin.bhh ?? origin.h / 2
       const cols = Math.ceil(Math.sqrt(objects.length))
       const rows = Math.ceil(objects.length / cols)
       const stepX = origin.w / (cols + 1)
@@ -302,10 +308,10 @@ export default function Building3D({
       objects.forEach((sp, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
-        // Сохранённая позиция (смещение от центра зоны в метрах) или авто-сетка.
+        // Сохранённая позиция (смещение от центра участка) или авто-сетка.
         const hasPos = typeof sp.posX === "number" && typeof sp.posZ === "number"
-        const x = hasPos ? origin.cx + (sp.posX as number) : origin.cx - origin.w / 2 + stepX * (col + 1)
-        const z = hasPos ? origin.cz + (sp.posZ as number) : origin.cz - origin.h / 2 + stepZ * (row + 1)
+        const x = hasPos ? refCx + (sp.posX as number) : origin.cx - origin.w / 2 + stepX * (col + 1)
+        const z = hasPos ? refCz + (sp.posZ as number) : origin.cz - origin.h / 2 + stepZ * (row + 1)
         const statusHex = STATUS_FILL[detectStatus(sp)] ?? "#94a3b8"
         const model = buildObjectModel(sp.number, statusHex)
         model.position.set(x, origin.y, z)
@@ -316,13 +322,13 @@ export default function Building3D({
           o.userData.elId = sp.id
           o.userData.floorId = zone.id
         })
-        // Метаданные для перетаскивания: id объекта, центр зоны, базовый Y, границы.
+        // Метаданные для перетаскивания: id объекта, центр участка, базовый Y, границы.
         model.userData.spaceId = sp.id
-        model.userData.zoneCx = origin.cx
-        model.userData.zoneCz = origin.cz
+        model.userData.zoneCx = refCx
+        model.userData.zoneCz = refCz
         model.userData.baseY = origin.y
-        model.userData.halfW = origin.w / 2
-        model.userData.halfH = origin.h / 2
+        model.userData.halfW = refHW
+        model.userData.halfH = refHH
         // Подпись — дочерняя, чтобы двигалась вместе с моделью при перетаскивании.
         const label = makeLabel(sp.number)
         label.position.set(0, 4, 0)
@@ -428,14 +434,49 @@ export default function Building3D({
       }
     }
 
-    // ── Территории: площадки рядом со зданием ──
-    let offsetX = maxW / 2 + 3
-    for (const terr of territories) {
+    // ── Территории ──
+    // Первая территория — «участок вокруг здания»: асфальт по периметру, здание
+    // стоит в центре, объекты ставятся вокруг (как в Sims). Остальные — площадками сбоку.
+    const ring = Math.max(10, territories[0]?.layout?.width ?? 18)
+    const lotHalfW = maxW / 2 + ring
+    const lotHalfD = maxH / 2 + ring
+    let offsetX = lotHalfW + 3
+    territories.forEach((terr, idx) => {
       const tw = terr.layout?.width ?? 20
       const th = terr.layout?.height ?? 15
       const isActive = active === terr.id
 
-      // Асфальт территории
+      if (idx === 0) {
+        // Асфальт участка вокруг здания
+        const pad = new THREE.Mesh(
+          new THREE.BoxGeometry(lotHalfW * 2, 0.05, lotHalfD * 2),
+          new THREE.MeshStandardMaterial({ color: 0xb8b5b2 }),
+        )
+        pad.position.set(0, 0.015, 0)
+        pad.receiveShadow = true
+        scene.add(pad)
+
+        if (terr.layout) {
+          // Нарисованный план (парковочные ряды) — блоком перед зданием.
+          const built = buildFloorGroup(terr.layout, terr.spaces, { labels: isActive ? "full" : "none", flat: true, shadows: true })
+          built.group.position.set(-terr.layout.width / 2, 0.05, maxH / 2 + 2)
+          for (const obj of built.clickable) { obj.userData.floorId = terr.id; clickable.push(obj) }
+          for (const [elId, mat] of built.wallMaterials) wallMaterials.set(elId, mat)
+          scene.add(built.group)
+        } else {
+          // Объекты раскладываем полосой перед зданием, но таскать можно по всему участку.
+          placeObjectMarkers(terr, {
+            cx: 0, cz: maxH / 2 + ring / 2, w: maxW + ring, h: ring, y: 0.05,
+            bx: 0, bz: 0, bhw: lotHalfW, bhh: lotHalfD,
+          })
+        }
+        const tLabel = makeLabel(terr.name)
+        tLabel.position.set(0, 0.8, lotHalfD + 0.5)
+        scene.add(tLabel)
+        return
+      }
+
+      // Доп. территории — площадками сбоку
       const pad = new THREE.Mesh(
         new THREE.BoxGeometry(tw + 1, 0.05, th + 1),
         new THREE.MeshStandardMaterial({ color: 0xb8b5b2 }),
@@ -445,29 +486,20 @@ export default function Building3D({
       scene.add(pad)
 
       if (terr.layout) {
-        const built = buildFloorGroup(terr.layout, terr.spaces, {
-          labels: isActive ? "full" : "none",
-          flat: true,
-          shadows: true,
-        })
+        const built = buildFloorGroup(terr.layout, terr.spaces, { labels: isActive ? "full" : "none", flat: true, shadows: true })
         built.group.position.set(offsetX, 0.05, -th / 2)
-        for (const obj of built.clickable) {
-          obj.userData.floorId = terr.id
-          clickable.push(obj)
-        }
+        for (const obj of built.clickable) { obj.userData.floorId = terr.id; clickable.push(obj) }
         for (const [elId, mat] of built.wallMaterials) wallMaterials.set(elId, mat)
         scene.add(built.group)
       } else {
-        // Без плана — объекты территории (парковки, веранды) маркерами сеткой.
         placeObjectMarkers(terr, { cx: offsetX + tw / 2, cz: 0, w: tw, h: th, y: 0.05 })
       }
 
       const tLabel = makeLabel(terr.name)
       tLabel.position.set(offsetX + tw / 2, 0.8, th / 2 + 0.5)
       scene.add(tLabel)
-
       offsetX += tw + 3
-    }
+    })
 
     // ── Декор (деревья/кусты/фонари/скамейки) — на земле вокруг здания ──
     for (const d of decor) {
