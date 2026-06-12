@@ -5,7 +5,8 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon } from "lucide-react"
+import { isObjectSpace } from "@/lib/zone-kinds"
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { type SpaceInfo, STATUS_FILL, detectStatus } from "@/components/floor/floor-view"
 import {
@@ -62,10 +63,12 @@ export default function Building3D({
   const wallMaterialsRef = useRef<Map<string, THREE.MeshStandardMaterial>>(new Map())
   const cameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
+  // Обычные этажи — стопкой; крыши — площадкой поверх здания; территории — рядом.
   const regular = useMemo(
-    () => floors.filter((f) => f.kind !== "TERRITORY").sort((a, b) => a.number - b.number),
+    () => floors.filter((f) => f.kind !== "TERRITORY" && f.kind !== "ROOF").sort((a, b) => a.number - b.number),
     [floors],
   )
+  const roofs = useMemo(() => floors.filter((f) => f.kind === "ROOF"), [floors])
   const territories = useMemo(() => floors.filter((f) => f.kind === "TERRITORY"), [floors])
 
   useEffect(() => {
@@ -164,6 +167,38 @@ export default function Building3D({
 
     const slabMat = new THREE.MeshStandardMaterial({ color: 0xe7e5e4 })
 
+    // Объекты зоны (крыша/территория) без плана: раскладываем маркеры сеткой.
+    // Маркер — цветной по статусу столбик + подпись, кликабельный (как комната).
+    const placeObjectMarkers = (
+      zone: BuildingFloor3D,
+      origin: { cx: number; cz: number; w: number; h: number; y: number },
+    ) => {
+      const objects = zone.spaces.filter((s) => isObjectSpace(s.kind))
+      if (objects.length === 0) return
+      const cols = Math.ceil(Math.sqrt(objects.length))
+      const rows = Math.ceil(objects.length / cols)
+      const stepX = origin.w / (cols + 1)
+      const stepZ = origin.h / (rows + 1)
+      objects.forEach((sp, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        const x = origin.cx - origin.w / 2 + stepX * (col + 1)
+        const z = origin.cz - origin.h / 2 + stepZ * (row + 1)
+        const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(STATUS_FILL[detectStatus(sp)] ?? "#94a3b8") })
+        const marker = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 1.6, 12), mat)
+        marker.position.set(x, origin.y + 0.8, z)
+        marker.castShadow = true
+        marker.userData.elId = sp.id
+        marker.userData.floorId = zone.id
+        scene.add(marker)
+        clickable.push(marker)
+        wallMaterials.set(sp.id, mat)
+        const label = makeLabel(sp.number)
+        label.position.set(x, origin.y + 2, z)
+        scene.add(label)
+      })
+    }
+
     // ── Этажи стопкой ──
     regular.forEach((floor, i) => {
       const { w, h, ceil } = sizes[i]
@@ -211,14 +246,23 @@ export default function Building3D({
     })
 
     // ── Крыша (только в режиме всего здания) ──
+    const roofW = sizes.length > 0 ? sizes[sizes.length - 1].w : 30
+    const roofH = sizes.length > 0 ? sizes[sizes.length - 1].h : 20
     if (!cutaway && regular.length > 0) {
       const roof = new THREE.Mesh(
-        new THREE.BoxGeometry(sizes[sizes.length - 1].w + 0.8, SLAB, sizes[sizes.length - 1].h + 0.8),
+        new THREE.BoxGeometry(roofW + 0.8, SLAB, roofH + 0.8),
         new THREE.MeshStandardMaterial({ color: 0xa8a29e }),
       )
       roof.position.set(0, buildingTop - SLAB / 2, 0)
       roof.castShadow = true
       scene.add(roof)
+    }
+
+    // ── Объекты на крыше (зоны ROOF): антенны/щиты поверх здания ──
+    if (!cutaway) {
+      for (const roofZone of roofs) {
+        placeObjectMarkers(roofZone, { cx: 0, cz: 0, w: roofW, h: roofH, y: buildingTop })
+      }
     }
 
     // ── Территории: площадки рядом со зданием ──
@@ -250,6 +294,9 @@ export default function Building3D({
         }
         for (const [elId, mat] of built.wallMaterials) wallMaterials.set(elId, mat)
         scene.add(built.group)
+      } else {
+        // Без плана — объекты территории (парковки, веранды) маркерами сеткой.
+        placeObjectMarkers(terr, { cx: offsetX + tw / 2, cz: 0, w: tw, h: th, y: 0.05 })
       }
 
       const tLabel = makeLabel(terr.name)
@@ -310,7 +357,7 @@ export default function Building3D({
       container.innerHTML = ""
       wallMaterials.clear()
     }
-  }, [regular, territories, active])
+  }, [regular, roofs, territories, active])
 
   // Подсветка выбранной комнаты
   useEffect(() => {
@@ -323,7 +370,9 @@ export default function Building3D({
   const selectedEl = selectedFloor?.layout?.elements.find((e) => e.id === selected?.elId)
   const selectedSpace = selectedEl && "spaceId" in selectedEl && selectedEl.spaceId
     ? selectedFloor?.spaces.find((s) => s.id === selectedEl.spaceId)
-    : null
+    // Объекты крыши/территории кликаются напрямую — userData.elId = space.id.
+    : selectedFloor?.spaces.find((s) => s.id === selected?.elId)
+  const selectedIsObject = !!selectedSpace && isObjectSpace(selectedSpace.kind)
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
@@ -338,6 +387,16 @@ export default function Building3D({
           label="Здание целиком"
           onClick={() => { setActive("all"); setSelected(null) }}
         />
+        {roofs.map((r) => (
+          <FloorButton
+            key={r.id}
+            active={active === r.id}
+            icon={BoxIcon}
+            label={r.name}
+            sub="крыша"
+            onClick={() => { setActive(r.id); setSelected(null) }}
+          />
+        ))}
         {[...regular].reverse().map((f) => (
           <FloorButton
             key={f.id}
@@ -372,7 +431,7 @@ export default function Building3D({
         <div className="absolute bottom-3 right-3 z-10 w-72 rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Каб. {selectedSpace.number} · {selectedFloor.name}
+              {selectedIsObject ? selectedSpace.number : `Каб. ${selectedSpace.number}`} · {selectedFloor.name}
             </p>
             <button
               type="button"
@@ -384,10 +443,17 @@ export default function Building3D({
             </button>
           </div>
           <div className="space-y-2 p-4 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Площадь:</span>
-              <span className="font-medium text-slate-900 dark:text-slate-100">{selectedSpace.area} м²</span>
-            </div>
+            {selectedIsObject ? (
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Тип:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">Объект (без м²)</span>
+              </div>
+            ) : (
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Площадь:</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">{selectedSpace.area} м²</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-slate-500 dark:text-slate-400">Статус:</span>
               <span className="font-medium">{STATUS_RU[detectStatus(selectedSpace)] ?? detectStatus(selectedSpace)}</span>
@@ -410,7 +476,7 @@ export default function Building3D({
             ) : (
               <p className="border-t border-slate-100 pt-2 text-xs italic text-slate-400 dark:border-slate-800 dark:text-slate-500">Помещение свободно</p>
             )}
-            {selectedFloor.ratePerSqm > 0 && (
+            {!selectedIsObject && selectedFloor.ratePerSqm > 0 && (
               <div className="flex justify-between border-t border-slate-100 pt-2 text-xs dark:border-slate-800">
                 <span className="text-slate-500 dark:text-slate-400">
                   {selectedSpace.area} м² × {formatMoney(selectedFloor.ratePerSqm)}
