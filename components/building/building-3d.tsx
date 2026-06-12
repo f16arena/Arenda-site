@@ -993,6 +993,36 @@ export default function Building3D({
       const p = new THREE.Vector3()
       return raycaster.ray.intersectPlane(wallPlane, p) ? p : null
     }
+    // Концы существующих стен на этом уровне — для привязки углов (join).
+    const wallEnds: THREE.Vector3[] = []
+    for (const d of decor) {
+      if (d.kind !== "wallrun") continue
+      if ((d.level ?? (d.onRoof ? "roof" : "ground")) !== wallLevel) continue
+      const r = ((d.rot ?? 0) * Math.PI) / 180
+      const hx = (Math.cos(r) * (d.len ?? 0)) / 2
+      const hz = (-Math.sin(r) * (d.len ?? 0)) / 2
+      wallEnds.push(new THREE.Vector3(d.x + hx, wallPlaneY, d.z + hz), new THREE.Vector3(d.x - hx, wallPlaneY, d.z - hz))
+    }
+    const SNAP_GRID = (v: number) => Math.round(v * 2) / 2
+    // Привязка точки: сначала к концу другой стены (≤0.8 м), иначе к сетке 0.5 м;
+    // если задана точка start — угол отрезка привязывается к ближайшим 15°.
+    const snapWallPoint = (raw: THREE.Vector3, start: THREE.Vector3 | null): THREE.Vector3 => {
+      let best: THREE.Vector3 | null = null
+      let bestD = 0.8
+      for (const e of wallEnds) {
+        const dd = Math.hypot(e.x - raw.x, e.z - raw.z)
+        if (dd < bestD) { bestD = dd; best = e }
+      }
+      if (best) return new THREE.Vector3(best.x, wallPlaneY + 0.05, best.z)
+      if (start) {
+        const vx = raw.x - start.x, vz = raw.z - start.z
+        const dist = Math.max(0.5, SNAP_GRID(Math.hypot(vx, vz)))
+        const step = Math.PI / 12 // 15°
+        const ang = Math.round(Math.atan2(vz, vx) / step) * step
+        return new THREE.Vector3(start.x + dist * Math.cos(ang), wallPlaneY + 0.05, start.z + dist * Math.sin(ang))
+      }
+      return new THREE.Vector3(SNAP_GRID(raw.x), wallPlaneY + 0.05, SNAP_GRID(raw.z))
+    }
 
     const onDown = (e: PointerEvent) => {
       downAt = { x: e.clientX, y: e.clientY }
@@ -1010,13 +1040,12 @@ export default function Building3D({
     }
     const onMove = (e: PointerEvent) => {
       if (drawWallRef.current) {
-        // Предпросмотр: линия от первой точки к курсору (с привязкой к 0.5 м).
+        // Предпросмотр: линия от первой точки к курсору (привязка к углам/сетке/15°).
         const start = wallStartRef.current
         if (start) {
           const p = projectToWallPlane(e)
           if (p) {
-            const snap = (v: number) => Math.round(v * 2) / 2
-            previewGeo.setFromPoints([start, new THREE.Vector3(snap(p.x), wallPlaneY + 0.05, snap(p.z))])
+            previewGeo.setFromPoints([start, snapWallPoint(p, start)])
             previewGeo.attributes.position.needsUpdate = true
             previewLine.visible = true
           }
@@ -1048,16 +1077,17 @@ export default function Building3D({
       if (drawWallRef.current) {
         const moved = downAt ? Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) : 0
         if (moved > 5) return // это вращение камеры, не клик
-        const p = projectToWallPlane(e)
-        if (!p) return
-        const snap = (v: number) => Math.round(v * 2) / 2
-        const px = snap(p.x), pz = snap(p.z)
+        const rawP = projectToWallPlane(e)
+        if (!rawP) return
         if (!wallStartRef.current) {
-          wallStartRef.current = new THREE.Vector3(px, wallPlaneY + 0.05, pz)
+          // Первая точка: привязка к существующему углу или сетке.
+          wallStartRef.current = snapWallPoint(rawP, null)
           toast.success("Кликните вторую точку стены")
           return
         }
         const start = wallStartRef.current
+        const end = snapWallPoint(rawP, start)
+        const px = end.x, pz = end.z
         wallStartRef.current = null
         previewLine.visible = false
         const dx = px - start.x, dz = pz - start.z
