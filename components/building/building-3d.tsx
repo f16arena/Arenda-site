@@ -9,7 +9,7 @@ import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Pl
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
-import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor, addWallSegment } from "@/app/actions/decor"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor, addWallSegment, setDecorKind, setDecorLen } from "@/app/actions/decor"
 
 export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; len?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
@@ -62,6 +62,25 @@ const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label
     { kind: "tank", label: "Бак" },
   ] },
 ]
+
+// Семейства материалов: варианты, на которые можно перекрасить выбранный предмет.
+const MATERIAL_FAMILIES: Array<{ test: (k: string) => boolean; options: Array<{ kind: string; label: string }> }> = [
+  { test: (k) => k === "wall" || k.startsWith("wall-"), options: [
+    { kind: "wall", label: "Простая" }, { kind: "wall-brick", label: "Кирпич" },
+    { kind: "wall-concrete", label: "Бетон" }, { kind: "wall-tile", label: "Кафель" }] },
+  { test: (k) => k.startsWith("floor-"), options: [
+    { kind: "floor-tile", label: "Плитка" }, { kind: "floor-ceramic", label: "Кафель" },
+    { kind: "floor-lino", label: "Линолеум" }, { kind: "floor-paving", label: "Брусчатка" }, { kind: "floor-asphalt", label: "Асфальт" }] },
+  { test: (k) => k.startsWith("door-"), options: [
+    { kind: "door-wood", label: "Дерево" }, { kind: "door-plastic", label: "Пластик" }, { kind: "door-metal", label: "Металл" }] },
+  { test: (k) => k.startsWith("fence-"), options: [
+    { kind: "fence-metal", label: "Металл" }, { kind: "fence-wood", label: "Дерево" }] },
+  { test: (k) => k.startsWith("column-"), options: [
+    { kind: "column-square", label: "Квадрат" }, { kind: "column-round", label: "Круг" }] },
+]
+function materialOptions(kind: string): Array<{ kind: string; label: string }> {
+  return MATERIAL_FAMILIES.find((f) => f.test(kind))?.options ?? []
+}
 
 // Процедурные текстуры (кирпич/плитка/бетон/асфальт) рисуем на canvas один раз
 // и кэшируем по виду — материалы выглядят «материалами», а не плоским цветом.
@@ -1237,12 +1256,39 @@ export default function Building3D({
     for (const f of [...regular].sort((a, b) => b.number - a.number)) opts.push({ value: f.id, label: f.name })
     return opts
   }, [regular, roofs])
-  const selectedDecorLevel = decor.find((d) => d.id === selectedDecorId)?.level ?? "ground"
+  const selectedDecor = decor.find((d) => d.id === selectedDecorId) ?? null
+  const selectedDecorLevel = selectedDecor?.level ?? "ground"
+  // Варианты материала для выбранного предмета (если он из семейства).
+  const selectedMaterialOptions = selectedDecor ? materialOptions(selectedDecor.kind) : []
   const moveSelectedDecorToLevel = (level: string) => {
     if (!selectedDecorId) return
     void setDecorLevel(selectedDecorId, level)
       .then(() => { toast.success("Перемещено на уровень"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось переместить"))
+  }
+  // Перекрасить/сменить материал выбранного предмета.
+  const recolorSelectedDecor = (kind: string) => {
+    if (!selectedDecorId) return
+    void setDecorKind(selectedDecorId, kind)
+      .then(() => { toast.success("Материал изменён"); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось изменить"))
+  }
+  // Задать точную длину выбранной стены (м).
+  const applyWallLen = (raw: string) => {
+    if (!selectedDecorId) return
+    const v = parseFloat(raw.replace(",", "."))
+    if (!Number.isFinite(v)) return
+    void setDecorLen(selectedDecorId, v)
+      .then(() => { toast.success("Длина обновлена"); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось изменить длину"))
+  }
+  // Переместить предмет на соседний уровень (этаж выше/ниже, без мышиного 3D).
+  const moveSelectedDecorStep = (dir: 1 | -1) => {
+    if (!selectedDecorId) return
+    const idx = levelOptions.findIndex((o) => o.value === selectedDecorLevel)
+    const next = levelOptions[idx + dir]
+    if (!next) { toast.message?.("Дальше некуда"); return }
+    moveSelectedDecorToLevel(next.value)
   }
   // Импорт модели из других программ (GLB/GLTF из SketchUp/Blender и т.п.).
   const importModel = (file: File) => {
@@ -1375,14 +1421,58 @@ export default function Building3D({
           {selectedDecorId && (
             <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
               <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Выбранный предмет</p>
-              <select
-                value={selectedDecorLevel}
-                onChange={(e) => moveSelectedDecorToLevel(e.target.value)}
-                title="Переместить на уровень"
-                className="mb-1.5 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-              >
-                {levelOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              {selectedDecor && (
+                <p className="px-1 pb-1 text-[10px] text-slate-500 dark:text-slate-400">
+                  X {selectedDecor.x.toFixed(1)} · Z {selectedDecor.z.toFixed(1)} м
+                  {selectedDecor.kind === "wallrun" && selectedDecor.len ? <> · длина {selectedDecor.len.toFixed(1)} м</> : null}
+                </p>
+              )}
+              {selectedDecor?.kind === "wallrun" && (
+                <label className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] text-slate-600 dark:text-slate-300">
+                  Длина, м
+                  <input
+                    type="number" step="0.5" min="0.5" max="100"
+                    defaultValue={selectedDecor.len ?? 1}
+                    key={selectedDecorId + ":" + (selectedDecor.len ?? 1)}
+                    onBlur={(e) => applyWallLen(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur() }}
+                    className="w-16 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  />
+                </label>
+              )}
+              {selectedMaterialOptions.length > 0 && (
+                <div className="mb-1.5">
+                  <p className="px-1 pb-0.5 text-[10px] text-slate-400">Материал</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedMaterialOptions.map((m) => (
+                      <button
+                        key={m.kind}
+                        type="button"
+                        onClick={() => recolorSelectedDecor(m.kind)}
+                        className={`rounded-md border px-2 py-1 text-[10px] font-medium ${
+                          selectedDecor?.kind === m.kind
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mb-1.5 flex items-center gap-1">
+                <select
+                  value={selectedDecorLevel}
+                  onChange={(e) => moveSelectedDecorToLevel(e.target.value)}
+                  title="Переместить на уровень"
+                  className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {levelOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <button type="button" onClick={() => moveSelectedDecorStep(-1)} title="Уровень выше по списку" className="rounded-md border border-slate-200 px-1.5 py-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">↑</button>
+                <button type="button" onClick={() => moveSelectedDecorStep(1)} title="Уровень ниже по списку" className="rounded-md border border-slate-200 px-1.5 py-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">↓</button>
+              </div>
               <div className="mb-1 flex flex-wrap gap-1">
                 <button type="button" onClick={() => rotateSelectedDecor(15)} title="Повернуть на 15°" className="flex flex-1 items-center justify-center gap-0.5 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                   <RotateCw className="h-3 w-3" /> 15°

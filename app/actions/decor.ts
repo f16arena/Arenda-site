@@ -99,6 +99,28 @@ export async function duplicateBuildingDecor(decorId: string) {
   return { id: copy.id }
 }
 
+/** Задать длину нарисованной стены (kind="wallrun"), м. Диапазон 0.5–100. */
+export async function setDecorLen(decorId: string, len: number) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertDecorBuilding(decorId, orgId)
+  const length = Number.isFinite(len) ? Math.max(0.5, Math.min(100, len)) : 1
+  await db.buildingDecor.update({ where: { id: decorId }, data: { len: length } })
+  revalidatePath("/admin/buildings")
+  return { success: true }
+}
+
+/** Сменить вид/материал предмета (например wall → wall-brick). Валидируется. */
+export async function setDecorKind(decorId: string, kind: string) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertDecorBuilding(decorId, orgId)
+  if (!isValidKind(kind)) throw new Error("Недопустимый вид предмета")
+  await db.buildingDecor.update({ where: { id: decorId }, data: { kind } })
+  revalidatePath("/admin/buildings")
+  return { success: true }
+}
+
 /** Переместить предмет на другой уровень (ground/roof/<floorId>). */
 export async function setDecorLevel(decorId: string, level: string) {
   await requireCapabilityAndFeature("spaces.edit")
