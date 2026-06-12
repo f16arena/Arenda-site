@@ -216,23 +216,28 @@ export default function Building3D({
     if (!container) return
 
     // ── Геометрия уровней ──
-    const sizes = regular.map((f) => ({
-      w: f.layout?.width ?? 30,
-      h: f.layout?.height ?? 20,
-      ceil: floorHeight(f.layout),
-    }))
-    const maxW = Math.max(30, ...sizes.map((s) => s.w))
-    const maxH = Math.max(20, ...sizes.map((s) => s.h))
-    const levels: number[] = []
+    // Наземные этажи (номер ≥ 1) — стопкой вверх от земли; цоколь/подвал
+    // (номер ≤ 0) — вниз под землю. Число 0 ближе к поверхности, далее −1, −2…
+    const dims = (f: BuildingFloor3D) => ({ w: f.layout?.width ?? 30, h: f.layout?.height ?? 20, ceil: floorHeight(f.layout) })
+    const aboveground = regular.filter((f) => f.number >= 1)
+    const basements = regular.filter((f) => f.number <= 0)
+    const maxW = Math.max(30, ...regular.map((f) => dims(f).w))
+    const maxH = Math.max(20, ...regular.map((f) => dims(f).h))
+    const baseYById = new Map<string, number>()
     let y = SLAB
-    for (const s of sizes) {
-      levels.push(y)
-      y += s.ceil + SLAB
+    for (const f of aboveground) { baseYById.set(f.id, y); y += dims(f).ceil + SLAB }
+    const buildingTop = aboveground.length > 0 ? y : SLAB
+    let yb = 0
+    for (const f of [...basements].sort((a, b) => b.number - a.number)) {
+      const ceil = dims(f).ceil
+      baseYById.set(f.id, yb - ceil)
+      yb = yb - ceil - SLAB
     }
-    const buildingTop = y
+    const topFloor = aboveground[aboveground.length - 1]
 
-    const activeIdx = regular.findIndex((f) => f.id === active)
-    const cutaway = activeIdx >= 0
+    const activeBaseY = baseYById.get(active)
+    const cutaway = activeBaseY !== undefined
+    const basementActive = cutaway && (activeBaseY as number) < 0
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0xd6eaff)
@@ -255,7 +260,7 @@ export default function Building3D({
     container.appendChild(labelRenderer.domElement)
 
     const controls = new OrbitControls(camera, renderer.domElement)
-    controls.target.set(0, cutaway ? levels[activeIdx] : buildingTop / 3, 0)
+    controls.target.set(0, cutaway ? (activeBaseY as number) + 1.5 : buildingTop / 3, 0)
     controls.maxPolarAngle = Math.PI / 2.05
     controls.minDistance = 6
     controls.maxDistance = camDist * 2.2
@@ -280,26 +285,29 @@ export default function Building3D({
     sun.shadow.camera.far = 220
     scene.add(sun)
 
-    // ── Газон (земля) ──
-    const territoriesW = territories.reduce((acc, t) => acc + (t.layout?.width ?? 20) + 3, 0)
-    const groundSize = Math.max(maxW, maxH) * 2 + territoriesW * 2 + 40
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(groundSize, groundSize),
-      new THREE.MeshStandardMaterial({ color: 0x9bc97f }),
-    )
-    ground.rotation.x = -Math.PI / 2
-    ground.position.y = -0.02
-    ground.receiveShadow = true
-    scene.add(ground)
+    // ── Газон (земля) ── При просмотре подземного уровня землю и плиту прячем,
+    // чтобы заглянуть в цоколь/подвал.
+    if (!basementActive) {
+      const territoriesW = territories.reduce((acc, t) => acc + (t.layout?.width ?? 20) + 3, 0)
+      const groundSize = Math.max(maxW, maxH) * 2 + territoriesW * 2 + 40
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(groundSize, groundSize),
+        new THREE.MeshStandardMaterial({ color: 0x9bc97f }),
+      )
+      ground.rotation.x = -Math.PI / 2
+      ground.position.y = -0.02
+      ground.receiveShadow = true
+      scene.add(ground)
 
-    // Площадка под зданием (бетон)
-    const plaza = new THREE.Mesh(
-      new THREE.BoxGeometry(maxW + 4, 0.06, maxH + 4),
-      new THREE.MeshStandardMaterial({ color: 0xd6d3d1 }),
-    )
-    plaza.position.y = 0.01
-    plaza.receiveShadow = true
-    scene.add(plaza)
+      // Площадка под зданием (бетон)
+      const plaza = new THREE.Mesh(
+        new THREE.BoxGeometry(maxW + 4, 0.06, maxH + 4),
+        new THREE.MeshStandardMaterial({ color: 0xd6d3d1 }),
+      )
+      plaza.position.y = 0.01
+      plaza.receiveShadow = true
+      scene.add(plaza)
+    }
 
     const clickable: THREE.Object3D[] = []
     const wallMaterials = wallMaterialsRef.current
@@ -362,12 +370,13 @@ export default function Building3D({
       })
     }
 
-    // ── Этажи стопкой ──
-    regular.forEach((floor, i) => {
-      const { w, h, ceil } = sizes[i]
-      const baseY = levels[i]
+    // ── Этажи стопкой (наземные + подземные) ──
+    regular.forEach((floor) => {
+      const { w, h, ceil } = dims(floor)
+      const baseY = baseYById.get(floor.id) ?? SLAB
       const isActive = active === floor.id
-      const hidden = cutaway && i > activeIdx
+      // Срез: скрываем всё, что выше активного уровня.
+      const hidden = cutaway && baseY > (activeBaseY as number) + 0.01
       if (hidden) return
 
       // Перекрытие под этажом
@@ -409,9 +418,9 @@ export default function Building3D({
     })
 
     // ── Крыша (только в режиме всего здания) ──
-    const roofW = sizes.length > 0 ? sizes[sizes.length - 1].w : 30
-    const roofH = sizes.length > 0 ? sizes[sizes.length - 1].h : 20
-    const hasTop = regular.length > 0 || roofs.length > 0
+    const roofW = topFloor ? dims(topFloor).w : maxW
+    const roofH = topFloor ? dims(topFloor).h : maxH
+    const hasTop = aboveground.length > 0 || roofs.length > 0
     if (!cutaway && hasTop) {
       // Плита кровли
       const roof = new THREE.Mesh(
@@ -829,13 +838,13 @@ export default function Building3D({
             onClick={() => { setActive(r.id); setSelected(null) }}
           />
         ))}
-        {[...regular].reverse().map((f) => (
+        {[...regular].sort((a, b) => b.number - a.number).map((f) => (
           <FloorButton
             key={f.id}
             active={active === f.id}
             icon={Layers}
             label={f.name}
-            sub={f.layout ? undefined : "нет плана"}
+            sub={f.number <= 0 ? "подземный" : f.layout ? undefined : "нет плана"}
             onClick={() => { setActive(f.id); setSelected(null) }}
           />
         ))}
