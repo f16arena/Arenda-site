@@ -49,6 +49,66 @@ function floorHeight(layout: FloorLayoutV2 | null): number {
   return layout?.ceilingHeight && layout.ceilingHeight > 1 ? layout.ceilingHeight : 3
 }
 
+/**
+ * Простая 3D-модель объекта зоны по его названию (антенна, камера, щит, дерево,
+ * машина) — чтобы крыша/территория выглядели «как в Sims», а не столбиками.
+ * Статусом красится подставка под моделью; сама модель — нейтральные материалы.
+ */
+function buildObjectModel(name: string, statusHex: string): THREE.Group {
+  const g = new THREE.Group()
+  const n = name.toLowerCase()
+  const metal = new THREE.MeshStandardMaterial({ color: 0x9ca3af })
+  const dark = new THREE.MeshStandardMaterial({ color: 0x475569 })
+  const add = (m: THREE.Mesh) => { m.castShadow = true; g.add(m) }
+
+  // Подставка статуса (свободно/занято/долг)
+  const pad = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.9, 0.9, 0.1, 16),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(statusHex) }),
+  )
+  pad.position.y = 0.05
+  pad.receiveShadow = true
+  g.add(pad)
+
+  if (/антенн|мачт|вышк|beeline|altel|tele2|kcell|связ/.test(n)) {
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 4, 8), metal)
+    mast.position.y = 2.1; add(mast)
+    for (const h of [2.6, 3.1, 3.6]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.08), metal)
+      arm.position.y = h; add(arm)
+    }
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 8, 0, Math.PI), dark)
+    dish.position.set(0.4, 2, 0); dish.rotation.z = Math.PI / 2; add(dish)
+  } else if (/камер|сергек|видео|cctv/.test(n)) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2, 8), metal)
+    pole.position.y = 1.1; add(pole)
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.3), dark)
+    head.position.set(0.15, 2.1, 0); add(head)
+  } else if (/щит|реклам|баннер|billboard|вывеск/.test(n)) {
+    for (const x of [-0.6, 0.6]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2, 8), metal)
+      post.position.set(x, 1, 0); add(post)
+    }
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 0.1), dark)
+    panel.position.y = 2.4; add(panel)
+  } else if (/дерев|tree|озелен|клумб|куст/.test(n)) {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1.2, 8), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }))
+    trunk.position.y = 0.6; add(trunk)
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 10), new THREE.MeshStandardMaterial({ color: 0x4caf50 }))
+    crown.position.y = 1.7; add(crown)
+  } else if (/парков|машин|авто|car|parking|стоянк/.test(n)) {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.5, 0.95), new THREE.MeshStandardMaterial({ color: 0x3b82f6 }))
+    body.position.y = 0.45; add(body)
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.4, 0.85), dark)
+    cabin.position.set(-0.1, 0.85, 0); add(cabin)
+  } else {
+    // Прочее оборудование — короб
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), metal)
+    box.position.y = 0.55; add(box)
+  }
+  return g
+}
+
 export default function Building3D({
   buildingName,
   floors,
@@ -184,17 +244,18 @@ export default function Building3D({
         const row = Math.floor(i / cols)
         const x = origin.cx - origin.w / 2 + stepX * (col + 1)
         const z = origin.cz - origin.h / 2 + stepZ * (row + 1)
-        const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(STATUS_FILL[detectStatus(sp)] ?? "#94a3b8") })
-        const marker = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 1.6, 12), mat)
-        marker.position.set(x, origin.y + 0.8, z)
-        marker.castShadow = true
-        marker.userData.elId = sp.id
-        marker.userData.floorId = zone.id
-        scene.add(marker)
-        clickable.push(marker)
-        wallMaterials.set(sp.id, mat)
+        const statusHex = STATUS_FILL[detectStatus(sp)] ?? "#94a3b8"
+        const model = buildObjectModel(sp.number, statusHex)
+        model.position.set(x, origin.y, z)
+        // Клик по любой части модели открывает карточку объекта.
+        model.traverse((o) => {
+          o.userData.elId = sp.id
+          o.userData.floorId = zone.id
+        })
+        scene.add(model)
+        clickable.push(model)
         const label = makeLabel(sp.number)
-        label.position.set(x, origin.y + 2, z)
+        label.position.set(x, origin.y + 4, z)
         scene.add(label)
       })
     }
