@@ -34,7 +34,7 @@ export default async function ContractsPage() {
       legalType: true,
       customRate: true,
       fixedMonthlyRent: true,
-      space: { select: { number: true, area: true, floor: { select: { name: true, ratePerSqm: true } } } },
+      space: { select: { number: true, area: true, kind: true, floor: { select: { name: true, kind: true, ratePerSqm: true } } } },
       fullFloors: { select: { id: true, name: true, fixedMonthlyRent: true } },
       contracts: { orderBy: { createdAt: "desc" }, take: 1 },
       charges: { where: { isPaid: false }, select: { amount: true, dueDate: true } },

@@ -15,6 +15,7 @@ import { renderContractDocx } from "@/lib/contract-engine/docx"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { sendContractForSignature, markContractSignedByLandlord } from "@/app/actions/contract-workflow"
+import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -221,8 +222,8 @@ export async function prefillFromTenant(
         isVatPayer: true,
         user: { select: { phone: true, email: true } },
         bankAccounts: { select: { bankName: true, iik: true, bik: true, isPrimary: true } },
-        space: { select: { number: true, area: true, floor: { select: { number: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
-        tenantSpaces: { select: { space: { select: { number: true, area: true, floor: { select: { number: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } } } },
+        space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
+        tenantSpaces: { select: { space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } } } },
         fullFloors: { select: { number: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
       },
     })
@@ -270,12 +271,28 @@ export async function prefillFromTenant(
       tenant.fullFloors[0]?.building ??
       null
     s.premises.buildingAddress = building?.documentAddress || building?.address || ""
+    // Объект на крыше/территории — без «этаж/помещение» и без площади:
+    // «Антенно-мачтовое место, Крыша». Обычное помещение — «2 этаж, помещение 205».
+    const placementForSpace = (sp: { number: string; kind?: string | null; floor: { number: number; name?: string | null; kind?: string | null } }) => {
+      if (isObjectSpace(sp.kind) || isZoneFloor(sp.floor.kind)) {
+        return sp.floor.name ? `${sp.number}, ${sp.floor.name}` : sp.number
+      }
+      return `${sp.floor.number} эт., пом. ${sp.number}`
+    }
     if (tenant.space) {
-      s.premises.placement = `${tenant.space.floor.number} этаж, помещение ${tenant.space.number}`
-      s.premises.spaceAreaSqm = tenant.space.area
+      const sp = tenant.space
+      const isObj = isObjectSpace(sp.kind) || isZoneFloor(sp.floor.kind)
+      s.premises.placement = isObj
+        ? (sp.floor.name ? `${sp.number}, ${sp.floor.name}` : sp.number)
+        : `${sp.floor.number} этаж, помещение ${sp.number}`
+      s.premises.spaceAreaSqm = isObj ? 0 : sp.area
     } else if (tenant.tenantSpaces.length > 0) {
-      s.premises.placement = tenant.tenantSpaces.map((x) => `${x.space.floor.number} эт., пом. ${x.space.number}`).join("; ")
-      s.premises.spaceAreaSqm = tenant.tenantSpaces.reduce((sum, x) => sum + x.space.area, 0)
+      s.premises.placement = tenant.tenantSpaces.map((x) => placementForSpace(x.space)).join("; ")
+      // Площадь — только реальные помещения (объекты площади не имеют).
+      s.premises.spaceAreaSqm = tenant.tenantSpaces.reduce(
+        (sum, x) => sum + (isObjectSpace(x.space.kind) || isZoneFloor(x.space.floor.kind) ? 0 : x.space.area),
+        0,
+      )
     } else if (tenant.fullFloors.length > 0) {
       s.premises.placement = tenant.fullFloors.map((fl) => `${fl.number} этаж целиком`).join("; ")
       s.premises.spaceAreaSqm = tenant.fullFloors.reduce((sum, fl) => sum + (fl.totalArea ?? 0), 0)

@@ -1,25 +1,25 @@
-type TenantSpaceLike = {
-  space: {
-    number?: string | null
-    area?: number | null
-    floor: {
-      name?: string | null
-      buildingId?: string | null
-      ratePerSqm?: number | null
-    }
+import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
+
+type SpaceLike = {
+  number?: string | null
+  area?: number | null
+  // OBJECT — объект на крыше/территории без площади (антенна, щит, парковка).
+  kind?: string | null
+  floor: {
+    name?: string | null
+    buildingId?: string | null
+    ratePerSqm?: number | null
+    // ROOF/TERRITORY — зона; помещения на ней считаются объектами.
+    kind?: string | null
   }
 }
 
+type TenantSpaceLike = {
+  space: SpaceLike
+}
+
 type TenantPlacementInput = {
-  space?: {
-    number?: string | null
-    area?: number | null
-    floor: {
-      name?: string | null
-      buildingId?: string | null
-      ratePerSqm?: number | null
-    }
-  } | null
+  space?: SpaceLike | null
   tenantSpaces?: TenantSpaceLike[] | null
   fullFloors?: Array<{
     name?: string | null
@@ -87,8 +87,11 @@ export function formatTenantPlacement(
 
   return spaces
     .map((space) => {
-      const room = `Каб. ${space.number ?? "—"}`
-      return includeFloorName && space.floor.name ? `${room}, ${space.floor.name}` : room
+      // Объект на крыше/территории — без префикса «Каб.» и без площади:
+      // «Антенна Beeline, Крыша». Обычное помещение — «Каб. 205, 2 этаж».
+      const isObject = isObjectSpace(space.kind) || isZoneFloor(space.floor.kind)
+      const label = isObject ? (space.number ?? "—") : `Каб. ${space.number ?? "—"}`
+      return includeFloorName && space.floor.name ? `${label}, ${space.floor.name}` : label
     })
     .join("; ")
 }
