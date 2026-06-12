@@ -1,46 +1,49 @@
 "use client"
 
-// ADR: Нижний каталог ассетов (§5.6). Фаза 1 — процедурные примитивы (§9.4), click-to-place
-// на участок (drag-to-scene и позиционирование мышью — Фаза 2/4). Архитектурно GLB-ready:
-// добавление реальной модели = новая запись каталога без правок кода.
+// ADR: Нижний каталог ассетов (§5.6). Фаза 4 — выбор карточки «вооружает» ассет:
+// активируется инструмент размещения (object) с предпросмотром-призраком у курсора
+// (R — поворот, клик — поставить). Процедурные примитивы, GLB-ready архитектурно.
 
 import { useState } from "react"
-import { uid } from "@/core/id"
-import { AddObjectCommand } from "@/core/document/commands"
-import { useDocumentStore, useEditorStore } from "@/store/builder-store"
+import { useEditorStore } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
 
 interface Asset {
   id: string
   name: string
   category: string
+  icon: string
 }
 
 const ASSETS: Asset[] = [
-  { id: "tree", name: "Дерево", category: "Природа" },
-  { id: "spruce", name: "Ёлка", category: "Природа" },
-  { id: "lamp", name: "Фонарь", category: "Улица" },
-  { id: "bench", name: "Скамейка", category: "Улица" },
-  { id: "parking", name: "Парковка", category: "Улица" },
+  { id: "tree", name: "Дерево", category: "Природа", icon: "🌳" },
+  { id: "spruce", name: "Ёлка", category: "Природа", icon: "🌲" },
+  { id: "birch", name: "Берёза", category: "Природа", icon: "🌿" },
+  { id: "bush", name: "Куст", category: "Природа", icon: "🪴" },
+  { id: "flowerbed", name: "Клумба", category: "Природа", icon: "🌼" },
+  { id: "lamp", name: "Фонарь", category: "Улица", icon: "💡" },
+  { id: "bench", name: "Скамейка", category: "Улица", icon: "🪑" },
+  { id: "bin", name: "Урна", category: "Улица", icon: "🗑️" },
+  { id: "fence", name: "Забор", category: "Ограды", icon: "🧱" },
+  { id: "gate", name: "Ворота", category: "Ограды", icon: "🚪" },
+  { id: "road", name: "Дорога", category: "Покрытия", icon: "🛣️" },
+  { id: "path", name: "Дорожка", category: "Покрытия", icon: "〰️" },
+  { id: "parking", name: "Парковка", category: "Покрытия", icon: "🅿️" },
 ]
 
-const CATEGORIES = ["Все", "Природа", "Улица"]
+const CATEGORIES = ["Все", "Природа", "Улица", "Ограды", "Покрытия"]
 
 export function AssetCatalog() {
-  const doc = useDocumentStore((s) => s.doc)
-  const execute = useDocumentStore((s) => s.execute)
-  const setSelection = useEditorStore((s) => s.setSelection)
+  const armedAsset = useEditorStore((s) => s.armedAsset)
+  const armAsset = useEditorStore((s) => s.armAsset)
+  const setTool = useEditorStore((s) => s.setTool)
   const [cat, setCat] = useState("Все")
 
   const items = cat === "Все" ? ASSETS : ASSETS.filter((a) => a.category === cat)
 
-  const place = (assetId: string) => {
-    const n = doc.site.objects.length
-    const x = ((n % 6) - 3) * 3000
-    const z = 16000 + Math.floor(n / 6) * 3000
-    const id = uid("o")
-    execute(new AddObjectCommand({ site: true }, { id, assetId, position: { x, y: 0, z }, rotationY: 0, scale: 1, attachTo: "terrain", locked: false }))
-    setSelection({ type: "object", id })
+  const arm = (id: string) => {
+    setTool("object")
+    armAsset(id)
   }
 
   return (
@@ -60,23 +63,26 @@ export function AssetCatalog() {
             {c}
           </button>
         ))}
-        <span className="ml-1 text-[10px]" style={{ color: TOKENS.muted }}>клик — добавить на участок</span>
+        <span className="ml-1 text-[10px]" style={{ color: TOKENS.muted }}>выбери → призрак у курсора · R — поворот · клик — поставить</span>
       </div>
       <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
-        {items.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            onClick={() => place(a.id)}
-            className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-xl p-2 transition-all hover:scale-[1.03]"
-            style={{ background: "rgba(148,163,184,0.08)", border: `1px solid ${TOKENS.panelBorder}` }}
-          >
-            <div className="grid h-10 w-full place-items-center rounded-lg" style={{ background: "rgba(56,189,248,0.12)" }}>
-              <span className="text-lg">{a.id === "tree" || a.id === "spruce" ? "🌳" : a.id === "lamp" ? "💡" : a.id === "bench" ? "🪑" : "🅿️"}</span>
-            </div>
-            <span className="text-[10px]" style={{ color: TOKENS.text }}>{a.name}</span>
-          </button>
-        ))}
+        {items.map((a) => {
+          const armed = armedAsset === a.id
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => arm(a.id)}
+              className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-xl p-2 transition-all hover:scale-[1.03]"
+              style={{ background: armed ? "rgba(56,189,248,0.18)" : "rgba(148,163,184,0.08)", border: `1px solid ${armed ? TOKENS.accent : TOKENS.panelBorder}` }}
+            >
+              <div className="grid h-10 w-full place-items-center rounded-lg" style={{ background: "rgba(56,189,248,0.12)" }}>
+                <span className="text-lg">{a.icon}</span>
+              </div>
+              <span className="text-[10px]" style={{ color: TOKENS.text }}>{a.name}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

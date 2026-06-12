@@ -80,6 +80,7 @@ export interface Selection {
 
 export type OpeningType = "door" | "window"
 export type StairShape = "straight" | "l" | "u" | "spiral"
+export type TerrainMode = "raise" | "lower" | "flatten" | "smooth"
 
 export interface EditorState {
   activeTool: Tool
@@ -92,6 +93,8 @@ export interface EditorState {
   paintMaterialId: string
   openingType: OpeningType
   stairShape: StairShape
+  terrainMode: TerrainMode
+  armedAsset: string | null
   setTool: (t: Tool) => void
   setCameraMode: (m: CameraMode) => void
   setDisplayMode: (m: DisplayMode) => void
@@ -102,6 +105,8 @@ export interface EditorState {
   setPaintMaterial: (id: string) => void
   setOpeningType: (t: OpeningType) => void
   setStairShape: (s: StairShape) => void
+  setTerrainMode: (m: TerrainMode) => void
+  armAsset: (id: string | null) => void
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -115,7 +120,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   paintMaterialId: "brick",
   openingType: "door",
   stairShape: "u",
-  setTool: (t) => set({ activeTool: t, selection: { type: "none" } }),
+  terrainMode: "raise",
+  armedAsset: null,
+  setTool: (t) => set((s) => ({ activeTool: t, selection: { type: "none" }, armedAsset: t === "object" ? s.armedAsset : null })),
   setCameraMode: (m) => set({ cameraMode: m }),
   setDisplayMode: (m) => set({ displayMode: m }),
   toggleWallsDown: () => set((s) => ({ wallsDown: !s.wallsDown })),
@@ -125,4 +132,6 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPaintMaterial: (id) => set({ paintMaterialId: id }),
   setOpeningType: (t) => set({ openingType: t }),
   setStairShape: (s) => set({ stairShape: s }),
+  setTerrainMode: (m) => set({ terrainMode: m }),
+  armAsset: (id) => set({ armedAsset: id }),
 }))

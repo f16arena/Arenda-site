@@ -80,7 +80,7 @@ export function buildDemoProject(): BuilderDocument {
     id: uid("proj"),
     schemaVersion: 1,
     name: "Demo Building",
-    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [] },
+    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64 },
     buildings: [],
   }
   const run = (cmd: Command) => {

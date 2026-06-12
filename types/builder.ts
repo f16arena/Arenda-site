@@ -98,7 +98,9 @@ export const SiteSchema = z.object({
   sizeZ: z.number().default(40000),
   groundMaterialId: z.string().default("grass"),
   objects: z.array(SiteObjectSchema).default([]),
-  // terrain heightmap, дороги, заборы — Фаза 4
+  // Рельеф: плоский heightmap (terrainRes×terrainRes), высоты в метрах. Фаза 4.
+  terrainRes: z.number().default(64),
+  heightmap: z.array(z.number()).optional(),
 })
 
 export const ProjectSchema = z.object({

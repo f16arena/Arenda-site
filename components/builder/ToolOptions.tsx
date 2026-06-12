@@ -3,7 +3,7 @@
 // ADR: Контекстные опции активного инструмента (под тулбаром): палитра материалов для
 // «ведра», форма лестницы, подсказки для стены/проёмов. Управляет editorStore.
 
-import { useEditorStore, type StairShape } from "@/store/builder-store"
+import { useEditorStore, type StairShape, type TerrainMode } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 
 const PAINT_IDS = ["brick", "plaster_white", "concrete", "block", "laminate", "tile", "paving", "metal_roof"]
@@ -11,6 +11,12 @@ const STAIRS: { id: StairShape; label: string }[] = [
   { id: "straight", label: "Прямая" },
   { id: "l", label: "Г-образная" },
   { id: "u", label: "П-образная" },
+]
+const TERRAIN: { id: TerrainMode; label: string }[] = [
+  { id: "raise", label: "Поднять" },
+  { id: "lower", label: "Опустить" },
+  { id: "flatten", label: "Выровнять" },
+  { id: "smooth", label: "Сгладить" },
 ]
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -30,6 +36,35 @@ export function ToolOptions() {
   const setPaintMaterial = useEditorStore((s) => s.setPaintMaterial)
   const stairShape = useEditorStore((s) => s.stairShape)
   const setStairShape = useEditorStore((s) => s.setStairShape)
+  const terrainMode = useEditorStore((s) => s.terrainMode)
+  const setTerrainMode = useEditorStore((s) => s.setTerrainMode)
+  const armedAsset = useEditorStore((s) => s.armedAsset)
+
+  if (tool === "terrain") {
+    return (
+      <Shell>
+        <span className="shrink-0">Рельеф:</span>
+        {TERRAIN.map((t) => {
+          const active = terrainMode === t.id
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTerrainMode(t.id)}
+              className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+              style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
+            >
+              {t.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— зажми и води по газону</span>
+      </Shell>
+    )
+  }
+  if (tool === "object") {
+    return <Shell><span>{armedAsset ? "Призрак у курсора · R — поворот · клик — поставить · Esc — отмена" : "Выберите ассет в каталоге снизу"}</span></Shell>
+  }
 
   if (tool === "material") {
     return (

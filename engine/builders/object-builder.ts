@@ -74,6 +74,82 @@ function buildByAsset(assetId: string, scene: Scene): Mesh[] {
     case "parking": {
       const pad = part(MeshBuilder.CreateBox("p", { width: 2.5, height: 0.05, depth: 5.3 }, scene), scene, "#3F3F46")
       pad.position.y = 0.025
+      const l = part(MeshBuilder.CreateBox("l", { width: 0.1, height: 0.06, depth: 5.3 }, scene), scene, "#E5E7EB")
+      l.position.set(1.2, 0.04, 0)
+      const r = part(MeshBuilder.CreateBox("r", { width: 0.1, height: 0.06, depth: 5.3 }, scene), scene, "#E5E7EB")
+      r.position.set(-1.2, 0.04, 0)
+      return [pad, l, r]
+    }
+    case "birch": {
+      const trunk = part(MeshBuilder.CreateCylinder("t", { height: 2.4, diameter: 0.26 }, scene), scene, "#F1F5F9")
+      trunk.position.y = 1.2
+      const crown = part(MeshBuilder.CreateSphere("c", { diameter: 1.9, segments: 9 }, scene), scene, "#86C34A")
+      crown.position.y = 2.7
+      return [trunk, crown]
+    }
+    case "bush": {
+      const b = part(MeshBuilder.CreateSphere("b", { diameter: 1.4, segments: 8 }, scene), scene, "#3F8F3F")
+      b.position.y = 0.55
+      b.scaling.y = 0.75
+      return [b]
+    }
+    case "flowerbed": {
+      const bed = part(MeshBuilder.CreateBox("bd", { width: 2, height: 0.3, depth: 1.2 }, scene), scene, "#8B5A2B")
+      bed.position.y = 0.15
+      const colors = ["#EF4444", "#F59E0B", "#EC4899", "#8B5CF6"]
+      const out = [bed]
+      for (let i = 0; i < 6; i++) {
+        const f = part(MeshBuilder.CreateSphere("f", { diameter: 0.32, segments: 6 }, scene), scene, colors[i % colors.length])
+        f.position.set(-0.8 + (i % 3) * 0.8, 0.4, -0.3 + Math.floor(i / 3) * 0.6)
+        out.push(f)
+      }
+      return out
+    }
+    case "bin": {
+      const b = part(MeshBuilder.CreateCylinder("b", { height: 0.8, diameterTop: 0.6, diameterBottom: 0.5 }, scene), scene, "#4B5563")
+      b.position.y = 0.4
+      return [b]
+    }
+    case "fence": {
+      const out: Mesh[] = []
+      for (const x of [-1.3, -0.43, 0.43, 1.3]) {
+        const post = part(MeshBuilder.CreateBox("p", { width: 0.12, height: 1.2, depth: 0.12 }, scene), scene, "#6B7280")
+        post.position.set(x, 0.6, 0)
+        out.push(post)
+      }
+      for (const y of [0.4, 0.95]) {
+        const rail = part(MeshBuilder.CreateBox("r", { width: 3, height: 0.1, depth: 0.06 }, scene), scene, "#9CA3AF")
+        rail.position.set(0, y, 0)
+        out.push(rail)
+      }
+      return out
+    }
+    case "gate": {
+      const out: Mesh[] = []
+      for (const x of [-1.4, 1.4]) {
+        const post = part(MeshBuilder.CreateBox("p", { width: 0.25, height: 2.2, depth: 0.25 }, scene), scene, "#475569")
+        post.position.set(x, 1.1, 0)
+        out.push(post)
+      }
+      const bar = part(MeshBuilder.CreateBox("b", { width: 3, height: 0.2, depth: 0.2 }, scene), scene, "#64748B")
+      bar.position.y = 2.1
+      out.push(bar)
+      return out
+    }
+    case "road": {
+      const pad = part(MeshBuilder.CreateBox("p", { width: 4, height: 0.05, depth: 8 }, scene), scene, "#52525B")
+      pad.position.y = 0.025
+      const out = [pad]
+      for (let i = 0; i < 4; i++) {
+        const dash = part(MeshBuilder.CreateBox("d", { width: 0.18, height: 0.06, depth: 1 }, scene), scene, "#FACC15")
+        dash.position.set(0, 0.04, -3 + i * 2)
+        out.push(dash)
+      }
+      return out
+    }
+    case "path": {
+      const pad = part(MeshBuilder.CreateBox("p", { width: 2, height: 0.05, depth: 6 }, scene), scene, "#9CA3AF")
+      pad.position.y = 0.03
       return [pad]
     }
     default: {

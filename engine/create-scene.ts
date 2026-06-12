@@ -106,8 +106,8 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 60): SceneBun
   shadow.blurKernel = 24
   shadow.darkness = 0.55
 
-  // Газон участка
-  const ground = MeshBuilder.CreateGround("ground", { width: siteSizeM, height: siteSizeM }, scene)
+  // Газон участка — сетка с подразбиением для редактирования рельефа (кисти).
+  const ground = MeshBuilder.CreateGround("ground", { width: siteSizeM, height: siteSizeM, subdivisions: 64, updatable: true }, scene)
   const gmat = new StandardMaterial("groundMat", scene)
   gmat.diffuseColor = Color3.FromHexString(MATERIALS.grass.color)
   gmat.specularColor = new Color3(0.02, 0.02, 0.02)

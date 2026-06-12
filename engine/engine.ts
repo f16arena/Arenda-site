@@ -13,6 +13,7 @@ import {
   TransformNode,
   UniversalCamera,
   Vector3,
+  VertexBuffer,
 } from "@babylonjs/core"
 import { uid } from "@/core/id"
 import type { BuilderDocument, Floor } from "@/types/builder"
@@ -21,14 +22,17 @@ import {
   type Command,
   InsertWallCommand,
   DeleteWallCommand,
+  AddObjectCommand,
   DeleteObjectCommand,
   MoveNodeCommand,
+  MoveObjectCommand,
   AddOpeningCommand,
   DeleteOpeningCommand,
   AddStairCommand,
   DeleteStairCommand,
   SetWallMaterialCommand,
   SetRoomMaterialCommand,
+  SetTerrainCommand,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { closestOnSegment, distance, snapToGrid, type Vec2 } from "@/core/geometry/math"
@@ -77,16 +81,27 @@ export class BuilderEngine {
   private preview: Mesh | null = null
   private startMarker: Mesh | null = null
 
-  // перетаскивание узла
+  // перетаскивание узла / объекта
   private dragNode: { floorId: string; nodeId: string } | null = null
+  private dragObject: { target: { site: true } | { floorId: string }; objectId: string; planeY: number } | null = null
   private lastMoveAt = 0
   private hovered: Mesh | null = null
+
+  // размещение объекта (placer) и рельеф
+  private armedAsset: string | null = null
+  private placerRot = 0
+  private placerGhost: TransformNode | null = null
+  private terrainHeights: number[] | null = null
+  private terrainEditing = false
+  private readonly groundSize = 60
+  private readonly groundRes = 64
 
   tool: Tool = "select"
   activeFloorId = ""
   paintMaterialId = "brick"
   openingType: "door" | "window" = "door"
   stairShape = "u"
+  terrainMode: "raise" | "lower" | "flatten" | "smooth" = "raise"
   onPick: (meta: MeshMeta | null) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
@@ -107,6 +122,9 @@ export class BuilderEngine {
     this.meshById.clear()
     this.hovered = null
     this.docRoot = new TransformNode("docRoot", scene)
+
+    // Рельеф из документа (если правился кистями)
+    if (!this.terrainEditing) this.applyHeightmap(doc.site.heightmap ?? null)
 
     const register = (id: string | undefined, mesh: Mesh) => {
       if (!id) return
@@ -358,16 +376,32 @@ export class BuilderEngine {
   }
 
   private handleDown(): void {
+    if (this.tool === "terrain") {
+      this.terrainEditing = true
+      this.ensureTerrainHeights()
+      this.bundle.scene.activeCamera?.detachControl()
+      this.terrainBrush()
+      return
+    }
     if (this.tool === "select") {
       const { meta } = this.pickMeta()
       if (meta?.kind === "node" && meta.floorId && meta.entityId) {
         this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId }
+        this.bundle.scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "object" && meta.entityId) {
+        const target = meta.target === "site" || !meta.target ? ({ site: true } as const) : ({ floorId: meta.target } as const)
+        const planeY = "site" in target ? 0 : (findFloor(this.getDoc() ?? ({} as BuilderDocument), target.floorId)?.elevation ?? 0) * S
+        this.dragObject = { target, objectId: meta.entityId, planeY }
         this.bundle.scene.activeCamera?.detachControl()
       }
     }
   }
 
   private handleMove(): void {
+    if (this.terrainEditing) {
+      this.terrainBrush()
+      return
+    }
     if (this.dragNode) {
       const p = this.projectToPlane()
       if (!p) return
@@ -378,6 +412,22 @@ export class BuilderEngine {
         this.lastMoveAt = now
         this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
       }
+      return
+    }
+    if (this.dragObject) {
+      const p = this.projectToY(this.dragObject.planeY)
+      if (!p) return
+      const mmX = snapToGrid(p.x * 1000, 50)
+      const mmZ = snapToGrid(p.z * 1000, 50)
+      const now = performance.now()
+      if (now - this.lastMoveAt > 33) {
+        this.lastMoveAt = now
+        this.onCommand(new MoveObjectCommand(this.dragObject.target, this.dragObject.objectId, mmX, mmZ))
+      }
+      return
+    }
+    if (this.tool === "object" && this.armedAsset) {
+      this.updatePlacerGhost()
       return
     }
     if (this.tool === "wall" && this.wallStart) {
@@ -394,6 +444,13 @@ export class BuilderEngine {
   }
 
   private handleUp(): void {
+    const canvas = this.bundle.engine.getRenderingCanvas()
+    if (this.terrainEditing) {
+      this.terrainEditing = false
+      if (this.terrainHeights) this.onCommand(new SetTerrainCommand(this.terrainHeights))
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
     if (this.dragNode) {
       const p = this.projectToPlane()
       if (p) {
@@ -402,13 +459,23 @@ export class BuilderEngine {
         this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
       }
       this.dragNode = null
-      const canvas = this.bundle.engine.getRenderingCanvas()
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
+    if (this.dragObject) {
+      const p = this.projectToY(this.dragObject.planeY)
+      if (p) this.onCommand(new MoveObjectCommand(this.dragObject.target, this.dragObject.objectId, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50)))
+      this.dragObject = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
     }
   }
 
   private handleTap(): void {
-    if (this.dragNode) return
+    if (this.dragNode || this.dragObject) return
+    if (this.tool === "object" && this.armedAsset) {
+      this.handlePlaceObject()
+      return
+    }
     if (this.tool === "wall") {
       this.handleWallTap()
       return
@@ -600,12 +667,132 @@ export class BuilderEngine {
     }
   }
 
+  // ── Проекция на произвольную высоту ──────────────────────────────────────────
+  private projectToY(planeY: number): Vector3 | null {
+    const { scene, camera } = this.bundle
+    const cam = scene.activeCamera ?? camera
+    const ray = scene.createPickingRay(scene.pointerX, scene.pointerY, Matrix.Identity(), cam)
+    if (Math.abs(ray.direction.y) < 1e-6) return null
+    const t = (planeY - ray.origin.y) / ray.direction.y
+    if (t < 0) return null
+    return ray.origin.add(ray.direction.scale(t))
+  }
+
+  // ── Рельеф (кисти) ───────────────────────────────────────────────────────────
+  private applyHeightmap(heights: number[] | null): void {
+    const ground = this.bundle.ground
+    const positions = ground.getVerticesData(VertexBuffer.PositionKind)
+    if (!positions) return
+    const vCount = positions.length / 3
+    for (let i = 0; i < vCount; i++) positions[i * 3 + 1] = heights && i < heights.length ? heights[i] : 0
+    ground.updateVerticesData(VertexBuffer.PositionKind, positions)
+    ground.refreshBoundingInfo()
+  }
+
+  private ensureTerrainHeights(): void {
+    if (this.terrainHeights) return
+    const positions = this.bundle.ground.getVerticesData(VertexBuffer.PositionKind)
+    const vCount = positions ? positions.length / 3 : 0
+    const doc = this.getDoc()
+    if (doc?.site.heightmap && doc.site.heightmap.length === vCount) this.terrainHeights = [...doc.site.heightmap]
+    else this.terrainHeights = new Array(vCount).fill(0)
+  }
+
+  private terrainBrush(): void {
+    if (!this.terrainHeights) return
+    const scene = this.bundle.scene
+    const pick = scene.pick(scene.pointerX, scene.pointerY, (m) => m === this.bundle.ground)
+    const hit = pick?.pickedPoint
+    if (!hit) return
+    const positions = this.bundle.ground.getVerticesData(VertexBuffer.PositionKind)
+    if (!positions) return
+    const radius = 4
+    const strength = 0.25
+    for (let i = 0; i < this.terrainHeights.length; i++) {
+      const x = positions[i * 3]
+      const z = positions[i * 3 + 2]
+      const d = Math.hypot(x - hit.x, z - hit.z)
+      if (d > radius) continue
+      const fall = 1 - d / radius
+      let h = this.terrainHeights[i]
+      if (this.terrainMode === "raise") h += strength * fall
+      else if (this.terrainMode === "lower") h -= strength * fall
+      else if (this.terrainMode === "flatten") h += (hit.y - h) * fall * 0.5
+      else h += (hit.y - h) * fall * 0.25
+      this.terrainHeights[i] = h
+      positions[i * 3 + 1] = h
+    }
+    this.bundle.ground.updateVerticesData(VertexBuffer.PositionKind, positions)
+    this.bundle.ground.refreshBoundingInfo()
+  }
+
+  // ── Размещение объекта (placer) ──────────────────────────────────────────────
+  setArmedAsset(assetId: string | null): void {
+    this.armedAsset = assetId
+    this.placerRot = 0
+    if (!assetId) this.cancelPlacer()
+  }
+
+  rotatePlacer(deg: number): void {
+    this.placerRot = (this.placerRot + deg) % 360
+    if (this.placerGhost) this.placerGhost.rotation.y = (this.placerRot * Math.PI) / 180
+  }
+
+  private buildGhost(assetId: string): TransformNode {
+    const container = new TransformNode("ghost", this.bundle.scene)
+    buildObject({ id: "ghost", assetId, position: { x: 0, y: 0, z: 0 }, rotationY: 0, scale: 1, attachTo: "terrain", locked: false }, container, this.bundle.scene, "ghost")
+    container.getChildMeshes().forEach((m) => {
+      m.isPickable = false
+      m.visibility = 0.5
+    })
+    container.metadata = { asset: assetId }
+    return container
+  }
+
+  private updatePlacerGhost(): void {
+    if (!this.armedAsset) return
+    const p = this.projectToPlane()
+    if (!p) return
+    if (!this.placerGhost || this.placerGhost.metadata?.asset !== this.armedAsset) {
+      this.placerGhost?.dispose()
+      this.placerGhost = this.buildGhost(this.armedAsset)
+    }
+    this.placerGhost.position.set(p.x, this.activeFloorPlaneY(), p.z)
+    this.placerGhost.rotation.y = (this.placerRot * Math.PI) / 180
+  }
+
+  private cancelPlacer(): void {
+    this.placerGhost?.dispose()
+    this.placerGhost = null
+  }
+
+  private handlePlaceObject(): void {
+    if (!this.armedAsset) return
+    const p = this.projectToPlane()
+    if (!p) return
+    const doc = this.getDoc()
+    const onFloor = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const target = onFloor ? ({ floorId: this.activeFloorId } as const) : ({ site: true } as const)
+    this.onCommand(
+      new AddObjectCommand(target, {
+        id: uid("o"),
+        assetId: this.armedAsset,
+        position: { x: snapToGrid(p.x * 1000, 50), y: 0, z: snapToGrid(p.z * 1000, 50) },
+        rotationY: this.placerRot,
+        scale: 1,
+        attachTo: "terrain",
+        locked: false,
+      }),
+    )
+  }
+
   resize(): void {
     this.bundle.engine.resize()
   }
 
   dispose(): void {
     this.cancelWallTool()
+    this.cancelPlacer()
     this.bundle.engine.stopRenderLoop()
     this.reg.dispose()
     this.bundle.scene.dispose()

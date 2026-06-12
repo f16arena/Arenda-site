@@ -202,6 +202,112 @@ export class DeleteObjectCommand implements Command {
   }
 }
 
+// ── Перемещение / поворот / масштаб объекта ──────────────────────────────────
+function mapObject(doc: BuilderDocument, target: ObjectTarget, objectId: string, fn: (o: BuilderObject) => BuilderObject): BuilderDocument {
+  if ("site" in target) {
+    return { ...doc, site: { ...doc.site, objects: doc.site.objects.map((o) => (o.id === objectId ? fn(o) : o)) } }
+  }
+  return mapFloor(doc, target.floorId, (fl) => ({ ...fl, objects: fl.objects.map((o) => (o.id === objectId ? fn(o) : o)) }))
+}
+
+function findObject(doc: BuilderDocument, target: ObjectTarget, objectId: string): BuilderObject | undefined {
+  if ("site" in target) return doc.site.objects.find((o) => o.id === objectId)
+  return findFloor(doc, target.floorId)?.objects.find((o) => o.id === objectId)
+}
+
+export class MoveObjectCommand implements Command {
+  readonly kind = "move-object"
+  readonly label = "перемещение объекта"
+  private prev?: { x: number; z: number }
+  constructor(private target: ObjectTarget, private objectId: string, private x: number, private z: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const o = findObject(doc, this.target, this.objectId)
+    if (o && !this.prev) this.prev = { x: o.position.x, z: o.position.z }
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, position: { ...ob.position, x: this.x, z: this.z } }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, position: { ...ob.position, x: prev.x, z: prev.z } }))
+  }
+  merge(next: Command): boolean {
+    if (next instanceof MoveObjectCommand && next.objectId === this.objectId) {
+      this.x = next.x
+      this.z = next.z
+      return true
+    }
+    return false
+  }
+}
+
+export class SetObjectRotationCommand implements Command {
+  readonly kind = "rotate-object"
+  readonly label = "поворот объекта"
+  private prev?: number
+  private captured = false
+  constructor(private target: ObjectTarget, private objectId: string, private rotationY: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const o = findObject(doc, this.target, this.objectId)
+    if (o && !this.captured) {
+      this.prev = o.rotationY
+      this.captured = true
+    }
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, rotationY: this.rotationY }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (this.prev === undefined) return doc
+    const prev = this.prev
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, rotationY: prev }))
+  }
+}
+
+export class SetObjectScaleCommand implements Command {
+  readonly kind = "scale-object"
+  readonly label = "масштаб объекта"
+  private prev?: number
+  private captured = false
+  constructor(private target: ObjectTarget, private objectId: string, private scale: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const o = findObject(doc, this.target, this.objectId)
+    if (o && !this.captured) {
+      this.prev = o.scale
+      this.captured = true
+    }
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, scale: this.scale }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (this.prev === undefined) return doc
+    const prev = this.prev
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, scale: prev }))
+  }
+}
+
+// ── Рельеф (heightmap) ────────────────────────────────────────────────────────
+export class SetTerrainCommand implements Command {
+  readonly kind = "set-terrain"
+  readonly label = "рельеф"
+  private prev?: number[]
+  private captured = false
+  constructor(private heightmap: number[]) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    if (!this.captured) {
+      this.prev = doc.site.heightmap ? [...doc.site.heightmap] : undefined
+      this.captured = true
+    }
+    return { ...doc, site: { ...doc.site, heightmap: [...this.heightmap] } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, heightmap: this.prev ? [...this.prev] : undefined } }
+  }
+  merge(next: Command): boolean {
+    if (next instanceof SetTerrainCommand) {
+      this.heightmap = next.heightmap
+      return true
+    }
+    return false
+  }
+}
+
 // ── LinkPremise ──────────────────────────────────────────────────────────────
 export class LinkPremiseCommand implements Command {
   readonly kind = "link-premise"

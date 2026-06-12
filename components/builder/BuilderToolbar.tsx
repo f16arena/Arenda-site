@@ -33,9 +33,9 @@ const TOOLS: Item[] = [
   { id: "window", label: "Окно", key: "N", Icon: Eye, phase1: true },
   { id: "stair", label: "Лестница", key: "S", Icon: ArrowUpFromLine, phase1: true },
   { id: "roof", label: "Крыша", key: "T", Icon: Building2, phase1: false },
-  { id: "object", label: "Объект", key: "O", Icon: Box, phase1: false },
+  { id: "terrain", label: "Рельеф", key: "", Icon: Trees, phase1: true },
+  { id: "object", label: "Объект", key: "O", Icon: Box, phase1: true },
   { id: "material", label: "Ведро", key: "M", Icon: Scissors, phase1: true },
-  { id: "tree", label: "Озеленение", key: "", Icon: Trees, phase1: false },
   { id: "link", label: "Помещение", key: "", Icon: Copy, phase1: false },
   { id: "delete", label: "Удалить", key: "Del", Icon: Trash2, phase1: true },
 ]

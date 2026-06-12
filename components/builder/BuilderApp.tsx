@@ -76,6 +76,8 @@ export function BuilderApp() {
   const selection = useEditorStore((s) => s.selection)
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
   const stairShape = useEditorStore((s) => s.stairShape)
+  const terrainMode = useEditorStore((s) => s.terrainMode)
+  const armedAsset = useEditorStore((s) => s.armedAsset)
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
@@ -111,9 +113,11 @@ export function BuilderApp() {
     e.tool = activeTool
     e.paintMaterialId = paintMaterialId
     e.stairShape = stairShape
+    e.terrainMode = terrainMode
     e.openingType = activeTool === "window" ? "window" : "door"
+    e.setArmedAsset(activeTool === "object" ? armedAsset : null)
     if (activeTool !== "wall") e.cancelWallTool()
-  }, [activeTool, paintMaterialId, stairShape, ready])
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, armedAsset, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -145,6 +149,11 @@ export function BuilderApp() {
         eng.handleLengthKey(e.key)
         return
       }
+      // R — поворот объекта в режиме размещения
+      if ((e.key === "r" || e.key === "R") && ed.activeTool === "object" && ed.armedAsset) {
+        engineRef.current?.rotatePlacer(45)
+        return
+      }
       const k = e.key.toLowerCase()
       if (TOOL_KEYS[k]) {
         ed.setTool(TOOL_KEYS[k])
@@ -161,6 +170,7 @@ export function BuilderApp() {
       }
       if (e.key === "Escape") {
         engineRef.current?.cancelWallTool()
+        ed.armAsset(null)
         ed.setSelection({ type: "none" })
         return
       }
