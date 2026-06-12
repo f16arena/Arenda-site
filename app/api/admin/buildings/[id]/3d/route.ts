@@ -49,6 +49,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
               status: true,
               kind: true,
               description: true,
+              posX: true,
+              posZ: true,
               tenant: {
                 select: { id: true, companyName: true, contractEnd: true },
               },
@@ -113,6 +115,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
             status: space.status,
             kind: space.kind,
             description: space.description,
+            posX: space.posX,
+            posZ: space.posZ,
             tenant: tenant
               ? {
                   id: tenant.id,

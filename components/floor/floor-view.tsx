@@ -32,6 +32,9 @@ export type SpaceInfo = {
   kind?: string
   description: string | null
   photos?: string[]
+  // Позиция объекта зоны (крыша/территория) в метрах. NULL → авто-сетка.
+  posX?: number | null
+  posZ?: number | null
   tenant?: {
     id: string
     companyName: string

@@ -242,8 +242,10 @@ export default function Building3D({
       objects.forEach((sp, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
-        const x = origin.cx - origin.w / 2 + stepX * (col + 1)
-        const z = origin.cz - origin.h / 2 + stepZ * (row + 1)
+        // Сохранённая позиция (смещение от центра зоны в метрах) или авто-сетка.
+        const hasPos = typeof sp.posX === "number" && typeof sp.posZ === "number"
+        const x = hasPos ? origin.cx + (sp.posX as number) : origin.cx - origin.w / 2 + stepX * (col + 1)
+        const z = hasPos ? origin.cz + (sp.posZ as number) : origin.cz - origin.h / 2 + stepZ * (row + 1)
         const statusHex = STATUS_FILL[detectStatus(sp)] ?? "#94a3b8"
         const model = buildObjectModel(sp.number, statusHex)
         model.position.set(x, origin.y, z)

@@ -51,6 +51,20 @@ export async function createSpace(formData: FormData) {
 }
 
 /**
+ * Сохранить позицию объекта зоны (смещение от центра зоны в метрах) —
+ * результат перетаскивания в 3D. Объект встанет туда при следующем рендере.
+ */
+export async function setObjectPosition(spaceId: string, x: number, z: number) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertSpaceInOrg(spaceId, orgId)
+  if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Некорректная позиция")
+  await db.space.update({ where: { id: spaceId }, data: { posX: x, posZ: z } })
+  revalidatePath("/admin/spaces")
+  return { success: true }
+}
+
+/**
  * Создать объект зоны (крыша/территория) без м² и сразу — опционально —
  * назначить арендатора с фиксированной арендой. Один шаг вместо трёх
  * (создать объект → назначить → задать аренду).
