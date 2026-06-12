@@ -1,0 +1,124 @@
+// ADR: Документ проекта — единственный источник правды (§4.1). Zod-схема + выведенные
+// типы. Геометрия (комнаты, меши) НЕ хранится — выводится из графа стен функциями ядра.
+// schemaVersion фиксирует версию для миграций (core/document/migrations — Фаза 5).
+
+import { z } from "zod"
+
+export const SCHEMA_VERSION = 1
+
+export const Vec2Schema = z.object({ x: z.number(), y: z.number() })
+export const Vec3Schema = z.object({ x: z.number(), y: z.number(), z: z.number() })
+
+export const WallKindSchema = z.enum(["exterior", "interior", "partition"])
+
+export const GraphNodeSchema = z.object({ id: z.string(), x: z.number(), y: z.number() })
+export const WallEdgeSchema = z.object({
+  id: z.string(),
+  a: z.string(),
+  b: z.string(),
+  thickness: z.number(),
+  height: z.number(),
+  kind: WallKindSchema,
+  facadeMaterialId: z.string().optional(),
+  interiorMaterialId: z.string().optional(),
+})
+export const WallGraphSchema = z.object({
+  nodes: z.record(z.string(), GraphNodeSchema),
+  edges: z.record(z.string(), WallEdgeSchema),
+})
+
+export const OpeningSchema = z.object({
+  id: z.string(),
+  wallId: z.string(),
+  type: z.enum(["door", "window"]),
+  width: z.number(),
+  height: z.number(),
+  sillHeight: z.number(),
+  offset: z.number(),
+})
+
+export const StairSchema = z.object({
+  id: z.string(),
+  shape: z.enum(["straight", "l", "u", "spiral"]),
+  fromFloorId: z.string(),
+  toFloorId: z.string(),
+  position: Vec2Schema,
+  rotationDeg: z.number(),
+  width: z.number(),
+  railing: z.boolean(),
+})
+
+export const BuilderObjectSchema = z.object({
+  id: z.string(),
+  assetId: z.string(),
+  position: Vec3Schema,
+  rotationY: z.number(),
+  scale: z.number(),
+  attachTo: z.enum(["floor", "wall", "ceiling", "terrain"]).default("floor"),
+  locked: z.boolean().default(false),
+})
+
+export const RoofConfigSchema = z.object({
+  type: z.enum(["flat", "gable", "hip", "fourslope"]),
+  pitchDeg: z.number(),
+  overhang: z.number(),
+  thickness: z.number(),
+  materialId: z.string().optional(),
+})
+
+export const FloorSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  level: z.number(), // -2,-1,0=цоколь,1,2,...; tech/roof — числами выше
+  elevation: z.number(), // отметка пола, мм
+  height: z.number(), // высота этажа, мм
+  visible: z.boolean().default(true),
+  locked: z.boolean().default(false),
+  opacity: z.number().default(1),
+  wallGraph: WallGraphSchema,
+  openings: z.array(OpeningSchema).default([]),
+  stairs: z.array(StairSchema).default([]),
+  objects: z.array(BuilderObjectSchema).default([]),
+  roof: RoofConfigSchema.optional(),
+  premiseLinks: z.record(z.string(), z.string()).default({}), // roomId → premiseId
+  floorMaterialId: z.string().optional(),
+})
+
+export const BuildingSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  origin: Vec2Schema.default({ x: 0, y: 0 }),
+  floors: z.array(FloorSchema).default([]),
+})
+
+export const SiteObjectSchema = BuilderObjectSchema
+export const SiteSchema = z.object({
+  sizeX: z.number().default(50000),
+  sizeZ: z.number().default(40000),
+  groundMaterialId: z.string().default("grass"),
+  objects: z.array(SiteObjectSchema).default([]),
+  // terrain heightmap, дороги, заборы — Фаза 4
+})
+
+export const ProjectSchema = z.object({
+  id: z.string(),
+  schemaVersion: z.number().default(SCHEMA_VERSION),
+  name: z.string(),
+  site: SiteSchema,
+  buildings: z.array(BuildingSchema).default([]),
+})
+
+export type Vec2DTO = z.infer<typeof Vec2Schema>
+export type WallKind = z.infer<typeof WallKindSchema>
+export type Opening = z.infer<typeof OpeningSchema>
+export type Stair = z.infer<typeof StairSchema>
+export type BuilderObject = z.infer<typeof BuilderObjectSchema>
+export type RoofConfig = z.infer<typeof RoofConfigSchema>
+export type Floor = z.infer<typeof FloorSchema>
+export type Building = z.infer<typeof BuildingSchema>
+export type Site = z.infer<typeof SiteSchema>
+export type BuilderDocument = z.infer<typeof ProjectSchema>
+
+export function parseDocument(input: unknown): BuilderDocument {
+  return ProjectSchema.parse(input)
+}

@@ -13,6 +13,7 @@
     "security:audit": "node scripts/security-isolation-audit.mjs",
     "backfill:cash-link": "tsx scripts/backfill-cash-payment-link.ts",
     "ci:performance-gate": "node scripts/ci-performance-gate.mjs",
+    "test:unit": "vitest run",
     "test:e2e:payment": "tsx scripts/e2e-critical-payment.ts",
     "test:e2e:cash": "tsx scripts/e2e-cash-balance.ts",
     "test:e2e:isolation": "tsx scripts/e2e-isolation.ts",
@@ -26,6 +27,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
+    "@babylonjs/core": "^9.12.0",
     "@peculiar/asn1-cms": "^2.7.0",
     "@peculiar/asn1-schema": "^2.7.0",
     "@peculiar/asn1-x509": "^2.7.0",
@@ -39,6 +41,7 @@
     "date-fns": "^4.1.0",
     "docx": "^9.6.1",
     "docxtemplater": "^3.68.6",
+    "earcut": "^3.0.2",
     "exceljs": "^4.4.0",
     "fflate": "^0.8.3",
     "lucide-react": "^1.11.0",
@@ -56,13 +59,15 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "three": "^0.184.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.6",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/earcut": "^3.0.0",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
@@ -73,6 +78,7 @@
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.8"
   }
 }
