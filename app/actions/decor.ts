@@ -11,8 +11,8 @@ const DECOR_KINDS = new Set([
   "wall", "halfwall", "window", "fence", "gate", "door", "stairs",
   "bench", "lamp", "bin", "canopy", "parking", "road", "mast",
   "hvac", "vent", "tank", "radiator",
-  "toilet", "urinal", "sink",
-  "table", "chair", "cabinet",
+  "toilet", "urinal", "sink", "stall",
+  "table", "chair", "cabinet", "sofa", "shelf", "reception", "partition",
 ])
 // Семейства с вариантами: floor-*, wall-*, door-*, fence-*, column-*.
 const DECOR_PREFIXES = ["floor-", "wall-", "door-", "fence-", "column-", "stairs-"]
@@ -48,6 +48,30 @@ export async function addBuildingDecor(buildingId: string, kind: string, x = 0, 
   })
   revalidatePath("/admin/buildings")
   return { id: decor.id }
+}
+
+/** Дублировать предмет (копия со смещением 1.5 м, тот же уровень/поворот/масштаб). */
+export async function duplicateBuildingDecor(decorId: string) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertDecorBuilding(decorId, orgId)
+  const src = await db.buildingDecor.findUnique({ where: { id: decorId } })
+  if (!src) throw new Error("Предмет не найден")
+  const copy = await db.buildingDecor.create({
+    data: {
+      buildingId: src.buildingId,
+      kind: src.kind,
+      x: src.x + 1.5,
+      z: src.z + 1.5,
+      rot: src.rot,
+      scale: src.scale,
+      level: src.level,
+      onRoof: src.onRoof,
+      modelUrl: src.modelUrl,
+    },
+  })
+  revalidatePath("/admin/buildings")
+  return { id: copy.id }
 }
 
 /** Переместить предмет на другой уровень (ground/roof/<floorId>). */

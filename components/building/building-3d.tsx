@@ -5,11 +5,11 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus, Scissors } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus, Scissors, Copy, Undo2, ArrowUpFromLine, Square, Eye } from "lucide-react"
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
-import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor } from "@/app/actions/decor"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor } from "@/app/actions/decor"
 
 export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
@@ -37,10 +37,13 @@ const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label
   { title: "Сантехника / тепло", items: [
     { kind: "toilet", label: "Унитаз" }, { kind: "urinal", label: "Писсуар" },
     { kind: "sink", label: "Рукомойник" }, { kind: "radiator", label: "Батарея" },
+    { kind: "stall", label: "Кабинка WC" },
   ] },
   { title: "Мебель", items: [
     { kind: "table", label: "Стол" }, { kind: "chair", label: "Стул" },
-    { kind: "cabinet", label: "Шкаф" },
+    { kind: "cabinet", label: "Шкаф" }, { kind: "sofa", label: "Диван" },
+    { kind: "shelf", label: "Стеллаж" }, { kind: "reception", label: "Ресепшн" },
+    { kind: "partition", label: "Перегородка" },
   ] },
   { title: "Природа", items: [
     { kind: "tree", label: "Дерево" }, { kind: "spruce", label: "Ёлка" },
@@ -227,6 +230,25 @@ function buildDecorModel(kind: string): THREE.Group {
   } else if (kind === "cabinet") {
     const c = new THREE.Mesh(new THREE.BoxGeometry(1, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0xa1887f }))
     c.position.y = 0.9; add(c)
+  } else if (kind === "sofa") {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.4, 0.9), new THREE.MeshStandardMaterial({ color: 0x475569 })); seat.position.y = 0.4; add(seat)
+    const back = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 0.25), new THREE.MeshStandardMaterial({ color: 0x334155 })); back.position.set(0, 0.7, -0.35); add(back)
+    for (const x of [-1.05, 1.05]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.9), new THREE.MeshStandardMaterial({ color: 0x334155 })); arm.position.set(x, 0.5, 0); add(arm) }
+  } else if (kind === "shelf") {
+    const frame = new THREE.MeshStandardMaterial({ color: 0x9a6a3a })
+    for (const y of [0.3, 0.9, 1.5, 2.1]) { const sh = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.4), frame); sh.position.set(0, y, 0); add(sh) }
+    for (const x of [-0.67, 0.67]) { const side = new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.1, 0.4), frame); side.position.set(x, 1.05, 0); add(side) }
+  } else if (kind === "reception") {
+    const desk = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.1, 0.7), new THREE.MeshStandardMaterial({ color: 0x6d4c41 })); desk.position.y = 0.55; add(desk)
+    const top = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.1, 0.4), new THREE.MeshStandardMaterial({ color: 0xd6d3d1 })); top.position.set(0, 1.15, 0.2); add(top)
+  } else if (kind === "partition") {
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 0.06), new THREE.MeshStandardMaterial({ color: 0xbae6fd, transparent: true, opacity: 0.35 })); glass.position.y = 1.2; add(glass)
+    for (const x of [-1.2, 1.2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.4, 0.1), new THREE.MeshStandardMaterial({ color: 0x94a3b8 })); post.position.set(x, 1.2, 0); add(post) }
+  } else if (kind === "stall") {
+    const matW = new THREE.MeshStandardMaterial({ color: 0xe2e8f0 })
+    for (const [w, d, x, z] of [[1.2, 0.1, 0, -0.6], [0.1, 1.2, -0.6, 0], [0.1, 1.2, 0.6, 0]] as const) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(w, 2, d), matW); p.position.set(x, 1, z); add(p)
+    }
   } else if (kind === "window") {
     const frame = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.4, 0.12), new THREE.MeshStandardMaterial({ color: 0x94a3b8 })); frame.position.y = 1.6; add(frame)
     const glass = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.04), new THREE.MeshStandardMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.5 })); glass.position.set(0, 1.6, 0.05); add(glass)
@@ -399,6 +421,13 @@ export default function Building3D({
   const decorModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null)
+  // Камера/контролы наружу — для пресетов вида (сверху/спереди/изометрия).
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
+  const controlsRef = useRef<OrbitControls | null>(null)
+  const sceneMetricsRef = useRef<{ span: number; top: number } | null>(null)
+  // Стек добавленных предметов для «Отменить» (удаляет последний добавленный).
+  const undoStackRef = useRef<string[]>([])
+  const [canUndo, setCanUndo] = useState(false)
 
   // Обычные этажи — стопкой; крыши — площадкой поверх здания; территории — рядом.
   const regular = useMemo(
@@ -444,6 +473,8 @@ export default function Building3D({
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000)
     const camDist = Math.max(maxW, maxH, buildingTop) * 1.4 + 10
     camera.position.set(camDist * 0.8, Math.max(buildingTop * 1.2, camDist * 0.55), camDist * 0.9)
+    cameraRef.current = camera
+    sceneMetricsRef.current = { span: camDist, top: buildingTop }
 
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -463,6 +494,7 @@ export default function Building3D({
     controls.minDistance = 6
     controls.maxDistance = camDist * 2.2
     controls.enableDamping = true
+    controlsRef.current = controls
 
     if (cameraStateRef.current) {
       camera.position.copy(cameraStateRef.current.position)
@@ -506,6 +538,16 @@ export default function Building3D({
       plaza.receiveShadow = true
       scene.add(plaza)
     }
+
+    // Сетка-привязка (1 м) — видна только в режиме расстановки. Уровень = активный
+    // (этаж/крыша/земля), чтобы привязка совпадала с плоскостью перетаскивания.
+    const gridSize = Math.ceil(Math.max(maxW, maxH) * 1.5 + 20)
+    const grid = new THREE.GridHelper(gridSize, gridSize, 0x64748b, 0xcbd5e1)
+    grid.position.y = cutaway ? (activeBaseY as number) + 0.02 : 0.03
+    ;(grid.material as THREE.Material).transparent = true
+    ;(grid.material as THREE.Material).opacity = 0.35
+    grid.visible = editModeRef.current
+    scene.add(grid)
 
     const clickable: THREE.Object3D[] = []
     const wallMaterials = wallMaterialsRef.current
@@ -906,6 +948,8 @@ export default function Building3D({
     let raf = 0
     const animate = () => {
       raf = requestAnimationFrame(animate)
+      // Сетка следует за режимом расстановки без пересборки сцены.
+      if (grid.visible !== editModeRef.current) grid.visible = editModeRef.current
       controls.update()
       renderer.render(scene, camera)
       labelRenderer.render(scene, camera)
@@ -981,6 +1025,7 @@ export default function Building3D({
     if (regular.some((f) => f.id === active)) return active
     return "ground"
   }
+  const pushUndo = (id: string) => { undoStackRef.current.push(id); setCanUndo(true) }
   const addItem = (kind: string) => {
     if (!buildingId) return
     const level = currentLevel()
@@ -988,14 +1033,39 @@ export default function Building3D({
     const spawnX = ((n % 5) - 2) * 2.5
     const spawnZ = level === "ground" ? footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5 : ((Math.floor(n / 5) % 3) - 1) * 3
     void addBuildingDecor(buildingId, kind, spawnX, spawnZ, level)
-      .then(() => { toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
+      .then((r) => { if (r?.id) pushUndo(r.id); toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось добавить"))
   }
-  const rotateSelectedDecor = () => {
+  const duplicateSelectedDecor = () => {
+    if (!selectedDecorId) return
+    void duplicateBuildingDecor(selectedDecorId)
+      .then((r) => { if (r?.id) pushUndo(r.id); toast.success("Копия создана"); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось дублировать"))
+  }
+  // Отменить — удаляет последний добавленный/дублированный предмет.
+  const undoLast = () => {
+    const id = undoStackRef.current.pop()
+    setCanUndo(undoStackRef.current.length > 0)
+    if (!id) return
+    void deleteBuildingDecor(id)
+      .then(() => { if (selectedDecorId === id) setSelectedDecorId(null); toast.success("Отменено"); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось отменить"))
+  }
+  // Пресеты вида камеры: сверху / спереди / изометрия.
+  const setView = (view: "top" | "front" | "iso") => {
+    const cam = cameraRef.current, ctr = controlsRef.current, m = sceneMetricsRef.current
+    if (!cam || !ctr || !m) return
+    const d = m.span
+    if (view === "top") { cam.position.set(0.01, d * 1.4, 0.01); ctr.target.set(0, 0, 0) }
+    else if (view === "front") { cam.position.set(0, Math.max(m.top * 0.6, d * 0.4), d * 1.15); ctr.target.set(0, Math.max(m.top / 3, 1), 0) }
+    else { cam.position.set(d * 0.8, Math.max(m.top * 1.2, d * 0.55), d * 0.9); ctr.target.set(0, m.top / 3, 0) }
+    ctr.update()
+  }
+  const rotateSelectedDecor = (deg = 45) => {
     if (!selectedDecorId) return
     const model = decorModelsRef.current.get(selectedDecorId)
     if (!model) return
-    model.rotation.y += Math.PI / 4
+    model.rotation.y += (deg * Math.PI) / 180
     void setDecorRotation(selectedDecorId, Math.round((model.rotation.y * 180) / Math.PI)).catch(() => toast.error("Не удалось сохранить поворот"))
   }
   const scaleSelectedDecor = (factor: number) => {
@@ -1052,6 +1122,19 @@ export default function Building3D({
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <div ref={containerRef} className="absolute inset-0" />
 
+      {/* Пресеты вида камеры: сверху / спереди / изометрия */}
+      <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-1 rounded-xl border border-slate-200 bg-white/95 px-1.5 py-1 shadow-lg backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+        <button type="button" onClick={() => setView("top")} title="Вид сверху" className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+          <ArrowUpFromLine className="h-3.5 w-3.5" /> Сверху
+        </button>
+        <button type="button" onClick={() => setView("front")} title="Вид спереди" className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+          <Square className="h-3.5 w-3.5" /> Спереди
+        </button>
+        <button type="button" onClick={() => setView("iso")} title="Изометрия" className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+          <Eye className="h-3.5 w-3.5" /> 3D
+        </button>
+      </div>
+
       {/* Режим расстановки объектов (перетаскивание мышью) */}
       <button
         type="button"
@@ -1071,6 +1154,16 @@ export default function Building3D({
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] text-emerald-800 shadow backdrop-blur dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
             Тащите объект или декор мышью — позиция сохранится автоматически.
           </div>
+          {canUndo && (
+            <button
+              type="button"
+              onClick={undoLast}
+              title="Удалить последний добавленный предмет"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 shadow hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+            >
+              <Undo2 className="h-3.5 w-3.5" /> Отменить добавление
+            </button>
+          )}
           {buildingId && (
             <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
               <p className="px-1 pb-1 text-[10px] text-slate-500 dark:text-slate-400">
@@ -1123,15 +1216,23 @@ export default function Building3D({
               >
                 {levelOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              <div className="flex flex-wrap gap-1">
-                <button type="button" onClick={rotateSelectedDecor} title="Повернуть" className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-                  <RotateCw className="h-3.5 w-3.5" />
+              <div className="mb-1 flex flex-wrap gap-1">
+                <button type="button" onClick={() => rotateSelectedDecor(15)} title="Повернуть на 15°" className="flex flex-1 items-center justify-center gap-0.5 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  <RotateCw className="h-3 w-3" /> 15°
+                </button>
+                <button type="button" onClick={() => rotateSelectedDecor(45)} title="Повернуть на 45°" className="flex flex-1 items-center justify-center gap-0.5 rounded-md border border-slate-200 px-2 py-1.5 text-[10px] font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  <RotateCw className="h-3 w-3" /> 45°
                 </button>
                 <button type="button" onClick={() => scaleSelectedDecor(1.2)} title="Больше" className="flex flex-1 items-center justify-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <button type="button" onClick={() => scaleSelectedDecor(1 / 1.2)} title="Меньше" className="flex flex-1 items-center justify-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                   <Minus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <button type="button" onClick={duplicateSelectedDecor} title="Дублировать" className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  <Copy className="h-3.5 w-3.5" />
                 </button>
                 <button type="button" onClick={deleteSelectedDecor} title="Удалить" className="flex flex-1 items-center justify-center rounded-md border border-red-200 px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10">
                   <Trash2 className="h-3.5 w-3.5" />
