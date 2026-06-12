@@ -63,6 +63,50 @@ const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label
   ] },
 ]
 
+// Процедурные текстуры (кирпич/плитка/бетон/асфальт) рисуем на canvas один раз
+// и кэшируем по виду — материалы выглядят «материалами», а не плоским цветом.
+const TEXTURE_CACHE = new Map<string, THREE.Texture | null>()
+function patternTexture(kind: "brick" | "grid" | "noise", base: string, line: string): THREE.Texture | null {
+  if (typeof document === "undefined") return null
+  const key = `${kind}:${base}:${line}`
+  const cached = TEXTURE_CACHE.get(key)
+  if (cached !== undefined) return cached
+  const c = document.createElement("canvas")
+  c.width = c.height = 128
+  const ctx = c.getContext("2d")
+  if (!ctx) { TEXTURE_CACHE.set(key, null); return null }
+  ctx.fillStyle = base
+  ctx.fillRect(0, 0, 128, 128)
+  if (kind === "brick") {
+    ctx.strokeStyle = line; ctx.lineWidth = 4
+    for (let row = 0; row < 4; row++) {
+      const y = row * 32
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(128, y); ctx.stroke()
+      const off = row % 2 === 0 ? 0 : 32
+      for (let x = off; x <= 128; x += 64) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 32); ctx.stroke() }
+    }
+  } else if (kind === "grid") {
+    ctx.strokeStyle = line; ctx.lineWidth = 3
+    for (let i = 0; i <= 128; i += 32) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 128); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(128, i); ctx.stroke()
+    }
+  } else {
+    // noise — мелкая крапинка (бетон/асфальт/линолеум)
+    ctx.fillStyle = line
+    for (let i = 0; i < 700; i++) {
+      const x = (i * 53) % 128, y = (i * 97) % 128
+      ctx.globalAlpha = 0.05 + ((i * 7) % 10) / 60
+      ctx.fillRect(x, y, 2, 2)
+    }
+    ctx.globalAlpha = 1
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  TEXTURE_CACHE.set(key, tex)
+  return tex
+}
+
 /** Декоративная 3D-модель (дерево/куст/фонарь/скамейка) — чистая сцена. */
 function buildDecorModel(kind: string): THREE.Group {
   const g = new THREE.Group()
@@ -70,14 +114,34 @@ function buildDecorModel(kind: string): THREE.Group {
 
   // ── Семейства с вариантами (материалы/типы) — по префиксу ──
   if (kind.startsWith("floor-")) {
+    const v = kind.slice(6)
     const colors: Record<string, number> = { tile: 0xe2e8f0, ceramic: 0xf1f5f9, lino: 0xc9a86a, paving: 0x94a3b8, asphalt: 0x3f3f46 }
-    const tile = new THREE.Mesh(new THREE.BoxGeometry(4, 0.06, 4), new THREE.MeshStandardMaterial({ color: colors[kind.slice(6)] ?? 0xcbd5e1 }))
+    const tex: Record<string, THREE.Texture | null> = {
+      tile: patternTexture("grid", "#e2e8f0", "#94a3b8"),
+      ceramic: patternTexture("grid", "#f1f5f9", "#cbd5e1"),
+      paving: patternTexture("brick", "#94a3b8", "#64748b"),
+      asphalt: patternTexture("noise", "#3f3f46", "#71717a"),
+      lino: patternTexture("noise", "#c9a86a", "#a8824a"),
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: colors[v] ?? 0xcbd5e1 })
+    const t = tex[v]
+    if (t) { t.repeat.set(4, 4); mat.map = t }
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(4, 0.06, 4), mat)
     tile.position.y = 0.03; tile.receiveShadow = true; g.add(tile)
     return g
   }
   if (kind.startsWith("wall-")) {
+    const v = kind.slice(5)
     const colors: Record<string, number> = { brick: 0xb45309, concrete: 0x9ca3af, tile: 0xbae6fd }
-    const w = new THREE.Mesh(new THREE.BoxGeometry(3, 2.6, 0.2), new THREE.MeshStandardMaterial({ color: colors[kind.slice(5)] ?? 0xe5e7eb }))
+    const tex: Record<string, THREE.Texture | null> = {
+      brick: patternTexture("brick", "#b45309", "#7c2d12"),
+      concrete: patternTexture("noise", "#9ca3af", "#6b7280"),
+      tile: patternTexture("grid", "#bae6fd", "#7dd3fc"),
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: colors[v] ?? 0xe5e7eb })
+    const t = tex[v]
+    if (t) { t.repeat.set(3, 2); mat.map = t }
+    const w = new THREE.Mesh(new THREE.BoxGeometry(3, 2.6, 0.2), mat)
     w.position.y = 1.3; add(w)
     return g
   }
