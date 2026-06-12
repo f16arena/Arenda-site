@@ -50,6 +50,30 @@ export async function addBuildingDecor(buildingId: string, kind: string, x = 0, 
   return { id: decor.id }
 }
 
+/** Добавить нарисованную стену: центр (x,z), угол rot°, длина len м, уровень. */
+export async function addWallSegment(buildingId: string, x: number, z: number, len: number, rot: number, level = "ground") {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingInOrg(buildingId, orgId)
+  const lvl = typeof level === "string" && level.trim() ? level.trim().slice(0, 64) : "ground"
+  const length = Number.isFinite(len) ? Math.max(0.5, Math.min(100, len)) : 1
+  const decor = await db.buildingDecor.create({
+    data: {
+      buildingId,
+      kind: "wallrun",
+      x: Number.isFinite(x) ? x : 0,
+      z: Number.isFinite(z) ? z : 0,
+      rot: Number.isFinite(rot) ? ((rot % 360) + 360) % 360 : 0,
+      scale: 1,
+      len: length,
+      level: lvl,
+      onRoof: lvl === "roof",
+    },
+  })
+  revalidatePath("/admin/buildings")
+  return { id: decor.id }
+}
+
 /** Дублировать предмет (копия со смещением 1.5 м, тот же уровень/поворот/масштаб). */
 export async function duplicateBuildingDecor(decorId: string) {
   await requireCapabilityAndFeature("spaces.edit")
@@ -65,6 +89,7 @@ export async function duplicateBuildingDecor(decorId: string) {
       z: src.z + 1.5,
       rot: src.rot,
       scale: src.scale,
+      len: src.len,
       level: src.level,
       onRoof: src.onRoof,
       modelUrl: src.modelUrl,

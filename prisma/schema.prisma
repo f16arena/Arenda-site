@@ -525,6 +525,8 @@ model BuildingDecor {
   z          Float    @default(0)
   rot        Float    @default(0)
   scale      Float    @default(1)
+  // Для kind="wallrun" — длина нарисованной стены в метрах (0 для прочих).
+  len        Float    @default(0)
   // Уровень: "ground" (земля/территория) | "roof" (крыша) | <floorId> (этаж).
   level      String   @default("ground")
   // Для kind="custom" — ссылка на импортированную модель GLB (/api/storage/<id>).

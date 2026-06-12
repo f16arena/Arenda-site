@@ -5,13 +5,13 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus, Scissors, Copy, Undo2, ArrowUpFromLine, Square, Eye } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus, Scissors, Copy, Undo2, ArrowUpFromLine, Square, Eye, PencilRuler } from "lucide-react"
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
-import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor } from "@/app/actions/decor"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor, duplicateBuildingDecor, addWallSegment } from "@/app/actions/decor"
 
-export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; len?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
 // Палитра строительного редактора по категориям.
 const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label: string }> }> = [
@@ -415,6 +415,16 @@ export default function Building3D({
   const [editMode, setEditMode] = useState(false)
   const editModeRef = useRef(editMode)
   useEffect(() => { editModeRef.current = editMode }, [editMode])
+  // Режим рисования стены: два клика — начало и конец, между ними строится стена.
+  const [drawWall, setDrawWall] = useState(false)
+  const drawWallRef = useRef(drawWall)
+  const wallStartRef = useRef<THREE.Vector3 | null>(null)
+  useEffect(() => { drawWallRef.current = drawWall; if (!drawWall) wallStartRef.current = null }, [drawWall])
+  // Стабильные ссылки на проп-зависимости, используемые внутри сцены-эффекта,
+  // чтобы не пересобирать сцену на каждый рендер (onDecorChanged меняется часто).
+  const buildingIdRef = useRef(buildingId)
+  const onDecorChangedRef = useRef(onDecorChanged)
+  useEffect(() => { buildingIdRef.current = buildingId; onDecorChangedRef.current = onDecorChanged })
   const [selectedDecorId, setSelectedDecorId] = useState<string | null>(null)
   const wallMaterialsRef = useRef<Map<string, THREE.MeshStandardMaterial>>(new Map())
   const objectModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
@@ -836,6 +846,27 @@ export default function Building3D({
         continue
       }
 
+      if (d.kind === "wallrun") {
+        // Нарисованная стена: длина d.len по локальной оси X, поворот rot вокруг Y.
+        const len = d.len && d.len > 0 ? d.len : 1
+        const group = new THREE.Group()
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(len, 2.6, 0.2),
+          new THREE.MeshStandardMaterial({ color: 0xe5e7eb }),
+        )
+        wall.position.y = 1.3
+        wall.castShadow = true
+        wall.receiveShadow = true
+        group.add(wall)
+        group.position.set(d.x, dy, d.z)
+        group.rotation.y = ((d.rot ?? 0) * Math.PI) / 180
+        group.traverse((o) => { o.userData.decorId = d.id })
+        decorModels.set(d.id, group)
+        scene.add(group)
+        clickable.push(group)
+        continue
+      }
+
       const model = buildDecorModel(d.kind)
       model.scale.setScalar(s)
       model.position.set(d.x, dy, d.z)
@@ -865,8 +896,24 @@ export default function Building3D({
       return t
     }
 
+    // ── Рисование стены: проекция кликов на горизонт активного уровня ──
+    const wallLevel = roofs.some((r) => r.id === active) ? "roof" : (baseYById.has(active) ? active : "ground")
+    const wallPlaneY = wallLevel === "roof" ? buildingTop : (baseYById.get(active) ?? 0)
+    const wallPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -wallPlaneY)
+    const previewGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()])
+    const previewLine = new THREE.Line(previewGeo, new THREE.LineBasicMaterial({ color: 0x2563eb }))
+    previewLine.visible = false
+    scene.add(previewLine)
+    const projectToWallPlane = (e: PointerEvent): THREE.Vector3 | null => {
+      setPointer(e)
+      raycaster.setFromCamera(pointer, camera)
+      const p = new THREE.Vector3()
+      return raycaster.ray.intersectPlane(wallPlane, p) ? p : null
+    }
+
     const onDown = (e: PointerEvent) => {
       downAt = { x: e.clientX, y: e.clientY }
+      if (drawWallRef.current) return // в режиме рисования стены не таскаем предметы
       if (!editModeRef.current) return
       setPointer(e)
       raycaster.setFromCamera(pointer, camera)
@@ -879,6 +926,20 @@ export default function Building3D({
       }
     }
     const onMove = (e: PointerEvent) => {
+      if (drawWallRef.current) {
+        // Предпросмотр: линия от первой точки к курсору (с привязкой к 0.5 м).
+        const start = wallStartRef.current
+        if (start) {
+          const p = projectToWallPlane(e)
+          if (p) {
+            const snap = (v: number) => Math.round(v * 2) / 2
+            previewGeo.setFromPoints([start, new THREE.Vector3(snap(p.x), wallPlaneY + 0.05, snap(p.z))])
+            previewGeo.attributes.position.needsUpdate = true
+            previewLine.visible = true
+          }
+        }
+        return
+      }
       if (!dragging) return
       setPointer(e)
       raycaster.setFromCamera(pointer, camera)
@@ -900,6 +961,33 @@ export default function Building3D({
       }
     }
     const onUp = (e: PointerEvent) => {
+      // ── Рисование стены двумя кликами ──
+      if (drawWallRef.current) {
+        const moved = downAt ? Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) : 0
+        if (moved > 5) return // это вращение камеры, не клик
+        const p = projectToWallPlane(e)
+        if (!p) return
+        const snap = (v: number) => Math.round(v * 2) / 2
+        const px = snap(p.x), pz = snap(p.z)
+        if (!wallStartRef.current) {
+          wallStartRef.current = new THREE.Vector3(px, wallPlaneY + 0.05, pz)
+          toast.success("Кликните вторую точку стены")
+          return
+        }
+        const start = wallStartRef.current
+        wallStartRef.current = null
+        previewLine.visible = false
+        const dx = px - start.x, dz = pz - start.z
+        const len = Math.hypot(dx, dz)
+        const bId = buildingIdRef.current
+        if (len < 0.5 || !bId) return
+        const cx = (px + start.x) / 2, cz = (pz + start.z) / 2
+        const angle = (Math.atan2(-dz, dx) * 180) / Math.PI
+        void addWallSegment(bId, Math.round(cx * 100) / 100, Math.round(cz * 100) / 100, Math.round(len * 100) / 100, angle, wallLevel)
+          .then((r) => { if (r?.id) { undoStackRef.current.push(r.id); setCanUndo(true) } toast.success("Стена добавлена"); onDecorChangedRef.current?.() })
+          .catch(() => toast.error("Не удалось добавить стену"))
+        return
+      }
       if (dragging) {
         const obj = dragging
         dragging = null
@@ -950,6 +1038,8 @@ export default function Building3D({
       raf = requestAnimationFrame(animate)
       // Сетка следует за режимом расстановки без пересборки сцены.
       if (grid.visible !== editModeRef.current) grid.visible = editModeRef.current
+      // Превью стены гасим, когда вышли из режима рисования.
+      if (!drawWallRef.current && previewLine.visible) previewLine.visible = false
       controls.update()
       renderer.render(scene, camera)
       labelRenderer.render(scene, camera)
@@ -1138,7 +1228,7 @@ export default function Building3D({
       {/* Режим расстановки объектов (перетаскивание мышью) */}
       <button
         type="button"
-        onClick={() => { setEditMode((v) => !v); setSelected(null); setSelectedDecorId(null) }}
+        onClick={() => { setEditMode((v) => !v); setSelected(null); setSelectedDecorId(null); setDrawWall(false) }}
         className={`absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium shadow-lg backdrop-blur transition-colors ${
           editMode
             ? "border-emerald-500 bg-emerald-600 text-white"
@@ -1152,8 +1242,21 @@ export default function Building3D({
       {editMode && (
         <div className="absolute right-3 top-14 z-10 w-56 space-y-2">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] text-emerald-800 shadow backdrop-blur dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
-            Тащите объект или декор мышью — позиция сохранится автоматически.
+            {drawWall ? "Рисование стены: кликните начало, затем конец стены." : "Тащите объект или декор мышью — позиция сохранится автоматически."}
           </div>
+          <button
+            type="button"
+            onClick={() => { setDrawWall((v) => !v); setSelected(null); setSelectedDecorId(null) }}
+            title="Рисовать стену двумя кликами на активном уровне"
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium shadow transition-colors ${
+              drawWall
+                ? "border-blue-500 bg-blue-600 text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
+          >
+            <PencilRuler className="h-3.5 w-3.5" />
+            {drawWall ? "Рисую стену… (стоп)" : "Рисовать стену"}
+          </button>
           {canUndo && (
             <button
               type="button"
