@@ -7,12 +7,18 @@ import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 
 const DECOR_KINDS = new Set([
-  "tree", "bush", "grass", "flowerbed",
-  "wall", "fence", "gate", "door", "stairs",
-  "bench", "lamp", "bin", "canopy",
-  "hvac", "vent", "tank",
+  "tree", "spruce", "birch", "bush", "grass", "flowerbed",
+  "wall", "halfwall", "window", "fence", "gate", "door", "stairs",
+  "bench", "lamp", "bin", "canopy", "parking", "road", "mast",
+  "hvac", "vent", "tank", "radiator",
+  "toilet", "urinal", "sink",
   "table", "chair", "cabinet",
 ])
+// Семейства с вариантами: floor-*, wall-*, door-*, fence-*, column-*.
+const DECOR_PREFIXES = ["floor-", "wall-", "door-", "fence-", "column-"]
+function isValidKind(kind: string): boolean {
+  return DECOR_KINDS.has(kind) || DECOR_PREFIXES.some((p) => kind.startsWith(p))
+}
 
 async function assertDecorBuilding(decorId: string, orgId: string) {
   const decor = await db.buildingDecor.findUnique({ where: { id: decorId }, select: { buildingId: true } })
@@ -26,7 +32,7 @@ export async function addBuildingDecor(buildingId: string, kind: string, x = 0, 
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
-  const k = DECOR_KINDS.has(kind) ? kind : "tree"
+  const k = isValidKind(kind) ? kind : "tree"
   const lvl = typeof level === "string" && level.trim() ? level.trim().slice(0, 64) : "ground"
   const decor = await db.buildingDecor.create({
     data: {
@@ -42,6 +48,17 @@ export async function addBuildingDecor(buildingId: string, kind: string, x = 0, 
   })
   revalidatePath("/admin/buildings")
   return { id: decor.id }
+}
+
+/** Переместить предмет на другой уровень (ground/roof/<floorId>). */
+export async function setDecorLevel(decorId: string, level: string) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertDecorBuilding(decorId, orgId)
+  const lvl = typeof level === "string" && level.trim() ? level.trim().slice(0, 64) : "ground"
+  await db.buildingDecor.update({ where: { id: decorId }, data: { level: lvl, onRoof: lvl === "roof" } })
+  revalidatePath("/admin/buildings")
+  return { success: true }
 }
 
 /** Изменить масштаб предмета (0.3–5). */

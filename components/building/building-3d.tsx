@@ -9,28 +9,46 @@ import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Pl
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
-import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, deleteBuildingDecor } from "@/app/actions/decor"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, setDecorLevel, deleteBuildingDecor } from "@/app/actions/decor"
 
 export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
 // Палитра строительного редактора по категориям.
 const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label: string }> }> = [
-  { title: "Стройка", items: [
-    { kind: "wall", label: "Стена" }, { kind: "fence", label: "Забор" },
-    { kind: "gate", label: "Ворота" }, { kind: "door", label: "Дверь" },
-    { kind: "stairs", label: "Лестница" },
+  { title: "Стены / окна", items: [
+    { kind: "wall", label: "Стена" }, { kind: "wall-brick", label: "Кирпич" },
+    { kind: "wall-concrete", label: "Бетон" }, { kind: "wall-tile", label: "Кафель" },
+    { kind: "halfwall", label: "Полустена" }, { kind: "window", label: "Окно" },
   ] },
-  { title: "Природа", items: [
-    { kind: "tree", label: "Дерево" }, { kind: "bush", label: "Куст" },
-    { kind: "grass", label: "Газон" }, { kind: "flowerbed", label: "Клумба" },
+  { title: "Полы", items: [
+    { kind: "floor-tile", label: "Плитка" }, { kind: "floor-ceramic", label: "Кафель" },
+    { kind: "floor-lino", label: "Линолеум" }, { kind: "floor-paving", label: "Брусчатка" },
+    { kind: "floor-asphalt", label: "Асфальт" },
   ] },
-  { title: "Малые формы", items: [
-    { kind: "bench", label: "Скамейка" }, { kind: "lamp", label: "Фонарь" },
-    { kind: "bin", label: "Урна" }, { kind: "canopy", label: "Навес" },
+  { title: "Двери / опоры", items: [
+    { kind: "door-wood", label: "Дверь дерев." }, { kind: "door-plastic", label: "Дверь пласт." },
+    { kind: "door-metal", label: "Дверь метал." }, { kind: "stairs", label: "Лестница" },
+    { kind: "column-square", label: "Колонна □" }, { kind: "column-round", label: "Колонна ○" },
+  ] },
+  { title: "Сантехника / тепло", items: [
+    { kind: "toilet", label: "Унитаз" }, { kind: "urinal", label: "Писсуар" },
+    { kind: "sink", label: "Рукомойник" }, { kind: "radiator", label: "Батарея" },
   ] },
   { title: "Мебель", items: [
     { kind: "table", label: "Стол" }, { kind: "chair", label: "Стул" },
     { kind: "cabinet", label: "Шкаф" },
+  ] },
+  { title: "Природа", items: [
+    { kind: "tree", label: "Дерево" }, { kind: "spruce", label: "Ёлка" },
+    { kind: "birch", label: "Берёза" }, { kind: "bush", label: "Куст" },
+    { kind: "grass", label: "Газон" }, { kind: "flowerbed", label: "Клумба" },
+  ] },
+  { title: "Улица / двор", items: [
+    { kind: "fence-metal", label: "Забор метал." }, { kind: "fence-wood", label: "Забор дерев." },
+    { kind: "gate", label: "Ворота" }, { kind: "bench", label: "Скамейка" },
+    { kind: "lamp", label: "Фонарь" }, { kind: "bin", label: "Урна" },
+    { kind: "canopy", label: "Навес" }, { kind: "parking", label: "Парковка" },
+    { kind: "road", label: "Дорога" }, { kind: "mast", label: "Мачта" },
   ] },
   { title: "Крыша / тех", items: [
     { kind: "hvac", label: "Кондиционер" }, { kind: "vent", label: "Вентиляция" },
@@ -42,6 +60,42 @@ const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label
 function buildDecorModel(kind: string): THREE.Group {
   const g = new THREE.Group()
   const add = (m: THREE.Mesh) => { m.castShadow = true; g.add(m) }
+
+  // ── Семейства с вариантами (материалы/типы) — по префиксу ──
+  if (kind.startsWith("floor-")) {
+    const colors: Record<string, number> = { tile: 0xe2e8f0, ceramic: 0xf1f5f9, lino: 0xc9a86a, paving: 0x94a3b8, asphalt: 0x3f3f46 }
+    const tile = new THREE.Mesh(new THREE.BoxGeometry(4, 0.06, 4), new THREE.MeshStandardMaterial({ color: colors[kind.slice(6)] ?? 0xcbd5e1 }))
+    tile.position.y = 0.03; tile.receiveShadow = true; g.add(tile)
+    return g
+  }
+  if (kind.startsWith("wall-")) {
+    const colors: Record<string, number> = { brick: 0xb45309, concrete: 0x9ca3af, tile: 0xbae6fd }
+    const w = new THREE.Mesh(new THREE.BoxGeometry(3, 2.6, 0.2), new THREE.MeshStandardMaterial({ color: colors[kind.slice(5)] ?? 0xe5e7eb }))
+    w.position.y = 1.3; add(w)
+    return g
+  }
+  if (kind.startsWith("door-")) {
+    const colors: Record<string, number> = { wood: 0x9a6a3a, plastic: 0xe5e7eb, metal: 0x6b7280 }
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 })
+    for (const x of [-0.55, 0.55]) { const j = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.1, 0.2), frameMat); j.position.set(x, 1.05, 0); add(j) }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.2), frameMat); lintel.position.y = 2.1; add(lintel)
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.95, 2, 0.06), new THREE.MeshStandardMaterial({ color: colors[kind.slice(5)] ?? 0x9a6a3a })); leaf.position.set(0, 1, 0); add(leaf)
+    return g
+  }
+  if (kind.startsWith("fence-")) {
+    const colors: Record<string, number> = { metal: 0x64748b, wood: 0x9a6a3a }
+    const c = colors[kind.slice(6)] ?? 0x6b7280
+    for (const x of [-1.3, -0.43, 0.43, 1.3]) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.12), new THREE.MeshStandardMaterial({ color: c })); p.position.set(x, 0.6, 0); add(p) }
+    for (const yy of [0.4, 0.95]) { const r = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 0.06), new THREE.MeshStandardMaterial({ color: c })); r.position.set(0, yy, 0); add(r) }
+    return g
+  }
+  if (kind.startsWith("column-")) {
+    const round = kind.endsWith("round")
+    const geo = round ? new THREE.CylinderGeometry(0.3, 0.3, 3, 16) : new THREE.BoxGeometry(0.5, 3, 0.5)
+    const col = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xe5e7eb })); col.position.y = 1.5; add(col)
+    return g
+  }
+
   if (kind === "bush") {
     const bush = new THREE.Mesh(new THREE.SphereGeometry(0.8, 12, 10), new THREE.MeshStandardMaterial({ color: 0x3f8f3f }))
     bush.position.y = 0.6; bush.scale.y = 0.7; add(bush)
@@ -148,6 +202,37 @@ function buildDecorModel(kind: string): THREE.Group {
   } else if (kind === "cabinet") {
     const c = new THREE.Mesh(new THREE.BoxGeometry(1, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0xa1887f }))
     c.position.y = 0.9; add(c)
+  } else if (kind === "window") {
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.4, 0.12), new THREE.MeshStandardMaterial({ color: 0x94a3b8 })); frame.position.y = 1.6; add(frame)
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 0.04), new THREE.MeshStandardMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.5 })); glass.position.set(0, 1.6, 0.05); add(glass)
+  } else if (kind === "radiator") {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.1), new THREE.MeshStandardMaterial({ color: 0xf8fafc })); body.position.y = 0.5; add(body)
+    for (let i = 0; i < 7; i++) { const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6, 0.16), new THREE.MeshStandardMaterial({ color: 0xe2e8f0 })); fin.position.set(-0.45 + i * 0.15, 0.5, 0); add(fin) }
+  } else if (kind === "halfwall") {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(3, 1.2, 0.2), new THREE.MeshStandardMaterial({ color: 0xe5e7eb })); w.position.y = 0.6; add(w)
+  } else if (kind === "toilet") {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.4, 16), new THREE.MeshStandardMaterial({ color: 0xffffff })); base.position.y = 0.2; add(base)
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.18), new THREE.MeshStandardMaterial({ color: 0xffffff })); tank.position.set(0, 0.55, -0.25); add(tank)
+  } else if (kind === "urinal") {
+    const u = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, 0.3), new THREE.MeshStandardMaterial({ color: 0xffffff })); u.position.y = 1; add(u)
+  } else if (kind === "sink") {
+    const basin = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.45), new THREE.MeshStandardMaterial({ color: 0xffffff })); basin.position.y = 0.85; add(basin)
+    const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.85, 12), new THREE.MeshStandardMaterial({ color: 0xffffff })); ped.position.y = 0.42; add(ped)
+  } else if (kind === "spruce") {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x6b4423 })); trunk.position.y = 0.4; add(trunk)
+    for (let i = 0; i < 3; i++) { const cone = new THREE.Mesh(new THREE.ConeGeometry(1.1 - i * 0.3, 1.2, 12), new THREE.MeshStandardMaterial({ color: 0x2f6e3f })); cone.position.y = 1 + i * 0.9; add(cone) }
+  } else if (kind === "birch") {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0xf1f5f9 })); trunk.position.y = 1.1; add(trunk)
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.9, 12, 10), new THREE.MeshStandardMaterial({ color: 0x86c34a })); crown.position.y = 2.6; add(crown)
+  } else if (kind === "mast") {
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 5, 8), new THREE.MeshStandardMaterial({ color: 0x9ca3af })); mast.position.y = 2.5; add(mast)
+    for (const h of [3, 3.6, 4.2]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: 0x9ca3af })); arm.position.y = h; add(arm) }
+  } else if (kind === "parking") {
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.04, 5), new THREE.MeshStandardMaterial({ color: 0x3f3f46 })); pad.position.y = 0.02; pad.receiveShadow = true; add(pad)
+    for (const x of [-1.2, 1.2]) { const line = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 5), new THREE.MeshStandardMaterial({ color: 0xffffff })); line.position.set(x, 0.04, 0); add(line) }
+  } else if (kind === "road") {
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(4, 0.04, 8), new THREE.MeshStandardMaterial({ color: 0x52525b })); pad.position.y = 0.02; pad.receiveShadow = true; add(pad)
+    for (let i = 0; i < 4; i++) { const dash = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 1), new THREE.MeshStandardMaterial({ color: 0xfacc15 })); dash.position.set(0, 0.04, -3 + i * 2); add(dash) }
   } else {
     // tree
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }))
@@ -458,28 +543,41 @@ export default function Building3D({
 
     // ── Этажи стопкой (наземные + подземные) ──
     regular.forEach((floor) => {
-      const { w, h, ceil } = dims(floor)
+      const { ceil } = dims(floor)
       const baseY = baseYById.get(floor.id) ?? SLAB
       const isActive = active === floor.id
+      // Этажи без плана используют общий периметр здания (maxW × maxH), чтобы вся
+      // стопка была одинаково ориентирована — без «каши» из вытянутых по-разному коробок.
+      const fw = floor.layout ? floor.layout.width : maxW
+      const fh = floor.layout ? floor.layout.height : maxH
       // Срез: скрываем всё, что выше активного уровня.
       const hidden = cutaway && baseY > (activeBaseY as number) + 0.01
       if (hidden) return
 
       // Перекрытие под этажом
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, SLAB, h + 0.6), slabMat)
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(fw + 0.6, SLAB, fh + 0.6), slabMat)
       slab.position.set(0, baseY - SLAB / 2, 0)
       slab.castShadow = true
       slab.receiveShadow = true
       scene.add(slab)
 
       if (!floor.layout) {
-        // Этаж без плана: полупрозрачная коробка-заглушка
-        const stub = new THREE.Mesh(
-          new THREE.BoxGeometry(w, ceil, h),
-          new THREE.MeshStandardMaterial({ color: 0xcbd5e1, transparent: true, opacity: 0.25 }),
-        )
-        stub.position.set(0, baseY + ceil / 2, 0)
-        scene.add(stub)
+        // Этаж без плана: коробка-оболочка с настоящими стенами по периметру.
+        // 4 стеновые панели (общий периметр) — у здания видны стены, этаж — «вид сверху».
+        const t = 0.3
+        const wallOpacity = cutaway && !isActive ? 0.45 : 0.9
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, transparent: true, opacity: wallOpacity })
+        const wall = (ww: number, dd: number, x: number, z: number) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(ww, ceil, dd), wallMat)
+          m.position.set(x, baseY + ceil / 2, z)
+          m.castShadow = true
+          m.receiveShadow = true
+          scene.add(m)
+        }
+        wall(fw, t, 0, -fh / 2 + t / 2) // задняя
+        wall(fw, t, 0, fh / 2 - t / 2) // передняя
+        wall(t, fh, -fw / 2 + t / 2, 0) // левая
+        wall(t, fh, fw / 2 - t / 2, 0) // правая
         if (isActive || !cutaway) {
           const label = makeLabel(floor.name, "план не настроен")
           label.position.set(0, baseY + ceil / 2, 0)
@@ -504,8 +602,9 @@ export default function Building3D({
     })
 
     // ── Крыша (только в режиме всего здания) ──
-    const roofW = topFloor ? dims(topFloor).w : maxW
-    const roofH = topFloor ? dims(topFloor).h : maxH
+    // Кровля повторяет периметр верхнего этажа; этаж без плана = общий периметр (maxW/maxH).
+    const roofW = topFloor ? (topFloor.layout ? dims(topFloor).w : maxW) : maxW
+    const roofH = topFloor ? (topFloor.layout ? dims(topFloor).h : maxH) : maxH
     const hasTop = aboveground.length > 0 || roofs.length > 0
     if (!cutaway && hasTop) {
       // Плита кровли
@@ -879,6 +978,20 @@ export default function Building3D({
     model.scale.setScalar(next)
     void setDecorScale(selectedDecorId, Math.round(next * 100) / 100).catch(() => toast.error("Не удалось сохранить размер"))
   }
+  // Перемещение предмета между уровнями (этаж/улица/крыша).
+  const levelOptions = useMemo(() => {
+    const opts: Array<{ value: string; label: string }> = [{ value: "ground", label: "Территория / улица" }]
+    if (roofs.length > 0 || regular.some((f) => f.number >= 1)) opts.push({ value: "roof", label: "Крыша" })
+    for (const f of [...regular].sort((a, b) => b.number - a.number)) opts.push({ value: f.id, label: f.name })
+    return opts
+  }, [regular, roofs])
+  const selectedDecorLevel = decor.find((d) => d.id === selectedDecorId)?.level ?? "ground"
+  const moveSelectedDecorToLevel = (level: string) => {
+    if (!selectedDecorId) return
+    void setDecorLevel(selectedDecorId, level)
+      .then(() => { toast.success("Перемещено на уровень"); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось переместить"))
+  }
   // Импорт модели из других программ (GLB/GLTF из SketchUp/Blender и т.п.).
   const importModel = (file: File) => {
     if (!buildingId) return
@@ -974,6 +1087,14 @@ export default function Building3D({
           {selectedDecorId && (
             <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
               <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Выбранный предмет</p>
+              <select
+                value={selectedDecorLevel}
+                onChange={(e) => moveSelectedDecorToLevel(e.target.value)}
+                title="Переместить на уровень"
+                className="mb-1.5 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              >
+                {levelOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
               <div className="flex flex-wrap gap-1">
                 <button type="button" onClick={rotateSelectedDecor} title="Повернуть" className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                   <RotateCw className="h-3.5 w-3.5" />
