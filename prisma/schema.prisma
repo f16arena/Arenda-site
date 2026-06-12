@@ -527,6 +527,8 @@ model BuildingDecor {
   scale      Float    @default(1)
   // Уровень: "ground" (земля/территория) | "roof" (крыша) | <floorId> (этаж).
   level      String   @default("ground")
+  // Для kind="custom" — ссылка на импортированную модель GLB (/api/storage/<id>).
+  modelUrl   String?  @map("model_url")
   // Устаревшее: true — на крыше (мигрировано в level="roof").
   onRoof     Boolean  @default(false) @map("on_roof")
   createdAt  DateTime @default(now()) @map("created_at")

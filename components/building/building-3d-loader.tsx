@@ -17,7 +17,7 @@ const Building3D = dynamic(() => import("./building-3d"), {
   ),
 })
 
-export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean }
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
 type ApiPayload = {
   building: { id: string; name: string; address: string }

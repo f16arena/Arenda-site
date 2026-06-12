@@ -11,7 +11,7 @@ import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
 import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, deleteBuildingDecor } from "@/app/actions/decor"
 
-export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean }
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean; modelUrl?: string | null }
 
 // Палитра строительного редактора по категориям.
 const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label: string }> }> = [
@@ -285,6 +285,7 @@ export default function Building3D({
   const wallMaterialsRef = useRef<Map<string, THREE.MeshStandardMaterial>>(new Map())
   const objectModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
   const decorModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
   // Обычные этажи — стопкой; крыши — площадкой поверх здания; территории — рядом.
@@ -298,6 +299,7 @@ export default function Building3D({
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    let disposed = false // защита от добавления асинхронно-загруженных моделей после размонтирования
 
     // ── Геометрия уровней ──
     // Наземные этажи (номер ≥ 1) — стопкой вверх от земли; цоколь/подвал
@@ -628,12 +630,44 @@ export default function Building3D({
       if (roofs.some((r) => r.id === lvl)) return buildingTop
       return 0
     }
+    let glbLoaderP: Promise<typeof import("three/examples/jsm/loaders/GLTFLoader.js")> | null = null
     for (const d of decor) {
       const dy = levelY(d)
       // Срез: прячем предметы выше активного уровня.
       if (cutaway && dy > (activeBaseY as number) + 0.01) continue
-      const model = buildDecorModel(d.kind)
       const s = d.scale && d.scale > 0 ? d.scale : 1
+
+      if (d.kind === "custom" && d.modelUrl) {
+        // Импортированная модель (GLB) — загружаем асинхронно в группу-контейнер.
+        const group = new THREE.Group()
+        group.position.set(d.x, dy, d.z)
+        group.rotation.y = ((d.rot ?? 0) * Math.PI) / 180
+        group.scale.setScalar(s)
+        group.userData.decorId = d.id
+        decorModels.set(d.id, group)
+        scene.add(group)
+        clickable.push(group)
+        const url = d.modelUrl
+        if (!glbLoaderP) glbLoaderP = import("three/examples/jsm/loaders/GLTFLoader.js")
+        void glbLoaderP.then(({ GLTFLoader }) => {
+          new GLTFLoader().load(
+            url,
+            (gltf) => {
+              if (disposed) return
+              gltf.scene.traverse((o) => {
+                o.userData.decorId = d.id
+                if (o instanceof THREE.Mesh) o.castShadow = true
+              })
+              group.add(gltf.scene)
+            },
+            undefined,
+            () => { /* ошибка загрузки — пропускаем */ },
+          )
+        })
+        continue
+      }
+
+      const model = buildDecorModel(d.kind)
       model.scale.setScalar(s)
       model.position.set(d.x, dy, d.z)
       model.rotation.y = ((d.rot ?? 0) * Math.PI) / 180
@@ -762,6 +796,7 @@ export default function Building3D({
     ro.observe(container)
 
     return () => {
+      disposed = true
       cameraStateRef.current = { position: camera.position.clone(), target: controls.target.clone() }
       cancelAnimationFrame(raf)
       ro.disconnect()
@@ -844,6 +879,27 @@ export default function Building3D({
     model.scale.setScalar(next)
     void setDecorScale(selectedDecorId, Math.round(next * 100) / 100).catch(() => toast.error("Не удалось сохранить размер"))
   }
+  // Импорт модели из других программ (GLB/GLTF из SketchUp/Blender и т.п.).
+  const importModel = (file: File) => {
+    if (!buildingId) return
+    if (file.size > 8 * 1024 * 1024) { toast.error("Файл больше 8 МБ"); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      const level = currentLevel()
+      const n = decor.length
+      const spawnX = ((n % 5) - 2) * 2.5
+      const spawnZ = level === "ground" ? footprintDepth / 2 + 5 : 0
+      void fetch(`/api/admin/buildings/${buildingId}/import-model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl, fileName: file.name, level, x: spawnX, z: spawnZ }),
+      })
+        .then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d?.error ?? "Ошибка"); toast.success("Модель импортирована — перетащите на место"); onDecorChanged?.() })
+        .catch((e) => toast.error(e instanceof Error ? e.message : "Не удалось импортировать"))
+    }
+    reader.readAsDataURL(file)
+  }
   const deleteSelectedDecor = () => {
     if (!selectedDecorId) return
     void deleteBuildingDecor(selectedDecorId)
@@ -897,6 +953,22 @@ export default function Building3D({
                   </div>
                 </div>
               ))}
+              <p className="px-1 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Импорт</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importModel(f); e.target.value = "" }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Загрузить .glb / .gltf из SketchUp, Blender и т.п."
+                className="w-full rounded-md border border-violet-300 bg-violet-50 px-2 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-100 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300"
+              >
+                Импорт модели (GLB)
+              </button>
             </div>
           )}
           {selectedDecorId && (
