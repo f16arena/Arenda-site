@@ -50,6 +50,8 @@ const PropertiesPanel = dynamic(() => import("./floor-editor-panels").then((mod)
   loading: () => <PanelSkeleton />,
 })
 const TemplateGallery = dynamic(() => import("./template-gallery").then((mod) => mod.TemplateGallery), { ssr: false })
+const AiLayoutButton = dynamic(() => import("./floor-editor-panels").then((mod) => mod.AiLayoutButton), { ssr: false })
+const FloorHints = dynamic(() => import("./floor-editor-panels").then((mod) => mod.FloorHints), { ssr: false })
 
 const PX_PER_METER = 40 // базовый масштаб
 const MIN_ZOOM = 0.3
@@ -1336,6 +1338,14 @@ export function FloorEditor({
               <TemplateIcon className="h-4 w-4" />
               Шаблоны
             </button>
+            <AiLayoutButton
+              floorKind={floorKind}
+              width={layout.width}
+              height={layout.height}
+              floorName={floorName}
+              hasElements={layout.elements.length > 0}
+              onApply={(next) => { setLayoutRaw(next); setSelectedId(null) }}
+            />
             {layout.underlayUrl?.startsWith("data:image/") && (() => {
               const buttonInner = recognizing ? (
                 <>
@@ -1654,6 +1664,7 @@ export function FloorEditor({
           />
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 text-xs text-slate-500 dark:text-slate-400">
+            <FloorHints floorKind={floorKind} />
             <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Выделите элемент</p>
             <p>Кликните по элементу на плане чтобы редактировать его свойства.</p>
             <div className="mt-3 space-y-1 text-slate-500 dark:text-slate-400">

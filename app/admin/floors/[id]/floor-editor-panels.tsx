@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Square, Trash2 } from "lucide-react"
+import { Square, Trash2, Wand2 } from "lucide-react"
 import {
   type FloorLayoutV2,
   type FloorElement,
@@ -12,6 +12,71 @@ import {
 } from "@/lib/floor-layout"
 
 type SpaceLite = { id: string; number: string; status: string }
+
+/** Кнопка AI-планировки: запрашивает у Claude план под размер/тип зоны. */
+export function AiLayoutButton({
+  floorKind, width, height, floorName, hasElements, onApply,
+}: {
+  floorKind?: string
+  width: number
+  height: number
+  floorName: string
+  hasElements: boolean
+  onApply: (layout: FloorLayoutV2) => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const category = floorKind === "ROOF" ? "roof" : floorKind === "TERRITORY" ? "territory" : "floor"
+  const run = () => {
+    if (hasElements && !window.confirm("Заменить текущий план AI-планировкой?")) return
+    setLoading(true)
+    void (async () => {
+      try {
+        const res = await fetch("/api/floor/suggest-layout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: category, width, height, name: floorName }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data?.error ?? "Не удалось")
+        onApply(data.layout)
+        toast.success("AI-планировка готова — отредактируйте и сохраните")
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Ошибка AI")
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }
+  return (
+    <button
+      type="button"
+      onClick={run}
+      disabled={loading}
+      title="AI подберёт планировку под размер и тип зоны"
+      className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-3 py-2 text-sm font-medium text-white hover:from-violet-700 hover:to-indigo-700 disabled:opacity-60"
+    >
+      {loading
+        ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        : <Wand2 className="h-4 w-4" />}
+      {loading ? "Генерация…" : "AI-планировка"}
+    </button>
+  )
+}
+
+/** Контекстные подсказки по типу зоны. */
+export function FloorHints({ floorKind }: { floorKind?: string }) {
+  const text = floorKind === "ROOF"
+    ? "Кровля: тех. зоны и мачты — ближе к центру, дальше от парапета. Оборудование оформляйте как общие зоны. Объекты-арендаторы (антенны) добавляются на странице зоны и двигаются в 3D."
+    : floorKind === "TERRITORY"
+      ? "Территория: парковочное место ~2.5×5 м, проезд между рядами ≥6 м. Здание показано контуром в центре — ставьте объекты вокруг него. Готовый шаблон «Парковка рядами» — под кнопкой «Шаблоны»."
+      : "Этаж: коридор по центру, кабинеты по сторонам; лифт и лестница — в ядре, санузлы у стояка. Не оставляйте зазоров между комнатами и стенами. Быстрый старт — «Шаблоны» или «AI-планировка»."
+  return (
+    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+      <p className="font-semibold text-amber-800 dark:text-amber-200">💡 Подсказки</p>
+      <p className="mt-1 text-amber-700 dark:text-amber-300">{text}</p>
+    </div>
+  )
+}
 
 export function PropertiesPanel({
   element, spaces, onUpdate, onDelete,
