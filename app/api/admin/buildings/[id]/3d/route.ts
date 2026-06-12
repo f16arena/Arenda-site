@@ -31,6 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       id: true,
       name: true,
       address: true,
+      decor: { select: { id: true, kind: true, x: true, z: true, rot: true } },
       floors: {
         orderBy: { number: "asc" },
         select: {
@@ -90,6 +91,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   return NextResponse.json({
     building: { id: building.id, name: building.name, address: building.address },
+    decor: building.decor,
     floors: building.floors.map((floor) => {
       let layout = null
       if (floor.layoutJson) {

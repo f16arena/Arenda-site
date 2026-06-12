@@ -5,10 +5,51 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2 } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Sprout, Lamp, Armchair } from "lucide-react"
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, deleteBuildingDecor } from "@/app/actions/decor"
+
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number }
+
+/** Декоративная 3D-модель (дерево/куст/фонарь/скамейка) — чистая сцена. */
+function buildDecorModel(kind: string): THREE.Group {
+  const g = new THREE.Group()
+  const add = (m: THREE.Mesh) => { m.castShadow = true; g.add(m) }
+  if (kind === "bush") {
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.8, 12, 10), new THREE.MeshStandardMaterial({ color: 0x3f8f3f }))
+    bush.position.y = 0.6; bush.scale.y = 0.7; add(bush)
+  } else if (kind === "lamp") {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.4, 8), new THREE.MeshStandardMaterial({ color: 0x64748b }))
+    pole.position.y = 1.7; add(pole)
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), new THREE.MeshStandardMaterial({ color: 0xfff3c4, emissive: 0xfde68a, emissiveIntensity: 0.6 }))
+    head.position.y = 3.5; add(head)
+  } else if (kind === "bench") {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(2, 0.12, 0.6), new THREE.MeshStandardMaterial({ color: 0x9a6a3a }))
+    seat.position.y = 0.5; add(seat)
+    const back = new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 0.1), new THREE.MeshStandardMaterial({ color: 0x9a6a3a }))
+    back.position.set(0, 0.8, -0.25); add(back)
+    for (const x of [-0.85, 0.85]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0x6b7280 }))
+      leg.position.set(x, 0.25, 0); add(leg)
+    }
+  } else {
+    // tree
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }))
+    trunk.position.y = 0.7; add(trunk)
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(1.1, 12, 10), new THREE.MeshStandardMaterial({ color: 0x2e7d32 }))
+    crown.position.y = 2; add(crown)
+  }
+  return g
+}
+
+const DECOR_PALETTE: Array<{ kind: string; label: string; Icon: typeof Trees }> = [
+  { kind: "tree", label: "Дерево", Icon: Trees },
+  { kind: "bush", label: "Куст", Icon: Sprout },
+  { kind: "lamp", label: "Фонарь", Icon: Lamp },
+  { kind: "bench", label: "Скамейка", Icon: Armchair },
+]
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { type SpaceInfo, STATUS_FILL, detectStatus } from "@/components/floor/floor-view"
 import {
@@ -112,11 +153,17 @@ function buildObjectModel(name: string, statusHex: string): THREE.Group {
 }
 
 export default function Building3D({
+  buildingId,
   buildingName,
   floors,
+  decor = [],
+  onDecorChanged,
 }: {
+  buildingId?: string
   buildingName: string
   floors: BuildingFloor3D[]
+  decor?: Decor3D[]
+  onDecorChanged?: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   // "all" — всё здание; иначе id активного этажа/территории (срез)
@@ -126,8 +173,10 @@ export default function Building3D({
   const [editMode, setEditMode] = useState(false)
   const editModeRef = useRef(editMode)
   useEffect(() => { editModeRef.current = editMode }, [editMode])
+  const [selectedDecorId, setSelectedDecorId] = useState<string | null>(null)
   const wallMaterialsRef = useRef<Map<string, THREE.MeshStandardMaterial>>(new Map())
   const objectModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
+  const decorModelsRef = useRef<Map<string, THREE.Object3D>>(new Map())
   const cameraStateRef = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
   // Обычные этажи — стопкой; крыши — площадкой поверх здания; территории — рядом.
@@ -233,6 +282,8 @@ export default function Building3D({
     wallMaterials.clear()
     const objectModels = objectModelsRef.current
     objectModels.clear()
+    const decorModels = decorModelsRef.current
+    decorModels.clear()
 
     const slabMat = new THREE.MeshStandardMaterial({ color: 0xe7e5e4 })
 
@@ -388,6 +439,17 @@ export default function Building3D({
       offsetX += tw + 3
     }
 
+    // ── Декор (деревья/кусты/фонари/скамейки) — на земле вокруг здания ──
+    for (const d of decor) {
+      const model = buildDecorModel(d.kind)
+      model.position.set(d.x, 0, d.z)
+      model.rotation.y = ((d.rot ?? 0) * Math.PI) / 180
+      model.traverse((o) => { o.userData.decorId = d.id })
+      decorModels.set(d.id, model)
+      scene.add(model)
+      clickable.push(model)
+    }
+
     // ── Клик по комнате / перетаскивание объекта (режим расстановки) ──
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
@@ -400,10 +462,10 @@ export default function Building3D({
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1)
     }
-    // Поднимается вверх по дереву до модели объекта (у неё userData.spaceId).
+    // Поднимается вверх по дереву до модели объекта/декора (spaceId или decorId).
     const findObjectRoot = (o: THREE.Object3D | null): THREE.Object3D | null => {
       let t = o
-      while (t && !t.userData.spaceId) t = t.parent
+      while (t && !t.userData.spaceId && !t.userData.decorId) t = t.parent
       return t
     }
 
@@ -425,13 +487,18 @@ export default function Building3D({
       setPointer(e)
       raycaster.setFromCamera(pointer, camera)
       if (raycaster.ray.intersectPlane(dragPlane, dragPoint)) {
-        const cx = dragging.userData.zoneCx as number
-        const cz = dragging.userData.zoneCz as number
-        const hw = (dragging.userData.halfW as number) ?? 50
-        const hh = (dragging.userData.halfH as number) ?? 50
-        // Не выпускаем объект за границы зоны.
-        dragging.position.x = Math.max(cx - hw, Math.min(cx + hw, dragPoint.x))
-        dragging.position.z = Math.max(cz - hh, Math.min(cz + hh, dragPoint.z))
+        if (dragging.userData.decorId) {
+          // Декор — двигается свободно по земле, без границ зоны.
+          dragging.position.x = dragPoint.x
+          dragging.position.z = dragPoint.z
+        } else {
+          const cx = dragging.userData.zoneCx as number
+          const cz = dragging.userData.zoneCz as number
+          const hw = (dragging.userData.halfW as number) ?? 50
+          const hh = (dragging.userData.halfH as number) ?? 50
+          dragging.position.x = Math.max(cx - hw, Math.min(cx + hw, dragPoint.x))
+          dragging.position.z = Math.max(cz - hh, Math.min(cz + hh, dragPoint.z))
+        }
       }
     }
     const onUp = (e: PointerEvent) => {
@@ -439,9 +506,23 @@ export default function Building3D({
         const obj = dragging
         dragging = null
         controls.enabled = true
+        const moved = downAt ? Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) : 0
+        // Декор: выделяем и сохраняем мировую позицию.
+        if (obj.userData.decorId) {
+          const decorId = obj.userData.decorId as string
+          setSelectedDecorId(decorId)
+          setSelected(null)
+          if (moved <= 5) return
+          const dx = Math.round(obj.position.x * 100) / 100
+          const dz = Math.round(obj.position.z * 100) / 100
+          void setDecorPosition(decorId, dx, dz)
+            .then(() => toast.success("Позиция сохранена"))
+            .catch(() => toast.error("Не удалось сохранить позицию"))
+          return
+        }
         // Выделяем объект — чтобы показать панель «Повернуть/Удалить».
         setSelected({ floorId: obj.userData.floorId as string, elId: obj.userData.elId as string })
-        const moved = downAt ? Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) : 0
+        setSelectedDecorId(null)
         if (moved <= 5) return // это клик, не перетаскивание — позиция не менялась
         const spaceId = obj.userData.spaceId as string
         const offX = Math.round((obj.position.x - (obj.userData.zoneCx as number)) * 100) / 100
@@ -498,7 +579,7 @@ export default function Building3D({
       container.innerHTML = ""
       wallMaterials.clear()
     }
-  }, [regular, roofs, territories, active])
+  }, [regular, roofs, territories, decor, active])
 
   // Подсветка выбранной комнаты
   useEffect(() => {
@@ -532,6 +613,31 @@ export default function Building3D({
       .catch(() => toast.error("Не удалось удалить"))
   }
 
+  // Декор спавнится перед зданием (по глубине обычных этажей), потом перетаскивается.
+  const footprintDepth = useMemo(
+    () => Math.max(20, ...regular.map((f) => f.layout?.height ?? 20)),
+    [regular],
+  )
+  const addDecor = (kind: string) => {
+    if (!buildingId) return
+    void addBuildingDecor(buildingId, kind, 0, footprintDepth / 2 + 5)
+      .then(() => { toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось добавить"))
+  }
+  const rotateSelectedDecor = () => {
+    if (!selectedDecorId) return
+    const model = decorModelsRef.current.get(selectedDecorId)
+    if (!model) return
+    model.rotation.y += Math.PI / 4
+    void setDecorRotation(selectedDecorId, Math.round((model.rotation.y * 180) / Math.PI)).catch(() => toast.error("Не удалось сохранить поворот"))
+  }
+  const deleteSelectedDecor = () => {
+    if (!selectedDecorId) return
+    void deleteBuildingDecor(selectedDecorId)
+      .then(() => { toast.success("Декор удалён"); setSelectedDecorId(null); onDecorChanged?.() })
+      .catch(() => toast.error("Не удалось удалить"))
+  }
+
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <div ref={containerRef} className="absolute inset-0" />
@@ -539,7 +645,7 @@ export default function Building3D({
       {/* Режим расстановки объектов (перетаскивание мышью) */}
       <button
         type="button"
-        onClick={() => { setEditMode((v) => !v); setSelected(null) }}
+        onClick={() => { setEditMode((v) => !v); setSelected(null); setSelectedDecorId(null) }}
         className={`absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium shadow-lg backdrop-blur transition-colors ${
           editMode
             ? "border-emerald-500 bg-emerald-600 text-white"
@@ -551,8 +657,49 @@ export default function Building3D({
         {editMode ? "Готово" : "Расставить объекты"}
       </button>
       {editMode && (
-        <div className="absolute right-3 top-14 z-10 max-w-[220px] rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] text-emerald-800 shadow backdrop-blur dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
-          Тащите объект (антенну, машину, щит) мышью — позиция сохранится автоматически.
+        <div className="absolute right-3 top-14 z-10 w-56 space-y-2">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/95 px-3 py-2 text-[11px] text-emerald-800 shadow backdrop-blur dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+            Тащите объект или декор мышью — позиция сохранится автоматически.
+          </div>
+          {buildingId && (
+            <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Добавить декор</p>
+              <div className="grid grid-cols-2 gap-1">
+                {DECOR_PALETTE.map(({ kind, label, Icon }) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => addDecor(kind)}
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {selectedDecorId && (
+            <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Выбранный декор</p>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={rotateSelectedDecor}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <RotateCw className="h-3.5 w-3.5" /> Повернуть
+                </button>
+                <button
+                  type="button"
+                  onClick={deleteSelectedDecor}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Удалить
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

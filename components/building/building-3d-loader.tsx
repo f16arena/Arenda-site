@@ -17,8 +17,11 @@ const Building3D = dynamic(() => import("./building-3d"), {
   ),
 })
 
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number }
+
 type ApiPayload = {
   building: { id: string; name: string; address: string }
+  decor?: Decor3D[]
   floors: Array<{
     id: string
     name: string
@@ -35,10 +38,11 @@ type ApiPayload = {
 type State =
   | { loading: true; error: null; data: null }
   | { loading: false; error: string; data: null }
-  | { loading: false; error: null; data: { buildingName: string; floors: BuildingFloor3D[] } }
+  | { loading: false; error: null; data: { buildingName: string; floors: BuildingFloor3D[]; decor: Decor3D[] } }
 
 export function Building3DLoader({ buildingId }: { buildingId: string }) {
   const [state, setState] = useState<State>({ loading: true, error: null, data: null })
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -60,7 +64,7 @@ export function Building3DLoader({ buildingId }: { buildingId: string }) {
               : null,
           })),
         }))
-        setState({ loading: false, error: null, data: { buildingName: payload.building.name, floors } })
+        setState({ loading: false, error: null, data: { buildingName: payload.building.name, floors, decor: payload.decor ?? [] } })
       })
       .catch((error) => {
         if (controller.signal.aborted) return
@@ -71,7 +75,7 @@ export function Building3DLoader({ buildingId }: { buildingId: string }) {
         })
       })
     return () => controller.abort()
-  }, [buildingId])
+  }, [buildingId, reloadKey])
 
   if (state.loading) {
     return (
@@ -89,5 +93,13 @@ export function Building3DLoader({ buildingId }: { buildingId: string }) {
     )
   }
 
-  return <Building3D buildingName={state.data.buildingName} floors={state.data.floors} />
+  return (
+    <Building3D
+      buildingId={buildingId}
+      buildingName={state.data.buildingName}
+      floors={state.data.floors}
+      decor={state.data.decor}
+      onDecorChanged={() => setReloadKey((k) => k + 1)}
+    />
+  )
 }

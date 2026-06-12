@@ -505,12 +505,31 @@ model Building {
   userAccess        UserBuildingAccess[]
   storedFiles       StoredFile[]
   directTenants     Tenant[]             @relation("BuildingDirectTenants")
+  decor             BuildingDecor[]
 
   @@index([organizationId])
   @@index([organizationId, isActive])
   @@index([organizationId, addressCity])
   @@index([organizationId, addressStreet])
   @@map("buildings")
+}
+
+// Декор территории/крыши: деревья, кусты, фонари, скамейки — чистая сцена,
+// не сдаётся в аренду (в отличие от Space kind=OBJECT). Позиция (x,z) в метрах
+// в мировых координатах сцены (центр здания = 0,0), rot — градусы.
+model BuildingDecor {
+  id         String   @id @default(cuid())
+  buildingId String   @map("building_id")
+  kind       String // tree | bush | lamp | bench
+  x          Float    @default(0)
+  z          Float    @default(0)
+  rot        Float    @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@index([buildingId])
+  @@map("building_decor")
 }
 
 model UserBuildingAccess {
