@@ -15,7 +15,7 @@ const DECOR_KINDS = new Set([
   "table", "chair", "cabinet",
 ])
 // Семейства с вариантами: floor-*, wall-*, door-*, fence-*, column-*.
-const DECOR_PREFIXES = ["floor-", "wall-", "door-", "fence-", "column-"]
+const DECOR_PREFIXES = ["floor-", "wall-", "door-", "fence-", "column-", "stairs-"]
 function isValidKind(kind: string): boolean {
   return DECOR_KINDS.has(kind) || DECOR_PREFIXES.some((p) => kind.startsWith(p))
 }

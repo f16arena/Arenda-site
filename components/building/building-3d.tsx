@@ -5,7 +5,7 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus, Scissors } from "lucide-react"
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
@@ -27,8 +27,12 @@ const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label
   ] },
   { title: "Двери / опоры", items: [
     { kind: "door-wood", label: "Дверь дерев." }, { kind: "door-plastic", label: "Дверь пласт." },
-    { kind: "door-metal", label: "Дверь метал." }, { kind: "stairs", label: "Лестница" },
+    { kind: "door-metal", label: "Дверь метал." },
     { kind: "column-square", label: "Колонна □" }, { kind: "column-round", label: "Колонна ○" },
+  ] },
+  { title: "Лестницы / крыльцо", items: [
+    { kind: "stairs-straight", label: "Ровная" }, { kind: "stairs-turn", label: "Поворотная" },
+    { kind: "stairs-step2", label: "2 ступени" }, { kind: "stairs-step3", label: "3 ступени" },
   ] },
   { title: "Сантехника / тепло", items: [
     { kind: "toilet", label: "Унитаз" }, { kind: "urinal", label: "Писсуар" },
@@ -93,6 +97,27 @@ function buildDecorModel(kind: string): THREE.Group {
     const round = kind.endsWith("round")
     const geo = round ? new THREE.CylinderGeometry(0.3, 0.3, 3, 16) : new THREE.BoxGeometry(0.5, 3, 0.5)
     const col = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xe5e7eb })); col.position.y = 1.5; add(col)
+    return g
+  }
+  if (kind.startsWith("stairs-")) {
+    const mat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1 })
+    const variant = kind.slice(7)
+    const step = (w: number, x: number, y: number, z: number, depth = 0.4) => {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, depth), mat); s.position.set(x, y, z); add(s)
+    }
+    if (variant === "step2") {
+      for (let i = 0; i < 2; i++) step(1.6, 0, 0.125 + i * 0.25, -i * 0.4)
+    } else if (variant === "step3") {
+      for (let i = 0; i < 3; i++) step(1.6, 0, 0.125 + i * 0.25, -i * 0.4)
+    } else if (variant === "turn") {
+      // Поворотная: 3 ступени прямо, площадка, 3 ступени вбок.
+      for (let i = 0; i < 3; i++) step(1.4, 0, 0.125 + i * 0.25, -i * 0.4)
+      const land = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.25, 1.4), mat); land.position.set(0, 0.875, -1.4); add(land)
+      for (let i = 0; i < 3; i++) step(0.4, 0.5 + i * 0.4, 1.125 + i * 0.25, -1.4, 1.4)
+    } else {
+      // straight (по умолчанию) — 6 ступеней.
+      for (let i = 0; i < 6; i++) step(1.4, 0, 0.125 + i * 0.25, -i * 0.4)
+    }
     return g
   }
 
@@ -361,6 +386,8 @@ export default function Building3D({
   const containerRef = useRef<HTMLDivElement>(null)
   // "all" — всё здание; иначе id активного этажа/территории (срез)
   const [active, setActive] = useState<string>("all")
+  // «Кукольный домик»: снять крышу и смотреть в верхний этаж сверху (стены остаются).
+  const [roofOff, setRoofOff] = useState(false)
   const [selected, setSelected] = useState<{ floorId: string; elId: string } | null>(null)
   // Режим расстановки: объекты можно таскать мышью по земле/крыше.
   const [editMode, setEditMode] = useState(false)
@@ -606,7 +633,8 @@ export default function Building3D({
     const roofW = topFloor ? (topFloor.layout ? dims(topFloor).w : maxW) : maxW
     const roofH = topFloor ? (topFloor.layout ? dims(topFloor).h : maxH) : maxH
     const hasTop = aboveground.length > 0 || roofs.length > 0
-    if (!cutaway && hasTop) {
+    // Снятая крыша (roofOff) — смотрим в верхний этаж сверху, стены остаются.
+    if (!cutaway && hasTop && !roofOff) {
       // Плита кровли
       const roof = new THREE.Mesh(
         new THREE.BoxGeometry(roofW + 0.8, SLAB, roofH + 0.8),
@@ -908,7 +936,7 @@ export default function Building3D({
       container.innerHTML = ""
       wallMaterials.clear()
     }
-  }, [regular, roofs, territories, decor, active])
+  }, [regular, roofs, territories, decor, active, roofOff])
 
   // Подсветка выбранной комнаты
   useEffect(() => {
@@ -1123,6 +1151,21 @@ export default function Building3D({
           label="Здание целиком"
           onClick={() => { setActive("all"); setSelected(null) }}
         />
+        {active === "all" && (
+          <button
+            type="button"
+            onClick={() => setRoofOff((v) => !v)}
+            title="Снять крышу и смотреть в верхний этаж сверху — стены остаются"
+            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              roofOff
+                ? "border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            }`}
+          >
+            <Scissors className="h-3.5 w-3.5" />
+            {roofOff ? "Крыша снята" : "Снять крышу"}
+          </button>
+        )}
         {roofs.map((r) => (
           <FloorButton
             key={r.id}
