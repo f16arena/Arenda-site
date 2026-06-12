@@ -3,7 +3,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { updateBuilding, updateFloor, updateEmergencyContact, addEmergencyContact, deleteEmergencyContact } from "@/app/actions/building"
 import { createTariff, updateTariff, deleteTariff } from "@/app/actions/tariffs"
-import { ArrowRight, Building2, CreditCard, FileText, Landmark, Layers, Phone, Plus, UserCircle, Zap } from "lucide-react"
+import { ArrowRight, Building2, CreditCard, FileText, Landmark, Layers, Phone, Plus, UserCircle, Zap, Settings as SettingsIcon } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -19,6 +19,7 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page"
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -67,10 +68,7 @@ export default async function SettingsPage() {
   if (!building) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Настройки</h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Реквизиты организации и параметры объектов</p>
-        </div>
+        <PageHeader icon={SettingsIcon} title="Настройки" subtitle="Реквизиты организации и параметры объектов" />
         <SettingsSourceMap buildingName={null} />
         {organization && (
           <section id="organization-requisites">
@@ -97,10 +95,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Настройки объекта</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Управление информацией о бизнес-центре</p>
-      </div>
+      <PageHeader icon={SettingsIcon} title="Настройки объекта" subtitle="Управление информацией о бизнес-центре" />
 
       <SettingsSourceMap buildingName={building.name} />
 

@@ -28,6 +28,7 @@ import { AddonsSection } from "./addons-section"
 import { ServicesSection } from "./services-section"
 import { addonsForPlan } from "@/lib/addons-catalog"
 import { servicesForPlan } from "@/lib/services-catalog"
+import { PageHeader } from "@/components/ui/page"
 
 export default async function SubscriptionPage() {
   // Доступ даже для suspended-организаций: они должны иметь возможность
@@ -104,21 +105,18 @@ export default async function SubscriptionPage() {
 
   return (
     <div className="max-w-6xl space-y-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10">
-            <Package className="h-5 w-5 text-purple-300" />
+      <PageHeader
+        icon={Package}
+        tone="violet"
+        title="Подписка и возможности"
+        subtitle={org.name}
+        actions={
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Включено функций</p>
+            <p className="mt-1 text-2xl font-bold text-slate-100">{enabledCount} / {totalFeatureCount}</p>
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Подписка и возможности</h1>
-            <p className="mt-0.5 text-sm text-slate-400">{org.name}</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Включено функций</p>
-          <p className="mt-1 text-2xl font-bold text-slate-100">{enabledCount} / {totalFeatureCount}</p>
-        </div>
-      </div>
+        }
+      />
 
       {isSuspended && (
         <div className="rounded-xl border-2 border-red-500/50 bg-red-500/20 px-5 py-4 text-sm">

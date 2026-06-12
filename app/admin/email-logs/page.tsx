@@ -7,6 +7,7 @@ import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { emailLogScope } from "@/lib/tenant-scope"
 import { PaginationControls } from "@/components/ui/pagination-controls"
+import { PageHeader } from "@/components/ui/page"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import {
   Mail, CheckCircle, XCircle, Clock, Eye,
@@ -89,16 +90,16 @@ export default async function EmailLogsPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          <Mail className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-          Журнал email-отправок
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          {total} писем · {sentCount} доставлено · {openedCount} открыто
-          {failedCount > 0 && <span className="text-red-600 dark:text-red-400"> · {failedCount} с ошибкой</span>}
-        </p>
-      </div>
+      <PageHeader
+        icon={Mail}
+        title="Журнал email-отправок"
+        subtitle={
+          <>
+            {total} писем · {sentCount} доставлено · {openedCount} открыто
+            {failedCount > 0 && <span className="text-red-600 dark:text-red-400"> · {failedCount} с ошибкой</span>}
+          </>
+        }
+      />
 
       {/* Фильтры */}
       <div className="flex flex-wrap gap-2">

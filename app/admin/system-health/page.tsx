@@ -21,6 +21,7 @@ import {
   type SystemCheckStatus,
 } from "@/lib/system-health"
 import { getReleaseInfo } from "@/lib/release"
+import { PageHeader } from "@/components/ui/page"
 
 const statusMeta: Record<SystemCheckStatus, {
   label: string
@@ -65,36 +66,30 @@ export default async function SystemHealthPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Проверка системы</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Production readiness: база, миграции, env, cron, email, sitemap и журнал ошибок.
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/api/health"
-            target="_blank"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/60"
-          >
-            <ExternalLink className="h-4 w-4" />
-            JSON
-          </Link>
-          <Link
-            href="/admin/system-health"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Обновить
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        icon={ShieldCheck}
+        title="Проверка системы"
+        subtitle="Production readiness: база, миграции, env, cron, email, sitemap и журнал ошибок."
+        actions={
+          <>
+            <Link
+              href="/api/health"
+              target="_blank"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/60"
+            >
+              <ExternalLink className="h-4 w-4" />
+              JSON
+            </Link>
+            <Link
+              href="/admin/system-health"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Обновить
+            </Link>
+          </>
+        }
+      />
 
       <section className={`rounded-xl border bg-white p-5 dark:bg-slate-900 ${statusMeta[summary.status].border}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

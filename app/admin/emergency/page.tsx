@@ -6,6 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
+import { PageHeader } from "@/components/ui/page"
 
 const categoryLabel: Record<string, string> = {
   WATER: "Водоканал",
@@ -42,16 +43,18 @@ export default async function EmergencyPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Экстренные контакты</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{contacts.length} контактов</p>
-        </div>
-        <button className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-          <Plus className="h-4 w-4" />
-          Добавить
-        </button>
-      </div>
+      <PageHeader
+        icon={Phone}
+        tone="red"
+        title="Экстренные контакты"
+        subtitle={`${contacts.length} контактов`}
+        actions={
+          <button className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            <Plus className="h-4 w-4" />
+            Добавить
+          </button>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         {contacts.map((c) => (

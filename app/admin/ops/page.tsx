@@ -17,6 +17,8 @@ import {
 import { db } from "@/lib/db"
 import { requireSection } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
+import { PageHeader } from "@/components/ui/page"
+import { Sun } from "lucide-react"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
@@ -216,12 +218,12 @@ export default async function AdminOpsPage() {
 
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">Сегодня</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Операционный экран администратора: деньги, документы, заявки, задачи и качество данных.
-          </p>
-        </div>
+        <PageHeader
+          icon={Sun}
+          tone="amber"
+          title="Сегодня"
+          subtitle="Операционный экран администратора: деньги, документы, заявки, задачи и качество данных."
+        />
 
         <AdminQuickActions />
 
