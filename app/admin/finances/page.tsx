@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { FileSpreadsheet, ShieldCheck, Upload, Wallet } from "lucide-react"
+import { FileSpreadsheet, ShieldCheck, Upload, Wallet, CircleCheck, TrendingDown } from "lucide-react"
 import Link from "next/link"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
@@ -16,7 +16,7 @@ import { DataTable } from "@/components/ui/data-table"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
-import { PageHeader } from "@/components/ui/page"
+import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 import { deleteExpense } from "@/app/actions/finance"
 import { requireOrgAccess } from "@/lib/org"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
@@ -318,6 +318,9 @@ async function renderFinancesPage({
   const paidCharges = paidChargesAggregate._sum.amount ?? 0
   const unpaidCharges = unpaidChargesAggregate._sum.amount ?? 0
   const totalExpenses = expensesAggregate._sum.amount ?? 0
+  // Собираемость: оплачено / (оплачено + долг) — не зависит от фильтра по типу.
+  const billedForRate = paidCharges + unpaidCharges
+  const collectionRate = billedForRate > 0 ? Math.round((paidCharges / billedForRate) * 100) : 0
   const totalChargeCount = chargesAggregate._count._all
   const totalExpenseCount = expensesAggregate._count._all
   const dialogTenantOptions = dialogCharges
@@ -401,24 +404,28 @@ async function renderFinancesPage({
       <PaymentReportsPanel reports={paymentReports} cashAccounts={cashAccounts} />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: "Начислено", value: formatMoney(totalCharges), sub: "за месяц", color: "text-slate-900 dark:text-slate-100" },
-          { label: "Оплачено", value: formatMoney(paidCharges), sub: "получено", color: "text-emerald-600 dark:text-emerald-400" },
-          { label: "Долг", value: formatMoney(unpaidCharges), sub: "не оплачено", color: "text-red-600 dark:text-red-400" },
-          { label: "Расходы", value: formatMoney(totalExpenses), sub: "в этом месяце", color: "text-orange-600 dark:text-orange-400" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{s.label}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{s.sub}</p>
-          </div>
-        ))}
-      </div>
+      <StatGrid>
+        <StatCard icon={FileSpreadsheet} label="Начислено" value={formatMoney(totalCharges)} sub="за месяц" tone="blue" />
+        <StatCard
+          icon={CircleCheck}
+          label="Оплачено"
+          value={formatMoney(paidCharges)}
+          sub={`собираемость ${collectionRate}%`}
+          tone="emerald"
+        />
+        <StatCard
+          icon={Wallet}
+          label="Долг"
+          value={formatMoney(unpaidCharges)}
+          sub="не оплачено"
+          tone={unpaidCharges > 0 ? "red" : "slate"}
+        />
+        <StatCard icon={TrendingDown} label="Расходы" value={formatMoney(totalExpenses)} sub="в этом месяце" tone="amber" />
+      </StatGrid>
 
       <div className="grid grid-cols-2 gap-5">
         {/* Charges */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <Card padded={false}>
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления за {formatPeriod(currentPeriod)}</h2>
             <div className="flex flex-wrap items-center gap-2">
@@ -508,13 +515,10 @@ async function renderFinancesPage({
               tenantId: selectedTenantId || null,
             }}
           />
-        </div>
+        </Card>
 
         {/* Payments */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние оплаты</h2>
-          </div>
+        <Card padded={false} title="Последние оплаты">
           {payments.length === 0 ? (
             <EmptyState
               icon={<Wallet className="h-5 w-5" />}
@@ -536,15 +540,15 @@ async function renderFinancesPage({
               }))}
             />
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Expenses */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Расходы</h2>
-          <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
-        </div>
+      <Card
+        padded={false}
+        title="Расходы"
+        actions={<ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />}
+      >
         <DataTable density="compact" className="min-w-[640px]">
           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
             <tr className="border-b border-slate-100 dark:border-slate-800">
@@ -600,7 +604,7 @@ async function renderFinancesPage({
           pageParam="expensesPage"
           params={{ chargesPage: chargesPage > 1 ? chargesPage : null }}
         />
-      </div>
+      </Card>
     </div>
   )
 }
