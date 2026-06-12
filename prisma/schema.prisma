@@ -520,10 +520,12 @@ model Building {
 model BuildingDecor {
   id         String   @id @default(cuid())
   buildingId String   @map("building_id")
-  kind       String // tree | bush | lamp | bench
+  kind       String // tree | bush | lamp | bench | hvac | vent | tank
   x          Float    @default(0)
   z          Float    @default(0)
   rot        Float    @default(0)
+  // true — элемент стоит на крыше (оборудование/зелень), иначе на земле.
+  onRoof     Boolean  @default(false) @map("on_roof")
   createdAt  DateTime @default(now()) @map("created_at")
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)

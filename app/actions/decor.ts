@@ -6,7 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 
-const DECOR_KINDS = new Set(["tree", "bush", "lamp", "bench"])
+const DECOR_KINDS = new Set(["tree", "bush", "lamp", "bench", "hvac", "vent", "tank"])
 
 async function assertDecorBuilding(decorId: string, orgId: string) {
   const decor = await db.buildingDecor.findUnique({ where: { id: decorId }, select: { buildingId: true } })
@@ -15,8 +15,8 @@ async function assertDecorBuilding(decorId: string, orgId: string) {
   return decor.buildingId
 }
 
-/** Добавить элемент декора в здание (спавн-точку задаёт 3D — перед зданием). */
-export async function addBuildingDecor(buildingId: string, kind: string, x = 0, z = 0) {
+/** Добавить элемент декора в здание (спавн-точку задаёт 3D — перед зданием/на крыше). */
+export async function addBuildingDecor(buildingId: string, kind: string, x = 0, z = 0, onRoof = false) {
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -28,6 +28,7 @@ export async function addBuildingDecor(buildingId: string, kind: string, x = 0, 
       x: Number.isFinite(x) ? x : 0,
       z: Number.isFinite(z) ? z : 0,
       rot: 0,
+      onRoof: !!onRoof,
     },
   })
   revalidatePath("/admin/buildings")

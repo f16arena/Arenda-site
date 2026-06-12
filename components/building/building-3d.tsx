@@ -11,7 +11,7 @@ import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
 import { addBuildingDecor, setDecorPosition, setDecorRotation, deleteBuildingDecor } from "@/app/actions/decor"
 
-export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number }
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; onRoof?: boolean }
 
 /** Декоративная 3D-модель (дерево/куст/фонарь/скамейка) — чистая сцена. */
 function buildDecorModel(kind: string): THREE.Group {
@@ -34,6 +34,24 @@ function buildDecorModel(kind: string): THREE.Group {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: 0x6b7280 }))
       leg.position.set(x, 0.25, 0); add(leg)
     }
+  } else if (kind === "hvac") {
+    // Кондиционер/чиллер — короб с решёткой и вентилятором
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 1.2), new THREE.MeshStandardMaterial({ color: 0xcbd5e1 }))
+    box.position.y = 0.55; add(box)
+    const fan = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.1, 16), new THREE.MeshStandardMaterial({ color: 0x475569 }))
+    fan.position.set(0, 1.12, 0); add(fan)
+  } else if (kind === "vent") {
+    // Вентиляционная шахта/дефлектор
+    const duct = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 1.2, 12), new THREE.MeshStandardMaterial({ color: 0x9ca3af }))
+    duct.position.y = 0.6; add(duct)
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.4, 0.3, 12), new THREE.MeshStandardMaterial({ color: 0x6b7280 }))
+    cap.position.y = 1.3; add(cap)
+  } else if (kind === "tank") {
+    // Водяной/расширительный бак
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.8, 16), new THREE.MeshStandardMaterial({ color: 0x93c5fd }))
+    body.position.y = 0.9; add(body)
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x93c5fd }))
+    top.position.y = 1.8; add(top)
   } else {
     // tree
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }))
@@ -49,6 +67,12 @@ const DECOR_PALETTE: Array<{ kind: string; label: string; Icon: typeof Trees }> 
   { kind: "bush", label: "Куст", Icon: Sprout },
   { kind: "lamp", label: "Фонарь", Icon: Lamp },
   { kind: "bench", label: "Скамейка", Icon: Armchair },
+]
+const ROOF_PALETTE: Array<{ kind: string; label: string; Icon: typeof Trees }> = [
+  { kind: "hvac", label: "Кондиционер", Icon: BoxIcon },
+  { kind: "vent", label: "Вентиляция", Icon: BoxIcon },
+  { kind: "tank", label: "Бак", Icon: BoxIcon },
+  { kind: "tree", label: "Зелень", Icon: Trees },
 ]
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { type SpaceInfo, STATUS_FILL, detectStatus } from "@/components/floor/floor-view"
@@ -501,10 +525,11 @@ export default function Building3D({
       offsetX += tw + 3
     })
 
-    // ── Декор (деревья/кусты/фонари/скамейки) — на земле вокруг здания ──
+    // ── Декор: на земле вокруг здания или на крыше (оборудование/зелень) ──
     for (const d of decor) {
       const model = buildDecorModel(d.kind)
-      model.position.set(d.x, 0, d.z)
+      const decorY = d.onRoof ? buildingTop : 0
+      model.position.set(d.x, decorY, d.z)
       model.rotation.y = ((d.rot ?? 0) * Math.PI) / 180
       model.traverse((o) => { o.userData.decorId = d.id })
       decorModels.set(d.id, model)
@@ -682,14 +707,14 @@ export default function Building3D({
     () => Math.max(20, ...regular.map((f) => f.layout?.height ?? 20)),
     [regular],
   )
-  const addDecor = (kind: string) => {
+  const addDecor = (kind: string, onRoof = false) => {
     if (!buildingId) return
     // Разносим спавн, чтобы новые элементы не ставились друг на друга.
     const n = decor.length
     const spawnX = ((n % 5) - 2) * 2.5
-    const spawnZ = footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5
-    void addBuildingDecor(buildingId, kind, spawnX, spawnZ)
-      .then(() => { toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
+    const spawnZ = onRoof ? ((Math.floor(n / 5) % 3) - 1) * 3 : footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5
+    void addBuildingDecor(buildingId, kind, spawnX, spawnZ, onRoof)
+      .then(() => { toast.success(onRoof ? "Добавлено на крышу — перетащите" : "Добавлено — перетащите на место"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось добавить"))
   }
   const rotateSelectedDecor = () => {
@@ -731,16 +756,30 @@ export default function Building3D({
           </div>
           {buildingId && (
             <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
-              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Добавить декор</p>
+              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Декор на земле</p>
               <div className="grid grid-cols-2 gap-1">
                 {DECOR_PALETTE.map(({ kind, label, Icon }) => (
                   <button
                     key={kind}
                     type="button"
-                    onClick={() => addDecor(kind)}
+                    onClick={() => addDecor(kind, false)}
                     className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     <Icon className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">На крышу</p>
+              <div className="grid grid-cols-2 gap-1">
+                {ROOF_PALETTE.map(({ kind, label, Icon }) => (
+                  <button
+                    key={`roof-${kind}`}
+                    type="button"
+                    onClick={() => addDecor(kind, true)}
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
                     {label}
                   </button>
                 ))}
