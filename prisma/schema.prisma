@@ -520,11 +520,14 @@ model Building {
 model BuildingDecor {
   id         String   @id @default(cuid())
   buildingId String   @map("building_id")
-  kind       String // tree | bush | lamp | bench | hvac | vent | tank
+  kind       String // tree|bush|grass|flowerbed|wall|fence|gate|door|stairs|bench|lamp|bin|canopy|hvac|vent|tank|table|chair|cabinet
   x          Float    @default(0)
   z          Float    @default(0)
   rot        Float    @default(0)
-  // true — элемент стоит на крыше (оборудование/зелень), иначе на земле.
+  scale      Float    @default(1)
+  // Уровень: "ground" (земля/территория) | "roof" (крыша) | <floorId> (этаж).
+  level      String   @default("ground")
+  // Устаревшее: true — на крыше (мигрировано в level="roof").
   onRoof     Boolean  @default(false) @map("on_roof")
   createdAt  DateTime @default(now()) @map("created_at")
 

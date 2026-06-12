@@ -6,7 +6,13 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 
-const DECOR_KINDS = new Set(["tree", "bush", "lamp", "bench", "hvac", "vent", "tank"])
+const DECOR_KINDS = new Set([
+  "tree", "bush", "grass", "flowerbed",
+  "wall", "fence", "gate", "door", "stairs",
+  "bench", "lamp", "bin", "canopy",
+  "hvac", "vent", "tank",
+  "table", "chair", "cabinet",
+])
 
 async function assertDecorBuilding(decorId: string, orgId: string) {
   const decor = await db.buildingDecor.findUnique({ where: { id: decorId }, select: { buildingId: true } })
@@ -15,12 +21,13 @@ async function assertDecorBuilding(decorId: string, orgId: string) {
   return decor.buildingId
 }
 
-/** Добавить элемент декора в здание (спавн-точку задаёт 3D — перед зданием/на крыше). */
-export async function addBuildingDecor(buildingId: string, kind: string, x = 0, z = 0, onRoof = false) {
+/** Добавить предмет в здание на уровень (ground/roof/<floorId>). Спавн задаёт 3D. */
+export async function addBuildingDecor(buildingId: string, kind: string, x = 0, z = 0, level = "ground") {
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
   const k = DECOR_KINDS.has(kind) ? kind : "tree"
+  const lvl = typeof level === "string" && level.trim() ? level.trim().slice(0, 64) : "ground"
   const decor = await db.buildingDecor.create({
     data: {
       buildingId,
@@ -28,11 +35,23 @@ export async function addBuildingDecor(buildingId: string, kind: string, x = 0, 
       x: Number.isFinite(x) ? x : 0,
       z: Number.isFinite(z) ? z : 0,
       rot: 0,
-      onRoof: !!onRoof,
+      scale: 1,
+      level: lvl,
+      onRoof: lvl === "roof",
     },
   })
   revalidatePath("/admin/buildings")
   return { id: decor.id }
+}
+
+/** Изменить масштаб предмета (0.3–5). */
+export async function setDecorScale(decorId: string, scale: number) {
+  await requireCapabilityAndFeature("spaces.edit")
+  const { orgId } = await requireOrgAccess()
+  await assertDecorBuilding(decorId, orgId)
+  const s = Number.isFinite(scale) ? Math.max(0.3, Math.min(5, scale)) : 1
+  await db.buildingDecor.update({ where: { id: decorId }, data: { scale: s } })
+  return { success: true }
 }
 
 export async function setDecorPosition(decorId: string, x: number, z: number) {

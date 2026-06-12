@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       id: true,
       name: true,
       address: true,
-      decor: { select: { id: true, kind: true, x: true, z: true, rot: true, onRoof: true } },
+      decor: { select: { id: true, kind: true, x: true, z: true, rot: true, scale: true, level: true, onRoof: true } },
       floors: {
         orderBy: { number: "asc" },
         select: {

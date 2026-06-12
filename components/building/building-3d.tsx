@@ -5,13 +5,38 @@ import Link from "next/link"
 import * as THREE from "three"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js"
-import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Sprout, Lamp, Armchair } from "lucide-react"
+import { X, Layers, Building2, Trees, Box as BoxIcon, Move, RotateCw, Trash2, Plus, Minus } from "lucide-react"
 import { toast } from "sonner"
 import { isObjectSpace } from "@/lib/zone-kinds"
 import { setObjectPosition, setObjectRotation, deleteSpace } from "@/app/actions/spaces"
-import { addBuildingDecor, setDecorPosition, setDecorRotation, deleteBuildingDecor } from "@/app/actions/decor"
+import { addBuildingDecor, setDecorPosition, setDecorRotation, setDecorScale, deleteBuildingDecor } from "@/app/actions/decor"
 
-export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; onRoof?: boolean }
+export type Decor3D = { id: string; kind: string; x: number; z: number; rot: number; scale?: number; level?: string; onRoof?: boolean }
+
+// Палитра строительного редактора по категориям.
+const ITEM_CATEGORIES: Array<{ title: string; items: Array<{ kind: string; label: string }> }> = [
+  { title: "Стройка", items: [
+    { kind: "wall", label: "Стена" }, { kind: "fence", label: "Забор" },
+    { kind: "gate", label: "Ворота" }, { kind: "door", label: "Дверь" },
+    { kind: "stairs", label: "Лестница" },
+  ] },
+  { title: "Природа", items: [
+    { kind: "tree", label: "Дерево" }, { kind: "bush", label: "Куст" },
+    { kind: "grass", label: "Газон" }, { kind: "flowerbed", label: "Клумба" },
+  ] },
+  { title: "Малые формы", items: [
+    { kind: "bench", label: "Скамейка" }, { kind: "lamp", label: "Фонарь" },
+    { kind: "bin", label: "Урна" }, { kind: "canopy", label: "Навес" },
+  ] },
+  { title: "Мебель", items: [
+    { kind: "table", label: "Стол" }, { kind: "chair", label: "Стул" },
+    { kind: "cabinet", label: "Шкаф" },
+  ] },
+  { title: "Крыша / тех", items: [
+    { kind: "hvac", label: "Кондиционер" }, { kind: "vent", label: "Вентиляция" },
+    { kind: "tank", label: "Бак" },
+  ] },
+]
 
 /** Декоративная 3D-модель (дерево/куст/фонарь/скамейка) — чистая сцена. */
 function buildDecorModel(kind: string): THREE.Group {
@@ -52,6 +77,77 @@ function buildDecorModel(kind: string): THREE.Group {
     body.position.y = 0.9; add(body)
     const top = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x93c5fd }))
     top.position.y = 1.8; add(top)
+  } else if (kind === "grass") {
+    const g2 = new THREE.Mesh(new THREE.BoxGeometry(4, 0.08, 4), new THREE.MeshStandardMaterial({ color: 0x6abf4b }))
+    g2.position.y = 0.04; g2.receiveShadow = true; g.add(g2)
+  } else if (kind === "flowerbed") {
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(2, 0.3, 1.2), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }))
+    bed.position.y = 0.15; add(bed)
+    const colors = [0xef4444, 0xf59e0b, 0xec4899, 0x8b5cf6]
+    for (let i = 0; i < 6; i++) {
+      const fl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshStandardMaterial({ color: colors[i % colors.length] }))
+      fl.position.set(-0.8 + (i % 3) * 0.8, 0.4, -0.3 + Math.floor(i / 3) * 0.6); add(fl)
+    }
+  } else if (kind === "wall") {
+    const w = new THREE.Mesh(new THREE.BoxGeometry(3, 2.6, 0.2), new THREE.MeshStandardMaterial({ color: 0xe5e7eb }))
+    w.position.y = 1.3; add(w)
+  } else if (kind === "fence") {
+    for (const x of [-1.3, -0.43, 0.43, 1.3]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.12), new THREE.MeshStandardMaterial({ color: 0x6b7280 }))
+      post.position.set(x, 0.6, 0); add(post)
+    }
+    for (const y of [0.4, 0.95]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(3, 0.1, 0.06), new THREE.MeshStandardMaterial({ color: 0x9ca3af }))
+      rail.position.set(0, y, 0); add(rail)
+    }
+  } else if (kind === "gate") {
+    for (const x of [-1.4, 1.4]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.2, 0.25), new THREE.MeshStandardMaterial({ color: 0x475569 }))
+      post.position.set(x, 1.1, 0); add(post)
+    }
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 0.2), new THREE.MeshStandardMaterial({ color: 0x64748b }))
+    bar.position.y = 2.1; add(bar)
+  } else if (kind === "door") {
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8 })
+    for (const x of [-0.55, 0.55]) {
+      const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.1, 0.2), frameMat)
+      jamb.position.set(x, 1.05, 0); add(jamb)
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.12, 0.2), frameMat)
+    lintel.position.y = 2.1; add(lintel)
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.95, 2, 0.06), new THREE.MeshStandardMaterial({ color: 0x9a6a3a }))
+    leaf.position.set(0, 1, 0); add(leaf)
+  } else if (kind === "stairs") {
+    const stepMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1 })
+    for (let i = 0; i < 6; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.25, 0.4), stepMat)
+      step.position.set(0, 0.125 + i * 0.25, -i * 0.4); add(step)
+    }
+  } else if (kind === "bin") {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.25, 0.8, 12), new THREE.MeshStandardMaterial({ color: 0x4b5563 }))
+    b.position.y = 0.4; add(b)
+  } else if (kind === "canopy") {
+    for (const [x, z] of [[-1.5, -1], [1.5, -1], [-1.5, 1], [1.5, 1]]) {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.4, 8), new THREE.MeshStandardMaterial({ color: 0x9ca3af }))
+      post.position.set(x, 1.2, z); add(post)
+    }
+    const top = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 2.6), new THREE.MeshStandardMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.7 }))
+    top.position.y = 2.45; add(top)
+  } else if (kind === "table") {
+    const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.8), new THREE.MeshStandardMaterial({ color: 0xb98a5a }))
+    top.position.y = 0.75; add(top)
+    for (const [x, z] of [[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.75, 0.08), new THREE.MeshStandardMaterial({ color: 0x6b7280 }))
+      leg.position.set(x, 0.375, z); add(leg)
+    }
+  } else if (kind === "chair") {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.5), new THREE.MeshStandardMaterial({ color: 0x6366f1 }))
+    seat.position.y = 0.45; add(seat)
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.08), new THREE.MeshStandardMaterial({ color: 0x6366f1 }))
+    back.position.set(0, 0.7, -0.21); add(back)
+  } else if (kind === "cabinet") {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(1, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0xa1887f }))
+    c.position.y = 0.9; add(c)
   } else {
     // tree
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 1.4, 8), new THREE.MeshStandardMaterial({ color: 0x8b5a2b }))
@@ -62,18 +158,6 @@ function buildDecorModel(kind: string): THREE.Group {
   return g
 }
 
-const DECOR_PALETTE: Array<{ kind: string; label: string; Icon: typeof Trees }> = [
-  { kind: "tree", label: "Дерево", Icon: Trees },
-  { kind: "bush", label: "Куст", Icon: Sprout },
-  { kind: "lamp", label: "Фонарь", Icon: Lamp },
-  { kind: "bench", label: "Скамейка", Icon: Armchair },
-]
-const ROOF_PALETTE: Array<{ kind: string; label: string; Icon: typeof Trees }> = [
-  { kind: "hvac", label: "Кондиционер", Icon: BoxIcon },
-  { kind: "vent", label: "Вентиляция", Icon: BoxIcon },
-  { kind: "tank", label: "Бак", Icon: BoxIcon },
-  { kind: "tree", label: "Зелень", Icon: Trees },
-]
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { type SpaceInfo, STATUS_FILL, detectStatus } from "@/components/floor/floor-view"
 import {
@@ -534,11 +618,24 @@ export default function Building3D({
       offsetX += tw + 3
     })
 
-    // ── Декор: на земле вокруг здания или на крыше (оборудование/зелень) ──
+    // ── Предметы строительного редактора: на земле/крыше/конкретном этаже ──
+    const levelY = (d: Decor3D): number => {
+      const lvl = d.level ?? (d.onRoof ? "roof" : "ground")
+      if (lvl === "roof") return buildingTop
+      if (lvl === "ground") return 0
+      const by = baseYById.get(lvl)
+      if (by !== undefined) return by
+      if (roofs.some((r) => r.id === lvl)) return buildingTop
+      return 0
+    }
     for (const d of decor) {
+      const dy = levelY(d)
+      // Срез: прячем предметы выше активного уровня.
+      if (cutaway && dy > (activeBaseY as number) + 0.01) continue
       const model = buildDecorModel(d.kind)
-      const decorY = d.onRoof ? buildingTop : 0
-      model.position.set(d.x, decorY, d.z)
+      const s = d.scale && d.scale > 0 ? d.scale : 1
+      model.scale.setScalar(s)
+      model.position.set(d.x, dy, d.z)
       model.rotation.y = ((d.rot ?? 0) * Math.PI) / 180
       model.traverse((o) => { o.userData.decorId = d.id })
       decorModels.set(d.id, model)
@@ -716,14 +813,20 @@ export default function Building3D({
     () => Math.max(20, ...regular.map((f) => f.layout?.height ?? 20)),
     [regular],
   )
-  const addDecor = (kind: string, onRoof = false) => {
+  // Уровень, на который кладём предмет: активный этаж/крыша, иначе земля.
+  const currentLevel = (): string => {
+    if (roofs.some((r) => r.id === active)) return "roof"
+    if (regular.some((f) => f.id === active)) return active
+    return "ground"
+  }
+  const addItem = (kind: string) => {
     if (!buildingId) return
-    // Разносим спавн, чтобы новые элементы не ставились друг на друга.
+    const level = currentLevel()
     const n = decor.length
     const spawnX = ((n % 5) - 2) * 2.5
-    const spawnZ = onRoof ? ((Math.floor(n / 5) % 3) - 1) * 3 : footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5
-    void addBuildingDecor(buildingId, kind, spawnX, spawnZ, onRoof)
-      .then(() => { toast.success(onRoof ? "Добавлено на крышу — перетащите" : "Добавлено — перетащите на место"); onDecorChanged?.() })
+    const spawnZ = level === "ground" ? footprintDepth / 2 + 5 + Math.floor(n / 5) * 2.5 : ((Math.floor(n / 5) % 3) - 1) * 3
+    void addBuildingDecor(buildingId, kind, spawnX, spawnZ, level)
+      .then(() => { toast.success("Добавлено — перетащите на место"); onDecorChanged?.() })
       .catch(() => toast.error("Не удалось добавить"))
   }
   const rotateSelectedDecor = () => {
@@ -732,6 +835,14 @@ export default function Building3D({
     if (!model) return
     model.rotation.y += Math.PI / 4
     void setDecorRotation(selectedDecorId, Math.round((model.rotation.y * 180) / Math.PI)).catch(() => toast.error("Не удалось сохранить поворот"))
+  }
+  const scaleSelectedDecor = (factor: number) => {
+    if (!selectedDecorId) return
+    const model = decorModelsRef.current.get(selectedDecorId)
+    if (!model) return
+    const next = Math.max(0.3, Math.min(5, model.scale.x * factor))
+    model.scale.setScalar(next)
+    void setDecorScale(selectedDecorId, Math.round(next * 100) / 100).catch(() => toast.error("Не удалось сохранить размер"))
   }
   const deleteSelectedDecor = () => {
     if (!selectedDecorId) return
@@ -764,54 +875,45 @@ export default function Building3D({
             Тащите объект или декор мышью — позиция сохранится автоматически.
           </div>
           {buildingId && (
-            <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
-              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Декор на земле</p>
-              <div className="grid grid-cols-2 gap-1">
-                {DECOR_PALETTE.map(({ kind, label, Icon }) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => addDecor(kind, false)}
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">На крышу</p>
-              <div className="grid grid-cols-2 gap-1">
-                {ROOF_PALETTE.map(({ kind, label, Icon }) => (
-                  <button
-                    key={`roof-${kind}`}
-                    type="button"
-                    onClick={() => addDecor(kind, true)}
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-                    {label}
-                  </button>
-                ))}
-              </div>
+            <div className="max-h-[46vh] overflow-y-auto rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+              <p className="px-1 pb-1 text-[10px] text-slate-500 dark:text-slate-400">
+                Кладём на: <b className="text-slate-700 dark:text-slate-200">{currentLevel() === "roof" ? "крышу" : currentLevel() === "ground" ? "территорию" : "выбранный этаж"}</b>
+                <span className="text-slate-400"> (меняется выбором уровня слева)</span>
+              </p>
+              {ITEM_CATEGORIES.map((cat) => (
+                <div key={cat.title}>
+                  <p className="px-1 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{cat.title}</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {cat.items.map((it) => (
+                      <button
+                        key={it.kind}
+                        type="button"
+                        onClick={() => addItem(it.kind)}
+                        className="rounded-md border border-slate-200 px-2 py-1.5 text-left text-xs font-medium text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                      >
+                        {it.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
           {selectedDecorId && (
             <div className="rounded-lg border border-slate-200 bg-white/95 p-2 shadow backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
-              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Выбранный декор</p>
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  onClick={rotateSelectedDecor}
-                  className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  <RotateCw className="h-3.5 w-3.5" /> Повернуть
+              <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Выбранный предмет</p>
+              <div className="flex flex-wrap gap-1">
+                <button type="button" onClick={rotateSelectedDecor} title="Повернуть" className="flex flex-1 items-center justify-center gap-1 rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  <RotateCw className="h-3.5 w-3.5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={deleteSelectedDecor}
-                  className="flex flex-1 items-center justify-center gap-1 rounded-md border border-red-200 px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Удалить
+                <button type="button" onClick={() => scaleSelectedDecor(1.2)} title="Больше" className="flex flex-1 items-center justify-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => scaleSelectedDecor(1 / 1.2)} title="Меньше" className="flex flex-1 items-center justify-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={deleteSelectedDecor} title="Удалить" className="flex flex-1 items-center justify-center rounded-md border border-red-200 px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10">
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
