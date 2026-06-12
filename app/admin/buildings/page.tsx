@@ -5,7 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import Link from "next/link"
-import { Building2, MapPin, Layers, Users, Check, Sparkles, Box } from "lucide-react"
+import { Building2, MapPin, Layers, Users, Check, Sparkles, Box, DoorClosed, DoorOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
@@ -14,6 +14,7 @@ import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { safeServerValue } from "@/lib/server-fallback"
 import { PageHeader } from "@/components/ui/page"
+import { TONE_CHIP, TONE_TEXT, type Tone } from "@/lib/ui-tones"
 
 type BuildingListItem = {
   id: string
@@ -287,7 +288,7 @@ export default async function BuildingsPage() {
             <div
               key={b.id}
               className={cn(
-                "bg-white dark:bg-slate-900 rounded-xl border-2 overflow-hidden",
+                "bg-white dark:bg-slate-900 rounded-2xl border-2 overflow-hidden",
                 isCurrent ? "border-blue-500" : "border-slate-200 dark:border-slate-800",
                 !b.isActive && "opacity-60"
               )}
@@ -384,12 +385,12 @@ export default async function BuildingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
-                <Stat label="Этажей" value={b._count.floors} icon={Layers} />
-                <Stat label="Помещений" value={s.spacesCount} icon={Building2} />
-                <Stat label="Занято" value={s.occupiedCount} accent="text-blue-600 dark:text-blue-400" />
-                <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} accent="text-emerald-600 dark:text-emerald-400" />
-                <Stat label="Арендаторов" value={s.tenantsCount} icon={Users} />
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 p-5 border-b border-slate-100 dark:border-slate-800">
+                <Stat label="Этажей" value={b._count.floors} icon={Layers} tone="slate" />
+                <Stat label="Помещений" value={s.spacesCount} icon={Building2} tone="blue" />
+                <Stat label="Занято" value={s.occupiedCount} icon={DoorClosed} tone="violet" />
+                <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} icon={DoorOpen} tone="emerald" />
+                <Stat label="Арендаторов" value={s.tenantsCount} icon={Users} tone="teal" />
               </div>
 
               {/* Площадь здания = Σ Floor.totalArea (рассчитывается автоматически) */}
@@ -474,20 +475,24 @@ function normalizeLegacyBuilding(building: LegacyBuildingListItem): BuildingList
 }
 
 function Stat({
-  label, value, icon: Icon, accent,
+  label, value, icon: Icon, tone = "slate",
 }: {
   label: string
   value: number
   icon?: React.ElementType
-  accent?: string
+  tone?: Tone
 }) {
   return (
-    <div>
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-0.5">
-        {Icon && <Icon className="h-3.5 w-3.5" />}
-        {label}
+    <div className="flex items-center gap-2.5">
+      {Icon && (
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", TONE_CHIP[tone])}>
+          <Icon className="h-4 w-4" />
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className={cn("text-lg font-bold leading-tight tabular-nums", TONE_TEXT[tone])}>{value}</p>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">{label}</p>
       </div>
-      <p className={cn("text-xl font-bold", accent ?? "text-slate-900 dark:text-slate-100")}>{value}</p>
     </div>
   )
 }
