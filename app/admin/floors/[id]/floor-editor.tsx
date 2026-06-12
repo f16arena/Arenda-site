@@ -64,6 +64,7 @@ export function FloorEditor({
   initialLayout,
   initialTotalArea,
   spaces,
+  buildingFootprint,
 }: {
   floorId: string
   floorName: string
@@ -73,6 +74,8 @@ export function FloorEditor({
   initialLayout: FloorLayoutV2 | null
   initialTotalArea?: number | null
   spaces: SpaceLite[]
+  /** Габариты здания (м) — опорный контур в редакторе территории. */
+  buildingFootprint?: { width: number; depth: number; name: string } | null
 }) {
   const router = useRouter()
   const [layout, setLayoutRaw] = useState<FloorLayoutV2>(() => initialLayout ?? DEFAULT_LAYOUT)
@@ -1466,6 +1469,31 @@ export function FloorEditor({
                   ))}
                 </g>
               )}
+
+              {/* Опорный контур здания на территории — здание «стоит» на участке. */}
+              {floorKind === "TERRITORY" && buildingFootprint && (() => {
+                const fw = buildingFootprint.width * PX_PER_METER
+                const fd = buildingFootprint.depth * PX_PER_METER
+                const fx = Math.max(0, (layout.width * PX_PER_METER - fw) / 2)
+                const fy = Math.max(0, (layout.height * PX_PER_METER - fd) / 2)
+                return (
+                  <g pointerEvents="none">
+                    <rect
+                      x={fx} y={fy} width={fw} height={fd}
+                      fill="#94a3b8" fillOpacity={0.18}
+                      stroke="#64748b" strokeWidth={2 / zoom}
+                      strokeDasharray={`${8 / zoom} ${5 / zoom}`}
+                    />
+                    <text
+                      x={fx + fw / 2} y={fy + fd / 2}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontSize={14 / zoom} fill="#475569" fontWeight={600}
+                    >
+                      🏢 {buildingFootprint.name}
+                    </text>
+                  </g>
+                )
+              })()}
 
               {/* Elements */}
               {displayMode !== "underlay-only" && layout.elements.map((el) => (

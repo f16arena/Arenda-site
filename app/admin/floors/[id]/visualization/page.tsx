@@ -79,6 +79,34 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
   }
   const f16Template = getF16TemplateByFloorNumber(floor.number)
 
+  // Для территории — опорный контур здания: максимальные габариты обычных этажей.
+  let buildingFootprint: { width: number; depth: number; name: string } | null = null
+  if (floor.kind === "TERRITORY") {
+    const building = await db.building.findUnique({
+      where: { id: floor.buildingId },
+      select: {
+        name: true,
+        floors: {
+          where: { kind: { notIn: ["TERRITORY", "ROOF"] } },
+          select: { layoutJson: true },
+        },
+      },
+    })
+    let w = 0
+    let d = 0
+    for (const f of building?.floors ?? []) {
+      if (!f.layoutJson) continue
+      try {
+        const parsed = JSON.parse(f.layoutJson)
+        if (isLayoutV2(parsed)) {
+          w = Math.max(w, parsed.width)
+          d = Math.max(d, parsed.height)
+        }
+      } catch {}
+    }
+    buildingFootprint = { width: w > 0 ? w : 30, depth: d > 0 ? d : 20, name: building?.name ?? "Здание" }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -96,6 +124,7 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
         floorName={floor.name}
         floorNumber={floor.number}
         floorKind={floor.kind}
+        buildingFootprint={buildingFootprint}
         f16Template={f16Template}
         initialLayout={initialLayout}
         initialTotalArea={floor.totalArea ?? null}
