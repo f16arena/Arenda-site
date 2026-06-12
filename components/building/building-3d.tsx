@@ -381,19 +381,49 @@ export default function Building3D({
     // ── Крыша (только в режиме всего здания) ──
     const roofW = sizes.length > 0 ? sizes[sizes.length - 1].w : 30
     const roofH = sizes.length > 0 ? sizes[sizes.length - 1].h : 20
-    if (!cutaway && regular.length > 0) {
+    const hasTop = regular.length > 0 || roofs.length > 0
+    if (!cutaway && hasTop) {
+      // Плита кровли
       const roof = new THREE.Mesh(
         new THREE.BoxGeometry(roofW + 0.8, SLAB, roofH + 0.8),
         new THREE.MeshStandardMaterial({ color: 0xa8a29e }),
       )
       roof.position.set(0, buildingTop - SLAB / 2, 0)
       roof.castShadow = true
+      roof.receiveShadow = true
       scene.add(roof)
+
+      // Парапет по периметру — кровля выглядит как настоящая.
+      const pw = roofW + 0.8
+      const pd = roofH + 0.8
+      const parH = 0.8
+      const t = 0.3
+      const parMat = new THREE.MeshStandardMaterial({ color: 0x8d8580 })
+      const parapet = (w: number, d: number, x: number, z: number) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, parH, d), parMat)
+        m.position.set(x, buildingTop + parH / 2, z)
+        m.castShadow = true
+        scene.add(m)
+      }
+      parapet(pw, t, 0, -pd / 2 + t / 2)
+      parapet(pw, t, 0, pd / 2 - t / 2)
+      parapet(t, pd, -pw / 2 + t / 2, 0)
+      parapet(t, pd, pw / 2 - t / 2, 0)
     }
 
-    // ── Объекты на крыше (зоны ROOF): антенны/щиты поверх здания ──
+    // ── Крыша-зона: план (тех. зоны) поверх здания + объекты (антенны/щиты) ──
     if (!cutaway) {
       for (const roofZone of roofs) {
+        if (roofZone.layout) {
+          const built = buildFloorGroup(roofZone.layout, roofZone.spaces, { labels: "none", flat: true, shadows: true })
+          built.group.position.set(-roofZone.layout.width / 2, buildingTop + 0.04, -roofZone.layout.height / 2)
+          for (const obj of built.clickable) {
+            obj.userData.floorId = roofZone.id
+            clickable.push(obj)
+          }
+          for (const [elId, mat] of built.wallMaterials) wallMaterials.set(elId, mat)
+          scene.add(built.group)
+        }
         placeObjectMarkers(roofZone, { cx: 0, cz: 0, w: roofW, h: roofH, y: buildingTop })
       }
     }
