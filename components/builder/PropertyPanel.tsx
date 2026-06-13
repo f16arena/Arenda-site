@@ -5,9 +5,10 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand } from "@/core/document/commands"
+import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand } from "@/core/document/commands"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
+import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { distance } from "@/core/geometry/math"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
@@ -91,9 +92,21 @@ export function PropertyPanel() {
         rows.push(<Row key="p" label="Помещение Commrent" value={premiseId} />)
         if (st) rows.push(<Row key="s" label="Статус" value={STATUS_LABEL[st]} accent={STATUS_COLOR[st]} />)
       } else {
-        rows.push(<Row key="p" label="Привязка" value="нет (Фаза 5)" />)
+        rows.push(<Row key="p" label="Привязка" value="нет" />)
       }
       rows.push(<Row key="fl" label="Этаж" value={f.name} />)
+      const fid = selection.floorId
+      const rid = selection.id
+      controls = (
+        <div className="mt-2">
+          <p className="pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Стиль комнаты</p>
+          <div className="flex flex-wrap gap-1">
+            {ROOM_PRESETS.map((pr) => (
+              <button key={pr.id} type="button" onClick={() => execute(new ApplyRoomPresetCommand(fid, rid, pr))} className="rounded-md px-2 py-1 text-[11px] font-medium" style={{ background: "rgba(167,139,250,0.16)", color: TOKENS.accent2 }}>{pr.label}</button>
+            ))}
+          </div>
+        </div>
+      )
     }
   } else if (selection.type === "opening" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)

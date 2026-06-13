@@ -82,15 +82,25 @@ const ASSETS: Asset[] = [
   { id: "road", name: "Дорога", category: "Покрытия", icon: "🛣️" },
   { id: "path", name: "Дорожка", category: "Покрытия", icon: "〰️" },
   { id: "parking", name: "Парковка", category: "Покрытия", icon: "🅿️" },
+  // Вода
+  { id: "pond", name: "Пруд", category: "Вода", icon: "🟦" },
+  { id: "pool", name: "Бассейн", category: "Вода", icon: "🏊" },
+  { id: "fountain", name: "Фонтан", category: "Вода", icon: "⛲" },
+  { id: "water_strip", name: "Река", category: "Вода", icon: "🌊" },
 ]
 
-const CATEGORIES = ["Все", "Мебель", "Техника", "Свет", "Декор", "Гейминг", "Кафе", "Природа", "Улица", "Ограды", "Покрытия"]
+const CATEGORIES = ["Все", "Мебель", "Техника", "Свет", "Декор", "Гейминг", "Кафе", "Вода", "Природа", "Улица", "Ограды", "Покрытия"]
+
+// Какую категорию показать по умолчанию для режима.
+const MODE_CATEGORY: Record<string, string> = { buy: "Мебель", water: "Вода", landscape: "Природа" }
 
 export function AssetCatalog() {
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const armAsset = useEditorStore((s) => s.armAsset)
   const setTool = useEditorStore((s) => s.setTool)
-  const [cat, setCat] = useState("Все")
+  const mode = useEditorStore((s) => s.mode)
+  // Категория по умолчанию для режима (AssetCatalog ремаунтится по key={mode}).
+  const [cat, setCat] = useState(() => MODE_CATEGORY[mode] ?? "Все")
 
   const items = cat === "Все" ? ASSETS : ASSETS.filter((a) => a.category === cat)
 

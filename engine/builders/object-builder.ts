@@ -58,6 +58,22 @@ function glow(mesh: Mesh, scene: Scene, hex: string): Mesh {
 // Набор assetId, которые считаются источниками света (движок добавляет PointLight, лимит).
 export const LIGHT_ASSETS = new Set(["lamp", "street_lamp", "ceiling_light", "wall_light", "floor_lamp", "table_lamp", "spot", "led_strip"])
 
+// Полупрозрачная «водная» поверхность с лёгким бликом (без сложного шейдера).
+function waterMat(scene: Scene): StandardMaterial {
+  const s = scene as SceneWithCache
+  if (!s.__objMatCache) s.__objMatCache = new Map()
+  const cached = s.__objMatCache.get("__water")
+  if (cached) return cached
+  const m = new StandardMaterial("waterMat", scene)
+  m.diffuseColor = Color3.FromHexString("#2E86C1")
+  m.emissiveColor = Color3.FromHexString("#103A5A")
+  m.specularColor = new Color3(0.6, 0.7, 0.8)
+  m.specularPower = 64
+  m.alpha = 0.7
+  s.__objMatCache.set("__water", m)
+  return m
+}
+
 function buildByAsset(assetId: string, scene: Scene): Mesh[] {
   switch (assetId) {
     case "tree": {
@@ -391,6 +407,28 @@ function buildByAsset(assetId: string, scene: Scene): Mesh[] {
     case "menu_board": {
       const b = glow(MeshBuilder.CreateBox("b", { width: 1.2, height: 0.7, depth: 0.05 }, scene), scene, "#0F172A"); b.position.y = 2.2
       return [b]
+    }
+
+    // ── Вода ──
+    case "pond": {
+      const rim = part(MeshBuilder.CreateCylinder("r", { height: 0.3, diameter: 6.4, tessellation: 28 }, scene), scene, "#6B7280"); rim.position.y = 0.15
+      const water = MeshBuilder.CreateCylinder("w", { height: 0.22, diameter: 6, tessellation: 28 }, scene); water.material = waterMat(scene); water.position.y = 0.18
+      return [rim, water]
+    }
+    case "pool": {
+      const rim = part(MeshBuilder.CreateBox("r", { width: 6.4, height: 0.3, depth: 3.4 }, scene), scene, "#E2E8F0"); rim.position.y = 0.15
+      const water = MeshBuilder.CreateBox("w", { width: 6, height: 0.22, depth: 3 }, scene); water.material = waterMat(scene); water.position.y = 0.18
+      return [rim, water]
+    }
+    case "fountain": {
+      const basin = part(MeshBuilder.CreateCylinder("b", { height: 0.5, diameter: 3.2, tessellation: 24 }, scene), scene, "#9CA3AF"); basin.position.y = 0.25
+      const water = MeshBuilder.CreateCylinder("w", { height: 0.32, diameter: 2.8, tessellation: 24 }, scene); water.material = waterMat(scene); water.position.y = 0.34
+      const jet = MeshBuilder.CreateCylinder("j", { height: 1.4, diameter: 0.2, tessellation: 10 }, scene); jet.material = waterMat(scene); jet.position.y = 1.1
+      return [basin, water, jet]
+    }
+    case "water_strip": {
+      const water = MeshBuilder.CreateBox("w", { width: 3, height: 0.2, depth: 8 }, scene); water.material = waterMat(scene); water.position.y = 0.1
+      return [water]
     }
 
     default: {

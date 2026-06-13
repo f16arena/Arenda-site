@@ -30,7 +30,7 @@ const TERRAIN: { id: TerrainMode; label: string }[] = [
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="absolute left-1/2 top-[4.5rem] z-20 flex max-w-[90vw] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-xl px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-xl"
+      className="absolute left-1/2 top-[7rem] z-20 flex max-w-[90vw] -translate-x-1/2 items-center gap-2 overflow-x-auto rounded-xl px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.muted }}
     >
       {children}

@@ -109,9 +109,11 @@ export interface Selection {
 export type OpeningType = "door" | "window"
 export type StairShape = "straight" | "l" | "u" | "spiral"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth"
+export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape"
 
 export interface EditorState {
   activeTool: Tool
+  mode: BuildMode
   cameraMode: CameraMode
   displayMode: DisplayMode
   wallsDown: boolean
@@ -125,6 +127,7 @@ export interface EditorState {
   terrainMode: TerrainMode
   armedAsset: string | null
   setTool: (t: Tool) => void
+  setMode: (m: BuildMode) => void
   setCameraMode: (m: CameraMode) => void
   setDisplayMode: (m: DisplayMode) => void
   toggleWallsDown: () => void
@@ -139,8 +142,18 @@ export interface EditorState {
   armAsset: (id: string | null) => void
 }
 
+const MODE_DEFAULT_TOOL: Record<BuildMode, Tool> = {
+  build: "wall",
+  buy: "object",
+  material: "material",
+  terrain: "terrain",
+  water: "object",
+  landscape: "object",
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   activeTool: "select",
+  mode: "build",
   cameraMode: "orbit",
   displayMode: "all",
   wallsDown: false,
@@ -158,6 +171,12 @@ export const useEditorStore = create<EditorState>((set) => ({
     selection: { type: "none" },
     armedAsset: t === "object" ? s.armedAsset : null,
     openingVariant: t === "door" ? "interior" : t === "window" ? "standard" : s.openingVariant,
+  })),
+  setMode: (m) => set((s) => ({
+    mode: m,
+    activeTool: MODE_DEFAULT_TOOL[m],
+    selection: { type: "none" },
+    armedAsset: MODE_DEFAULT_TOOL[m] === "object" ? s.armedAsset : null,
   })),
   setCameraMode: (m) => set({ cameraMode: m }),
   setDisplayMode: (m) => set({ displayMode: m }),

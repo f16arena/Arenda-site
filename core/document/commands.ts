@@ -12,7 +12,10 @@ import {
   moveNode as moveNodeGraph,
   removeEdge,
 } from "@/core/geometry/wall-graph"
-import type { Vec2 } from "@/core/geometry/math"
+import { centroid, type Vec2 } from "@/core/geometry/math"
+import { detectRooms } from "@/core/geometry/room-detection"
+import { uid } from "@/core/id"
+import type { RoomPreset } from "@/lib/builder/room-presets"
 
 export interface Command {
   readonly kind: string
@@ -415,6 +418,51 @@ export class SetTerrainCommand implements Command {
       return true
     }
     return false
+  }
+}
+
+// ── Room Style Preset (материал пола + набор объектов одной командой) ─────────
+export class ApplyRoomPresetCommand implements Command {
+  readonly kind = "room-preset"
+  readonly label = "стиль комнаты"
+  private prevMat?: string
+  private addedIds: string[] = []
+  private captured = false
+  constructor(private floorId: string, private roomId: string, private preset: RoomPreset) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (!f) return doc
+    const room = detectRooms(f.wallGraph).find((r) => r.id === this.roomId)
+    if (!room) return doc
+    const c = centroid(room.polygon)
+    if (!this.captured) {
+      this.prevMat = f.roomMaterials[this.roomId]
+      this.addedIds = this.preset.objects.map(() => uid("o"))
+      this.captured = true
+    }
+    const objs: BuilderObject[] = this.preset.objects.map((o, i) => ({
+      id: this.addedIds[i],
+      assetId: o.assetId,
+      position: { x: c.x + o.dx, y: 0, z: c.y + o.dz },
+      rotationY: o.rot ?? 0,
+      scale: 1,
+      attachTo: "floor",
+      locked: false,
+    }))
+    return mapFloor(doc, this.floorId, (fl) => ({
+      ...fl,
+      roomMaterials: { ...fl.roomMaterials, [this.roomId]: this.preset.floorMaterial },
+      objects: [...fl.objects, ...objs],
+    }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const ids = new Set(this.addedIds)
+    return mapFloor(doc, this.floorId, (fl) => {
+      const rm = { ...fl.roomMaterials }
+      if (this.prevMat) rm[this.roomId] = this.prevMat
+      else delete rm[this.roomId]
+      return { ...fl, roomMaterials: rm, objects: fl.objects.filter((o) => !ids.has(o.id)) }
+    })
   }
 }
 

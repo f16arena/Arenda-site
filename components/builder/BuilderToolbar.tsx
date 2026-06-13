@@ -50,7 +50,7 @@ export function BuilderToolbar() {
 
   return (
     <div
-      className="absolute left-1/2 top-3 z-30 flex max-w-[92vw] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl px-2 py-1.5 shadow-2xl backdrop-blur-xl"
+      className="absolute left-1/2 top-16 z-30 flex max-w-[92vw] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl px-2 py-1.5 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       {TOOLS.map((t) => {

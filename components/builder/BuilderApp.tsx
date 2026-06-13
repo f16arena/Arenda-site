@@ -16,6 +16,7 @@ import { DeleteObjectCommand, DeleteWallCommand } from "@/core/document/commands
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 import { BuilderToolbar } from "./BuilderToolbar"
+import { ModeSwitcher } from "./ModeSwitcher"
 import { ToolOptions } from "./ToolOptions"
 import { BuilderProjectBar } from "./BuilderProjectBar"
 import { LevelPanel } from "./LevelPanel"
@@ -84,6 +85,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
+  const mode = useEditorStore((s) => s.mode)
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
@@ -220,13 +222,14 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   return (
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
       <BuilderCanvas onReady={handleReady} />
+      {!readOnly && <ModeSwitcher />}
       {!readOnly && <BuilderToolbar />}
       {!readOnly && <BuilderProjectBar />}
       {!readOnly && <ToolOptions />}
       {!readOnly && <LevelPanel />}
       <PropertyPanel />
       <CameraControls />
-      {!readOnly && <AssetCatalog />}
+      {!readOnly && <AssetCatalog key={mode} />}
       {!readOnly && <StatusBar />}
       {readOnly && (
         <div
