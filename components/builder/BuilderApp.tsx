@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, LinkPremiseCommand } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listOrgPremises } from "@/app/actions/builder-premise"
 import type { PremiseStatus } from "@/lib/builder/materials"
@@ -355,6 +355,22 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         engineRef.current?.rotatePlacer(45)
         return
       }
+      // Стрелки — точное смещение выбранного объекта (Shift — мелкий шаг).
+      if (e.key.startsWith("Arrow") && ed.selection.type === "object" && ed.selection.id) {
+        e.preventDefault()
+        const t = objTarget(docState.doc, ed.selection.id)
+        if (t) {
+          const step = e.shiftKey ? 10 : 100
+          let x = t.obj.position.x
+          let z = t.obj.position.z
+          if (e.key === "ArrowUp") z -= step
+          else if (e.key === "ArrowDown") z += step
+          else if (e.key === "ArrowLeft") x -= step
+          else if (e.key === "ArrowRight") x += step
+          docState.execute(new MoveObjectCommand(t.target, ed.selection.id, Math.round(x), Math.round(z)))
+        }
+        return
+      }
       const k = e.key.toLowerCase()
       if (TOOL_KEYS[k]) {
         ed.setTool(TOOL_KEYS[k])
@@ -409,7 +425,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {!readOnly && <ToolOptions />}
       {!readOnly && <LevelPanel />}
       <PropertyPanel />
-      <CameraControls />
+      <CameraControls onFit={() => engineRef.current?.frameAll()} />
       <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />
       {!readOnly && <AssetCatalog key={mode} />}
       {!readOnly && <MiniMap />}

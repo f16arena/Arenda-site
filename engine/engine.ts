@@ -1760,6 +1760,18 @@ export class BuilderEngine {
     this.bundle.engine.resize()
   }
 
+  // Вписать всю сцену в кадр (клавиша F): центрируем орбитальную камеру на габаритах.
+  frameAll(): void {
+    if (!this.docRoot) return
+    const { min, max } = this.docRoot.getHierarchyBoundingVectors(true)
+    if (!isFinite(min.x) || !isFinite(max.x)) return
+    const cam = this.bundle.camera
+    const cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2, cz = (min.z + max.z) / 2
+    const span = Math.max(max.x - min.x, max.y - min.y, max.z - min.z)
+    cam.setTarget(new Vector3(cx, cy, cz))
+    cam.radius = Math.max(8, Math.min(cam.upperRadiusLimit ?? 500, span * 1.4 + 6))
+  }
+
   // Снимок сцены (PNG data-URL). preserveDrawingBuffer включён в createScene.
   captureDataUrl(): string | null {
     const canvas = this.bundle.engine.getRenderingCanvas()
