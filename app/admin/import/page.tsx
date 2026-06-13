@@ -33,11 +33,12 @@ export default function ImportHomePage() {
         />
 
         <ImportCard
+          href="/admin/import/charges"
           title="Начисления (история)"
-          description="Перенос начислений за прошлые месяцы из 1С/Excel. Скоро."
+          description="Перенос начислений за прошлые месяцы из 1С/Excel. Превью с предупреждением о влиянии на долг."
           icon={FileText}
           color="amber"
-          available={false}
+          available
         />
 
         <ImportCard
