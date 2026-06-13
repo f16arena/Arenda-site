@@ -120,6 +120,7 @@ export interface EditorState {
   wallsDown: boolean
   activeLevelId: string // floorId или "site"
   selection: Selection
+  multi: string[]
   hoverId: string | null
   paintMaterialId: string
   openingType: OpeningType
@@ -135,6 +136,8 @@ export interface EditorState {
   toggleWallsDown: () => void
   setActiveLevel: (id: string) => void
   setSelection: (s: Selection) => void
+  toggleMulti: (id: string) => void
+  clearMulti: () => void
   setHover: (id: string | null) => void
   setPaintMaterial: (id: string) => void
   setOpeningType: (t: OpeningType) => void
@@ -162,6 +165,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   wallsDown: false,
   activeLevelId: "",
   selection: { type: "none" },
+  multi: [],
   hoverId: null,
   paintMaterialId: "brick",
   openingType: "door",
@@ -186,7 +190,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   setDisplayMode: (m) => set({ displayMode: m }),
   toggleWallsDown: () => set((s) => ({ wallsDown: !s.wallsDown })),
   setActiveLevel: (id) => set({ activeLevelId: id, selection: { type: "none" } }),
-  setSelection: (s) => set({ selection: s }),
+  setSelection: (s) => set({ selection: s, multi: [] }),
+  toggleMulti: (id) => set((st) => ({ multi: st.multi.includes(id) ? st.multi.filter((m) => m !== id) : [...st.multi, id], selection: { type: "none" } })),
+  clearMulti: () => set({ multi: [] }),
   setHover: (id) => set({ hoverId: id }),
   setPaintMaterial: (id) => set({ paintMaterialId: id }),
   setOpeningType: (t) => set({ openingType: t }),

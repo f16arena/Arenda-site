@@ -47,6 +47,35 @@ function applyPick(meta: MeshMeta | null): void {
   else setSelection({ type: "none" })
 }
 
+function objTarget(doc: BuilderDocument, id: string): { target: { site: true } | { floorId: string }; obj: import("@/types/builder").BuilderObject } | null {
+  const inSite = doc.site.objects.find((o) => o.id === id)
+  if (inSite) return { target: { site: true }, obj: inSite }
+  for (const b of doc.buildings) for (const f of b.floors) {
+    const o = f.objects.find((ob) => ob.id === id)
+    if (o) return { target: { floorId: f.id }, obj: o }
+  }
+  return null
+}
+
+function groupDelete(ids: string[]): void {
+  const exec = useDocumentStore.getState().execute
+  const d = useDocumentStore.getState().doc
+  for (const id of ids) {
+    const t = objTarget(d, id)
+    if (t) exec(new DeleteObjectCommand(t.target, id))
+  }
+  useEditorStore.getState().clearMulti()
+}
+
+function groupDuplicate(ids: string[]): void {
+  const exec = useDocumentStore.getState().execute
+  const d = useDocumentStore.getState().doc
+  for (const id of ids) {
+    const t = objTarget(d, id)
+    if (t) exec(new AddObjectCommand(t.target, { ...t.obj, id: uid("o"), position: { ...t.obj.position, x: t.obj.position.x + 800, z: t.obj.position.z + 800 } }))
+  }
+}
+
 function deleteSelection(): void {
   const sel = useEditorStore.getState().selection
   const exec = useDocumentStore.getState().execute
@@ -88,6 +117,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
   const selection = useEditorStore((s) => s.selection)
+  const multi = useEditorStore((s) => s.multi)
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
   const stairShape = useEditorStore((s) => s.stairShape)
   const terrainMode = useEditorStore((s) => s.terrainMode)
@@ -102,6 +132,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engine.getDoc = () => useDocumentStore.getState().doc
     engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
+    engine.onMultiToggle = (id) => useEditorStore.getState().toggleMulti(id)
     engine.onLinkRoom = (floorId, roomId) => {
       const num = window.prompt("Номер помещения Commrent (привязать к комнате):")
       if (num && num.trim()) useDocumentStore.getState().execute(new LinkPremiseCommand(floorId, roomId, num.trim()))
@@ -133,6 +164,11 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     const e = engineRef.current
     if (e && ready) e.setSelection(selection)
   }, [selection, ready])
+
+  useEffect(() => {
+    const e = engineRef.current
+    if (e && ready) e.setMulti(multi)
+  }, [multi, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -214,6 +250,10 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       // Ctrl+D — дублировать выбранный объект
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
         e.preventDefault()
+        if (ed.multi.length) {
+          groupDuplicate(ed.multi)
+          return
+        }
         const sel = ed.selection
         if (sel.type === "object" && sel.id) {
           const d = docState.doc
@@ -252,7 +292,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault()
-        deleteSelection()
+        if (ed.multi.length) groupDelete(ed.multi)
+        else deleteSelection()
         return
       }
       if (e.key === "Escape") {
@@ -289,6 +330,38 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {readOnly && selection.type === "room" && selection.floorId && (
         <div className="absolute bottom-3 right-3 z-30 w-72">
           <ShowcaseLead token={shareToken} premiseNumber={doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)?.premiseLinks[selection.id ?? ""]} onClose={() => useEditorStore.getState().setSelection({ type: "none" })} />
+        </div>
+      )}
+      {!readOnly && multi.length > 0 && (
+        <div
+          className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
+          style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.accent}`, color: TOKENS.text }}
+        >
+          <span style={{ color: TOKENS.accent }}>Выбрано: {multi.length}</span>
+          <button
+            type="button"
+            onClick={() => groupDuplicate(useEditorStore.getState().multi)}
+            className="rounded-md px-2 py-1 text-xs"
+            style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
+          >
+            Дублировать (Ctrl+D)
+          </button>
+          <button
+            type="button"
+            onClick={() => groupDelete(useEditorStore.getState().multi)}
+            className="rounded-md px-2 py-1 text-xs"
+            style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}
+          >
+            Удалить (Del)
+          </button>
+          <button
+            type="button"
+            onClick={() => useEditorStore.getState().clearMulti()}
+            className="rounded-md px-2 py-1 text-xs"
+            style={{ background: TOKENS.panelBorder, color: TOKENS.muted }}
+          >
+            Сбросить (Esc)
+          </button>
         </div>
       )}
       {!readOnly && <StatusBar />}

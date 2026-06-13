@@ -84,6 +84,7 @@ export class BuilderEngine {
   private gizmo: GizmoController
   private objectRootById = new Map<string, TransformNode>()
   private currentSel: Selection | null = null
+  private currentMulti: string[] = [] // id объектов в мультивыборе
   private openDoors = new Set<string>() // двери, открытые кликом в Walk
   gizmoMode: GizmoMode = "move"
 
@@ -125,6 +126,7 @@ export class BuilderEngine {
   stairShape = "u"
   terrainMode: "raise" | "lower" | "flatten" | "smooth" = "raise"
   onPick: (meta: MeshMeta | null) => void = () => {}
+  onMultiToggle: (objectId: string) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
@@ -310,12 +312,25 @@ export class BuilderEngine {
   }
 
   // ── Выделение / ховер ───────────────────────────────────────────────────────
-  setSelection(sel: Selection): void {
-    this.currentSel = sel
+  setMulti(ids: string[]): void {
+    this.currentMulti = ids
+    this.applyHighlight()
+  }
+
+  private applyHighlight(): void {
     this.bundle.highlight.removeAllMeshes()
-    if (sel.type !== "none" && sel.id) {
+    const sel = this.currentSel
+    if (sel && sel.type !== "none" && sel.id) {
       for (const m of this.meshById.get(sel.id) ?? []) this.bundle.highlight.addMesh(m, ACCENT)
     }
+    for (const id of this.currentMulti) {
+      for (const m of this.meshById.get(id) ?? []) this.bundle.highlight.addMesh(m, HOVER)
+    }
+  }
+
+  setSelection(sel: Selection): void {
+    this.currentSel = sel
+    this.applyHighlight()
     // Gizmo перемещения/поворота — только для объектов.
     if (sel.type === "object" && sel.id && this.objectRootById.has(sel.id)) {
       this.gizmo.attach(this.objectRootById.get(sel.id) ?? null)
@@ -727,6 +742,11 @@ export class BuilderEngine {
     }
     if (meta?.kind === "node") {
       this.onPick(null)
+      return
+    }
+    // Shift+клик по объекту — добавить/убрать в мультивыбор.
+    if (this.shiftDown && meta?.kind === "object" && meta.entityId) {
+      this.onMultiToggle(meta.entityId)
       return
     }
     this.onPick(meta && meta.entityId ? meta : null)
