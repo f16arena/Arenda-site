@@ -94,6 +94,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
+  const gizmoMode = useEditorStore((s) => s.gizmoMode)
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
@@ -132,6 +133,11 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     const e = engineRef.current
     if (e && ready) e.setSelection(selection)
   }, [selection, ready])
+
+  useEffect(() => {
+    const e = engineRef.current
+    if (e && ready) e.setGizmoMode(gizmoMode)
+  }, [gizmoMode, ready])
 
   useEffect(() => {
     const e = engineRef.current

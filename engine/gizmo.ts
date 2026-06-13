@@ -5,10 +5,10 @@
 // получала детерминированные позицию (метры Babylon) и поворот вокруг Y (градусы 0..360).
 
 import {
-  AbstractMesh,
   PositionGizmo,
   RotationGizmo,
   Scene,
+  TransformNode,
   UtilityLayerRenderer,
   Vector3,
 } from "@babylonjs/core";
@@ -52,7 +52,7 @@ export class GizmoController {
   private readonly positionGizmo: PositionGizmo;
   private readonly rotationGizmo: RotationGizmo;
 
-  private attachedMesh: AbstractMesh | null = null;
+  private attachedNode: TransformNode | null = null;
   private mode: GizmoMode = "none";
   private disposed = false;
 
@@ -89,12 +89,12 @@ export class GizmoController {
     this.applyMode();
   }
 
-  /** Привязать активный гизмо к мешу или открепить через `null`. */
-  public attach(mesh: AbstractMesh | null): void {
+  /** Привязать активный гизмо к узлу (корню объекта) или открепить через `null`. */
+  public attach(node: TransformNode | null): void {
     if (this.disposed) {
       return;
     }
-    this.attachedMesh = mesh;
+    this.attachedNode = node;
     this.applyMode();
   }
 
@@ -105,14 +105,14 @@ export class GizmoController {
     }
     this.disposed = true;
 
-    this.attachedMesh = null;
+    this.attachedNode = null;
     this.onChange = NOOP_ON_CHANGE;
 
     this.positionGizmo.onDragEndObservable.clear();
     this.rotationGizmo.onDragEndObservable.clear();
 
-    this.positionGizmo.attachedMesh = null;
-    this.rotationGizmo.attachedMesh = null;
+    this.positionGizmo.attachedNode = null;
+    this.rotationGizmo.attachedNode = null;
 
     this.positionGizmo.dispose();
     this.rotationGizmo.dispose();
@@ -121,29 +121,26 @@ export class GizmoController {
 
   /** Привязка нужного гизмо к мешу согласно режиму; неактивные — откреплены. */
   private applyMode(): void {
-    const mesh = this.attachedMesh;
+    const node = this.attachedNode;
 
-    const moveTarget = this.mode === "move" ? mesh : null;
-    const rotateTarget = this.mode === "rotate" ? mesh : null;
-
-    this.positionGizmo.attachedMesh = moveTarget;
-    this.rotationGizmo.attachedMesh = rotateTarget;
+    this.positionGizmo.attachedNode = this.mode === "move" ? node : null;
+    this.rotationGizmo.attachedNode = this.mode === "rotate" ? node : null;
   }
 
   /** Считать состояние прикреплённого узла, применить снап и вызвать onChange. */
   private emitChange(): void {
-    const mesh = this.attachedMesh;
-    if (mesh === null) {
+    const node = this.attachedNode;
+    if (node === null) {
       return;
     }
 
-    const world: Vector3 = mesh.getAbsolutePosition();
+    const world: Vector3 = node.getAbsolutePosition();
 
     const x = snapTo(world.x, POSITION_SNAP_M);
     const y = snapTo(world.y, POSITION_SNAP_M);
     const z = snapTo(world.z, POSITION_SNAP_M);
 
-    const rawDeg = mesh.rotation.y * DEG_PER_RAD;
+    const rawDeg = node.rotation.y * DEG_PER_RAD;
     const rotationYDeg = normalizeDeg(snapTo(rawDeg, ROTATION_SNAP_DEG));
 
     this.onChange({ x, y, z, rotationYDeg });

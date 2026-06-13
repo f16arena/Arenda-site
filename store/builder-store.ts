@@ -110,6 +110,7 @@ export type OpeningType = "door" | "window"
 export type StairShape = "straight" | "l" | "u" | "spiral"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth"
 export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape"
+export type GizmoMode = "none" | "move" | "rotate"
 
 export interface EditorState {
   activeTool: Tool
@@ -126,6 +127,7 @@ export interface EditorState {
   stairShape: StairShape
   terrainMode: TerrainMode
   armedAsset: string | null
+  gizmoMode: GizmoMode
   setTool: (t: Tool) => void
   setMode: (m: BuildMode) => void
   setCameraMode: (m: CameraMode) => void
@@ -140,6 +142,7 @@ export interface EditorState {
   setStairShape: (s: StairShape) => void
   setTerrainMode: (m: TerrainMode) => void
   armAsset: (id: string | null) => void
+  setGizmoMode: (m: GizmoMode) => void
 }
 
 const MODE_DEFAULT_TOOL: Record<BuildMode, Tool> = {
@@ -166,6 +169,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   stairShape: "u",
   terrainMode: "raise",
   armedAsset: null,
+  gizmoMode: "move",
   setTool: (t) => set((s) => ({
     activeTool: t,
     selection: { type: "none" },
@@ -190,4 +194,5 @@ export const useEditorStore = create<EditorState>((set) => ({
   setStairShape: (s) => set({ stairShape: s }),
   setTerrainMode: (m) => set({ terrainMode: m }),
   armAsset: (id) => set({ armedAsset: id }),
+  setGizmoMode: (m) => set({ gizmoMode: m }),
 }))

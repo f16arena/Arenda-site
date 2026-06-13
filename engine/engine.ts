@@ -29,6 +29,7 @@ import {
   DeleteObjectCommand,
   MoveNodeCommand,
   MoveObjectCommand,
+  SetObjectRotationCommand,
   AddOpeningCommand,
   DeleteOpeningCommand,
   MoveOpeningCommand,
@@ -50,6 +51,7 @@ import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import { LIGHT_ASSETS } from "./builders/object-builder"
+import { GizmoController, type GizmoMode } from "./gizmo"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
 
 const S = 0.001
@@ -79,6 +81,10 @@ export class BuilderEngine {
   private walkCamera: UniversalCamera | null = null
   private lights: PointLight[] = []
   private readonly maxLights = 8
+  private gizmo: GizmoController
+  private objectRootById = new Map<string, TransformNode>()
+  private currentSel: Selection | null = null
+  gizmoMode: GizmoMode = "move"
 
   // инструмент стены
   private wallStart: Vector3 | null = null
@@ -127,8 +133,26 @@ export class BuilderEngine {
   constructor(canvas: HTMLCanvasElement) {
     this.bundle = createScene(canvas)
     this.reg = new MaterialRegistry(this.bundle.scene)
+    this.gizmo = new GizmoController(this.bundle.scene)
+    this.gizmo.onChange = ({ x, z, rotationYDeg }) => {
+      const sel = this.currentSel
+      if (!sel || sel.type !== "object" || !sel.id) return
+      const target = sel.floorId ? ({ floorId: sel.floorId } as const) : ({ site: true } as const)
+      if (this.gizmoMode === "rotate") this.onCommand(new SetObjectRotationCommand(target, sel.id, rotationYDeg))
+      else this.onCommand(new MoveObjectCommand(target, sel.id, Math.round(x * 1000), Math.round(z * 1000)))
+    }
     this.setupPointer()
     this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
+  }
+
+  setGizmoMode(mode: GizmoMode): void {
+    this.gizmoMode = mode
+    if (this.currentSel?.type === "object" && this.currentSel.id) {
+      this.gizmo.attach(this.objectRootById.get(this.currentSel.id) ?? null)
+      this.gizmo.setMode(mode)
+    } else {
+      this.gizmo.setMode("none")
+    }
   }
 
   // ── Пересборка сцены ───────────────────────────────────────────────────────
@@ -138,6 +162,7 @@ export class BuilderEngine {
     for (const l of this.lights) l.dispose()
     this.lights = []
     this.meshById.clear()
+    this.objectRootById.clear()
     this.hovered = null
     this.docRoot = new TransformNode("docRoot", scene)
     const lightSpecs: Vector3[] = []
@@ -159,6 +184,7 @@ export class BuilderEngine {
     siteRoot.parent = this.docRoot
     for (const obj of doc.site.objects) {
       const node = buildObject(obj, siteRoot, scene, "site")
+      this.objectRootById.set(obj.id, node)
       node.getChildMeshes().forEach((m) => {
         if (m instanceof Mesh) {
           register(obj.id, m)
@@ -208,6 +234,7 @@ export class BuilderEngine {
         // объекты на этаже (мебель/техника/свет/декор)
         for (const obj of f.objects) {
           const node = buildObject(obj, fNode, scene, f.id)
+          this.objectRootById.set(obj.id, node)
           node.getChildMeshes().forEach((m) => {
             if (m instanceof Mesh) {
               register(obj.id, m)
@@ -278,9 +305,18 @@ export class BuilderEngine {
 
   // ── Выделение / ховер ───────────────────────────────────────────────────────
   setSelection(sel: Selection): void {
+    this.currentSel = sel
     this.bundle.highlight.removeAllMeshes()
     if (sel.type !== "none" && sel.id) {
       for (const m of this.meshById.get(sel.id) ?? []) this.bundle.highlight.addMesh(m, ACCENT)
+    }
+    // Gizmo перемещения/поворота — только для объектов.
+    if (sel.type === "object" && sel.id && this.objectRootById.has(sel.id)) {
+      this.gizmo.attach(this.objectRootById.get(sel.id) ?? null)
+      this.gizmo.setMode(this.gizmoMode)
+    } else {
+      this.gizmo.attach(null)
+      this.gizmo.setMode("none")
     }
   }
 
@@ -1061,6 +1097,7 @@ export class BuilderEngine {
     this.roomPreview?.dispose()
     for (const l of this.lights) l.dispose()
     this.lights = []
+    this.gizmo.dispose()
     this.bundle.engine.stopRenderLoop()
     this.reg.dispose()
     this.bundle.scene.dispose()

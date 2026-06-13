@@ -29,6 +29,8 @@ export function PropertyPanel() {
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const selection = useEditorStore((s) => s.selection)
+  const gizmoMode = useEditorStore((s) => s.gizmoMode)
+  const setGizmoMode = useEditorStore((s) => s.setGizmoMode)
 
   let title = "Проект"
   const rows: React.ReactNode[] = []
@@ -183,13 +185,20 @@ export function PropertyPanel() {
       rows.push(<Row key="sc" label="Масштаб" value={obj.scale.toFixed(2)} />)
       const btnStyle = "flex-1 rounded-md px-2 py-1.5 text-xs font-medium"
       const neutral = { background: "rgba(148,163,184,0.12)", color: TOKENS.text }
+      const gz = (m: "move" | "rotate") => ({ background: gizmoMode === m ? TOKENS.accent : "rgba(148,163,184,0.12)", color: gizmoMode === m ? "#0b1220" : TOKENS.text })
       controls = (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <>
+        <div className="mt-2 flex gap-1">
+          <button type="button" className={btnStyle} style={gz("move")} onClick={() => setGizmoMode("move")}>⇄ Двигать</button>
+          <button type="button" className={btnStyle} style={gz("rotate")} onClick={() => setGizmoMode("rotate")}>⟲ Вращать</button>
+        </div>
+        <div className="mt-1 flex flex-wrap gap-1">
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectRotationCommand(target, id, (obj.rotationY + 45) % 360))}>⟳ 45°</button>
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.min(5, obj.scale * 1.2)))}>＋</button>
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.max(0.3, obj.scale / 1.2)))}>－</button>
           <button type="button" className={btnStyle} style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }} onClick={() => execute(new DeleteObjectCommand(target, id))}>Удалить</button>
         </div>
+        </>
       )
     }
   }
