@@ -104,11 +104,14 @@ export const WaterBodySchema = z.object({
 })
 
 // Линейный элемент по сплайну: дорога/дорожка (лента по земле) или забор (столбы+рейлы).
+// style — вид забора (профнастил/штакетник/3D-сетка/ковка/дерево). default "wood" — чтобы
+// ранее нарисованные заборы (без поля) выглядели как раньше; новые ставятся металлом из UI.
 export const PathFeatureSchema = z.object({
   id: z.string(),
   points: z.array(Vec2Schema),
   width: z.number().default(3000),
   kind: z.enum(["road", "path", "fence"]).default("road"),
+  style: z.enum(["wood", "profnastil", "shtaketnik", "mesh", "forged"]).default("wood"),
 })
 
 export const SiteSchema = z.object({

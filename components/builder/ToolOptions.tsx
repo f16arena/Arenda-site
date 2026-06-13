@@ -3,7 +3,7 @@
 // ADR: Контекстные опции активного инструмента (под тулбаром): палитра материалов для
 // «ведра», форма лестницы, подсказки для стены/проёмов. Управляет editorStore.
 
-import { useEditorStore, type StairShape, type TerrainMode } from "@/store/builder-store"
+import { useEditorStore, type StairShape, type TerrainMode, type FenceStyle } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
 
@@ -43,6 +43,13 @@ const PATH_WIDTHS: { mm: number; label: string }[] = [
   { mm: 3000, label: "3 м" },
   { mm: 6000, label: "6 м" },
 ]
+const FENCE_STYLES: { id: FenceStyle; label: string }[] = [
+  { id: "profnastil", label: "Профнастил" },
+  { id: "shtaketnik", label: "Евроштакетник" },
+  { id: "mesh", label: "3D-сетка" },
+  { id: "forged", label: "Ковка" },
+  { id: "wood", label: "Дерево" },
+]
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -69,6 +76,8 @@ export function ToolOptions() {
   const setPathKind = useEditorStore((s) => s.setPathKind)
   const pathWidth = useEditorStore((s) => s.pathWidth)
   const setPathWidth = useEditorStore((s) => s.setPathWidth)
+  const fenceStyle = useEditorStore((s) => s.fenceStyle)
+  const setFenceStyle = useEditorStore((s) => s.setFenceStyle)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
@@ -143,7 +152,26 @@ export function ToolOptions() {
     )
   }
   if (tool === "fence") {
-    return <Shell><span>Забор — клик ставит точки линии, повторный клик в конце или Enter — готово, Esc — отмена</span></Shell>
+    return (
+      <Shell>
+        <span className="shrink-0">Забор:</span>
+        {FENCE_STYLES.map((f) => {
+          const active = fenceStyle === f.id
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFenceStyle(f.id)}
+              className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+              style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
+            >
+              {f.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— клик ставит точки, повторный клик в конце или Enter — готово</span>
+      </Shell>
+    )
   }
   if (tool === "object") {
     return <Shell><span>{armedAsset ? "Призрак у курсора · R — поворот · клик — поставить · Esc — отмена" : "Выберите ассет в каталоге снизу"}</span></Shell>

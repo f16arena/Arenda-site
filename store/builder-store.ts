@@ -111,6 +111,7 @@ export type OpeningType = "door" | "window"
 export type StairShape = "straight" | "l" | "u" | "spiral"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth" | "terrace"
 export type PathKind = "road" | "path"
+export type FenceStyle = "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood"
 export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape"
 export type GizmoMode = "none" | "move" | "rotate"
 
@@ -132,6 +133,7 @@ export interface EditorState {
   waterDepth: number
   pathKind: PathKind
   pathWidth: number
+  fenceStyle: FenceStyle
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -153,6 +155,7 @@ export interface EditorState {
   setWaterDepth: (mm: number) => void
   setPathKind: (k: PathKind) => void
   setPathWidth: (mm: number) => void
+  setFenceStyle: (s: FenceStyle) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -185,6 +188,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   waterDepth: 800,
   pathKind: "road",
   pathWidth: 3000,
+  fenceStyle: "profnastil",
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -216,6 +220,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setWaterDepth: (mm) => set({ waterDepth: mm }),
   setPathKind: (k) => set({ pathKind: k }),
   setPathWidth: (mm) => set({ pathWidth: mm }),
+  setFenceStyle: (s) => set({ fenceStyle: s }),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),
   setTurbo: (on) => set({ turbo: on }),

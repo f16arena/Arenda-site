@@ -152,6 +152,7 @@ export class BuilderEngine {
   waterDepth = 800 // мм, глубина прокопа русла
   pathKind: "road" | "path" | "fence" = "road"
   pathWidth = 3000 // мм, ширина дороги/дорожки
+  fenceStyle: "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood" = "profnastil"
   onPick: (meta: MeshMeta | null) => void = () => {}
   onMultiToggle: (objectId: string) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
@@ -1418,7 +1419,8 @@ export class BuilderEngine {
     }
     const points = this.pathPoints.map((p) => ({ ...p }))
     const kind = this.tool === "fence" ? "fence" : this.pathKind === "path" ? "path" : "road"
-    this.onCommand(new AddPathCommand({ id: uid("p"), points, width: Math.max(300, this.pathWidth), kind }))
+    const style = kind === "fence" ? this.fenceStyle : "wood"
+    this.onCommand(new AddPathCommand({ id: uid("p"), points, width: Math.max(300, this.pathWidth), kind, style }))
     this.cancelPath()
     this.onHud(null)
   }

@@ -129,6 +129,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const waterDepth = useEditorStore((s) => s.waterDepth)
   const pathKind = useEditorStore((s) => s.pathKind)
   const pathWidth = useEditorStore((s) => s.pathWidth)
+  const fenceStyle = useEditorStore((s) => s.fenceStyle)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -199,13 +200,14 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.waterDepth = waterDepth
     e.pathKind = activeTool === "fence" ? "fence" : pathKind
     e.pathWidth = pathWidth
+    e.fenceStyle = fenceStyle
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
     if (activeTool !== "wall") e.cancelWallTool()
     if (activeTool !== "water") e.cancelWater()
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, armedAsset, openingVariant, ready])
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
