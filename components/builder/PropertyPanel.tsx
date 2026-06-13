@@ -165,6 +165,12 @@ export function PropertyPanel() {
               <button key={w} type="button" onClick={() => execute(new SetStairCommand(fid, sid, { width: w }))} className="flex-1 rounded-md py-1 text-[10px]" style={{ background: st.width === w ? TOKENS.accent : "rgba(148,163,184,0.12)", color: st.width === w ? "#0b1220" : TOKENS.text }}>{(w / 1000).toFixed(1)} м</button>
             ))}
           </div>
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Ширина, м
+            <input type="number" step="0.1" min="0.6" max="3" defaultValue={(st.width / 1000).toFixed(2)} key={`sw${sid}${st.width}`}
+              onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetStairCommand(fid, sid, { width: Math.max(600, Math.min(3000, Math.round(v * 1000))) })) }}
+              className="w-16 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
           <div className="flex gap-1">
             <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
             <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { mirror: !st.mirror }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: st.mirror ? TOKENS.accent : "rgba(148,163,184,0.12)", color: st.mirror ? "#0b1220" : TOKENS.text }}>⇄ Зеркально</button>
@@ -212,6 +218,23 @@ export function PropertyPanel() {
           <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(curZ / 1.2) }))}>－</button>
           <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(curZ * 1.2) }))}>＋</button>
           <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: 1 }))}>1×</button>
+        </div>
+        <div className="mt-1 flex items-center gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
+          <label className="flex flex-1 items-center gap-1">Ш×
+            <input type="number" step="0.1" min="0.3" max="6" defaultValue={curX.toFixed(2)} key={`ox${id}${curX}`}
+              onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetObjectSizeCommand(target, id, { scaleX: clampSize(v) })) }}
+              className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
+          <label className="flex flex-1 items-center gap-1">Г×
+            <input type="number" step="0.1" min="0.3" max="6" defaultValue={curZ.toFixed(2)} key={`oz${id}${curZ}`}
+              onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(v) })) }}
+              className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
+          <label className="flex flex-1 items-center gap-1">М
+            <input type="number" step="0.1" min="0.3" max="5" defaultValue={obj.scale.toFixed(2)} key={`om${id}${obj.scale}`}
+              onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetObjectScaleCommand(target, id, Math.max(0.3, Math.min(5, v)))) }}
+              className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
         </div>
         <div className="mt-1 flex flex-wrap gap-1">
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectRotationCommand(target, id, (obj.rotationY + 45) % 360))}>⟳ 45°</button>
