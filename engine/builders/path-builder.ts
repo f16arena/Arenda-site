@@ -115,7 +115,8 @@ export function buildPath(feature: PathFeature, parent: TransformNode, scene: Sc
     { pathArray: [left, right], sideOrientation: Mesh.DOUBLESIDE },
     scene,
   )
-  ribbon.position.y = 0.04
+  // Выше светящейся сетки (y=0.06), иначе её линии просвечивают сквозь покрытие.
+  ribbon.position.y = 0.09
   ribbon.parent = parent
   ribbon.receiveShadows = true
   ribbon.material = reg.get(feature.kind === "road" ? "asphalt" : "paving")
