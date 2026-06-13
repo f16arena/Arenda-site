@@ -165,7 +165,10 @@ export function PropertyPanel() {
               <button key={w} type="button" onClick={() => execute(new SetStairCommand(fid, sid, { width: w }))} className="flex-1 rounded-md py-1 text-[10px]" style={{ background: st.width === w ? TOKENS.accent : "rgba(148,163,184,0.12)", color: st.width === w ? "#0b1220" : TOKENS.text }}>{(w / 1000).toFixed(1)} м</button>
             ))}
           </div>
-          <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ Повернуть 90°</button>
+          <div className="flex gap-1">
+            <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+            <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { mirror: !st.mirror }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: st.mirror ? TOKENS.accent : "rgba(148,163,184,0.12)", color: st.mirror ? "#0b1220" : TOKENS.text }}>⇄ Зеркально</button>
+          </div>
           <button type="button" onClick={() => execute(new DeleteStairCommand(fid, sid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить лестницу</button>
         </div>
       )

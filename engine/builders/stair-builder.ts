@@ -18,8 +18,10 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
   const mat = reg.get("concrete")
   const railMat = reg.get("metal_roof")
   const meta = { kind: "stair", floorId: stair.fromFloorId, entityId: stair.id }
+  // Зеркало по локальной X: переносим позиции (геометрия/нормали целы, без отрицательного scale).
+  const mx = stair.mirror ? -1 : 1
   const place = (b: { x: number; y: number; z: number; w: number; h: number; d: number }, m: Mesh) => {
-    m.position.set(b.x * S, b.y * S, b.z * S)
+    m.position.set(b.x * mx * S, b.y * S, b.z * S)
     m.parent = root
     m.receiveShadows = true
     m.metadata = meta
@@ -51,9 +53,13 @@ export function stairHoleWorld(stair: Stair, floorHeight: number): { x: number; 
   const rot = (stair.rotationDeg * Math.PI) / 180
   const cos = Math.cos(rot)
   const sin = Math.sin(rot)
-  // Поворот вокруг origin + смещение position. Babylon Y-rotation: x'=x*cos+z*sin, z'=-x*sin+z*cos.
-  return corners.map((c) => ({
-    x: stair.position.x + (c.x * cos + c.z * sin),
-    y: stair.position.y + (-c.x * sin + c.z * cos),
-  }))
+  const mx = stair.mirror ? -1 : 1
+  // Зеркало по X (как в buildStair) → поворот вокруг origin + смещение position.
+  return corners.map((c) => {
+    const cx = c.x * mx
+    return {
+      x: stair.position.x + (cx * cos + c.z * sin),
+      y: stair.position.y + (-cx * sin + c.z * cos),
+    }
+  })
 }

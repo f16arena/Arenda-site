@@ -47,6 +47,8 @@ export const StairSchema = z.object({
   rotationDeg: z.number(),
   width: z.number(),
   railing: z.boolean(),
+  // Зеркальное отражение по локальной оси X (меняет сторону поворота Г/П и перил).
+  mirror: z.boolean().optional(),
 })
 
 export const BuilderObjectSchema = z.object({
