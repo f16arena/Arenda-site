@@ -5,6 +5,7 @@
 
 import { useEditorStore, type StairShape, type TerrainMode } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
+import { presetsFor } from "@/lib/builder/openings"
 
 const PAINT_IDS = ["brick", "plaster_white", "concrete", "block", "laminate", "tile", "paving", "metal_roof"]
 const STAIRS: { id: StairShape; label: string }[] = [
@@ -39,6 +40,8 @@ export function ToolOptions() {
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const setTerrainMode = useEditorStore((s) => s.setTerrainMode)
   const armedAsset = useEditorStore((s) => s.armedAsset)
+  const openingVariant = useEditorStore((s) => s.openingVariant)
+  const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
 
   if (tool === "terrain") {
     return (
@@ -119,7 +122,27 @@ export function ToolOptions() {
     return <Shell><span>Зажми и растяни прямоугольник на этаже → 4 стены и пол создаются сразу.</span></Shell>
   }
   if (tool === "door" || tool === "window") {
-    return <Shell><span>Кликните на стену — {tool === "door" ? "дверь" : "окно"} вырежется в стене со снапом.</span></Shell>
+    const presets = presetsFor(tool)
+    return (
+      <Shell>
+        <span className="shrink-0">{tool === "door" ? "Дверь:" : "Окно:"}</span>
+        {presets.map((p) => {
+          const active = openingVariant === p.variant
+          return (
+            <button
+              key={p.variant}
+              type="button"
+              onClick={() => setOpeningVariant(p.variant)}
+              className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+              style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
+            >
+              {p.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— клик на стене</span>
+      </Shell>
+    )
   }
   if (tool === "select") {
     return <Shell><span>Клик — выбрать (справа свойства). Тяни узел/стену/объект. Высоту/толщину/тип стены — в панели. Delete — удалить.</span></Shell>

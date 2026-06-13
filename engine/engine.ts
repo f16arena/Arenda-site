@@ -30,6 +30,7 @@ import {
   MoveObjectCommand,
   AddOpeningCommand,
   DeleteOpeningCommand,
+  MoveOpeningCommand,
   AddStairCommand,
   DeleteStairCommand,
   SetWallMaterialCommand,
@@ -38,6 +39,7 @@ import {
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { closestOnSegment, distance, snapToGrid, type Vec2 } from "@/core/geometry/math"
+import { findPreset } from "@/lib/builder/openings"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
 import { buildWalls } from "./builders/wall-builder"
@@ -51,9 +53,6 @@ const S = 0.001
 const ACCENT = Color3.FromHexString("#38BDF8")
 const HOVER = Color3.FromHexString("#A78BFA")
 const SNAP_NODE_MM = 300
-
-const DOOR = { width: 900, height: 2100, sill: 0 }
-const WINDOW = { width: 1200, height: 1400, sill: 900 }
 
 export interface MeshMeta {
   kind: string
@@ -102,12 +101,14 @@ export class BuilderEngine {
   private roomStart: Vector3 | null = null
   private roomPreview: Mesh | null = null
   private dragWall: { floorId: string; edgeId: string; startMm: Vec2 } | null = null
+  private dragOpening: { floorId: string; openingId: string } | null = null
   private shiftDown = false
 
   tool: Tool = "select"
   activeFloorId = ""
   paintMaterialId = "brick"
   openingType: "door" | "window" = "door"
+  openingVariant = "interior"
   stairShape = "u"
   terrainMode: "raise" | "lower" | "flatten" | "smooth" = "raise"
   onPick: (meta: MeshMeta | null) => void = () => {}
@@ -408,6 +409,9 @@ export class BuilderEngine {
       if (meta?.kind === "node" && meta.floorId && meta.entityId) {
         this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId }
         this.bundle.scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
+        this.dragOpening = { floorId: meta.floorId, openingId: meta.entityId }
+        this.bundle.scene.activeCamera?.detachControl()
       } else if (meta?.kind === "wall" && meta.floorId && meta.entityId) {
         const p = this.projectToPlane()
         if (p) {
@@ -441,6 +445,15 @@ export class BuilderEngine {
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
         this.onCommand(new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
+      }
+      return
+    }
+    if (this.dragOpening) {
+      const off = this.openingOffset(this.dragOpening.floorId, this.dragOpening.openingId)
+      const now = performance.now()
+      if (off != null && now - this.lastMoveAt > 33) {
+        this.lastMoveAt = now
+        this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
       }
       return
     }
@@ -518,6 +531,13 @@ export class BuilderEngine {
         this.onCommand(new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
       }
       this.dragWall = null
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
+    if (this.dragOpening) {
+      const off = this.openingOffset(this.dragOpening.floorId, this.dragOpening.openingId)
+      if (off != null) this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
+      this.dragOpening = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
     }
@@ -679,7 +699,7 @@ export class BuilderEngine {
     const pMm = { x: point.x * 1000, y: point.z * 1000 }
     const c = closestOnSegment(pMm, { x: a.x, y: a.y }, { x: b.x, y: b.y })
     const len = distance({ x: a.x, y: a.y }, { x: b.x, y: b.y })
-    const spec = this.openingType === "window" ? WINDOW : DOOR
+    const spec = findPreset(this.openingType, this.openingVariant)
     const offset = Math.max(spec.width / 2 + 50, Math.min(len - spec.width / 2 - 50, c.t * len))
     if (len < spec.width + 200) return
     this.onCommand(
@@ -687,6 +707,7 @@ export class BuilderEngine {
         id: uid("op"),
         wallId: meta.entityId,
         type: this.openingType,
+        variant: spec.variant,
         width: spec.width,
         height: spec.height,
         sillHeight: spec.sill,
@@ -735,6 +756,22 @@ export class BuilderEngine {
       const target = meta.target === "site" ? ({ site: true } as const) : ({ floorId: meta.target ?? "" } as const)
       this.onCommand(new DeleteObjectCommand(target, meta.entityId))
     }
+  }
+
+  // Смещение проёма вдоль его стены под текущим курсором (мм), с клампом по краям.
+  private openingOffset(floorId: string, openingId: string): number | null {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, floorId) : undefined
+    const o = f?.openings.find((op) => op.id === openingId)
+    const e = o ? f?.wallGraph.edges[o.wallId] : undefined
+    if (!f || !o || !e) return null
+    const a = f.wallGraph.nodes[e.a]
+    const b = f.wallGraph.nodes[e.b]
+    const p = this.projectToPlane()
+    if (!a || !b || !p) return null
+    const c = closestOnSegment({ x: p.x * 1000, y: p.z * 1000 }, { x: a.x, y: a.y }, { x: b.x, y: b.y })
+    const len = distance({ x: a.x, y: a.y }, { x: b.x, y: b.y })
+    return Math.max(o.width / 2 + 50, Math.min(len - o.width / 2 - 50, c.t * len))
   }
 
   // ── Предпросмотр комнаты ──────────────────────────────────────────────────────

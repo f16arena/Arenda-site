@@ -538,6 +538,29 @@ export class DeleteStairCommand implements Command {
   }
 }
 
+// ── Размер/вариант проёма ─────────────────────────────────────────────────────
+export class SetOpeningSizeCommand implements Command {
+  readonly kind = "set-opening-size"
+  readonly label = "размер проёма"
+  private prev?: { width: number; height: number; sillHeight: number; variant: string }
+  private captured = false
+  constructor(private floorId: string, private openingId: string, private props: { width?: number; height?: number; sillHeight?: number; variant?: string }) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const o = f?.openings.find((op) => op.id === this.openingId)
+    if (o && !this.captured) {
+      this.prev = { width: o.width, height: o.height, sillHeight: o.sillHeight, variant: o.variant }
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: fl.openings.map((op) => (op.id === this.openingId ? { ...op, ...this.props } : op)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, openings: fl.openings.map((op) => (op.id === this.openingId ? { ...op, ...prev } : op)) }))
+  }
+}
+
 // ── Материалы (ведро) ─────────────────────────────────────────────────────────
 export class SetWallMaterialCommand implements Command {
   readonly kind = "set-wall-material"

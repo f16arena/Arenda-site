@@ -5,8 +5,9 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand } from "@/core/document/commands"
+import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand } from "@/core/document/commands"
 import type { WallKind } from "@/core/geometry/wall-graph"
+import { presetsFor } from "@/lib/builder/openings"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { distance } from "@/core/geometry/math"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
@@ -93,6 +94,38 @@ export function PropertyPanel() {
         rows.push(<Row key="p" label="Привязка" value="нет (Фаза 5)" />)
       }
       rows.push(<Row key="fl" label="Этаж" value={f.name} />)
+    }
+  } else if (selection.type === "opening" && selection.floorId && selection.id) {
+    const f = findFloor(doc, selection.floorId)
+    const op = f?.openings.find((o) => o.id === selection.id)
+    title = op?.type === "window" ? "Окно" : "Дверь"
+    if (f && op) {
+      const fid = selection.floorId
+      const oid = selection.id
+      rows.push(<Row key="w" label="Ширина" value={`${(op.width / 1000).toFixed(2)} м`} />)
+      rows.push(<Row key="h" label="Высота" value={`${(op.height / 1000).toFixed(2)} м`} />)
+      rows.push(<Row key="s" label="От пола" value={`${(op.sillHeight / 1000).toFixed(2)} м`} />)
+      const numInput = (label: string, val: number, on: (mm: number) => void, min: number, max: number) => (
+        <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+          {label}
+          <input type="number" step="0.1" min={min / 1000} max={max / 1000} defaultValue={(val / 1000).toFixed(2)} key={`${label}${oid}${val}`}
+            onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) on(Math.max(min, Math.min(max, Math.round(v * 1000)))) }}
+            className="w-16 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+        </label>
+      )
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {numInput("Ширина, м", op.width, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { width: mm })), 400, 6000)}
+          {numInput("Высота, м", op.height, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { height: mm })), 400, 3000)}
+          {numInput("От пола, м", op.sillHeight, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { sillHeight: mm })), 0, 2000)}
+          <div className="flex flex-wrap gap-1">
+            {presetsFor(op.type).map((pr) => (
+              <button key={pr.variant} type="button" onClick={() => execute(new SetOpeningSizeCommand(fid, oid, { variant: pr.variant, width: pr.width, height: pr.height, sillHeight: pr.sill }))} className="rounded-md px-1.5 py-1 text-[10px]" style={{ background: op.variant === pr.variant ? TOKENS.accent : "rgba(148,163,184,0.12)", color: op.variant === pr.variant ? "#0b1220" : TOKENS.text }}>{pr.label}</button>
+            ))}
+          </div>
+          <button type="button" onClick={() => execute(new DeleteOpeningCommand(fid, oid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить проём</button>
+        </div>
+      )
     }
   } else if (selection.type === "object" && selection.id) {
     const inSite = doc.site.objects.find((o) => o.id === selection.id)

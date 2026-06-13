@@ -34,6 +34,8 @@ function applyPick(meta: MeshMeta | null): void {
   }
   if (meta.kind === "wall") setSelection({ type: "wall", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "room") setSelection({ type: "room", id: meta.entityId, floorId: meta.floorId })
+  else if (meta.kind === "opening") setSelection({ type: "opening", id: meta.entityId, floorId: meta.floorId })
+  else if (meta.kind === "stair") setSelection({ type: "stair", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "object") setSelection({ type: "object", id: meta.entityId, floorId: meta.target !== "site" ? meta.target : undefined })
   else setSelection({ type: "none" })
 }
@@ -81,6 +83,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const stairShape = useEditorStore((s) => s.stairShape)
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const armedAsset = useEditorStore((s) => s.armedAsset)
+  const openingVariant = useEditorStore((s) => s.openingVariant)
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
@@ -124,9 +127,10 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.stairShape = stairShape
     e.terrainMode = terrainMode
     e.openingType = activeTool === "window" ? "window" : "door"
+    e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
     if (activeTool !== "wall") e.cancelWallTool()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, armedAsset, ready])
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current

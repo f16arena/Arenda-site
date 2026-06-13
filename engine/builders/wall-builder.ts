@@ -94,20 +94,51 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         above.parent = parent
         meshes.push(above)
       }
+      const opMeta = { kind: "opening", floorId: floor.id, entityId: o.id }
+      const at = (lateral: number) => pointAt(o.offset + lateral)
+      const push = (m: Mesh, mat: ReturnType<MaterialRegistry["get"]>) => {
+        m.material = mat
+        m.receiveShadows = true
+        m.metadata = opMeta
+        m.parent = parent
+        meshes.push(m)
+      }
       if (o.type === "window") {
-        const glass = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: o.width, height: o.height, depth: t * 0.2, angle }, scene, `glass_${o.id}`)
-        glass.material = reg.get("glass")
-        glass.metadata = { kind: "opening", floorId: floor.id, entityId: o.id }
-        glass.parent = parent
-        meshes.push(glass)
+        // стекло на весь проём + рама + переплёт (крест) для непанорамных
+        const glass = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: o.height - 60, depth: t * 0.15, angle }, scene, `glass_${o.id}`)
+        push(glass, reg.get("glass"))
+        if (o.variant !== "panoramic") {
+          const mull = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: 60, height: o.height - 60, depth: t * 0.22, angle }, scene, `mv_${o.id}`)
+          push(mull, reg.get("plaster_white"))
+          const mh = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: 60, depth: t * 0.22, angle }, scene, `mh_${o.id}`)
+          push(mh, reg.get("plaster_white"))
+        }
       } else {
-        // дверь — отметим невидимым тонким пикабельным маркером в проёме для выделения
-        const marker = makeBox({ cx: c.x, cz: c.y, yMid: o.height / 2, width: o.width, height: o.height, depth: t * 0.15, angle }, scene, `door_${o.id}`)
-        marker.visibility = 0.12
-        marker.material = reg.get("laminate")
-        marker.metadata = { kind: "opening", floorId: floor.id, entityId: o.id }
-        marker.parent = parent
-        meshes.push(marker)
+        // двери — створки по варианту
+        const leafD = t * 0.35
+        const doorMat = reg.get("laminate")
+        if (o.variant === "double") {
+          const lw = o.width / 2 - 40
+          for (const side of [-1, 1]) {
+            const cc = at((side * o.width) / 4)
+            const leaf = makeBox({ cx: cc.x, cz: cc.y, yMid: o.height / 2, width: lw, height: o.height - 40, depth: leafD, angle }, scene, `dl_${o.id}_${side}`)
+            push(leaf, doorMat)
+          }
+        } else if (o.variant === "sliding") {
+          const cc = at(-o.width / 4)
+          const leaf = makeBox({ cx: cc.x, cz: cc.y, yMid: o.height / 2, width: o.width / 2, height: o.height - 40, depth: leafD, angle }, scene, `ds_${o.id}`)
+          push(leaf, reg.get("glass"))
+          const rail = makeBox({ cx: c.x, cz: c.y, yMid: o.height - 20, width: o.width, height: 60, depth: leafD, angle }, scene, `dr_${o.id}`)
+          push(rail, reg.get("concrete"))
+        } else if (o.variant === "garage") {
+          for (let s = 0; s < 5; s++) {
+            const seg = makeBox({ cx: c.x, cz: c.y, yMid: 130 + s * ((o.height - 80) / 5), width: o.width - 40, height: (o.height - 80) / 5 - 20, depth: leafD, angle }, scene, `dg_${o.id}_${s}`)
+            push(seg, reg.get("metal_roof"))
+          }
+        } else {
+          const leaf = makeBox({ cx: c.x, cz: c.y, yMid: o.height / 2, width: o.width - 60, height: o.height - 40, depth: leafD, angle }, scene, `dl_${o.id}`)
+          push(leaf, doorMat)
+        }
       }
     }
   }

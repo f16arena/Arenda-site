@@ -99,7 +99,7 @@ export type Tool =
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -120,6 +120,7 @@ export interface EditorState {
   hoverId: string | null
   paintMaterialId: string
   openingType: OpeningType
+  openingVariant: string
   stairShape: StairShape
   terrainMode: TerrainMode
   armedAsset: string | null
@@ -132,6 +133,7 @@ export interface EditorState {
   setHover: (id: string | null) => void
   setPaintMaterial: (id: string) => void
   setOpeningType: (t: OpeningType) => void
+  setOpeningVariant: (v: string) => void
   setStairShape: (s: StairShape) => void
   setTerrainMode: (m: TerrainMode) => void
   armAsset: (id: string | null) => void
@@ -147,10 +149,16 @@ export const useEditorStore = create<EditorState>((set) => ({
   hoverId: null,
   paintMaterialId: "brick",
   openingType: "door",
+  openingVariant: "interior",
   stairShape: "u",
   terrainMode: "raise",
   armedAsset: null,
-  setTool: (t) => set((s) => ({ activeTool: t, selection: { type: "none" }, armedAsset: t === "object" ? s.armedAsset : null })),
+  setTool: (t) => set((s) => ({
+    activeTool: t,
+    selection: { type: "none" },
+    armedAsset: t === "object" ? s.armedAsset : null,
+    openingVariant: t === "door" ? "interior" : t === "window" ? "standard" : s.openingVariant,
+  })),
   setCameraMode: (m) => set({ cameraMode: m }),
   setDisplayMode: (m) => set({ displayMode: m }),
   toggleWallsDown: () => set((s) => ({ wallsDown: !s.wallsDown })),
@@ -159,6 +167,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setHover: (id) => set({ hoverId: id }),
   setPaintMaterial: (id) => set({ paintMaterialId: id }),
   setOpeningType: (t) => set({ openingType: t }),
+  setOpeningVariant: (v) => set({ openingVariant: v }),
   setStairShape: (s) => set({ stairShape: s }),
   setTerrainMode: (m) => set({ terrainMode: m }),
   armAsset: (id) => set({ armedAsset: id }),

@@ -31,6 +31,7 @@ export const OpeningSchema = z.object({
   id: z.string(),
   wallId: z.string(),
   type: z.enum(["door", "window"]),
+  variant: z.string().default("single"),
   width: z.number(),
   height: z.number(),
   sillHeight: z.number(),
