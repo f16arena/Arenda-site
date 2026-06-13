@@ -24,21 +24,6 @@ export function buildFloors(
 ): Mesh[] {
   const meshes: Mesh[] = []
   const rooms = detectRooms(floor.wallGraph)
-
-  // Пустой этаж (нет замкнутых комнат) — рисуем базовую плиту-платформу, чтобы этаж
-  // был виден сразу после добавления и на нём можно было строить стены/комнаты.
-  if (rooms.length === 0) {
-    const base = MeshBuilder.CreateGround(`floorbase_${floor.id}`, { width: 16, height: 10 }, scene)
-    base.position.y = 0.02
-    base.parent = parent
-    base.receiveShadows = true
-    base.isPickable = false
-    base.material = reg.platform()
-    base.metadata = { kind: "floorbase", floorId: floor.id }
-    meshes.push(base)
-    return meshes
-  }
-
   for (const room of rooms) {
     const shape = room.polygon.map((p) => new Vector3(p.x * S, 0, p.y * S))
     // Вырезы (лестницы), чей центр лежит внутри комнаты.
