@@ -74,7 +74,7 @@ export function LevelPanel() {
 
   return (
     <div
-      className="absolute left-3 top-20 z-20 flex w-52 flex-col gap-1 rounded-2xl p-2 shadow-2xl backdrop-blur-xl"
+      className="absolute left-3 top-40 z-20 flex w-52 flex-col gap-1 rounded-2xl p-2 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: TOKENS.muted }}>

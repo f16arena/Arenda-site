@@ -49,6 +49,34 @@ export const useDocumentStore = create<DocumentState>((set, get) => {
   }
 })
 
+export type SyncStatus = "idle" | "saving" | "saved" | "conflict" | "error"
+
+export interface SyncState {
+  projectId: string | null
+  name: string
+  revision: number
+  status: SyncStatus
+  lastSavedRev: number
+  setProject: (id: string | null, name: string, revision: number) => void
+  setName: (name: string) => void
+  setRevision: (revision: number) => void
+  setStatus: (status: SyncStatus) => void
+  setLastSavedRev: (rev: number) => void
+}
+
+export const useSyncStore = create<SyncState>((set) => ({
+  projectId: null,
+  name: "Demo Building",
+  revision: 0,
+  status: "idle",
+  lastSavedRev: -1,
+  setProject: (projectId, name, revision) => set({ projectId, name, revision, status: "saved", lastSavedRev: revision }),
+  setName: (name) => set({ name }),
+  setRevision: (revision) => set({ revision }),
+  setStatus: (status) => set({ status }),
+  setLastSavedRev: (lastSavedRev) => set({ lastSavedRev }),
+}))
+
 export type Tool =
   | "select"
   | "wall"

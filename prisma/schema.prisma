@@ -1476,3 +1476,31 @@ model ContractDraft {
   @@index([deletedAt])
   @@map("contract_drafts")
 }
+
+// Building Studio — проект 3D-модели здания (Babylon). doc — сериализованный
+// BuilderDocument (Json/jsonb). revision — для оптимистичной блокировки автосейва.
+model BuilderProject {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String   @default("Без названия")
+  buildingId     String?  @map("building_id")
+  doc            Json
+  schemaVersion  Int      @default(1) @map("schema_version")
+  revision       Int      @default(0)
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId, updatedAt])
+  @@map("builder_projects")
+}
+
+// Read-only витрина по токену: token → проект (Showcase, публичный домен).
+model BuilderShare {
+  token     String   @id
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([projectId])
+  @@map("builder_shares")
+}

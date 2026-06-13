@@ -8,13 +8,16 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { Loader2 } from "lucide-react"
-import { useDocumentStore, useEditorStore, type Tool, type CameraMode } from "@/store/builder-store"
+import type { BuilderDocument } from "@/types/builder"
+import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
+import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
 import { DeleteObjectCommand, DeleteWallCommand } from "@/core/document/commands"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 import { BuilderToolbar } from "./BuilderToolbar"
 import { ToolOptions } from "./ToolOptions"
+import { BuilderProjectBar } from "./BuilderProjectBar"
 import { LevelPanel } from "./LevelPanel"
 import { PropertyPanel } from "./PropertyPanel"
 import { AssetCatalog } from "./AssetCatalog"
@@ -61,7 +64,7 @@ const TOOL_KEYS: Record<string, Tool> = {
 }
 const CAM_KEYS: Record<string, CameraMode> = { "1": "orbit", "2": "top", "3": "plan", "4": "walk" }
 
-export function BuilderApp() {
+export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string }) {
   const engineRef = useRef<BuilderEngine | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -83,14 +86,20 @@ export function BuilderApp() {
     engineRef.current = engine
     engine.statusResolver = (pid) => DEMO_PREMISE_STATUS[pid]
     engine.getDoc = () => useDocumentStore.getState().doc
-    engine.onCommand = (cmd) => useDocumentStore.getState().execute(cmd)
+    engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
     engine.onHud = (t) => setHud(t)
-    const d = useDocumentStore.getState().doc
-    const first = d.buildings[0]?.floors?.[0]
-    if (first) useEditorStore.getState().setActiveLevel(first.id)
+    if (initialDoc) {
+      useDocumentStore.getState().loadDocument(initialDoc)
+      const f = initialDoc.buildings[0]?.floors?.[0]
+      if (f) useEditorStore.getState().setActiveLevel(f.id)
+    } else {
+      const d = useDocumentStore.getState().doc
+      const first = d.buildings[0]?.floors?.[0]
+      if (first) useEditorStore.getState().setActiveLevel(first.id)
+    }
     setReady(true)
-  }, [])
+  }, [readOnly, initialDoc])
 
   // Пересборка сцены при изменении документа/уровня/режима отображения.
   useEffect(() => {
@@ -123,6 +132,24 @@ export function BuilderApp() {
     const e = engineRef.current
     if (e && ready) e.setCameraMode(cameraMode)
   }, [cameraMode, ready])
+
+  // Загрузка сохранённого проекта по ?project (иначе остаётся demo).
+  useEffect(() => {
+    if (!ready || !initialProjectId) return
+    let cancelled = false
+    void loadBuilderProject(initialProjectId)
+      .then((p) => {
+        if (cancelled || !p) return
+        useDocumentStore.getState().loadDocument(p.doc)
+        useSyncStore.getState().setProject(p.id, p.name, p.revision)
+        const first = p.doc.buildings[0]?.floors?.[0]
+        if (first) useEditorStore.getState().setActiveLevel(first.id)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [ready, initialProjectId])
 
   useEffect(() => {
     if (!ready) return
@@ -189,13 +216,22 @@ export function BuilderApp() {
   return (
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
       <BuilderCanvas onReady={handleReady} />
-      <BuilderToolbar />
-      <ToolOptions />
-      <LevelPanel />
+      {!readOnly && <BuilderToolbar />}
+      {!readOnly && <BuilderProjectBar />}
+      {!readOnly && <ToolOptions />}
+      {!readOnly && <LevelPanel />}
       <PropertyPanel />
       <CameraControls />
-      <AssetCatalog />
-      <StatusBar />
+      {!readOnly && <AssetCatalog />}
+      {!readOnly && <StatusBar />}
+      {readOnly && (
+        <div
+          className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
+          style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
+        >
+          <span style={{ color: TOKENS.accent }}>●</span> {showcaseName ?? "Витрина"} · Commrent
+        </div>
+      )}
       {hud && (
         <div
           className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 translate-y-10 rounded-lg px-3 py-1.5 text-sm font-semibold shadow-xl backdrop-blur"
