@@ -41,11 +41,12 @@ export default function ImportHomePage() {
         />
 
         <ImportCard
+          href="/admin/import/contracts"
           title="Договоры"
-          description="Импорт реестра договоров аренды (номер, даты, статус). Скоро."
+          description="Импорт реестра договоров аренды (номер, даты, статус). Арендатор сопоставляется по БИН/ИИН или названию."
           icon={Upload}
           color="purple"
-          available={false}
+          available
         />
       </div>
 
