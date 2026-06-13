@@ -7,7 +7,14 @@ import { useEditorStore, type StairShape, type TerrainMode } from "@/store/build
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
 
-const PAINT_IDS = ["brick", "plaster_white", "concrete", "block", "laminate", "tile", "paving", "metal_roof"]
+const PAINT_IDS = [
+  // стены/фасад
+  "paint_white", "paint_gray", "paint_blue", "paint_green", "paint_terra", "brick", "concrete", "stone", "wood_panel", "loft", "wallpaper", "clinker", "facade_panel", "composite", "curtain_glass",
+  // полы
+  "laminate", "parquet", "oak_floor", "wenge_floor", "tile", "marble", "granite", "carpet_gray", "carpet_blue", "vinyl", "checker", "terrazzo",
+  // кровля
+  "metal_roof", "roof_red", "roof_brown", "roof_green", "roof_membrane",
+]
 const STAIRS: { id: StairShape; label: string }[] = [
   { id: "straight", label: "Прямая" },
   { id: "l", label: "Г-образная" },

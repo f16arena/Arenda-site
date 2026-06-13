@@ -9,6 +9,7 @@ import {
   Matrix,
   Mesh,
   MeshBuilder,
+  PointLight,
   PointerEventTypes,
   TransformNode,
   UniversalCamera,
@@ -48,6 +49,7 @@ import { buildFloors, type StatusResolver } from "./builders/floor-builder"
 import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
+import { LIGHT_ASSETS } from "./builders/object-builder"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
 
 const S = 0.001
@@ -75,6 +77,8 @@ export class BuilderEngine {
   private docRoot: TransformNode | null = null
   private meshById = new Map<string, Mesh[]>()
   private walkCamera: UniversalCamera | null = null
+  private lights: PointLight[] = []
+  private readonly maxLights = 8
 
   // инструмент стены
   private wallStart: Vector3 | null = null
@@ -130,9 +134,12 @@ export class BuilderEngine {
   rebuild(doc: BuilderDocument, ctx: RebuildContext): void {
     const scene = this.bundle.scene
     if (this.docRoot) this.docRoot.dispose()
+    for (const l of this.lights) l.dispose()
+    this.lights = []
     this.meshById.clear()
     this.hovered = null
     this.docRoot = new TransformNode("docRoot", scene)
+    const lightSpecs: Vector3[] = []
 
     // Рельеф из документа (если правился кистями) + котлованы под цоколь/подвал
     if (!this.terrainEditing) {
@@ -157,6 +164,7 @@ export class BuilderEngine {
           this.bundle.shadow.addShadowCaster(m)
         }
       })
+      if (LIGHT_ASSETS.has(obj.assetId)) lightSpecs.push(new Vector3(obj.position.x * S, obj.position.y * S + 2.6, obj.position.z * S))
     }
 
     for (const b of doc.buildings) {
@@ -196,6 +204,18 @@ export class BuilderEngine {
           })
         }
 
+        // объекты на этаже (мебель/техника/свет/декор)
+        for (const obj of f.objects) {
+          const node = buildObject(obj, fNode, scene, f.id)
+          node.getChildMeshes().forEach((m) => {
+            if (m instanceof Mesh) {
+              register(obj.id, m)
+              this.bundle.shadow.addShadowCaster(m)
+            }
+          })
+          if (LIGHT_ASSETS.has(obj.assetId)) lightSpecs.push(new Vector3(b.origin.x * S + obj.position.x * S, f.elevation * S + obj.position.y * S + 2.6, b.origin.y * S + obj.position.z * S))
+        }
+
         const roof = buildRoof(f, bRoot, scene, this.reg)
         if (roof) {
           register(roof.metadata?.entityId, roof)
@@ -217,6 +237,16 @@ export class BuilderEngine {
 
         this.applyFloorVisibility(f, fNode, roof, ctx, active)
       }
+    }
+
+    // Источники света — лимит maxLights (приоритет: первые в документе), чтобы не
+    // ронять FPS. Светятся также через emissive+GlowLayer независимо от лимита.
+    for (const pos of lightSpecs.slice(0, this.maxLights)) {
+      const pl = new PointLight(`pl_${pos.x}_${pos.z}`, pos, scene)
+      pl.intensity = 0.35
+      pl.range = 14
+      pl.diffuse = new Color3(1, 0.96, 0.85)
+      this.lights.push(pl)
     }
   }
 
@@ -1012,6 +1042,8 @@ export class BuilderEngine {
     this.cancelWallTool()
     this.cancelPlacer()
     this.roomPreview?.dispose()
+    for (const l of this.lights) l.dispose()
+    this.lights = []
     this.bundle.engine.stopRenderLoop()
     this.reg.dispose()
     this.bundle.scene.dispose()

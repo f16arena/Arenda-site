@@ -16,12 +16,65 @@ interface Asset {
 }
 
 const ASSETS: Asset[] = [
+  // Мебель
+  { id: "sofa", name: "Диван", category: "Мебель", icon: "🛋️" },
+  { id: "armchair", name: "Кресло", category: "Мебель", icon: "🪑" },
+  { id: "chair", name: "Стул", category: "Мебель", icon: "🪑" },
+  { id: "table", name: "Стол", category: "Мебель", icon: "🪟" },
+  { id: "coffee_table", name: "Журнальный", category: "Мебель", icon: "▭" },
+  { id: "desk", name: "Стол раб.", category: "Мебель", icon: "🖥️" },
+  { id: "meeting_table", name: "Переговорный", category: "Мебель", icon: "⬭" },
+  { id: "wardrobe", name: "Шкаф", category: "Мебель", icon: "🚪" },
+  { id: "shelf", name: "Стеллаж", category: "Мебель", icon: "🗄️" },
+  { id: "bed", name: "Кровать", category: "Мебель", icon: "🛏️" },
+  { id: "reception", name: "Ресепшн", category: "Мебель", icon: "🛎️" },
+  { id: "display_case", name: "Витрина", category: "Мебель", icon: "🪟" },
+  // Техника
+  { id: "tv", name: "Телевизор", category: "Техника", icon: "📺" },
+  { id: "monitor", name: "Монитор", category: "Техника", icon: "🖥️" },
+  { id: "pc", name: "ПК", category: "Техника", icon: "🖲️" },
+  { id: "printer", name: "Принтер", category: "Техника", icon: "🖨️" },
+  { id: "fridge", name: "Холодильник", category: "Техника", icon: "🧊" },
+  { id: "microwave", name: "Микроволновка", category: "Техника", icon: "📦" },
+  { id: "ac", name: "Кондиционер", category: "Техника", icon: "❄️" },
+  { id: "projector", name: "Проектор", category: "Техника", icon: "📽️" },
+  // Свет
+  { id: "ceiling_light", name: "Люстра", category: "Свет", icon: "💡" },
+  { id: "wall_light", name: "Бра", category: "Свет", icon: "🔆" },
+  { id: "floor_lamp", name: "Торшер", category: "Свет", icon: "🛋️" },
+  { id: "table_lamp", name: "Настольная", category: "Свет", icon: "💡" },
+  { id: "spot", name: "Точечный", category: "Свет", icon: "🔅" },
+  { id: "led_strip", name: "LED-лента", category: "Свет", icon: "🌈" },
+  { id: "street_lamp", name: "Фонарь", category: "Свет", icon: "🏮" },
+  // Декор
+  { id: "painting", name: "Картина", category: "Декор", icon: "🖼️" },
+  { id: "poster", name: "Постер", category: "Декор", icon: "🪧" },
+  { id: "mirror", name: "Зеркало", category: "Декор", icon: "🪞" },
+  { id: "clock", name: "Часы", category: "Декор", icon: "🕐" },
+  { id: "plant_pot", name: "Растение", category: "Декор", icon: "🪴" },
+  { id: "vase", name: "Ваза", category: "Декор", icon: "🏺" },
+  { id: "rug", name: "Ковёр", category: "Декор", icon: "🟪" },
+  { id: "curtain", name: "Штора", category: "Декор", icon: "🪟" },
+  // Гейминг
+  { id: "gaming_desk", name: "Игровой стол", category: "Гейминг", icon: "🎮" },
+  { id: "gaming_chair", name: "Игр. кресло", category: "Гейминг", icon: "🪑" },
+  { id: "pc_rgb", name: "ПК RGB", category: "Гейминг", icon: "🌈" },
+  { id: "monitor_triple", name: "3 монитора", category: "Гейминг", icon: "🖥️" },
+  { id: "console_zone", name: "Консоль-зона", category: "Гейминг", icon: "🎮" },
+  // Кафе
+  { id: "cafe_table", name: "Столик", category: "Кафе", icon: "☕" },
+  { id: "cafe_chair", name: "Стул кафе", category: "Кафе", icon: "🪑" },
+  { id: "bar_stool", name: "Барный стул", category: "Кафе", icon: "🍸" },
+  { id: "bar_counter", name: "Барная стойка", category: "Кафе", icon: "🍹" },
+  { id: "coffee_machine", name: "Кофемашина", category: "Кафе", icon: "☕" },
+  { id: "menu_board", name: "Меню-борд", category: "Кафе", icon: "📋" },
+  // Природа / Улица / Ограды / Покрытия
   { id: "tree", name: "Дерево", category: "Природа", icon: "🌳" },
   { id: "spruce", name: "Ёлка", category: "Природа", icon: "🌲" },
   { id: "birch", name: "Берёза", category: "Природа", icon: "🌿" },
   { id: "bush", name: "Куст", category: "Природа", icon: "🪴" },
   { id: "flowerbed", name: "Клумба", category: "Природа", icon: "🌼" },
-  { id: "lamp", name: "Фонарь", category: "Улица", icon: "💡" },
+  { id: "lamp", name: "Уличн. фонарь", category: "Улица", icon: "🏮" },
   { id: "bench", name: "Скамейка", category: "Улица", icon: "🪑" },
   { id: "bin", name: "Урна", category: "Улица", icon: "🗑️" },
   { id: "fence", name: "Забор", category: "Ограды", icon: "🧱" },
@@ -31,7 +84,7 @@ const ASSETS: Asset[] = [
   { id: "parking", name: "Парковка", category: "Покрытия", icon: "🅿️" },
 ]
 
-const CATEGORIES = ["Все", "Природа", "Улица", "Ограды", "Покрытия"]
+const CATEGORIES = ["Все", "Мебель", "Техника", "Свет", "Декор", "Гейминг", "Кафе", "Природа", "Улица", "Ограды", "Покрытия"]
 
 export function AssetCatalog() {
   const armedAsset = useEditorStore((s) => s.armedAsset)
