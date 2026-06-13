@@ -246,17 +246,22 @@ export async function buildVacancyFeedXml(): Promise<{ ok: true; xml: string; co
       number: true,
       area: true,
       description: true,
+      photos: true,
       floor: {
         select: { name: true, ratePerSqm: true, building: { select: { name: true, address: true, addressCity: true, phone: true } } },
       },
     },
   })
 
+  // Публичный базовый URL для картинок фида (фото отдаёт /api/public/listing-photo).
+  const PHOTO_BASE = "https://commrent.kz"
   const offers = spaces
     .map((s) => {
       const b = s.floor.building
       const perSqm = s.floor.ratePerSqm && s.floor.ratePerSqm > 0 ? Math.round(s.floor.ratePerSqm) : null
       const price = perSqm ? Math.round(perSqm * s.area) : null
+      const photoCount = parseSpacePhotos(s.photos).length
+      const images = Array.from({ length: photoCount }, (_, i) => `    <image>${PHOTO_BASE}/api/public/listing-photo/${s.id}/${i}</image>`)
       return [
         `  <offer id="${xmlEscape(s.id)}">`,
         `    <type>commercial-rent</type>`,
@@ -269,6 +274,7 @@ export async function buildVacancyFeedXml(): Promise<{ ok: true; xml: string; co
         perSqm ? `    <pricePerSqm currency="KZT">${perSqm}</pricePerSqm>` : "",
         s.description ? `    <description>${xmlEscape(s.description)}</description>` : "",
         b.phone ? `    <phone>${xmlEscape(b.phone)}</phone>` : "",
+        ...images,
         `  </offer>`,
       ]
         .filter(Boolean)
