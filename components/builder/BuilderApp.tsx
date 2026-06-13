@@ -24,6 +24,7 @@ import { LevelPanel } from "./LevelPanel"
 import { PropertyPanel } from "./PropertyPanel"
 import { AssetCatalog } from "./AssetCatalog"
 import { CameraControls } from "./CameraControls"
+import { ViewCube } from "./ViewCube"
 import { StatusBar } from "./StatusBar"
 
 const BuilderCanvas = dynamic(() => import("./BuilderCanvas").then((m) => m.BuilderCanvas), { ssr: false })
@@ -248,6 +249,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {!readOnly && <LevelPanel />}
       <PropertyPanel />
       <CameraControls />
+      <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />
       {!readOnly && <AssetCatalog key={mode} />}
       {!readOnly && <StatusBar />}
       {readOnly && (

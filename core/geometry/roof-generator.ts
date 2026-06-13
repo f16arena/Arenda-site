@@ -6,7 +6,7 @@
 import { type Vec2, centroid, normalize, scale, sub, add } from "./math"
 import { triangulate } from "./triangulate"
 
-export type RoofType = "flat" | "gable" | "hip" | "fourslope"
+export type RoofType = "flat" | "gable" | "hip" | "fourslope" | "mansard" | "shed"
 
 export interface RoofParams {
   type: RoofType
@@ -220,6 +220,129 @@ function fourslopeRoof(footprint: Vec2[], yEave: number, params: RoofParams): Ro
   return { positions, indices }
 }
 
+// ADR: Односкатная (shed) крыша — одна наклонная плоскость по bbox(expandPolygon)
+// от низкой стороны (yEave) к высокой (yEave + tan(pitch)*depth) вдоль короткой оси.
+// Боковые фронтоны (треугольники) и торцы (вертикальные quad'ы) замыкают объём без дыр.
+function shedRoof(footprint: Vec2[], yEave: number, params: RoofParams): RoofMesh {
+  const { minX, minY, maxX, maxY } = bbox(expandPolygon(footprint, params.overhang))
+  const w = maxX - minX
+  const d = maxY - minY
+  // скат идёт вдоль более короткой оси (depth = пролёт ската)
+  const slopeAlongZ = d <= w
+  const depth = slopeAlongZ ? d : w
+  const yHigh = yEave + Math.tan((params.pitchDeg * Math.PI) / 180) * depth
+  const positions: number[] = []
+  const indices: number[] = []
+  const tri = (p: number[][]): void => {
+    const s = positions.length / 3
+    for (const v of p) positions.push(v[0], v[1], v[2])
+    indices.push(s, s + 1, s + 2)
+  }
+  const quad = (p: number[][]): void => {
+    const s = positions.length / 3
+    for (const v of p) positions.push(v[0], v[1], v[2])
+    indices.push(s, s + 1, s + 2, s, s + 2, s + 3)
+  }
+  if (slopeAlongZ) {
+    // низкая кромка на minY (yEave), высокая на maxY (yHigh)
+    // наклонная плоскость
+    quad([
+      [minX, yEave, minY],
+      [maxX, yEave, minY],
+      [maxX, yHigh, maxY],
+      [minX, yHigh, maxY],
+    ])
+    // торцевые фронтоны (вертикальные треугольники по minX и maxX)
+    tri([[minX, yEave, minY], [minX, yHigh, maxY], [minX, yEave, maxY]])
+    tri([[maxX, yEave, maxY], [maxX, yHigh, maxY], [maxX, yEave, minY]])
+    // высокий торец (вертикальная стенка под высокой кромкой)
+    quad([
+      [minX, yEave, maxY],
+      [minX, yHigh, maxY],
+      [maxX, yHigh, maxY],
+      [maxX, yEave, maxY],
+    ])
+  } else {
+    // низкая кромка на minX (yEave), высокая на maxX (yHigh)
+    quad([
+      [minX, yEave, maxY],
+      [minX, yEave, minY],
+      [maxX, yHigh, minY],
+      [maxX, yHigh, maxY],
+    ])
+    tri([[minX, yEave, minY], [maxX, yHigh, minY], [maxX, yEave, minY]])
+    tri([[maxX, yEave, maxY], [maxX, yHigh, maxY], [minX, yEave, maxY]])
+    quad([
+      [maxX, yEave, minY],
+      [maxX, yHigh, minY],
+      [maxX, yHigh, maxY],
+      [maxX, yEave, maxY],
+    ])
+  }
+  return { positions, indices }
+}
+
+// ADR: Мансардная (mansard) крыша по bbox(expandPolygon): нижний крутой пояс (~70°,
+// высота min(halfW,halfH)*0.6) из 4 трапеций, смещённых внутрь до «полки», затем
+// верхний пологий скат (pitchDeg) как вальма к укороченному коньку. Замкнуто, непусто.
+function mansardRoof(footprint: Vec2[], yEave: number, params: RoofParams): RoofMesh {
+  const { minX, minY, maxX, maxY } = bbox(expandPolygon(footprint, params.overhang))
+  const halfW = (maxX - minX) / 2
+  const halfH = (maxY - minY) / 2
+  const minHalf = Math.min(halfW, halfH)
+  // нижний крутой пояс: высота и горизонтальный отступ внутрь под углом ~70°
+  const lowerH = minHalf * 0.6
+  const inset = Math.min(lowerH / Math.tan((70 * Math.PI) / 180), minHalf * 0.5)
+  const yShelf = yEave + lowerH
+  // координаты «полки» (внутренний прямоугольник)
+  const ix0 = minX + inset
+  const ix1 = maxX - inset
+  const iz0 = minY + inset
+  const iz1 = maxY - inset
+  const positions: number[] = []
+  const indices: number[] = []
+  const tri = (p: number[][]): void => {
+    const s = positions.length / 3
+    for (const v of p) positions.push(v[0], v[1], v[2])
+    indices.push(s, s + 1, s + 2)
+  }
+  const quad = (p: number[][]): void => {
+    const s = positions.length / 3
+    for (const v of p) positions.push(v[0], v[1], v[2])
+    indices.push(s, s + 1, s + 2, s, s + 2, s + 3)
+  }
+  // нижний пояс: 4 трапеции (карниз → полка)
+  quad([[minX, yEave, minY], [maxX, yEave, minY], [ix1, yShelf, iz0], [ix0, yShelf, iz0]]) // front (minY)
+  quad([[maxX, yEave, maxY], [minX, yEave, maxY], [ix0, yShelf, iz1], [ix1, yShelf, iz1]]) // back (maxY)
+  quad([[minX, yEave, maxY], [minX, yEave, minY], [ix0, yShelf, iz0], [ix0, yShelf, iz1]]) // left (minX)
+  quad([[maxX, yEave, minY], [maxX, yEave, maxY], [ix1, yShelf, iz1], [ix1, yShelf, iz0]]) // right (maxX)
+  // верхний пологий скат: вальма от полки к укороченному коньку вдоль длинной оси
+  const innerW = ix1 - ix0
+  const innerD = iz1 - iz0
+  const alongX = innerW >= innerD
+  const upperHalf = (alongX ? innerD : innerW) / 2
+  const upperRise = Math.tan((params.pitchDeg * Math.PI) / 180) * upperHalf
+  const yRidge = yShelf + upperRise
+  if (alongX) {
+    const midZ = (iz0 + iz1) / 2
+    const r0X = ix0 + upperHalf
+    const r1X = ix1 - upperHalf
+    quad([[ix0, yShelf, iz0], [ix1, yShelf, iz0], [r1X, yRidge, midZ], [r0X, yRidge, midZ]])
+    quad([[ix1, yShelf, iz1], [ix0, yShelf, iz1], [r0X, yRidge, midZ], [r1X, yRidge, midZ]])
+    tri([[ix0, yShelf, iz1], [ix0, yShelf, iz0], [r0X, yRidge, midZ]])
+    tri([[ix1, yShelf, iz0], [ix1, yShelf, iz1], [r1X, yRidge, midZ]])
+  } else {
+    const midX = (ix0 + ix1) / 2
+    const r0Z = iz0 + upperHalf
+    const r1Z = iz1 - upperHalf
+    quad([[ix0, yShelf, iz1], [ix0, yShelf, iz0], [midX, yRidge, r0Z], [midX, yRidge, r1Z]])
+    quad([[ix1, yShelf, iz0], [ix1, yShelf, iz1], [midX, yRidge, r1Z], [midX, yRidge, r0Z]])
+    tri([[ix0, yShelf, iz0], [ix1, yShelf, iz0], [midX, yRidge, r0Z]])
+    tri([[ix1, yShelf, iz1], [ix0, yShelf, iz1], [midX, yRidge, r1Z]])
+  }
+  return { positions, indices }
+}
+
 /**
  * Сгенерировать кровлю над контуром этажа. yBase — отметка верха стен (мм, по Y вверх).
  * flat, gable, hip и fourslope строятся по габаритам контура (со свесом).
@@ -235,6 +358,10 @@ export function generateRoof(footprint: Vec2[], yBase: number, params: RoofParam
       return hipRoof(footprint, yBase, params)
     case "fourslope":
       return fourslopeRoof(footprint, yBase, params)
+    case "mansard":
+      return mansardRoof(footprint, yBase, params)
+    case "shed":
+      return shedRoof(footprint, yBase, params)
     default:
       return gableRoof(footprint, yBase, params)
   }

@@ -548,6 +548,155 @@ function buildByAsset(assetId: string, scene: Scene): Mesh[] {
       return [pot, trunk, crown]
     }
 
+    // ── Мебель (новые) ──
+    case "dining_table": {
+      const top = part(MeshBuilder.CreateBox("t", { width: 2.2, height: 0.08, depth: 1 }, scene), scene, "#9A6A3A"); top.position.y = 0.75
+      const out: Mesh[] = [top]
+      for (const [x, z] of [[-0.95, -0.4], [0.95, -0.4], [-0.95, 0.4], [0.95, 0.4]]) { const l = part(MeshBuilder.CreateBox("l", { width: 0.1, height: 0.75, depth: 0.1 }, scene), scene, "#6B4423"); l.position.set(x, 0.375, z); out.push(l) }
+      for (const [x, z] of [[-0.7, 0.65], [0, 0.65], [0.7, 0.65], [-0.7, -0.65], [0, -0.65], [0.7, -0.65]]) { const seat = part(MeshBuilder.CreateBox("s", { width: 0.4, height: 0.06, depth: 0.4 }, scene), scene, "#94A3B8"); seat.position.set(x, 0.46, z); out.push(seat) }
+      return out
+    }
+    case "stool": {
+      const seat = part(MeshBuilder.CreateCylinder("s", { height: 0.06, diameter: 0.36, tessellation: 16 }, scene), scene, "#9A6A3A"); seat.position.y = 0.46
+      const out: Mesh[] = [seat]
+      for (const [x, z] of [[-0.13, -0.13], [0.13, -0.13], [-0.13, 0.13], [0.13, 0.13]]) { const l = part(MeshBuilder.CreateBox("l", { width: 0.04, height: 0.46, depth: 0.04 }, scene), scene, "#6B4423"); l.position.set(x, 0.23, z); out.push(l) }
+      return out
+    }
+    case "lounge_chair": {
+      const seat = part(MeshBuilder.CreateBox("s", { width: 0.95, height: 0.32, depth: 1 }, scene), scene, "#0D9488"); seat.position.y = 0.32
+      const back = part(MeshBuilder.CreateBox("b", { width: 0.95, height: 0.7, depth: 0.18 }, scene), scene, "#0F766E"); back.position.set(0, 0.6, -0.4); back.rotation.x = -0.25
+      const out: Mesh[] = [seat, back]
+      for (const x of [-0.52, 0.52]) { const arm = part(MeshBuilder.CreateBox("a", { width: 0.12, height: 0.32, depth: 1 }, scene), scene, "#0F766E"); arm.position.set(x, 0.56, 0); out.push(arm) }
+      return out
+    }
+    case "ottoman": {
+      const b = part(MeshBuilder.CreateBox("b", { width: 0.7, height: 0.35, depth: 0.7 }, scene), scene, "#C2703D"); b.position.y = 0.175
+      const top = part(MeshBuilder.CreateBox("t", { width: 0.72, height: 0.08, depth: 0.72 }, scene), scene, "#D98A5A"); top.position.y = 0.39
+      return [b, top]
+    }
+    case "sideboard": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 1.8, height: 0.75, depth: 0.5 }, scene), scene, "#8B5A2B"); body.position.y = 0.4
+      const top = part(MeshBuilder.CreateBox("t", { width: 1.86, height: 0.05, depth: 0.54 }, scene), scene, "#A1887F"); top.position.y = 0.8
+      const out: Mesh[] = [body, top]
+      for (const x of [-0.45, 0.45]) { const door = part(MeshBuilder.CreateBox("d", { width: 0.84, height: 0.62, depth: 0.02 }, scene), scene, "#9A6A3A"); door.position.set(x, 0.42, 0.26); out.push(door); const h = part(MeshBuilder.CreateBox("h", { width: 0.04, height: 0.12, depth: 0.04 }, scene), scene, "#374151"); h.position.set(x + (x < 0 ? 0.35 : -0.35), 0.42, 0.28); out.push(h) }
+      return out
+    }
+    case "tv_stand": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 1.6, height: 0.45, depth: 0.45 }, scene), scene, "#1F2937"); body.position.y = 0.225
+      const top = part(MeshBuilder.CreateBox("t", { width: 1.66, height: 0.04, depth: 0.5 }, scene), scene, "#374151"); top.position.y = 0.47
+      const shelf = part(MeshBuilder.CreateBox("s", { width: 1.5, height: 0.03, depth: 0.4 }, scene), scene, "#374151"); shelf.position.y = 0.22
+      return [body, top, shelf]
+    }
+    case "nightstand": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 0.5, height: 0.5, depth: 0.45 }, scene), scene, "#A1887F"); body.position.y = 0.25
+      const drawer = part(MeshBuilder.CreateBox("d", { width: 0.44, height: 0.18, depth: 0.02 }, scene), scene, "#8B5A2B"); drawer.position.set(0, 0.32, 0.23)
+      const h = part(MeshBuilder.CreateBox("h", { width: 0.12, height: 0.03, depth: 0.03 }, scene), scene, "#374151"); h.position.set(0, 0.32, 0.25)
+      return [body, drawer, h]
+    }
+    case "locker": {
+      const out: Mesh[] = []
+      const body = part(MeshBuilder.CreateBox("b", { width: 1.2, height: 1.8, depth: 0.5 }, scene), scene, "#4B5563"); body.position.y = 0.9; out.push(body)
+      for (const x of [-0.4, 0, 0.4]) { const door = part(MeshBuilder.CreateBox("d", { width: 0.36, height: 1.72, depth: 0.02 }, scene), scene, "#64748B"); door.position.set(x, 0.9, 0.26); out.push(door); const handle = part(MeshBuilder.CreateBox("h", { width: 0.04, height: 0.12, depth: 0.04 }, scene), scene, "#1F2937"); handle.position.set(x + 0.13, 1, 0.28); out.push(handle); const vent = glow(MeshBuilder.CreateBox("v", { width: 0.2, height: 0.04, depth: 0.01 }, scene), scene, "#22C55E"); vent.position.set(x, 1.55, 0.28); out.push(vent) }
+      return out
+    }
+    case "coat_rack": {
+      const pole = part(MeshBuilder.CreateCylinder("p", { height: 1.8, diameter: 0.06 }, scene), scene, "#6B4423"); pole.position.y = 0.9
+      const base = part(MeshBuilder.CreateCylinder("b", { height: 0.06, diameter: 0.5, tessellation: 20 }, scene), scene, "#4B5563"); base.position.y = 0.03
+      const out: Mesh[] = [pole, base]
+      for (let i = 0; i < 4; i++) { const hook = part(MeshBuilder.CreateBox("h", { width: 0.04, height: 0.04, depth: 0.18 }, scene), scene, "#8B5A2B"); hook.position.set(0, 1.7, 0); hook.rotation.y = (i * Math.PI) / 2; hook.position.z = 0.09; hook.position.x = 0; out.push(hook) }
+      return out
+    }
+
+    // ── Кафе / кухня (новые) ──
+    case "kitchen_counter": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 2, height: 0.85, depth: 0.6 }, scene), scene, "#E5E7EB"); body.position.y = 0.425
+      const top = part(MeshBuilder.CreateBox("t", { width: 2.06, height: 0.06, depth: 0.66 }, scene), scene, "#475569"); top.position.y = 0.88
+      const out: Mesh[] = [body, top]
+      for (const x of [-0.5, 0.5]) { const door = part(MeshBuilder.CreateBox("d", { width: 0.9, height: 0.7, depth: 0.02 }, scene), scene, "#CBD5E1"); door.position.set(x, 0.45, 0.31); out.push(door) }
+      return out
+    }
+    case "stove": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 0.7, height: 0.85, depth: 0.6 }, scene), scene, "#1F2937"); body.position.y = 0.425
+      const top = part(MeshBuilder.CreateBox("t", { width: 0.72, height: 0.04, depth: 0.62 }, scene), scene, "#0F172A"); top.position.y = 0.87
+      const out: Mesh[] = [body, top]
+      for (const [x, z] of [[-0.17, -0.15], [0.17, -0.15], [-0.17, 0.15], [0.17, 0.15]]) { const burner = part(MeshBuilder.CreateCylinder("k", { height: 0.02, diameter: 0.22, tessellation: 18 }, scene), scene, "#374151"); burner.position.set(x, 0.9, z); out.push(burner) }
+      const oven = glow(MeshBuilder.CreateBox("o", { width: 0.56, height: 0.4, depth: 0.02 }, scene), scene, "#F97316"); oven.position.set(0, 0.4, 0.31); const om = oven.material as StandardMaterial; om.alpha = 0.7; out.push(oven)
+      return out
+    }
+    case "dishwasher": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 0.6, height: 0.85, depth: 0.6 }, scene), scene, "#CBD5E1"); body.position.y = 0.425
+      const door = part(MeshBuilder.CreateBox("d", { width: 0.56, height: 0.78, depth: 0.03 }, scene), scene, "#94A3B8"); door.position.set(0, 0.42, 0.31)
+      const handle = part(MeshBuilder.CreateBox("h", { width: 0.4, height: 0.04, depth: 0.04 }, scene), scene, "#475569"); handle.position.set(0, 0.76, 0.33)
+      const led = glow(MeshBuilder.CreateBox("g", { width: 0.04, height: 0.04, depth: 0.01 }, scene), scene, "#38BDF8"); led.position.set(0.22, 0.79, 0.33)
+      return [body, door, handle, led]
+    }
+    case "pastry_case": {
+      const base = part(MeshBuilder.CreateBox("b", { width: 1.4, height: 0.9, depth: 0.6 }, scene), scene, "#1F2937"); base.position.y = 0.45
+      const glass = glow(MeshBuilder.CreateBox("g", { width: 1.4, height: 0.7, depth: 0.6 }, scene), scene, "#BAE6FD"); glass.position.y = 1.25; const gm = glass.material as StandardMaterial; gm.alpha = 0.3
+      const out: Mesh[] = [base, glass]
+      for (const y of [1.05, 1.4]) { const shelf = part(MeshBuilder.CreateBox("s", { width: 1.3, height: 0.03, depth: 0.5 }, scene), scene, "#E5E7EB"); shelf.position.y = y; out.push(shelf) }
+      return out
+    }
+    case "water_cooler": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 0.4, height: 1.1, depth: 0.4 }, scene), scene, "#F8FAFC"); body.position.y = 0.55
+      const bottle = part(MeshBuilder.CreateCylinder("c", { height: 0.5, diameterTop: 0.18, diameterBottom: 0.3, tessellation: 18 }, scene), scene, "#7DD3FC"); bottle.position.y = 1.35; const bm = bottle.material as StandardMaterial; bm.alpha = 0.6
+      const tap = part(MeshBuilder.CreateBox("t", { width: 0.1, height: 0.06, depth: 0.06 }, scene), scene, "#3B82F6"); tap.position.set(0, 0.7, 0.22)
+      return [body, bottle, tap]
+    }
+
+    // ── Техника / офис (новые) ──
+    case "copier": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 0.7, height: 0.9, depth: 0.65 }, scene), scene, "#374151"); body.position.y = 0.45
+      const lid = part(MeshBuilder.CreateBox("l", { width: 0.72, height: 0.08, depth: 0.67 }, scene), scene, "#1F2937"); lid.position.y = 0.93
+      const tray = part(MeshBuilder.CreateBox("t", { width: 0.66, height: 0.04, depth: 0.2 }, scene), scene, "#4B5563"); tray.position.set(0, 0.7, 0.4)
+      const panel = glow(MeshBuilder.CreateBox("p", { width: 0.25, height: 0.12, depth: 0.02 }, scene), scene, "#34D399"); panel.position.set(0.18, 0.98, 0.3); panel.rotation.x = -0.6
+      return [body, lid, tray, panel]
+    }
+    case "safe": {
+      const body = part(MeshBuilder.CreateBox("b", { width: 0.6, height: 0.6, depth: 0.55 }, scene), scene, "#18181B"); body.position.y = 0.3
+      const door = part(MeshBuilder.CreateBox("d", { width: 0.5, height: 0.5, depth: 0.03 }, scene), scene, "#27272A"); door.position.set(0, 0.3, 0.28)
+      const dial = part(MeshBuilder.CreateCylinder("c", { height: 0.05, diameter: 0.14, tessellation: 16 }, scene), scene, "#71717A"); dial.rotation.x = Math.PI / 2; dial.position.set(-0.08, 0.3, 0.3)
+      const handle = part(MeshBuilder.CreateBox("h", { width: 0.18, height: 0.04, depth: 0.04 }, scene), scene, "#A1A1AA"); handle.position.set(0.12, 0.3, 0.3)
+      return [body, door, dial, handle]
+    }
+    case "monitor_dual": {
+      const out: Mesh[] = []
+      for (const x of [-0.34, 0.34]) { const frame = part(MeshBuilder.CreateBox("f", { width: 0.6, height: 0.36, depth: 0.04 }, scene), scene, "#0B0F19"); frame.position.set(x, 1.05, 0); out.push(frame); const screen = glow(MeshBuilder.CreateBox("s", { width: 0.54, height: 0.3, depth: 0.02 }, scene), scene, "#1E3A8A"); screen.position.set(x, 1.05, 0.03); out.push(screen) }
+      const stand = part(MeshBuilder.CreateBox("st", { width: 0.3, height: 0.04, depth: 0.2 }, scene), scene, "#1F2937"); stand.position.y = 0.85; out.push(stand)
+      const neck = part(MeshBuilder.CreateBox("n", { width: 0.04, height: 0.2, depth: 0.04 }, scene), scene, "#374151"); neck.position.y = 0.96; out.push(neck)
+      return out
+    }
+
+    // ── Гейминг (новые) ──
+    case "streaming_setup": {
+      const top = part(MeshBuilder.CreateBox("t", { width: 1.4, height: 0.06, depth: 0.7 }, scene), scene, "#0B0F19"); top.position.y = 0.74
+      const out: Mesh[] = [top]
+      for (const x of [-0.65, 0.65]) { const l = part(MeshBuilder.CreateBox("l", { width: 0.06, height: 0.74, depth: 0.6 }, scene), scene, "#111827"); l.position.set(x, 0.37, 0); out.push(l) }
+      const rgb = glow(MeshBuilder.CreateBox("rgb", { width: 1.4, height: 0.03, depth: 0.03 }, scene), scene, "#EC4899"); rgb.position.set(0, 0.7, 0.34); out.push(rgb)
+      const frame = part(MeshBuilder.CreateBox("f", { width: 0.7, height: 0.42, depth: 0.04 }, scene), scene, "#0B0F19"); frame.position.set(0, 1.15, -0.2); out.push(frame)
+      const screen = glow(MeshBuilder.CreateBox("s", { width: 0.64, height: 0.36, depth: 0.02 }, scene), scene, "#7C3AED"); screen.position.set(0, 1.15, -0.17); out.push(screen)
+      const arm = part(MeshBuilder.CreateCylinder("a", { height: 0.5, diameter: 0.03 }, scene), scene, "#1F2937"); arm.position.set(0.55, 1.05, 0.1); arm.rotation.z = 0.3; out.push(arm)
+      const mic = part(MeshBuilder.CreateCapsule("m", { height: 0.18, radius: 0.05 }, scene), scene, "#27272A"); mic.position.set(0.42, 1.25, 0.1); out.push(mic)
+      const ring = glow(MeshBuilder.CreateTorus("r", { diameter: 0.45, thickness: 0.04, tessellation: 20 }, scene), scene, "#FDE68A"); ring.position.set(-0.5, 1.35, 0.1); ring.rotation.x = Math.PI / 2; out.push(ring)
+      return out
+    }
+
+    // ── Природа / декор (новые) ──
+    case "fern": {
+      const pot = part(MeshBuilder.CreateCylinder("p", { height: 0.4, diameterTop: 0.5, diameterBottom: 0.36, tessellation: 18 }, scene), scene, "#92400E"); pot.position.y = 0.2
+      const out: Mesh[] = [pot]
+      for (let i = 0; i < 7; i++) { const ang = (i * 2 * Math.PI) / 7; const leaf = part(MeshBuilder.CreateSphere("l", { diameter: 0.7, segments: 8 }, scene), scene, "#3F8F3F"); leaf.scaling.set(1.6, 0.18, 0.5); leaf.position.set(Math.cos(ang) * 0.32, 0.65 + (i % 2) * 0.12, Math.sin(ang) * 0.32); leaf.rotation.y = -ang; leaf.rotation.z = 0.35; out.push(leaf) }
+      const center = part(MeshBuilder.CreateSphere("c", { diameter: 0.4, segments: 8 }, scene), scene, "#2E7D32"); center.position.y = 0.7; center.scaling.y = 1.2; out.push(center)
+      return out
+    }
+    case "wall_panel": {
+      const out: Mesh[] = []
+      const back = part(MeshBuilder.CreateBox("b", { width: 1.6, height: 1.4, depth: 0.04 }, scene), scene, "#6B4423"); back.position.y = 1.5; out.push(back)
+      for (let i = 0; i < 4; i++) { const slat = part(MeshBuilder.CreateBox("s", { width: 0.32, height: 1.36, depth: 0.06 }, scene), scene, "#8B5A2B"); slat.position.set(-0.6 + i * 0.4, 1.5, 0.04); out.push(slat) }
+      const frame = part(MeshBuilder.CreateBox("f", { width: 1.66, height: 0.06, depth: 0.06 }, scene), scene, "#4B5563"); frame.position.set(0, 2.18, 0.04); out.push(frame)
+      return out
+    }
+
     default: {
       const box = part(MeshBuilder.CreateBox("o", { size: 1 }, scene), scene, "#9CA3AF")
       box.position.y = 0.5

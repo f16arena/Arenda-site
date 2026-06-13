@@ -60,7 +60,7 @@ export const BuilderObjectSchema = z.object({
 })
 
 export const RoofConfigSchema = z.object({
-  type: z.enum(["flat", "gable", "hip", "fourslope"]),
+  type: z.enum(["flat", "gable", "hip", "fourslope", "mansard", "shed"]),
   pitchDeg: z.number(),
   overhang: z.number(),
   thickness: z.number(),

@@ -53,6 +53,8 @@ export function LevelPanel() {
     { t: "gable", l: "Двускат" },
     { t: "hip", l: "Вальм." },
     { t: "fourslope", l: "4-скат" },
+    { t: "mansard", l: "Мансард" },
+    { t: "shed", l: "Односкат" },
     { t: "none", l: "Нет" },
   ]
   const setRoof = (t: RoofConfig["type"] | "none") => {

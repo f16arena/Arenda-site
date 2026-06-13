@@ -343,6 +343,18 @@ export class BuilderEngine {
     })
   }
 
+  // Поворот орбитальной камеры к заданному ракурсу (ViewCube). Возврат к перспективе.
+  orbitTo(alpha: number, beta: number): void {
+    const { scene, camera } = this.bundle
+    const canvas = this.bundle.engine.getRenderingCanvas()
+    if (this.walkCamera) this.walkCamera.detachControl()
+    scene.activeCamera = camera
+    if (canvas) camera.attachControl(canvas, true)
+    camera.mode = Camera.PERSPECTIVE_CAMERA
+    camera.alpha = alpha
+    camera.beta = beta
+  }
+
   // ── Указатель ────────────────────────────────────────────────────────────────
   private setupPointer(): void {
     const scene = this.bundle.scene

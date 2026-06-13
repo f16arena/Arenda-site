@@ -1,13 +1,31 @@
 // ADR: Кэш PBR-материалов Babylon, создаваемых из чистых MaterialDef (lib/builder/materials).
 // Один материал на id, переиспользуется всеми мешами — меньше draw calls и аллокаций.
 // Текстуры процедурные (DynamicTexture 256×256): рисуем кладку/швы/доски/шум по эвристике
-// id+category, чтобы поверхности не были плоским цветом. Текстуры тоже кэшируются по id и
-// освобождаются в dispose() явно (материал диспозит свои привязки, но кэш — наш).
+// id+category, чтобы поверхности не были плоским цветом. Покрыты и «голые» ранее категории:
+// кровля (металлочерепица/профлист — швы-волны; черепица — чешуя), фасадные металл/композит/
+// панели (сетка панелей), стекло/витраж (переплёт-импосты поверх полупрозрачного фона),
+// ground (брусчатка/асфальт/газон). Текстуры тоже кэшируются по id и освобождаются в
+// dispose() явно (материал диспозит свои привязки, но кэш — наш).
 
 import { Color3, DynamicTexture, PBRMaterial, Texture, type Scene } from "@babylonjs/core"
 import { MATERIALS, type MaterialDef } from "@/lib/builder/materials"
 
-type Pattern = "brick" | "tile" | "checker" | "marble" | "wood" | "speckle" | "carpet" | "none"
+type Pattern =
+  | "brick"
+  | "tile"
+  | "checker"
+  | "marble"
+  | "wood"
+  | "speckle"
+  | "carpet"
+  | "metalRoof"
+  | "shingle"
+  | "panel"
+  | "glassGrid"
+  | "paving"
+  | "asphalt"
+  | "grass"
+  | "none"
 
 const TEX_SIZE = 256
 
@@ -99,9 +117,27 @@ function patternFor(def: MaterialDef): Pattern {
   if (has("tile", "granite", "terrazzo")) return "tile"
   if (has("parquet", "laminate", "oak", "wenge", "wood", "vinyl")) return "wood"
   if (has("carpet")) return "carpet"
+
+  // ── Кровля ──
+  // Скатная черепица (red/brown/green) — «чешуя» рядами со смещением.
+  if (has("roof_red", "roof_brown", "roof_green")) return "shingle"
+  // Металлочерепица/профлист/мембрана — горизонтальные волны со швами.
+  if (id === "metal_roof" || has("roof_") || def.category === "roof") return "metalRoof"
+
+  // ── Стекло / витраж ── (лёгкая сетка переплёта поверх полупрозрачного фона)
+  if (def.category === "glass" || has("glass")) return "glassGrid"
+
+  // ── Фасадные металл/композит/панели ── (сетка крупных панелей со швами)
+  if (has("composite", "facade_panel")) return "panel"
+
+  // ── Ground ──
+  if (has("paving")) return "paving"
+  if (has("asphalt")) return "asphalt"
+  if (has("grass")) return "grass"
+
   if (has("concrete", "plaster", "loft", "stone", "block")) return "speckle"
 
-  // краска/обои/металл/стекло/ground — чистый цвет (без текстуры)
+  // краска/обои — чистый цвет (без текстуры)
   return "none"
 }
 
@@ -118,6 +154,19 @@ function scaleFor(pattern: Pattern): number {
     case "speckle":
     case "carpet":
       return 4
+    case "metalRoof":
+    case "shingle":
+      return 7
+    case "panel":
+      return 3
+    case "glassGrid":
+      return 3
+    case "paving":
+      return 5
+    case "asphalt":
+      return 6
+    case "grass":
+      return 8
     case "none":
       return 1
   }
@@ -154,6 +203,27 @@ function paint(ctx: CanvasCtx, pattern: Pattern, baseHex: string): void {
       break
     case "carpet":
       paintSpeckle(ctx, baseHex, 2600, 0.1)
+      break
+    case "metalRoof":
+      paintMetalRoof(ctx, baseHex)
+      break
+    case "shingle":
+      paintShingle(ctx, baseHex)
+      break
+    case "panel":
+      paintPanel(ctx, baseHex)
+      break
+    case "glassGrid":
+      paintGlassGrid(ctx, baseHex)
+      break
+    case "paving":
+      paintPaving(ctx, baseHex)
+      break
+    case "asphalt":
+      paintSpeckle(ctx, baseHex, 4000, 0.22)
+      break
+    case "grass":
+      paintGrass(ctx, baseHex)
       break
     case "none":
       break
@@ -257,7 +327,175 @@ function paintSpeckle(ctx: CanvasCtx, base: string, count: number, amp: number):
   }
 }
 
+// Металлочерепица/профлист: горизонтальные «волны» — ряды чуть светлее/темнее base,
+// разделённые тонкими линиями-стыками. Детерминированно через sine, без Math.random.
+function paintMetalRoof(ctx: CanvasCtx, base: string): void {
+  const rows = 10
+  const rowH = TEX_SIZE / rows
+  for (let r = 0; r < rows; r++) {
+    const y = r * rowH
+    // плавная «волна» профиля: чередуем светлый верх и тёмный низ ряда
+    const tone = Math.sin((r / rows) * Math.PI * 2) * 0.14
+    ctx.fillStyle = shade(base, tone)
+    ctx.fillRect(0, y, TEX_SIZE, rowH)
+    // блик у верхней кромки ряда
+    ctx.fillStyle = shade(base, 0.22)
+    ctx.fillRect(0, y, TEX_SIZE, Math.max(1, rowH * 0.14))
+  }
+  // тонкие линии-стыки между рядами
+  ctx.strokeStyle = shade(base, -0.4)
+  ctx.lineWidth = 2
+  for (let r = 0; r <= rows; r++) {
+    const y = r * rowH
+    line(ctx, 0, y, TEX_SIZE, y)
+  }
+}
+
+// Скатная черепица: ряды прямоугольных «чешуек» со смещением через ряд,
+// со скруглённой нижней кромкой и затенением.
+function paintShingle(ctx: CanvasCtx, base: string): void {
+  const rows = 8
+  const cols = 6
+  const rowH = TEX_SIZE / rows
+  const colW = TEX_SIZE / cols
+  const r2 = Math.min(rowH, colW) * 0.4
+  for (let r = 0; r < rows; r++) {
+    const y = r * rowH
+    const offset = r % 2 === 0 ? 0 : -colW / 2
+    for (let c = -1; c <= cols; c++) {
+      const x = offset + c * colW
+      // лёгкая вариация тона каждой чешуйки
+      const tone = (pseudo(r * 9.1 + c * 3.7) - 0.5) * 0.2
+      ctx.fillStyle = shade(base, tone)
+      roundedRect(ctx, x + 1, y, colW - 2, rowH * 1.15, r2)
+      ctx.fill()
+      // затенение в нижней части чешуйки — объём
+      ctx.fillStyle = shade(base, -0.28)
+      ctx.fillRect(x + 1, y + rowH * 0.78, colW - 2, rowH * 0.22)
+    }
+  }
+  // тонкие разделители рядов
+  ctx.strokeStyle = shade(base, -0.45)
+  ctx.lineWidth = 1
+  for (let r = 0; r <= rows; r++) {
+    const y = r * rowH
+    line(ctx, 0, y, TEX_SIZE, y)
+  }
+}
+
+// Фасадные панели/композит: сетка крупных панелей с тонкими затемнёнными швами
+// и лёгким блик-контуром (фаска панели).
+function paintPanel(ctx: CanvasCtx, base: string): void {
+  const n = 3
+  const step = TEX_SIZE / n
+  // лёгкая вариация тона панелей
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const tone = (pseudo(r * 4.3 + c * 7.9) - 0.5) * 0.08
+      ctx.fillStyle = shade(base, tone)
+      ctx.fillRect(c * step, r * step, step, step)
+    }
+  }
+  // швы
+  ctx.strokeStyle = shade(base, -0.35)
+  ctx.lineWidth = 3
+  for (let i = 0; i <= n; i++) {
+    const p = i * step
+    line(ctx, p, 0, p, TEX_SIZE)
+    line(ctx, 0, p, TEX_SIZE, p)
+  }
+  // тонкий блик-фаска рядом со швом
+  ctx.strokeStyle = shade(base, 0.2)
+  ctx.lineWidth = 1
+  for (let i = 0; i <= n; i++) {
+    const p = i * step + 2
+    line(ctx, p, 0, p, TEX_SIZE)
+    line(ctx, 0, p, TEX_SIZE, p)
+  }
+}
+
+// Стекло/витраж: крупная сетка переплёта (импосты). Фон не трогаем (альфа материала
+// задаётся отдельно через def.opacity) — рисуем только тонкие тёмные линии сетки и блик.
+function paintGlassGrid(ctx: CanvasCtx, base: string): void {
+  const n = 3
+  const step = TEX_SIZE / n
+  // импосты (переплёт) — тёмные линии
+  ctx.strokeStyle = shade(base, -0.5)
+  ctx.lineWidth = 4
+  for (let i = 0; i <= n; i++) {
+    const p = i * step
+    line(ctx, p, 0, p, TEX_SIZE)
+    line(ctx, 0, p, TEX_SIZE, p)
+  }
+  // лёгкий диагональный блик внутри ячеек
+  ctx.strokeStyle = shade(base, 0.45)
+  ctx.lineWidth = 1
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const x = c * step
+      const y = r * step
+      line(ctx, x + step * 0.2, y + step * 0.75, x + step * 0.75, y + step * 0.2)
+    }
+  }
+}
+
+// Брусчатка: квадратные элементы рядами со смещением через ряд (как кирпич, но квадраты).
+function paintPaving(ctx: CanvasCtx, base: string): void {
+  const n = 6
+  const step = TEX_SIZE / n
+  for (let r = 0; r < n; r++) {
+    const offset = r % 2 === 0 ? 0 : step / 2
+    for (let c = -1; c <= n; c++) {
+      const x = offset + c * step
+      const tone = (pseudo(r * 6.7 + c * 2.3) - 0.5) * 0.18
+      ctx.fillStyle = shade(base, tone)
+      ctx.fillRect(x + 1, r * step + 1, step - 2, step - 2)
+    }
+  }
+  // тёмные швы по сетке
+  ctx.strokeStyle = shade(base, -0.4)
+  ctx.lineWidth = 2
+  for (let r = 0; r <= n; r++) {
+    const y = r * step
+    line(ctx, 0, y, TEX_SIZE, y)
+  }
+  for (let r = 0; r < n; r++) {
+    const offset = r % 2 === 0 ? 0 : step / 2
+    for (let c = -1; c <= n; c++) {
+      const x = offset + c * step
+      line(ctx, x, r * step, x, (r + 1) * step)
+    }
+  }
+}
+
+// Газон: мелкая зелёная крапинка (светлее/темнее base) для лёгкой неоднородности.
+function paintGrass(ctx: CanvasCtx, base: string): void {
+  for (let i = 0; i < 5000; i++) {
+    const x = pseudo(i * 1.13) * TEX_SIZE
+    const y = pseudo(i * 2.59) * TEX_SIZE
+    const d = (pseudo(i * 3.17) - 0.5) * 2 * 0.28
+    ctx.fillStyle = shade(base, d)
+    const s = 1 + Math.floor(pseudo(i * 0.61) * 2)
+    ctx.fillRect(x, y, s, s)
+  }
+}
+
 // ── Хелперы ──────────────────────────────────────────────────────────────────
+
+function roundedRect(ctx: CanvasCtx, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.min(r, w / 2, h / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + rr, y)
+  ctx.lineTo(x + w - rr, y)
+  ctx.arc(x + w - rr, y + rr, rr, -Math.PI / 2, 0)
+  ctx.lineTo(x + w, y + h - rr)
+  ctx.arc(x + w - rr, y + h - rr, rr, 0, Math.PI / 2)
+  ctx.lineTo(x + rr, y + h)
+  ctx.arc(x + rr, y + h - rr, rr, Math.PI / 2, Math.PI)
+  ctx.lineTo(x, y + rr)
+  ctx.arc(x + rr, y + rr, rr, Math.PI, (3 * Math.PI) / 2)
+  ctx.closePath()
+}
 
 function line(ctx: CanvasCtx, x1: number, y1: number, x2: number, y2: number): void {
   ctx.beginPath()
