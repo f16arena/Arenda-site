@@ -5,7 +5,8 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand } from "@/core/document/commands"
+import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
@@ -282,6 +283,23 @@ export function PropertyPanel() {
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.max(0.3, obj.scale / 1.2)))}>－ общий</button>
           <button type="button" className={btnStyle} style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }} onClick={() => execute(new DeleteObjectCommand(target, id))}>Удалить</button>
         </div>
+        {(() => {
+          if (!floorObj) return null
+          const bld = doc.buildings.find((b) => b.floors.some((fl) => fl.id === floorObj.f.id))
+          if (!bld) return null
+          const sorted = [...bld.floors].sort((a, b) => a.level - b.level)
+          const i = sorted.findIndex((fl) => fl.id === floorObj.f.id)
+          const up = sorted[i + 1]
+          const down = sorted[i - 1]
+          const copyTo = (fl: { id: string }) => execute(new AddObjectCommand({ floorId: fl.id }, { ...obj, id: uid("o") }))
+          if (!up && !down) return null
+          return (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {down && <button type="button" className={btnStyle} style={neutral} onClick={() => copyTo(down)}>↓ копия: {down.name}</button>}
+              {up && <button type="button" className={btnStyle} style={neutral} onClick={() => copyTo(up)}>↑ копия: {up.name}</button>}
+            </div>
+          )
+        })()}
         </>
       )
     }

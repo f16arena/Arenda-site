@@ -51,6 +51,9 @@ function applyPick(meta: MeshMeta | null): void {
   else setSelection({ type: "none" })
 }
 
+// Буфер копирования объекта (Ctrl+C/Ctrl+V) — на уровне модуля, живёт между рендерами.
+let objectClipboard: import("@/types/builder").BuilderObject | null = null
+
 function objTarget(doc: BuilderDocument, id: string): { target: { site: true } | { floorId: string }; obj: import("@/types/builder").BuilderObject } | null {
   const inSite = doc.site.objects.find((o) => o.id === id)
   if (inSite) return { target: { site: true }, obj: inSite }
@@ -272,6 +275,32 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault()
         docState.redo()
+        return
+      }
+      // Ctrl+C — скопировать выбранный объект в буфер
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        const sel = ed.selection
+        if (sel.type === "object" && sel.id) {
+          const t = objTarget(docState.doc, sel.id)
+          if (t) {
+            objectClipboard = t.obj
+            setHud("Объект скопирован — Ctrl+V вставит")
+            window.setTimeout(() => setHud(null), 1500)
+          }
+        }
+        return
+      }
+      // Ctrl+V — вставить объект из буфера на активный уровень со смещением
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        if (objectClipboard) {
+          e.preventDefault()
+          const d = docState.doc
+          const onFloor = d.buildings.flatMap((b) => b.floors).some((f) => f.id === ed.activeLevelId)
+          const target = onFloor ? ({ floorId: ed.activeLevelId } as const) : ({ site: true } as const)
+          const newId = uid("o")
+          docState.execute(new AddObjectCommand(target, { ...objectClipboard, id: newId, position: { ...objectClipboard.position, x: objectClipboard.position.x + 800, z: objectClipboard.position.z + 800 } }))
+          ed.setSelection({ type: "object", id: newId, floorId: onFloor ? ed.activeLevelId : undefined })
+        }
         return
       }
       // Ctrl+D — дублировать выбранный объект
