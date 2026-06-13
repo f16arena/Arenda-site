@@ -113,13 +113,16 @@ export function ToolOptions() {
     )
   }
   if (tool === "wall") {
-    return <Shell><span>Клик — начало, клик — конец (цепочкой). Введите длину цифрами + Enter. Esc — завершить.</span></Shell>
+    return <Shell><span>Клик — начало, клик — конец (цепочкой). Длину — цифрами + Enter. Shift — орто (90°). Esc — стоп.</span></Shell>
+  }
+  if (tool === "room") {
+    return <Shell><span>Зажми и растяни прямоугольник на этаже → 4 стены и пол создаются сразу.</span></Shell>
   }
   if (tool === "door" || tool === "window") {
     return <Shell><span>Кликните на стену — {tool === "door" ? "дверь" : "окно"} вырежется в стене со снапом.</span></Shell>
   }
   if (tool === "select") {
-    return <Shell><span>Клик — выбрать. Тяните синие узлы — стены следуют. Delete — удалить.</span></Shell>
+    return <Shell><span>Клик — выбрать (справа свойства). Тяни узел/стену/объект. Высоту/толщину/тип стены — в панели. Delete — удалить.</span></Shell>
   }
   return null
 }

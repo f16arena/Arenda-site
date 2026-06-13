@@ -7,6 +7,7 @@ import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Openi
 import {
   type WallGraph,
   type WallDefaults,
+  type WallKind,
   insertWall,
   moveNode as moveNodeGraph,
   removeEdge,
@@ -93,6 +94,115 @@ export class InsertWallCommand implements Command {
     if (!this.prev) return doc
     const prev = this.prev
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev }))
+  }
+}
+
+// ── Комната прямоугольником (4 стены) одним undo-шагом ───────────────────────
+export class AddRoomCommand implements Command {
+  readonly kind = "add-room"
+  readonly label = "комната"
+  private prev?: WallGraph
+  constructor(private floorId: string, private x1: number, private y1: number, private x2: number, private y2: number, private def: WallDefaults) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (!f) return doc
+    if (!this.prev) this.prev = f.wallGraph
+    let g = f.wallGraph
+    const corners: Array<[number, number]> = [
+      [this.x1, this.y1],
+      [this.x2, this.y1],
+      [this.x2, this.y2],
+      [this.x1, this.y2],
+    ]
+    for (let i = 0; i < 4; i++) {
+      const a = corners[i]
+      const b = corners[(i + 1) % 4]
+      g = insertWall(g, { x: a[0], y: a[1] }, { x: b[0], y: b[1] }, this.def).graph
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: g }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev }))
+  }
+}
+
+// ── Перемещение стены (двигает оба узла на дельту) ────────────────────────────
+export class MoveWallCommand implements Command {
+  readonly kind = "move-wall"
+  readonly label = "перемещение стены"
+  private origA?: { x: number; y: number }
+  private origB?: { x: number; y: number }
+  private aId?: string
+  private bId?: string
+  constructor(private floorId: string, private edgeId: string, private dx: number, private dy: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const e = f?.wallGraph.edges[this.edgeId]
+    if (!f || !e) return doc
+    if (!this.origA) {
+      this.aId = e.a
+      this.bId = e.b
+      this.origA = { ...f.wallGraph.nodes[e.a] }
+      this.origB = { ...f.wallGraph.nodes[e.b] }
+    }
+    const oa = this.origA
+    const ob = this.origB
+    let g = moveNodeGraph(f.wallGraph, this.aId as string, oa.x + this.dx, oa.y + this.dy)
+    g = moveNodeGraph(g, this.bId as string, (ob as { x: number; y: number }).x + this.dx, (ob as { x: number; y: number }).y + this.dy)
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: g }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.origA || !this.origB || !this.aId || !this.bId) return doc
+    const oa = this.origA
+    const ob = this.origB
+    return mapFloor(doc, this.floorId, (fl) => {
+      let g = moveNodeGraph(fl.wallGraph, this.aId as string, oa.x, oa.y)
+      g = moveNodeGraph(g, this.bId as string, ob.x, ob.y)
+      return { ...fl, wallGraph: g }
+    })
+  }
+  merge(next: Command): boolean {
+    if (next instanceof MoveWallCommand && next.floorId === this.floorId && next.edgeId === this.edgeId) {
+      this.dx = next.dx
+      this.dy = next.dy
+      return true
+    }
+    return false
+  }
+}
+
+// ── Свойства стены (высота/толщина/тип) ───────────────────────────────────────
+export class SetWallPropsCommand implements Command {
+  readonly kind = "set-wall-props"
+  readonly label = "свойства стены"
+  private prev?: { height: number; thickness: number; kind: WallKind }
+  private captured = false
+  constructor(private floorId: string, private edgeId: string, private props: { height?: number; thickness?: number; kind?: WallKind }) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const e = f?.wallGraph.edges[this.edgeId]
+    if (e && !this.captured) {
+      this.prev = { height: e.height, thickness: e.thickness, kind: e.kind }
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => {
+      const edges = { ...fl.wallGraph.edges }
+      const edge = edges[this.edgeId]
+      if (edge) edges[this.edgeId] = { ...edge, ...this.props }
+      return { ...fl, wallGraph: { nodes: fl.wallGraph.nodes, edges } }
+    })
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => {
+      const edges = { ...fl.wallGraph.edges }
+      const edge = edges[this.edgeId]
+      if (edge) edges[this.edgeId] = { ...edge, height: prev.height, thickness: prev.thickness, kind: prev.kind }
+      return { ...fl, wallGraph: { nodes: fl.wallGraph.nodes, edges } }
+    })
   }
 }
 

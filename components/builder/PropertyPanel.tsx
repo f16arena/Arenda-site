@@ -5,7 +5,8 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand } from "@/core/document/commands"
+import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand } from "@/core/document/commands"
+import type { WallKind } from "@/core/geometry/wall-graph"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { distance } from "@/core/geometry/math"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
@@ -51,6 +52,31 @@ export function PropertyPanel() {
       rows.push(<Row key="h" label="Высота" value={`${(e.height / 1000).toFixed(2)} м`} />)
       rows.push(<Row key="t" label="Толщина" value={`${e.thickness} мм`} />)
       rows.push(<Row key="fl" label="Этаж" value={f.name} />)
+      const fid = selection.floorId
+      const eid = selection.id
+      const kinds: { k: WallKind; l: string }[] = [{ k: "exterior", l: "Наруж." }, { k: "interior", l: "Внутр." }, { k: "partition", l: "Перег." }]
+      const thicks = [100, 150, 200, 300]
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Высота, м
+            <input type="number" step="0.1" min="2" max="6" defaultValue={(e.height / 1000).toFixed(1)} key={`h${eid}${e.height}`}
+              onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetWallPropsCommand(fid, eid, { height: Math.max(2000, Math.min(6000, Math.round(v * 1000))) })) }}
+              className="w-16 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
+          <div className="flex gap-1">
+            {thicks.map((t) => (
+              <button key={t} type="button" onClick={() => execute(new SetWallPropsCommand(fid, eid, { thickness: t }))} className="flex-1 rounded-md py-1 text-[10px]" style={{ background: e.thickness === t ? TOKENS.accent : "rgba(148,163,184,0.12)", color: e.thickness === t ? "#0b1220" : TOKENS.text }}>{t}</button>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            {kinds.map((kd) => (
+              <button key={kd.k} type="button" onClick={() => execute(new SetWallPropsCommand(fid, eid, { kind: kd.k }))} className="flex-1 rounded-md py-1 text-[10px]" style={{ background: e.kind === kd.k ? TOKENS.accent : "rgba(148,163,184,0.12)", color: e.kind === kd.k ? "#0b1220" : TOKENS.text }}>{kd.l}</button>
+            ))}
+          </div>
+          <button type="button" onClick={() => execute(new DeleteWallCommand(fid, eid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить стену</button>
+        </div>
+      )
     }
   } else if (selection.type === "room" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)

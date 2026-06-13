@@ -22,6 +22,8 @@ import {
   type Command,
   InsertWallCommand,
   DeleteWallCommand,
+  AddRoomCommand,
+  MoveWallCommand,
   AddObjectCommand,
   DeleteObjectCommand,
   MoveNodeCommand,
@@ -95,6 +97,12 @@ export class BuilderEngine {
   private terrainEditing = false
   private readonly groundSize = 60
   private readonly groundRes = 64
+
+  // комната-прямоугольник / перемещение стены / орто-лок
+  private roomStart: Vector3 | null = null
+  private roomPreview: Mesh | null = null
+  private dragWall: { floorId: string; edgeId: string; startMm: Vec2 } | null = null
+  private shiftDown = false
 
   tool: Tool = "select"
   activeFloorId = ""
@@ -303,6 +311,8 @@ export class BuilderEngine {
   private setupPointer(): void {
     const scene = this.bundle.scene
     scene.onPointerObservable.add((pi) => {
+      const ev = pi.event as { shiftKey?: boolean }
+      this.shiftDown = !!ev?.shiftKey
       if (pi.type === PointerEventTypes.POINTERDOWN) this.handleDown()
       else if (pi.type === PointerEventTypes.POINTERMOVE) this.handleMove()
       else if (pi.type === PointerEventTypes.POINTERUP) this.handleUp()
@@ -365,7 +375,9 @@ export class BuilderEngine {
       const vx = mmX - sx
       const vy = mmY - sy
       const dist = Math.max(100, snapToGrid(Math.hypot(vx, vy), 100))
-      const ang = Math.round(Math.atan2(vy, vx) / (Math.PI / 12)) * (Math.PI / 12)
+      // Shift — орто-лок (90°), иначе шаг 15°.
+      const step = this.shiftDown ? Math.PI / 2 : Math.PI / 12
+      const ang = Math.round(Math.atan2(vy, vx) / step) * step
       mmX = sx + Math.cos(ang) * dist
       mmY = sy + Math.sin(ang) * dist
     } else {
@@ -383,11 +395,25 @@ export class BuilderEngine {
       this.terrainBrush()
       return
     }
+    if (this.tool === "room") {
+      const p = this.projectToPlane()
+      if (p && this.activeFloorId) {
+        this.roomStart = new Vector3(snapToGrid(p.x * 1000, 100) * S, this.activeFloorPlaneY(), snapToGrid(p.z * 1000, 100) * S)
+        this.bundle.scene.activeCamera?.detachControl()
+      }
+      return
+    }
     if (this.tool === "select") {
       const { meta } = this.pickMeta()
       if (meta?.kind === "node" && meta.floorId && meta.entityId) {
         this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId }
         this.bundle.scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "wall" && meta.floorId && meta.entityId) {
+        const p = this.projectToPlane()
+        if (p) {
+          this.dragWall = { floorId: meta.floorId, edgeId: meta.entityId, startMm: { x: snapToGrid(p.x * 1000, 50), y: snapToGrid(p.z * 1000, 50) } }
+          this.bundle.scene.activeCamera?.detachControl()
+        }
       } else if (meta?.kind === "object" && meta.entityId) {
         const target = meta.target === "site" || !meta.target ? ({ site: true } as const) : ({ floorId: meta.target } as const)
         const planeY = "site" in target ? 0 : (findFloor(this.getDoc() ?? ({} as BuilderDocument), target.floorId)?.elevation ?? 0) * S
@@ -400,6 +426,22 @@ export class BuilderEngine {
   private handleMove(): void {
     if (this.terrainEditing) {
       this.terrainBrush()
+      return
+    }
+    if (this.roomStart) {
+      this.updateRoomPreview()
+      return
+    }
+    if (this.dragWall) {
+      const p = this.projectToPlane()
+      if (!p) return
+      const dx = snapToGrid(p.x * 1000, 50) - this.dragWall.startMm.x
+      const dy = snapToGrid(p.z * 1000, 50) - this.dragWall.startMm.y
+      const now = performance.now()
+      if (now - this.lastMoveAt > 33) {
+        this.lastMoveAt = now
+        this.onCommand(new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
+      }
       return
     }
     if (this.dragNode) {
@@ -448,6 +490,34 @@ export class BuilderEngine {
     if (this.terrainEditing) {
       this.terrainEditing = false
       if (this.terrainHeights) this.onCommand(new SetTerrainCommand(this.terrainHeights))
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
+    if (this.roomStart) {
+      const p = this.projectToPlane()
+      if (p && this.activeFloorId) {
+        const x1 = Math.round(this.roomStart.x * 1000)
+        const y1 = Math.round(this.roomStart.z * 1000)
+        const x2 = snapToGrid(p.x * 1000, 100)
+        const y2 = snapToGrid(p.z * 1000, 100)
+        if (Math.abs(x2 - x1) >= 500 && Math.abs(y2 - y1) >= 500) {
+          this.onCommand(new AddRoomCommand(this.activeFloorId, x1, y1, x2, y2, { thickness: 150, height: 3200, kind: "interior" }))
+        }
+      }
+      this.roomStart = null
+      this.roomPreview?.dispose()
+      this.roomPreview = null
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
+    if (this.dragWall) {
+      const p = this.projectToPlane()
+      if (p) {
+        const dx = snapToGrid(p.x * 1000, 50) - this.dragWall.startMm.x
+        const dy = snapToGrid(p.z * 1000, 50) - this.dragWall.startMm.y
+        this.onCommand(new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
+      }
+      this.dragWall = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
     }
@@ -667,6 +737,31 @@ export class BuilderEngine {
     }
   }
 
+  // ── Предпросмотр комнаты ──────────────────────────────────────────────────────
+  private updateRoomPreview(): void {
+    if (!this.roomStart) return
+    const p = this.projectToPlane()
+    if (!p) return
+    const x1 = this.roomStart.x
+    const z1 = this.roomStart.z
+    const x2 = snapToGrid(p.x * 1000, 100) * S
+    const z2 = snapToGrid(p.z * 1000, 100) * S
+    const w = Math.abs(x2 - x1)
+    const d = Math.abs(z2 - z1)
+    this.roomPreview?.dispose()
+    if (w < 0.4 || d < 0.4) {
+      this.onHud(null)
+      return
+    }
+    const box = MeshBuilder.CreateBox("roomPreview", { width: w, depth: d, height: 0.1 }, this.bundle.scene)
+    box.position.set((x1 + x2) / 2, this.activeFloorPlaneY() + 0.05, (z1 + z2) / 2)
+    box.isPickable = false
+    box.visibility = 0.4
+    box.material = this.reg.status("#38BDF8")
+    this.roomPreview = box
+    this.onHud(`${w.toFixed(1)} × ${d.toFixed(1)} м`)
+  }
+
   // ── Проекция на произвольную высоту ──────────────────────────────────────────
   private projectToY(planeY: number): Vector3 | null {
     const { scene, camera } = this.bundle
@@ -793,6 +888,7 @@ export class BuilderEngine {
   dispose(): void {
     this.cancelWallTool()
     this.cancelPlacer()
+    this.roomPreview?.dispose()
     this.bundle.engine.stopRenderLoop()
     this.reg.dispose()
     this.bundle.scene.dispose()

@@ -27,7 +27,7 @@ type Item = { id: Tool; label: string; key: string; Icon: typeof Move; phase1: b
 const TOOLS: Item[] = [
   { id: "select", label: "Выбор", key: "V", Icon: Move, phase1: true },
   { id: "wall", label: "Стена", key: "W", Icon: PencilRuler, phase1: true },
-  { id: "room", label: "Комната", key: "R", Icon: Square, phase1: false },
+  { id: "room", label: "Комната", key: "R", Icon: Square, phase1: true },
   { id: "floor", label: "Этаж", key: "F", Icon: Layers, phase1: false },
   { id: "door", label: "Дверь", key: "D", Icon: Box, phase1: true },
   { id: "window", label: "Окно", key: "N", Icon: Eye, phase1: true },
