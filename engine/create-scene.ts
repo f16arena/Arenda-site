@@ -58,8 +58,8 @@ function buildGlowingGrid(scene: Scene, size: number): Mesh {
   for (let i = 0; i <= div; i++) {
     const p = (i / div) * px
     const major = i % 10 === 0
-    ctx.strokeStyle = major ? "rgba(56,189,248,0.55)" : "rgba(56,189,248,0.22)"
-    ctx.lineWidth = major ? 2.5 : 1
+    ctx.strokeStyle = major ? "rgba(120,160,190,0.30)" : "rgba(120,160,190,0.12)"
+    ctx.lineWidth = major ? 2 : 1
     ctx.beginPath()
     ctx.moveTo(p, 0)
     ctx.lineTo(p, px)
@@ -75,7 +75,7 @@ function buildGlowingGrid(scene: Scene, size: number): Mesh {
   m.diffuseTexture.hasAlpha = true
   m.useAlphaFromDiffuseTexture = true
   m.emissiveTexture = tex
-  m.emissiveColor = new Color3(0.22, 0.74, 0.97)
+  m.emissiveColor = new Color3(0.08, 0.12, 0.16)
   m.disableLighting = true
   m.backFaceCulling = false
   const grid = MeshBuilder.CreateGround("gridPlane", { width: size, height: size }, scene)
@@ -96,16 +96,18 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   buildSkyGradient(scene)
 
   const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene)
-  hemi.intensity = 0.6
-  hemi.groundColor = new Color3(0.4, 0.45, 0.5)
+  hemi.intensity = 0.75
+  hemi.groundColor = new Color3(0.45, 0.46, 0.44)
+  hemi.diffuse = new Color3(1, 0.99, 0.95)
 
   const sun = new DirectionalLight("sun", new Vector3(-0.6, -1.2, -0.5), scene)
   sun.position = new Vector3(40, 70, 30)
-  sun.intensity = 2.4
+  sun.intensity = 2.1
+  sun.diffuse = new Color3(1, 0.97, 0.9)
   const shadow = new ShadowGenerator(1024, sun)
   shadow.useBlurExponentialShadowMap = true
-  shadow.blurKernel = 24
-  shadow.darkness = 0.55
+  shadow.blurKernel = 32
+  shadow.darkness = 0.38
   // Перф (§24): сцена статична между правками — карта теней рисуется один раз, а не
   // каждый кадр. Движок вызывает resetRefreshCounter() после каждой пересборки.
   const shadowMap = shadow.getShadowMap()
