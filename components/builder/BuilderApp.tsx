@@ -83,6 +83,19 @@ function groupDuplicate(ids: string[]): void {
   }
 }
 
+function groupAlign(ids: string[], axis: "x" | "z"): void {
+  const exec = useDocumentStore.getState().execute
+  const d = useDocumentStore.getState().doc
+  const items = ids.map((id) => objTarget(d, id)).filter(Boolean) as { target: { site: true } | { floorId: string }; obj: import("@/types/builder").BuilderObject }[]
+  if (items.length < 2) return
+  const avg = Math.round(items.reduce((s, it) => s + (axis === "x" ? it.obj.position.x : it.obj.position.z), 0) / items.length)
+  for (const it of items) {
+    const x = axis === "x" ? avg : it.obj.position.x
+    const z = axis === "z" ? avg : it.obj.position.z
+    exec(new MoveObjectCommand(it.target, it.obj.id, x, z))
+  }
+}
+
 function deleteSelection(): void {
   const sel = useEditorStore.getState().selection
   const exec = useDocumentStore.getState().execute
@@ -136,6 +149,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const pathWidth = useEditorStore((s) => s.pathWidth)
   const fenceStyle = useEditorStore((s) => s.fenceStyle)
   const paveMaterial = useEditorStore((s) => s.paveMaterial)
+  const snapEnabled = useEditorStore((s) => s.snapEnabled)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -209,6 +223,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.pathWidth = pathWidth
     e.fenceStyle = fenceStyle
     e.paveMaterial = paveMaterial
+    e.snapEnabled = snapEnabled
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
@@ -216,7 +231,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "water") e.cancelWater()
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()
     if (activeTool !== "pave") e.cancelPave()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, armedAsset, openingVariant, ready])
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -371,6 +386,13 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         }
         return
       }
+      // G — тумблер привязки к сетке
+      if (e.key === "g" || e.key === "G") {
+        ed.toggleSnap()
+        setHud(useEditorStore.getState().snapEnabled ? "Привязка к сетке: вкл" : "Привязка к сетке: выкл")
+        window.setTimeout(() => setHud(null), 1200)
+        return
+      }
       const k = e.key.toLowerCase()
       if (TOOL_KEYS[k]) {
         ed.setTool(TOOL_KEYS[k])
@@ -441,6 +463,26 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.accent}`, color: TOKENS.text }}
         >
           <span style={{ color: TOKENS.accent }}>Выбрано: {multi.length}</span>
+          {multi.length >= 2 && (
+            <>
+              <button
+                type="button"
+                onClick={() => groupAlign(useEditorStore.getState().multi, "x")}
+                className="rounded-md px-2 py-1 text-xs"
+                style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
+              >
+                Выровнять X
+              </button>
+              <button
+                type="button"
+                onClick={() => groupAlign(useEditorStore.getState().multi, "z")}
+                className="rounded-md px-2 py-1 text-xs"
+                style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
+              >
+                Выровнять Z
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => groupDuplicate(useEditorStore.getState().multi)}

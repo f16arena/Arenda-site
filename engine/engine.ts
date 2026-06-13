@@ -166,6 +166,7 @@ export class BuilderEngine {
   pathWidth = 3000 // мм, ширина дороги/дорожки
   fenceStyle: "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood" = "profnastil"
   paveMaterial = "asphalt"
+  snapEnabled = true // привязка к сетке (стены 100мм, объекты 50мм); тумблер G
   onPick: (meta: MeshMeta | null) => void = () => {}
   onMultiToggle: (objectId: string) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
@@ -638,8 +639,9 @@ export class BuilderEngine {
       mmX = sx + Math.cos(ang) * dist
       mmY = sy + Math.sin(ang) * dist
     } else {
-      mmX = snapToGrid(mmX, 100)
-      mmY = snapToGrid(mmY, 100)
+      const g = this.snapEnabled ? 100 : 1
+      mmX = snapToGrid(mmX, g)
+      mmY = snapToGrid(mmY, g)
     }
     return { mm: { x: mmX, y: mmY }, world: new Vector3(mmX * S, this.activeFloorPlaneY() + 0.02, mmY * S) }
   }
@@ -792,7 +794,8 @@ export class BuilderEngine {
       const p = this.projectToY(this.dragObject.planeY)
       if (!p) return
       const tk = "site" in this.dragObject.target ? "site" : this.dragObject.target.floorId
-      const snap = this.snapObjectXZ(tk, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50), this.dragObject.objectId)
+      const og = this.snapEnabled ? 50 : 1
+      const snap = this.snapObjectXZ(tk, snapToGrid(p.x * 1000, og), snapToGrid(p.z * 1000, og), this.dragObject.objectId)
       // Живое перемещение: двигаем корень объекта напрямую, команда — на отпускании.
       const root = this.objectRootById.get(this.dragObject.objectId)
       if (root) {
@@ -892,7 +895,8 @@ export class BuilderEngine {
       const p = this.projectToY(drag.planeY)
       if (p) {
         const targetKey = "site" in drag.target ? "site" : drag.target.floorId
-        const snapped = this.snapObjectXZ(targetKey, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50), drag.objectId)
+        const og = this.snapEnabled ? 50 : 1
+        const snapped = this.snapObjectXZ(targetKey, snapToGrid(p.x * 1000, og), snapToGrid(p.z * 1000, og), drag.objectId)
         const cx = snapped.x
         const cz = snapped.z
         const node = this.objectRootById.get(drag.objectId)
@@ -1733,7 +1737,8 @@ export class BuilderEngine {
     const onFloor = doc ? findFloor(doc, this.activeFloorId) : undefined
     const target = onFloor ? ({ floorId: this.activeFloorId } as const) : ({ site: true } as const)
     const targetKey = onFloor ? this.activeFloorId : "site"
-    const aligned = this.snapObjectXZ(targetKey, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50))
+    const og = this.snapEnabled ? 50 : 1
+    const aligned = this.snapObjectXZ(targetKey, snapToGrid(p.x * 1000, og), snapToGrid(p.z * 1000, og))
     const cx = aligned.x
     const cz = aligned.z
     // Проверка наложения по габаритам призрака.
