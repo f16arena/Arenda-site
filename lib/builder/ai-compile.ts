@@ -16,35 +16,38 @@ import {
 import { emptyGraph, type WallDefaults } from "@/core/geometry/wall-graph"
 import type { Vec2 } from "@/core/geometry/math"
 
+// Валидация мягкая (без min/max — кламп делаем в buildDocFromSpec), т.к. Anthropic
+// structured output не принимает minimum/maximum для integer.
 export const BuildingSpecSchema = z.object({
   name: z.string(),
-  floors: z.number().int().min(1).max(10),
-  widthM: z.number().min(5).max(120),
-  depthM: z.number().min(5).max(120),
-  cols: z.number().int().min(1).max(8),
-  rows: z.number().int().min(1).max(6),
+  floors: z.number(),
+  widthM: z.number(),
+  depthM: z.number(),
+  cols: z.number(),
+  rows: z.number(),
   facade: z.enum(["plaster_white", "brick", "concrete", "glass", "block"]),
   roof: z.enum(["flat", "gable"]),
-  parking: z.number().int().min(0).max(40),
+  parking: z.number(),
   basement: z.boolean(),
 })
 export type BuildingSpec = z.infer<typeof BuildingSpecSchema>
 
-// JSON-schema для Anthropic output_config (структурный вывод).
+// JSON-schema для Anthropic output_config (структурный вывод). Без minimum/maximum —
+// диапазоны описаны в системном промпте, итог клампится в коде.
 export const BUILDING_SPEC_JSONSCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["name", "floors", "widthM", "depthM", "cols", "rows", "facade", "roof", "parking", "basement"],
   properties: {
     name: { type: "string" },
-    floors: { type: "integer", minimum: 1, maximum: 10 },
-    widthM: { type: "number", minimum: 5, maximum: 120 },
-    depthM: { type: "number", minimum: 5, maximum: 120 },
-    cols: { type: "integer", minimum: 1, maximum: 8 },
-    rows: { type: "integer", minimum: 1, maximum: 6 },
+    floors: { type: "integer" },
+    widthM: { type: "number" },
+    depthM: { type: "number" },
+    cols: { type: "integer" },
+    rows: { type: "integer" },
     facade: { type: "string", enum: ["plaster_white", "brick", "concrete", "glass", "block"] },
     roof: { type: "string", enum: ["flat", "gable"] },
-    parking: { type: "integer", minimum: 0, maximum: 40 },
+    parking: { type: "integer" },
     basement: { type: "boolean" },
   },
 } as const
@@ -73,7 +76,17 @@ function makeFloor(level: number): Floor {
 
 const p = (x: number, y: number): Vec2 => ({ x, y })
 
-export function buildDocFromSpec(spec: BuildingSpec): BuilderDocument {
+export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo))
+  const spec: BuildingSpec = {
+    ...raw,
+    floors: Math.round(clamp(raw.floors, 1, 10)),
+    widthM: clamp(raw.widthM, 5, 120),
+    depthM: clamp(raw.depthM, 5, 120),
+    cols: Math.round(clamp(raw.cols, 1, 8)),
+    rows: Math.round(clamp(raw.rows, 1, 6)),
+    parking: Math.round(clamp(raw.parking, 0, 40)),
+  }
   const W = (spec.widthM * 1000) / 2
   const H = (spec.depthM * 1000) / 2
   const EXT: WallDefaults = { thickness: 300, height: FLOOR_HEIGHT, kind: "exterior" }
