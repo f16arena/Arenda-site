@@ -101,7 +101,7 @@ export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
     id: uid("proj"),
     schemaVersion: 1,
     name: spec.name.slice(0, 80) || "AI-проект",
-    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [] },
+    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [] },
     buildings: [],
   }
   const run = (cmd: Command) => {

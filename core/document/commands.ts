@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -446,6 +446,34 @@ export class DeleteWaterCommand implements Command {
   revert(doc: BuilderDocument): BuilderDocument {
     if (!this.removed) return doc
     return { ...doc, site: { ...doc.site, water: [...(doc.site.water ?? []), this.removed] } }
+  }
+}
+
+// ── Линейные элементы (дороги/дорожки/заборы по сплайну) ─────────────────────
+export class AddPathCommand implements Command {
+  readonly kind = "add-path"
+  readonly label = "линия"
+  constructor(private feature: PathFeature) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, paths: [...(doc.site.paths ?? []), this.feature] } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, paths: (doc.site.paths ?? []).filter((p) => p.id !== this.feature.id) } }
+  }
+}
+
+export class DeletePathCommand implements Command {
+  readonly kind = "delete-path"
+  readonly label = "удаление линии"
+  private removed?: PathFeature
+  constructor(private pathId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    this.removed = (doc.site.paths ?? []).find((p) => p.id === this.pathId) ?? this.removed
+    return { ...doc, site: { ...doc.site, paths: (doc.site.paths ?? []).filter((p) => p.id !== this.pathId) } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    return { ...doc, site: { ...doc.site, paths: [...(doc.site.paths ?? []), this.removed] } }
   }
 }
 

@@ -38,6 +38,11 @@ const WATER_DEPTHS: { mm: number; label: string }[] = [
   { mm: 800, label: "Средне 0.8 м" },
   { mm: 1500, label: "Глубоко 1.5 м" },
 ]
+const PATH_WIDTHS: { mm: number; label: string }[] = [
+  { mm: 1200, label: "1.2 м" },
+  { mm: 3000, label: "3 м" },
+  { mm: 6000, label: "6 м" },
+]
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -60,6 +65,10 @@ export function ToolOptions() {
   const setTerrainMode = useEditorStore((s) => s.setTerrainMode)
   const waterDepth = useEditorStore((s) => s.waterDepth)
   const setWaterDepth = useEditorStore((s) => s.setWaterDepth)
+  const pathKind = useEditorStore((s) => s.pathKind)
+  const setPathKind = useEditorStore((s) => s.setPathKind)
+  const pathWidth = useEditorStore((s) => s.pathWidth)
+  const setPathWidth = useEditorStore((s) => s.setPathWidth)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
@@ -107,6 +116,34 @@ export function ToolOptions() {
         <span className="shrink-0">— клик ставит точки контура, клик у старта или Enter — залить, Esc — отмена</span>
       </Shell>
     )
+  }
+  if (tool === "road") {
+    return (
+      <Shell>
+        <span className="shrink-0">Тип:</span>
+        {([{ id: "road", label: "Дорога" }, { id: "path", label: "Дорожка" }] as const).map((k) => {
+          const active = pathKind === k.id
+          return (
+            <button key={k.id} type="button" onClick={() => setPathKind(k.id)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
+              {k.label}
+            </button>
+          )
+        })}
+        <span className="ml-2 shrink-0">Ширина:</span>
+        {PATH_WIDTHS.map((w) => {
+          const active = pathWidth === w.mm
+          return (
+            <button key={w.mm} type="button" onClick={() => setPathWidth(w.mm)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
+              {w.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— клик ставит точки, повторный клик в конце или Enter — готово</span>
+      </Shell>
+    )
+  }
+  if (tool === "fence") {
+    return <Shell><span>Забор — клик ставит точки линии, повторный клик в конце или Enter — готово, Esc — отмена</span></Shell>
   }
   if (tool === "object") {
     return <Shell><span>{armedAsset ? "Призрак у курсора · R — поворот · клик — поставить · Esc — отмена" : "Выберите ассет в каталоге снизу"}</span></Shell>

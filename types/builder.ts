@@ -103,6 +103,14 @@ export const WaterBodySchema = z.object({
   kind: z.enum(["pond", "pool", "river"]).default("pond"),
 })
 
+// Линейный элемент по сплайну: дорога/дорожка (лента по земле) или забор (столбы+рейлы).
+export const PathFeatureSchema = z.object({
+  id: z.string(),
+  points: z.array(Vec2Schema),
+  width: z.number().default(3000),
+  kind: z.enum(["road", "path", "fence"]).default("road"),
+})
+
 export const SiteSchema = z.object({
   sizeX: z.number().default(50000),
   sizeZ: z.number().default(40000),
@@ -113,6 +121,8 @@ export const SiteSchema = z.object({
   heightmap: z.array(z.number()).optional(),
   // Водоёмы по контуру (Фаза v4: вода по сплайну + прокоп русла).
   water: z.array(WaterBodySchema).default([]),
+  // Дороги/дорожки/заборы по сплайну (Фаза v4: линейные элементы).
+  paths: z.array(PathFeatureSchema).default([]),
 })
 
 export const ProjectSchema = z.object({
@@ -132,6 +142,7 @@ export type RoofConfig = z.infer<typeof RoofConfigSchema>
 export type Floor = z.infer<typeof FloorSchema>
 export type Building = z.infer<typeof BuildingSchema>
 export type WaterBody = z.infer<typeof WaterBodySchema>
+export type PathFeature = z.infer<typeof PathFeatureSchema>
 export type Site = z.infer<typeof SiteSchema>
 export type BuilderDocument = z.infer<typeof ProjectSchema>
 

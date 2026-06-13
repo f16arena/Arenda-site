@@ -100,7 +100,7 @@ export type Tool =
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -110,6 +110,7 @@ export interface Selection {
 export type OpeningType = "door" | "window"
 export type StairShape = "straight" | "l" | "u" | "spiral"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth" | "terrace"
+export type PathKind = "road" | "path"
 export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape"
 export type GizmoMode = "none" | "move" | "rotate"
 
@@ -129,6 +130,8 @@ export interface EditorState {
   stairShape: StairShape
   terrainMode: TerrainMode
   waterDepth: number
+  pathKind: PathKind
+  pathWidth: number
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -148,6 +151,8 @@ export interface EditorState {
   setStairShape: (s: StairShape) => void
   setTerrainMode: (m: TerrainMode) => void
   setWaterDepth: (mm: number) => void
+  setPathKind: (k: PathKind) => void
+  setPathWidth: (mm: number) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -178,6 +183,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   stairShape: "u",
   terrainMode: "raise",
   waterDepth: 800,
+  pathKind: "road",
+  pathWidth: 3000,
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -207,6 +214,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setStairShape: (s) => set({ stairShape: s }),
   setTerrainMode: (m) => set({ terrainMode: m }),
   setWaterDepth: (mm) => set({ waterDepth: mm }),
+  setPathKind: (k) => set({ pathKind: k }),
+  setPathWidth: (mm) => set({ pathWidth: mm }),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),
   setTurbo: (on) => set({ turbo: on }),

@@ -42,6 +42,8 @@ import {
   SetTerrainCommand,
   AddWaterCommand,
   DeleteWaterCommand,
+  AddPathCommand,
+  DeletePathCommand,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
@@ -54,6 +56,7 @@ import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import { buildWater } from "./builders/water-builder"
+import { buildPath } from "./builders/path-builder"
 import { LIGHT_ASSETS } from "./builders/object-builder"
 import { GizmoController, type GizmoMode } from "./gizmo"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
@@ -118,6 +121,10 @@ export class BuilderEngine {
   private waterPoints: Vec2[] = [] // мм
   private waterPreview: TransformNode | null = null
 
+  // линии по сплайну (дорога/дорожка/забор)
+  private pathPoints: Vec2[] = [] // мм
+  private pathPreview: TransformNode | null = null
+
   // комната-прямоугольник / перемещение стены / орто-лок
   private roomStart: Vector3 | null = null
   private roomPreview: Mesh | null = null
@@ -134,6 +141,8 @@ export class BuilderEngine {
   stairShape = "u"
   terrainMode: "raise" | "lower" | "flatten" | "smooth" | "terrace" = "raise"
   waterDepth = 800 // мм, глубина прокопа русла
+  pathKind: "road" | "path" | "fence" = "road"
+  pathWidth = 3000 // мм, ширина дороги/дорожки
   onPick: (meta: MeshMeta | null) => void = () => {}
   onMultiToggle: (objectId: string) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
@@ -223,6 +232,14 @@ export class BuilderEngine {
     for (const w of doc.site.water ?? []) {
       const mesh = buildWater(w, siteRoot, scene, this.reg)
       if (mesh) register(w.id, mesh)
+    }
+
+    // Линии по сплайну: дороги/дорожки/заборы.
+    for (const pth of doc.site.paths ?? []) {
+      for (const m of buildPath(pth, siteRoot, scene, this.reg)) {
+        register(pth.id, m)
+        if (pth.kind === "fence") this.bundle.shadow.addShadowCaster(m)
+      }
     }
 
     for (const b of doc.buildings) {
@@ -762,6 +779,10 @@ export class BuilderEngine {
       this.handleWaterTap()
       return
     }
+    if (this.tool === "road" || this.tool === "fence") {
+      this.handlePathTap()
+      return
+    }
     const { meta, point } = this.pickMeta()
     if (this.tool === "door" || this.tool === "window") {
       this.handleOpeningTap(meta, point)
@@ -957,6 +978,7 @@ export class BuilderEngine {
       const target = meta.target === "site" ? ({ site: true } as const) : ({ floorId: meta.target ?? "" } as const)
       this.onCommand(new DeleteObjectCommand(target, meta.entityId))
     } else if (meta.kind === "water") this.onCommand(new DeleteWaterCommand(meta.entityId))
+    else if (meta.kind === "path") this.onCommand(new DeletePathCommand(meta.entityId))
   }
 
   // Смещение проёма вдоль его стены под текущим курсором (мм), с клампом по краям.
@@ -1250,6 +1272,76 @@ export class BuilderEngine {
     this.waterPreview = root
   }
 
+  // ── Линии по сплайну (дорога/дорожка/забор) ──────────────────────────────────
+  // Клик ставит точки; клик у последней точки (≥2) или Enter — завершить, Esc — отмена.
+  private handleWaterOrPathLabel(): string {
+    return this.pathKind === "fence" ? "Забор" : this.pathKind === "path" ? "Дорожка" : "Дорога"
+  }
+
+  private handlePathTap(): void {
+    const p = this.projectToY(0)
+    if (!p) return
+    const mm: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+    if (this.pathPoints.length >= 2) {
+      const last = this.pathPoints[this.pathPoints.length - 1]
+      if (Math.hypot(mm.x - last.x, mm.y - last.y) < 600) {
+        this.finalizePath()
+        return
+      }
+    }
+    this.pathPoints.push(mm)
+    this.updatePathPreview()
+    this.onHud(`${this.handleWaterOrPathLabel()}: точек ${this.pathPoints.length} · повторный клик в конце или Enter — готово, Esc — отмена`)
+  }
+
+  isDrawingPath(): boolean {
+    return (this.tool === "road" || this.tool === "fence") && this.pathPoints.length > 0
+  }
+
+  finalizePath(): void {
+    if (this.pathPoints.length < 2) {
+      this.cancelPath()
+      return
+    }
+    const points = this.pathPoints.map((p) => ({ ...p }))
+    const kind = this.tool === "fence" ? "fence" : this.pathKind === "path" ? "path" : "road"
+    this.onCommand(new AddPathCommand({ id: uid("p"), points, width: Math.max(300, this.pathWidth), kind }))
+    this.cancelPath()
+    this.onHud(null)
+  }
+
+  cancelPath(): void {
+    this.pathPoints = []
+    this.pathPreview?.dispose()
+    this.pathPreview = null
+  }
+
+  private updatePathPreview(): void {
+    this.pathPreview?.dispose()
+    if (this.pathPoints.length === 0) {
+      this.pathPreview = null
+      return
+    }
+    const root = new TransformNode("pathPreview", this.bundle.scene)
+    const mat = this.reg.status("#A78BFA")
+    for (const pt of this.pathPoints) {
+      const dot = MeshBuilder.CreateDisc("ppt", { radius: 0.35, tessellation: 16 }, this.bundle.scene)
+      dot.rotation.x = Math.PI / 2
+      dot.position.set(pt.x * S, 0.07, pt.y * S)
+      dot.material = mat
+      dot.isPickable = false
+      dot.parent = root
+    }
+    if (this.pathPoints.length >= 2) {
+      const line = this.pathPoints.map((p) => new Vector3(p.x * S, 0.08, p.y * S))
+      const poly = MeshBuilder.CreateLines("pline", { points: line }, this.bundle.scene)
+      poly.color = Color3.FromHexString("#A78BFA")
+      poly.isPickable = false
+      poly.parent = root
+    }
+    this.pathPreview = root
+  }
+
   // ── Размещение объекта (placer) ──────────────────────────────────────────────
   setArmedAsset(assetId: string | null): void {
     this.armedAsset = assetId
@@ -1318,6 +1410,7 @@ export class BuilderEngine {
     this.cancelWallTool()
     this.cancelPlacer()
     this.cancelWater()
+    this.cancelPath()
     this.roomPreview?.dispose()
     for (const l of this.lights) l.dispose()
     this.lights = []
