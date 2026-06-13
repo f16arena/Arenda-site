@@ -12,7 +12,7 @@ import {
   LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles, FileBarChart,
-  PanelLeftClose, PanelLeftOpen, Megaphone,
+  PanelLeftClose, PanelLeftOpen, Megaphone, Box,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -73,6 +73,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
       { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
+      { href: "/admin/builder/projects", label: "3D-конструктор", icon: Box, section: "buildings" },
       { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
     ],
   },

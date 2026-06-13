@@ -5,6 +5,7 @@
 // where revision — если 0 строк, значит кто-то сохранил параллельно). Док валидируется
 // Zod (parseDocument) перед записью. Орг-скоуп вместо RLS. Showcase — отдельный токен.
 
+import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
@@ -76,6 +77,44 @@ export async function listBuilderProjects(): Promise<Array<{ id: string; name: s
     take: 50,
   })
   return rows.map((r) => ({ id: r.id, name: r.name, updatedAt: r.updatedAt.toISOString() }))
+}
+
+export async function renameBuilderProject(id: string, name: string): Promise<{ ok: boolean }> {
+  const orgId = await requireBuilderAccess()
+  const res = await db.builderProject.updateMany({
+    where: { id, organizationId: orgId },
+    data: { name: (name || "Без названия").slice(0, 120) },
+  })
+  revalidatePath("/admin/builder/projects")
+  return { ok: res.count > 0 }
+}
+
+export async function deleteBuilderProject(id: string): Promise<{ ok: boolean }> {
+  const orgId = await requireBuilderAccess()
+  const res = await db.builderProject.deleteMany({ where: { id, organizationId: orgId } })
+  revalidatePath("/admin/builder/projects")
+  return { ok: res.count > 0 }
+}
+
+export async function duplicateBuilderProject(id: string): Promise<{ id: string } | null> {
+  const orgId = await requireBuilderAccess()
+  const session = await auth()
+  const src = await db.builderProject.findFirst({ where: { id, organizationId: orgId }, select: { name: true, doc: true, schemaVersion: true } })
+  if (!src) return null
+  const validated = parseDocument(src.doc)
+  const created = await db.builderProject.create({
+    data: {
+      organizationId: orgId,
+      name: `${src.name} (копия)`.slice(0, 120),
+      doc: validated,
+      schemaVersion: src.schemaVersion,
+      revision: 0,
+      createdById: session?.user?.id ?? null,
+    },
+    select: { id: true },
+  })
+  revalidatePath("/admin/builder/projects")
+  return created
 }
 
 export async function createBuilderShare(projectId: string): Promise<{ token: string }> {
