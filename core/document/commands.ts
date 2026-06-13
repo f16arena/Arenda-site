@@ -395,6 +395,33 @@ export class SetObjectScaleCommand implements Command {
   }
 }
 
+// Растяжение объекта по ширине (X) / глубине (Z) поверх общего scale.
+export class SetObjectSizeCommand implements Command {
+  readonly kind = "size-object"
+  readonly label = "размер объекта"
+  private prevX?: number
+  private prevZ?: number
+  private captured = false
+  constructor(private target: ObjectTarget, private objectId: string, private size: { scaleX?: number; scaleZ?: number }) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const o = findObject(doc, this.target, this.objectId)
+    if (o && !this.captured) {
+      this.prevX = o.scaleX ?? 1
+      this.prevZ = o.scaleZ ?? 1
+      this.captured = true
+    }
+    return mapObject(doc, this.target, this.objectId, (ob) => ({
+      ...ob,
+      scaleX: this.size.scaleX ?? ob.scaleX ?? 1,
+      scaleZ: this.size.scaleZ ?? ob.scaleZ ?? 1,
+    }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.captured) return doc
+    return mapObject(doc, this.target, this.objectId, (ob) => ({ ...ob, scaleX: this.prevX, scaleZ: this.prevZ }))
+  }
+}
+
 // ── Рельеф (heightmap) ────────────────────────────────────────────────────────
 export class SetTerrainCommand implements Command {
   readonly kind = "set-terrain"

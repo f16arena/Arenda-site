@@ -90,6 +90,8 @@ export class BuilderEngine {
   private readonly maxLights = 8
   private gizmo: GizmoController
   private objectRootById = new Map<string, TransformNode>()
+  // Габариты объектов в плане (мм, мировые AABB) — для запрета наложения объектов.
+  private objectFootprints = new Map<string, { target: string; minX: number; maxX: number; minZ: number; maxZ: number }>()
   private currentSel: Selection | null = null
   private currentMulti: string[] = [] // id объектов в мультивыборе
   private openDoors = new Set<string>() // двери, открытые кликом в Walk
@@ -169,8 +171,24 @@ export class BuilderEngine {
       const sel = this.currentSel
       if (!sel || sel.type !== "object" || !sel.id) return
       const target = sel.floorId ? ({ floorId: sel.floorId } as const) : ({ site: true } as const)
-      if (this.gizmoMode === "rotate") this.onCommand(new SetObjectRotationCommand(target, sel.id, rotationYDeg))
-      else this.onCommand(new MoveObjectCommand(target, sel.id, Math.round(x * 1000), Math.round(z * 1000)))
+      if (this.gizmoMode === "rotate") {
+        this.onCommand(new SetObjectRotationCommand(target, sel.id, rotationYDeg))
+        return
+      }
+      // Перемещение гизмо: проверяем наложение, при конфликте — откат на место.
+      const cx = Math.round(x * 1000)
+      const cz = Math.round(z * 1000)
+      const targetKey = sel.floorId ?? "site"
+      const node = this.objectRootById.get(sel.id)
+      const half = node ? this.nodeHalfExtents(node) : { hx: 300, hz: 300 }
+      const box = { minX: cx - half.hx, maxX: cx + half.hx, minZ: cz - half.hz, maxZ: cz + half.hz }
+      if (this.overlapsExisting(targetKey, box, sel.id)) {
+        const orig = this.findObjectPos(target, sel.id)
+        if (node && orig) node.setAbsolutePosition(new Vector3(orig.x * S, node.getAbsolutePosition().y, orig.z * S))
+        this.onHud("Нельзя ставить объект на объект")
+        return
+      }
+      this.onCommand(new MoveObjectCommand(target, sel.id, cx, cz))
     }
     this.setupPointer()
     this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
@@ -216,6 +234,7 @@ export class BuilderEngine {
     this.lights = []
     this.meshById.clear()
     this.objectRootById.clear()
+    this.objectFootprints.clear()
     this.buildingRootById.clear()
     this.floorRootById.clear()
     this.roofByFloorId.clear()
@@ -241,6 +260,7 @@ export class BuilderEngine {
           this.bundle.shadow.addShadowCaster(m)
         }
       })
+      this.recordFootprint(obj.id, "site", node)
       if (LIGHT_ASSETS.has(obj.assetId)) lightSpecs.push(new Vector3(obj.position.x * S, obj.position.y * S + 2.6, obj.position.z * S))
     }
 
@@ -347,6 +367,7 @@ export class BuilderEngine {
             this.bundle.shadow.addShadowCaster(m)
           }
         })
+        this.recordFootprint(obj.id, f.id, node)
         if (LIGHT_ASSETS.has(obj.assetId)) opts.lightSpecs?.push(new Vector3(b.origin.x * S + obj.position.x * S, f.elevation * S + obj.position.y * S + 2.6, b.origin.y * S + obj.position.z * S))
       }
     }
@@ -848,11 +869,35 @@ export class BuilderEngine {
       return
     }
     if (this.dragObject) {
-      const p = this.projectToY(this.dragObject.planeY)
-      if (p) this.onCommand(new MoveObjectCommand(this.dragObject.target, this.dragObject.objectId, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50)))
+      const drag = this.dragObject
+      const p = this.projectToY(drag.planeY)
+      if (p) {
+        const cx = snapToGrid(p.x * 1000, 50)
+        const cz = snapToGrid(p.z * 1000, 50)
+        const targetKey = "site" in drag.target ? "site" : drag.target.floorId
+        const node = this.objectRootById.get(drag.objectId)
+        const half = node ? this.nodeHalfExtents(node) : { hx: 300, hz: 300 }
+        const box = { minX: cx - half.hx, maxX: cx + half.hx, minZ: cz - half.hz, maxZ: cz + half.hz }
+        if (this.overlapsExisting(targetKey, box, drag.objectId)) {
+          // Наложение — откатываем объект на исходную позицию (команду не шлём).
+          const orig = this.findObjectPos(drag.target, drag.objectId)
+          if (node && orig) node.setAbsolutePosition(new Vector3(orig.x * S, node.getAbsolutePosition().y, orig.z * S))
+          this.onHud("Нельзя ставить объект на объект")
+        } else {
+          this.onCommand(new MoveObjectCommand(drag.target, drag.objectId, cx, cz))
+        }
+      }
       this.dragObject = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
     }
+  }
+
+  // Текущая позиция объекта (мм) из документа — для отката при наложении.
+  private findObjectPos(target: { site: true } | { floorId: string }, id: string): { x: number; z: number } | null {
+    const doc = this.getDoc()
+    if (!doc) return null
+    const o = "site" in target ? doc.site.objects.find((ob) => ob.id === id) : findFloor(doc, target.floorId)?.objects.find((ob) => ob.id === id)
+    return o ? { x: o.position.x, z: o.position.z } : null
   }
 
   private handleWalkTap(): void {
@@ -1058,7 +1103,14 @@ export class BuilderEngine {
     const f = doc ? findFloor(doc, this.activeFloorId) : undefined
     if (!f || !doc) return
     const building = doc.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
-    const upper = building?.floors.find((fl) => fl.level === f.level + 1)
+    // Ближайший этаж ВЫШЕ по отметке (надёжнее, чем level+1) — лестница соединит их,
+    // в его перекрытии появится вырез (floor-builder по toFloorId).
+    const upper = building?.floors
+      .filter((fl) => fl.elevation > f.elevation)
+      .sort((x, y) => x.elevation - y.elevation)[0]
+    if (!upper) {
+      this.onHud("Нет этажа выше — добавьте этаж, чтобы лестница соединяла этажи")
+    }
     const p = this.projectToPlane()
     if (!p) return
     this.onCommand(
@@ -1497,6 +1549,34 @@ export class BuilderEngine {
     this.placerGhost = null
   }
 
+  // ── Запрет наложения объектов ────────────────────────────────────────────────
+  // Записываем габариты объекта в плане (мировой AABB, мм) после сборки.
+  private recordFootprint(id: string, target: string, node: TransformNode): void {
+    node.computeWorldMatrix(true)
+    const { min, max } = node.getHierarchyBoundingVectors(true)
+    if (!isFinite(min.x) || !isFinite(max.x)) return
+    this.objectFootprints.set(id, { target, minX: min.x / S, maxX: max.x / S, minZ: min.z / S, maxZ: max.z / S })
+  }
+
+  // Пересекается ли прямоугольник с уже стоящим объектом на том же уровне (с допуском
+  // на касание). excludeId — игнорировать сам перемещаемый объект.
+  private overlapsExisting(target: string, box: { minX: number; maxX: number; minZ: number; maxZ: number }, excludeId?: string): boolean {
+    const TOL = 60 // мм — допускаем плотное прилегание, блокируем реальное наложение
+    for (const [id, fp] of this.objectFootprints) {
+      if (id === excludeId || fp.target !== target) continue
+      if (box.minX < fp.maxX - TOL && box.maxX > fp.minX + TOL && box.minZ < fp.maxZ - TOL && box.maxZ > fp.minZ + TOL) return true
+    }
+    return false
+  }
+
+  // Габариты узла в плане (полу-ширина/полу-глубина, мм) для проверки в новой точке.
+  private nodeHalfExtents(node: TransformNode): { hx: number; hz: number } {
+    node.computeWorldMatrix(true)
+    const { min, max } = node.getHierarchyBoundingVectors(true)
+    if (!isFinite(min.x) || !isFinite(max.x)) return { hx: 300, hz: 300 }
+    return { hx: (max.x - min.x) / 2 / S, hz: (max.z - min.z) / 2 / S }
+  }
+
   private handlePlaceObject(): void {
     if (!this.armedAsset) return
     const p = this.projectToPlane()
@@ -1504,11 +1584,21 @@ export class BuilderEngine {
     const doc = this.getDoc()
     const onFloor = doc ? findFloor(doc, this.activeFloorId) : undefined
     const target = onFloor ? ({ floorId: this.activeFloorId } as const) : ({ site: true } as const)
+    const targetKey = onFloor ? this.activeFloorId : "site"
+    const cx = snapToGrid(p.x * 1000, 50)
+    const cz = snapToGrid(p.z * 1000, 50)
+    // Проверка наложения по габаритам призрака.
+    const half = this.placerGhost ? this.nodeHalfExtents(this.placerGhost) : { hx: 300, hz: 300 }
+    const box = { minX: cx - half.hx, maxX: cx + half.hx, minZ: cz - half.hz, maxZ: cz + half.hz }
+    if (this.overlapsExisting(targetKey, box)) {
+      this.onHud("Здесь уже есть объект — выберите свободное место")
+      return
+    }
     this.onCommand(
       new AddObjectCommand(target, {
         id: uid("o"),
         assetId: this.armedAsset,
-        position: { x: snapToGrid(p.x * 1000, 50), y: 0, z: snapToGrid(p.z * 1000, 50) },
+        position: { x: cx, y: 0, z: cz },
         rotationY: this.placerRot,
         scale: 1,
         attachTo: "terrain",

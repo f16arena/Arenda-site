@@ -5,7 +5,7 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand } from "@/core/document/commands"
+import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand } from "@/core/document/commands"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
@@ -183,19 +183,37 @@ export function PropertyPanel() {
       rows.push(<Row key="z" label="Позиция Z" value={`${(obj.position.z / 1000).toFixed(1)} м`} />)
       rows.push(<Row key="r" label="Поворот" value={`${Math.round(obj.rotationY)}°`} />)
       rows.push(<Row key="sc" label="Масштаб" value={obj.scale.toFixed(2)} />)
+      const curX = obj.scaleX && obj.scaleX > 0 ? obj.scaleX : 1
+      const curZ = obj.scaleZ && obj.scaleZ > 0 ? obj.scaleZ : 1
+      rows.push(<Row key="sx" label="Ширина ×" value={curX.toFixed(2)} />)
+      rows.push(<Row key="sz" label="Глубина ×" value={curZ.toFixed(2)} />)
       const btnStyle = "flex-1 rounded-md px-2 py-1.5 text-xs font-medium"
+      const smallBtn = "rounded-md px-2 py-1 text-[11px] font-medium"
       const neutral = { background: "rgba(148,163,184,0.12)", color: TOKENS.text }
       const gz = (m: "move" | "rotate") => ({ background: gizmoMode === m ? TOKENS.accent : "rgba(148,163,184,0.12)", color: gizmoMode === m ? "#0b1220" : TOKENS.text })
+      const clampSize = (v: number) => Math.max(0.3, Math.min(6, v))
       controls = (
         <>
         <div className="mt-2 flex gap-1">
           <button type="button" className={btnStyle} style={gz("move")} onClick={() => setGizmoMode("move")}>⇄ Двигать</button>
           <button type="button" className={btnStyle} style={gz("rotate")} onClick={() => setGizmoMode("rotate")}>⟲ Вращать</button>
         </div>
+        <div className="mt-1 flex items-center gap-1">
+          <span className="w-16 text-[11px]" style={{ color: TOKENS.muted }}>Ширина</span>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleX: clampSize(curX / 1.2) }))}>－</button>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleX: clampSize(curX * 1.2) }))}>＋</button>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleX: 1 }))}>1×</button>
+        </div>
+        <div className="mt-1 flex items-center gap-1">
+          <span className="w-16 text-[11px]" style={{ color: TOKENS.muted }}>Глубина</span>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(curZ / 1.2) }))}>－</button>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(curZ * 1.2) }))}>＋</button>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: 1 }))}>1×</button>
+        </div>
         <div className="mt-1 flex flex-wrap gap-1">
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectRotationCommand(target, id, (obj.rotationY + 45) % 360))}>⟳ 45°</button>
-          <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.min(5, obj.scale * 1.2)))}>＋</button>
-          <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.max(0.3, obj.scale / 1.2)))}>－</button>
+          <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.min(5, obj.scale * 1.2)))}>＋ общий</button>
+          <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.max(0.3, obj.scale / 1.2)))}>－ общий</button>
           <button type="button" className={btnStyle} style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }} onClick={() => execute(new DeleteObjectCommand(target, id))}>Удалить</button>
         </div>
         </>
