@@ -33,7 +33,7 @@ export function buildFloors(
     base.parent = parent
     base.receiveShadows = true
     base.isPickable = false
-    base.material = reg.get(floor.floorMaterialId ?? "concrete")
+    base.material = reg.platform()
     base.metadata = { kind: "floorbase", floorId: floor.id }
     meshes.push(base)
     return meshes

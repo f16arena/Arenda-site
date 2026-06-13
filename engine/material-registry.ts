@@ -95,6 +95,23 @@ export class MaterialRegistry {
     return m
   }
 
+  /** Нейтральная «строительная площадка» для пустого этажа (плита-плейсхолдер). */
+  platform(): PBRMaterial {
+    const key = "__platform"
+    const existing = this.cache.get(key)
+    if (existing) return existing
+    const m = new PBRMaterial(key, this.scene)
+    m.albedoColor = Color3.FromHexString("#cbd5e1")
+    m.metallic = 0
+    m.roughness = 0.95
+    m.alpha = 0.45
+    m.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND
+    m.environmentIntensity = 0.4
+    m.freeze()
+    this.cache.set(key, m)
+    return m
+  }
+
   dispose(): void {
     for (const m of this.cache.values()) m.dispose()
     for (const t of this.textures.values()) t.dispose()
