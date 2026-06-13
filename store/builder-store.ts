@@ -95,12 +95,13 @@ export type Tool =
   | "material"
   | "link"
   | "water"
+  | "pave"
   | "delete"
 
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -134,6 +135,7 @@ export interface EditorState {
   pathKind: PathKind
   pathWidth: number
   fenceStyle: FenceStyle
+  paveMaterial: string
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -156,6 +158,7 @@ export interface EditorState {
   setPathKind: (k: PathKind) => void
   setPathWidth: (mm: number) => void
   setFenceStyle: (s: FenceStyle) => void
+  setPaveMaterial: (id: string) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -189,6 +192,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   pathKind: "road",
   pathWidth: 3000,
   fenceStyle: "profnastil",
+  paveMaterial: "asphalt",
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -221,6 +225,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPathKind: (k) => set({ pathKind: k }),
   setPathWidth: (mm) => set({ pathWidth: mm }),
   setFenceStyle: (s) => set({ fenceStyle: s }),
+  setPaveMaterial: (id) => set({ paveMaterial: id }),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),
   setTurbo: (on) => set({ turbo: on }),

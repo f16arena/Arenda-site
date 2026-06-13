@@ -44,6 +44,8 @@ import {
   DeleteWaterCommand,
   AddPathCommand,
   DeletePathCommand,
+  AddPavementCommand,
+  DeletePavementCommand,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
@@ -57,6 +59,7 @@ import { buildObject } from "./builders/object-builder"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import { buildWater } from "./builders/water-builder"
 import { buildPath } from "./builders/path-builder"
+import { buildPavement } from "./builders/pavement-builder"
 import { LIGHT_ASSETS } from "./builders/object-builder"
 import { GizmoController, type GizmoMode } from "./gizmo"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
@@ -136,6 +139,10 @@ export class BuilderEngine {
   private pathPoints: Vec2[] = [] // мм
   private pathPreview: TransformNode | null = null
 
+  // площадка-покрытие по контуру
+  private pavePoints: Vec2[] = [] // мм
+  private pavePreview: TransformNode | null = null
+
   // комната-прямоугольник / перемещение стены / орто-лок
   private roomStart: Vector3 | null = null
   private roomPreview: Mesh | null = null
@@ -155,6 +162,7 @@ export class BuilderEngine {
   pathKind: "road" | "path" | "fence" = "road"
   pathWidth = 3000 // мм, ширина дороги/дорожки
   fenceStyle: "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood" = "profnastil"
+  paveMaterial = "asphalt"
   onPick: (meta: MeshMeta | null) => void = () => {}
   onMultiToggle: (objectId: string) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
@@ -276,6 +284,12 @@ export class BuilderEngine {
         this.registerMesh(pth.id, m)
         if (pth.kind === "fence") this.bundle.shadow.addShadowCaster(m)
       }
+    }
+
+    // Площадки-покрытия по контуру.
+    for (const pav of doc.site.pavements ?? []) {
+      const mesh = buildPavement(pav, siteRoot, scene, this.reg)
+      if (mesh) this.registerMesh(pav.id, mesh)
     }
 
     for (const b of doc.buildings) {
@@ -942,6 +956,10 @@ export class BuilderEngine {
       this.handlePathTap()
       return
     }
+    if (this.tool === "pave") {
+      this.handlePaveTap()
+      return
+    }
     const { meta, point } = this.pickMeta()
     if (this.tool === "door" || this.tool === "window") {
       this.handleOpeningTap(meta, point)
@@ -1145,6 +1163,7 @@ export class BuilderEngine {
       this.onCommand(new DeleteObjectCommand(target, meta.entityId))
     } else if (meta.kind === "water") this.onCommand(new DeleteWaterCommand(meta.entityId))
     else if (meta.kind === "path") this.onCommand(new DeletePathCommand(meta.entityId))
+    else if (meta.kind === "pavement") this.onCommand(new DeletePavementCommand(meta.entityId))
   }
 
   // Смещение проёма вдоль его стены под текущим курсором (мм), с клампом по краям.
@@ -1509,6 +1528,72 @@ export class BuilderEngine {
     this.pathPreview = root
   }
 
+  // ── Площадка-покрытие по контуру ──────────────────────────────────────────────
+  // Клик ставит точки; клик у первой точки (≥3) или Enter — залить, Esc — отмена.
+  private handlePaveTap(): void {
+    const p = this.projectToY(0)
+    if (!p) return
+    const mm: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+    if (this.pavePoints.length >= 3) {
+      const first = this.pavePoints[0]
+      if (Math.hypot(mm.x - first.x, mm.y - first.y) < 900) {
+        this.finalizePave()
+        return
+      }
+    }
+    this.pavePoints.push(mm)
+    this.updatePavePreview()
+    this.onHud(`Площадка: точек ${this.pavePoints.length} · клик у старта или Enter — залить, Esc — отмена`)
+  }
+
+  isDrawingPave(): boolean {
+    return this.tool === "pave" && this.pavePoints.length > 0
+  }
+
+  finalizePave(): void {
+    if (this.pavePoints.length < 3) {
+      this.cancelPave()
+      return
+    }
+    const points = this.pavePoints.map((p) => ({ ...p }))
+    this.onCommand(new AddPavementCommand({ id: uid("pv"), points, materialId: this.paveMaterial }))
+    this.cancelPave()
+    this.onHud(null)
+  }
+
+  cancelPave(): void {
+    this.pavePoints = []
+    this.pavePreview?.dispose()
+    this.pavePreview = null
+  }
+
+  private updatePavePreview(): void {
+    this.pavePreview?.dispose()
+    if (this.pavePoints.length === 0) {
+      this.pavePreview = null
+      return
+    }
+    const root = new TransformNode("pavePreview", this.bundle.scene)
+    const mat = this.reg.status("#38BDF8")
+    for (const pt of this.pavePoints) {
+      const dot = MeshBuilder.CreateDisc("pvpt", { radius: 0.35, tessellation: 16 }, this.bundle.scene)
+      dot.rotation.x = Math.PI / 2
+      dot.position.set(pt.x * S, 0.1, pt.y * S)
+      dot.material = mat
+      dot.isPickable = false
+      dot.parent = root
+    }
+    if (this.pavePoints.length >= 2) {
+      const line = this.pavePoints.map((p) => new Vector3(p.x * S, 0.11, p.y * S))
+      if (this.pavePoints.length >= 3) line.push(line[0].clone())
+      const poly = MeshBuilder.CreateLines("pvline", { points: line }, this.bundle.scene)
+      poly.color = Color3.FromHexString("#38BDF8")
+      poly.isPickable = false
+      poly.parent = root
+    }
+    this.pavePreview = root
+  }
+
   // ── Размещение объекта (placer) ──────────────────────────────────────────────
   setArmedAsset(assetId: string | null): void {
     this.armedAsset = assetId
@@ -1616,6 +1701,7 @@ export class BuilderEngine {
     this.cancelPlacer()
     this.cancelWater()
     this.cancelPath()
+    this.cancelPave()
     this.roomPreview?.dispose()
     for (const l of this.lights) l.dispose()
     this.lights = []

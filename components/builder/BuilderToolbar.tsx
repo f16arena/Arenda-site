@@ -21,6 +21,7 @@ import {
   Trees,
   Undo2,
   Waves,
+  Grid3x3,
 } from "lucide-react"
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
@@ -39,6 +40,7 @@ const TOOLS: Item[] = [
   { id: "terrain", label: "Рельеф", key: "", Icon: Trees, phase1: true },
   { id: "water", label: "Вода", key: "", Icon: Waves, phase1: true },
   { id: "road", label: "Дорога", key: "", Icon: Route, phase1: true },
+  { id: "pave", label: "Площадка", key: "", Icon: Grid3x3, phase1: true },
   { id: "fence", label: "Забор", key: "", Icon: Fence, phase1: true },
   { id: "object", label: "Объект", key: "O", Icon: Box, phase1: true },
   { id: "material", label: "Ведро", key: "M", Icon: Scissors, phase1: true },

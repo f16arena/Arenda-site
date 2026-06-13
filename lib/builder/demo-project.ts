@@ -96,7 +96,7 @@ export function buildEmptyProject(): BuilderDocument {
     id: uid("proj"),
     schemaVersion: 1,
     name: "Новый проект",
-    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [] },
+    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [], pavements: [] },
     buildings: [],
   }
   doc = new AddBuildingCommand(building).apply(doc)
@@ -110,7 +110,7 @@ export function buildDemoProject(): BuilderDocument {
     id: uid("proj"),
     schemaVersion: 1,
     name: "Demo Building",
-    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [] },
+    site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [], pavements: [] },
     buildings: [],
   }
   const run = (cmd: Command) => {

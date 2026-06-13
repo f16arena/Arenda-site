@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -501,6 +501,34 @@ export class DeletePathCommand implements Command {
   revert(doc: BuilderDocument): BuilderDocument {
     if (!this.removed) return doc
     return { ...doc, site: { ...doc.site, paths: [...(doc.site.paths ?? []), this.removed] } }
+  }
+}
+
+// ── Площадки-покрытия (заливка контура материалом) ───────────────────────────
+export class AddPavementCommand implements Command {
+  readonly kind = "add-pavement"
+  readonly label = "площадка"
+  constructor(private pavement: Pavement) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, pavements: [...(doc.site.pavements ?? []), this.pavement] } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, pavements: (doc.site.pavements ?? []).filter((p) => p.id !== this.pavement.id) } }
+  }
+}
+
+export class DeletePavementCommand implements Command {
+  readonly kind = "delete-pavement"
+  readonly label = "удаление площадки"
+  private removed?: Pavement
+  constructor(private pavementId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    this.removed = (doc.site.pavements ?? []).find((p) => p.id === this.pavementId) ?? this.removed
+    return { ...doc, site: { ...doc.site, pavements: (doc.site.pavements ?? []).filter((p) => p.id !== this.pavementId) } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    return { ...doc, site: { ...doc.site, pavements: [...(doc.site.pavements ?? []), this.removed] } }
   }
 }
 

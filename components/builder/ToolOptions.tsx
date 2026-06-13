@@ -43,6 +43,14 @@ const PATH_WIDTHS: { mm: number; label: string }[] = [
   { mm: 3000, label: "3 м" },
   { mm: 6000, label: "6 м" },
 ]
+const PAVE_MATERIALS: { id: string; label: string }[] = [
+  { id: "asphalt", label: "Асфальт" },
+  { id: "paving", label: "Брусчатка" },
+  { id: "concrete", label: "Бетон" },
+  { id: "tile", label: "Плитка" },
+  { id: "granite", label: "Гранит" },
+  { id: "grass", label: "Газон" },
+]
 const FENCE_STYLES: { id: FenceStyle; label: string }[] = [
   { id: "profnastil", label: "Профнастил" },
   { id: "shtaketnik", label: "Евроштакетник" },
@@ -78,6 +86,8 @@ export function ToolOptions() {
   const setPathWidth = useEditorStore((s) => s.setPathWidth)
   const fenceStyle = useEditorStore((s) => s.fenceStyle)
   const setFenceStyle = useEditorStore((s) => s.setFenceStyle)
+  const paveMaterial = useEditorStore((s) => s.paveMaterial)
+  const setPaveMaterial = useEditorStore((s) => s.setPaveMaterial)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
@@ -148,6 +158,24 @@ export function ToolOptions() {
           )
         })}
         <span className="shrink-0">— клик ставит точки, повторный клик в конце или Enter — готово</span>
+      </Shell>
+    )
+  }
+  if (tool === "pave") {
+    return (
+      <Shell>
+        <span className="shrink-0">Площадка:</span>
+        {PAVE_MATERIALS.map((m) => {
+          const active = paveMaterial === m.id
+          const def = MATERIALS[m.id]
+          return (
+            <button key={m.id} type="button" onClick={() => setPaveMaterial(m.id)} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
+              {def && <span className="h-3.5 w-3.5 rounded" style={{ background: def.color, border: "1px solid rgba(0,0,0,0.2)" }} />}
+              {m.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— клик ставит точки контура, клик у старта или Enter — залить, Esc — отмена</span>
       </Shell>
     )
   }

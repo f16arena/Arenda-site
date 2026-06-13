@@ -109,6 +109,13 @@ export const WaterBodySchema = z.object({
   kind: z.enum(["pond", "pool", "river"]).default("pond"),
 })
 
+// Площадка-покрытие: замкнутый контур (точки в мм), залитый одним материалом без швов.
+export const PavementSchema = z.object({
+  id: z.string(),
+  points: z.array(Vec2Schema),
+  materialId: z.string().default("asphalt"),
+})
+
 // Линейный элемент по сплайну: дорога/дорожка (лента по земле) или забор (столбы+рейлы).
 // style — вид забора (профнастил/штакетник/3D-сетка/ковка/дерево). default "wood" — чтобы
 // ранее нарисованные заборы (без поля) выглядели как раньше; новые ставятся металлом из UI.
@@ -132,6 +139,8 @@ export const SiteSchema = z.object({
   water: z.array(WaterBodySchema).default([]),
   // Дороги/дорожки/заборы по сплайну (Фаза v4: линейные элементы).
   paths: z.array(PathFeatureSchema).default([]),
+  // Площадки-покрытия по контуру (асфальт/брусчатка/газон и т.п.).
+  pavements: z.array(PavementSchema).default([]),
 })
 
 export const ProjectSchema = z.object({
@@ -152,6 +161,7 @@ export type Floor = z.infer<typeof FloorSchema>
 export type Building = z.infer<typeof BuildingSchema>
 export type WaterBody = z.infer<typeof WaterBodySchema>
 export type PathFeature = z.infer<typeof PathFeatureSchema>
+export type Pavement = z.infer<typeof PavementSchema>
 export type Site = z.infer<typeof SiteSchema>
 export type BuilderDocument = z.infer<typeof ProjectSchema>
 

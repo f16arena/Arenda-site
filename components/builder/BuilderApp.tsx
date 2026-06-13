@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, LinkPremiseCommand } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listOrgPremises } from "@/app/actions/builder-premise"
 import type { PremiseStatus } from "@/lib/builder/materials"
@@ -47,6 +47,7 @@ function applyPick(meta: MeshMeta | null): void {
   else if (meta.kind === "object") setSelection({ type: "object", id: meta.entityId, floorId: meta.target !== "site" ? meta.target : undefined })
   else if (meta.kind === "water") setSelection({ type: "water", id: meta.entityId })
   else if (meta.kind === "path") setSelection({ type: "path", id: meta.entityId })
+  else if (meta.kind === "pavement") setSelection({ type: "pavement", id: meta.entityId })
   else setSelection({ type: "none" })
 }
 
@@ -86,6 +87,7 @@ function deleteSelection(): void {
   if (sel.type === "wall" && sel.floorId && sel.id) exec(new DeleteWallCommand(sel.floorId, sel.id))
   else if (sel.type === "water" && sel.id) exec(new DeleteWaterCommand(sel.id))
   else if (sel.type === "path" && sel.id) exec(new DeletePathCommand(sel.id))
+  else if (sel.type === "pavement" && sel.id) exec(new DeletePavementCommand(sel.id))
   else if (sel.type === "object" && sel.id) {
     const inSite = d.site.objects.some((o) => o.id === sel.id)
     exec(new DeleteObjectCommand(inSite ? { site: true } : { floorId: sel.floorId ?? "" }, sel.id))
@@ -130,6 +132,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const pathKind = useEditorStore((s) => s.pathKind)
   const pathWidth = useEditorStore((s) => s.pathWidth)
   const fenceStyle = useEditorStore((s) => s.fenceStyle)
+  const paveMaterial = useEditorStore((s) => s.paveMaterial)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -201,13 +204,15 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.pathKind = activeTool === "fence" ? "fence" : pathKind
     e.pathWidth = pathWidth
     e.fenceStyle = fenceStyle
+    e.paveMaterial = paveMaterial
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
     if (activeTool !== "wall") e.cancelWallTool()
     if (activeTool !== "water") e.cancelWater()
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, armedAsset, openingVariant, ready])
+    if (activeTool !== "pave") e.cancelPave()
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -309,6 +314,12 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         eng.finalizePath()
         return
       }
+      // Enter — залить площадку.
+      if (eng && eng.isDrawingPave() && e.key === "Enter") {
+        e.preventDefault()
+        eng.finalizePave()
+        return
+      }
       // R — поворот объекта в режиме размещения
       if ((e.key === "r" || e.key === "R") && ed.activeTool === "object" && ed.armedAsset) {
         engineRef.current?.rotatePlacer(45)
@@ -333,6 +344,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         engineRef.current?.cancelWallTool()
         engineRef.current?.cancelWater()
         engineRef.current?.cancelPath()
+        engineRef.current?.cancelPave()
         ed.armAsset(null)
         ed.setSelection({ type: "none" })
         return

@@ -25,6 +25,7 @@ const TOOL_RU: Record<Tool, string> = {
   material: "Материал",
   link: "Помещение",
   water: "Вода",
+  pave: "Площадка",
   delete: "Удалить",
 }
 
