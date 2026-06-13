@@ -13,10 +13,11 @@ import { TenantWizard } from "./tenant-wizard"
  * Мастер заселения: контакты и компания → помещение и условия → договор.
  * Один поток вместо четырёх форм, данные вводятся один раз (аудит 2026-06-10, п.11).
  */
-export default async function NewTenantWizardPage() {
+export default async function NewTenantWizardPage({ searchParams }: { searchParams: Promise<{ space?: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const { space: presetSpaceId } = await searchParams
   const visibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
 
   const vacantSpaces = await db.space.findMany({
@@ -49,6 +50,7 @@ export default async function NewTenantWizardPage() {
         ]}
       />
       <TenantWizard
+        initialSpaceId={presetSpaceId && vacantSpaces.some((s) => s.id === presetSpaceId) ? presetSpaceId : undefined}
         vacantSpaces={vacantSpaces.map((s) => ({
           id: s.id,
           number: s.number,

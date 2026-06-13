@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
-import { Building2, Box } from "lucide-react"
+import { Building2, Box, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
@@ -570,7 +570,14 @@ export default async function SpacesPage() {
                                 />
                               )}
                               {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
-                              {canEditSpaces && space.status === "VACANT" && !displayTenant && <KrishaListingButton spaceId={space.id} />}
+                              {canEditSpaces && space.status === "VACANT" && !displayTenant && (
+                                <>
+                                  <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                    <UserPlus className="h-3.5 w-3.5" /> Заселить
+                                  </Link>
+                                  <KrishaListingButton spaceId={space.id} />
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -652,7 +659,14 @@ export default async function SpacesPage() {
                                   />
                                 )}
                                 {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
-                                {canEditSpaces && space.status === "VACANT" && !displayTenant && <KrishaListingButton spaceId={space.id} />}
+                                {canEditSpaces && space.status === "VACANT" && !displayTenant && (
+                                <>
+                                  <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                    <UserPlus className="h-3.5 w-3.5" /> Заселить
+                                  </Link>
+                                  <KrishaListingButton spaceId={space.id} />
+                                </>
+                              )}
                               </div>
                             </td>
                           </tr>

@@ -34,16 +34,19 @@ const RENTAL_TERMS_FIELDS = [
   "moveInDate", "indexationPct", "nextIndexationAt",
 ] as const
 
-export function TenantWizard({ vacantSpaces }: { vacantSpaces: WizardSpace[] }) {
+export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: WizardSpace[]; initialSpaceId?: string }) {
   const formRef = useRef<HTMLFormElement>(null)
   const [step, setStep] = useState(0)
   const [pending, startTransition] = useTransition()
   const [createdTenantId, setCreatedTenantId] = useState<string | null>(null)
 
+  // Предвыбранное помещение (вход «Заселить» со свободного помещения).
+  const preset = initialSpaceId ? vacantSpaces.find((s) => s.id === initialSpaceId) : undefined
+
   // Шаг 2: здание → помещения, способ расчёта аренды.
   const buildings = [...new Map(vacantSpaces.map((s) => [s.buildingId, s.buildingName])).entries()]
-  const [buildingFilter, setBuildingFilter] = useState<string>(buildings[0]?.[0] ?? "")
-  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([])
+  const [buildingFilter, setBuildingFilter] = useState<string>(preset?.buildingId ?? buildings[0]?.[0] ?? "")
+  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>(preset ? [preset.id] : [])
   const [rentMode, setRentMode] = useState<"FLOOR" | "RATE" | "FIXED">("FLOOR")
   const selectedSpaces = vacantSpaces.filter((s) => selectedSpaceIds.includes(s.id))
   const selectedArea = selectedSpaces.reduce((sum, s) => sum + s.area, 0)
