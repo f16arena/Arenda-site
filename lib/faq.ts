@@ -1,4 +1,5 @@
 import type { FaqAudience, FaqItem } from "@/lib/faq-types"
+import { extraFaqItems } from "@/lib/faq-extra"
 
 export type { FaqAudience, FaqItem } from "@/lib/faq-types"
 
@@ -9,6 +10,7 @@ export const faqAudienceLabels: Record<FaqAudience, string> = {
 }
 
 export const faqItems: FaqItem[] = [
+  ...extraFaqItems,
   {
     id: "owner-login",
     audience: "owner",
