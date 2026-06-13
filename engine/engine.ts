@@ -84,6 +84,7 @@ export class BuilderEngine {
   private gizmo: GizmoController
   private objectRootById = new Map<string, TransformNode>()
   private currentSel: Selection | null = null
+  private openDoors = new Set<string>() // двери, открытые кликом в Walk
   gizmoMode: GizmoMode = "move"
 
   // инструмент стены
@@ -275,6 +276,11 @@ export class BuilderEngine {
       pl.range = 14
       pl.diffuse = new Color3(1, 0.96, 0.85)
       this.lights.push(pl)
+    }
+
+    // Открытые ранее двери (Walk) — прячем их створки после пересборки.
+    for (const id of this.openDoors) {
+      for (const m of this.meshById.get(id) ?? []) m.visibility = 0
     }
   }
 
@@ -664,8 +670,32 @@ export class BuilderEngine {
     }
   }
 
+  private handleWalkTap(): void {
+    const { scene } = this.bundle
+    const pick = scene.pick(scene.pointerX, scene.pointerY)
+    const meta = (pick?.pickedMesh?.metadata ?? null) as MeshMeta | null
+    if (!meta || meta.kind !== "opening" || !meta.floorId || !meta.entityId) return
+    const doc = this.getDoc()
+    const op = doc ? findFloor(doc, meta.floorId)?.openings.find((o) => o.id === meta.entityId) : undefined
+    if (!op || op.type !== "door") return // окна не открываем
+    const id = meta.entityId
+    const meshes = this.meshById.get(id) ?? []
+    if (this.openDoors.has(id)) {
+      this.openDoors.delete(id)
+      for (const m of meshes) m.visibility = 1
+    } else {
+      this.openDoors.add(id)
+      for (const m of meshes) m.visibility = 0
+    }
+  }
+
   private handleTap(): void {
     if (this.dragNode || this.dragObject) return
+    // Walk-режим: клик по двери открывает/закрывает её, без редактирования.
+    if (this.walkCamera && this.bundle.scene.activeCamera === this.walkCamera) {
+      this.handleWalkTap()
+      return
+    }
     if (this.tool === "object" && this.armedAsset) {
       this.handlePlaceObject()
       return
