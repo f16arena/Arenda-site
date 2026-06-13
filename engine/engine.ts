@@ -18,7 +18,7 @@ import {
   VertexBuffer,
 } from "@babylonjs/core"
 import { uid } from "@/core/id"
-import type { BuilderDocument, Floor, Building } from "@/types/builder"
+import type { BuilderDocument, Floor, Building, Stair } from "@/types/builder"
 import {
   findFloor,
   type Command,
@@ -48,7 +48,8 @@ import {
   DeletePavementCommand,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
-import { closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
+import { centroid, closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
+import { detectRooms } from "@/core/geometry/room-detection"
 import { findPreset } from "@/lib/builder/openings"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
@@ -1135,17 +1136,31 @@ export class BuilderEngine {
     }
     const p = this.projectToPlane()
     if (!p) return
+    const shape = this.stairShape as "straight" | "l" | "u" | "spiral"
+    const toFloorId = upper?.id ?? f.id
+    const width = 1100
+    let pos: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+
+    // Лестница не должна торчать сквозь стены: ставим ТОЛЬКО внутри помещения и
+    // поджимаем к центру комнаты, пока её вырез-след целиком не окажется внутри контура.
+    const candidate = (position: Vec2): Stair => ({ id: "candidate", shape, fromFloorId: f.id, toFloorId, position, rotationDeg: 0, width, railing: true })
+    const rooms = detectRooms(f.wallGraph)
+    if (rooms.length > 0) {
+      const room = rooms.find((r) => pointInPolygon(pos, r.polygon))
+      if (!room) {
+        this.onHud("Лестницу нужно ставить внутри помещения, не на стену")
+        return
+      }
+      const c = centroid(room.polygon)
+      for (let k = 0; k < 30; k++) {
+        const corners = stairHoleWorld(candidate(pos), f.height)
+        if (corners.every((cc) => pointInPolygon(cc, room.polygon))) break
+        pos = { x: Math.round(pos.x + (c.x - pos.x) * 0.1), y: Math.round(pos.y + (c.y - pos.y) * 0.1) }
+      }
+    }
+
     this.onCommand(
-      new AddStairCommand(f.id, {
-        id: uid("st"),
-        shape: this.stairShape as "straight" | "l" | "u" | "spiral",
-        fromFloorId: f.id,
-        toFloorId: upper?.id ?? f.id,
-        position: { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) },
-        rotationDeg: 0,
-        width: 1100,
-        railing: true,
-      }),
+      new AddStairCommand(f.id, { id: uid("st"), shape, fromFloorId: f.id, toFloorId, position: pos, rotationDeg: 0, width, railing: true }),
     )
   }
 
