@@ -7,6 +7,7 @@ import { Building2, Box } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
+import { KrishaListingButton } from "./krisha-listing-button"
 import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
@@ -563,6 +564,7 @@ export default async function SpacesPage() {
                                 />
                               )}
                               {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
+                              {canEditSpaces && space.status === "VACANT" && !displayTenant && <KrishaListingButton spaceId={space.id} />}
                             </div>
                           )}
                         </div>
@@ -641,6 +643,7 @@ export default async function SpacesPage() {
                                   />
                                 )}
                                 {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
+                                {canEditSpaces && space.status === "VACANT" && !displayTenant && <KrishaListingButton spaceId={space.id} />}
                               </div>
                             </td>
                           </tr>

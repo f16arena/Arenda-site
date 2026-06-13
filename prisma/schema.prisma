@@ -1495,6 +1495,30 @@ model BuilderProject {
   @@map("builder_projects")
 }
 
+// Черновик объявления для внешней площадки (krisha и т.п.). Полуавтомат: генерим
+// текст/цену/фото из помещения, пользователь публикует на площадке. Связи — слабые
+// (как BuilderProject), без FK: organization_id/space_id/building_id — обычные колонки.
+model ListingDraft {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  buildingId     String?  @map("building_id")
+  spaceId        String   @map("space_id")
+  target         String   @default("krisha") // krisha|olx|other
+  title          String
+  description    String
+  priceMonthly   Int?     @map("price_monthly")
+  pricePerSqm    Int?     @map("price_per_sqm")
+  status         String   @default("DRAFT") // DRAFT|COPIED|PUBLISHED|ARCHIVED
+  externalUrl    String?  @map("external_url")
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId, status])
+  @@index([spaceId])
+  @@map("listing_drafts")
+}
+
 // Read-only витрина по токену: token → проект (Showcase, публичный домен).
 model BuilderShare {
   token     String   @id
