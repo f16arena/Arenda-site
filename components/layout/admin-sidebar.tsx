@@ -12,7 +12,7 @@ import {
   LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles, FileBarChart,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, Megaphone,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -132,6 +132,7 @@ const nav: NavSection[] = [
       { href: "/admin/roles", label: "Роли и доступы", icon: Shield, section: "settings" },
       { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
       { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "leads" },
+      { href: "/admin/listings", label: "Объявления", icon: Megaphone, section: "leads" },
       { href: "/admin/users", label: "Все пользователи", icon: UserCog, section: "users" },
       { href: "/admin/email-logs", label: "Журнал email", icon: Mail, section: "settings" },
       { href: "/admin/audit", label: "Журнал операций", icon: History, section: "settings" },

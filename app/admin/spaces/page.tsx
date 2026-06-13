@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
 import { KrishaListingButton } from "./krisha-listing-button"
+import { getCityMedianPerSqm } from "@/lib/market"
 import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
@@ -304,6 +305,8 @@ export default async function SpacesPage() {
   const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
 
   const floors = building?.floors ?? []
+  // Рыночная подсказка ₸/м² по городу здания (для свободных помещений). null — нет данных.
+  const marketPerSqm = building ? await getCityMedianPerSqm([building.id]).catch(() => null) : null
   const floorOptions = floors.map((f) => ({
     id: f.id,
     name: f.name,
@@ -545,6 +548,9 @@ export default async function SpacesPage() {
                           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                             <span>{space.area} м²</span>
                             <span>{tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}/мес</span>
+                            {!displayTenant && space.status === "VACANT" && marketPerSqm && (
+                              <span className="text-emerald-600 dark:text-emerald-400" title="Медиана рынка по городу (krisha)">рынок ~{marketPerSqm.toLocaleString("ru-RU")} ₸/м²</span>
+                            )}
                           </div>
                           <div className="mt-1 text-xs">
                             {displayTenant ? (
@@ -611,6 +617,9 @@ export default async function SpacesPage() {
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{space.area} м²</td>
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                               {tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
+                              {!displayTenant && space.status === "VACANT" && marketPerSqm && (
+                                <div className="text-[10px] text-emerald-600 dark:text-emerald-400" title="Медиана рынка по городу (krisha)">рынок ~{marketPerSqm.toLocaleString("ru-RU")} ₸/м²</div>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                               {displayTenant ? (

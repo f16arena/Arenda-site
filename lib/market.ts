@@ -178,3 +178,17 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
     ownerArea: owner.area,
   }
 }
+
+// Медиана рынка по городу (₸/м²/мес) для подсказки цены: офис → своб. назначение →
+// магазин → склад → прочее. null, если по городу нет собранных данных.
+const TYPE_PRIORITY = ["OFFICE", "FREE", "RETAIL", "WAREHOUSE", "OTHER"]
+export async function getCityMedianPerSqm(buildingIds: string[]): Promise<number | null> {
+  const cmp = await getMarketComparison({ buildingIds })
+  const scope = cmp?.scopes.find((s) => s.isCity) ?? cmp?.scopes[0]
+  if (!scope) return null
+  for (const key of TYPE_PRIORITY) {
+    const hit = scope.types.find((t) => t.propertyType === key)
+    if (hit && hit.perSqmMedian > 0) return Math.round(hit.perSqmMedian)
+  }
+  return null
+}
