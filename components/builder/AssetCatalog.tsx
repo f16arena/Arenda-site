@@ -16,6 +16,15 @@ interface Asset {
 }
 
 const ASSETS: Asset[] = [
+  // Стройка
+  { id: "column_round", name: "Колонна ○", category: "Стройка", icon: "🏛️" },
+  { id: "column_square", name: "Колонна □", category: "Стройка", icon: "🏛️" },
+  { id: "arch", name: "Арка", category: "Стройка", icon: "🌉" },
+  { id: "balcony", name: "Балкон", category: "Стройка", icon: "🪟" },
+  { id: "terrace", name: "Терраса", category: "Стройка", icon: "🪵" },
+  { id: "awning", name: "Навес", category: "Стройка", icon: "⛱️" },
+  { id: "canopy", name: "Тент", category: "Стройка", icon: "⛱️" },
+  { id: "railing", name: "Перила", category: "Стройка", icon: "🚧" },
   // Мебель
   { id: "sofa", name: "Диван", category: "Мебель", icon: "🛋️" },
   { id: "armchair", name: "Кресло", category: "Мебель", icon: "🪑" },
@@ -26,6 +35,9 @@ const ASSETS: Asset[] = [
   { id: "meeting_table", name: "Переговорный", category: "Мебель", icon: "⬭" },
   { id: "wardrobe", name: "Шкаф", category: "Мебель", icon: "🚪" },
   { id: "shelf", name: "Стеллаж", category: "Мебель", icon: "🗄️" },
+  { id: "bookshelf", name: "Книжный", category: "Мебель", icon: "📚" },
+  { id: "filing_cabinet", name: "Картотека", category: "Мебель", icon: "🗄️" },
+  { id: "whiteboard", name: "Доска", category: "Мебель", icon: "📋" },
   { id: "bed", name: "Кровать", category: "Мебель", icon: "🛏️" },
   { id: "reception", name: "Ресепшн", category: "Мебель", icon: "🛎️" },
   { id: "display_case", name: "Витрина", category: "Мебель", icon: "🪟" },
@@ -38,6 +50,11 @@ const ASSETS: Asset[] = [
   { id: "microwave", name: "Микроволновка", category: "Техника", icon: "📦" },
   { id: "ac", name: "Кондиционер", category: "Техника", icon: "❄️" },
   { id: "projector", name: "Проектор", category: "Техника", icon: "📽️" },
+  { id: "server_rack", name: "Серверная", category: "Техника", icon: "🖥️" },
+  { id: "vending", name: "Вендинг", category: "Техника", icon: "🥤" },
+  { id: "atm", name: "Банкомат", category: "Техника", icon: "🏧" },
+  { id: "kiosk", name: "Киоск", category: "Техника", icon: "🏪" },
+  { id: "turnstile", name: "Турникет", category: "Техника", icon: "🚪" },
   // Свет
   { id: "ceiling_light", name: "Люстра", category: "Свет", icon: "💡" },
   { id: "wall_light", name: "Бра", category: "Свет", icon: "🔆" },
@@ -74,6 +91,7 @@ const ASSETS: Asset[] = [
   { id: "birch", name: "Берёза", category: "Природа", icon: "🌿" },
   { id: "bush", name: "Куст", category: "Природа", icon: "🪴" },
   { id: "flowerbed", name: "Клумба", category: "Природа", icon: "🌼" },
+  { id: "plant_big", name: "Растение XL", category: "Природа", icon: "🪴" },
   { id: "lamp", name: "Уличн. фонарь", category: "Улица", icon: "🏮" },
   { id: "bench", name: "Скамейка", category: "Улица", icon: "🪑" },
   { id: "bin", name: "Урна", category: "Улица", icon: "🗑️" },
@@ -89,7 +107,7 @@ const ASSETS: Asset[] = [
   { id: "water_strip", name: "Река", category: "Вода", icon: "🌊" },
 ]
 
-const CATEGORIES = ["Все", "Мебель", "Техника", "Свет", "Декор", "Гейминг", "Кафе", "Вода", "Природа", "Улица", "Ограды", "Покрытия"]
+const CATEGORIES = ["Все", "Стройка", "Мебель", "Техника", "Свет", "Декор", "Гейминг", "Кафе", "Вода", "Природа", "Улица", "Ограды", "Покрытия"]
 
 // Какую категорию показать по умолчанию для режима.
 const MODE_CATEGORY: Record<string, string> = { buy: "Мебель", water: "Вода", landscape: "Природа" }

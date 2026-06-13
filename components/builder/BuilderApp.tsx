@@ -12,7 +12,8 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { DeleteObjectCommand, DeleteWallCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand } from "@/core/document/commands"
+import { uid } from "@/core/id"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 import { BuilderToolbar } from "./BuilderToolbar"
@@ -173,6 +174,24 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault()
         docState.redo()
+        return
+      }
+      // Ctrl+D — дублировать выбранный объект
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault()
+        const sel = ed.selection
+        if (sel.type === "object" && sel.id) {
+          const d = docState.doc
+          const inSite = d.site.objects.find((o) => o.id === sel.id)
+          const floorRec = !inSite ? d.buildings.flatMap((b) => b.floors).map((f) => ({ f, o: f.objects.find((ob) => ob.id === sel.id) })).find((x) => x.o) : null
+          const obj = inSite ?? floorRec?.o
+          if (obj) {
+            const target = inSite ? ({ site: true } as const) : ({ floorId: floorRec?.f.id ?? "" } as const)
+            const id = uid("o")
+            docState.execute(new AddObjectCommand(target, { ...obj, id, position: { ...obj.position, x: obj.position.x + 800, z: obj.position.z + 800 } }))
+            ed.setSelection({ type: "object", id, floorId: sel.floorId })
+          }
+        }
         return
       }
       // Ввод длины стены имеет приоритет над хоткеями (цифры = пресеты камеры).

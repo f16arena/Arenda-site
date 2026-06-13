@@ -7,7 +7,8 @@
 import { Building2, Layers, Plus, Trees } from "lucide-react"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
-import { AddFloorCommand } from "@/core/document/commands"
+import { AddFloorCommand, SetRoofCommand } from "@/core/document/commands"
+import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
@@ -46,6 +47,19 @@ export function LevelPanel() {
 
   const building = doc.buildings[0]
   const floors = building ? [...building.floors].sort((a, b) => b.level - a.level) : []
+  const activeFloor = building?.floors.find((f) => f.id === activeLevelId)
+  const ROOFS: { t: RoofConfig["type"] | "none"; l: string }[] = [
+    { t: "flat", l: "Плоск." },
+    { t: "gable", l: "Двускат" },
+    { t: "hip", l: "Вальм." },
+    { t: "fourslope", l: "4-скат" },
+    { t: "none", l: "Нет" },
+  ]
+  const setRoof = (t: RoofConfig["type"] | "none") => {
+    if (!activeFloor) return
+    const cfg: RoofConfig | undefined = t === "none" ? undefined : { type: t, pitchDeg: t === "flat" ? 0 : 28, overhang: 500, thickness: 200, materialId: activeFloor.roof?.materialId ?? "metal_roof" }
+    execute(new SetRoofCommand(activeFloor.id, cfg))
+  }
 
   const addFloor = () => {
     if (!building) return
@@ -149,6 +163,19 @@ export function LevelPanel() {
       >
         ⛏ Подвал (вниз)
       </button>
+      {activeFloor && (
+        <div className="mt-1 rounded-xl p-1.5" style={{ background: "rgba(148,163,184,0.08)" }}>
+          <p className="px-0.5 pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Крыша · {activeFloor.name}</p>
+          <div className="grid grid-cols-3 gap-1">
+            {ROOFS.map((r) => {
+              const on = r.t === "none" ? !activeFloor.roof : activeFloor.roof?.type === r.t
+              return (
+                <button key={r.t} type="button" onClick={() => setRoof(r.t)} className="rounded-md py-1 text-[10px] font-medium" style={{ background: on ? TOKENS.accent : "rgba(148,163,184,0.12)", color: on ? "#0b1220" : TOKENS.text }}>{r.l}</button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <button
         type="button"
         onClick={toggleWallsDown}
