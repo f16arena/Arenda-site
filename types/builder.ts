@@ -57,9 +57,10 @@ export const BuilderObjectSchema = z.object({
   position: Vec3Schema,
   rotationY: z.number(),
   scale: z.number(),
-  // Необязательные множители по ширине (X) и глубине (Z) поверх общего scale.
+  // Необязательные множители по ширине (X), высоте (Y), глубине (Z) поверх общего scale.
   // optional (не default) — чтобы старые объекты без полей не ломали типы literal'ов.
   scaleX: z.number().optional(),
+  scaleY: z.number().optional(),
   scaleZ: z.number().optional(),
   attachTo: z.enum(["floor", "wall", "ceiling", "terrain"]).default("floor"),
   locked: z.boolean().default(false),

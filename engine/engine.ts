@@ -97,7 +97,7 @@ export class BuilderEngine {
   // Габариты объектов в плане (мм, мировые AABB) — для запрета наложения объектов.
   private objectFootprints = new Map<string, { target: string; minX: number; maxX: number; minZ: number; maxZ: number }>()
   // Базовый габарит ассета (мм) при scale=1, rotation=0 — для ввода размеров в метрах.
-  private assetBaseSize = new Map<string, { w: number; d: number }>()
+  private assetBaseSize = new Map<string, { w: number; d: number; h: number }>()
   private currentSel: Selection | null = null
   private currentMulti: string[] = [] // id объектов в мультивыборе
   private openDoors = new Set<string>() // двери, открытые кликом в Walk
@@ -171,7 +171,7 @@ export class BuilderEngine {
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
-  onObjectBaseSizes: (sizes: Record<string, { w: number; d: number }>) => void = () => {}
+  onObjectBaseSizes: (sizes: Record<string, { w: number; d: number; h: number }>) => void = () => {}
   getDoc: () => BuilderDocument | null = () => null
   statusResolver: StatusResolver = () => undefined
 
@@ -1656,14 +1656,16 @@ export class BuilderEngine {
   // ── Запрет наложения объектов ────────────────────────────────────────────────
   // Базовый габарит ассета (ширина X / глубина Z, мм) при scale=1, rotation=0.
   // Измеряется временным мешем один раз, кэшируется по assetId.
-  private baseSize(assetId: string): { w: number; d: number } {
+  private baseSize(assetId: string): { w: number; d: number; h: number } {
     const cached = this.assetBaseSize.get(assetId)
     if (cached) return cached
     const probe = new TransformNode("probe", this.bundle.scene)
     buildObject({ id: "probe", assetId, position: { x: 0, y: 0, z: 0 }, rotationY: 0, scale: 1, attachTo: "floor", locked: false }, probe, this.bundle.scene, "probe")
     probe.computeWorldMatrix(true)
     const { min, max } = probe.getHierarchyBoundingVectors(true)
-    const size = isFinite(min.x) && isFinite(max.x) ? { w: (max.x - min.x) / S, d: (max.z - min.z) / S } : { w: 1000, d: 1000 }
+    const size = isFinite(min.x) && isFinite(max.x)
+      ? { w: (max.x - min.x) / S, d: (max.z - min.z) / S, h: (max.y - min.y) / S }
+      : { w: 1000, d: 1000, h: 1000 }
     probe.dispose()
     this.assetBaseSize.set(assetId, size)
     return size
@@ -1674,7 +1676,7 @@ export class BuilderEngine {
     const ids = new Set<string>()
     for (const o of doc.site.objects) ids.add(o.assetId)
     for (const b of doc.buildings) for (const f of b.floors) for (const o of f.objects) ids.add(o.assetId)
-    const rec: Record<string, { w: number; d: number }> = {}
+    const rec: Record<string, { w: number; d: number; h: number }> = {}
     for (const id of ids) rec[id] = this.baseSize(id)
     this.onObjectBaseSizes(rec)
   }

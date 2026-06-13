@@ -912,8 +912,9 @@ export function buildObject(obj: BuilderObject, parent: TransformNode, scene: Sc
   root.rotation.y = (obj.rotationY * Math.PI) / 180
   const sc = obj.scale > 0 ? obj.scale : 1
   const sx = obj.scaleX && obj.scaleX > 0 ? obj.scaleX : 1
+  const sy = obj.scaleY && obj.scaleY > 0 ? obj.scaleY : 1
   const sz = obj.scaleZ && obj.scaleZ > 0 ? obj.scaleZ : 1
-  root.scaling.set(sc * sx, sc, sc * sz)
+  root.scaling.set(sc * sx, sc * sy, sc * sz)
   root.metadata = { kind: "object", entityId: obj.id, target }
   for (const m of buildByAsset(obj.assetId, scene)) {
     m.parent = root

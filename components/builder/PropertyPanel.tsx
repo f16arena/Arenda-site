@@ -194,8 +194,10 @@ export function PropertyPanel() {
       rows.push(<Row key="r" label="Поворот" value={`${Math.round(obj.rotationY)}°`} />)
       rows.push(<Row key="sc" label="Масштаб" value={obj.scale.toFixed(2)} />)
       const curX = obj.scaleX && obj.scaleX > 0 ? obj.scaleX : 1
+      const curY = obj.scaleY && obj.scaleY > 0 ? obj.scaleY : 1
       const curZ = obj.scaleZ && obj.scaleZ > 0 ? obj.scaleZ : 1
       rows.push(<Row key="sx" label="Ширина ×" value={curX.toFixed(2)} />)
+      rows.push(<Row key="sy" label="Высота ×" value={curY.toFixed(2)} />)
       rows.push(<Row key="sz" label="Глубина ×" value={curZ.toFixed(2)} />)
       const btnStyle = "flex-1 rounded-md px-2 py-1.5 text-xs font-medium"
       const smallBtn = "rounded-md px-2 py-1 text-[11px] font-medium"
@@ -215,6 +217,12 @@ export function PropertyPanel() {
           <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleX: 1 }))}>1×</button>
         </div>
         <div className="mt-1 flex items-center gap-1">
+          <span className="w-16 text-[11px]" style={{ color: TOKENS.muted }}>Высота</span>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleY: clampSize(curY / 1.2) }))}>－</button>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleY: clampSize(curY * 1.2) }))}>＋</button>
+          <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleY: 1 }))}>1×</button>
+        </div>
+        <div className="mt-1 flex items-center gap-1">
           <span className="w-16 text-[11px]" style={{ color: TOKENS.muted }}>Глубина</span>
           <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(curZ / 1.2) }))}>－</button>
           <button type="button" className={smallBtn} style={neutral} onClick={() => execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize(curZ * 1.2) }))}>＋</button>
@@ -224,6 +232,11 @@ export function PropertyPanel() {
           <label className="flex flex-1 items-center gap-1">Ш×
             <input type="number" step="0.1" min="0.3" max="6" defaultValue={curX.toFixed(2)} key={`ox${id}${curX}`}
               onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetObjectSizeCommand(target, id, { scaleX: clampSize(v) })) }}
+              className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
+          <label className="flex flex-1 items-center gap-1">В×
+            <input type="number" step="0.1" min="0.3" max="6" defaultValue={curY.toFixed(2)} key={`oy${id}${curY}`}
+              onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new SetObjectSizeCommand(target, id, { scaleY: clampSize(v) })) }}
               className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
           </label>
           <label className="flex flex-1 items-center gap-1">Г×
@@ -239,14 +252,20 @@ export function PropertyPanel() {
         </div>
         {(() => {
           const base = assetBaseSizes[obj.assetId]
-          if (!base || base.w <= 0 || base.d <= 0) return null
+          if (!base || base.w <= 0 || base.d <= 0 || base.h <= 0) return null
           const widthM = (base.w * obj.scale * curX) / 1000
+          const heightM = (base.h * obj.scale * curY) / 1000
           const depthM = (base.d * obj.scale * curZ) / 1000
           return (
             <div className="mt-1 flex items-center gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
               <label className="flex flex-1 items-center gap-1">Ш, м
                 <input type="number" step="0.1" min="0.2" defaultValue={widthM.toFixed(2)} key={`mw${id}${widthM.toFixed(2)}`}
                   onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v) && v > 0) execute(new SetObjectSizeCommand(target, id, { scaleX: clampSize((v * 1000) / (base.w * obj.scale)) })) }}
+                  className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+              </label>
+              <label className="flex flex-1 items-center gap-1">В, м
+                <input type="number" step="0.1" min="0.2" defaultValue={heightM.toFixed(2)} key={`mh${id}${heightM.toFixed(2)}`}
+                  onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v) && v > 0) execute(new SetObjectSizeCommand(target, id, { scaleY: clampSize((v * 1000) / (base.h * obj.scale)) })) }}
                   className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
               </label>
               <label className="flex flex-1 items-center gap-1">Г, м
