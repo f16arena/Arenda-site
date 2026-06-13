@@ -1742,6 +1742,14 @@ export class BuilderEngine {
     this.bundle.engine.resize()
   }
 
+  // Снимок сцены (PNG data-URL). preserveDrawingBuffer включён в createScene.
+  captureDataUrl(): string | null {
+    const canvas = this.bundle.engine.getRenderingCanvas()
+    if (!canvas) return null
+    this.bundle.scene.render()
+    return canvas.toDataURL("image/png")
+  }
+
   dispose(): void {
     this.cancelWallTool()
     this.cancelPlacer()

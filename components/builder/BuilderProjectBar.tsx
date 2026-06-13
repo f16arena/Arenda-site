@@ -5,7 +5,7 @@
 // Док берётся/кладётся через documentStore; статус — syncStore.
 
 import { useEffect, useState } from "react"
-import { Loader2, Save, Share2, Sparkles, Trash2 } from "lucide-react"
+import { Loader2, Save, Share2, Sparkles, Trash2, Camera } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
 import { createBuilderProject, saveBuilderProject, createBuilderShare } from "@/app/actions/builder"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
@@ -35,7 +35,7 @@ async function doSave(): Promise<void> {
 
 const STATUS_LABEL: Record<string, string> = { idle: "Не сохранено", saving: "Сохранение…", saved: "Сохранено", conflict: "Конфликт — обновите", error: "Ошибка" }
 
-export function BuilderProjectBar() {
+export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void }) {
   const name = useSyncStore((s) => s.name)
   const setName = useSyncStore((s) => s.setName)
   const status = useSyncStore((s) => s.status)
@@ -131,6 +131,11 @@ export function BuilderProjectBar() {
         <button type="button" onClick={() => void share()} title="Публичная ссылка-витрина" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
           <Share2 className="h-3.5 w-3.5" />
         </button>
+        {onScreenshot && (
+          <button type="button" onClick={onScreenshot} title="Скачать снимок сцены (PNG)" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
+            <Camera className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button type="button" onClick={clearAll} title="Очистить всё — начать проект заново" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.16)", color: TOKENS.danger }}>
           <Trash2 className="h-3.5 w-3.5" />
         </button>

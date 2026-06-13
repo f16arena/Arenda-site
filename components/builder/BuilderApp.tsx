@@ -396,7 +396,16 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       <BuilderCanvas onReady={handleReady} />
       {!readOnly && <ModeSwitcher />}
       {!readOnly && <BuilderToolbar />}
-      {!readOnly && <BuilderProjectBar />}
+      {!readOnly && <BuilderProjectBar onScreenshot={() => {
+        const url = engineRef.current?.captureDataUrl()
+        if (!url) return
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${useSyncStore.getState().name || "building"}.png`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }} />}
       {!readOnly && <ToolOptions />}
       {!readOnly && <LevelPanel />}
       <PropertyPanel />
