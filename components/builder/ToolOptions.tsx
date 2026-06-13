@@ -9,11 +9,17 @@ import { presetsFor } from "@/lib/builder/openings"
 
 const PAINT_IDS = [
   // стены/фасад
-  "paint_white", "paint_gray", "paint_blue", "paint_green", "paint_terra", "brick", "concrete", "stone", "wood_panel", "loft", "wallpaper", "clinker", "facade_panel", "composite", "curtain_glass",
+  "paint_white", "paint_gray", "paint_blue", "paint_green", "paint_terra", "paint_beige", "paint_yellow", "paint_rose", "paint_mint", "paint_graphite", "paint_lavender", "paint_black", "paint_olive", "paint_navy",
+  "wallpaper", "wallpaper_floral", "wallpaper_stripe", "wallpaper_gray", "wallpaper_blue", "wallpaper_dark", "venetian", "decor_plaster", "microcement",
+  "brick", "brick_white", "brick_red", "brick_gray", "brick_loft_dark", "concrete", "concrete_raw", "stone", "stone_slate", "wood_panel", "wood_panel_light", "wood_panel_dark", "panel_3d", "tile_subway", "tile_subway_green", "green_wall", "loft", "mirror_wall", "felt_panel", "gypsum_board", "marble_wall", "cork_wall",
+  // потолки
+  "ceil_white", "ceil_stretch_gloss", "ceil_stretch_matte", "ceil_stretch_black", "ceil_armstrong", "ceil_slats_white", "ceil_slats_wood", "ceil_slats_black", "ceil_concrete", "ceil_acoustic", "ceil_loft_black", "ceil_coffered", "ceil_beam_wood",
+  // фасады
+  "clinker", "clinker_gray", "clinker_brown", "brick_facade", "brick_facade_white", "stone_facade", "travertine", "plaster_beige", "plaster_gray", "plaster_terra", "plaster_graphite", "plaster_yellow", "composite", "composite_dark", "composite_wood", "composite_white", "facade_metal", "facade_metal_dark", "facade_panel", "facade_panel_white", "facade_panel_beige", "facade_panel_graphite", "facade_panel_terra", "facade_granite_vent", "facade_wood", "facade_wood_dark", "curtain_glass",
   // полы
-  "laminate", "parquet", "oak_floor", "wenge_floor", "tile", "marble", "granite", "carpet_gray", "carpet_blue", "vinyl", "checker", "terrazzo",
+  "laminate", "laminate_light", "laminate_dark", "laminate_gray", "parquet", "parquet_herringbone", "parquet_deck", "oak_floor", "wenge_floor", "ash_floor", "walnut_floor", "tile", "tile_white", "tile_gray", "tile_beige", "tile_black", "granite", "granite_dark", "granite_beige", "marble", "marble_white", "marble_black", "marble_emperador", "concrete_polished", "carpet_gray", "carpet_blue", "carpet_beige", "carpet_green", "carpet_red", "carpet_dark", "vinyl", "vinyl_wood", "vinyl_stone", "cork", "epoxy", "epoxy_gray", "epoxy_blue", "checker", "checker_bw", "terrazzo", "terrazzo_dark", "painted_board", "rubber_floor",
   // кровля
-  "metal_roof", "roof_red", "roof_brown", "roof_green", "roof_membrane",
+  "metal_roof", "metal_roof_graphite", "metal_roof_red", "metal_roof_brown", "metal_roof_green", "metal_roof_blue", "profile_sheet", "profile_sheet_red", "soft_roof", "soft_roof_brown", "soft_roof_green", "ceramic_roof_red", "ceramic_roof_brown", "seam_roof", "seam_roof_dark", "copper_roof", "slate_roof", "roof_red", "roof_brown", "roof_green", "roof_membrane",
 ]
 const STAIRS: { id: StairShape; label: string }[] = [
   { id: "straight", label: "Прямая" },

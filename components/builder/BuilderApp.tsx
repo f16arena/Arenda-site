@@ -12,8 +12,10 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand, LinkPremiseCommand } from "@/core/document/commands"
 import { uid } from "@/core/id"
+import { listOrgPremises } from "@/app/actions/builder-premise"
+import type { PremiseStatus } from "@/lib/builder/materials"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 import { BuilderToolbar } from "./BuilderToolbar"
@@ -25,6 +27,8 @@ import { PropertyPanel } from "./PropertyPanel"
 import { AssetCatalog } from "./AssetCatalog"
 import { CameraControls } from "./CameraControls"
 import { ViewCube } from "./ViewCube"
+import { MiniMap } from "./MiniMap"
+import { ShowcaseLead } from "./ShowcaseLead"
 import { StatusBar } from "./StatusBar"
 
 const BuilderCanvas = dynamic(() => import("./BuilderCanvas").then((m) => m.BuilderCanvas), { ssr: false })
@@ -69,9 +73,11 @@ const TOOL_KEYS: Record<string, Tool> = {
 }
 const CAM_KEYS: Record<string, CameraMode> = { "1": "orbit", "2": "top", "3": "plan", "4": "walk" }
 
-export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string }) {
+export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName, shareToken }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string; shareToken?: string }) {
   const engineRef = useRef<BuilderEngine | null>(null)
   const [ready, setReady] = useState(false)
+  const premiseMapRef = useRef<Map<string, PremiseStatus>>(new Map())
+  const [premiseReady, setPremiseReady] = useState(0)
 
   const [hud, setHud] = useState<string | null>(null)
   const doc = useDocumentStore((s) => s.doc)
@@ -91,10 +97,14 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
-    engine.statusResolver = (pid) => DEMO_PREMISE_STATUS[pid]
+    engine.statusResolver = (pid) => premiseMapRef.current.get(pid) ?? DEMO_PREMISE_STATUS[pid]
     engine.getDoc = () => useDocumentStore.getState().doc
     engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
+    engine.onLinkRoom = (floorId, roomId) => {
+      const num = window.prompt("Номер помещения Commrent (привязать к комнате):")
+      if (num && num.trim()) useDocumentStore.getState().execute(new LinkPremiseCommand(floorId, roomId, num.trim()))
+    }
     engine.onHud = (t) => setHud(t)
     if (initialDoc) {
       useDocumentStore.getState().loadDocument(initialDoc)
@@ -116,7 +126,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.statusResolver = (pid) => DEMO_PREMISE_STATUS[pid]
     e.rebuild(doc, { activeLevelId, displayMode, wallsDown })
     e.setSelection(useEditorStore.getState().selection)
-  }, [ready, rev, activeLevelId, displayMode, wallsDown, doc])
+  }, [ready, rev, activeLevelId, displayMode, wallsDown, doc, premiseReady])
 
   useEffect(() => {
     const e = engineRef.current
@@ -140,6 +150,24 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     const e = engineRef.current
     if (e && ready) e.setCameraMode(cameraMode)
   }, [cameraMode, ready])
+
+  // Реальные статусы помещений организации (для overlay) — только в редакторе.
+  useEffect(() => {
+    if (readOnly) return
+    let cancelled = false
+    void listOrgPremises()
+      .then((rows) => {
+        if (cancelled) return
+        const m = new Map<string, PremiseStatus>()
+        for (const r of rows) m.set(r.number, r.status)
+        premiseMapRef.current = m
+        setPremiseReady((n) => n + 1)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [readOnly])
 
   // Загрузка сохранённого проекта по ?project (иначе остаётся demo).
   useEffect(() => {
@@ -251,6 +279,12 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       <CameraControls />
       <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />
       {!readOnly && <AssetCatalog key={mode} />}
+      {!readOnly && <MiniMap />}
+      {readOnly && selection.type === "room" && selection.floorId && (
+        <div className="absolute bottom-3 right-3 z-30 w-72">
+          <ShowcaseLead token={shareToken} premiseNumber={doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)?.premiseLinks[selection.id ?? ""]} onClose={() => useEditorStore.getState().setSelection({ type: "none" })} />
+        </div>
+      )}
       {!readOnly && <StatusBar />}
       {readOnly && (
         <div

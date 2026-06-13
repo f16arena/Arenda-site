@@ -24,5 +24,5 @@ export default async function ShowcasePage({ params }: { params: Promise<{ token
     }
   })()
   if (!parsed) notFound()
-  return <BuilderApp readOnly initialDoc={parsed} showcaseName={project.name} />
+  return <BuilderApp readOnly initialDoc={parsed} showcaseName={project.name} shareToken={token} />
 }

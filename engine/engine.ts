@@ -118,6 +118,7 @@ export class BuilderEngine {
   stairShape = "u"
   terrainMode: "raise" | "lower" | "flatten" | "smooth" = "raise"
   onPick: (meta: MeshMeta | null) => void = () => {}
+  onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
   getDoc: () => BuilderDocument | null = () => null
@@ -652,6 +653,10 @@ export class BuilderEngine {
     }
     if (this.tool === "delete") {
       this.handleDelete(meta)
+      return
+    }
+    if (this.tool === "link") {
+      if (meta?.kind === "room" && meta.floorId && meta.entityId) this.onLinkRoom(meta.floorId, meta.entityId)
       return
     }
     if (meta?.kind === "node") {
