@@ -131,6 +131,7 @@ export interface EditorState {
   waterDepth: number
   armedAsset: string | null
   gizmoMode: GizmoMode
+  turbo: boolean
   setTool: (t: Tool) => void
   setMode: (m: BuildMode) => void
   setCameraMode: (m: CameraMode) => void
@@ -149,6 +150,7 @@ export interface EditorState {
   setWaterDepth: (mm: number) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
+  setTurbo: (on: boolean) => void
 }
 
 const MODE_DEFAULT_TOOL: Record<BuildMode, Tool> = {
@@ -178,6 +180,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   waterDepth: 800,
   armedAsset: null,
   gizmoMode: "move",
+  turbo: false,
   setTool: (t) => set((s) => ({
     activeTool: t,
     selection: { type: "none" },
@@ -206,4 +209,5 @@ export const useEditorStore = create<EditorState>((set) => ({
   setWaterDepth: (mm) => set({ waterDepth: mm }),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),
+  setTurbo: (on) => set({ turbo: on }),
 }))

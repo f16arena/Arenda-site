@@ -157,6 +157,18 @@ export class BuilderEngine {
     this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
   }
 
+  getFps(): number {
+    return this.bundle.engine.getFps()
+  }
+
+  // Турбо-режим (§24): рендер в пониженном разрешении (меньше пикселей — выше FPS) и
+  // более лёгкие тени. Геометрия и интерактив не меняются.
+  setTurbo(on: boolean): void {
+    this.bundle.engine.setHardwareScalingLevel(on ? 1.4 : 1)
+    this.bundle.shadow.useBlurExponentialShadowMap = !on
+    this.bundle.scene.fogEnabled = !on
+  }
+
   setGizmoMode(mode: GizmoMode): void {
     this.gizmoMode = mode
     if (this.currentSel?.type === "object" && this.currentSel.id) {
@@ -299,6 +311,17 @@ export class BuilderEngine {
     // Открытые ранее двери (Walk) — прячем их створки после пересборки.
     for (const id of this.openDoors) {
       for (const m of this.meshById.get(id) ?? []) m.visibility = 0
+    }
+
+    // Перф (§24): замораживаем мировые матрицы статичных мешей (стены/полы/крыши/
+    // лестницы/вода) — любая правка вызывает пересборку и пересоздаёт их. Объекты не
+    // трогаем: они двигаются гизмо/драгом без пересборки.
+    for (const [id, arr] of this.meshById) {
+      if (this.objectRootById.has(id)) continue
+      for (const m of arr) {
+        m.freezeWorldMatrix()
+        m.doNotSyncBoundingInfo = true
+      }
     }
   }
 

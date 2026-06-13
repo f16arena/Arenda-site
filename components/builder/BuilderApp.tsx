@@ -28,6 +28,7 @@ import { AssetCatalog } from "./AssetCatalog"
 import { CameraControls } from "./CameraControls"
 import { ViewCube } from "./ViewCube"
 import { MiniMap } from "./MiniMap"
+import { PerfHud } from "./PerfHud"
 import { ShowcaseLead } from "./ShowcaseLead"
 import { StatusBar } from "./StatusBar"
 
@@ -128,6 +129,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
   const gizmoMode = useEditorStore((s) => s.gizmoMode)
+  const turbo = useEditorStore((s) => s.turbo)
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
@@ -177,6 +179,11 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     const e = engineRef.current
     if (e && ready) e.setGizmoMode(gizmoMode)
   }, [gizmoMode, ready])
+
+  useEffect(() => {
+    const e = engineRef.current
+    if (e && ready) e.setTurbo(turbo)
+  }, [turbo, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -339,6 +346,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />
       {!readOnly && <AssetCatalog key={mode} />}
       {!readOnly && <MiniMap />}
+      {!readOnly && ready && <PerfHud getFps={() => engineRef.current?.getFps() ?? 0} />}
       {readOnly && selection.type === "room" && selection.floorId && (
         <div className="absolute bottom-3 right-3 z-30 w-72">
           <ShowcaseLead token={shareToken} premiseNumber={doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)?.premiseLinks[selection.id ?? ""]} onClose={() => useEditorStore.getState().setSelection({ type: "none" })} />

@@ -57,6 +57,7 @@ export class MaterialRegistry {
       tex.texture.vScale = tex.scale
     }
 
+    m.freeze() // материал неизменяем после создания → меньше пересчётов на кадр (§24)
     this.cache.set(key, m)
     return m
   }
