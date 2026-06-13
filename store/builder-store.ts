@@ -136,6 +136,7 @@ export interface EditorState {
   pathWidth: number
   fenceStyle: FenceStyle
   paveMaterial: string
+  assetBaseSizes: Record<string, { w: number; d: number }>
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -159,6 +160,7 @@ export interface EditorState {
   setPathWidth: (mm: number) => void
   setFenceStyle: (s: FenceStyle) => void
   setPaveMaterial: (id: string) => void
+  setAssetBaseSizes: (r: Record<string, { w: number; d: number }>) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -193,6 +195,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   pathWidth: 3000,
   fenceStyle: "profnastil",
   paveMaterial: "asphalt",
+  assetBaseSizes: {},
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -226,6 +229,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPathWidth: (mm) => set({ pathWidth: mm }),
   setFenceStyle: (s) => set({ fenceStyle: s }),
   setPaveMaterial: (id) => set({ paveMaterial: id }),
+  setAssetBaseSizes: (r) => set({ assetBaseSizes: r }),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),
   setTurbo: (on) => set({ turbo: on }),

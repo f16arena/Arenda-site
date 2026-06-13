@@ -146,6 +146,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
     engine.onMultiToggle = (id) => useEditorStore.getState().toggleMulti(id)
+    engine.onObjectBaseSizes = (sizes) => useEditorStore.getState().setAssetBaseSizes(sizes)
     engine.onLinkRoom = (floorId, roomId) => {
       const num = window.prompt("Номер помещения Commrent (привязать к комнате):")
       if (num && num.trim()) useDocumentStore.getState().execute(new LinkPremiseCommand(floorId, roomId, num.trim()))

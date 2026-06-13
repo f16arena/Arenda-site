@@ -31,6 +31,7 @@ export function PropertyPanel() {
   const selection = useEditorStore((s) => s.selection)
   const gizmoMode = useEditorStore((s) => s.gizmoMode)
   const setGizmoMode = useEditorStore((s) => s.setGizmoMode)
+  const assetBaseSizes = useEditorStore((s) => s.assetBaseSizes)
 
   let title = "Проект"
   const rows: React.ReactNode[] = []
@@ -236,6 +237,26 @@ export function PropertyPanel() {
               className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
           </label>
         </div>
+        {(() => {
+          const base = assetBaseSizes[obj.assetId]
+          if (!base || base.w <= 0 || base.d <= 0) return null
+          const widthM = (base.w * obj.scale * curX) / 1000
+          const depthM = (base.d * obj.scale * curZ) / 1000
+          return (
+            <div className="mt-1 flex items-center gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
+              <label className="flex flex-1 items-center gap-1">Ш, м
+                <input type="number" step="0.1" min="0.2" defaultValue={widthM.toFixed(2)} key={`mw${id}${widthM.toFixed(2)}`}
+                  onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v) && v > 0) execute(new SetObjectSizeCommand(target, id, { scaleX: clampSize((v * 1000) / (base.w * obj.scale)) })) }}
+                  className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+              </label>
+              <label className="flex flex-1 items-center gap-1">Г, м
+                <input type="number" step="0.1" min="0.2" defaultValue={depthM.toFixed(2)} key={`md${id}${depthM.toFixed(2)}`}
+                  onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v) && v > 0) execute(new SetObjectSizeCommand(target, id, { scaleZ: clampSize((v * 1000) / (base.d * obj.scale)) })) }}
+                  className="w-full rounded-md bg-white/5 px-1 py-1" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+              </label>
+            </div>
+          )
+        })()}
         <div className="mt-1 flex flex-wrap gap-1">
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectRotationCommand(target, id, (obj.rotationY + 45) % 360))}>⟳ 45°</button>
           <button type="button" className={btnStyle} style={neutral} onClick={() => execute(new SetObjectScaleCommand(target, id, Math.min(5, obj.scale * 1.2)))}>＋ общий</button>
