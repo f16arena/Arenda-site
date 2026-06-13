@@ -15,6 +15,7 @@ import {
   Layer,
   Mesh,
   MeshBuilder,
+  RenderTargetTexture,
   Scene,
   ShadowGenerator,
   StandardMaterial,
@@ -101,10 +102,14 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 60): SceneBun
   const sun = new DirectionalLight("sun", new Vector3(-0.6, -1.2, -0.5), scene)
   sun.position = new Vector3(40, 70, 30)
   sun.intensity = 2.4
-  const shadow = new ShadowGenerator(2048, sun)
+  const shadow = new ShadowGenerator(1024, sun)
   shadow.useBlurExponentialShadowMap = true
   shadow.blurKernel = 24
   shadow.darkness = 0.55
+  // Перф (§24): сцена статична между правками — карта теней рисуется один раз, а не
+  // каждый кадр. Движок вызывает resetRefreshCounter() после каждой пересборки.
+  const shadowMap = shadow.getShadowMap()
+  if (shadowMap) shadowMap.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE
 
   // Газон участка — сетка с подразбиением для редактирования рельефа (кисти).
   const ground = MeshBuilder.CreateGround("ground", { width: siteSizeM, height: siteSizeM, subdivisions: 64, updatable: true }, scene)

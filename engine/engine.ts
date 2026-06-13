@@ -18,7 +18,7 @@ import {
   VertexBuffer,
 } from "@babylonjs/core"
 import { uid } from "@/core/id"
-import type { BuilderDocument, Floor } from "@/types/builder"
+import type { BuilderDocument, Floor, Building } from "@/types/builder"
 import {
   findFloor,
   type Command,
@@ -94,6 +94,15 @@ export class BuilderEngine {
   private currentMulti: string[] = [] // id объектов в мультивыборе
   private openDoors = new Set<string>() // двери, открытые кликом в Walk
   gizmoMode: GizmoMode = "move"
+
+  // Перф: ссылки на корни для адресной (поэтажной) пересборки и живого drag-оверлея.
+  private buildingRootById = new Map<string, TransformNode>()
+  private floorRootById = new Map<string, TransformNode>()
+  private roofByFloorId = new Map<string, Mesh>()
+  private lastCtx: RebuildContext | null = null
+  private dragOverlay: { fNode: TransformNode; roof: Mesh | null } | null = null
+  private dragFloorId: string | null = null
+  private lastHoverAt = 0
 
   // инструмент стены
   private wallStart: Vector3 | null = null
@@ -188,14 +197,27 @@ export class BuilderEngine {
     }
   }
 
+  private registerMesh(id: string | undefined, mesh: Mesh): void {
+    if (!id) return
+    const arr = this.meshById.get(id) ?? []
+    arr.push(mesh)
+    this.meshById.set(id, arr)
+  }
+
   // ── Пересборка сцены ───────────────────────────────────────────────────────
   rebuild(doc: BuilderDocument, ctx: RebuildContext): void {
     const scene = this.bundle.scene
+    this.lastCtx = ctx
     if (this.docRoot) this.docRoot.dispose()
+    this.dragOverlay = null // оверлей жил под docRoot — уже освобождён вместе с ним
+    this.dragFloorId = null
     for (const l of this.lights) l.dispose()
     this.lights = []
     this.meshById.clear()
     this.objectRootById.clear()
+    this.buildingRootById.clear()
+    this.floorRootById.clear()
+    this.roofByFloorId.clear()
     this.hovered = null
     this.docRoot = new TransformNode("docRoot", scene)
     const lightSpecs: Vector3[] = []
@@ -207,13 +229,6 @@ export class BuilderEngine {
       this.updateGroundSplat()
     }
 
-    const register = (id: string | undefined, mesh: Mesh) => {
-      if (!id) return
-      const arr = this.meshById.get(id) ?? []
-      arr.push(mesh)
-      this.meshById.set(id, arr)
-    }
-
     const siteRoot = new TransformNode("siteRoot", scene)
     siteRoot.parent = this.docRoot
     for (const obj of doc.site.objects) {
@@ -221,7 +236,7 @@ export class BuilderEngine {
       this.objectRootById.set(obj.id, node)
       node.getChildMeshes().forEach((m) => {
         if (m instanceof Mesh) {
-          register(obj.id, m)
+          this.registerMesh(obj.id, m)
           this.bundle.shadow.addShadowCaster(m)
         }
       })
@@ -231,13 +246,13 @@ export class BuilderEngine {
     // Водоёмы по контуру (вода по сплайну).
     for (const w of doc.site.water ?? []) {
       const mesh = buildWater(w, siteRoot, scene, this.reg)
-      if (mesh) register(w.id, mesh)
+      if (mesh) this.registerMesh(w.id, mesh)
     }
 
     // Линии по сплайну: дороги/дорожки/заборы.
     for (const pth of doc.site.paths ?? []) {
       for (const m of buildPath(pth, siteRoot, scene, this.reg)) {
-        register(pth.id, m)
+        this.registerMesh(pth.id, m)
         if (pth.kind === "fence") this.bundle.shadow.addShadowCaster(m)
       }
     }
@@ -246,72 +261,10 @@ export class BuilderEngine {
       const bRoot = new TransformNode(`b_${b.id}`, scene)
       bRoot.parent = this.docRoot
       bRoot.position.set(b.origin.x * S, 0, b.origin.y * S)
+      this.buildingRootById.set(b.id, bRoot)
       const active = b.floors.find((f) => f.id === ctx.activeLevelId)
-
       for (const f of b.floors) {
-        const fNode = new TransformNode(`f_${f.id}`, scene)
-        fNode.parent = bRoot
-        fNode.position.y = f.elevation * S
-
-        // вырезы в перекрытии этого этажа от лестниц нижних этажей
-        const holes: Vec2[][] = []
-        for (const other of b.floors) {
-          for (const st of other.stairs) {
-            if (st.toFloorId === f.id) holes.push(stairHoleWorld(st, other.height))
-          }
-        }
-
-        const walls = buildWalls(f, fNode, scene, this.reg)
-        const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
-        for (const m of walls) {
-          register(m.metadata?.entityId, m)
-          this.bundle.shadow.addShadowCaster(m)
-        }
-        for (const m of floorMeshes) register(m.metadata?.entityId, m)
-
-        for (const st of f.stairs) {
-          const node = buildStair(st, f.height, fNode, scene, this.reg)
-          node.getChildMeshes().forEach((m) => {
-            if (m instanceof Mesh) {
-              register(st.id, m)
-              this.bundle.shadow.addShadowCaster(m)
-            }
-          })
-        }
-
-        // объекты на этаже (мебель/техника/свет/декор)
-        for (const obj of f.objects) {
-          const node = buildObject(obj, fNode, scene, f.id)
-          this.objectRootById.set(obj.id, node)
-          node.getChildMeshes().forEach((m) => {
-            if (m instanceof Mesh) {
-              register(obj.id, m)
-              this.bundle.shadow.addShadowCaster(m)
-            }
-          })
-          if (LIGHT_ASSETS.has(obj.assetId)) lightSpecs.push(new Vector3(b.origin.x * S + obj.position.x * S, f.elevation * S + obj.position.y * S + 2.6, b.origin.y * S + obj.position.z * S))
-        }
-
-        const roof = buildRoof(f, bRoot, scene, this.reg)
-        if (roof) {
-          register(roof.metadata?.entityId, roof)
-          this.bundle.shadow.addShadowCaster(roof)
-        }
-
-        // ручки узлов активного этажа (для перетаскивания)
-        if (active && f.id === active.id) {
-          for (const nid in f.wallGraph.nodes) {
-            const n = f.wallGraph.nodes[nid]
-            const handle = MeshBuilder.CreateSphere(`node_${nid}`, { diameter: 0.45, segments: 6 }, scene)
-            handle.position.set(n.x * S, 0.12, n.y * S)
-            handle.parent = fNode
-            handle.material = this.reg.status("#38BDF8")
-            handle.metadata = { kind: "node", floorId: f.id, entityId: nid }
-            register(nid, handle)
-          }
-        }
-
-        this.applyFloorVisibility(f, fNode, roof, ctx, active)
+        this.buildFloorMeshes(doc, b, bRoot, f, ctx, active, { register: true, lightSpecs })
       }
     }
 
@@ -330,9 +283,104 @@ export class BuilderEngine {
       for (const m of this.meshById.get(id) ?? []) m.visibility = 0
     }
 
-    // Перф (§24): замораживаем мировые матрицы статичных мешей (стены/полы/крыши/
-    // лестницы/вода) — любая правка вызывает пересборку и пересоздаёт их. Объекты не
-    // трогаем: они двигаются гизмо/драгом без пересборки.
+    this.freezeStatics()
+    this.refreshShadows()
+  }
+
+  // Строит меши одного этажа в свой TransformNode (под bRoot). register:true — полная
+  // пересборка (регистрация для пикинга/тени/света). register:false — визуальный оверлей
+  // для живого drag (без пикинга/тени), используется previewFloorDrag().
+  private buildFloorMeshes(
+    doc: BuilderDocument,
+    b: Building,
+    bRoot: TransformNode,
+    f: Floor,
+    ctx: RebuildContext,
+    active: Floor | undefined,
+    opts: { register: boolean; lightSpecs?: Vector3[] },
+  ): { fNode: TransformNode; roof: Mesh | null } {
+    const scene = this.bundle.scene
+    const reg = opts.register
+    const fNode = new TransformNode(`f_${f.id}`, scene)
+    fNode.parent = bRoot
+    fNode.position.y = f.elevation * S
+
+    // вырезы в перекрытии этого этажа от лестниц нижних этажей
+    const holes: Vec2[][] = []
+    for (const other of b.floors) {
+      for (const st of other.stairs) {
+        if (st.toFloorId === f.id) holes.push(stairHoleWorld(st, other.height))
+      }
+    }
+
+    const walls = buildWalls(f, fNode, scene, this.reg)
+    const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
+    if (reg) {
+      for (const m of walls) {
+        this.registerMesh(m.metadata?.entityId, m)
+        this.bundle.shadow.addShadowCaster(m)
+      }
+      for (const m of floorMeshes) this.registerMesh(m.metadata?.entityId, m)
+    }
+
+    for (const st of f.stairs) {
+      const node = buildStair(st, f.height, fNode, scene, this.reg)
+      if (reg) {
+        node.getChildMeshes().forEach((m) => {
+          if (m instanceof Mesh) {
+            this.registerMesh(st.id, m)
+            this.bundle.shadow.addShadowCaster(m)
+          }
+        })
+      }
+    }
+
+    // объекты на этаже (мебель/техника/свет/декор)
+    for (const obj of f.objects) {
+      const node = buildObject(obj, fNode, scene, f.id)
+      if (reg) {
+        this.objectRootById.set(obj.id, node)
+        node.getChildMeshes().forEach((m) => {
+          if (m instanceof Mesh) {
+            this.registerMesh(obj.id, m)
+            this.bundle.shadow.addShadowCaster(m)
+          }
+        })
+        if (LIGHT_ASSETS.has(obj.assetId)) opts.lightSpecs?.push(new Vector3(b.origin.x * S + obj.position.x * S, f.elevation * S + obj.position.y * S + 2.6, b.origin.y * S + obj.position.z * S))
+      }
+    }
+
+    const roof = buildRoof(f, bRoot, scene, this.reg)
+    if (roof && reg) {
+      this.registerMesh(roof.metadata?.entityId, roof)
+      this.bundle.shadow.addShadowCaster(roof)
+    }
+
+    // ручки узлов активного этажа (для перетаскивания)
+    if (active && f.id === active.id) {
+      for (const nid in f.wallGraph.nodes) {
+        const n = f.wallGraph.nodes[nid]
+        const handle = MeshBuilder.CreateSphere(`node_${nid}`, { diameter: 0.45, segments: 6 }, scene)
+        handle.position.set(n.x * S, 0.12, n.y * S)
+        handle.parent = fNode
+        handle.material = this.reg.status("#38BDF8")
+        handle.metadata = { kind: "node", floorId: f.id, entityId: nid }
+        handle.isPickable = reg
+        if (reg) this.registerMesh(nid, handle)
+      }
+    }
+
+    this.applyFloorVisibility(f, fNode, roof, ctx, active)
+    if (reg) {
+      this.floorRootById.set(f.id, fNode)
+      if (roof) this.roofByFloorId.set(f.id, roof)
+    }
+    return { fNode, roof }
+  }
+
+  // Перф (§24): мировые матрицы статичных мешей замораживаем (стены/полы/крыши/лестницы/
+  // вода/дороги) — любая правка идёт через пересборку. Объекты не трогаем (живой drag/гизмо).
+  private freezeStatics(): void {
     for (const [id, arr] of this.meshById) {
       if (this.objectRootById.has(id)) continue
       for (const m of arr) {
@@ -340,6 +388,12 @@ export class BuilderEngine {
         m.doNotSyncBoundingInfo = true
       }
     }
+  }
+
+  // Перф (§24): карта теней статична между правками (refreshRate = RENDER_ONCE) — после
+  // пересборки даём ей перерисоваться один раз, иначе тени не пересчитываются каждый кадр.
+  private refreshShadows(): void {
+    this.bundle.shadow.getShadowMap()?.resetRefreshCounter()
   }
 
   private applyFloorVisibility(f: Floor, fNode: TransformNode, roof: Mesh | null, ctx: RebuildContext, active: Floor | undefined): void {
@@ -549,6 +603,52 @@ export class BuilderEngine {
     return { mm: { x: mmX, y: mmY }, world: new Vector3(mmX * S, this.activeFloorPlaneY() + 0.02, mmY * S) }
   }
 
+  // ── Живой drag без пересборки документа (перф) ───────────────────────────────
+  // При старте drag прячем «настоящий» этаж и показываем визуальный оверлей, который
+  // дёшево перестраивается на каждое движение через previewFloorDrag(). Команда в стор
+  // уходит ОДИН раз на отпускании — нет churn'а React/геометрии всей сцены 30×/сек.
+  private beginFloorDrag(floorId: string): void {
+    this.dragFloorId = floorId
+    this.floorRootById.get(floorId)?.setEnabled(false)
+    this.roofByFloorId.get(floorId)?.setEnabled(false)
+  }
+
+  private endFloorDrag(): void {
+    if (this.dragOverlay) {
+      this.dragOverlay.fNode.dispose()
+      this.dragOverlay.roof?.dispose()
+      this.dragOverlay = null
+    }
+    if (this.dragFloorId) {
+      this.floorRootById.get(this.dragFloorId)?.setEnabled(true)
+      this.roofByFloorId.get(this.dragFloorId)?.setEnabled(true)
+      this.dragFloorId = null
+    }
+  }
+
+  // Применяет команду к клону документа (без записи в стор) и перестраивает ТОЛЬКО
+  // затронутый этаж как визуальный оверлей. На отпускании handleUp шлёт настоящую команду.
+  private previewFloorDrag(floorId: string, cmd: Command): void {
+    const doc = this.getDoc()
+    if (!doc || !this.lastCtx) return
+    let wd: BuilderDocument
+    try {
+      wd = cmd.apply(structuredClone(doc))
+    } catch {
+      return
+    }
+    const b = wd.buildings.find((bb) => bb.floors.some((fl) => fl.id === floorId))
+    const f = b?.floors.find((fl) => fl.id === floorId)
+    const bRoot = b ? this.buildingRootById.get(b.id) : undefined
+    if (!b || !f || !bRoot) return
+    if (this.dragOverlay) {
+      this.dragOverlay.fNode.dispose()
+      this.dragOverlay.roof?.dispose()
+    }
+    const active = b.floors.find((fl) => fl.id === this.lastCtx?.activeLevelId)
+    this.dragOverlay = this.buildFloorMeshes(wd, b, bRoot, f, this.lastCtx, active, { register: false })
+  }
+
   private handleDown(): void {
     if (this.tool === "terrain") {
       this.terrainEditing = true
@@ -569,17 +669,21 @@ export class BuilderEngine {
       const { meta } = this.pickMeta()
       if (meta?.kind === "node" && meta.floorId && meta.entityId) {
         this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId }
+        this.beginFloorDrag(meta.floorId)
         this.bundle.scene.activeCamera?.detachControl()
       } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
         this.dragOpening = { floorId: meta.floorId, openingId: meta.entityId }
+        this.beginFloorDrag(meta.floorId)
         this.bundle.scene.activeCamera?.detachControl()
       } else if (meta?.kind === "stair" && meta.floorId && meta.entityId) {
         this.dragStair = { floorId: meta.floorId, stairId: meta.entityId }
+        this.beginFloorDrag(meta.floorId)
         this.bundle.scene.activeCamera?.detachControl()
       } else if (meta?.kind === "wall" && meta.floorId && meta.entityId) {
         const p = this.projectToPlane()
         if (p) {
           this.dragWall = { floorId: meta.floorId, edgeId: meta.entityId, startMm: { x: snapToGrid(p.x * 1000, 50), y: snapToGrid(p.z * 1000, 50) } }
+          this.beginFloorDrag(meta.floorId)
           this.bundle.scene.activeCamera?.detachControl()
         }
       } else if (meta?.kind === "object" && meta.entityId) {
@@ -608,7 +712,7 @@ export class BuilderEngine {
       const now = performance.now()
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.onCommand(new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
+        this.previewFloorDrag(this.dragWall.floorId, new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
       }
       return
     }
@@ -617,7 +721,7 @@ export class BuilderEngine {
       const now = performance.now()
       if (off != null && now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
+        this.previewFloorDrag(this.dragOpening.floorId, new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
       }
       return
     }
@@ -627,7 +731,7 @@ export class BuilderEngine {
       const now = performance.now()
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
+        this.previewFloorDrag(this.dragStair.floorId, new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
       }
       return
     }
@@ -639,7 +743,7 @@ export class BuilderEngine {
       const now = performance.now()
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
+        this.previewFloorDrag(this.dragNode.floorId, new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
       }
       return
     }
@@ -648,10 +752,11 @@ export class BuilderEngine {
       if (!p) return
       const mmX = snapToGrid(p.x * 1000, 50)
       const mmZ = snapToGrid(p.z * 1000, 50)
-      const now = performance.now()
-      if (now - this.lastMoveAt > 33) {
-        this.lastMoveAt = now
-        this.onCommand(new MoveObjectCommand(this.dragObject.target, this.dragObject.objectId, mmX, mmZ))
+      // Живое перемещение: двигаем корень объекта напрямую, команда — на отпускании.
+      const root = this.objectRootById.get(this.dragObject.objectId)
+      if (root) {
+        const ay = root.getAbsolutePosition().y
+        root.setAbsolutePosition(new Vector3(mmX * S, ay, mmZ * S))
       }
       return
     }
@@ -665,6 +770,10 @@ export class BuilderEngine {
       return
     }
     if (this.tool === "select" || this.tool === "material" || this.tool === "delete" || this.tool === "door" || this.tool === "window") {
+      // Перф: ховер-пикинг (полный raycast по сцене) троттлим — не на каждый mousemove.
+      const now = performance.now()
+      if (now - this.lastHoverAt < 50) return
+      this.lastHoverAt = now
       const { meta } = this.pickMeta()
       const id = meta?.entityId
       const mesh = id ? (this.meshById.get(id) ?? [])[0] ?? null : null
@@ -699,6 +808,7 @@ export class BuilderEngine {
     }
     if (this.dragWall) {
       const p = this.projectToPlane()
+      this.endFloorDrag()
       if (p) {
         const dx = snapToGrid(p.x * 1000, 50) - this.dragWall.startMm.x
         const dy = snapToGrid(p.z * 1000, 50) - this.dragWall.startMm.y
@@ -710,6 +820,7 @@ export class BuilderEngine {
     }
     if (this.dragOpening) {
       const off = this.openingOffset(this.dragOpening.floorId, this.dragOpening.openingId)
+      this.endFloorDrag()
       if (off != null) this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
       this.dragOpening = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
@@ -717,6 +828,7 @@ export class BuilderEngine {
     }
     if (this.dragStair) {
       const p = this.projectToPlane()
+      this.endFloorDrag()
       if (p) this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
       this.dragStair = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
@@ -724,6 +836,7 @@ export class BuilderEngine {
     }
     if (this.dragNode) {
       const p = this.projectToPlane()
+      this.endFloorDrag()
       if (p) {
         const mmX = snapToGrid(p.x * 1000, 100)
         const mmY = snapToGrid(p.z * 1000, 100)
