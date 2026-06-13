@@ -561,6 +561,55 @@ export class SetOpeningSizeCommand implements Command {
   }
 }
 
+// ── Свойства / перемещение лестницы ───────────────────────────────────────────
+export class SetStairCommand implements Command {
+  readonly kind = "set-stair"
+  readonly label = "лестница"
+  private prev?: { shape: "straight" | "l" | "u" | "spiral"; width: number; rotationDeg: number }
+  private captured = false
+  constructor(private floorId: string, private stairId: string, private props: { shape?: "straight" | "l" | "u" | "spiral"; width?: number; rotationDeg?: number }) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const s = f?.stairs.find((st) => st.id === this.stairId)
+    if (s && !this.captured) {
+      this.prev = { shape: s.shape, width: s.width, rotationDeg: s.rotationDeg }
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.map((st) => (st.id === this.stairId ? { ...st, ...this.props } : st)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.map((st) => (st.id === this.stairId ? { ...st, ...prev } : st)) }))
+  }
+}
+
+export class MoveStairCommand implements Command {
+  readonly kind = "move-stair"
+  readonly label = "перемещение лестницы"
+  private prev?: { x: number; y: number }
+  constructor(private floorId: string, private stairId: string, private x: number, private y: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const s = f?.stairs.find((st) => st.id === this.stairId)
+    if (s && !this.prev) this.prev = { x: s.position.x, y: s.position.y }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.map((st) => (st.id === this.stairId ? { ...st, position: { x: this.x, y: this.y } } : st)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.map((st) => (st.id === this.stairId ? { ...st, position: prev } : st)) }))
+  }
+  merge(next: Command): boolean {
+    if (next instanceof MoveStairCommand && next.floorId === this.floorId && next.stairId === this.stairId) {
+      this.x = next.x
+      this.y = next.y
+      return true
+    }
+    return false
+  }
+}
+
 // ── Материалы (ведро) ─────────────────────────────────────────────────────────
 export class SetWallMaterialCommand implements Command {
   readonly kind = "set-wall-material"

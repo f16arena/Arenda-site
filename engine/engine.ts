@@ -33,6 +33,7 @@ import {
   MoveOpeningCommand,
   AddStairCommand,
   DeleteStairCommand,
+  MoveStairCommand,
   SetWallMaterialCommand,
   SetRoomMaterialCommand,
   SetTerrainCommand,
@@ -102,6 +103,7 @@ export class BuilderEngine {
   private roomPreview: Mesh | null = null
   private dragWall: { floorId: string; edgeId: string; startMm: Vec2 } | null = null
   private dragOpening: { floorId: string; openingId: string } | null = null
+  private dragStair: { floorId: string; stairId: string } | null = null
   private shiftDown = false
 
   tool: Tool = "select"
@@ -132,8 +134,11 @@ export class BuilderEngine {
     this.hovered = null
     this.docRoot = new TransformNode("docRoot", scene)
 
-    // Рельеф из документа (если правился кистями)
-    if (!this.terrainEditing) this.applyHeightmap(doc.site.heightmap ?? null)
+    // Рельеф из документа (если правился кистями) + котлованы под цоколь/подвал
+    if (!this.terrainEditing) {
+      this.applyHeightmap(doc.site.heightmap ?? null)
+      this.excavateBasements(doc)
+    }
 
     const register = (id: string | undefined, mesh: Mesh) => {
       if (!id) return
@@ -412,6 +417,9 @@ export class BuilderEngine {
       } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
         this.dragOpening = { floorId: meta.floorId, openingId: meta.entityId }
         this.bundle.scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "stair" && meta.floorId && meta.entityId) {
+        this.dragStair = { floorId: meta.floorId, stairId: meta.entityId }
+        this.bundle.scene.activeCamera?.detachControl()
       } else if (meta?.kind === "wall" && meta.floorId && meta.entityId) {
         const p = this.projectToPlane()
         if (p) {
@@ -454,6 +462,16 @@ export class BuilderEngine {
       if (off != null && now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
         this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
+      }
+      return
+    }
+    if (this.dragStair) {
+      const p = this.projectToPlane()
+      if (!p) return
+      const now = performance.now()
+      if (now - this.lastMoveAt > 33) {
+        this.lastMoveAt = now
+        this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
       }
       return
     }
@@ -538,6 +556,13 @@ export class BuilderEngine {
       const off = this.openingOffset(this.dragOpening.floorId, this.dragOpening.openingId)
       if (off != null) this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
       this.dragOpening = null
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
+    if (this.dragStair) {
+      const p = this.projectToPlane()
+      if (p) this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
+      this.dragStair = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
     }
@@ -819,6 +844,67 @@ export class BuilderEngine {
     for (let i = 0; i < vCount; i++) positions[i * 3 + 1] = heights && i < heights.length ? heights[i] : 0
     ground.updateVerticesData(VertexBuffer.PositionKind, positions)
     ground.refreshBoundingInfo()
+  }
+
+  // Котлован под цоколь/подвал: опускаем газон в пятне здания до отметки нижнего
+  // подземного этажа + фундаментные стены по периметру (видно «вырытую яму»).
+  private excavateBasements(doc: BuilderDocument): void {
+    const ground = this.bundle.ground
+    const positions = ground.getVerticesData(VertexBuffer.PositionKind)
+    if (!positions || !this.docRoot) return
+    let changed = false
+    for (const b of doc.buildings) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, pitY = 0
+      let hasBasement = false
+      for (const f of b.floors) {
+        if (f.elevation < 0) {
+          hasBasement = true
+          pitY = Math.min(pitY, f.elevation)
+        }
+        for (const id in f.wallGraph.nodes) {
+          const n = f.wallGraph.nodes[id]
+          if (n.x < minX) minX = n.x
+          if (n.y < minY) minY = n.y
+          if (n.x > maxX) maxX = n.x
+          if (n.y > maxY) maxY = n.y
+        }
+      }
+      if (!hasBasement || !isFinite(minX)) continue
+      const m = 600
+      const wx0 = (b.origin.x + minX - m) * S
+      const wx1 = (b.origin.x + maxX + m) * S
+      const wz0 = (b.origin.y + minY - m) * S
+      const wz1 = (b.origin.y + maxY + m) * S
+      const pitWorldY = pitY * S
+      for (let i = 0; i < positions.length / 3; i++) {
+        const x = positions[i * 3]
+        const z = positions[i * 3 + 2]
+        if (x >= wx0 && x <= wx1 && z >= wz0 && z <= wz1) {
+          positions[i * 3 + 1] = pitWorldY
+          changed = true
+        }
+      }
+      // фундаментные стены по периметру котлована (от 0 до pitY)
+      const mat = this.reg.get("concrete")
+      const h = -pitWorldY
+      const cy = pitWorldY / 2
+      const t = 0.3
+      const wall = (w: number, d: number, cx: number, cz: number) => {
+        const box = MeshBuilder.CreateBox("pitwall", { width: w, height: h, depth: d }, this.bundle.scene)
+        box.position.set(cx, cy, cz)
+        box.material = mat
+        box.receiveShadows = true
+        box.parent = this.docRoot
+      }
+      wall(wx1 - wx0, t, (wx0 + wx1) / 2, wz0)
+      wall(wx1 - wx0, t, (wx0 + wx1) / 2, wz1)
+      wall(t, wz1 - wz0, wx0, (wz0 + wz1) / 2)
+      wall(t, wz1 - wz0, wx1, (wz0 + wz1) / 2)
+    }
+    if (changed) {
+      ground.updateVerticesData(VertexBuffer.PositionKind, positions)
+      ground.refreshBoundingInfo()
+    }
   }
 
   private ensureTerrainHeights(): void {

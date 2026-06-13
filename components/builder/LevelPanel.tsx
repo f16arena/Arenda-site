@@ -72,6 +72,31 @@ export function LevelPanel() {
     setActiveLevel(floor.id)
   }
 
+  const addBasement = () => {
+    if (!building) return
+    const minLevel = Math.min(1, ...building.floors.map((f) => f.level))
+    const level = minLevel - 1
+    const floor: Floor = {
+      id: uid("f"),
+      name: level === 0 ? "Цоколь" : `Подвал ${level}`,
+      level,
+      elevation: level * 3500,
+      height: 3500,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      wallGraph: emptyGraph(),
+      openings: [],
+      stairs: [],
+      objects: [],
+      premiseLinks: {},
+      floorMaterialId: "tile",
+      roomMaterials: {},
+    }
+    execute(new AddFloorCommand(building.id, floor))
+    setActiveLevel(floor.id)
+  }
+
   return (
     <div
       className="absolute left-3 top-40 z-20 flex w-52 flex-col gap-1 rounded-2xl p-2 shadow-2xl backdrop-blur-xl"
@@ -114,6 +139,15 @@ export function LevelPanel() {
         style={{ background: "rgba(56,189,248,0.12)", color: TOKENS.accent, border: `1px dashed ${TOKENS.accent}` }}
       >
         <Plus className="h-3.5 w-3.5" /> Добавить этаж
+      </button>
+      <button
+        type="button"
+        onClick={addBasement}
+        title="Вырыть цоколь/подвал — котлован в земле под зданием"
+        className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-all"
+        style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.muted, border: `1px dashed ${TOKENS.panelBorder}` }}
+      >
+        ⛏ Подвал (вниз)
       </button>
       <button
         type="button"

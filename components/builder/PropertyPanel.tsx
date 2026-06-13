@@ -5,7 +5,7 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand } from "@/core/document/commands"
+import { findFloor, SetObjectRotationCommand, SetObjectScaleCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand } from "@/core/document/commands"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
 import { detectRooms } from "@/core/geometry/room-detection"
@@ -124,6 +124,34 @@ export function PropertyPanel() {
             ))}
           </div>
           <button type="button" onClick={() => execute(new DeleteOpeningCommand(fid, oid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить проём</button>
+        </div>
+      )
+    }
+  } else if (selection.type === "stair" && selection.floorId && selection.id) {
+    const f = findFloor(doc, selection.floorId)
+    const st = f?.stairs.find((s) => s.id === selection.id)
+    title = "Лестница"
+    if (f && st) {
+      const fid = selection.floorId
+      const sid = selection.id
+      const shapes: { s: "straight" | "l" | "u"; l: string }[] = [{ s: "straight", l: "Прямая" }, { s: "l", l: "Г" }, { s: "u", l: "П" }]
+      rows.push(<Row key="sh" label="Форма" value={st.shape} />)
+      rows.push(<Row key="w" label="Ширина" value={`${(st.width / 1000).toFixed(2)} м`} />)
+      rows.push(<Row key="r" label="Поворот" value={`${Math.round(st.rotationDeg)}°`} />)
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <div className="flex gap-1">
+            {shapes.map((sh) => (
+              <button key={sh.s} type="button" onClick={() => execute(new SetStairCommand(fid, sid, { shape: sh.s }))} className="flex-1 rounded-md py-1 text-[10px]" style={{ background: st.shape === sh.s ? TOKENS.accent : "rgba(148,163,184,0.12)", color: st.shape === sh.s ? "#0b1220" : TOKENS.text }}>{sh.l}</button>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            {[900, 1100, 1400].map((w) => (
+              <button key={w} type="button" onClick={() => execute(new SetStairCommand(fid, sid, { width: w }))} className="flex-1 rounded-md py-1 text-[10px]" style={{ background: st.width === w ? TOKENS.accent : "rgba(148,163,184,0.12)", color: st.width === w ? "#0b1220" : TOKENS.text }}>{(w / 1000).toFixed(1)} м</button>
+            ))}
+          </div>
+          <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ Повернуть 90°</button>
+          <button type="button" onClick={() => execute(new DeleteStairCommand(fid, sid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить лестницу</button>
         </div>
       )
     }
