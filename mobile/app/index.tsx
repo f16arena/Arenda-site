@@ -79,6 +79,8 @@ import {
   getTenantRequests,
   hasStoredSession,
   logoutMobile,
+  registerPushDevice,
+  unregisterPushDevice,
   unlockStoredSessionWithDeviceAuth,
 } from "@/lib/api"
 import { clearMobileCache, readCache, writeCache } from "@/lib/cache"
@@ -321,12 +323,16 @@ export default function HomeScreen() {
       const availability = await getDeviceAuthAvailability()
       setCanUseDeviceAuth(availability.available)
       setDeviceAuthLabel(availability.label)
+      // Регистрируем устройство для push (молча: нет физ.устройства/прав — не критично).
+      await registerPushDevice().catch(() => null)
     } catch (e) {
       setAuthError(e instanceof Error ? e.message : "Не удалось загрузить кабинет")
     }
   }
 
   async function onLogout() {
+    // Отзываем push-токен ДО выхода (нужна авторизация), иначе чужие пуши на старом устройстве.
+    await unregisterPushDevice().catch(() => null)
     await logoutMobile()
     setBootstrap(null)
     setData(emptyData)
