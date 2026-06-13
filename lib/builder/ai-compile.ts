@@ -12,9 +12,13 @@ import {
   InsertWallCommand,
   SetRoofCommand,
   AddObjectCommand,
+  AddOpeningCommand,
+  AddStairCommand,
+  findFloor,
 } from "@/core/document/commands"
 import { emptyGraph, type WallDefaults } from "@/core/geometry/wall-graph"
 import type { Vec2 } from "@/core/geometry/math"
+import { findPreset } from "@/lib/builder/openings"
 
 // Валидация мягкая (без min/max — кламп делаем в buildDocFromSpec), т.к. Anthropic
 // structured output не принимает minimum/maximum для integer.
@@ -135,6 +139,121 @@ export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
       const y = -H + (2 * H * r) / spec.rows
       run(new InsertWallCommand(f.id, p(-W, y), p(W, y), INT))
     }
+
+    // ── Проёмы: читаем АКТУАЛЬНЫЕ рёбра уже ПОСЛЕ построения стен этажа ──────────
+    const built = findFloor(doc, f.id)
+    if (built) {
+      const g = built.wallGraph
+      const edgeLen = (a: string, b: string): number => {
+        const na = g.nodes[a]
+        const nb = g.nodes[b]
+        if (!na || !nb) return 0
+        return Math.hypot(nb.x - na.x, nb.y - na.y)
+      }
+      // «передняя» сторона плана — ребро с минимальным y (y == -H у периметра)
+      const isFrontEdge = (a: string, b: string): boolean => {
+        const na = g.nodes[a]
+        const nb = g.nodes[b]
+        if (!na || !nb) return false
+        return Math.abs(na.y - -H) < 1 && Math.abs(nb.y - -H) < 1
+      }
+      const exteriorEdges = Object.values(g.edges).filter((e) => e.kind === "exterior")
+      const interiorEdges = Object.values(g.edges).filter((e) => e.kind === "interior")
+
+      const win = findPreset("window", "standard")
+      const minEdgeForWindow = win.width + 400
+
+      // Подвал/цоколь (level<=0) — окна реже/пропускаем
+      const isAbove = level > 0
+
+      // 1. Окна на каждом наружном ребре (для надземных этажей)
+      if (isAbove) {
+        for (const e of exteriorEdges) {
+          const len = edgeLen(e.a, e.b)
+          if (len <= minEdgeForWindow) continue
+          // 1-2 окна: при достаточной длине — по третям, иначе одно по центру
+          const offsets: number[] = len > win.width * 2 + 800 ? [len / 3, (2 * len) / 3] : [len / 2]
+          for (const center of offsets) {
+            const offset = clamp(center - win.width / 2, 100, len - win.width - 100)
+            run(
+              new AddOpeningCommand(f.id, {
+                id: uid("op"),
+                wallId: e.id,
+                type: "window",
+                variant: win.variant,
+                width: win.width,
+                height: win.height,
+                sillHeight: win.sill,
+                offset,
+              }),
+            )
+          }
+        }
+      }
+
+      // 2. Двери — только на первом надземном этаже (level === 1)
+      if (level === 1) {
+        // входная дверь на одном переднем наружном ребре
+        const frontDoorEdge =
+          exteriorEdges.find((e) => isFrontEdge(e.a, e.b) && edgeLen(e.a, e.b) > 1200) ??
+          exteriorEdges.find((e) => edgeLen(e.a, e.b) > 1200)
+        if (frontDoorEdge) {
+          const door = findPreset("door", "single")
+          const len = edgeLen(frontDoorEdge.a, frontDoorEdge.b)
+          run(
+            new AddOpeningCommand(f.id, {
+              id: uid("op"),
+              wallId: frontDoorEdge.id,
+              type: "door",
+              variant: door.variant,
+              width: door.width,
+              height: door.height,
+              sillHeight: door.sill,
+              offset: clamp(len / 2 - door.width / 2, 100, len - door.width - 100),
+            }),
+          )
+        }
+        // межкомнатные двери на паре внутренних стен
+        const intDoor = findPreset("door", "interior")
+        for (const e of interiorEdges.slice(0, 2)) {
+          const len = edgeLen(e.a, e.b)
+          if (len <= intDoor.width + 400) continue
+          run(
+            new AddOpeningCommand(f.id, {
+              id: uid("op"),
+              wallId: e.id,
+              type: "door",
+              variant: intDoor.variant,
+              width: intDoor.width,
+              height: intDoor.height,
+              sillHeight: intDoor.sill,
+              offset: clamp(len / 2 - intDoor.width / 2, 100, len - intDoor.width - 100),
+            }),
+          )
+        }
+      }
+    }
+  }
+
+  // 3. Лестницы: связываем последовательные НАДЗЕМНЫЕ этажи (1→2→…)
+  const aboveFloors = floors.filter((fl) => fl.level > 0).sort((a, b) => a.level - b.level)
+  for (let i = 0; i < aboveFloors.length - 1; i++) {
+    const from = aboveFloors[i]
+    const to = aboveFloors[i + 1]
+    // угол плана в мм в пределах контура (отступ от внутренних углов)
+    const stairW = 1200
+    run(
+      new AddStairCommand(from.id, {
+        id: uid("st"),
+        shape: "u",
+        fromFloorId: from.id,
+        toFloorId: to.id,
+        position: { x: clamp(W - 2500, -W, W), y: clamp(H - 3500, -H, H) },
+        rotationDeg: 0,
+        width: stairW,
+        railing: true,
+      }),
+    )
   }
 
   // фасадный материал на наружные стены всех этажей

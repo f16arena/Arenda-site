@@ -12,6 +12,8 @@ import {
   InsertWallCommand,
   SetRoofCommand,
   AddObjectCommand,
+  AddOpeningCommand,
+  AddStairCommand,
   LinkPremiseCommand,
 } from "@/core/document/commands"
 import { emptyGraph, type WallDefaults } from "@/core/geometry/wall-graph"
@@ -74,6 +76,18 @@ function siteObject(assetId: string, x: number, z: number, rotationY = 0, scale 
   return { id: uid("o"), assetId, position: { x, y: 0, z }, rotationY, scale, attachTo: "terrain", locked: false }
 }
 
+// Объект внутри здания: пол (мебель) либо потолок (светильник). Координаты — в плане этажа (мм).
+function floorObject(
+  assetId: string,
+  x: number,
+  z: number,
+  rotationY = 0,
+  attachTo: BuilderObject["attachTo"] = "floor",
+  scale = 1,
+): BuilderObject {
+  return { id: uid("o"), assetId, position: { x, y: 0, z }, rotationY, scale, attachTo, locked: false }
+}
+
 export function buildDemoProject(): BuilderDocument {
   const building: Building = { id: uid("b"), name: "Demo Commercial", origin: { x: 0, y: 0 }, floors: [] }
   let doc: BuilderDocument = {
@@ -126,6 +140,137 @@ export function buildDemoProject(): BuilderDocument {
     siteObject("parking", -6000, 14000),
   ]
   for (const o of siteObjs) run(new AddObjectCommand({ site: true }, o))
+
+  // ── Меблировка 1-го этажа (level 1): «как готовый уровень» ──────────────────
+  // Контур центрирован: полуширина 10000, полуглубина 6000. Перегородки на x=-3000,
+  // x=4000 и y=0 делят план на 6 зон. Все объекты — внутри контура, y=0.
+  const firstFloor = floors.find((f) => f.level === 1)
+  if (firstFloor) {
+    const fid = firstFloor.id
+    const furniture: BuilderObject[] = [
+      // Входная зона (передняя кромка y=-H): ресепшен лицом в зал.
+      floorObject("reception", -6500, -4200, 0),
+      floorObject("plant_pot", -8800, -4800, 0),
+      // Кабинет слева (зона x<-3000, y<0): два рабочих места desk+chair.
+      floorObject("desk", -6500, -2200, Math.PI),
+      floorObject("chair", -6500, -1300, 0),
+      floorObject("desk", -4200, -2200, Math.PI),
+      floorObject("chair", -4200, -1300, 0),
+      floorObject("ceiling_light", -6500, -3000, 0, "ceiling"),
+      // Переговорная/лаундж справа (зона x>4000, y<0): диван + столик + TV.
+      floorObject("sofa", 7000, -3000, Math.PI),
+      floorObject("coffee_table", 7000, -1800, 0),
+      floorObject("tv", 7000, -5600, 0),
+      floorObject("ceiling_light", 7000, -2500, 0, "ceiling"),
+      // Центральная зона (зона -3000<x<4000, y<0): растение-акцент.
+      floorObject("plant_pot", 500, -1500, 0),
+      // Открытый офис сзади (y>0): рабочие места + общий свет.
+      floorObject("desk", -6500, 3000, 0),
+      floorObject("chair", -6500, 2100, Math.PI),
+      floorObject("desk", 7000, 3000, 0),
+      floorObject("chair", 7000, 2100, Math.PI),
+      floorObject("ceiling_light", 0, 3000, 0, "ceiling"),
+    ]
+    for (const o of furniture) run(new AddObjectCommand({ floorId: fid }, o))
+  }
+
+  // ── Цоколь (level 0): игровая зона + склад ──────────────────────────────────
+  const basement = floors.find((f) => f.level === 0)
+  if (basement) {
+    const bid = basement.id
+    const basementObjs: BuilderObject[] = [
+      // Игровые места (gaming_desk + gaming_chair) вдоль левой зоны.
+      floorObject("gaming_desk", -6500, -3000, Math.PI),
+      floorObject("gaming_chair", -6500, -2100, 0),
+      floorObject("gaming_desk", -6500, 1000, 0),
+      floorObject("gaming_chair", -6500, 1900, Math.PI),
+      // Складские стеллажи в правой зоне.
+      floorObject("rack", 7000, -3500, 0),
+      floorObject("rack", 7000, -1500, 0),
+      floorObject("rack", 7000, 3500, 0),
+      floorObject("ceiling_light", -6500, -1000, 0, "ceiling"),
+      floorObject("ceiling_light", 7000, 0, 0, "ceiling"),
+    ]
+    for (const o of basementObjs) run(new AddObjectCommand({ floorId: bid }, o))
+  }
+
+  // ── Окна на длинных наружных стенах надземных этажей (1-3) + входная дверь ───
+  // Рёбра читаем из doc ПОСЛЕ построения стен. «Длинными» считаем наружные рёбра
+  // длиннее 6000 мм (передние/задние грани 20 м; боковые 12 м тоже попадают).
+  const aboveGround = floors.filter((f) => f.level >= 1)
+  let entranceDoorPlaced = false
+  for (const f of aboveGround) {
+    const built = doc.buildings[0].floors.find((fl) => fl.id === f.id)
+    if (!built) continue
+    const g = built.wallGraph
+    for (const edge of Object.values(g.edges)) {
+      if (edge.kind !== "exterior") continue
+      const na = g.nodes[edge.a]
+      const nb = g.nodes[edge.b]
+      if (!na || !nb) continue
+      const len = Math.hypot(nb.x - na.x, nb.y - na.y)
+      if (len < 6000) continue
+      const mid = len / 2 // offset = расстояние от начала стены до центра проёма
+      // Входная дверь — на одном переднем (y≈-H) ребре 1-го этажа.
+      const isFrontEdge = Math.abs(na.y - (-6000)) < 1 && Math.abs(nb.y - (-6000)) < 1
+      if (!entranceDoorPlaced && f.level === 1 && isFrontEdge) {
+        run(
+          new AddOpeningCommand(f.id, {
+            id: uid("op"),
+            wallId: edge.id,
+            type: "door",
+            variant: "single",
+            width: 1000,
+            height: 2100,
+            sillHeight: 0,
+            offset: mid,
+          }),
+        )
+        entranceDoorPlaced = true
+        continue
+      }
+      run(
+        new AddOpeningCommand(f.id, {
+          id: uid("op"),
+          wallId: edge.id,
+          type: "window",
+          variant: "standard",
+          width: 1200,
+          height: 1400,
+          sillHeight: 900,
+          offset: mid,
+        }),
+      )
+    }
+  }
+
+  // ── Лестница "u" между этажами: 0→1, 1→2, 2→3 (в углу плана) ─────────────────
+  const byLevel = (lvl: number) => floors.find((f) => f.level === lvl)
+  for (const [fromLvl, toLvl] of [[0, 1], [1, 2], [2, 3]] as const) {
+    const from = byLevel(fromLvl)
+    const to = byLevel(toLvl)
+    if (!from || !to) continue
+    run(
+      new AddStairCommand(from.id, {
+        id: uid("st"),
+        shape: "u",
+        fromFloorId: from.id,
+        toFloorId: to.id,
+        position: { x: -7000, y: -4000 },
+        rotationDeg: 0,
+        width: 1100,
+        railing: true,
+      }),
+    )
+  }
+
+  // ── Пруд и пара деревьев рядом со зданием ───────────────────────────────────
+  const landscaping: BuilderObject[] = [
+    siteObject("pond", -15000, 6000, 0, 1),
+    siteObject("tree", -12000, 3000),
+    siteObject("tree", -16000, 1000),
+  ]
+  for (const o of landscaping) run(new AddObjectCommand({ site: true }, o))
 
   return doc
 }
