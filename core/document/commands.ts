@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -418,6 +418,34 @@ export class SetTerrainCommand implements Command {
       return true
     }
     return false
+  }
+}
+
+// ── Водоёмы (вода по сплайну) ────────────────────────────────────────────────
+export class AddWaterCommand implements Command {
+  readonly kind = "add-water"
+  readonly label = "водоём"
+  constructor(private body: WaterBody) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, water: [...(doc.site.water ?? []), this.body] } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return { ...doc, site: { ...doc.site, water: (doc.site.water ?? []).filter((w) => w.id !== this.body.id) } }
+  }
+}
+
+export class DeleteWaterCommand implements Command {
+  readonly kind = "delete-water"
+  readonly label = "удаление водоёма"
+  private removed?: WaterBody
+  constructor(private waterId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    this.removed = (doc.site.water ?? []).find((w) => w.id === this.waterId) ?? this.removed
+    return { ...doc, site: { ...doc.site, water: (doc.site.water ?? []).filter((w) => w.id !== this.waterId) } }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    return { ...doc, site: { ...doc.site, water: [...(doc.site.water ?? []), this.removed] } }
   }
 }
 

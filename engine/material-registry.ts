@@ -77,6 +77,23 @@ export class MaterialRegistry {
     return m
   }
 
+  /** Полупрозрачная вода для водоёмов (зеркало по контуру). Кэш-синглтон. */
+  water(): PBRMaterial {
+    const key = "__water"
+    const existing = this.cache.get(key)
+    if (existing) return existing
+    const m = new PBRMaterial(key, this.scene)
+    m.albedoColor = Color3.FromHexString("#2a6f8f")
+    m.metallic = 0.1
+    m.roughness = 0.08
+    m.alpha = 0.72
+    m.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND
+    m.environmentIntensity = 1.1
+    m.emissiveColor = Color3.FromHexString("#0d2733")
+    this.cache.set(key, m)
+    return m
+  }
+
   dispose(): void {
     for (const m of this.cache.values()) m.dispose()
     for (const t of this.textures.values()) t.dispose()

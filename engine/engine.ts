@@ -11,6 +11,7 @@ import {
   MeshBuilder,
   PointLight,
   PointerEventTypes,
+  StandardMaterial,
   TransformNode,
   UniversalCamera,
   Vector3,
@@ -39,9 +40,11 @@ import {
   SetWallMaterialCommand,
   SetRoomMaterialCommand,
   SetTerrainCommand,
+  AddWaterCommand,
+  DeleteWaterCommand,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
-import { closestOnSegment, distance, snapToGrid, type Vec2 } from "@/core/geometry/math"
+import { closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
 import { findPreset } from "@/lib/builder/openings"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
@@ -50,6 +53,7 @@ import { buildFloors, type StatusResolver } from "./builders/floor-builder"
 import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
+import { buildWater } from "./builders/water-builder"
 import { LIGHT_ASSETS } from "./builders/object-builder"
 import { GizmoController, type GizmoMode } from "./gizmo"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
@@ -110,6 +114,10 @@ export class BuilderEngine {
   private readonly groundSize = 60
   private readonly groundRes = 64
 
+  // вода по контуру (сплайн)
+  private waterPoints: Vec2[] = [] // мм
+  private waterPreview: TransformNode | null = null
+
   // комната-прямоугольник / перемещение стены / орто-лок
   private roomStart: Vector3 | null = null
   private roomPreview: Mesh | null = null
@@ -124,7 +132,8 @@ export class BuilderEngine {
   openingType: "door" | "window" = "door"
   openingVariant = "interior"
   stairShape = "u"
-  terrainMode: "raise" | "lower" | "flatten" | "smooth" = "raise"
+  terrainMode: "raise" | "lower" | "flatten" | "smooth" | "terrace" = "raise"
+  waterDepth = 800 // мм, глубина прокопа русла
   onPick: (meta: MeshMeta | null) => void = () => {}
   onMultiToggle: (objectId: string) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
@@ -174,6 +183,7 @@ export class BuilderEngine {
     if (!this.terrainEditing) {
       this.applyHeightmap(doc.site.heightmap ?? null)
       this.excavateBasements(doc)
+      this.updateGroundSplat()
     }
 
     const register = (id: string | undefined, mesh: Mesh) => {
@@ -195,6 +205,12 @@ export class BuilderEngine {
         }
       })
       if (LIGHT_ASSETS.has(obj.assetId)) lightSpecs.push(new Vector3(obj.position.x * S, obj.position.y * S + 2.6, obj.position.z * S))
+    }
+
+    // Водоёмы по контуру (вода по сплайну).
+    for (const w of doc.site.water ?? []) {
+      const mesh = buildWater(w, siteRoot, scene, this.reg)
+      if (mesh) register(w.id, mesh)
     }
 
     for (const b of doc.buildings) {
@@ -719,6 +735,10 @@ export class BuilderEngine {
       this.handleWallTap()
       return
     }
+    if (this.tool === "water") {
+      this.handleWaterTap()
+      return
+    }
     const { meta, point } = this.pickMeta()
     if (this.tool === "door" || this.tool === "window") {
       this.handleOpeningTap(meta, point)
@@ -913,7 +933,7 @@ export class BuilderEngine {
     else if (meta.kind === "object") {
       const target = meta.target === "site" ? ({ site: true } as const) : ({ floorId: meta.target ?? "" } as const)
       this.onCommand(new DeleteObjectCommand(target, meta.entityId))
-    }
+    } else if (meta.kind === "water") this.onCommand(new DeleteWaterCommand(meta.entityId))
   }
 
   // Смещение проёма вдоль его стены под текущим курсором (мм), с клампом по краям.
@@ -1069,12 +1089,142 @@ export class BuilderEngine {
       if (this.terrainMode === "raise") h += strength * fall
       else if (this.terrainMode === "lower") h -= strength * fall
       else if (this.terrainMode === "flatten") h += (hit.y - h) * fall * 0.5
-      else h += (hit.y - h) * fall * 0.25
+      else if (this.terrainMode === "terrace") {
+        // Террасы: подтягиваем к ближайшей ступени 0.5 м (ступенчатый рельеф).
+        const step = 0.5
+        const target = Math.round((h + strength * fall * 0.5) / step) * step
+        h += (target - h) * fall * 0.6
+      } else h += (hit.y - h) * fall * 0.25
       this.terrainHeights[i] = h
       positions[i * 3 + 1] = h
     }
     this.bundle.ground.updateVerticesData(VertexBuffer.PositionKind, positions)
     this.bundle.ground.refreshBoundingInfo()
+    this.updateGroundSplat()
+  }
+
+  // Раскраска газона по высоте (splat без шейдера): подводный песок / трава / скала.
+  // Цвета пишем в Color VertexBuffer земли; базовый цвет материала = белый множитель.
+  private updateGroundSplat(): void {
+    const ground = this.bundle.ground
+    const positions = ground.getVerticesData(VertexBuffer.PositionKind)
+    if (!positions) return
+    const vCount = positions.length / 3
+    const colors = new Array<number>(vCount * 4)
+    const SAND: [number, number, number] = [0.76, 0.7, 0.5]
+    const GRASS: [number, number, number] = [0.36, 0.55, 0.27]
+    const DRY: [number, number, number] = [0.55, 0.56, 0.36]
+    const ROCK: [number, number, number] = [0.5, 0.5, 0.52]
+    for (let i = 0; i < vCount; i++) {
+      const y = positions[i * 3 + 1]
+      let c = GRASS
+      if (y < -0.1) c = SAND
+      else if (y > 4) c = ROCK
+      else if (y > 1.6) c = DRY
+      colors[i * 4] = c[0]
+      colors[i * 4 + 1] = c[1]
+      colors[i * 4 + 2] = c[2]
+      colors[i * 4 + 3] = 1
+    }
+    ground.setVerticesData(VertexBuffer.ColorKind, colors)
+    const mat = ground.material
+    if (mat instanceof StandardMaterial) mat.diffuseColor = new Color3(1, 1, 1)
+  }
+
+  // ── Вода по контуру (сплайн) ─────────────────────────────────────────────────
+  // Клик добавляет точку контура; клик у первой точки (≥3) замыкает и заливает воду
+  // с прокопом русла. Enter — замкнуть из любого места, Esc — отмена (см. BuilderApp).
+  private handleWaterTap(): void {
+    const p = this.projectToY(0)
+    if (!p) return
+    const mm: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+    if (this.waterPoints.length >= 3) {
+      const first = this.waterPoints[0]
+      if (Math.hypot(mm.x - first.x, mm.y - first.y) < 900) {
+        this.finalizeWater()
+        return
+      }
+    }
+    this.waterPoints.push(mm)
+    this.updateWaterPreview()
+    this.onHud(`Водоём: точек ${this.waterPoints.length} · клик у старта или Enter — залить, Esc — отмена`)
+  }
+
+  isDrawingWater(): boolean {
+    return this.tool === "water" && this.waterPoints.length > 0
+  }
+
+  finalizeWater(): void {
+    if (this.waterPoints.length < 3) {
+      this.cancelWater()
+      return
+    }
+    const points = this.waterPoints.map((p) => ({ ...p }))
+    const depth = Math.max(100, this.waterDepth)
+    this.onCommand(new AddWaterCommand({ id: uid("w"), points, depth, kind: "pond" }))
+    this.carveWaterbed(points, depth)
+    this.cancelWater()
+    this.onHud(null)
+  }
+
+  cancelWater(): void {
+    this.waterPoints = []
+    this.waterPreview?.dispose()
+    this.waterPreview = null
+  }
+
+  // Прокоп русла: опускаем вершины газона внутри контура до отметки −depth (с мягким краем).
+  private carveWaterbed(points: Vec2[], depthMm: number): void {
+    this.ensureTerrainHeights()
+    if (!this.terrainHeights) return
+    const positions = this.bundle.ground.getVerticesData(VertexBuffer.PositionKind)
+    if (!positions) return
+    const bedY = -depthMm / 1000
+    let changed = false
+    for (let i = 0; i < this.terrainHeights.length; i++) {
+      const mmX = positions[i * 3] / S
+      const mmZ = positions[i * 3 + 2] / S
+      if (pointInPolygon({ x: mmX, y: mmZ }, points)) {
+        if (this.terrainHeights[i] > bedY) {
+          this.terrainHeights[i] = bedY
+          positions[i * 3 + 1] = bedY
+          changed = true
+        }
+      }
+    }
+    if (changed) {
+      this.bundle.ground.updateVerticesData(VertexBuffer.PositionKind, positions)
+      this.bundle.ground.refreshBoundingInfo()
+      this.updateGroundSplat()
+      this.onCommand(new SetTerrainCommand(this.terrainHeights))
+    }
+  }
+
+  private updateWaterPreview(): void {
+    this.waterPreview?.dispose()
+    if (this.waterPoints.length === 0) {
+      this.waterPreview = null
+      return
+    }
+    const root = new TransformNode("waterPreview", this.bundle.scene)
+    const mat = this.reg.water()
+    for (const pt of this.waterPoints) {
+      const dot = MeshBuilder.CreateDisc("wpt", { radius: 0.35, tessellation: 16 }, this.bundle.scene)
+      dot.rotation.x = Math.PI / 2
+      dot.position.set(pt.x * S, 0.05, pt.y * S)
+      dot.material = mat
+      dot.isPickable = false
+      dot.parent = root
+    }
+    if (this.waterPoints.length >= 2) {
+      const line = this.waterPoints.map((p) => new Vector3(p.x * S, 0.06, p.y * S))
+      if (this.waterPoints.length >= 3) line.push(line[0].clone())
+      const poly = MeshBuilder.CreateLines("wline", { points: line }, this.bundle.scene)
+      poly.color = Color3.FromHexString("#38BDF8")
+      poly.isPickable = false
+      poly.parent = root
+    }
+    this.waterPreview = root
   }
 
   // ── Размещение объекта (placer) ──────────────────────────────────────────────
@@ -1144,6 +1294,7 @@ export class BuilderEngine {
   dispose(): void {
     this.cancelWallTool()
     this.cancelPlacer()
+    this.cancelWater()
     this.roomPreview?.dispose()
     for (const l of this.lights) l.dispose()
     this.lights = []

@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, DeleteWallCommand, DeleteWaterCommand, LinkPremiseCommand } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listOrgPremises } from "@/app/actions/builder-premise"
 import type { PremiseStatus } from "@/lib/builder/materials"
@@ -44,6 +44,7 @@ function applyPick(meta: MeshMeta | null): void {
   else if (meta.kind === "opening") setSelection({ type: "opening", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "stair") setSelection({ type: "stair", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "object") setSelection({ type: "object", id: meta.entityId, floorId: meta.target !== "site" ? meta.target : undefined })
+  else if (meta.kind === "water") setSelection({ type: "water", id: meta.entityId })
   else setSelection({ type: "none" })
 }
 
@@ -81,6 +82,7 @@ function deleteSelection(): void {
   const exec = useDocumentStore.getState().execute
   const d = useDocumentStore.getState().doc
   if (sel.type === "wall" && sel.floorId && sel.id) exec(new DeleteWallCommand(sel.floorId, sel.id))
+  else if (sel.type === "water" && sel.id) exec(new DeleteWaterCommand(sel.id))
   else if (sel.type === "object" && sel.id) {
     const inSite = d.site.objects.some((o) => o.id === sel.id)
     exec(new DeleteObjectCommand(inSite ? { site: true } : { floorId: sel.floorId ?? "" }, sel.id))
@@ -121,6 +123,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
   const stairShape = useEditorStore((s) => s.stairShape)
   const terrainMode = useEditorStore((s) => s.terrainMode)
+  const waterDepth = useEditorStore((s) => s.waterDepth)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -182,11 +185,13 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.paintMaterialId = paintMaterialId
     e.stairShape = stairShape
     e.terrainMode = terrainMode
+    e.waterDepth = waterDepth
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
     if (activeTool !== "wall") e.cancelWallTool()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, armedAsset, openingVariant, ready])
+    if (activeTool !== "water") e.cancelWater()
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -276,6 +281,12 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         eng.handleLengthKey(e.key)
         return
       }
+      // Enter — замкнуть контур водоёма.
+      if (eng && eng.isDrawingWater() && e.key === "Enter") {
+        e.preventDefault()
+        eng.finalizeWater()
+        return
+      }
       // R — поворот объекта в режиме размещения
       if ((e.key === "r" || e.key === "R") && ed.activeTool === "object" && ed.armedAsset) {
         engineRef.current?.rotatePlacer(45)
@@ -298,6 +309,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       }
       if (e.key === "Escape") {
         engineRef.current?.cancelWallTool()
+        engineRef.current?.cancelWater()
         ed.armAsset(null)
         ed.setSelection({ type: "none" })
         return

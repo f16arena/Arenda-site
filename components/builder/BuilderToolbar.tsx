@@ -18,6 +18,7 @@ import {
   Trash2,
   Trees,
   Undo2,
+  Waves,
 } from "lucide-react"
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
@@ -34,6 +35,7 @@ const TOOLS: Item[] = [
   { id: "stair", label: "Лестница", key: "S", Icon: ArrowUpFromLine, phase1: true },
   { id: "roof", label: "Крыша", key: "T", Icon: Building2, phase1: false },
   { id: "terrain", label: "Рельеф", key: "", Icon: Trees, phase1: true },
+  { id: "water", label: "Вода", key: "", Icon: Waves, phase1: true },
   { id: "object", label: "Объект", key: "O", Icon: Box, phase1: true },
   { id: "material", label: "Ведро", key: "M", Icon: Scissors, phase1: true },
   { id: "link", label: "Помещение", key: "", Icon: Copy, phase1: true },

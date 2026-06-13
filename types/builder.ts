@@ -94,6 +94,15 @@ export const BuildingSchema = z.object({
 })
 
 export const SiteObjectSchema = BuilderObjectSchema
+
+// Водоём по контуру (сплайн-полигон): точки в мм (план x→X, y→Z), глубина прокопа в мм.
+export const WaterBodySchema = z.object({
+  id: z.string(),
+  points: z.array(Vec2Schema),
+  depth: z.number().default(800),
+  kind: z.enum(["pond", "pool", "river"]).default("pond"),
+})
+
 export const SiteSchema = z.object({
   sizeX: z.number().default(50000),
   sizeZ: z.number().default(40000),
@@ -102,6 +111,8 @@ export const SiteSchema = z.object({
   // Рельеф: плоский heightmap (terrainRes×terrainRes), высоты в метрах. Фаза 4.
   terrainRes: z.number().default(64),
   heightmap: z.array(z.number()).optional(),
+  // Водоёмы по контуру (Фаза v4: вода по сплайну + прокоп русла).
+  water: z.array(WaterBodySchema).default([]),
 })
 
 export const ProjectSchema = z.object({
@@ -120,6 +131,7 @@ export type BuilderObject = z.infer<typeof BuilderObjectSchema>
 export type RoofConfig = z.infer<typeof RoofConfigSchema>
 export type Floor = z.infer<typeof FloorSchema>
 export type Building = z.infer<typeof BuildingSchema>
+export type WaterBody = z.infer<typeof WaterBodySchema>
 export type Site = z.infer<typeof SiteSchema>
 export type BuilderDocument = z.infer<typeof ProjectSchema>
 

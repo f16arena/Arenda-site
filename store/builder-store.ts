@@ -94,12 +94,13 @@ export type Tool =
   | "object"
   | "material"
   | "link"
+  | "water"
   | "delete"
 
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -108,7 +109,7 @@ export interface Selection {
 
 export type OpeningType = "door" | "window"
 export type StairShape = "straight" | "l" | "u" | "spiral"
-export type TerrainMode = "raise" | "lower" | "flatten" | "smooth"
+export type TerrainMode = "raise" | "lower" | "flatten" | "smooth" | "terrace"
 export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape"
 export type GizmoMode = "none" | "move" | "rotate"
 
@@ -127,6 +128,7 @@ export interface EditorState {
   openingVariant: string
   stairShape: StairShape
   terrainMode: TerrainMode
+  waterDepth: number
   armedAsset: string | null
   gizmoMode: GizmoMode
   setTool: (t: Tool) => void
@@ -144,6 +146,7 @@ export interface EditorState {
   setOpeningVariant: (v: string) => void
   setStairShape: (s: StairShape) => void
   setTerrainMode: (m: TerrainMode) => void
+  setWaterDepth: (mm: number) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
 }
@@ -153,7 +156,7 @@ const MODE_DEFAULT_TOOL: Record<BuildMode, Tool> = {
   buy: "object",
   material: "material",
   terrain: "terrain",
-  water: "object",
+  water: "water",
   landscape: "object",
 }
 
@@ -172,6 +175,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   openingVariant: "interior",
   stairShape: "u",
   terrainMode: "raise",
+  waterDepth: 800,
   armedAsset: null,
   gizmoMode: "move",
   setTool: (t) => set((s) => ({
@@ -199,6 +203,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setOpeningVariant: (v) => set({ openingVariant: v }),
   setStairShape: (s) => set({ stairShape: s }),
   setTerrainMode: (m) => set({ terrainMode: m }),
+  setWaterDepth: (mm) => set({ waterDepth: mm }),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),
 }))

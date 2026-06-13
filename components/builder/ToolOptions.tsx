@@ -31,6 +31,12 @@ const TERRAIN: { id: TerrainMode; label: string }[] = [
   { id: "lower", label: "Опустить" },
   { id: "flatten", label: "Выровнять" },
   { id: "smooth", label: "Сгладить" },
+  { id: "terrace", label: "Террасы" },
+]
+const WATER_DEPTHS: { mm: number; label: string }[] = [
+  { mm: 400, label: "Мелко 0.4 м" },
+  { mm: 800, label: "Средне 0.8 м" },
+  { mm: 1500, label: "Глубоко 1.5 м" },
 ]
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -52,6 +58,8 @@ export function ToolOptions() {
   const setStairShape = useEditorStore((s) => s.setStairShape)
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const setTerrainMode = useEditorStore((s) => s.setTerrainMode)
+  const waterDepth = useEditorStore((s) => s.waterDepth)
+  const setWaterDepth = useEditorStore((s) => s.setWaterDepth)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
@@ -75,6 +83,28 @@ export function ToolOptions() {
           )
         })}
         <span className="shrink-0">— зажми и води по газону</span>
+      </Shell>
+    )
+  }
+  if (tool === "water") {
+    return (
+      <Shell>
+        <span className="shrink-0">Водоём — глубина:</span>
+        {WATER_DEPTHS.map((d) => {
+          const active = waterDepth === d.mm
+          return (
+            <button
+              key={d.mm}
+              type="button"
+              onClick={() => setWaterDepth(d.mm)}
+              className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+              style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
+            >
+              {d.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— клик ставит точки контура, клик у старта или Enter — залить, Esc — отмена</span>
       </Shell>
     )
   }
