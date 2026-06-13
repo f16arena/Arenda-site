@@ -5,9 +5,10 @@
 // Док берётся/кладётся через documentStore; статус — syncStore.
 
 import { useEffect, useState } from "react"
-import { Loader2, Save, Share2, Sparkles } from "lucide-react"
+import { Loader2, Save, Share2, Sparkles, Trash2 } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
 import { createBuilderProject, saveBuilderProject, createBuilderShare } from "@/app/actions/builder"
+import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 
 async function doSave(): Promise<void> {
@@ -94,6 +95,18 @@ export function BuilderProjectBar() {
     }
   }
 
+  // Очистить всё: заменить сцену пустым проектом (одно здание + один пустой этаж),
+  // чтобы строить заново с чистого листа. Не отменяется (стек команд сбрасывается).
+  const clearAll = () => {
+    if (!window.confirm("Очистить весь проект? Текущая сцена будет заменена пустым зданием с одним этажом. Действие нельзя отменить.")) return
+    const doc = buildEmptyProject()
+    useDocumentStore.getState().loadDocument(doc)
+    const first = doc.buildings[0]?.floors?.[0]
+    if (first?.id) useEditorStore.getState().setActiveLevel(first.id)
+    useEditorStore.getState().setSelection({ type: "none" })
+    useSyncStore.setState({ lastSavedRev: -1, status: "idle" })
+  }
+
   const dot = status === "saved" ? TOKENS.success : status === "saving" ? TOKENS.accent : status === "error" || status === "conflict" ? TOKENS.danger : TOKENS.muted
 
   return (
@@ -117,6 +130,9 @@ export function BuilderProjectBar() {
         </button>
         <button type="button" onClick={() => void share()} title="Публичная ссылка-витрина" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
           <Share2 className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onClick={clearAll} title="Очистить всё — начать проект заново" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.16)", color: TOKENS.danger }}>
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: TOKENS.muted }}>
