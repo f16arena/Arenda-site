@@ -85,13 +85,13 @@ function buildGlowingGrid(scene: Scene, size: number): Mesh {
   return grid
 }
 
-export function createScene(canvas: HTMLCanvasElement, siteSizeM = 60): SceneBundle {
+export function createScene(canvas: HTMLCanvasElement, siteSizeM = 100): SceneBundle {
   const engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true }, true)
   const scene = new Scene(engine)
   scene.clearColor = new Color4(0.91, 0.95, 0.99, 1)
   scene.fogMode = Scene.FOGMODE_EXP2
   scene.fogColor = new Color3(0.84, 0.9, 0.97)
-  scene.fogDensity = 0.0035
+  scene.fogDensity = 0.0018
 
   buildSkyGradient(scene)
 
@@ -126,13 +126,13 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 60): SceneBun
   const camera = new ArcRotateCamera("cam", -Math.PI / 4, Math.PI / 3.2, 48, new Vector3(0, 3, 0), scene)
   camera.attachControl(canvas, true)
   camera.lowerRadiusLimit = 6
-  camera.upperRadiusLimit = 140
+  camera.upperRadiusLimit = 300
   camera.lowerBetaLimit = 0.15
   camera.upperBetaLimit = Math.PI / 2.05
   camera.wheelPrecision = 3
   camera.panningSensibility = 80
   camera.minZ = 0.1
-  camera.maxZ = 600
+  camera.maxZ = 1200
 
   const glow = new GlowLayer("glow", scene)
   glow.intensity = 0.6
