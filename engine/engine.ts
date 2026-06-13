@@ -791,13 +791,13 @@ export class BuilderEngine {
     if (this.dragObject) {
       const p = this.projectToY(this.dragObject.planeY)
       if (!p) return
-      const mmX = snapToGrid(p.x * 1000, 50)
-      const mmZ = snapToGrid(p.z * 1000, 50)
+      const tk = "site" in this.dragObject.target ? "site" : this.dragObject.target.floorId
+      const snap = this.snapObjectXZ(tk, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50), this.dragObject.objectId)
       // Живое перемещение: двигаем корень объекта напрямую, команда — на отпускании.
       const root = this.objectRootById.get(this.dragObject.objectId)
       if (root) {
         const ay = root.getAbsolutePosition().y
-        root.setAbsolutePosition(new Vector3(mmX * S, ay, mmZ * S))
+        root.setAbsolutePosition(new Vector3(snap.x * S, ay, snap.z * S))
       }
       return
     }
@@ -891,9 +891,10 @@ export class BuilderEngine {
       const drag = this.dragObject
       const p = this.projectToY(drag.planeY)
       if (p) {
-        const cx = snapToGrid(p.x * 1000, 50)
-        const cz = snapToGrid(p.z * 1000, 50)
         const targetKey = "site" in drag.target ? "site" : drag.target.floorId
+        const snapped = this.snapObjectXZ(targetKey, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50), drag.objectId)
+        const cx = snapped.x
+        const cz = snapped.z
         const node = this.objectRootById.get(drag.objectId)
         const half = node ? this.nodeHalfExtents(node) : { hx: 300, hz: 300 }
         const box = { minX: cx - half.hx, maxX: cx + half.hx, minZ: cz - half.hz, maxZ: cz + half.hz }
@@ -1700,6 +1701,22 @@ export class BuilderEngine {
     return false
   }
 
+  // Магнит-выравнивание: подтягивает центр X/Z к центрам соседних объектов на том же
+  // уровне (в пределах допуска), чтобы мебель вставала в линию/столбец. Не двигает к самому себе.
+  private snapObjectXZ(targetKey: string, x: number, z: number, excludeId?: string): { x: number; z: number } {
+    const TH = 200 // мм
+    let sx = x, sz = z, bx = TH, bz = TH
+    for (const [id, fp] of this.objectFootprints) {
+      if (id === excludeId || fp.target !== targetKey) continue
+      const cx = (fp.minX + fp.maxX) / 2
+      const cz = (fp.minZ + fp.maxZ) / 2
+      const dx = Math.abs(x - cx), dz = Math.abs(z - cz)
+      if (dx < bx) { bx = dx; sx = cx }
+      if (dz < bz) { bz = dz; sz = cz }
+    }
+    return { x: sx, z: sz }
+  }
+
   // Габариты узла в плане (полу-ширина/полу-глубина, мм) для проверки в новой точке.
   private nodeHalfExtents(node: TransformNode): { hx: number; hz: number } {
     node.computeWorldMatrix(true)
@@ -1716,8 +1733,9 @@ export class BuilderEngine {
     const onFloor = doc ? findFloor(doc, this.activeFloorId) : undefined
     const target = onFloor ? ({ floorId: this.activeFloorId } as const) : ({ site: true } as const)
     const targetKey = onFloor ? this.activeFloorId : "site"
-    const cx = snapToGrid(p.x * 1000, 50)
-    const cz = snapToGrid(p.z * 1000, 50)
+    const aligned = this.snapObjectXZ(targetKey, snapToGrid(p.x * 1000, 50), snapToGrid(p.z * 1000, 50))
+    const cx = aligned.x
+    const cz = aligned.z
     // Проверка наложения по габаритам призрака.
     const half = this.placerGhost ? this.nodeHalfExtents(this.placerGhost) : { hx: 300, hz: 300 }
     const box = { minX: cx - half.hx, maxX: cx + half.hx, minZ: cz - half.hz, maxZ: cz + half.hz }
