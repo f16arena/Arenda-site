@@ -1199,6 +1199,16 @@ function getDeviceMeta() {
     deviceName: Device.deviceName,
     platform: process.env.EXPO_OS === "ios" ? "IOS" : "ANDROID",
     appVersion: Constants.expoConfig?.version,
+    // Часовой пояс устройства — сервер использует его для тихих часов push (sendPushToUser).
+    timezone: getDeviceTimezone(),
+  }
+}
+
+function getDeviceTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
   }
 }
 
