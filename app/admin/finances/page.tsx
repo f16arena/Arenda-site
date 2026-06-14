@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES, expenseCategoryLabel } from "@/lib/utils"
-import { FileSpreadsheet, ShieldCheck, Upload, Wallet, CircleCheck, TrendingDown, Repeat } from "lucide-react"
+import { FileSpreadsheet, ShieldCheck, Upload, Wallet, CircleCheck, TrendingDown, Repeat, CalendarClock } from "lucide-react"
 import Link from "next/link"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
@@ -384,6 +384,13 @@ async function renderFinancesPage({
           >
             <Repeat className="h-4 w-4" />
             Постоянные расходы
+          </Link>
+          <Link
+            href="/admin/finances/installments"
+            className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 px-4 py-2 text-sm font-medium text-rose-700 dark:text-rose-300"
+          >
+            <CalendarClock className="h-4 w-4" />
+            Рассрочка
           </Link>
           <Link
             href="/admin/finances/deposits"

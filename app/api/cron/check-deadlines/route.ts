@@ -414,11 +414,30 @@ export async function GET(req: Request) {
       } catch { /* битый json — пропуск */ }
     }
 
+    // Рассрочка: если по активному плану есть просроченный неоплаченный взнос —
+    // план сорван. Возвращаем покрытые начисления под пеню (зануляем ссылку) и
+    // помечаем план BROKEN. Делаем ДО начисления пени, чтобы пеня сразу пошла.
+    const graceDate = new Date(now.getTime() - PENALTY_GRACE_DAYS * 24 * 3600 * 1000)
+    const brokenPlans = await db.debtInstallmentPlan.findMany({
+      where: {
+        status: "ACTIVE",
+        installments: { some: { isPaid: false, dueDate: { lt: graceDate } } },
+      },
+      select: { id: true },
+    })
+    if (brokenPlans.length > 0) {
+      const brokenIds = brokenPlans.map((p) => p.id)
+      await db.charge.updateMany({ where: { installmentPlanId: { in: brokenIds } }, data: { installmentPlanId: null } })
+      await db.debtInstallmentPlan.updateMany({ where: { id: { in: brokenIds } }, data: { status: "BROKEN" } })
+    }
+
     const overdueCharges = await db.charge.findMany({
       where: {
         isPaid: false,
         type: { not: "PENALTY" },
-        dueDate: { lt: new Date(now.getTime() - PENALTY_GRACE_DAYS * 24 * 3600 * 1000) },
+        // Начисления в действующей рассрочке пеней не облагаются.
+        installmentPlanId: null,
+        dueDate: { lt: graceDate },
       },
       select: {
         id: true,

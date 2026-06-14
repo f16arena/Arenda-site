@@ -703,12 +703,13 @@ model Tenant {
 
   user           User                @relation(fields: [userId], references: [id])
   space          Space?              @relation(fields: [spaceId], references: [id])
-  building       Building?           @relation("BuildingDirectTenants", fields: [buildingId], references: [id], onDelete: SetNull)
-  tenantSpaces   TenantSpace[]
-  charges        Charge[]
-  payments       Payment[]
-  paymentReports PaymentReport[]
-  contracts      Contract[]
+  building         Building?           @relation("BuildingDirectTenants", fields: [buildingId], references: [id], onDelete: SetNull)
+  tenantSpaces     TenantSpace[]
+  charges          Charge[]
+  payments         Payment[]
+  paymentReports   PaymentReport[]
+  contracts        Contract[]
+  installmentPlans DebtInstallmentPlan[]
   documents      TenantDocument[]
   storedFiles    StoredFile[]
   requests       Request[]
@@ -841,12 +842,18 @@ model Charge {
   dueDate     DateTime? @map("due_date")
   createdAt   DateTime  @default(now()) @map("created_at")
   deletedAt   DateTime? @map("deleted_at")
+  // Если начисление реструктуризовано в рассрочку — ссылка на план. Пока план
+  // ACTIVE, пеня по такому начислению не начисляется (cron check-deadlines). При
+  // срыве плана (просрочен платёж) поле зануляется и пеня возобновляется.
+  installmentPlanId String? @map("installment_plan_id")
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  tenant          Tenant               @relation(fields: [tenantId], references: [id])
+  contract        Contract?            @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  installmentPlan DebtInstallmentPlan? @relation(fields: [installmentPlanId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, isPaid, dueDate])
   @@index([tenantId, period, type])
+  @@index([installmentPlanId])
   @@index([dueDate])
   // Календарь / dashboard часто фильтруют { tenantId, dueDate: { gte, lt } } без isPaid —
   // существующий [tenantId, isPaid, dueDate] для этого пути теряет dueDate-селективность.
@@ -857,6 +864,47 @@ model Charge {
   // Prisma `@@unique` не поддерживает partial — добавляем raw SQL чтобы
   // soft-delete + recreate не ломал constraint.
   @@map("charges")
+}
+
+// Рассрочка по долгу: реструктуризация просроченной задолженности арендатора в
+// график платежей. Пока план ACTIVE, по покрытым начислениям не капает пеня.
+// При срыве (просрочен и не оплачен платёж) cron переводит план в BROKEN и
+// возвращает начисления под пеню.
+model DebtInstallmentPlan {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  totalAmount Float    @map("total_amount")
+  // ACTIVE | COMPLETED | BROKEN | CANCELLED
+  status      String   @default("ACTIVE")
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  installments DebtInstallment[]
+  charges      Charge[]
+
+  @@index([tenantId, status])
+  @@map("debt_installment_plans")
+}
+
+model DebtInstallment {
+  id        String    @id @default(cuid())
+  planId    String    @map("plan_id")
+  seq       Int // порядковый номер платежа 1..N
+  dueDate   DateTime  @map("due_date")
+  amount    Float
+  isPaid    Boolean   @default(false) @map("is_paid")
+  paidAt    DateTime? @map("paid_at")
+  // Платёж, которым закрыт взнос (для трассировки). Не FK — как в cash_transactions.
+  paymentId String?   @map("payment_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  plan DebtInstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, seq])
+  @@index([isPaid, dueDate])
+  @@map("debt_installments")
 }
 
 model Payment {
