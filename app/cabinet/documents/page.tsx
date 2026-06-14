@@ -6,6 +6,7 @@ import { Download, FileText, Printer, Receipt, Upload, Wallet, CheckCircle2 } fr
 import Link from "next/link"
 import { MyDocumentUpload, MyDocumentDelete } from "@/components/cabinet/my-document-upload"
 import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
+import { ReconciliationResponse } from "@/components/cabinet/reconciliation-response"
 import { RequestExtensionButton } from "./request-extension-button"
 import { PageHeader } from "@/components/ui/page"
 
@@ -27,7 +28,7 @@ export default async function CabinetDocuments() {
     where: { tenantId: tenant.id, deletedAt: null },
     orderBy: { generatedAt: "desc" },
     take: 50,
-    select: { id: true, documentType: true, number: true, period: true, totalAmount: true, generatedAt: true },
+    select: { id: true, documentType: true, number: true, period: true, totalAmount: true, generatedAt: true, reconStatus: true, reconResponseNote: true },
   })
   const issuedTypeLabel: Record<string, string> = {
     INVOICE: "Счёт на оплату",
@@ -108,6 +109,9 @@ export default async function CabinetDocuments() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:self-center">
+                  {doc.documentType === "RECONCILIATION" && (
+                    <ReconciliationResponse documentId={doc.id} status={doc.reconStatus} note={doc.reconResponseNote} />
+                  )}
                   {(doc.documentType === "ACT" || doc.documentType === "RECONCILIATION") && (
                     signedIssuedIds.has(doc.id) ? (
                       <Link href={`/verify/${doc.id}`} className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/30" title="Открыть страницу проверки подписи">

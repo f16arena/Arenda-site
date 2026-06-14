@@ -274,6 +274,8 @@ export default async function DocumentsPage({
       esfStatus: g.esfStatus,
       esfRegNumber: g.esfRegNumber,
       esfError: g.esfError,
+      reconStatus: g.reconStatus,
+      reconResponseNote: g.reconResponseNote,
     }
   })
 

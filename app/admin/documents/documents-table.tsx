@@ -62,6 +62,29 @@ export interface DocRow {
   esfStatus?: string | null
   esfRegNumber?: string | null
   esfError?: string | null
+  /** Сверка: статус подтверждения контрагентом (SENT|AGREED|DISPUTED) + комментарий. */
+  reconStatus?: string | null
+  reconResponseNote?: string | null
+}
+
+const RECON_BADGE: Record<string, { label: string; cls: string }> = {
+  SENT: { label: "ожидает сверки", cls: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300" },
+  AGREED: { label: "сверка подтверждена", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" },
+  DISPUTED: { label: "расхождение", cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" },
+}
+
+function ReconBadge({ row }: { row: DocRow }) {
+  if (row.type !== "RECONCILIATION" || !row.reconStatus) return null
+  const b = RECON_BADGE[row.reconStatus]
+  if (!b) return null
+  return (
+    <span
+      className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${b.cls}`}
+      title={row.reconStatus === "DISPUTED" && row.reconResponseNote ? row.reconResponseNote : undefined}
+    >
+      {b.label}
+    </span>
+  )
 }
 
 export const DOC_CATEGORY_TABS: { key: DocCategory; label: string }[] = [
@@ -537,6 +560,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
                             {TYPE_LABELS[r.type] ?? r.type}
                           </span>
+                          <ReconBadge row={r} />
                         </td>
                         <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
                         <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{r.period ?? "—"}</td>
@@ -579,6 +603,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
                       {TYPE_LABELS[r.type] ?? r.type}
                     </span>
+                    <ReconBadge row={r} />
                   </td>
                   <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
                   <td className="px-5 py-3 text-slate-700 dark:text-slate-300">

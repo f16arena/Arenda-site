@@ -200,6 +200,8 @@ export async function createReconFromBuilder(
         fileSize: buf.length,
         format: "DOCX",
         generatedById: session?.user.id ?? null,
+        // Акт сверки отправляется арендатору на подтверждение взаиморасчётов.
+        reconStatus: "SENT",
       },
       select: { id: true },
     })

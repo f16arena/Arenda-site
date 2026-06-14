@@ -1377,6 +1377,12 @@ model GeneratedDocument {
   esfStatus      String?   @map("esf_status") // SENT | DELIVERED | CONFIRMED | DECLINED | CANCELED | FAILED
   esfSentAt      DateTime? @map("esf_sent_at")
   esfError       String?   @map("esf_error")
+  // Сверка взаиморасчётов: статус подтверждения контрагентом (только для
+  // documentType = RECONCILIATION). SENT — отправлен арендатору на сверку,
+  // AGREED — арендатор подтвердил, DISPUTED — заявил расхождение (с комментарием).
+  reconStatus       String?   @map("recon_status")
+  reconRespondedAt  DateTime? @map("recon_responded_at")
+  reconResponseNote String?   @map("recon_response_note")
 
   @@index([organizationId, documentType])
   @@index([organizationId, documentType, generatedAt])
