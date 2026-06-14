@@ -11,23 +11,15 @@
 
 import { db } from "@/lib/db"
 import { safeServerValue } from "@/lib/server-fallback"
-import { CHARGE_TYPES } from "@/lib/utils"
+import { CHARGE_TYPES, EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/utils"
 
 // Дефолт: упрощёнка по новому НК РК с 2026 = 4% от оборота (маслихат ±50% → 2–6%).
 // Фактическая ставка настраивается в /admin/settings и приходит параметром.
 export const TAX_RATE_SIMPLIFIED = 4
 
-/** Категории расходов (совпадают с формой addExpense). */
-export const EXPENSE_CATEGORY_LABELS: Record<string, string> = {
-  ELECTRICITY: "Электроэнергия",
-  WATER: "Водоснабжение",
-  HEATING: "Отопление",
-  SALARY: "Зарплата",
-  REPAIR: "Ремонт",
-  CLEANING: "Уборка",
-  SECURITY: "Охрана",
-  OTHER: "Прочее",
-}
+/** Категории расходов — единый справочник из lib/utils (включает вывоз мусора,
+ * интернет и пр.). Re-export для обратной совместимости. */
+export const EXPENSE_CATEGORY_LABELS = EXPENSE_CATEGORIES
 
 // Из дохода исключаем возвратные/служебные начисления.
 const INCOME_EXCLUDED_TYPES = new Set(["DEPOSIT", "DEPOSIT_REFUND"])
@@ -217,7 +209,7 @@ export async function getOwnerPnL({
     expenseCatMap.set(e.category, (expenseCatMap.get(e.category) ?? 0) + e.amount)
   }
   const expenseByCategory: PnLBreakdownItem[] = [...expenseCatMap.entries()]
-    .map(([key, amount]) => ({ key, label: EXPENSE_CATEGORY_LABELS[key] ?? key, amount }))
+    .map(([key, amount]) => ({ key, label: expenseCategoryLabel(key), amount }))
     .sort((a, b) => b.amount - a.amount)
 
   // ── Помесячная динамика (12 мес) ──

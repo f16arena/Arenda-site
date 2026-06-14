@@ -5,7 +5,8 @@ import { Plus, X, DollarSign, TrendingDown, FileText } from "lucide-react"
 import { recordPayment, addExpense, generateMonthlyCharges, generateMonthlyInvoicesNow } from "@/app/actions/finance"
 // calculatePenalties удалена — пени теперь только cron-ом.
 import { Button } from "@/components/ui/button"
-import { EXPENSE_CATEGORIES } from "@/lib/utils"
+import { EXPENSE_CATEGORIES, formatMoney, formatPeriod } from "@/lib/utils"
+import { Droplet, Zap, Flame, CheckCircle2 } from "lucide-react"
 
 type Tenant = { id: string; companyName: string }
 type Charge = { id: string; tenantId: string; type: string; amount: number; description: string | null; period: string; isPaid: boolean }
@@ -120,10 +121,16 @@ export function ExpenseDialog({
   cashAccounts,
   buildings = [],
   currentBuildingId,
+  defaultCategory = "ELECTRICITY",
+  triggerLabel = "Добавить расход",
+  triggerClassName,
 }: {
   cashAccounts?: CashAccount[]
   buildings?: BuildingOption[]
   currentBuildingId?: string | null
+  defaultCategory?: string
+  triggerLabel?: string
+  triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -133,9 +140,13 @@ export function ExpenseDialog({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={triggerClassName ?? "flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"}
+      >
         <TrendingDown className="h-4 w-4" />
-        Добавить расход
+        {triggerLabel}
       </button>
 
       {open && (
@@ -163,7 +174,7 @@ export function ExpenseDialog({
               ) : null}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Категория</label>
-                <select name="category" defaultValue="ELECTRICITY" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
+                <select name="category" defaultValue={defaultCategory} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
                   {Object.entries(EXPENSE_CATEGORIES).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
                   ))}
@@ -215,6 +226,95 @@ export function ExpenseDialog({
         </div>
       )}
     </>
+  )
+}
+
+// Напоминание о переменных расходах (вода/свет/отопление-зимой), которые нужно
+// вносить вручную каждый месяц (сумма меняется). Показывает, что уже внесено за
+// период, что — нет, и сумму прошлого месяца как ориентир. Постоянные расходы
+// (зарплата и т.п.) сюда не входят — они создаются автоматически из шаблонов.
+type VariableExpenseItem = {
+  category: string
+  label: string
+  entered: boolean
+  lastAmount: number | null
+}
+
+const VARIABLE_ICONS: Record<string, typeof Droplet> = {
+  WATER: Droplet,
+  ELECTRICITY: Zap,
+  HEATING: Flame,
+}
+
+export function VariableExpenseReminder({
+  items,
+  cashAccounts,
+  buildings = [],
+  currentBuildingId,
+  period,
+}: {
+  items: VariableExpenseItem[]
+  cashAccounts?: CashAccount[]
+  buildings?: BuildingOption[]
+  currentBuildingId?: string | null
+  period: string
+}) {
+  if (items.length === 0) return null
+  const missing = items.filter((i) => !i.entered)
+  const allEntered = missing.length === 0
+
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        allEntered
+          ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/20 dark:bg-emerald-500/5"
+          : "border-amber-200 bg-amber-50/60 dark:border-amber-500/20 dark:bg-amber-500/5"
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        {allEntered ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+        ) : (
+          <Droplet className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+        )}
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Переменные расходы за {formatPeriod(period)}
+        </h3>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {allEntered ? "всё внесено" : `не внесено: ${missing.length}`}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => {
+          const Icon = VARIABLE_ICONS[item.category] ?? Droplet
+          return (
+            <div
+              key={item.category}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                item.entered
+                  ? "border-emerald-200 bg-white dark:border-emerald-500/20 dark:bg-slate-900"
+                  : "border-amber-200 bg-white dark:border-amber-500/20 dark:bg-slate-900"
+              }`}
+            >
+              <Icon className={`h-4 w-4 ${item.entered ? "text-emerald-500" : "text-amber-500"}`} />
+              <span className="font-medium text-slate-700 dark:text-slate-300">{item.label}</span>
+              {item.entered ? (
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">внесён ✓</span>
+              ) : (
+                <ExpenseDialog
+                  cashAccounts={cashAccounts}
+                  buildings={buildings}
+                  currentBuildingId={currentBuildingId}
+                  defaultCategory={item.category}
+                  triggerLabel={`Внести${item.lastAmount != null ? ` (≈${formatMoney(item.lastAmount)})` : ""}`}
+                  triggerClassName="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:underline"
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

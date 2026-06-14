@@ -7,7 +7,7 @@ import Link from "next/link"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
 // Дублирующая ручная кнопка приводила к рассинхрону (см. AUDIT_2026-05-26.md).
-import { PaymentDialog, ExpenseDialog, GenerateChargesButton, GenerateInvoicesButton } from "./finance-actions"
+import { PaymentDialog, ExpenseDialog, GenerateChargesButton, GenerateInvoicesButton, VariableExpenseReminder } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
 import { ChargesBulkActions } from "./charges-bulk-actions"
@@ -314,6 +314,38 @@ async function renderFinancesPage({
       : Promise.resolve(null),
   ])
 
+  // Переменные расходы (вода/свет, зимой — отопление): вносятся вручную каждый
+  // месяц, т.к. сумма меняется. Считаем, что уже внесено за период, и берём
+  // прошлый месяц как ориентир.
+  const currentMonthNum = Number(currentPeriod.split("-")[1])
+  const isWinterMonth = [10, 11, 12, 1, 2, 3, 4].includes(currentMonthNum)
+  const variableCats = isWinterMonth ? ["ELECTRICITY", "WATER", "HEATING"] : ["ELECTRICITY", "WATER"]
+  const prevDateForRef = new Date(Number(currentPeriod.split("-")[0]), currentMonthNum - 2, 1)
+  const prevPeriod = `${prevDateForRef.getFullYear()}-${String(prevDateForRef.getMonth() + 1).padStart(2, "0")}`
+  const variableWhere = (period: string): Prisma.ExpenseWhereInput => ({
+    AND: [expenseScope(orgId), { period }, { buildingId: { in: visibleBuildingIds } }, { category: { in: variableCats } }],
+  })
+  const [curVarRows, prevVarRows] = await Promise.all([
+    safe(
+      "admin.finances.variableCurrent",
+      db.expense.groupBy({ by: ["category"], where: variableWhere(currentPeriod), _sum: { amount: true }, _count: { _all: true } }),
+      [] as Array<{ category: string; _sum: { amount: number | null }; _count: { _all: number } }>,
+    ),
+    safe(
+      "admin.finances.variablePrev",
+      db.expense.groupBy({ by: ["category"], where: variableWhere(prevPeriod), _sum: { amount: true } }),
+      [] as Array<{ category: string; _sum: { amount: number | null } }>,
+    ),
+  ])
+  const enteredVarCats = new Set(curVarRows.filter((r) => (r._count?._all ?? 0) > 0).map((r) => r.category))
+  const prevVarMap = new Map(prevVarRows.map((r) => [r.category, r._sum.amount ?? 0]))
+  const variableExpenseItems = variableCats.map((cat) => ({
+    category: cat,
+    label: expenseCategoryLabel(cat),
+    entered: enteredVarCats.has(cat),
+    lastAmount: prevVarMap.get(cat) ?? null,
+  }))
+
   const totalCharges = chargesAggregate._sum.amount ?? 0
   const paidCharges = paidChargesAggregate._sum.amount ?? 0
   const unpaidCharges = unpaidChargesAggregate._sum.amount ?? 0
@@ -409,6 +441,14 @@ async function renderFinancesPage({
       />
 
       <PaymentReportsPanel reports={paymentReports} cashAccounts={cashAccounts} />
+
+      <VariableExpenseReminder
+        items={variableExpenseItems}
+        cashAccounts={cashAccounts}
+        buildings={buildingOptions}
+        currentBuildingId={currentBuildingId}
+        period={currentPeriod}
+      />
 
       {/* Summary cards */}
       <StatGrid>
