@@ -60,6 +60,31 @@ export const CHARGE_TYPES: Record<string, string> = {
   OTHER: "Прочее",
 }
 
+// Категории расходов (Expense.category). Отличаются от CHARGE_TYPES: тут есть
+// зарплата/ремонт, нет аренды/депозита. Используется в форме расхода, списке
+// расходов и в постоянных расходах.
+export const EXPENSE_CATEGORIES: Record<string, string> = {
+  SALARY: "Зарплата",
+  GARBAGE: "Вывоз мусора",
+  CLEANING: "Уборка / техничка",
+  INTERNET: "Интернет",
+  SECURITY: "Охрана",
+  ELECTRICITY: "Электроэнергия",
+  WATER: "Водоснабжение",
+  HEATING: "Отопление",
+  GAS: "Газ",
+  REPAIR: "Ремонт",
+  OTHER: "Прочее",
+}
+
+export function expenseCategoryLabel(category: string): string {
+  return EXPENSE_CATEGORIES[category] ?? category
+}
+
+// Зимние месяцы по умолчанию (окт–апр) — для сезонных постоянных расходов
+// (отопление). Совпадает с дефолтом эксплуатационного сбора здания.
+export const RECURRING_WINTER_MONTHS = "10,11,12,1,2,3,4"
+
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   TRANSFER: "Банковский перевод",
   KASPI: "Kaspi",

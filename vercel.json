@@ -5,6 +5,10 @@
       "schedule": "0 5 * * *"
     },
     {
+      "path": "/api/cron/recurring-expenses",
+      "schedule": "0 3 1 * *"
+    },
+    {
       "path": "/api/cron/monthly-invoices",
       "schedule": "0 4 1 * *"
     },

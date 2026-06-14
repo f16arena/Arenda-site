@@ -499,6 +499,7 @@ model Building {
   floors            Floor[]
   emergencyContacts EmergencyContact[]
   expenses          Expense[]
+  recurringExpenses RecurringExpense[]
   tariffs           Tariff[]
   tasks             Task[]
   leads             Lead[]
@@ -1017,11 +1018,50 @@ model Expense {
   description String?
   date        DateTime
   createdAt   DateTime @default(now()) @map("created_at")
+  // Если расход создан из шаблона постоянного расхода (автоповтор) — ссылка
+  // на него. Уникальность (recurringExpenseId, period) гарантирует, что cron
+  // и ручная генерация не задвоят один и тот же расход за месяц. Для разовых
+  // расходов поле null (NULL-ы в Postgres считаются различными — дубли разовых
+  // расходов не блокируются).
+  recurringExpenseId String? @map("recurring_expense_id")
 
-  building Building @relation(fields: [buildingId], references: [id])
+  building         Building          @relation(fields: [buildingId], references: [id])
+  recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
 
+  @@unique([recurringExpenseId, period])
   @@index([buildingId, period, date])
   @@map("expenses")
+}
+
+// Шаблон постоянного (повторяющегося) расхода: зарплата, вывоз мусора,
+// техничка, интернет и т.п. — одинаковая сумма из месяца в месяц. Раз в месяц
+// cron (и кнопка «Сгенерировать») создаёт из шаблона запись Expense за период.
+// Сезонные расходы (отопление) активны только в зимние месяцы — задаются через
+// `months` (CSV номеров месяцев); null = каждый месяц.
+model RecurringExpense {
+  id            String   @id @default(cuid())
+  buildingId    String   @map("building_id")
+  category      String
+  amount        Float
+  description   String?
+  // День месяца, которым проставляется дата расхода (1..28). Обрезается до
+  // последнего дня месяца, если месяц короче.
+  dayOfMonth    Int      @default(1) @map("day_of_month")
+  // CSV номеров месяцев (1..12), когда расход активен. null = каждый месяц.
+  // Для отопления — только зимние, напр. "10,11,12,1,2,3,4".
+  months        String?
+  // Опционально: счёт (банк/касса/карта), с которого автоматически списывается
+  // сумма при генерации расхода. null = просто фиксировать расход без списания.
+  cashAccountId String?  @map("cash_account_id")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@index([buildingId, isActive])
+  @@map("recurring_expenses")
 }
 
 // Рыночная статистика аренды ₸/м² (платформенная, общая для всех орг — это

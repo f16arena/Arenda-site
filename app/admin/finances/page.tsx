@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { formatMoney, formatPeriod, CHARGE_TYPES } from "@/lib/utils"
-import { FileSpreadsheet, ShieldCheck, Upload, Wallet, CircleCheck, TrendingDown } from "lucide-react"
+import { formatMoney, formatPeriod, CHARGE_TYPES, expenseCategoryLabel } from "@/lib/utils"
+import { FileSpreadsheet, ShieldCheck, Upload, Wallet, CircleCheck, TrendingDown, Repeat } from "lucide-react"
 import Link from "next/link"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
@@ -347,6 +347,13 @@ async function renderFinancesPage({
             Баланс счетов
           </Link>
           <Link
+            href="/admin/finances/recurring"
+            className="flex items-center gap-2 rounded-lg border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/20 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300"
+          >
+            <Repeat className="h-4 w-4" />
+            Постоянные расходы
+          </Link>
+          <Link
             href="/admin/finances/deposits"
             className="flex items-center gap-2 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300"
           >
@@ -563,7 +570,7 @@ async function renderFinancesPage({
           <tbody>
             {expenses.map((e) => (
               <tr key={e.id} className="border-b border-slate-50">
-                <td className="text-slate-700 dark:text-slate-300">{e.category}</td>
+                <td className="text-slate-700 dark:text-slate-300">{expenseCategoryLabel(e.category)}</td>
                 {!currentBuildingId && (
                   <td className="text-slate-500 dark:text-slate-400">{e.building.name}</td>
                 )}

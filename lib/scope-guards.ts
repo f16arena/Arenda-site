@@ -2,7 +2,7 @@ import { db } from "./db"
 import {
   tenantScope, spaceScope, floorScope, buildingScope,
   chargeScope, paymentScope, contractScope, requestScope,
-  taskScope, leadScope, expenseScope, meterScope,
+  taskScope, leadScope, expenseScope, recurringExpenseScope, meterScope,
   staffScope, tenantDocumentScope,
 } from "./tenant-scope"
 
@@ -133,6 +133,16 @@ export async function assertExpenseInOrg(expenseId: string, orgId: string): Prom
       select: { id: true },
     }),
     `расход #${expenseId}`,
+  )
+}
+
+export async function assertRecurringExpenseInOrg(recurringExpenseId: string, orgId: string): Promise<void> {
+  await assertExists(
+    db.recurringExpense.findFirst({
+      where: { id: recurringExpenseId, ...recurringExpenseScope(orgId) },
+      select: { id: true },
+    }),
+    `постоянный расход #${recurringExpenseId}`,
   )
 }
 

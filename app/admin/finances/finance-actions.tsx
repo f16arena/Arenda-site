@@ -5,6 +5,7 @@ import { Plus, X, DollarSign, TrendingDown, FileText } from "lucide-react"
 import { recordPayment, addExpense, generateMonthlyCharges, generateMonthlyInvoicesNow } from "@/app/actions/finance"
 // calculatePenalties удалена — пени теперь только cron-ом.
 import { Button } from "@/components/ui/button"
+import { EXPENSE_CATEGORIES } from "@/lib/utils"
 
 type Tenant = { id: string; companyName: string }
 type Charge = { id: string; tenantId: string; type: string; amount: number; description: string | null; period: string; isPaid: boolean }
@@ -162,15 +163,10 @@ export function ExpenseDialog({
               ) : null}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Категория</label>
-                <select name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-                  <option value="ELECTRICITY">Электроэнергия</option>
-                  <option value="WATER">Водоснабжение</option>
-                  <option value="HEATING">Отопление</option>
-                  <option value="SALARY">Зарплата</option>
-                  <option value="REPAIR">Ремонт</option>
-                  <option value="CLEANING">Уборка</option>
-                  <option value="SECURITY">Охрана</option>
-                  <option value="OTHER">Прочее</option>
+                <select name="category" defaultValue="ELECTRICITY" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
+                  {Object.entries(EXPENSE_CATEGORIES).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">

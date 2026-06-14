@@ -127,6 +127,12 @@ export function expenseScope(orgId: string | null) {
   return { building: { organizationId: orgId } }
 }
 
+// RecurringExpense → building.org
+export function recurringExpenseScope(orgId: string | null) {
+  if (!orgId) return NEVER
+  return { building: { organizationId: orgId } }
+}
+
 // EmergencyContact → building.org
 export function emergencyContactScope(orgId: string | null) {
   if (!orgId) return NEVER
