@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import * as OTPAuth from "otpauth"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
+import { encryptTotpSecret } from "@/lib/totp-secret"
 
 export const dynamic = "force-dynamic"
 
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   await db.user.update({
     where: { id: result.ctx.user.id },
     data: {
-      totpSecret: secretBase32,
+      totpSecret: encryptTotpSecret(secretBase32),
       totpEnabledAt: new Date(),
       totpBackupCodes: hashed,
     },

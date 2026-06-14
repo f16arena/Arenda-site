@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import * as OTPAuth from "otpauth"
 import QRCode from "qrcode"
 import bcrypt from "bcryptjs"
+import { encryptTotpSecret, decryptTotpSecret, isEncryptedTotpSecret } from "@/lib/totp-secret"
 
 const APP_NAME = "Commrent"
 
@@ -87,7 +88,7 @@ export async function verifyAndEnableTotp(
   await db.user.update({
     where: { id: session.user.id },
     data: {
-      totpSecret: secretBase32,
+      totpSecret: encryptTotpSecret(secretBase32),
       totpEnabledAt: new Date(),
       totpBackupCodes: hashed,
     },
@@ -141,6 +142,15 @@ export async function verifyTotpForLogin(userId: string, code: string): Promise<
   })
   if (!user || !user.totpSecret || !user.totpEnabledAt) return false
 
+  // Расшифровываем секрет (legacy plaintext вернётся как есть). Если ключ не
+  // настроен или данные повреждены — не пускаем по TOTP (остаются backup-коды).
+  let secretBase32: string
+  try {
+    secretBase32 = decryptTotpSecret(user.totpSecret)
+  } catch {
+    return false
+  }
+
   // Сначала пробуем как TOTP (6 цифр)
   if (/^[0-9]{6}$/.test(cleaned)) {
     const totp = new OTPAuth.TOTP({
@@ -148,9 +158,18 @@ export async function verifyTotpForLogin(userId: string, code: string): Promise<
       algorithm: "SHA1",
       digits: 6,
       period: 30,
-      secret: OTPAuth.Secret.fromBase32(user.totpSecret),
+      secret: OTPAuth.Secret.fromBase32(secretBase32),
     })
-    if (totp.validate({ token: cleaned, window: 1 }) !== null) return true
+    if (totp.validate({ token: cleaned, window: 1 }) !== null) {
+      // Ленивая миграция: старый plaintext-секрет перешифровываем после
+      // первого успешного входа (без риска — только после валидной проверки).
+      if (!isEncryptedTotpSecret(user.totpSecret)) {
+        await db.user
+          .update({ where: { id: userId }, data: { totpSecret: encryptTotpSecret(secretBase32) } })
+          .catch(() => {})
+      }
+      return true
+    }
   }
 
   // Потом пробуем как backup-код XXXX-XXXX (8 hex с дефисом)
