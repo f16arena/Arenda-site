@@ -842,6 +842,10 @@ model Charge {
   dueDate     DateTime? @map("due_date")
   createdAt   DateTime  @default(now()) @map("created_at")
   deletedAt   DateTime? @map("deleted_at")
+  // Пеня по этому начислению отменена вручную админом (см. waivePenalty). Cron
+  // check-deadlines пропускает такие начисления и больше не капает по ним пеню —
+  // полезно пока нет онлайн-оплаты и загрузки подтверждения платежа.
+  penaltyWaived Boolean @default(false) @map("penalty_waived")
   // Если начисление реструктуризовано в рассрочку — ссылка на план. Пока план
   // ACTIVE, пеня по такому начислению не начисляется (cron check-deadlines). При
   // срыве плана (просрочен платёж) поле зануляется и пеня возобновляется.

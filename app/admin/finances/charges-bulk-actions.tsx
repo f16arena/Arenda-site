@@ -11,6 +11,8 @@ import {
   bulkDeleteCharges,
   deleteCharge,
   restoreCharge,
+  waivePenalty,
+  unwaivePenalty,
 } from "@/app/actions/finance"
 import { useRouter } from "next/navigation"
 
@@ -83,6 +85,29 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
             }
             if (errors.length > 0) toast.error(errors[0] ?? "Не удалось восстановить часть записей")
             else toast.success("Восстановлено")
+            router.refresh()
+          },
+        },
+        duration: 6000,
+      })
+    })
+  }
+
+  function handleWaivePenalty(id: string) {
+    startTransition(async () => {
+      const r = await waivePenalty(id)
+      if (!r.ok) {
+        toast.error(r.error)
+        return
+      }
+      router.refresh()
+      toast.success("Пеня отменена", {
+        action: {
+          label: "Вернуть",
+          onClick: async () => {
+            const u = await unwaivePenalty(id)
+            if (!u.ok) toast.error(u.error)
+            else toast.success("Пеня возвращена")
             router.refresh()
           },
         },
@@ -207,23 +232,42 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
                     {c.isPaid ? "Оплачено" : "Не оплачено"}
                   </span>
                 </div>
-                <ConfirmDialog
-                  variant="danger"
-                  title="Удалить начисление?"
-                  description="Запись будет помещена в корзину. Сразу после действия можно отменить."
-                  confirmLabel="Удалить"
-                  onConfirm={() => handleSingleDelete(c.id)}
-                  trigger={
-                    <button
-                      type="button"
-                      disabled={pending}
-                      aria-label="Удалить начисление"
-                      className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  }
-                />
+                {c.type === "PENALTY" ? (
+                  <ConfirmDialog
+                    variant="danger"
+                    title="Отменить пеню?"
+                    description="Пеня будет списана, и по этому начислению она больше не будет начисляться автоматически. Сразу после действия можно вернуть."
+                    confirmLabel="Отменить пеню"
+                    onConfirm={() => handleWaivePenalty(c.id)}
+                    trigger={
+                      <button
+                        type="button"
+                        disabled={pending}
+                        className="rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
+                      >
+                        Отменить пеню
+                      </button>
+                    }
+                  />
+                ) : (
+                  <ConfirmDialog
+                    variant="danger"
+                    title="Удалить начисление?"
+                    description="Запись будет помещена в корзину. Сразу после действия можно отменить."
+                    confirmLabel="Удалить"
+                    onConfirm={() => handleSingleDelete(c.id)}
+                    trigger={
+                      <button
+                        type="button"
+                        disabled={pending}
+                        aria-label="Удалить начисление"
+                        className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    }
+                  />
+                )}
               </div>
             </div>
           )

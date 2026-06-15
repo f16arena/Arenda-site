@@ -360,6 +360,81 @@ export async function addPenalty(): Promise<never> {
   )
 }
 
+// Из описания пени («Пеня по начислению <id> (...)») достаём id начисления-источника,
+// чтобы пометить его penaltyWaived и остановить повторное начисление cron-ом.
+const PENALTY_SOURCE_RE = /начислени[юя]\s+([a-z0-9]+)/i
+
+/**
+ * Отменить (списать) начисленную пеню. Пока нет онлайн-оплаты и загрузки
+ * подтверждения платежа, админ должен иметь возможность убрать пеню вручную.
+ * Делает две вещи: (1) мягко удаляет саму пеню (восстановимо), (2) помечает
+ * начисление-источник penaltyWaived, чтобы cron check-deadlines не начислил её
+ * заново на следующий день. Обратимо через unwaivePenalty.
+ */
+export async function waivePenalty(
+  chargeId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.deleteRecords")
+    const { orgId } = await requireOrgAccess()
+    await assertChargeInOrg(chargeId, orgId)
+    const penalty = await db.charge.findFirst({
+      where: { id: chargeId, ...chargeScope(orgId), type: "PENALTY" },
+      select: { id: true, tenantId: true, description: true },
+    })
+    if (!penalty) return { ok: false, error: "Пеня не найдена или нет доступа" }
+
+    const srcId = penalty.description?.match(PENALTY_SOURCE_RE)?.[1]
+    await db.$transaction(async (tx) => {
+      await tx.charge.update({ where: { id: penalty.id }, data: { deletedAt: new Date() } })
+      if (srcId) {
+        // updateMany со scope по tenantId — флаг ставим только своему начислению.
+        await tx.charge.updateMany({
+          where: { id: srcId, tenantId: penalty.tenantId ?? undefined },
+          data: { penaltyWaived: true },
+        })
+      }
+    })
+    revalidatePath("/admin/finances")
+    if (penalty.tenantId) revalidatePath(`/admin/tenants/${penalty.tenantId}`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось отменить пеню" }
+  }
+}
+
+/** Вернуть ранее отменённую пеню (undo для waivePenalty). */
+export async function unwaivePenalty(
+  chargeId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireCapabilityAndFeature("finance.deleteRecords")
+    const { orgId } = await requireOrgAccess()
+    // deletedAt: { not: null } — ищем именно отменённую (soft-deleted) пеню.
+    const penalty = await db.charge.findFirst({
+      where: { id: chargeId, deletedAt: { not: null }, type: "PENALTY", tenant: { user: { organizationId: orgId } } },
+      select: { id: true, tenantId: true, description: true },
+    })
+    if (!penalty) return { ok: false, error: "Пеня не найдена" }
+
+    const srcId = penalty.description?.match(PENALTY_SOURCE_RE)?.[1]
+    await db.$transaction(async (tx) => {
+      await tx.charge.update({ where: { id: penalty.id }, data: { deletedAt: null } })
+      if (srcId) {
+        await tx.charge.updateMany({
+          where: { id: srcId, tenantId: penalty.tenantId ?? undefined },
+          data: { penaltyWaived: false },
+        })
+      }
+    })
+    revalidatePath("/admin/finances")
+    if (penalty.tenantId) revalidatePath(`/admin/tenants/${penalty.tenantId}`)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось вернуть пеню" }
+  }
+}
+
 export async function addCharge(formData: FormData) {
   await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()

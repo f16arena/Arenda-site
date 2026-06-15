@@ -437,6 +437,8 @@ export async function GET(req: Request) {
         type: { not: "PENALTY" },
         // Начисления в действующей рассрочке пеней не облагаются.
         installmentPlanId: null,
+        // Пеня по начислению отменена админом вручную (waivePenalty) — пропускаем.
+        penaltyWaived: false,
         dueDate: { lt: graceDate },
       },
       select: {
