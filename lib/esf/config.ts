@@ -39,8 +39,10 @@ export async function resolveOrgEsfConfig(
   if (!enabled) {
     return { ok: false, error: "Интеграция с ИС ЭСФ для организации не настроена (Настройки → ЭСФ)." }
   }
-  // wsUsername/wsPassword (учётка ЭСФ) в подписанном потоке (createSessionSigned)
-  // НЕ используются — аутентификация по подписи тикета. Не требуем.
+  // createSessionSigned ТРЕБУЕТ WS-Security UsernameToken (учётка ЭСФ).
+  if (!wsUsername || !wsPassword) {
+    return { ok: false, error: "Не указаны логин/пароль учётки ИС ЭСФ (Настройки → ЭСФ)." }
+  }
   if (signerIin.length !== 12) {
     return { ok: false, error: "Не указан ИИН подписанта (12 цифр) в настройках ЭСФ." }
   }

@@ -14,5 +14,5 @@ import type { OrgEsfRuntimeConfig } from "./config"
 export async function openEsfSession(cfg: OrgEsfRuntimeConfig): Promise<string> {
   const ticket = await createAuthTicket(cfg.signerIin)
   const signedTicket = await signTicketXml(ticket, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
-  return createSessionSigned(cfg.tin, signedTicket)
+  return createSessionSigned(cfg.tin, signedTicket, cfg.wsUsername, cfg.wsPassword)
 }

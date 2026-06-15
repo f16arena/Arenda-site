@@ -129,13 +129,20 @@ export async function createAuthTicket(iin: string): Promise<string> {
  * SessionService.createSessionSigned(tin, signedAuthTicket) → sessionId.
  * tin — БИН организации; signedAuthTicket — тикет, подписанный xmlDsig (шаг 2).
  */
-export async function createSessionSigned(tin: string, signedAuthTicket: string): Promise<string> {
-  // Без WS-Security: учётные данные сессии — это подписанный тикет (signedAuthTicket).
+export async function createSessionSigned(
+  tin: string,
+  signedAuthTicket: string,
+  username: string,
+  password: string,
+): Promise<string> {
+  // ТРЕБУЕТ WS-Security UsernameToken (учётка ЭСФ): без него сервер отвечает
+  // "A security error was encountered when verifying the message". В отличие от
+  // createAuthTicket (там WSS, наоборот, ломает выдачу тикета).
   const body = `<ns:createSessionSignedRequest xmlns:ns="esf">`
     + `<tin>${escXml(tin)}</tin>`
     + `<signedAuthTicket>${escXml(signedAuthTicket)}</signedAuthTicket>`
     + `</ns:createSessionSignedRequest>`
-  const xml = await soapCall(SESSION_URL, body, 30_000)
+  const xml = await soapCall(SESSION_URL, body, 30_000, wsseHeader(username, password))
   const sessionId = pick(xml, "sessionId")
   if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId (createSessionSigned)")
   return sessionId
