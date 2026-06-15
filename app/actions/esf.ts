@@ -8,8 +8,10 @@ import { requireOrgAccess } from "@/lib/org"
 import { buildAvrStateForTenant } from "@/lib/avr-engine/prefill"
 import { getActiveContractForTenant } from "@/lib/active-contract"
 import { buildAwpXml, type AwpXmlInput } from "@/lib/esf/awp-xml"
-import { createSession, closeSession, uploadAwp, queryAwpStatusById, EsfError } from "@/lib/esf/client"
+import { closeSession, uploadAwp, queryAwpStatusById, EsfError } from "@/lib/esf/client"
 import { signAwpXml, esfSignerConfigured } from "@/lib/esf/signer"
+import { resolveOrgEsfConfig } from "@/lib/esf/config"
+import { openEsfSession } from "@/lib/esf/session"
 
 /**
  * Отправка АВР в ИС ЭСФ (КГД): собираем XML формы AwpV1 из тех же данных,
@@ -128,13 +130,19 @@ export async function sendActToEsf(documentId: string): Promise<
       additionalInfo: `Commrent: документ ${doc.number ?? ""} за ${doc.period}`.trim(),
     }
 
+    // Реквизиты ЭСФ организации (per-org из БД, иначе env bootstrap-орг).
+    const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
+    if (!cfgRes.ok) return { ok: false, error: cfgRes.error }
+    const cfg = cfgRes.config
+
     const awpXml = buildAwpXml(input)
-    const signed = await signAwpXml(awpXml)
+    const signed = await signAwpXml(awpXml, { certPath: cfg.certPath, certPin: cfg.certPin })
     if (!signed.certificatePem) {
-      return { ok: false, error: "Не удалось получить сертификат подписанта (ESF_SIGN_CERT_PEM)" }
+      return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
     }
 
-    const sessionId = await createSession(orgTin, signed.certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
+    // Сессия по новому протоколу ГОСТ-2015 (createAuthTicket → xmlDsig → createSessionSigned).
+    const sessionId = await openEsfSession(cfg)
     try {
       const result = await uploadAwp({
         sessionId,
@@ -183,8 +191,9 @@ export async function refreshEsfStatus(documentId: string): Promise<
 
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { bin: true, iin: true } })
     const orgTin = (org?.bin || org?.iin || "").replace(/\D/g, "")
-    const signed = await signAwpXml("status-check") // только ради сертификата сессии
-    const sessionId = await createSession(orgTin, signed.certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
+    const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
+    if (!cfgRes.ok) return { ok: false, error: cfgRes.error }
+    const sessionId = await openEsfSession(cfgRes.config)
     try {
       const result = await queryAwpStatusById(sessionId, doc.esfId)
       await db.generatedDocument.update({

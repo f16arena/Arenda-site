@@ -14,6 +14,7 @@ import { AdditionalChargesSection } from "@/components/settings/additional-charg
 import { TaxSettingsSection } from "@/components/settings/tax-settings-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
 import { BrandingSection } from "@/components/settings/branding-section"
+import { EsfSection } from "@/components/settings/esf-section"
 import { ORGANIZATION_REQUISITES_SELECT } from "@/lib/organization-requisites"
 import { safeServerValue } from "@/lib/server-fallback"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
@@ -50,6 +51,28 @@ export default async function SettingsPage() {
     ),
     getCurrentBuildingId(),
   ])
+
+  // Реквизиты ЭСФ (для владельца). Секреты в ответ не отдаём — только признак «задан».
+  const esfRow = session.user.role === "OWNER"
+    ? await safe(
+        "admin.settings.esfConfig",
+        db.orgEsfConfig.findUnique({
+          where: { organizationId: orgId },
+          select: { enabled: true, wsUsername: true, signerIin: true, certPath: true, wsPasswordEnc: true, certPinEnc: true },
+        }),
+        null,
+      )
+    : null
+  const esfConfig = esfRow
+    ? {
+        enabled: esfRow.enabled,
+        wsUsername: esfRow.wsUsername,
+        signerIin: esfRow.signerIin,
+        certPath: esfRow.certPath,
+        hasPassword: !!esfRow.wsPasswordEnc,
+        hasPin: !!esfRow.certPinEnc,
+      }
+    : null
   const building = buildingId
     ? await safe(
         "admin.settings.building",
@@ -341,6 +364,9 @@ export default async function SettingsPage() {
 
       {/* Налоговая ставка для отчёта владельца */}
       {organization && <TaxSettingsSection organization={organization} />}
+
+      {/* Реквизиты ИС ЭСФ (только владелец) */}
+      {session.user.role === "OWNER" && <EsfSection config={esfConfig} />}
 
       {/* Document numbering */}
       <DocumentNumberingSection building={building} />

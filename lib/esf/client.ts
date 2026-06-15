@@ -12,6 +12,17 @@ import "server-only"
 const ESF_API_BASE = (process.env.ESF_API_BASE || "https://esf.gov.kz:8443").replace(/\/$/, "")
 const SESSION_URL = `${ESF_API_BASE}/esf-web/ws/api1/SessionService`
 const AWP_URL = `${ESF_API_BASE}/esf-web/ws/api1/AwpWebService`
+const AUTH_URL = `${ESF_API_BASE}/esf-web/ws/api1/AuthService`
+
+/** Обратное к escXml: тело authTicketXml приходит XML-escaped (это строка с XML). */
+function unescapeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+}
 
 export class EsfError extends Error {
   constructor(message: string, public faultCode?: string) {
@@ -91,6 +102,43 @@ export async function createSession(tin: string, x509CertificatePem: string, pas
   const xml = await soapCall(SESSION_URL, body, 30_000, wsseHeader(tin, password))
   const sessionId = pick(xml, "sessionId")
   if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId")
+  return sessionId
+}
+
+/**
+ * Шаг 1 нового потока (ГОСТ-2015): получить тикет аутентификации.
+ * AuthService.createAuthTicket(iin) → authTicketXml (XML для подписи xmlDsig).
+ * iin — ИИН ФИЗЛИЦА-владельца ключа (для ИП = его ИИН). WSS UsernameToken —
+ * логин/пароль учётки ИС ЭСФ.
+ */
+export async function createAuthTicket(iin: string, username: string, password: string): Promise<string> {
+  const body = `<ns:createAuthTicketRequest xmlns:ns="esf"><iin>${escXml(iin)}</iin></ns:createAuthTicketRequest>`
+  const xml = await soapCall(AUTH_URL, body, 30_000, wsseHeader(username, password))
+  const ticket = pick(xml, "authTicketXml")
+  if (!ticket) {
+    throw new EsfError("ИС ЭСФ вернула пустой authTicketXml — проверьте ИИН подписанта и права учётки ЭСФ")
+  }
+  return unescapeXml(ticket)
+}
+
+/**
+ * Шаг 3 нового потока: открыть сессию по подписанному тикету.
+ * SessionService.createSessionSigned(tin, signedAuthTicket) → sessionId.
+ * tin — БИН организации; signedAuthTicket — тикет, подписанный xmlDsig (шаг 2).
+ */
+export async function createSessionSigned(
+  tin: string,
+  signedAuthTicket: string,
+  username: string,
+  password: string,
+): Promise<string> {
+  const body = `<ns:createSessionSignedRequest xmlns:ns="esf">`
+    + `<tin>${escXml(tin)}</tin>`
+    + `<signedAuthTicket>${escXml(signedAuthTicket)}</signedAuthTicket>`
+    + `</ns:createSessionSignedRequest>`
+  const xml = await soapCall(SESSION_URL, body, 30_000, wsseHeader(username, password))
+  const sessionId = pick(xml, "sessionId")
+  if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId (createSessionSigned)")
   return sessionId
 }
 

@@ -23,15 +23,24 @@ import "server-only"
  */
 
 const ESF_SIGN_URL = (process.env.ESF_SIGN_URL || "").replace(/\/$/, "")
-const ESF_SIGN_CERT_PATH = process.env.ESF_SIGN_CERT_PATH || ""
-const ESF_SIGN_CERT_PIN = process.env.ESF_SIGN_CERT_PIN || ""
+// Дефолтный ключ (bootstrap-орг). Для мультиорг путь/PIN приходят параметром
+// из OrgEsfConfig (lib/esf/config.ts).
+const DEFAULT_CERT_PATH = process.env.ESF_SIGN_CERT_PATH || ""
+const DEFAULT_CERT_PIN = process.env.ESF_SIGN_CERT_PIN || ""
 const ESF_SIGN_NS = process.env.ESF_SIGN_NS || "esf"
 // Секрет Caddy-маршрута на VPS (тот же приём, что X-Ncanode-Secret):
 // сервис подписи проксируется через https://ecp.commrent.kz/LocalService.
 const ESF_SIGN_SECRET = process.env.ESF_SIGN_SECRET || ""
 
+export interface EsfCertOpts {
+  certPath?: string
+  certPin?: string
+}
+
+// Сервис подписи настроен, если задан его URL. Сам ключ (.p12) теперь
+// передаётся per-org (путь + PIN), а не глобально.
 export function esfSignerConfigured(): boolean {
-  return !!(ESF_SIGN_URL && ESF_SIGN_CERT_PATH && ESF_SIGN_CERT_PIN)
+  return !!ESF_SIGN_URL
 }
 
 export interface EsfSignResult {
@@ -50,30 +59,28 @@ function pick(xml: string, tag: string): string | null {
   return m ? m[1].trim() : null
 }
 
-/**
- * Подписать XML документа (АВР) через сервис подписи КГД (esf_local_server.jar).
- * Бросает понятную ошибку, если сервис не настроен/недоступен.
- */
-export async function signAwpXml(awpXml: string): Promise<EsfSignResult> {
+function unescapeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+}
+
+function ensureSignerConfigured() {
   if (!esfSignerConfigured()) {
     throw new Error(
-      "Подпись для ИС ЭСФ ещё не подключена: разверните esf_local_server.jar на VPS и задайте "
-      + "ESF_SIGN_URL / ESF_SIGN_CERT_PATH / ESF_SIGN_CERT_PIN.",
+      "Подпись для ИС ЭСФ ещё не подключена: разверните esf_local_server.jar на VPS и задайте ESF_SIGN_URL.",
     )
   }
+}
 
-  // CXF BARE: один параметр-обёртка documentSignatureRequest в namespace сервиса
+// Общий вызов VPS-сервиса подписи (CXF BARE: один параметр-обёртка в namespace).
+async function callSigner(innerXml: string): Promise<string> {
   const envelope = `<?xml version="1.0" encoding="UTF-8"?>`
     + `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:esf="${ESF_SIGN_NS}">`
-    + `<soapenv:Body>`
-    + `<esf:documentSignatureRequest>`
-    + `<signableData>${escXml(awpXml)}</signableData>`
-    + `<certificatePath>${escXml(ESF_SIGN_CERT_PATH)}</certificatePath>`
-    + `<certificatePin>${escXml(ESF_SIGN_CERT_PIN)}</certificatePin>`
-    + `</esf:documentSignatureRequest>`
-    + `</soapenv:Body></soapenv:Envelope>`
-
-  let xml: string
+    + `<soapenv:Body>${innerXml}</soapenv:Body></soapenv:Envelope>`
   try {
     const res = await fetch(ESF_SIGN_URL, {
       method: "POST",
@@ -86,15 +93,33 @@ export async function signAwpXml(awpXml: string): Promise<EsfSignResult> {
       signal: AbortSignal.timeout(20_000),
       cache: "no-store",
     })
-    xml = await res.text()
+    const xml = await res.text()
     if (!res.ok) {
       const fault = pick(xml, "faultstring")
       throw new Error(fault || `Сервис подписи ответил ${res.status}`)
     }
+    return xml
   } catch (e) {
     if (e instanceof Error && e.message.startsWith("Сервис подписи")) throw e
     throw new Error(`Сервис подписи ИС ЭСФ недоступен: ${e instanceof Error ? e.message : "ошибка сети"}`)
   }
+}
+
+/**
+ * Сырая ГОСТ-подпись XML документа (АВР) через esf_local_server.jar
+ * (documentSignatureRequest). certPath/certPin — per-org (иначе bootstrap env).
+ */
+export async function signAwpXml(awpXml: string, opts: EsfCertOpts = {}): Promise<EsfSignResult> {
+  ensureSignerConfigured()
+  const certPath = opts.certPath || DEFAULT_CERT_PATH
+  const certPin = opts.certPin || DEFAULT_CERT_PIN
+
+  const inner = `<esf:documentSignatureRequest>`
+    + `<signableData>${escXml(awpXml)}</signableData>`
+    + `<certificatePath>${escXml(certPath)}</certificatePath>`
+    + `<certificatePin>${escXml(certPin)}</certificatePin>`
+    + `</esf:documentSignatureRequest>`
+  const xml = await callSigner(inner)
 
   const signature = pick(xml, "signature")
   const certificate = pick(xml, "certificate")
@@ -106,4 +131,29 @@ export async function signAwpXml(awpXml: string): Promise<EsfSignResult> {
     signature,
     certificatePem: certificate || process.env.ESF_SIGN_CERT_PEM || "",
   }
+}
+
+/**
+ * Подпись тикета аутентификации по стандарту xmlDsig (documentXmlSignatureRequest
+ * → signedXmlData). Шаг 2 нового потока сессии. Возвращает подписанный XML
+ * (тикет с <ds:Signature>), который идёт в createSessionSigned.
+ */
+export async function signTicketXml(ticketXml: string, opts: EsfCertOpts = {}): Promise<string> {
+  ensureSignerConfigured()
+  const certPath = opts.certPath || DEFAULT_CERT_PATH
+  const certPin = opts.certPin || DEFAULT_CERT_PIN
+
+  const inner = `<esf:documentXmlSignatureRequest>`
+    + `<signableXmlData>${escXml(ticketXml)}</signableXmlData>`
+    + `<certificatePath>${escXml(certPath)}</certificatePath>`
+    + `<certificatePin>${escXml(certPin)}</certificatePin>`
+    + `</esf:documentXmlSignatureRequest>`
+  const xml = await callSigner(inner)
+
+  const signed = pick(xml, "signedXmlData")
+  if (!signed) {
+    const fault = pick(xml, "faultstring")
+    throw new Error(fault ? `Сервис подписи (xmlDsig): ${fault}` : "Сервис подписи вернул пустой signedXmlData")
+  }
+  return unescapeXml(signed)
 }

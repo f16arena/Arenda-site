@@ -57,5 +57,30 @@ createAuthTicket пуст). Это рассогласование версий, 
 SessionService использовать через API?»). Как получим метод — допишем 1 вызов в lib/esf/client.ts
 (вся обвязка готова) или соберём Java-обёртку на esf-client новой версии.
 
+## РАЗБЛОКИРОВАНО (15.06.2026): техподдержка прислала метод + сверено с НОВЫМ SDK
+Новый SDK у пользователя: `C:\Users\Арыстан\Desktop\site arenda\sdk\Документация ЭСФ SDK`.
+Точные контракты (из SoapUI-проекта ESF-SDK + samples-sources):
+
+Поток открытия сессии под ГОСТ-2015 (3 шага):
+1. **AuthService.createAuthTicket** (ns `esf`, `/esf-web/ws/api1/AuthService`)
+   - запрос: `<createAuthTicketRequest><iin>ИИН физлица-владельца ключа</iin></...>`
+   - ответ: `<createAuthTicketResponse><authTicketXml>…XML…</authTicketXml></...>` (тикет, XML-escaped)
+2. **Подпись тикета xmlDsig** — локальный `esf_local_server.jar`, метод `documentXmlSignatureRequest`:
+   - вход: `signableXmlData` (тикет), `certificatePath`, `certificatePin`
+   - выход: `signedXmlData` (тикет с `<ds:Signature>`). См. DocumentSigner.signatureXmlResponse → XMLUtil.createXmlSignature (kalkan-xmldsig). jar УЖЕ умеет этот метод (рядом с рабочим documentSignatureRequest).
+3. **SessionService.createSessionSigned** (ns `esf`)
+   - запрос: `<createSessionSignedRequest><tin>БИН орг</tin><signedAuthTicket>подписанный тикет</signedAuthTicket></...>` (+ опц. projectCode/businessProfileType/sourceType)
+   - ответ: `createSessionResponse` → `sessionId` (как у createSession).
+Дальше uploadAwp/queryAwpStatusById — без изменений.
+
+ВАЖНО:
+- `iin` в шаге 1 = ИИН ФИЗЛИЦА (владельца ключа/директора), `tin` в шаге 3 = БИН организации. Для ИП они совпадают.
+- WSS: по диагнозу 11.06 UsernameToken ПРОХОДИТ security; Username/Password — это логин/пароль УЧЁТКИ ИС ЭСФ (НЕ пароль ЭЦП). Прежний createSession ошибочно слал в WSS пароль контейнера — вынести в env `ESF_WS_USERNAME`/`ESF_WS_PASSWORD`.
+- Пустой authTicketXml в прошлый раз — вероятно звали не на AuthService либо передали БИН вместо ИИН.
+- Java-обёртка на esf-client НЕ нужна: всё закрывается Node (UsernameToken) + VPS-jar (xmlDsig тикета). Это упрощает прошлый план.
+
+Нужно для прод-запуска: env `ESF_WS_USERNAME`, `ESF_WS_PASSWORD`, `ESF_SIGNER_IIN`; подтвердить в jar имя операции `documentXmlSignatureRequest`; живой прогон против esf.gov.kz (метод-only тест, REVOKE при ошибке).
+
 ## Безопасность
 Пароль ЭЦП и пароль VPS светились в чате — сменить. Ключ на VPS — `chmod 600`, наружу 6666 закрыт.
+SDK-папка содержит .p12 тестовые ключи и пароль учётки — не коммитить в репозиторий.

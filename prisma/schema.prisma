@@ -159,10 +159,36 @@ model Organization {
   storedFiles   StoredFile[]
   addons        OrganizationAddon[]
   services      OrganizationService[]
+  esfConfig     OrgEsfConfig?
 
   @@index([approvalStatus, createdAt])
   @@index([isActive, approvalStatus])
   @@map("organizations")
+}
+
+// Реквизиты интеграции с ИС ЭСФ (КГД) — СВОИ у каждой организации (мультиорг).
+// Секреты (пароль учётки, PIN контейнера) шифруются (lib/secret-crypto).
+// Ключ .p12: v1 — файл на VPS, путь в certPath; самообслуживание (шифр-байты
+// в certData + VPS-обёртка) — следующая фаза.
+model OrgEsfConfig {
+  id             String   @id @default(cuid())
+  organizationId String   @unique @map("organization_id")
+  enabled        Boolean  @default(false)
+  // Логин/пароль УЧЁТКИ ИС ЭСФ (WS-Security UsernameToken). НЕ пароль ЭЦП.
+  wsUsername     String?  @map("ws_username")
+  wsPasswordEnc  String?  @map("ws_password_enc")
+  // ИИН физлица-владельца ключа (для createAuthTicket). Для ИП = ИИН ИП.
+  signerIin      String?  @map("signer_iin")
+  // PIN контейнера .p12 (шифр).
+  certPinEnc     String?  @map("cert_pin_enc")
+  // Путь к .p12 на VPS-подписанте (v1). null = брать из env (bootstrap-орг).
+  certPath       String?  @map("cert_path")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("org_esf_configs")
 }
 
 model AddressCache {
