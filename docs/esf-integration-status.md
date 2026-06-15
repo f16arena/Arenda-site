@@ -57,41 +57,5 @@ createAuthTicket пуст). Это рассогласование версий, 
 SessionService использовать через API?»). Как получим метод — допишем 1 вызов в lib/esf/client.ts
 (вся обвязка готова) или соберём Java-обёртку на esf-client новой версии.
 
-## ОТВЕТ КГД (получен) — флоу разблокирован
-Техподдержка подтвердила новую схему открытия сессии под объединённый ГОСТ-2015 ключ
-(ровно то, что мы упёрлись в `METHOD_NOT_SUPPORT_GOST_2015`):
-
-1. **`AuthService.createAuthTicket`** (ОТДЕЛЬНЫЙ сервис:
-   `…/esf-web/ws/api1/AuthService?wsdl`) → возвращает **тикет (XML)** для подписи.
-   ⚠️ Раньше мы звали `createAuthTicket` не на том сервисе и получали пустое тело —
-   правильный сервис именно AuthService.
-2. **Подпись тикета по xmlDsig** (`documentXmlSignatureRequest` эталонного
-   esf_local_server.jar): enveloped XML-подпись — внутрь тикета встраиваются
-   `X509Certificate` + `SignatureValue`. Это НЕ та raw-подпись, что для uploadAwp.
-3. **`SessionService.createSessionSignedRequest`** с параметром `signedAuthTicket`
-   (= подписанный тикет из шага 2) → `sessionId`. Дальше всё как раньше
-   (uploadAwp / queryStatus / closeSession — без изменений).
-
-Актуальный SDK и WSDL: см. ссылки в переписке (1drv-архив + `esf.gov.kz:8443/esf-web/ws/api1`).
-
-### Что уже сделано в коде (заготовка нового флоу)
-- `lib/esf/client.ts`: `createAuthTicket()` (AuthService) и `createSessionSigned()`
-  (createSessionSignedRequest).
-- `lib/esf/signer.ts`: `signTicketXmlDsig()` — вызывает `documentXmlSignatureRequest`
-  на esf_local_server.jar, возвращает подписанный XML тикета.
-- `app/actions/esf.ts`: `openEsfSession()` — если заданы `ESF_ACCOUNT_USER` /
-  `ESF_ACCOUNT_PASSWORD`, идёт по новому флоу (тикет→подпись→сессия), иначе фолбэк на
-  старый `createSession`. Подключено в `sendActToEsf` и `refreshEsfStatus`.
-
-### Открытые пункты (ТРЕБУЕТСЯ сверить по новому WSDL/SDK — помечены TODO в коде)
-- Точные имена/namespace: `createAuthTicketRequest` (вход: tin/iin?), элемент ответа с
-  телом тикета; `createSessionSignedRequest`/`signedAuthTicket`; операция
-  `documentXmlSignatureRequest` и имя поля ответа с подписанным XML.
-- Нужен ли WS-Security заголовок на `createSessionSignedRequest` (тикет уже подписан).
-- Новые ENV: `ESF_ACCOUNT_USER` (логин кабинета ИС ЭСФ, напр. 840214300117),
-  `ESF_ACCOUNT_PASSWORD` (пароль кабинета — НЕ пин ЭЦП), опц. `ESF_AUTH_NS`.
-- Обкатать на тесте `https://test3.esf.kgd.gov.kz:8443` (ESF_API_BASE) — открытие
-  сессии безопасно (ничего не отправляет); uploadAwp дёргать только после.
-
 ## Безопасность
 Пароль ЭЦП и пароль VPS светились в чате — сменить. Ключ на VPS — `chmod 600`, наружу 6666 закрыт.
