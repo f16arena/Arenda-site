@@ -12,6 +12,8 @@ import "server-only"
 const ESF_API_BASE = (process.env.ESF_API_BASE || "https://esf.gov.kz:8443").replace(/\/$/, "")
 const SESSION_URL = `${ESF_API_BASE}/esf-web/ws/api1/SessionService`
 const AWP_URL = `${ESF_API_BASE}/esf-web/ws/api1/AwpWebService`
+// Новый флоу под объединённый ГОСТ-2015 ключ: тикет берётся у отдельного AuthService.
+const AUTH_URL = `${ESF_API_BASE}/esf-web/ws/api1/AuthService`
 
 export class EsfError extends Error {
   constructor(message: string, public faultCode?: string) {
@@ -91,6 +93,51 @@ export async function createSession(tin: string, x509CertificatePem: string, pas
   const xml = await soapCall(SESSION_URL, body, 30_000, wsseHeader(tin, password))
   const sessionId = pick(xml, "sessionId")
   if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId")
+  return sessionId
+}
+
+/**
+ * НОВЫЙ ФЛОУ (ГОСТ-2015), шаг 1 — взять тикет авторизации (XML) у AuthService.
+ * Старый createSession под объединённый ГОСТ-2015 ключ отвечает
+ * METHOD_NOT_SUPPORT_GOST_2015; КГД ввёл схему «тикет → xmlDsig-подпись → сессия».
+ *
+ * Тикет (XML) далее подписывается enveloped XML-подписью (signTicketXmlDsig) и
+ * передаётся в createSessionSigned как signedAuthTicket.
+ *
+ * WS-Security UsernameToken — учётка ИС ЭСФ (логин/пароль кабинета, НЕ пин ЭЦП).
+ *
+ * TODO(WSDL): сверить с актуальным AuthService.wsdl точные имена —
+ *   запрос createAuthTicketRequest, поле tin, элемент ответа с телом тикета.
+ */
+export async function createAuthTicket(tin: string, username: string, password: string): Promise<string> {
+  const ns = process.env.ESF_AUTH_NS || "esf"
+  const body = `<ns:createAuthTicketRequest xmlns:ns="${ns}">`
+    + `<tin>${escXml(tin)}</tin>`
+    + `</ns:createAuthTicketRequest>`
+  const xml = await soapCall(AUTH_URL, body, 30_000, wsseHeader(username, password))
+  // Тело тикета: имя поля уточняется по WSDL — берём первое непустое из вероятных.
+  const ticket = pick(xml, "authTicketXml") || pick(xml, "authTicket")
+    || pick(xml, "ticketXml") || pick(xml, "ticket") || pick(xml, "authTicketRequest")
+  if (!ticket) throw new EsfError("AuthService вернул пустой тикет — сверьте имя поля по AuthService.wsdl")
+  return ticket
+}
+
+/**
+ * НОВЫЙ ФЛОУ, шаг 3 — открыть сессию по подписанному тикету. Аналог createSession,
+ * но вместо tin+x509Certificate принимает signedAuthTicket (тикет из шага 1,
+ * подписанный xmlDsig: внутри X509Certificate + SignatureValue).
+ *
+ * TODO(WSDL): сверить createSessionSignedRequest / поле signedAuthTicket и нужен ли
+ *   WS-Security заголовок (тикет уже несёт подпись — возможно, не нужен).
+ */
+export async function createSessionSigned(signedAuthTicket: string, wss?: { username: string; password: string }): Promise<string> {
+  const body = `<ns:createSessionSignedRequest xmlns:ns="esf">`
+    + `<signedAuthTicket>${escXml(signedAuthTicket)}</signedAuthTicket>`
+    + `</ns:createSessionSignedRequest>`
+  const header = wss ? wsseHeader(wss.username, wss.password) : "<soapenv:Header/>"
+  const xml = await soapCall(SESSION_URL, body, 30_000, header)
+  const sessionId = pick(xml, "sessionId")
+  if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId на createSessionSignedRequest")
   return sessionId
 }
 

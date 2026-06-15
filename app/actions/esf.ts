@@ -8,8 +8,26 @@ import { requireOrgAccess } from "@/lib/org"
 import { buildAvrStateForTenant } from "@/lib/avr-engine/prefill"
 import { getActiveContractForTenant } from "@/lib/active-contract"
 import { buildAwpXml, type AwpXmlInput } from "@/lib/esf/awp-xml"
-import { createSession, closeSession, uploadAwp, queryAwpStatusById, EsfError } from "@/lib/esf/client"
-import { signAwpXml, esfSignerConfigured } from "@/lib/esf/signer"
+import { createSession, createAuthTicket, createSessionSigned, closeSession, uploadAwp, queryAwpStatusById, EsfError } from "@/lib/esf/client"
+import { signAwpXml, signTicketXmlDsig, esfSignerConfigured } from "@/lib/esf/signer"
+
+/**
+ * Открыть сессию ИС ЭСФ. Если заданы кредиты учётки (ESF_ACCOUNT_USER/PASSWORD) —
+ * используем НОВЫЙ флоу под ГОСТ-2015: тикет (AuthService) → xmlDsig-подпись →
+ * createSessionSigned. Иначе — старый createSession (под раздельные AUTH+RSA ключи).
+ * См. docs/esf-integration-status.md.
+ */
+async function openEsfSession(orgTin: string, certificatePem: string): Promise<string> {
+  const user = process.env.ESF_ACCOUNT_USER
+  const password = process.env.ESF_ACCOUNT_PASSWORD
+  if (user && password) {
+    const ticket = await createAuthTicket(orgTin, user, password)
+    const signedTicket = await signTicketXmlDsig(ticket)
+    return createSessionSigned(signedTicket, { username: user, password })
+  }
+  // Фолбэк: старый метод (вернёт METHOD_NOT_SUPPORT_GOST_2015 на ГОСТ-2015 ключе).
+  return createSession(orgTin, certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
+}
 
 /**
  * Отправка АВР в ИС ЭСФ (КГД): собираем XML формы AwpV1 из тех же данных,
@@ -134,7 +152,7 @@ export async function sendActToEsf(documentId: string): Promise<
       return { ok: false, error: "Не удалось получить сертификат подписанта (ESF_SIGN_CERT_PEM)" }
     }
 
-    const sessionId = await createSession(orgTin, signed.certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
+    const sessionId = await openEsfSession(orgTin, signed.certificatePem)
     try {
       const result = await uploadAwp({
         sessionId,
@@ -184,7 +202,7 @@ export async function refreshEsfStatus(documentId: string): Promise<
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { bin: true, iin: true } })
     const orgTin = (org?.bin || org?.iin || "").replace(/\D/g, "")
     const signed = await signAwpXml("status-check") // только ради сертификата сессии
-    const sessionId = await createSession(orgTin, signed.certificatePem, process.env.ESF_SIGN_CERT_PIN ?? "")
+    const sessionId = await openEsfSession(orgTin, signed.certificatePem)
     try {
       const result = await queryAwpStatusById(sessionId, doc.esfId)
       await db.generatedDocument.update({
