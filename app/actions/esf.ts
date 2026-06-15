@@ -65,7 +65,7 @@ export async function sendActToEsf(documentId: string): Promise<
     const [org, tenant, contract] = await Promise.all([
       db.organization.findUnique({
         where: { id: orgId },
-        select: { bin: true, iin: true, bankName: true, iik: true, bik: true },
+        select: { bin: true, iin: true, bankName: true, iik: true, bik: true, directorName: true, directorPosition: true },
       }),
       db.tenant.findFirst({
         where: { id: doc.tenantId },
@@ -144,11 +144,13 @@ export async function sendActToEsf(documentId: string): Promise<
     // Сессия по новому протоколу ГОСТ-2015 (createAuthTicket → xmlDsig → createSessionSigned).
     const sessionId = await openEsfSession(cfg)
     try {
+      const senderSignerName = (org?.directorName || org?.directorPosition || s.executor.name || "Руководитель").trim().slice(0, 200)
       const result = await uploadAwp({
         sessionId,
         awpXml,
         signature: signed.signature,
         x509CertificatePem: signed.certificatePem,
+        senderSignerName,
       })
       await db.generatedDocument.update({
         where: { id: doc.id },

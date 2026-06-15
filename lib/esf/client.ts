@@ -173,8 +173,12 @@ export async function uploadAwp(params: {
   signature: string
   signatureType?: EsfSignatureType
   x509CertificatePem: string
+  /** ФИО/должность сдавшего (выписывающего) АВР — обязательно по схеме. */
+  senderSignerName: string
 }): Promise<UploadAwpResult> {
   const cert = params.x509CertificatePem.replace(/-----(BEGIN|END) CERTIFICATE-----|\s/g, "")
+  // Порядок элементов в UploadAwpRequest строгий (xs:sequence):
+  // sessionId → awpInfoList → x509Certificate → senderSignerName.
   const body = `<ns:awpUploadRequest xmlns:ns="v1.awp">`
     + `<sessionId>${escXml(params.sessionId)}</sessionId>`
     + `<awpInfoList><awpInfo>`
@@ -185,6 +189,7 @@ export async function uploadAwp(params: {
     + `<signatureType>${params.signatureType ?? "COMPANY"}</signatureType>`
     + `</awpInfo></awpInfoList>`
     + `<x509Certificate>${escXml(cert)}</x509Certificate>`
+    + `<senderSignerName>${escXml(params.senderSignerName)}</senderSignerName>`
     + `</ns:awpUploadRequest>`
   const xml = await soapCall(AWP_URL, body, 60_000)
 
