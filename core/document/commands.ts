@@ -80,6 +80,28 @@ export class AddFloorCommand implements Command {
   }
 }
 
+// ── SetFloorName (переименование уровня: «1 этаж», «Цоколь», «Подвал» — на выбор) ─
+export class SetFloorNameCommand implements Command {
+  readonly kind = "set-floor-name"
+  readonly label = "имя этажа"
+  private prev?: string
+  private captured = false
+  constructor(private floorId: string, private name: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (f && !this.captured) {
+      this.prev = f.name
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, name: this.name }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (this.prev === undefined) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, name: prev }))
+  }
+}
+
 // ── InsertWall ────────────────────────────────────────────────────────────────
 export class InsertWallCommand implements Command {
   readonly kind = "insert-wall"

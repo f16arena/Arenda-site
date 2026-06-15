@@ -5,7 +5,7 @@
 // Док берётся/кладётся через documentStore; статус — syncStore.
 
 import { useEffect, useState } from "react"
-import { Loader2, Save, Share2, Sparkles, Trash2, Camera } from "lucide-react"
+import { Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
 import { createBuilderProject, saveBuilderProject, createBuilderShare } from "@/app/actions/builder"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
@@ -107,6 +107,18 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
     useSyncStore.setState({ lastSavedRev: -1, status: "idle" })
   }
 
+  // Выйти из 3D-конструктора в админку. Перед выходом сохраняем несохранённые
+  // изменения (полная перезагрузка корректно уничтожает Babylon-сцену и канвас).
+  const exit = async () => {
+    const curRev = useDocumentStore.getState().rev
+    if (curRev !== useSyncStore.getState().lastSavedRev) {
+      await doSave()
+      const st = useSyncStore.getState().status
+      if ((st === "error" || st === "conflict") && !window.confirm("Не удалось сохранить изменения. Выйти без сохранения?")) return
+    }
+    window.location.href = "/admin"
+  }
+
   const dot = status === "saved" ? TOKENS.success : status === "saving" ? TOKENS.accent : status === "error" || status === "conflict" ? TOKENS.danger : TOKENS.muted
 
   return (
@@ -114,6 +126,15 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       className="absolute left-3 top-3 z-30 flex w-64 flex-col gap-1.5 rounded-2xl p-2 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
+      <button
+        type="button"
+        onClick={() => void exit()}
+        title="Сохранить и выйти в админку"
+        className="flex items-center gap-1.5 self-start rounded-lg px-2 py-1 text-xs font-medium transition-all"
+        style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.muted }}
+      >
+        <LogOut className="h-3.5 w-3.5" /> Выйти
+      </button>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}

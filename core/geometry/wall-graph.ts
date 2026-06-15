@@ -41,7 +41,9 @@ export interface WallDefaults {
   kind: WallKind
 }
 
-export const DEFAULT_WALL: WallDefaults = { thickness: 200, height: 3200, kind: "interior" }
+// Высота стены по умолчанию = высоте этажа (FLOOR_HEIGHT=3500), чтобы стены доходили
+// до перекрытия следующего этажа и не было щели между этажами.
+export const DEFAULT_WALL: WallDefaults = { thickness: 200, height: 3500, kind: "interior" }
 
 export function emptyGraph(): WallGraph {
   return { nodes: {}, edges: {} }

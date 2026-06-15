@@ -8,6 +8,34 @@ import type { BuilderDocument } from "@/types/builder"
 import { type Command, CommandStack } from "@/core/document/commands"
 import { buildDemoProject } from "@/lib/builder/demo-project"
 
+// Миграция старых сохранённых проектов: раньше стены по умолчанию были 3200 мм при
+// высоте этажа 3500 мм — это давало щель 300 мм между этажами. Поднимаем любую стену,
+// которая ниже высоты своего этажа, до высоты этажа, чтобы этажи стыковались без зазора.
+function normalizeDocument(doc: BuilderDocument): BuilderDocument {
+  let touched = false
+  const buildings = doc.buildings.map((b) => ({
+    ...b,
+    floors: b.floors.map((f) => {
+      const target = f.height
+      let changed = false
+      const edges: typeof f.wallGraph.edges = {}
+      for (const id in f.wallGraph.edges) {
+        const e = f.wallGraph.edges[id]
+        if (e.height < target) {
+          edges[id] = { ...e, height: target }
+          changed = true
+        } else {
+          edges[id] = e
+        }
+      }
+      if (!changed) return f
+      touched = true
+      return { ...f, wallGraph: { nodes: f.wallGraph.nodes, edges } }
+    }),
+  }))
+  return touched ? { ...doc, buildings } : doc
+}
+
 export interface DocumentState {
   doc: BuilderDocument
   rev: number
@@ -44,7 +72,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => {
     },
     loadDocument: (doc) => {
       stack.clear()
-      set({ doc, rev: get().rev + 1, canUndo: false, canRedo: false })
+      set({ doc: normalizeDocument(doc), rev: get().rev + 1, canUndo: false, canRedo: false })
     },
   }
 })

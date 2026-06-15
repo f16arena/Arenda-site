@@ -841,7 +841,7 @@ export class BuilderEngine {
         const x2 = snapToGrid(p.x * 1000, 100)
         const y2 = snapToGrid(p.z * 1000, 100)
         if (Math.abs(x2 - x1) >= 500 && Math.abs(y2 - y1) >= 500) {
-          this.onCommand(new AddRoomCommand(this.activeFloorId, x1, y1, x2, y2, { thickness: 150, height: 3200, kind: "interior" }))
+          this.onCommand(new AddRoomCommand(this.activeFloorId, x1, y1, x2, y2, { thickness: 150, height: 3500, kind: "interior" }))
         }
       }
       this.roomStart = null

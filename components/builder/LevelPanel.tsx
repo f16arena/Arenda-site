@@ -7,7 +7,7 @@
 import { Building2, Layers, Plus, Trees } from "lucide-react"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
-import { AddFloorCommand, SetRoofCommand } from "@/core/document/commands"
+import { AddFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
 import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
@@ -20,11 +20,13 @@ const DISPLAY: { id: DisplayMode; label: string }[] = [
   { id: "ghost", label: "Призрак" },
 ]
 
-function LevelRow({ name, sub, Icon, active, onClick }: { name: string; sub?: string; Icon: typeof Layers; active: boolean; onClick: () => void }) {
+function LevelRow({ name, sub, Icon, active, onClick, onRename }: { name: string; sub?: string; Icon: typeof Layers; active: boolean; onClick: () => void; onRename?: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      onDoubleClick={onRename}
+      title={onRename ? "Двойной клик — переименовать уровень" : undefined}
       className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-all"
       style={{ background: active ? "rgba(56,189,248,0.16)" : "transparent", border: `1px solid ${active ? TOKENS.accent : "transparent"}` }}
     >
@@ -94,7 +96,7 @@ export function LevelPanel() {
     const level = minLevel - 1
     const floor: Floor = {
       id: uid("f"),
-      name: level === 0 ? "Цоколь" : `Подвал ${level}`,
+      name: level === 0 ? "Подвал" : `Подвал ${1 - level}`,
       level,
       elevation: level * 3500,
       height: 3500,
@@ -111,6 +113,13 @@ export function LevelPanel() {
     }
     execute(new AddFloorCommand(building.id, floor))
     setActiveLevel(floor.id)
+  }
+
+  const renameFloor = (f: Floor) => {
+    const next = window.prompt("Название уровня (напр. «1 этаж», «Цоколь», «Подвал»):", f.name)
+    const name = next?.trim()
+    if (!name || name === f.name) return
+    execute(new SetFloorNameCommand(f.id, name))
   }
 
   return (
@@ -141,10 +150,11 @@ export function LevelPanel() {
         <LevelRow
           key={f.id}
           name={f.name}
-          sub={f.level <= 0 ? "цоколь" : undefined}
-          Icon={f.level === 0 ? Building2 : Layers}
+          sub={f.level < 0 ? "подвал" : undefined}
+          Icon={f.level < 0 ? Layers : Building2}
           active={activeLevelId === f.id}
           onClick={() => setActiveLevel(f.id)}
+          onRename={() => renameFloor(f)}
         />
       ))}
       <LevelRow name="Участок" Icon={Trees} active={activeLevelId === "site"} onClick={() => setActiveLevel("site")} />
@@ -159,7 +169,7 @@ export function LevelPanel() {
       <button
         type="button"
         onClick={addBasement}
-        title="Вырыть цоколь/подвал — котлован в земле под зданием"
+        title="Вырыть подвал — уровень в земле под зданием (двойной клик по уровню — переименовать, напр. «Цоколь»)"
         className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium transition-all"
         style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.muted, border: `1px dashed ${TOKENS.panelBorder}` }}
       >

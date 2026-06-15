@@ -35,7 +35,7 @@ export const DEMO_PREMISE_STATUS: Record<string, PremiseStatus> = {
 function makeFloor(level: number): Floor {
   return {
     id: uid("f"),
-    name: level === 0 ? "Цоколь" : `${level} этаж`,
+    name: level <= 0 ? (level === 0 ? "Подвал" : `Подвал ${1 - level}`) : `${level} этаж`,
     level,
     elevation: level * FLOOR_HEIGHT,
     height: FLOOR_HEIGHT,
