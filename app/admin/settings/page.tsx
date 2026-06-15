@@ -58,7 +58,7 @@ export default async function SettingsPage() {
         "admin.settings.esfConfig",
         db.orgEsfConfig.findUnique({
           where: { organizationId: orgId },
-          select: { enabled: true, wsUsername: true, signerIin: true, certPath: true, wsPasswordEnc: true, certPinEnc: true },
+          select: { enabled: true, wsUsername: true, signerIin: true, certPath: true, wsPasswordEnc: true, certPinEnc: true, certFileName: true },
         }),
         null,
       )
@@ -71,6 +71,7 @@ export default async function SettingsPage() {
         certPath: esfRow.certPath,
         hasPassword: !!esfRow.wsPasswordEnc,
         hasPin: !!esfRow.certPinEnc,
+        certFileName: esfRow.certFileName,
       }
     : null
   const building = buildingId

@@ -15,6 +15,9 @@ export interface OrgEsfRuntimeConfig {
   signerIin: string // ИИН физлица-владельца ключа (createAuthTicket)
   certPath: string
   certPin: string
+  // Загруженный из кабинета .p12 (base64). Если задан — приоритетнее certPath
+  // (VPS-подписант принимает ключ байтами).
+  certData: string
 }
 
 export async function resolveOrgEsfConfig(
@@ -28,6 +31,7 @@ export async function resolveOrgEsfConfig(
   const signerIin = (row?.signerIin || process.env.ESF_SIGNER_IIN || "").replace(/\D/g, "")
   const certPath = (row?.certPath || process.env.ESF_SIGN_CERT_PATH || "").trim()
   const certPin = row?.certPinEnc ? decryptSecret(row.certPinEnc) : (process.env.ESF_SIGN_CERT_PIN || "")
+  const certData = row?.certDataEnc ? decryptSecret(row.certDataEnc) : ""
   // Если есть запись — уважаем её флаг enabled; если записи нет, считаем
   // включённой при наличии env (bootstrap-орг).
   const enabled = row ? row.enabled : !!(wsUsername && wsPassword && certPath)
@@ -41,9 +45,9 @@ export async function resolveOrgEsfConfig(
   if (signerIin.length !== 12) {
     return { ok: false, error: "Не указан ИИН подписанта (12 цифр) в настройках ЭСФ." }
   }
-  if (!certPath) {
-    return { ok: false, error: "Не задан ключ ЭЦП организации для подписи (Настройки → ЭСФ)." }
+  if (!certData && !certPath) {
+    return { ok: false, error: "Не загружен ключ ЭЦП организации (Настройки → ЭСФ)." }
   }
 
-  return { ok: true, config: { tin: orgTin, wsUsername, wsPassword, signerIin, certPath, certPin } }
+  return { ok: true, config: { tin: orgTin, wsUsername, wsPassword, signerIin, certPath, certPin, certData } }
 }

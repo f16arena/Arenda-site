@@ -10,6 +10,7 @@ export type EsfSectionConfig = {
   certPath: string | null
   hasPassword: boolean
   hasPin: boolean
+  certFileName: string | null
 }
 
 const inputCls =
@@ -23,7 +24,7 @@ export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
         <FileSignature className="h-4 w-4 text-slate-400 dark:text-slate-500" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Электронные счета-фактуры (ИС ЭСФ)</h2>
       </div>
-      <ServerForm action={saveOrgEsfConfig} successMessage="Реквизиты ЭСФ сохранены" className="p-5 grid grid-cols-2 gap-4">
+      <ServerForm action={saveOrgEsfConfig} successMessage="Реквизиты ЭСФ сохранены" encType="multipart/form-data" className="p-5 grid grid-cols-2 gap-4">
         <p className="col-span-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
           Реквизиты для автоматической отправки АВР в ИС ЭСФ (КГД). Учётка ЭСФ — это логин/пароль кабинета ЭСФ
           (НЕ пароль ЭЦП). Секреты хранятся в зашифрованном виде. Поля пароля/PIN можно оставить пустыми — тогда
@@ -58,13 +59,23 @@ export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
         </div>
 
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Путь к ключу .p12 на сервере подписи</label>
-          <input name="certPath" defaultValue={c?.certPath ?? ""} autoComplete="off" placeholder="/opt/esf-sign/keys/<орг>.p12" className={inputCls} />
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+            Ключ ЭЦП организации (.p12 / .pfx) {c?.certFileName && <span className="text-emerald-600 dark:text-emerald-400">• загружен: {c.certFileName}</span>}
+          </label>
+          <input name="certFile" type="file" accept=".p12,.pfx" className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs dark:file:bg-slate-800`} />
           <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-            Файл ключа размещает платформа на сервере подписи (загрузка ключа прямо из кабинета появится позже).
-            Если оставить пустым — используется ключ по умолчанию.
+            Загрузите контейнер ГОСТ-ключа (GOSTKNCA…p12). Хранится в зашифрованном виде, защищён PIN-ом выше.
+            Оставьте пустым, чтобы не менять уже загруженный ключ.
           </p>
         </div>
+
+        <details className="col-span-2 text-xs text-slate-400 dark:text-slate-500">
+          <summary className="cursor-pointer">Альтернатива: ключ файлом на сервере подписи (для платформы)</summary>
+          <div className="mt-2">
+            <input name="certPath" defaultValue={c?.certPath ?? ""} autoComplete="off" placeholder="/opt/esf-sign/keys/<орг>.p12" className={inputCls} />
+            <p className="mt-1">Используется, если ключ не загружен выше. Пусто — ключ по умолчанию.</p>
+          </div>
+        </details>
 
         <div className="col-span-2 flex justify-end">
           <Button type="submit" size="lg" className="font-medium">Сохранить</Button>

@@ -136,7 +136,7 @@ export async function sendActToEsf(documentId: string): Promise<
     const cfg = cfgRes.config
 
     const awpXml = buildAwpXml(input)
-    const signed = await signAwpXml(awpXml, { certPath: cfg.certPath, certPin: cfg.certPin })
+    const signed = await signAwpXml(awpXml, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
     if (!signed.certificatePem) {
       return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
     }

@@ -36,6 +36,8 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
     certPath: string | null
     wsPasswordEnc?: string
     certPinEnc?: string
+    certDataEnc?: string
+    certFileName?: string
   } = {
     enabled,
     wsUsername: wsUsername || null,
@@ -45,6 +47,22 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
   // Секреты обновляем только если их ввели заново (иначе оставляем как было).
   if (wsPassword) data.wsPasswordEnc = encryptSecret(wsPassword)
   if (certPin) data.certPinEnc = encryptSecret(certPin)
+
+  // Загрузка ключа .p12 из кабинета: шифруем base64 и сохраняем. Пустой файл =
+  // не менять уже загруженный ключ.
+  const certFile = formData.get("certFile")
+  if (certFile instanceof File && certFile.size > 0) {
+    const name = certFile.name.toLowerCase()
+    if (!name.endsWith(".p12") && !name.endsWith(".pfx")) {
+      return { error: "Ключ должен быть файлом .p12 или .pfx" }
+    }
+    if (certFile.size > 256 * 1024) {
+      return { error: "Файл ключа слишком большой (ожидается .p12 до 256 КБ)" }
+    }
+    const base64 = Buffer.from(await certFile.arrayBuffer()).toString("base64")
+    data.certDataEnc = encryptSecret(base64)
+    data.certFileName = certFile.name.slice(0, 200)
+  }
 
   await db.orgEsfConfig.upsert({
     where: { organizationId: orgId },

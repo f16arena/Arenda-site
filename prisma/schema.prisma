@@ -183,6 +183,11 @@ model OrgEsfConfig {
   certPinEnc     String?  @map("cert_pin_enc")
   // Путь к .p12 на VPS-подписанте (v1). null = брать из env (bootstrap-орг).
   certPath       String?  @map("cert_path")
+  // Загруженный из кабинета .p12 (base64, шифр) + имя файла. Если задан —
+  // используется вместо certPath (самообслуживание; VPS-подписант принимает
+  // ключ байтами). Контейнер сам по себе защищён PIN-ом.
+  certDataEnc    String?  @map("cert_data_enc")
+  certFileName   String?  @map("cert_file_name")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

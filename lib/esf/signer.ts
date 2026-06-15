@@ -35,6 +35,15 @@ const ESF_SIGN_SECRET = process.env.ESF_SIGN_SECRET || ""
 export interface EsfCertOpts {
   certPath?: string
   certPin?: string
+  /** Загруженный .p12 в base64 — приоритетнее certPath (VPS принимает байты). */
+  certData?: string
+}
+
+// Элемент ключа для VPS-подписанта: байты (самообслуживание) или путь (bootstrap).
+function certElement(opts: EsfCertOpts): string {
+  const certData = opts.certData || ""
+  if (certData) return `<certificateBase64>${escXml(certData)}</certificateBase64>`
+  return `<certificatePath>${escXml(opts.certPath || DEFAULT_CERT_PATH)}</certificatePath>`
 }
 
 // Сервис подписи настроен, если задан его URL. Сам ключ (.p12) теперь
@@ -111,12 +120,11 @@ async function callSigner(innerXml: string): Promise<string> {
  */
 export async function signAwpXml(awpXml: string, opts: EsfCertOpts = {}): Promise<EsfSignResult> {
   ensureSignerConfigured()
-  const certPath = opts.certPath || DEFAULT_CERT_PATH
   const certPin = opts.certPin || DEFAULT_CERT_PIN
 
   const inner = `<esf:documentSignatureRequest>`
     + `<signableData>${escXml(awpXml)}</signableData>`
-    + `<certificatePath>${escXml(certPath)}</certificatePath>`
+    + certElement(opts)
     + `<certificatePin>${escXml(certPin)}</certificatePin>`
     + `</esf:documentSignatureRequest>`
   const xml = await callSigner(inner)
@@ -140,12 +148,11 @@ export async function signAwpXml(awpXml: string, opts: EsfCertOpts = {}): Promis
  */
 export async function signTicketXml(ticketXml: string, opts: EsfCertOpts = {}): Promise<string> {
   ensureSignerConfigured()
-  const certPath = opts.certPath || DEFAULT_CERT_PATH
   const certPin = opts.certPin || DEFAULT_CERT_PIN
 
   const inner = `<esf:documentXmlSignatureRequest>`
     + `<signableXmlData>${escXml(ticketXml)}</signableXmlData>`
-    + `<certificatePath>${escXml(certPath)}</certificatePath>`
+    + certElement(opts)
     + `<certificatePin>${escXml(certPin)}</certificatePin>`
     + `</esf:documentXmlSignatureRequest>`
   const xml = await callSigner(inner)
