@@ -11,6 +11,8 @@ import type {
   AdminBuildingsPayload,
   AdminContractsPayload,
   AdminDocumentsPayload,
+  AdminExpensesPayload,
+  AdminExpenseItem,
   AdminPaymentReport,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
@@ -937,6 +939,23 @@ export async function getAdminMeters(params: { buildingId?: string; spaceId?: st
   return authFetch<{ data: AdminMeterDto[] }>(
     `/api/mobile/admin/meters${queryString(params)}`,
   )
+}
+
+export async function getAdminExpenses() {
+  return authFetch<AdminExpensesPayload>("/api/mobile/admin/expenses")
+}
+
+export async function addAdminExpense(input: {
+  buildingId: string
+  category: string
+  amount: string | number
+  description?: string
+  period?: string
+}) {
+  return authFetch<{ data: AdminExpenseItem }>("/api/mobile/admin/expenses", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
 }
 
 export async function createAdminMeter(input: {

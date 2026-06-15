@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Linking, Pressable, Text, View } from "react-native"
 import {
+  addAdminExpense,
   createBuildingNotice,
   createSignatureRequest,
   createAdminTask,
@@ -102,6 +103,7 @@ import type {
   AdminBuildingsPayload,
   AdminDocumentsPayload,
   AdminExpectedPayment,
+  AdminExpensesPayload,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
   AdminTenantDetailPayload,
@@ -2102,6 +2104,114 @@ export function AdminMeters({
             </View>
           )
         })}
+      </Card>
+    </>
+  )
+}
+
+export function AdminExpenses({
+  payload,
+  onChanged,
+}: {
+  payload: AdminExpensesPayload
+  onChanged: () => void
+}) {
+  const [showForm, setShowForm] = useState(false)
+  const [buildingId, setBuildingId] = useState(payload.buildings[0]?.id ?? "")
+  const [category, setCategory] = useState(payload.categories[0]?.value ?? "ELECTRICITY")
+  const [amount, setAmount] = useState("")
+  const [description, setDescription] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<{ text: string; tone: "error" | "success" } | null>(null)
+
+  async function submit() {
+    if (busy) return
+    if (!buildingId) {
+      setMessage({ text: "Выберите здание", tone: "error" })
+      return
+    }
+    if (!amount.trim()) {
+      setMessage({ text: "Укажите сумму", tone: "error" })
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      await addAdminExpense({ buildingId, category, amount, description: description.trim() || undefined })
+      setAmount("")
+      setDescription("")
+      setShowForm(false)
+      setMessage({ text: "Расход добавлен", tone: "success" })
+      onChanged()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось добавить", tone: "error" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <SectionTitle title="Расходы" />
+      <Card>
+        <MetricGrid
+          items={[
+            { label: "За месяц", value: formatMoney(payload.summary.totalExpenses), color: colors.orange },
+            { label: "Постоянные/мес", value: formatMoney(payload.summary.recurringMonthlyTotal), color: colors.slate },
+          ]}
+        />
+        <Text selectable style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>
+          Активных постоянных расходов: {payload.summary.recurringActiveCount}. Постоянные (зарплата, мусор и т.п.) создаются автоматически — настраиваются на сайте.
+        </Text>
+      </Card>
+
+      {payload.variable.length > 0 ? (
+        <>
+          <SectionTitle title="Переменные за месяц" />
+          <Card>
+            {payload.variable.map((v) => (
+              <CompactRow
+                key={v.category}
+                title={v.label}
+                subtitle={v.entered ? "внесён" : v.lastAmount != null ? `не внесён · в прошлом мес ${formatMoney(v.lastAmount)}` : "не внесён"}
+                value={v.entered ? "✓" : "—"}
+                tone={v.entered ? colors.green : colors.orange}
+              />
+            ))}
+          </Card>
+        </>
+      ) : null}
+
+      <Card>
+        <SecondaryButton title={showForm ? "Скрыть форму" : "Добавить расход"} icon="plus" onPress={() => setShowForm((open) => !open)} />
+        {showForm ? (
+          <View style={{ gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, padding: 10 }}>
+            {payload.buildings.length > 1 ? (
+              <ChoiceRow options={payload.buildings.map((b) => [b.id, b.name] as [string, string])} value={buildingId} onChange={setBuildingId} />
+            ) : null}
+            <ChoiceRow options={payload.categories.map((c) => [c.value, c.label] as [string, string])} value={category} onChange={setCategory} />
+            <Field label="Сумма, ₸" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0" />
+            <Field label="Описание (необязательно)" value={description} onChangeText={setDescription} placeholder="Например: вода за май" />
+            <PrimaryButton title={busy ? "Добавляем..." : "Добавить расход"} onPress={submit} disabled={busy} />
+          </View>
+        ) : null}
+        {message ? <InlineMessage message={message.text} tone={message.tone} /> : null}
+      </Card>
+
+      <SectionTitle title="Расходы за месяц" />
+      <Card>
+        {payload.expenses.map((expense) => (
+          <CompactRow
+            key={expense.id}
+            title={expense.categoryLabel}
+            subtitle={`${expense.description ?? formatDate(expense.date)}${expense.isRecurring ? " · авто" : ""}`}
+            value={formatMoney(expense.amount)}
+            tone={colors.orange}
+          />
+        ))}
+        {payload.expenses.length === 0 ? (
+          <EmptyState inline icon="creditcard.fill" title="Расходов за месяц нет" subtitle="Добавьте переменные (вода/свет) или зафиксируйте разовый расход." />
+        ) : null}
       </Card>
     </>
   )

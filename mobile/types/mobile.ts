@@ -189,6 +189,30 @@ export type TenantInstallmentPlan = {
   }>
 }
 
+export type AdminExpenseItem = {
+  id: string
+  category: string
+  categoryLabel: string
+  amount: number
+  description: string | null
+  date: string
+  buildingId: string
+  isRecurring?: boolean
+}
+
+export type AdminExpensesPayload = {
+  period: string
+  summary: {
+    totalExpenses: number
+    recurringActiveCount: number
+    recurringMonthlyTotal: number
+  }
+  expenses: AdminExpenseItem[]
+  variable: Array<{ category: string; label: string; entered: boolean; lastAmount: number | null }>
+  buildings: Array<{ id: string; name: string }>
+  categories: Array<{ value: string; label: string }>
+}
+
 export type TenantRequest = {
   id: string
   title: string

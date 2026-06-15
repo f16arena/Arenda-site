@@ -1,6 +1,7 @@
 import type {
   AdminBuildingsPayload,
   AdminDocumentsPayload,
+  AdminExpensesPayload,
   AdminPaymentReportsPayload,
   AdminRequestsPayload,
   AdminTenantDetailPayload,
@@ -53,6 +54,7 @@ export type AppData = {
   adminTasks: AdminTasksPayload | null
   adminMessages: AdminMessagesPayload | null
   adminMeters: AdminMetersPayload | null
+  adminExpenses: AdminExpensesPayload | null
   ownerOverview: OwnerOverviewPayload | null
   notifications: MobileNotificationsPayload | null
   notificationSettings: MobileNotificationSettingsPayload | null
@@ -76,6 +78,7 @@ export const emptyData: AppData = {
   adminTasks: null,
   adminMessages: null,
   adminMeters: null,
+  adminExpenses: null,
   ownerOverview: null,
   notifications: null,
   notificationSettings: null,
@@ -150,6 +153,7 @@ export function hasTabData(data: AppData, role: string, tabKey: string, tabParam
   if (tabKey === "tasks") return !!data.adminTasks
   if (tabKey === "chat") return !!data.adminMessages
   if (tabKey === "meters") return !!data.adminMeters
+  if (tabKey === "expenses") return !!data.adminExpenses
   return true
 }
 

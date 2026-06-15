@@ -536,6 +536,7 @@ export function More({
             <SecondaryButton title="Документы" icon="doc.text.fill" onPress={() => onNavigate("documents")} />
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Заявки" icon="tray.full.fill" onPress={() => onNavigate("requests")} /> : null}
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Оплаты" icon="creditcard.fill" onPress={() => onNavigate("payments")} /> : null}
+            {["OWNER", "ADMIN", "ACCOUNTANT"].includes(bootstrap.user.role ?? "") ? <SecondaryButton title="Расходы" icon="creditcard.fill" onPress={() => onNavigate("expenses")} /> : null}
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Объекты" icon="building.2.fill" onPress={() => onNavigate("buildings")} /> : null}
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Задачи" icon="checklist" onPress={() => onNavigate("tasks")} /> : null}
             {bootstrap.user.role !== "TENANT" ? <SecondaryButton title="Чат с арендаторами" icon="message.fill" onPress={() => onNavigate("chat")} /> : null}
