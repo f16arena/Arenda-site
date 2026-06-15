@@ -12,7 +12,7 @@ import type { OrgEsfRuntimeConfig } from "./config"
  * Реквизиты — per-org (lib/esf/config). Возвращает sessionId.
  */
 export async function openEsfSession(cfg: OrgEsfRuntimeConfig): Promise<string> {
-  const ticket = await createAuthTicket(cfg.signerIin, cfg.wsUsername, cfg.wsPassword)
+  const ticket = await createAuthTicket(cfg.signerIin)
   const signedTicket = await signTicketXml(ticket, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
-  return createSessionSigned(cfg.tin, signedTicket, cfg.wsUsername, cfg.wsPassword)
+  return createSessionSigned(cfg.tin, signedTicket)
 }

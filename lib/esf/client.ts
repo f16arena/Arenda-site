@@ -111,9 +111,12 @@ export async function createSession(tin: string, x509CertificatePem: string, pas
  * iin — ИИН ФИЗЛИЦА-владельца ключа (для ИП = его ИИН). WSS UsernameToken —
  * логин/пароль учётки ИС ЭСФ.
  */
-export async function createAuthTicket(iin: string, username: string, password: string): Promise<string> {
+export async function createAuthTicket(iin: string): Promise<string> {
+  // БЕЗ WS-Security: проверено вживую — с UsernameToken сервер возвращает пустой
+  // authTicketXml; без заголовка отдаёт нормальный тикет. Аутентификация в новом
+  // потоке — через подпись тикета (xmlDsig), а не логин/пароль учётки.
   const body = `<ns:createAuthTicketRequest xmlns:ns="esf"><iin>${escXml(iin)}</iin></ns:createAuthTicketRequest>`
-  const xml = await soapCall(AUTH_URL, body, 30_000, wsseHeader(username, password))
+  const xml = await soapCall(AUTH_URL, body, 30_000)
   const ticket = pick(xml, "authTicketXml")
   if (!ticket) {
     throw new EsfError("ИС ЭСФ вернула пустой authTicketXml — проверьте ИИН подписанта и права учётки ЭСФ")
@@ -126,17 +129,13 @@ export async function createAuthTicket(iin: string, username: string, password: 
  * SessionService.createSessionSigned(tin, signedAuthTicket) → sessionId.
  * tin — БИН организации; signedAuthTicket — тикет, подписанный xmlDsig (шаг 2).
  */
-export async function createSessionSigned(
-  tin: string,
-  signedAuthTicket: string,
-  username: string,
-  password: string,
-): Promise<string> {
+export async function createSessionSigned(tin: string, signedAuthTicket: string): Promise<string> {
+  // Без WS-Security: учётные данные сессии — это подписанный тикет (signedAuthTicket).
   const body = `<ns:createSessionSignedRequest xmlns:ns="esf">`
     + `<tin>${escXml(tin)}</tin>`
     + `<signedAuthTicket>${escXml(signedAuthTicket)}</signedAuthTicket>`
     + `</ns:createSessionSignedRequest>`
-  const xml = await soapCall(SESSION_URL, body, 30_000, wsseHeader(username, password))
+  const xml = await soapCall(SESSION_URL, body, 30_000)
   const sessionId = pick(xml, "sessionId")
   if (!sessionId) throw new EsfError("ИС ЭСФ не вернула sessionId (createSessionSigned)")
   return sessionId
