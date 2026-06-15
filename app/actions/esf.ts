@@ -136,7 +136,10 @@ export async function sendActToEsf(documentId: string): Promise<
     const cfg = cfgRes.config
 
     const awpXml = buildAwpXml(input)
+    // ВРЕМЕННАЯ диагностика: логируем сам XML формы АВР (убрать после отладки ЭСФ).
+    console.error("[esf-diag] awpXml:", awpXml)
     const signed = await signAwpXml(awpXml, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
+    console.error("[esf-diag] signature len:", signed.signature.length, "cert len:", signed.certificatePem.length)
     if (!signed.certificatePem) {
       return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
     }

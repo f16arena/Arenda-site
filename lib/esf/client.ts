@@ -83,6 +83,9 @@ async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000, header
   // occurred while processing."), а настоящая причина — в <detail>. Достаём и то,
   // и другое; если всё пусто — отдаём кусок сырого ответа, чтобы было видно.
   if (!res.ok || /<(?:[\w.]+:)?Fault[\s>]/.test(text)) {
+    // ВРЕМЕННАЯ диагностика: КГД отдаёт общий fault без detail — логируем сырой
+    // ответ целиком, чтобы увидеть в логах Vercel (убрать после отладки ЭСФ).
+    console.error("[esf-diag] SOAP fault from", url, "status", res.status, "body:", text.slice(0, 2500))
     const fault = pick(text, "faultstring") || pick(text, "message") || ""
     const detailRaw = pick(text, "detail")
     const detail = detailRaw
