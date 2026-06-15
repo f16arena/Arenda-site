@@ -25,7 +25,7 @@ function unescapeXml(value: string): string {
 }
 
 export class EsfError extends Error {
-  constructor(message: string, public faultCode?: string) {
+  constructor(message: string, public faultCode?: string, public raw?: string) {
     super(message)
     this.name = "EsfError"
   }
@@ -83,9 +83,6 @@ async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000, header
   // occurred while processing."), а настоящая причина — в <detail>. Достаём и то,
   // и другое; если всё пусто — отдаём кусок сырого ответа, чтобы было видно.
   if (!res.ok || /<(?:[\w.]+:)?Fault[\s>]/.test(text)) {
-    // ВРЕМЕННАЯ диагностика: КГД отдаёт общий fault без detail — логируем сырой
-    // ответ целиком, чтобы увидеть в логах Vercel (убрать после отладки ЭСФ).
-    console.error("[esf-diag] SOAP fault from", url, "status", res.status, "body:", text.slice(0, 2500))
     const fault = pick(text, "faultstring") || pick(text, "message") || ""
     const detailRaw = pick(text, "detail")
     const detail = detailRaw
@@ -95,7 +92,8 @@ async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000, header
       [fault, detail && detail !== fault ? detail : ""].filter(Boolean).join(" | ")
       || text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400)
       || `ИС ЭСФ ответила ${res.status}`
-    throw new EsfError(message, pick(text, "faultcode") ?? undefined)
+    // raw несём в ошибке — для диагностики пишем в esf_diag в actions/esf.ts.
+    throw new EsfError(message, pick(text, "faultcode") ?? undefined, `[${url}] ${text.slice(0, 4000)}`)
   }
   return text
 }
