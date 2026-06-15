@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   const paymentPurpose = getMobilePaymentPurpose(tenant, period)
   const origin = new URL(req.url).origin
 
-  const [totalDebt, charges, payments, reports, landlord] = await Promise.all([
+  const [totalDebt, charges, payments, reports, landlord, installmentPlans] = await Promise.all([
     // deletedAt:null обязателен — иначе мобилка покажет другую сумму, чем /cabinet/finances.
     db.charge.aggregate({
       where: { tenantId: tenant.id, isPaid: false, deletedAt: null },
@@ -73,6 +73,22 @@ export async function GET(req: Request) {
       take: 20,
     }),
     getOrganizationRequisites(ctx.org.id),
+    // Действующие планы рассрочки арендатора (просмотр графика).
+    db.debtInstallmentPlan.findMany({
+      where: { tenantId: tenant.id, status: { in: ["ACTIVE", "BROKEN"] } },
+      select: {
+        id: true,
+        totalAmount: true,
+        status: true,
+        createdAt: true,
+        installments: {
+          select: { id: true, seq: true, dueDate: true, amount: true, isPaid: true },
+          orderBy: { seq: "asc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
   ])
 
   const accounts = landlord.bankAccounts.map((account) => ({
@@ -120,6 +136,7 @@ export async function GET(req: Request) {
         ? `${origin}/api/mobile/tenant/documents/storage/${report.receiptFileId}`
         : null,
     })),
+    installmentPlans,
   })
 }
 

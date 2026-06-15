@@ -172,6 +172,21 @@ export type TenantFinances = {
   charges: TenantCharge[]
   payments: TenantPayment[]
   paymentReports: TenantPaymentReport[]
+  installmentPlans: TenantInstallmentPlan[]
+}
+
+export type TenantInstallmentPlan = {
+  id: string
+  totalAmount: number
+  status: string
+  createdAt: string
+  installments: Array<{
+    id: string
+    seq: number
+    dueDate: string
+    amount: number
+    isPaid: boolean
+  }>
 }
 
 export type TenantRequest = {

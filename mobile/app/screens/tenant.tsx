@@ -58,6 +58,7 @@ import type {
   TenantFinances,
   TenantMetersPayload,
   TenantGeneratedDocument,
+  TenantInstallmentPlan,
   TenantOverview,
   TenantRequestsPayload,
   TenantSignatureRequest,
@@ -252,6 +253,12 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
         ))}
         {finances.paymentReports.length === 0 ? <EmptyState inline icon="creditcard.fill" title="Отправленных оплат пока нет" subtitle="Когда арендатор отправит чек, он появится в истории." /> : null}
       </Card>
+      {(finances.installmentPlans ?? []).length > 0 ? (
+        <>
+          <SectionTitle title="Рассрочка по долгу" />
+          {(finances.installmentPlans ?? []).map((plan) => <InstallmentPlanCard key={plan.id} plan={plan} />)}
+        </>
+      ) : null}
       <SectionTitle title="Начисления" />
       <Card>
         {finances.charges.slice(0, 12).map((charge) => (
@@ -259,6 +266,42 @@ export function TenantPayments({ finances, onChanged }: { finances: TenantFinanc
         ))}
       </Card>
     </>
+  )
+}
+
+// Просмотр плана рассрочки арендатором: статус + график взносов (read-only).
+function InstallmentPlanCard({ plan }: { plan: TenantInstallmentPlan }) {
+  const paid = plan.installments.filter((i) => i.isPaid)
+  const paidAmount = paid.reduce((sum, i) => sum + i.amount, 0)
+  const broken = plan.status === "BROKEN"
+  const now = Date.now()
+  return (
+    <Card>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <Text selectable style={{ flex: 1, color: colors.text, fontSize: 15, fontWeight: "800" }}>
+          {formatMoney(paidAmount)} из {formatMoney(plan.totalAmount)}
+        </Text>
+        <StatusPill
+          label={broken ? "Сорвана" : "Активна"}
+          color={broken ? colors.red : colors.green}
+        />
+      </View>
+      <Text selectable style={{ color: colors.muted, fontSize: 12, marginBottom: 6 }}>
+        Погашено {paid.length} из {plan.installments.length} платежей{broken ? " · просрочен взнос — пеня возобновлена" : ""}
+      </Text>
+      {plan.installments.map((inst) => {
+        const overdue = !inst.isPaid && new Date(inst.dueDate).getTime() < now
+        return (
+          <CompactRow
+            key={inst.id}
+            title={`Платёж №${inst.seq} · ${formatDate(inst.dueDate)}`}
+            subtitle={inst.isPaid ? "Оплачен" : overdue ? "Просрочен" : "Ожидается"}
+            value={formatMoney(inst.amount)}
+            tone={inst.isPaid ? colors.green : overdue ? colors.red : colors.slate}
+          />
+        )
+      })}
+    </Card>
   )
 }
 
