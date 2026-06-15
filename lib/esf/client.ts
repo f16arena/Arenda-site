@@ -179,6 +179,8 @@ export async function uploadAwp(params: {
     + `<sessionId>${escXml(params.sessionId)}</sessionId>`
     + `<awpInfoList><awpInfo>`
     + `<awpBody>${escXml(params.awpXml)}</awpBody>`
+    // version обязателен по схеме AwpUploadInfo (enum awpVersion = "AwpV1").
+    + `<version>AwpV1</version>`
     + `<signature>${escXml(params.signature)}</signature>`
     + `<signatureType>${params.signatureType ?? "COMPANY"}</signatureType>`
     + `</awpInfo></awpInfoList>`
