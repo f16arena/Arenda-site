@@ -165,7 +165,7 @@ export async function sendActToEsf(documentId: string): Promise<
       revalidatePath("/admin/documents")
       return { ok: true, regNumber: result.registrationNumber, status: "SENT" }
     } finally {
-      await closeSession(sessionId)
+      await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
   } catch (e) {
     const message = e instanceof EsfError || e instanceof Error ? e.message : "Не удалось отправить в ИС ЭСФ"
@@ -195,7 +195,8 @@ export async function refreshEsfStatus(documentId: string): Promise<
     const orgTin = (org?.bin || org?.iin || "").replace(/\D/g, "")
     const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
     if (!cfgRes.ok) return { ok: false, error: cfgRes.error }
-    const sessionId = await openEsfSession(cfgRes.config)
+    const cfg = cfgRes.config
+    const sessionId = await openEsfSession(cfg)
     try {
       const result = await queryAwpStatusById(sessionId, doc.esfId)
       await db.generatedDocument.update({
@@ -208,7 +209,7 @@ export async function refreshEsfStatus(documentId: string): Promise<
       revalidatePath("/admin/documents")
       return { ok: true, status: result.status, regNumber: result.registrationNumber }
     } finally {
-      await closeSession(sessionId)
+      await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить статус" }

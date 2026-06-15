@@ -158,9 +158,20 @@ export async function createSessionSigned(
   return sessionId
 }
 
-export async function closeSession(sessionId: string): Promise<void> {
+export async function closeSession(sessionId: string, username: string, password: string): Promise<void> {
   const body = `<ns:closeSessionRequest xmlns:ns="esf"><sessionId>${escXml(sessionId)}</sessionId></ns:closeSessionRequest>`
-  await soapCall(SESSION_URL, body).catch(() => { /* закрытие — best effort */ })
+  // WS-Security обязателен (как и для открытия) — иначе закрытие молча не срабатывает
+  // и сессии «копятся» (User already has opened session).
+  await soapCall(SESSION_URL, body, 30_000, wsseHeader(username, password)).catch(() => { /* best effort */ })
+}
+
+/**
+ * Закрыть открытую сессию пользователя по реквизитам, не зная sessionId
+ * (для очистки «зависшей» сессии перед открытием новой). Best-effort.
+ */
+export async function closeSessionByCredentials(tin: string, username: string, password: string): Promise<void> {
+  const body = `<ns:closeSessionByCredentialsRequest xmlns:ns="esf"><tin>${escXml(tin)}</tin></ns:closeSessionByCredentialsRequest>`
+  await soapCall(SESSION_URL, body, 30_000, wsseHeader(username, password)).catch(() => { /* best effort */ })
 }
 
 export type EsfSignatureType = "COMPANY" | "OPERATOR" | "EMPLOYEE"
