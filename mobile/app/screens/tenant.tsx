@@ -8,6 +8,7 @@ import {
   getTenantMessages,
   getTenantPaymentQr,
   reportTenantPayment,
+  respondToReconciliation,
   respondToSignatureRequest,
   sendTenantMessage,
   submitTenantMeterReading,
@@ -56,6 +57,7 @@ import type {
   TenantDocumentsPayload,
   TenantFinances,
   TenantMetersPayload,
+  TenantGeneratedDocument,
   TenantOverview,
   TenantRequestsPayload,
   TenantSignatureRequest,
@@ -543,12 +545,16 @@ export function TenantDocuments({ documents, onChanged }: { documents: TenantDoc
           onChange={setDocumentFilter}
         />
         {visibleGenerated.map((document) => (
-          <DocumentRow
-            key={document.id}
-            title={document.fileName}
-            subtitle={`${documentTypeLabel(document.documentType)} · ${document.period ?? "без периода"} · ${formatFileSize(document.fileSize)}`}
-            url={document.downloadUrl}
-          />
+          <View key={document.id} style={{ gap: 6 }}>
+            <DocumentRow
+              title={document.fileName}
+              subtitle={`${documentTypeLabel(document.documentType)} · ${document.period ?? "без периода"} · ${formatFileSize(document.fileSize)}`}
+              url={document.downloadUrl}
+            />
+            {document.documentType === "RECONCILIATION" ? (
+              <ReconciliationActions document={document} onChanged={onChanged} />
+            ) : null}
+          </View>
         ))}
         {visibleGenerated.length === 0 ? <EmptyState inline icon="doc.text.fill" title="Документов по фильтру нет" subtitle="Счет, АВР или акт сверки появится здесь после генерации на сайте." /> : null}
       </Card>
@@ -593,6 +599,74 @@ export function TenantDocuments({ documents, onChanged }: { documents: TenantDoc
         {documents.tenantDocuments.length === 0 ? <EmptyState inline icon="paperclip" title="Файлов пока нет" subtitle="Сюда попадут загруженные договоры, приложения и вложения арендатора." /> : null}
       </Card>
     </>
+  )
+}
+
+// Подтверждение акта сверки арендатором: согласен / есть расхождение.
+function ReconciliationActions({ document, onChanged }: { document: TenantGeneratedDocument; onChanged?: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [disputeOpen, setDisputeOpen] = useState(false)
+  const [note, setNote] = useState("")
+  const [message, setMessage] = useState<{ text: string; tone: "success" | "error" } | null>(null)
+
+  const status = document.reconStatus
+
+  if (status === "AGREED") {
+    return <StatusPill label="Сверка подтверждена" color={colors.green} />
+  }
+  if (status === "DISPUTED") {
+    return (
+      <View style={{ gap: 4 }}>
+        <StatusPill label="Заявлено расхождение" color={colors.orange} />
+        {document.reconResponseNote ? (
+          <Text selectable style={{ color: colors.muted, fontSize: 12 }}>{document.reconResponseNote}</Text>
+        ) : null}
+      </View>
+    )
+  }
+
+  async function respond(agree: boolean) {
+    if (busy) return
+    if (!agree && note.trim().length < 5) {
+      setMessage({ text: "Опишите расхождение (минимум 5 символов)", tone: "error" })
+      return
+    }
+    setBusy(true)
+    setMessage(null)
+    try {
+      await respondToReconciliation(document.id, agree, agree ? undefined : note.trim())
+      setMessage({ text: agree ? "Сверка подтверждена" : "Расхождение отправлено", tone: "success" })
+      setDisputeOpen(false)
+      setNote("")
+      onChanged?.()
+    } catch (e) {
+      setMessage({ text: e instanceof Error ? e.message : "Не удалось отправить", tone: "error" })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <View style={{ gap: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: "#fffaf0", padding: 10 }}>
+      <Text selectable style={{ color: colors.text, fontSize: 13, lineHeight: 18 }}>
+        Подтвердите взаиморасчёты по акту сверки или сообщите о расхождении.
+      </Text>
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        <PrimaryButton title={busy ? "..." : "Подтвердить сверку"} onPress={() => respond(true)} disabled={busy} />
+        <SecondaryButton
+          title={disputeOpen ? "Отмена" : "Есть расхождение"}
+          icon="exclamationmark.triangle.fill"
+          onPress={() => setDisputeOpen((open) => !open)}
+        />
+      </View>
+      {disputeOpen ? (
+        <View style={{ gap: 8 }}>
+          <Field label="В чём расхождение" value={note} onChangeText={setNote} placeholder="Например: не учтена оплата от 5 числа" multiline />
+          <PrimaryButton title={busy ? "Отправляем..." : "Отправить расхождение"} onPress={() => respond(false)} disabled={busy} />
+        </View>
+      ) : null}
+      {message ? <InlineMessage message={message.text} tone={message.tone} /> : null}
+    </View>
   )
 }
 

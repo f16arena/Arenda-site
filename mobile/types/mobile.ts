@@ -250,6 +250,10 @@ export type TenantGeneratedDocument = {
   format: string
   generatedAt: string
   downloadUrl: string
+  // Сверка взаиморасчётов: статус подтверждения контрагентом (для documentType
+  // = RECONCILIATION). SENT | AGREED | DISPUTED.
+  reconStatus?: string | null
+  reconResponseNote?: string | null
 }
 
 export type TenantDocument = {

@@ -32,6 +32,8 @@ export async function GET(req: Request) {
         fileSize: true,
         format: true,
         generatedAt: true,
+        reconStatus: true,
+        reconResponseNote: true,
       },
       orderBy: { generatedAt: "desc" },
       take: 50,

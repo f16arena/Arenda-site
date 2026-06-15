@@ -399,6 +399,14 @@ export async function getTenantDocuments() {
   return authFetch<TenantDocumentsPayload>("/api/mobile/tenant/documents")
 }
 
+// Ответ на акт сверки: подтвердить взаиморасчёты или заявить расхождение.
+export async function respondToReconciliation(documentId: string, agree: boolean, note?: string) {
+  return authFetch<{ ok?: boolean }>(
+    `/api/mobile/tenant/documents/reconciliation/${encodeURIComponent(documentId)}/respond`,
+    { method: "POST", body: JSON.stringify({ agree, note }) },
+  )
+}
+
 export async function getTenantContracts() {
   return authFetch<TenantContractsPayload>("/api/mobile/tenant/contracts")
 }
