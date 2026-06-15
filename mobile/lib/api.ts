@@ -1071,7 +1071,7 @@ async function fetchWithRetry(
 
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      const res = await fetch(url, init)
+      const res = await fetchWithTimeout(url, init)
       if (attempt < attempts - 1 && RETRYABLE_HTTP_STATUSES.has(res.status)) {
         await delay(getRetryDelay(attempt))
         continue
@@ -1117,6 +1117,38 @@ function classifyNetworkError(error: unknown): ApiError {
     "NETWORK",
     error,
   )
+}
+
+// Тайм-аут запроса: RN-fetch сам не отваливается по времени и на «висящем»
+// соединении может ждать бесконечно. AbortController прерывает запрос, после чего
+// fetchWithRetry повторит (для GET) или отдаст дружелюбную ошибку TIMEOUT, а UI
+// откатится на кэш. Загрузки (multipart: фото/чеки) — с увеличенным лимитом.
+const DEFAULT_TIMEOUT_MS = 20_000
+const UPLOAD_TIMEOUT_MS = 60_000
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  // Если вызывающий уже управляет отменой через свой signal — не вмешиваемся.
+  if (init.signal) return fetch(url, init)
+
+  const isUpload = typeof FormData !== "undefined" && init.body instanceof FormData
+  const timeoutMs = isUpload ? UPLOAD_TIMEOUT_MS : DEFAULT_TIMEOUT_MS
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } catch (error) {
+    // Прерывание по тайм-ауту маскируем под TIMEOUT (classifyNetworkError даст
+    // понятный текст), а настоящую пользовательскую отмену пробрасываем как есть.
+    if (timedOut) throw new Error("Request timed out")
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 function isRetryableRequest(init: RequestInit) {
