@@ -23,6 +23,8 @@ export interface AwpParty {
 
 export interface AwpWorkItem {
   name: string
+  /** Составной код ГСВС (обязателен по схеме, G2.2). Формат вида NN.NN.NN.NN-NNNNNNNNNN. */
+  gsvsCode: string
   quantity?: number | null
   /** Цена за единицу без налогов */
   unitPriceWithoutTax: number
@@ -90,9 +92,11 @@ export function buildAwpXml(input: AwpXmlInput): string {
   const totalWithTax = input.items.reduce((s, w) => s + w.sumWithTax, 0)
 
   const works = input.items.map((w) => {
-    // Порядок полей AwpWork по XSD: additionalInfo?, measureUnitCode?, name,
-    // ndsAmount?, ndsRate, quantity?, sumWithTax, sumWithoutTax, turnoverSize, unitPriceWithoutTax
+    // Порядок полей AwpWork по XSD: additionalInfo?, gsvsCode, measureUnitCode?, name,
+    // ndsAmount?, ndsRate?, performedDate?, quantity?, sumWithTax, sumWithoutTax,
+    // systemName?, turnoverSize, unitPriceWithoutTax. gsvsCode обязателен.
     return "<work>"
+      + tag("gsvsCode", w.gsvsCode)
       + tag("name", w.name)
       + (w.ndsAmount != null ? `<ndsAmount>${money(w.ndsAmount)}</ndsAmount>` : "")
       + `<ndsRate>${Math.round(w.ndsRate)}</ndsRate>`
@@ -104,14 +108,16 @@ export function buildAwpXml(input: AwpXmlInput): string {
       + "</work>"
   }).join("")
 
-  // abstractAwpParticipant: additionalInfo?, address?, branchTin?, invitationEmail?, tin?
+  // Порядок recipient по XSD (база abstractAwpParticipant + AwpRecipientParticipant):
+  // additionalInfo?, address?, branchTin?, invitationEmail?, registrationType?, tin?,
+  // затем bankDetails?, name, nonResident. registrationType ОБЯЗАН идти до tin.
   const recipient = "<recipient>"
     + tag("address", input.recipient.address)
+    + tag("registrationType", input.recipient.registrationType)
     + tag("tin", input.recipient.tin)
     + bankDetailsXml(input.recipient)
     + tag("name", input.recipient.name)
     + "<nonResident>false</nonResident>"
-    + tag("registrationType", input.recipient.registrationType)
     + "</recipient>"
 
   const sender = "<sender>"
@@ -121,9 +127,11 @@ export function buildAwpXml(input: AwpXmlInput): string {
     + tag("name", input.sender.name)
     + "</sender>"
 
-  // AbstractAwp: date, number, performedDate, registrationNumber?
-  // AwpV1 extension: additionalInfo?, contract, recipients?, senders?, worksPerformed?
+  // AbstractAwp: awpType(!), date, number, performedDate?, registrationNumber?
+  // AwpV1 extension: additionalAppendix?, additionalInfo?, additionalName?,
+  // additionalStock?, contract, recipients?, senders?, worksPerformed
   return `<awp xmlns="v1.awp">`
+    + `<awpType>PRIMARY</awpType>`
     + `<date>${fmtDate(input.issueDate)}</date>`
     + tag("number", input.number)
     + `<performedDate>${fmtDate(input.performedDate)}</performedDate>`

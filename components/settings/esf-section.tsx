@@ -11,6 +11,7 @@ export type EsfSectionConfig = {
   hasPassword: boolean
   hasPin: boolean
   certFileName: string | null
+  gsvsCode: string | null
 }
 
 const inputCls =
@@ -50,6 +51,13 @@ export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ИИН подписанта</label>
           <input name="signerIin" defaultValue={c?.signerIin ?? ""} inputMode="numeric" maxLength={12} placeholder="ИИН владельца ЭЦП (для ИП — его ИИН)" className={inputCls} />
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Код ГСВС услуги (для АВР)</label>
+          <input name="gsvsCode" defaultValue={c?.gsvsCode ?? ""} autoComplete="off" placeholder="напр. 68.20.12.00-0000000000" className={inputCls} />
+          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+            Обязателен для электронного АВР (графа G2.2). Это код вашей услуги (аренда) из Государственного справочника ГСВС — уточните у бухгалтера. Формат: NN.NN.NN.NN-NNNNNNNNNN.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">

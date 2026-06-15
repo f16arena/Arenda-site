@@ -18,6 +18,8 @@ export interface OrgEsfRuntimeConfig {
   // Загруженный из кабинета .p12 (base64). Если задан — приоритетнее certPath
   // (VPS-подписант принимает ключ байтами).
   certData: string
+  // Код ГСВС услуги (обязателен в АВР).
+  gsvsCode: string
 }
 
 export async function resolveOrgEsfConfig(
@@ -32,6 +34,7 @@ export async function resolveOrgEsfConfig(
   const certPath = (row?.certPath || process.env.ESF_SIGN_CERT_PATH || "").trim()
   const certPin = row?.certPinEnc ? decryptSecret(row.certPinEnc) : (process.env.ESF_SIGN_CERT_PIN || "")
   const certData = row?.certDataEnc ? decryptSecret(row.certDataEnc) : ""
+  const gsvsCode = (row?.esfGsvsCode || process.env.ESF_GSVS_CODE || "").trim()
   // Если есть запись — уважаем её флаг enabled; если записи нет, считаем
   // включённой при наличии env (bootstrap-орг).
   const enabled = row ? row.enabled : !!(wsUsername && wsPassword && certPath)
@@ -49,6 +52,9 @@ export async function resolveOrgEsfConfig(
   if (!certData && !certPath) {
     return { ok: false, error: "Не загружен ключ ЭЦП организации (Настройки → ЭСФ)." }
   }
+  if (!gsvsCode) {
+    return { ok: false, error: "Не указан код ГСВС услуги (Настройки → ЭСФ) — обязателен для АВР." }
+  }
 
-  return { ok: true, config: { tin: orgTin, wsUsername, wsPassword, signerIin, certPath, certPin, certData } }
+  return { ok: true, config: { tin: orgTin, wsUsername, wsPassword, signerIin, certPath, certPin, certData, gsvsCode } }
 }

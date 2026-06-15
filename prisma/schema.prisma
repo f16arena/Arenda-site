@@ -179,6 +179,9 @@ model OrgEsfConfig {
   wsPasswordEnc  String?  @map("ws_password_enc")
   // ИИН физлица-владельца ключа (для createAuthTicket). Для ИП = ИИН ИП.
   signerIin      String?  @map("signer_iin")
+  // Код ГСВС услуги (обязателен в АВР, поле work/gsvsCode). Специфичен для услуги
+  // (напр. аренда), задаётся бухгалтером. Формат: NN.NN.NN.NN-NNNNNNNNNN.
+  esfGsvsCode    String?  @map("esf_gsvs_code")
   // PIN контейнера .p12 (шифр).
   certPinEnc     String?  @map("cert_pin_enc")
   // Путь к .p12 на VPS-подписанте (v1). null = брать из env (bootstrap-орг).

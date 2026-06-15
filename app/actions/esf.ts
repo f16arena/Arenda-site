@@ -83,6 +83,11 @@ export async function sendActToEsf(documentId: string): Promise<
     const tenantTin = (s.customer.binIin || "").replace(/\D/g, "")
     if (tenantTin.length !== 12) return { ok: false, error: "Не заполнен ИИН/БИН арендатора" }
 
+    // Реквизиты ЭСФ организации (per-org из БД, иначе env bootstrap-орг).
+    const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
+    if (!cfgRes.ok) return { ok: false, error: cfgRes.error }
+    const cfg = cfgRes.config
+
     const [py, pm] = doc.period.split("-").map(Number)
     const performedDate = new Date(py, pm, 0)
     const tenantBank = tenant?.bankAccounts[0] ?? { bankName: tenant?.bankName ?? null, iik: tenant?.iik ?? null, bik: tenant?.bik ?? null }
@@ -120,6 +125,7 @@ export async function sendActToEsf(documentId: string): Promise<
         const ndsAmount = ndsEnabled ? Math.round(sumWithoutTax * (ndsRate / 100) * 100) / 100 : 0
         return {
           name: item.name,
+          gsvsCode: cfg.gsvsCode,
           quantity: qty,
           unitPriceWithoutTax: item.price,
           sumWithoutTax,
@@ -130,11 +136,6 @@ export async function sendActToEsf(documentId: string): Promise<
       }),
       additionalInfo: `Commrent: документ ${doc.number ?? ""} за ${doc.period}`.trim(),
     }
-
-    // Реквизиты ЭСФ организации (per-org из БД, иначе env bootstrap-орг).
-    const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
-    if (!cfgRes.ok) return { ok: false, error: cfgRes.error }
-    const cfg = cfgRes.config
 
     const awpXml = buildAwpXml(input)
     diagAwpXml = awpXml

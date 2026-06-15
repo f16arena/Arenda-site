@@ -22,6 +22,7 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
   const wsUsername = String(formData.get("wsUsername") ?? "").trim()
   const signerIin = String(formData.get("signerIin") ?? "").replace(/\D/g, "")
   const certPath = String(formData.get("certPath") ?? "").trim()
+  const gsvsCode = String(formData.get("gsvsCode") ?? "").trim()
   const wsPassword = String(formData.get("wsPassword") ?? "")
   const certPin = String(formData.get("certPin") ?? "")
 
@@ -34,6 +35,7 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
     wsUsername: string | null
     signerIin: string | null
     certPath: string | null
+    esfGsvsCode: string | null
     wsPasswordEnc?: string
     certPinEnc?: string
     certDataEnc?: string
@@ -43,6 +45,7 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
     wsUsername: wsUsername || null,
     signerIin: signerIin || null,
     certPath: certPath || null,
+    esfGsvsCode: gsvsCode || null,
   }
   // Секреты обновляем только если их ввели заново (иначе оставляем как было).
   if (wsPassword) data.wsPasswordEnc = encryptSecret(wsPassword)
