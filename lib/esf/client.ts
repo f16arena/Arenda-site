@@ -79,10 +79,20 @@ async function soapCall(url: string, bodyXml: string, timeoutMs = 30_000, header
   })
   const text = await res.text()
 
-  // SOAP Fault → понятная ошибка (faultstring обычно по-русски от ИС ЭСФ)
-  const fault = pick(text, "faultstring") || pick(text, "message")
+  // SOAP Fault → понятная ошибка. faultstring у CXF бывает общим ("Fault
+  // occurred while processing."), а настоящая причина — в <detail>. Достаём и то,
+  // и другое; если всё пусто — отдаём кусок сырого ответа, чтобы было видно.
   if (!res.ok || /<(?:[\w.]+:)?Fault[\s>]/.test(text)) {
-    throw new EsfError(fault || `ИС ЭСФ ответила ${res.status}`, pick(text, "faultcode") ?? undefined)
+    const fault = pick(text, "faultstring") || pick(text, "message") || ""
+    const detailRaw = pick(text, "detail")
+    const detail = detailRaw
+      ? detailRaw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400)
+      : ""
+    const message =
+      [fault, detail && detail !== fault ? detail : ""].filter(Boolean).join(" | ")
+      || text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400)
+      || `ИС ЭСФ ответила ${res.status}`
+    throw new EsfError(message, pick(text, "faultcode") ?? undefined)
   }
   return text
 }
