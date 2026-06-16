@@ -132,8 +132,9 @@ function productXml(p: InvoiceLineItem): string {
     // Признак происхождения: 6 — работа/услуга (без ТН ВЭД/unitCode)
     + "<truOriginCode>6</truOriginCode>"
     + `<turnoverSize>${money(p.priceWithoutTax)}</turnoverSize>`
-    // Ед.изм (G6): КГД ограничивает 10 символами («Одна услуга» = 11, отклоняет).
-    + "<unitNomenclature>услуга</unitNomenclature>"
+    // Ед.изм (G6) — код справочника МКЕИ/ОКЕИ КГД (не произвольный текст:
+    // «услуга» → «Некорректный код единицы измерения»). Для услуги единицы нет,
+    // поле необязательно (minOccurs=0) — опускаем.
     + `<unitPrice>${money(p.unitPriceWithoutTax)}</unitPrice>`
     + "</product>"
 }
