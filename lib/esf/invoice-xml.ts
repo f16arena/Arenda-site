@@ -132,9 +132,10 @@ function productXml(p: InvoiceLineItem): string {
     // Признак происхождения: 6 — работа/услуга (без ТН ВЭД/unitCode)
     + "<truOriginCode>6</truOriginCode>"
     + `<turnoverSize>${money(p.priceWithoutTax)}</turnoverSize>`
-    // Ед.изм (G6) — код справочника МКЕИ/ОКЕИ КГД (не произвольный текст:
-    // «услуга» → «Некорректный код единицы измерения»). Для услуги единицы нет,
-    // поле необязательно (minOccurs=0) — опускаем.
+    // Ед.изм (G6) — код справочника единиц измерения КГД (ОКЕИ), а НЕ текст и не
+    // пусто (иначе INVALID_MEASURE_UNIT_CODE). 796 = «штука» (ОКЕИ) — есть в
+    // справочнике, как в эталонном примере SDK; для услуги кол-во = 1.
+    + "<unitNomenclature>796</unitNomenclature>"
     + `<unitPrice>${money(p.unitPriceWithoutTax)}</unitPrice>`
     + "</product>"
 }
