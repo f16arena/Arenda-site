@@ -342,14 +342,13 @@ export async function queryInvoiceSummaryById(sessionId: string, invoiceId: stri
  * Причины отклонения ЭСФ тяжёлым ФЛК (для статусов FAILED/DECLINED).
  * InvoiceService.queryInvoiceErrorById → invoiceError/errors/error{property,errorCode,text}.
  */
-export async function queryInvoiceErrorById(sessionId: string, invoiceId: string): Promise<string[]> {
+export async function queryInvoiceErrorById(sessionId: string, invoiceId: string): Promise<{ texts: string[]; raw: string }> {
   const body = `<ns:queryInvoiceErrorByIdRequest xmlns:ns="esf">`
     + `<sessionId>${escXml(sessionId)}</sessionId>`
     + `<idList><id>${escXml(invoiceId)}</id></idList>`
     + `</ns:queryInvoiceErrorByIdRequest>`
   const xml = await soapCall(INVOICE_URL, body)
   const texts = pickAll(xml, "text").filter(Boolean)
-  if (texts.length) return texts
   const codes = pickAll(xml, "errorCode").filter(Boolean)
-  return codes
+  return { texts: texts.length ? texts : codes, raw: xml }
 }

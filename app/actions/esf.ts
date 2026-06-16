@@ -354,8 +354,14 @@ export async function refreshInvoiceEsfStatus(documentId: string): Promise<
       // ЭСФ после постановки в очередь. Подтягиваем причины и пишем в esf_error.
       let esfError: string | null = null
       if (result.status === "FAILED" || result.status === "DECLINED") {
-        const reasons = await queryInvoiceErrorById(sessionId, doc.esfId).catch(() => [])
-        esfError = reasons.join("; ").slice(0, 500) || null
+        const reasons = await queryInvoiceErrorById(sessionId, doc.esfId).catch(() => ({ texts: [] as string[], raw: "" }))
+        esfError = reasons.texts.join("; ").slice(0, 500) || null
+        // ВРЕМЕННО: сырые ответы КГД (summary + errors) в esf_diag для диагностики.
+        await db.$executeRawUnsafe(
+          "INSERT INTO esf_diag (awp_xml, fault_raw) VALUES ($1, $2)",
+          `STATUS=${result.status}\n${result.raw}`,
+          reasons.raw || "(no error body)",
+        ).catch(() => {})
       }
       await db.generatedDocument.update({
         where: { id: doc.id },
