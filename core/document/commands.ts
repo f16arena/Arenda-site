@@ -80,6 +80,44 @@ export class AddFloorCommand implements Command {
   }
 }
 
+// ── DeleteFloor (удаление этажа целиком, с возможностью undo) ──────────────────
+export class DeleteFloorCommand implements Command {
+  readonly kind = "delete-floor"
+  readonly label = "удалить этаж"
+  private removed?: Floor
+  private index = -1
+  private captured = false
+  constructor(private buildingId: string, private floorId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    if (!this.captured) {
+      const b = doc.buildings.find((bld) => bld.id === this.buildingId)
+      this.index = b?.floors.findIndex((f) => f.id === this.floorId) ?? -1
+      this.removed = this.index >= 0 ? b?.floors[this.index] : undefined
+      this.captured = true
+    }
+    return {
+      ...doc,
+      buildings: doc.buildings.map((b) =>
+        b.id === this.buildingId ? { ...b, floors: b.floors.filter((f) => f.id !== this.floorId) } : b,
+      ),
+    }
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    const floor = this.removed
+    const at = this.index
+    return {
+      ...doc,
+      buildings: doc.buildings.map((b) => {
+        if (b.id !== this.buildingId) return b
+        const floors = [...b.floors]
+        floors.splice(at >= 0 && at <= floors.length ? at : floors.length, 0, floor)
+        return { ...b, floors }
+      }),
+    }
+  }
+}
+
 // ── SetFloorName (переименование уровня: «1 этаж», «Цоколь», «Подвал» — на выбор) ─
 export class SetFloorNameCommand implements Command {
   readonly kind = "set-floor-name"

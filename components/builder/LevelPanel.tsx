@@ -4,10 +4,10 @@
 // уровень, режимы отображения (всё/активный/срез/призрак), «стены вниз», добавление
 // этажа копией плана нижнего (remapGraph — свежие id, без коллизий мешей).
 
-import { Building2, Layers, Plus, Trees } from "lucide-react"
+import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
-import { AddFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
+import { AddFloorCommand, DeleteFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
 import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
@@ -20,20 +20,35 @@ const DISPLAY: { id: DisplayMode; label: string }[] = [
   { id: "ghost", label: "Призрак" },
 ]
 
-function LevelRow({ name, sub, Icon, active, onClick, onRename }: { name: string; sub?: string; Icon: typeof Layers; active: boolean; onClick: () => void; onRename?: () => void }) {
+function LevelRow({ name, sub, Icon, active, onClick, onRename, onDelete }: { name: string; sub?: string; Icon: typeof Layers; active: boolean; onClick: () => void; onRename?: () => void; onDelete?: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onDoubleClick={onRename}
-      title={onRename ? "Двойной клик — переименовать уровень" : undefined}
-      className="flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition-all"
+    <div
+      className="group flex w-full items-center gap-1 rounded-xl pr-1 transition-all"
       style={{ background: active ? "rgba(56,189,248,0.16)" : "transparent", border: `1px solid ${active ? TOKENS.accent : "transparent"}` }}
     >
-      <Icon className="h-4 w-4 shrink-0" style={{ color: active ? TOKENS.accent : TOKENS.muted }} />
-      <span className="flex-1 truncate">{name}</span>
-      {sub && <span className="text-[10px]" style={{ color: TOKENS.muted }}>{sub}</span>}
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        onDoubleClick={onRename}
+        title={onRename ? "Двойной клик — переименовать уровень" : undefined}
+        className="flex flex-1 items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm"
+      >
+        <Icon className="h-4 w-4 shrink-0" style={{ color: active ? TOKENS.accent : TOKENS.muted }} />
+        <span className="flex-1 truncate">{name}</span>
+        {sub && <span className="text-[10px]" style={{ color: TOKENS.muted }}>{sub}</span>}
+      </button>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          title="Удалить этаж"
+          aria-label="Удалить этаж"
+          className="shrink-0 rounded-md p-1 opacity-0 transition-opacity hover:bg-red-500/20 group-hover:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -71,9 +86,12 @@ export function LevelPanel() {
     const level = (top?.level ?? 0) + 1
     const floor: Floor = {
       id: uid("f"),
-      name: `${level} этаж`,
+      name: level >= 1 ? `${level} этаж` : level === 0 ? "Подвал" : `Подвал ${1 - level}`,
       level,
-      elevation: level * 3500,
+      // Стопка этажей непрерывна: новый этаж кладётся НАД верхним (top.elevation +
+      // его высота), а не по абсолютной формуле level*H — иначе при подвалах/смещениях
+      // этажи «разъезжаются» по высоте.
+      elevation: top ? top.elevation + top.height : 0,
       height: 3500,
       visible: true,
       locked: false,
@@ -91,15 +109,20 @@ export function LevelPanel() {
   }
 
   const addBasement = () => {
-    if (!building) return
-    const minLevel = Math.min(1, ...building.floors.map((f) => f.level))
-    const level = minLevel - 1
+    if (!building || building.floors.length === 0) return
+    // Подвал должен встать СТРОГО под самым нижним этажом. Берём нижний этаж и
+    // считаем отметку от него (lowest.elevation − высота), а не по level*H —
+    // иначе при нижнем этаже с level=1 подвал получал elevation 0 и вставал «как
+    // 1 этаж» на землю вместо −1.
+    const lowest = building.floors.reduce((m, f) => (f.level < m.level ? f : m), building.floors[0])
+    const level = lowest.level - 1
+    const height = 3500
     const floor: Floor = {
       id: uid("f"),
       name: level === 0 ? "Подвал" : `Подвал ${1 - level}`,
       level,
-      elevation: level * 3500,
-      height: 3500,
+      elevation: lowest.elevation - height,
+      height,
       visible: true,
       locked: false,
       opacity: 1,
@@ -113,6 +136,20 @@ export function LevelPanel() {
     }
     execute(new AddFloorCommand(building.id, floor))
     setActiveLevel(floor.id)
+  }
+
+  const deleteFloor = (f: Floor) => {
+    if (!building) return
+    if (building.floors.length <= 1) {
+      window.alert("Нельзя удалить единственный этаж — в здании должен остаться хотя бы один уровень.")
+      return
+    }
+    if (!window.confirm(`Удалить «${f.name}» со всем содержимым (стены, объекты, помещения)? Это можно отменить (Ctrl+Z).`)) return
+    execute(new DeleteFloorCommand(building.id, f.id))
+    if (activeLevelId === f.id) {
+      const rest = building.floors.filter((fl) => fl.id !== f.id).sort((a, b) => b.level - a.level)
+      if (rest[0]) setActiveLevel(rest[0].id)
+    }
   }
 
   const renameFloor = (f: Floor) => {
@@ -155,6 +192,7 @@ export function LevelPanel() {
           active={activeLevelId === f.id}
           onClick={() => setActiveLevel(f.id)}
           onRename={() => renameFloor(f)}
+          onDelete={floors.length > 1 ? () => deleteFloor(f) : undefined}
         />
       ))}
       <LevelRow name="Участок" Icon={Trees} active={activeLevelId === "site"} onClick={() => setActiveLevel("site")} />
