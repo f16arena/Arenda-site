@@ -29,6 +29,7 @@ import { BlacklistButton } from "./blacklist-button"
 import { PaymentReminderButton } from "./payment-reminder-button"
 import { TenantNotes } from "./tenant-notes"
 import { RenewContractButton } from "./renew-contract-button"
+import { ServiceFeeExemptToggle } from "./service-fee-exempt-toggle"
 import {
   DocumentsActionsLoader,
   RentalTermsFormLoader,
@@ -127,6 +128,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       bankName: true,
       iik: true,
       bik: true,
+      serviceFeeExempt: true,
       bankAccounts: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         select: {
@@ -730,6 +732,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 Условия аренды доступны только для просмотра. Нужно отдельное право.
               </div>
             )}
+
+            {/* Исключение из эксплуатационного сбора — независимо от блокировки
+                условий договором (это биллинговый флаг, а не условие аренды). */}
+            <ServiceFeeExemptToggle
+              tenantId={tenant.id}
+              exempt={tenant.serviceFeeExempt}
+              disabled={!canEditRentalTerms}
+            />
 
             {canAssignTenantSpaces && (
               <div className="border-t border-slate-100 dark:border-slate-800">

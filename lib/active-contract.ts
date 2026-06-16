@@ -61,6 +61,7 @@ export async function buildContractPositions(
       customRate: true,
       fixedMonthlyRent: true,
       paymentDueDay: true,
+      serviceFeeExempt: true,
       needsCleaning: true,
       cleaningFee: true,
       space: { select: { area: true, floor: { select: { ratePerSqm: true, buildingId: true } } } },
@@ -77,9 +78,10 @@ export async function buildContractPositions(
     positions.push({ name: `Аренда нежилого помещения за ${period}`, amount: Math.round(rent) })
   }
 
-  // Эксплуатационные расходы — сезонная ставка здания.
+  // Эксплуатационные расходы — сезонная ставка здания. Пропускаем, если
+  // арендатор освобождён от сбора (per-tenant исключение).
   const buildingId = getTenantBuildingId(tenant)
-  if (buildingId) {
+  if (buildingId && !tenant.serviceFeeExempt) {
     const building = await db.building.findUnique({
       where: { id: buildingId },
       select: {

@@ -670,6 +670,23 @@ export async function deleteTenantBankAccount(accountId: string): Promise<Tenant
   }
 }
 
+/**
+ * Освобождение арендатора от эксплуатационного сбора здания (вкл/выкл).
+ * Не часть условий аренды/ДС — это per-tenant исключение из биллинга сбора,
+ * поэтому меняется напрямую даже при подписанном договоре.
+ */
+export async function setTenantServiceFeeExempt(tenantId: string, exempt: boolean): Promise<{ ok: boolean; error?: string }> {
+  await requireCapabilityAndFeature("tenants.editRentalTerms")
+  const { orgId } = await requireOrgAccess()
+  await assertTenantInOrg(tenantId, orgId)
+  await assertTenantBuildingAccess(tenantId, orgId)
+
+  await db.tenant.update({ where: { id: tenantId }, data: { serviceFeeExempt: exempt } })
+  revalidatePath(`/admin/tenants/${tenantId}`)
+  revalidatePath("/admin/documents")
+  return { ok: true }
+}
+
 export async function updateTenantRentalTerms(tenantId: string, formData: FormData) {
   await requireCapabilityAndFeature("tenants.editRentalTerms")
   const { orgId } = await requireOrgAccess()

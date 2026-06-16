@@ -159,7 +159,7 @@ export async function GET(req: Request) {
           tenant.tenantSpaces[0]?.space.floor.building ??
           tenant.fullFloors[0]?.building ??
           null
-        if (buildingForFee) {
+        if (buildingForFee && !tenant.serviceFeeExempt) {
           const existingServiceFeeForPeriod = tenant.charges.some(
             (c) => c.period === chargePeriod && c.type === "SERVICE_FEE",
           )
