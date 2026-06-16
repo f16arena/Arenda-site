@@ -39,7 +39,6 @@ async function requireStaffAccess() {
 export async function sendActToEsf(documentId: string): Promise<
   { ok: true; regNumber: string | null; status: string } | { ok: false; error: string }
 > {
-  let diagAwpXml = "" // ВРЕМЕННО: для записи в esf_diag при ошибке
   try {
     const { orgId } = await requireStaffAccess()
     if (!esfSignerConfigured()) {
@@ -139,7 +138,6 @@ export async function sendActToEsf(documentId: string): Promise<
     }
 
     const awpXml = buildAwpXml(input)
-    diagAwpXml = awpXml
     const signed = await signAwpXml(awpXml, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
     if (!signed.certificatePem) {
       return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
@@ -173,9 +171,6 @@ export async function sendActToEsf(documentId: string): Promise<
     }
   } catch (e) {
     const message = e instanceof EsfError || e instanceof Error ? e.message : "Не удалось отправить в ИС ЭСФ"
-    // ВРЕМЕННО: полная диагностика в esf_diag (awpXml + сырой ответ КГД).
-    const raw = e instanceof EsfError ? (e.raw ?? "") : (e instanceof Error ? e.stack ?? "" : "")
-    await db.$executeRawUnsafe("INSERT INTO esf_diag (awp_xml, fault_raw) VALUES ($1, $2)", diagAwpXml, raw || message).catch(() => {})
     // Фиксируем ошибку у документа, чтобы была видна в UI
     await db.generatedDocument.update({
       where: { id: documentId },
@@ -194,7 +189,6 @@ export async function sendActToEsf(documentId: string): Promise<
 export async function sendInvoiceToEsf(documentId: string): Promise<
   { ok: true; regNumber: string | null; status: string } | { ok: false; error: string }
 > {
-  let diagXml = "" // ВРЕМЕННО: для записи в esf_diag при ошибке
   try {
     const { orgId } = await requireStaffAccess()
     if (!esfSignerConfigured()) {
@@ -289,7 +283,6 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
     }
 
     const invoiceXml = buildInvoiceXml(input)
-    diagXml = invoiceXml
     const signed = await signAwpXml(invoiceXml, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
     if (!signed.certificatePem) {
       return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
@@ -319,8 +312,6 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
     }
   } catch (e) {
     const message = e instanceof EsfError || e instanceof Error ? e.message : "Не удалось отправить в ИС ЭСФ"
-    const raw = e instanceof EsfError ? (e.raw ?? "") : (e instanceof Error ? e.stack ?? "" : "")
-    await db.$executeRawUnsafe("INSERT INTO esf_diag (awp_xml, fault_raw) VALUES ($1, $2)", diagXml, raw || message).catch(() => {})
     await db.generatedDocument.update({
       where: { id: documentId },
       data: { esfStatus: "FAILED", esfError: message.slice(0, 500) },
@@ -356,12 +347,6 @@ export async function refreshInvoiceEsfStatus(documentId: string): Promise<
       if (result.status === "FAILED" || result.status === "DECLINED") {
         const reasons = await queryInvoiceErrorById(sessionId, doc.esfId).catch(() => ({ texts: [] as string[], raw: "" }))
         esfError = reasons.texts.join("; ").slice(0, 500) || null
-        // ВРЕМЕННО: сырые ответы КГД (summary + errors) в esf_diag для диагностики.
-        await db.$executeRawUnsafe(
-          "INSERT INTO esf_diag (awp_xml, fault_raw) VALUES ($1, $2)",
-          `STATUS=${result.status}\n${result.raw}`,
-          reasons.raw || "(no error body)",
-        ).catch(() => {})
       }
       await db.generatedDocument.update({
         where: { id: doc.id },
