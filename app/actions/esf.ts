@@ -236,9 +236,10 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
 
     // num — только цифры (схема [0-9]{1,30}). Из номера счёта, иначе из периода.
     const num = (doc.number ?? "").replace(/\D/g, "") || doc.period.replace(/\D/g, "")
-    const [py, pm] = doc.period.split("-").map(Number)
-    const turnoverDate = new Date(py, pm, 0) // последний день месяца оборота
+    // Дата оборота не может быть в будущем (КГД ФЛК) — ставим дату выписки,
+    // как и в ручном ЭСФ.
     const issueDate = new Date()
+    const turnoverDate = issueDate
 
     const ndsEnabled = s.vat.enabled
     const ndsRate = ndsEnabled ? s.vat.rate : 0

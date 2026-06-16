@@ -83,8 +83,10 @@ function fmtDate(d: Date): string {
   return `${dd}.${mm}.${d.getFullYear()}`
 }
 
+// КГД ФЛК запрещает «незначащие нули»: 600000.00 → "600000", 1200.50 → "1200.5",
+// 0.00 → "0". Округляем до 2 знаков и отдаём минимальное представление.
 function money(n: number): string {
-  return (Math.round(n * 100) / 100).toFixed(2)
+  return String(Math.round(n * 100) / 100)
 }
 
 function tag(name: string, value: string | null | undefined): string {
@@ -130,7 +132,8 @@ function productXml(p: InvoiceLineItem): string {
     // Признак происхождения: 6 — работа/услуга (без ТН ВЭД/unitCode)
     + "<truOriginCode>6</truOriginCode>"
     + `<turnoverSize>${money(p.priceWithoutTax)}</turnoverSize>`
-    + "<unitNomenclature>Одна услуга</unitNomenclature>"
+    // Ед.изм (G6): КГД ограничивает 10 символами («Одна услуга» = 11, отклоняет).
+    + "<unitNomenclature>услуга</unitNomenclature>"
     + `<unitPrice>${money(p.unitPriceWithoutTax)}</unitPrice>`
     + "</product>"
 }
