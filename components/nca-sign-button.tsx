@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
-import { signWithNCALayer, fetchAsBase64, sha256Base64 } from "@/lib/ncalayer"
+import { signWithNCALayer, fetchAsBase64, sha256Base64, type KeyStoragePref } from "@/lib/ncalayer"
 import { saveSignature } from "@/app/actions/signatures"
+import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 
 interface Props {
   documentUrl: string         // URL для скачивания DOCX/PDF (например, /api/contracts/generate?...)
@@ -21,6 +22,7 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
   const [phase, setPhase] = useState<Phase>("idle")
   const [error, setError] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [keyPref, setKeyPref] = useState<KeyStoragePref>("file")
 
   async function handleSign() {
     setError(null)
@@ -32,7 +34,7 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
       const hashB64 = await sha256Base64(Uint8Array.from(atob(fileB64), (c) => c.charCodeAt(0)).buffer as ArrayBuffer)
 
       setPhase("signing")
-      const result = await signWithNCALayer(fileB64, "cms", { tsp: true })
+      const result = await signWithNCALayer(fileB64, "cms", { tsp: true, storage: keyPref })
       if (!result.ok) {
         setError(result.error)
         setPhase("error")
@@ -74,6 +76,9 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
 
   return (
     <div className="inline-flex flex-col items-stretch gap-1">
+      {phase !== "done" && (
+        <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={isWorking} />
+      )}
       <button
         type="button"
         onClick={handleSign}

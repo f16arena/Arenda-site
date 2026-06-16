@@ -4,19 +4,21 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ShieldCheck, Loader2 } from "lucide-react"
-import { signWithNCALayer, fetchAsBase64 } from "@/lib/ncalayer"
+import { signWithNCALayer, fetchAsBase64, type KeyStoragePref } from "@/lib/ncalayer"
 import { signIssuedDocumentEcp, signIssuedDocumentSimple } from "@/app/actions/cabinet-signatures"
+import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 
 /** Подпись выставленного арендодателем акта (АВР / сверка) арендатором: ЭЦП или простая. */
 export function DocumentSignButton({ documentId }: { documentId: string }) {
   const router = useRouter()
   const [busy, setBusy] = useState<"ecp" | "simple" | null>(null)
+  const [keyPref, setKeyPref] = useState<KeyStoragePref>("file")
 
   async function signEcp() {
     setBusy("ecp")
     try {
       const fileB64 = await fetchAsBase64(`/api/documents/archive/${documentId}`)
-      const res = await signWithNCALayer(fileB64, "cms", { tsp: true })
+      const res = await signWithNCALayer(fileB64, "cms", { tsp: true, storage: keyPref })
       if (!res.ok) { toast.error(res.error); return }
       const saved = await signIssuedDocumentEcp(documentId, res.signature)
       if (!saved.ok) { toast.error(saved.error ?? "Не удалось подписать"); return }
@@ -38,7 +40,8 @@ export function DocumentSignButton({ documentId }: { documentId: string }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={!!busy} />
       <button
         type="button"
         onClick={signEcp}

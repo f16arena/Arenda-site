@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
-import { signWithNCALayer } from "@/lib/ncalayer"
+import { signWithNCALayer, type KeyStoragePref } from "@/lib/ncalayer"
 import { signContractByTenantEcp, signContractByLandlordEcp } from "@/app/actions/contract-workflow"
+import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 
 type Phase = "idle" | "signing" | "saving" | "done" | "error"
 
@@ -29,12 +30,13 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
   const [phase, setPhase] = useState<Phase>("idle")
   const [error, setError] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+  const [keyPref, setKeyPref] = useState<KeyStoragePref>("file")
 
   async function handleSign() {
     setError(null)
     setPhase("signing")
     try {
-      const result = await signWithNCALayer(payloadB64, "cms", { tsp: true })
+      const result = await signWithNCALayer(payloadB64, "cms", { tsp: true, storage: keyPref })
       if (!result.ok) {
         const msg = result.error || "NCALayer не вернул подпись (неизвестная ошибка)"
         setError(msg)
@@ -83,6 +85,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
 
   return (
     <div className="flex flex-col items-stretch gap-1.5">
+      <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={isWorking} />
       <button
         type="button"
         onClick={handleSign}

@@ -185,22 +185,33 @@ async function signCall(request: unknown): Promise<NcaSignResponse> {
   return { ok: false, error, code }
 }
 
+/** Тип хранилища ключа, выбранный пользователем (или авто-определение). */
+export type KeyStoragePref = "auto" | "file" | "token"
+
 /**
- * Определяет хранилище ключа: подключённый аппаратный токен (Kaztoken/eToken/JaCarta…)
- * или PKCS12 (файл .p12). Раньше было жёстко "PKCS12" — у пользователя с токеном это
- * давало ошибку «ключ не найден». Теперь спрашиваем NCALayer (getActiveTokens).
+ * Определяет хранилище ключа по предпочтению пользователя:
+ *   - "file"  → всегда PKCS12 (файл .p12), даже если воткнут токен;
+ *   - "token" → подключённый аппаратный токен (Kaztoken/eToken/JaCarta…);
+ *   - "auto"  → токен если есть, иначе файл (прежнее поведение).
+ * Раньше было жёстко "PKCS12" (у кого токен — «ключ не найден»), потом жёстко
+ * токен (у кого файл и воткнут токен — нельзя выбрать файл). Теперь — по выбору.
  */
-async function detectStorage(): Promise<string> {
-  const r = await rawRpc({ module: COMMON, method: "getActiveTokens" })
-  if (r.ok) {
-    const ro: unknown = (r.msg.responseObject as unknown) ?? (r.msg.result as unknown)
-    const list: string[] = Array.isArray(ro)
-      ? ro.filter((x): x is string => typeof x === "string")
-      : (typeof ro === "string" && ro ? [ro] : [])
-    const token = list.find((s) => s && s !== "PKCS12")
-    if (token) return token
+async function detectStorage(pref: KeyStoragePref = "auto"): Promise<string> {
+  if (pref === "file") return "PKCS12" // файл .p12 — NCALayer покажет выбор файла
+  if (pref === "auto" || pref === "token") {
+    const r = await rawRpc({ module: COMMON, method: "getActiveTokens" })
+    if (r.ok) {
+      const ro: unknown = (r.msg.responseObject as unknown) ?? (r.msg.result as unknown)
+      const list: string[] = Array.isArray(ro)
+        ? ro.filter((x): x is string => typeof x === "string")
+        : (typeof ro === "string" && ro ? [ro] : [])
+      const token = list.find((s) => s && s !== "PKCS12")
+      if (token) return token
+    }
+    // Токен запрошен явно, но не найден — подсказываем вставить его.
+    if (pref === "token") throw new Error("Токен не найден. Вставьте Kaztoken/eToken в USB и попробуйте снова — либо выберите «Файл (.p12)».")
   }
-  return "PKCS12" // ключ-файл .p12 (NCALayer покажет выбор файла)
+  return "PKCS12" // авто-режим без токена → файл
 }
 
 /**
@@ -219,13 +230,18 @@ async function detectStorage(): Promise<string> {
 export async function signWithNCALayer(
   dataB64: string,
   signMode: "raw" | "cms" = "cms",
-  opts?: { tsp?: boolean },
+  opts?: { tsp?: boolean; storage?: KeyStoragePref },
 ): Promise<NcaSignResponse> {
   if (typeof window === "undefined") {
     return { ok: false, error: "NCALayer работает только в браузере" }
   }
 
-  const storage = await detectStorage()
+  let storage: string
+  try {
+    storage = await detectStorage(opts?.storage ?? "auto")
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось определить ключ", code: "NO_STORAGE" }
+  }
 
   // XML-подпись (ЭСФ) — без TSP.
   if (signMode === "raw") {
