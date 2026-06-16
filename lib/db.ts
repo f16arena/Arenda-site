@@ -7,18 +7,24 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
-  // Pool — настройки специфичны для Supabase pooler из удалённого региона (Sydney).
-  // Каждый serverless invocation быстро освобождает соединение в idle.
-  // Total = vercel_instances × max. Supabase pooler лимит ~15 (Pro plan — выше).
+  // Pool для Supabase (eu-central-1, Frankfurt). Каждый serverless invocation
+  // быстро освобождает соединение в idle. Total = vercel_instances × max.
+  //
+  // ВАЖНО про max: страницы делают по 6–10 запросов через Promise.all (дашборд,
+  // финансы, карточка арендатора). При max=1 эти «параллельные» запросы
+  // СЕРИАЛИЗУЮТСЯ на единственном соединении: даже при быстрой БД (запросы <100мс
+  // в Postgres) рендер раздувался до 2.7–4с — это был главный источник «долгой
+  // загрузки» (телеметрия server_performance_logs + pg_stat_statements, июнь 2026).
+  // max=3 даёт реальную параллельность (запас по соединениям большой:
+  // max_connections=60, в работе ~6). Через транзакционный pooler (порт 6543)
+  // можно поднять и выше — он мультиплексирует клиентские соединения.
   const isServerless = !!process.env.VERCEL
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    // В serverless каждый инстанс короткоживущий — 1 коннекта достаточно.
-    // В dev/long-running — 5 для параллельных запросов.
-    max: isServerless ? 1 : 5,
+    max: isServerless ? 3 : 5,
     idleTimeoutMillis: 10_000,
-    // Sydney регион далеко (RTT ~200мс из РК): 30 сек на установку TLS.
+    // 30 сек на установку TLS — запас на сетевые задержки.
     connectionTimeoutMillis: 30_000,
     // Постгресовый statement timeout — защита от вечно висящих запросов.
     statement_timeout: 30_000,
