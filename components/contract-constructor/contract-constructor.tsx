@@ -20,7 +20,8 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react"
-import { signWithNCALayer } from "@/lib/ncalayer"
+import { signWithNCALayer, type KeyStoragePref } from "@/lib/ncalayer"
+import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 import { getLandlordSignPayload, signContractByLandlordEcp, sendContractForSignature } from "@/app/actions/contract-workflow"
 import { Button } from "@/components/ui/button"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
@@ -135,6 +136,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
   const [drafts, setDrafts] = useState<DraftListItem[]>([])
   const [pending, startTransition] = useTransition()
   const [signing, setSigning] = useState(false)
+  const [keyPref, setKeyPref] = useState<KeyStoragePref>("file")
 
   const set = (mut: Mutator) => setState((prev) => { const n = structuredClone(prev); mut(n); return n })
 
@@ -264,7 +266,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
       const pl = await getLandlordSignPayload(contractId)
       if (!pl.ok) { toast.error(`${pl.error}. Договор сохранён как черновик — подпишите на его странице.`); return }
       // 3) подпись ЭЦП через NCALayer (запросит пароль к ключу)
-      const sig = await signWithNCALayer(pl.payloadB64, "cms", { tsp: true })
+      const sig = await signWithNCALayer(pl.payloadB64, "cms", { tsp: true, storage: keyPref })
       if (!sig.ok) { toast.error(`${sig.error || "Подпись не выполнена"}. Договор сохранён как черновик.`); return }
       // 4) фиксируем подпись владельца
       const saved = await signContractByLandlordEcp(contractId, sig.signature)
@@ -311,6 +313,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
         <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>DOCX</Button>
         <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract} onClick={() => doCreate({})}>Создать договор (черновик)</Button>
         <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract} onClick={() => doCreate({ send: true })}>Отправить без подписи</Button>
+        <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={signing || pending} />
         <Button variant="primary" size="sm" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending || !!dupContract} onClick={doCreateSignEcpSend}>Подписать ЭЦП и отправить</Button>
         {dupContract && (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
