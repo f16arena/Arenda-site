@@ -641,8 +641,8 @@ async function exercisePublicForms(page: Page, issues: Issue[]) {
   await page.locator('input[name="ownerEmail"]').fill("audit@example.test")
   await page.locator('input[name="ownerPhone"]').fill("+77000009999")
   await page.locator('input[name="password"]').fill("audit-password-123")
-  await page.locator('input[name="agreed"]').check()
-  await expect(page.locator('input[name="agreed"]')).toBeChecked()
+  await page.locator('input[name="acceptedTerms"]').check()
+  await expect(page.locator('input[name="acceptedTerms"]')).toBeChecked()
 }
 
 async function tryLogin(browser: Browser, baseURL: string, loginValue: string, password: string): Promise<{ page: Page; result: AuthResult }> {
