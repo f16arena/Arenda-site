@@ -17,6 +17,8 @@ type DeleteAdminDocumentInput = {
 type DeleteAdminDocumentResult = {
   ok: boolean
   error?: string
+  /** Сколько связанных начислений (долгов) убрано вместе с авто-счётом/АВР. */
+  removedCharges?: number
 }
 
 export async function deleteAdminDocument(input: DeleteAdminDocumentInput): Promise<DeleteAdminDocumentResult> {
@@ -97,6 +99,7 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
       tenantId: true,
       tenantName: true,
       fileName: true,
+      period: true,
     },
   })
   if (!doc) return { ok: false, error: "Документ не найден или недоступен." }
@@ -125,13 +128,55 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
-  // Жёсткое удаление: документ и его подписи стираются физически из БД.
-  await db.$transaction([
-    db.documentSignature.deleteMany({
-      where: { organizationId: orgId, ...signatureWhere },
-    }),
-    db.generatedDocument.delete({ where: { id: doc.id } }),
-  ])
+  // Каскад: счёт/АВР — это печатная форма поверх начислений. По решению владельца
+  // удаление авто-документа должно убирать и связанный долг, и уведомление.
+  // Чистим ТОЛЬКО неоплаченные начисления периода (оплаченные = история, не трогаем;
+  // депозит — отдельный поток «Финансы → Депозиты», тоже не трогаем). Soft-delete —
+  // восстановимо. Удаляем только если для периода не остаётся другого счёта/АВР.
+  const CASCADE_CHARGE_TYPES = ["RENT", "CLEANING", "SERVICE_FEE", "SERVICE_FEE_INDEXED", "SERVICE_DELIVERED", "OTHER"]
+  const cascades = (doc.documentType === "INVOICE" || doc.documentType === "ACT") && doc.tenantId && doc.period
+  let removedCharges = 0
+  let removedNotifs = 0
+
+  await db.$transaction(async (tx) => {
+    await tx.documentSignature.deleteMany({ where: { organizationId: orgId, ...signatureWhere } })
+    await tx.generatedDocument.delete({ where: { id: doc.id } })
+
+    if (cascades) {
+      // Остался ли другой счёт/АВР за тот же период? Если да — начисления нужны ему.
+      const siblingDoc = await tx.generatedDocument.findFirst({
+        where: {
+          organizationId: orgId,
+          tenantId: doc.tenantId,
+          period: doc.period,
+          documentType: { in: ["INVOICE", "ACT"] },
+          deletedAt: null,
+        },
+        select: { id: true },
+      })
+      if (!siblingDoc) {
+        const charges = await tx.charge.updateMany({
+          where: {
+            tenantId: doc.tenantId!,
+            period: doc.period!,
+            isPaid: false,
+            deletedAt: null,
+            type: { in: CASCADE_CHARGE_TYPES },
+          },
+          data: { deletedAt: new Date() },
+        })
+        removedCharges = charges.count
+      }
+    }
+
+    // Уведомление владельцу «документы готовы» (best-effort: ищем по номеру счёта).
+    if (cascades && doc.number) {
+      const notifs = await tx.notification.deleteMany({
+        where: { type: "DOCUMENT_SIGN_REQUEST", message: { contains: doc.number } },
+      })
+      removedNotifs = notifs.count
+    }
+  })
 
   await audit({
     action: "DELETE",
@@ -144,11 +189,13 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
       tenantName: doc.tenantName,
       fileName: doc.fileName,
       signed,
+      removedCharges,
+      removedNotifs,
     },
   })
 
   revalidateDocumentPaths(doc.tenantId)
-  return { ok: true }
+  return { ok: true, removedCharges }
 }
 
 function isContractSigned(

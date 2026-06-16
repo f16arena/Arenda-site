@@ -227,7 +227,11 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
       // через revalidatePath в server action. При следующем переходе
       // на страницу будет свежее. Локально мы уже синхронны.
       // Жёсткое удаление — отмены нет (восстановить нечего).
-      toast.success("Документ удалён навсегда")
+      toast.success(
+        result.removedCharges
+          ? `Документ удалён · также убрано начислений (долгов): ${result.removedCharges}`
+          : "Документ удалён навсегда",
+      )
     })
   }
 
