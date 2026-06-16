@@ -293,14 +293,17 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         {row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
           <LandlordSignButton documentId={row.generatedId} />
         )}
-        {/* ИС ЭСФ (КГД): счёт → электронная счёт-фактура (ЭСФ), АВР → акт */}
-        {row.source === "generated" && row.generatedId && (row.type === "ACT" || row.type === "INVOICE") && (
+        {/* ИС ЭСФ (КГД): выписываем счёт-фактуру (ЭСФ) ТОЛЬКО со счёта.
+            Электронный АВР не отправляем — по словам бухгалтера он блокирует
+            выписку ЭСФ до подписания контрагентом (а его обычно не подписывают);
+            АВР остаётся печатным документом. */}
+        {row.source === "generated" && row.generatedId && row.type === "INVOICE" && (
           <EsfControl
             documentId={row.generatedId}
             status={row.esfStatus ?? null}
             regNumber={row.esfRegNumber ?? null}
             error={row.esfError ?? null}
-            kind={row.type === "INVOICE" ? "invoice" : "act"}
+            kind="invoice"
           />
         )}
         {row.isSigned && row.deleteId && (
