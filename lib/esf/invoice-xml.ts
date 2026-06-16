@@ -139,16 +139,15 @@ function productXml(p: InvoiceLineItem): string {
 function deliveryTermXml(input: InvoiceXmlInput): string {
   const c = input.contract
   if (!c || (!c.number && !c.date)) return ""
-  // ВНИМАНИЕ: боевая схема КГД отличается от SDK-XSD — paymentForm идёт ДО
-  // hasContract (проверено живой ошибкой ФЛК: после hasContract валидатор ждёт
-  // {term, transportTypeCode, warrant, warrantDate}). Порядок:
-  // contractDate, contractNum, deliveryConditionCode, paymentForm, hasContract,
-  // transportTypeCode.
+  // ВНИМАНИЕ: боевая схема КГД отличается от SDK-XSD — у DeliveryTerm НЕТ
+  // элемента paymentForm (две живые ошибки ФЛК исключили его и до, и после
+  // hasContract). Реальный порядок: contractDate, contractNum,
+  // deliveryConditionCode, [destination], hasContract, [term, transportTypeCode,
+  // warrant, warrantDate].
   return "<deliveryTerm>"
     + (c.date ? `<contractDate>${fmtDate(c.date)}</contractDate>` : "")
     + tag("contractNum", c.number)
     + "<deliveryConditionCode>XXX</deliveryConditionCode>"
-    + `<paymentForm>${input.paymentForm ?? "NON_CASH"}</paymentForm>`
     + "<hasContract>true</hasContract>"
     + "<transportTypeCode>99</transportTypeCode>"
     + "</deliveryTerm>"
