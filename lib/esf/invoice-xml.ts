@@ -166,7 +166,10 @@ export function buildInvoiceXml(input: InvoiceXmlInput): string {
 
   // Порядок V2: customers → deliveryDocDate? → deliveryDocNum? → deliveryTerm? →
   // productSet → sellers.
-  return `<invoice xmlns="v2.esf">`
+  // ВАЖНО: namespace v2.esf вешаем ПРЕФИКСОМ на корень (xmlns:v2), а НЕ дефолтным
+  // (xmlns="v2.esf"). Дочерние элементы в InvoiceV2 — unqualified (без namespace),
+  // иначе валидатор КГД ругается: «Invalid content … '{v2.esf}date' … One of '{date}'».
+  return `<v2:invoice xmlns:a="abstractInvoice.esf" xmlns:v2="v2.esf">`
     + `<date>${fmtDate(input.issueDate)}</date>`
     + "<invoiceType>ORDINARY_INVOICE</invoiceType>"
     + `<num>${esc(input.number)}</num>`
@@ -185,5 +188,5 @@ export function buildInvoiceXml(input: InvoiceXmlInput): string {
     + `<totalTurnoverSize>${money(totalWithoutTax)}</totalTurnoverSize>`
     + "</productSet>"
     + `<sellers>${sellerXml(input.seller)}</sellers>`
-    + "</invoice>"
+    + "</v2:invoice>"
 }
