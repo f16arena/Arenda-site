@@ -141,6 +141,12 @@ export class BuilderEngine {
   // линии по сплайну (дорога/дорожка/забор)
   private pathPoints: Vec2[] = [] // мм
   private pathPreview: TransformNode | null = null
+  // Рисование протягиванием (drag): дорога/забор — прямой отрезок, площадка —
+  // прямоугольник. Старт фиксируется на pointer-down, превью следует за курсором,
+  // на pointer-up строится объект. Клик без протягивания — прежний мультиточечный ввод.
+  private pathDragStart: Vec2 | null = null
+  private dragPreview: TransformNode | null = null
+  private suppressTap = false
 
   // площадка-покрытие по контуру
   private pavePoints: Vec2[] = [] // мм
@@ -708,6 +714,18 @@ export class BuilderEngine {
       }
       return
     }
+    if (this.tool === "road" || this.tool === "fence" || this.tool === "pave") {
+      // Начало рисования протягиванием. Если уже идёт мультиточечный ввод
+      // (кликами), drag не перехватываем — пусть работает прежний поток.
+      if (this.pathPoints.length === 0 && this.pavePoints.length === 0) {
+        const p = this.projectToY(0)
+        if (p) {
+          this.pathDragStart = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+          this.bundle.scene.activeCamera?.detachControl()
+        }
+      }
+      return
+    }
     if (this.tool === "select") {
       const { meta } = this.pickMeta()
       if (meta?.kind === "node" && meta.floorId && meta.entityId) {
@@ -741,6 +759,17 @@ export class BuilderEngine {
   private handleMove(): void {
     if (this.terrainEditing) {
       this.terrainBrush()
+      return
+    }
+    if (this.pathDragStart) {
+      const now = performance.now()
+      if (now - this.lastMoveAt < 33) return
+      this.lastMoveAt = now
+      const p = this.projectToY(0)
+      if (!p) return
+      const end: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+      this.drawDragPreview(this.pathDragStart, end)
+      this.onHud(this.tool === "pave" ? "Площадка: протяните прямоугольник и отпустите" : "Дорога: протяните линию и отпустите (одиночный клик — ввод по точкам)")
       return
     }
     if (this.roomStart) {
@@ -831,6 +860,35 @@ export class BuilderEngine {
       this.terrainEditing = false
       if (this.terrainHeights) this.onCommand(new SetTerrainCommand(this.terrainHeights))
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
+    if (this.pathDragStart) {
+      const start = this.pathDragStart
+      this.pathDragStart = null
+      this.dragPreview?.dispose()
+      this.dragPreview = null
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      const p = this.projectToY(0)
+      if (p) {
+        const end: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
+        const dist = Math.hypot(end.x - start.x, end.y - start.y)
+        if (dist >= 700) {
+          // Настоящее протягивание → строим объект.
+          if (this.tool === "pave") {
+            const pts: Vec2[] = [
+              { x: start.x, y: start.y }, { x: end.x, y: start.y },
+              { x: end.x, y: end.y }, { x: start.x, y: end.y },
+            ]
+            this.onCommand(new AddPavementCommand({ id: uid("pv"), points: pts, materialId: this.paveMaterial }))
+          } else {
+            const kind = this.tool === "fence" ? "fence" : this.pathKind === "path" ? "path" : "road"
+            const style = kind === "fence" ? this.fenceStyle : "wood"
+            this.onCommand(new AddPathCommand({ id: uid("p"), points: [{ x: start.x, y: start.y }, { x: end.x, y: end.y }], width: Math.max(300, this.pathWidth), kind, style }))
+          }
+          this.suppressTap = true // не дать последующему tap добавить точку
+          this.onHud(null)
+        }
+      }
       return
     }
     if (this.roomStart) {
@@ -944,6 +1002,8 @@ export class BuilderEngine {
   }
 
   private handleTap(): void {
+    // После рисования протягиванием POINTERTAP не должен добавлять точку.
+    if (this.suppressTap) { this.suppressTap = false; return }
     if (this.dragNode || this.dragObject) return
     // Walk-режим: клик по двери открывает/закрывает её, без редактирования.
     if (this.walkCamera && this.bundle.scene.activeCamera === this.walkCamera) {
@@ -1501,6 +1561,24 @@ export class BuilderEngine {
     this.pathPoints.push(mm)
     this.updatePathPreview()
     this.onHud(`${this.handleWaterOrPathLabel()}: точек ${this.pathPoints.length} · повторный клик в конце или Enter — готово, Esc — отмена`)
+  }
+
+  // Превью рисования протягиванием: дорога/забор — отрезок, площадка — контур
+  // прямоугольника. Цвет — как у соответствующего точечного превью.
+  private drawDragPreview(a: Vec2, b: Vec2): void {
+    this.dragPreview?.dispose()
+    const color = this.tool === "pave" ? "#38BDF8" : "#A78BFA"
+    const y = this.tool === "pave" ? 0.11 : 0.08
+    const root = new TransformNode("dragPreview", this.bundle.scene)
+    const corners: Vec2[] = this.tool === "pave"
+      ? [{ x: a.x, y: a.y }, { x: b.x, y: a.y }, { x: b.x, y: b.y }, { x: a.x, y: b.y }, { x: a.x, y: a.y }]
+      : [a, b]
+    const line = corners.map((p) => new Vector3(p.x * S, y, p.y * S))
+    const poly = MeshBuilder.CreateLines("dragline", { points: line }, this.bundle.scene)
+    poly.color = Color3.FromHexString(color)
+    poly.isPickable = false
+    poly.parent = root
+    this.dragPreview = root
   }
 
   isDrawingPath(): boolean {
