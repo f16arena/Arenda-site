@@ -13,6 +13,8 @@ const ESF_API_BASE = (process.env.ESF_API_BASE || "https://esf.gov.kz:8443").rep
 const SESSION_URL = `${ESF_API_BASE}/esf-web/ws/api1/SessionService`
 const AWP_URL = `${ESF_API_BASE}/esf-web/ws/api1/AwpWebService`
 const AUTH_URL = `${ESF_API_BASE}/esf-web/ws/api1/AuthService`
+const UPLOAD_INVOICE_URL = `${ESF_API_BASE}/esf-web/ws/api1/UploadInvoiceService`
+const INVOICE_URL = `${ESF_API_BASE}/esf-web/ws/api1/InvoiceService`
 
 /** Обратное к escXml: тело authTicketXml приходит XML-escaped (это строка с XML). */
 function unescapeXml(value: string): string {
@@ -243,6 +245,95 @@ export async function queryAwpStatusById(sessionId: string, awpId: string): Prom
   return {
     status: pick(xml, "status"),
     registrationNumber: pick(xml, "registrationNumber"),
+    raw: xml,
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  ЭСФ (счёт-фактура): UploadInvoiceService.syncInvoice + InvoiceService статус
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface UploadInvoiceResult {
+  /** Внутренний id ЭСФ в ИС ЭСФ (для запроса статуса) */
+  id: string | null
+  /** Исходящий номер ЭСФ */
+  num: string | null
+  /** Дата выписки */
+  date: string | null
+  raw: string
+}
+
+/**
+ * Загрузка подписанной ЭСФ (InvoiceV2) через UploadInvoiceService.syncInvoice.
+ * version="InvoiceV2"; signature — сырая ГОСТ-подпись XML-тела (≤400 симв.,
+ * как у АВР). senderSignerName НЕ нужен (в отличие от АВР).
+ */
+export async function uploadInvoice(params: {
+  sessionId: string
+  invoiceXml: string
+  signature: string
+  signatureType?: "COMPANY" | "OPERATOR"
+  x509CertificatePem: string
+}): Promise<UploadInvoiceResult> {
+  const cert = params.x509CertificatePem.replace(/-----(BEGIN|END) CERTIFICATE-----|\s/g, "")
+  // SyncInvoiceRequest: sessionId → invoiceUploadInfoList → x509Certificate.
+  // invoiceUploadInfo — xs:all (порядок свободный), но шлём логично.
+  const body = `<ns:syncInvoiceRequest xmlns:ns="esf">`
+    + `<sessionId>${escXml(params.sessionId)}</sessionId>`
+    + `<invoiceUploadInfoList><invoiceUploadInfo>`
+    + `<invoiceBody>${escXml(params.invoiceXml)}</invoiceBody>`
+    + `<version>InvoiceV2</version>`
+    + `<signature>${escXml(params.signature)}</signature>`
+    + `<signatureType>${params.signatureType ?? "COMPANY"}</signatureType>`
+    + `</invoiceUploadInfo></invoiceUploadInfoList>`
+    + `<x509Certificate>${escXml(cert)}</x509Certificate>`
+    + `</ns:syncInvoiceRequest>`
+  const xml = await soapCall(UPLOAD_INVOICE_URL, body, 60_000)
+
+  // declinedSet → ЭСФ отклонена ФЛК (содержит <error><text>); acceptedSet →
+  // standardResponse{id, num, date} (поставлена в очередь на регистрацию).
+  const declined = pick(xml, "declinedSet")
+  if (declined && /<(?:[\w.]+:)?error[\s>]/.test(declined)) {
+    const texts = pickAll(declined, "text")
+    const codes = pickAll(declined, "errorCode")
+    const props = pickAll(declined, "property")
+    const msg = texts.filter(Boolean).join("; ")
+      || codes.filter(Boolean).join("; ")
+      || props.filter(Boolean).join("; ")
+      || "ЭСФ отклонена ИС ЭСФ (ошибка ФЛК)"
+    throw new EsfError(`ИС ЭСФ отклонила счёт-фактуру: ${msg}`, codes[0], `[${UPLOAD_INVOICE_URL}] ${xml.slice(0, 4000)}`)
+  }
+  const accepted = pick(xml, "acceptedSet") ?? xml
+  return {
+    id: pick(accepted, "id"),
+    num: pick(accepted, "num"),
+    date: pick(accepted, "date"),
+    raw: xml,
+  }
+}
+
+export interface InvoiceSummaryResult {
+  status: string | null
+  registrationNumber: string | null
+  num: string | null
+  raw: string
+}
+
+/**
+ * Статус ЭСФ по внутреннему id (InvoiceService.queryInvoiceSummaryById).
+ * Возвращает рег. номер (ESF-…) после регистрации и текущий статус.
+ */
+export async function queryInvoiceSummaryById(sessionId: string, invoiceId: string): Promise<InvoiceSummaryResult> {
+  const body = `<ns:queryInvoiceSummaryByIdRequest xmlns:ns="esf">`
+    + `<sessionId>${escXml(sessionId)}</sessionId>`
+    + `<idList><id>${escXml(invoiceId)}</id></idList>`
+    + `</ns:queryInvoiceSummaryByIdRequest>`
+  const xml = await soapCall(INVOICE_URL, body)
+  const summary = pick(xml, "invoiceSummary") ?? xml
+  return {
+    status: pick(summary, "invoiceStatus"),
+    registrationNumber: pick(summary, "registrationNumber"),
+    num: pick(summary, "num"),
     raw: xml,
   }
 }

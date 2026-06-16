@@ -27,14 +27,14 @@ export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
       </div>
       <ServerForm action={saveOrgEsfConfig} successMessage="Реквизиты ЭСФ сохранены" encType="multipart/form-data" className="p-5 grid grid-cols-2 gap-4">
         <p className="col-span-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          Реквизиты для автоматической отправки АВР в ИС ЭСФ (КГД). Учётка ЭСФ — это логин/пароль кабинета ЭСФ
-          (НЕ пароль ЭЦП). Секреты хранятся в зашифрованном виде. Поля пароля/PIN можно оставить пустыми — тогда
-          сохранённое значение не изменится.
+          Реквизиты для выписки электронных счетов-фактур (ЭСФ) в ИС ЭСФ (КГД) прямо из счёта. Учётка ЭСФ — это
+          логин/пароль кабинета ЭСФ (НЕ пароль ЭЦП). Секреты хранятся в зашифрованном виде. Поля пароля/PIN можно
+          оставить пустыми — тогда сохранённое значение не изменится.
         </p>
 
         <label className="col-span-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
           <input type="checkbox" name="enabled" defaultChecked={c?.enabled ?? false} className="rounded" />
-          Включить отправку АВР в ИС ЭСФ
+          Включить выписку счетов-фактур (ЭСФ) в ИС ЭСФ
         </label>
 
         <div>

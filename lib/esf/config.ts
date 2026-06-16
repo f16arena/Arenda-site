@@ -52,9 +52,8 @@ export async function resolveOrgEsfConfig(
   if (!certData && !certPath) {
     return { ok: false, error: "Не загружен ключ ЭЦП организации (Настройки → ЭСФ)." }
   }
-  if (!gsvsCode) {
-    return { ok: false, error: "Не указан код ГСВС услуги (Настройки → ЭСФ) — обязателен для АВР." }
-  }
+  // gsvsCode нужен только для электронного АВР; ЭСФ (InvoiceV2) его не использует,
+  // поэтому он необязателен на уровне конфигурации.
 
   return { ok: true, config: { tin: orgTin, wsUsername, wsPassword, signerIin, certPath, certPin, certData, gsvsCode } }
 }

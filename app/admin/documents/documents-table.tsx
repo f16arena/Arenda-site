@@ -293,13 +293,14 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
         {row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
           <LandlordSignButton documentId={row.generatedId} />
         )}
-        {/* Электронный АВР в ИС ЭСФ (КГД): отправка + статус подтверждения арендатором */}
-        {row.source === "generated" && row.generatedId && row.type === "ACT" && (
+        {/* ИС ЭСФ (КГД): счёт → электронная счёт-фактура (ЭСФ), АВР → акт */}
+        {row.source === "generated" && row.generatedId && (row.type === "ACT" || row.type === "INVOICE") && (
           <EsfControl
             documentId={row.generatedId}
             status={row.esfStatus ?? null}
             regNumber={row.esfRegNumber ?? null}
             error={row.esfError ?? null}
+            kind={row.type === "INVOICE" ? "invoice" : "act"}
           />
         )}
         {row.isSigned && row.deleteId && (

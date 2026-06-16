@@ -4,7 +4,7 @@ import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Landmark, Loader2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
-import { sendActToEsf, refreshEsfStatus } from "@/app/actions/esf"
+import { sendActToEsf, refreshEsfStatus, sendInvoiceToEsf, refreshInvoiceEsfStatus } from "@/app/actions/esf"
 
 /**
  * Управление отправкой АВР в ИС ЭСФ (КГД): кнопка отправки, статус-бейдж,
@@ -32,27 +32,31 @@ export function EsfControl({
   status,
   regNumber,
   error,
+  kind = "act",
 }: {
   documentId: string
   status: string | null
   regNumber: string | null
   error?: string | null
+  /** Тип документа: АВР (act) или счёт-фактура ЭСФ (invoice). */
+  kind?: "act" | "invoice"
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const docLabel = kind === "invoice" ? "Счёт-фактура (ЭСФ)" : "АВР"
 
   function send() {
     startTransition(async () => {
-      const r = await sendActToEsf(documentId)
+      const r = kind === "invoice" ? await sendInvoiceToEsf(documentId) : await sendActToEsf(documentId)
       if (!r.ok) { toast.error(r.error); router.refresh(); return }
-      toast.success(`АВР отправлен в ИС ЭСФ${r.regNumber ? ` · ${r.regNumber}` : ""} — арендатор подтвердит его в своём кабинете ЭСФ`)
+      toast.success(`${docLabel} отправлен в ИС ЭСФ${r.regNumber ? ` · ${r.regNumber}` : ""}`)
       router.refresh()
     })
   }
 
   function refresh() {
     startTransition(async () => {
-      const r = await refreshEsfStatus(documentId)
+      const r = kind === "invoice" ? await refreshInvoiceEsfStatus(documentId) : await refreshEsfStatus(documentId)
       if (!r.ok) { toast.error(r.error); return }
       toast.success(`Статус в ИС ЭСФ: ${STATUS_LABEL[r.status ?? ""] ?? r.status ?? "без изменений"}`)
       router.refresh()
@@ -75,7 +79,9 @@ export function EsfControl({
           type="button"
           onClick={send}
           disabled={pending}
-          title="Отправить электронный АВР в ИС ЭСФ (КГД) — арендатор подтвердит его ЭЦП в своём кабинете"
+          title={kind === "invoice"
+            ? "Выписать электронную счёт-фактуру (ЭСФ) в ИС ЭСФ (КГД)"
+            : "Отправить электронный АВР в ИС ЭСФ (КГД) — арендатор подтвердит его ЭЦП в своём кабинете"}
           className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 dark:border-indigo-500/40 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25"
         >
           {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Landmark className="h-3 w-3" />}
