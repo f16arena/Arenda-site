@@ -207,12 +207,14 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         </div>
 
         <div>
-          <label className={labelClass}>Телефон владельца</label>
+          <label className={labelClass}>Телефон организации</label>
           <KzPhoneInput name="phone" defaultValue={organization.phone ?? ""} className={inputClass} />
+          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Для документов и экрана оплаты. Личный телефон — в «Моём профиле».</p>
         </div>
         <div>
-          <label className={labelClass}>Email владельца</label>
+          <label className={labelClass}>Email организации</label>
           <AsciiEmailInput name="email" defaultValue={organization.email ?? ""} className={inputClass} />
+          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Для документов и связи. Email для входа — в «Моём профиле».</p>
         </div>
 
         {/* Дефолт пени по договорам. Применяется когда у конкретного арендатора
