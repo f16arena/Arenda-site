@@ -19,6 +19,7 @@ import { setUserCapabilityOverride } from "@/app/actions/permissions"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { isStaffLikeRole, type RoleOption } from "@/lib/role-capabilities"
+import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 
 type BuildingOption = { id: string; name: string }
 
@@ -820,18 +821,25 @@ function Field({
   required?: boolean
   minLength?: number
 }) {
+  const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-slate-500">{label}</label>
-      <input
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        defaultValue={defaultValue}
-        required={required}
-        minLength={minLength}
-        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
-      />
+      {type === "tel" ? (
+        <KzPhoneInput name={name} defaultValue={defaultValue} required={required} autoComplete="off" className={inputCls} />
+      ) : type === "email" ? (
+        <AsciiEmailInput name={name} defaultValue={defaultValue} required={required} autoComplete="off" className={inputCls} />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          placeholder={placeholder}
+          defaultValue={defaultValue}
+          required={required}
+          minLength={minLength}
+          className={inputCls}
+        />
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { updateStaff, deactivateStaff, reactivateStaff } from "@/app/actions/staff"
 import { Button } from "@/components/ui/button"
+import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 
 const ROLES = [
   { value: "OWNER", label: "Владелец" },
@@ -64,19 +65,15 @@ export function StaffEditForm({
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
-          <input
+          <KzPhoneInput
             name="phone"
-            type="tel"
-            inputMode="tel"
             defaultValue={initial.phone ?? ""}
-            placeholder="+7 700 000 00 00"
             className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
-          <input
-            type="email"
+          <AsciiEmailInput
             name="email"
             defaultValue={initial.email ?? ""}
             className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"

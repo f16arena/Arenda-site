@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { createOrganization, checkSlugAvailable, type SlugCheckResult } from "@/app/actions/organizations"
 import { slugify } from "@/lib/slugify"
 import { Copy, Check, Loader2, AlertCircle, ExternalLink } from "lucide-react"
+import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 
 type Plan = {
   id: string
@@ -257,19 +258,26 @@ function Field({
   placeholder?: string
   hint?: string
 }) {
+  const inputCls = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
-      <input
-        name={name}
-        type={type}
-        value={value}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        defaultValue={defaultValue}
-        required={required}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-      />
+      {type === "tel" ? (
+        <KzPhoneInput name={name ?? ""} defaultValue={defaultValue ?? value} required={required} className={inputCls} />
+      ) : type === "email" ? (
+        <AsciiEmailInput name={name ?? ""} defaultValue={defaultValue ?? value} required={required} className={inputCls} />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          value={value}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+          defaultValue={defaultValue}
+          required={required}
+          placeholder={placeholder}
+          className={inputCls}
+        />
+      )}
       {hint && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{hint}</p>}
     </div>
   )

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Check } from "lucide-react"
 import { createBookingLead } from "@/app/actions/booking"
 import { Button } from "@/components/ui/button"
+import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 
 export function BookingForm({
   orgSlug,
@@ -56,23 +57,16 @@ export function BookingForm({
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">Телефон *</label>
-        <input
+        <KzPhoneInput
           name="phone"
-          type="tel"
           required
-          placeholder="+7 (___) ___-__-__"
-          title="Введите номер Казахстана в формате +7 7XX XXX XX XX"
-          maxLength={30}
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-        <input
+        <AsciiEmailInput
           name="email"
-          type="email"
-          maxLength={100}
-          placeholder="не обязательно"
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
       </div>
