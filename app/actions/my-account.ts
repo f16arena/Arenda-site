@@ -180,7 +180,14 @@ export async function confirmEmailChange(token: string): Promise<Result> {
     return { ok: false, error: "Email тем временем занят или произошёл сбой. Попробуйте ещё раз." }
   }
 
-  revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  // Сброс кэша админ-оболочки. confirmEmailChange вызывается СТРАНИЦЕЙ
+  // /verify-email во время рендера Server Component (переход по ссылке из письма),
+  // а revalidateTag во время рендера запрещён Next и роняет страницу в 500.
+  // Email уже обновлён выше — кэш-хинт некритичен, оборачиваем, чтобы рендер не падал
+  // (кэш всё равно истечёт по TTL/следующей навигации).
+  try {
+    revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+  } catch { /* вызвано во время рендера — игнорируем, не роняем подтверждение */ }
   return { ok: true, message: "Email подтверждён и обновлён" }
 }
 
