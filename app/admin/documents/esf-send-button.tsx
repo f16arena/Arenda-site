@@ -58,7 +58,12 @@ export function EsfControl({
     startTransition(async () => {
       const r = kind === "invoice" ? await refreshInvoiceEsfStatus(documentId) : await refreshEsfStatus(documentId)
       if (!r.ok) { toast.error(r.error); return }
-      toast.success(`Статус в ИС ЭСФ: ${STATUS_LABEL[r.status ?? ""] ?? r.status ?? "без изменений"}`)
+      const reason = "error" in r ? r.error : null
+      if (reason && (r.status === "FAILED" || r.status === "DECLINED")) {
+        toast.error(`ИС ЭСФ отклонила: ${reason}`)
+      } else {
+        toast.success(`Статус в ИС ЭСФ: ${STATUS_LABEL[r.status ?? ""] ?? r.status ?? "без изменений"}`)
+      }
       router.refresh()
     })
   }

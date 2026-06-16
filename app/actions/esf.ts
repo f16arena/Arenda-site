@@ -9,7 +9,7 @@ import { buildAvrStateForTenant } from "@/lib/avr-engine/prefill"
 import { getActiveContractForTenant } from "@/lib/active-contract"
 import { buildAwpXml, type AwpXmlInput } from "@/lib/esf/awp-xml"
 import { buildInvoiceXml, type InvoiceXmlInput } from "@/lib/esf/invoice-xml"
-import { closeSession, uploadAwp, queryAwpStatusById, uploadInvoice, queryInvoiceSummaryById, EsfError } from "@/lib/esf/client"
+import { closeSession, uploadAwp, queryAwpStatusById, uploadInvoice, queryInvoiceSummaryById, queryInvoiceErrorById, EsfError } from "@/lib/esf/client"
 import { signAwpXml, esfSignerConfigured } from "@/lib/esf/signer"
 import { resolveOrgEsfConfig } from "@/lib/esf/config"
 import { openEsfSession } from "@/lib/esf/session"
@@ -330,9 +330,9 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
   }
 }
 
-/** Обновить статус ЭСФ (счёта) из ИС ЭСФ + получить рег. номер после регистрации. */
+/** Обновить статус ЭСФ (счёта) из ИС ЭСФ + получить рег. номер / причину отказа. */
 export async function refreshInvoiceEsfStatus(documentId: string): Promise<
-  { ok: true; status: string | null; regNumber: string | null } | { ok: false; error: string }
+  { ok: true; status: string | null; regNumber: string | null; error?: string | null } | { ok: false; error: string }
 > {
   try {
     const { orgId } = await requireStaffAccess()
@@ -350,15 +350,23 @@ export async function refreshInvoiceEsfStatus(documentId: string): Promise<
     const sessionId = await openEsfSession(cfg)
     try {
       const result = await queryInvoiceSummaryById(sessionId, doc.esfId)
+      // FAILED («Ошибочный») / DECLINED («Отклонённый») — тяжёлый ФЛК отклонил
+      // ЭСФ после постановки в очередь. Подтягиваем причины и пишем в esf_error.
+      let esfError: string | null = null
+      if (result.status === "FAILED" || result.status === "DECLINED") {
+        const reasons = await queryInvoiceErrorById(sessionId, doc.esfId).catch(() => [])
+        esfError = reasons.join("; ").slice(0, 500) || null
+      }
       await db.generatedDocument.update({
         where: { id: doc.id },
         data: {
           ...(result.status ? { esfStatus: result.status } : {}),
           ...(result.registrationNumber ? { esfRegNumber: result.registrationNumber } : {}),
+          ...(esfError ? { esfError } : {}),
         },
       })
       revalidatePath("/admin/documents")
-      return { ok: true, status: result.status, regNumber: result.registrationNumber }
+      return { ok: true, status: result.status, regNumber: result.registrationNumber, error: esfError }
     } finally {
       await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
