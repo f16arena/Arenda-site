@@ -134,6 +134,8 @@ export function buildSignerIntro(input: {
   basisText: string
   calledAs: "Арендодатель" | "Арендатор"
   useInLitseForSole?: boolean
+  /** Удостоверение личности физлица одной строкой (для PHYSICAL). */
+  idDocText?: string
 }): string {
   const legalType = (input.legalType ?? "").toUpperCase()
   // Персональные формы: ИП/ЧСИ/Адвокат/Нотариус — все подписывают сами, у них
@@ -164,6 +166,13 @@ export function buildSignerIntro(input: {
     return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», в лице ${fioGenitive}, ${actingAs} на основании ${input.basisText}`
   }
 
-  // Физлицо без directorName — без «в лице».
+  // Чистое физлицо (PHYSICAL) — выступает ОТ СВОЕГО ИМЕНИ, без «в лице» и без
+  // «на основании устава». Основание — удостоверение личности (если передано).
+  if (legalType === "PHYSICAL") {
+    const doc = (input.idDocText ?? "").trim()
+    const acting = doc ? `действующий от своего имени (${doc})` : "действующий от своего имени"
+    return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», ${acting}`
+  }
+  // Прочие персональные формы без directorName — прежняя фраза «на основании …».
   return `${input.fullName}, ${namedAs} в дальнейшем «${input.calledAs}», ${actingAs} на основании ${input.basisText}`
 }

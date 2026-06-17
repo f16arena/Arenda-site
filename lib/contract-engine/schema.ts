@@ -51,6 +51,12 @@ export interface Party {
   signatory: string
   phone?: string
   email?: string
+  /** Удостоверение личности — для физлица (type==="individual"): № / кем выдан /
+   *  дата выдачи (dd.MM.yyyy) / действует до. Используется в преамбуле и реквизитах. */
+  idDocNumber?: string
+  idDocIssuedBy?: string
+  idDocIssuedAt?: string
+  idDocExpiresAt?: string
 }
 
 export interface Premises {

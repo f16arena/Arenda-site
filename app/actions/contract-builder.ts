@@ -220,6 +220,7 @@ export async function prefillFromTenant(
         contractStart: true, contractEnd: true, depositAmount: true, paymentDueDay: true,
         penaltyPercent: true, basisDocument: true, needsCleaning: true, cleaningFee: true,
         isVatPayer: true,
+        idDocNumber: true, idDocIssuedBy: true, idDocIssuedAt: true, idDocExpiresAt: true,
         user: { select: { phone: true, email: true } },
         bankAccounts: { select: { bankName: true, iik: true, bik: true, isPrimary: true } },
         space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
@@ -252,16 +253,25 @@ export async function prefillFromTenant(
 
     // Арендатор — выбранный
     const tb = tenant.bankAccounts.find((b) => b.isPrimary) ?? tenant.bankAccounts[0]
+    const fmtDocDate = (d: Date | null) =>
+      d ? `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}` : undefined
     s.tenant = {
       type: toPartyType(tenant.legalType),
       individualSubtype: toIndividualSubtype(tenant.legalType),
       name: tenant.companyName,
+      // У физлица руководителя нет — подпись ставит сам гражданин (его ФИО).
       signatory: tenant.directorName ?? "",
       bin: tenant.bin ?? "", iin: tenant.iin ?? "",
       iik: tb?.iik ?? tenant.iik ?? "", bank: tb?.bankName ?? tenant.bankName ?? "", bik: tb?.bik ?? tenant.bik ?? "",
       basis: tenant.basisDocument ?? s.tenant.basis,
+      // Для физлица legalAddress = адрес проживания (одно поле в форме).
       address: tenant.legalAddress ?? tenant.actualAddress ?? "",
       phone: tenant.user?.phone ?? "", email: tenant.user?.email ?? "",
+      // Удостоверение личности (используется преамбулой/реквизитами физлица).
+      idDocNumber: tenant.idDocNumber ?? undefined,
+      idDocIssuedBy: tenant.idDocIssuedBy ?? undefined,
+      idDocIssuedAt: fmtDocDate(tenant.idDocIssuedAt),
+      idDocExpiresAt: fmtDocDate(tenant.idDocExpiresAt),
     }
 
     // Помещение
