@@ -439,6 +439,11 @@ function ToggleRow({ on, title, hint, onToggle }: { on: boolean; title: string; 
 // ───────────────────────── steps ─────────────────────────
 
 function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (mut: (x: Party) => void) => void }) {
+  const isIndiv = p.type === "individual"
+  // Чистое физлицо: выступает от своего имени → нет подписанта/основания/банка,
+  // основание = удостоверение личности. ЧСИ/адвокат/нотариус — лицо частной
+  // практики, у них остаются основание (лицензия) и банк.
+  const isRegular = isIndiv && (!p.individualSubtype || p.individualSubtype === "regular")
   return (
     <div>
       <div className={secTitleCls}>{role}</div>
@@ -458,21 +463,36 @@ function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (m
           />
         </div>
       )}
-      <div className="mb-2"><label className={labelCls}>Наименование</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
-      {p.type !== "individual" && (
+      <div className="mb-2"><label className={labelCls}>{isIndiv ? "ФИО" : "Наименование"}</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
+      {!isIndiv && (
         <div className="mb-2"><label className={labelCls}>Подписант (в лице)</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
       )}
-      <div className="mb-2 grid grid-cols-2 gap-2">
-        {/* ИП и физлицо идентифицируются по ИИН (хранится в iin), ТОО/АО — по БИН (bin). */}
-        <div><label className={labelCls}>{p.type === "too" ? "БИН" : "ИИН"}</label><input className={inputCls} value={(p.type === "too" ? p.bin : p.iin) || ""} onChange={(e) => onChange((x) => { if (x.type === "too") x.bin = e.target.value; else x.iin = e.target.value })} /></div>
-        <div><label className={labelCls}>Основание</label><input className={inputCls} value={p.basis} onChange={(e) => onChange((x) => { x.basis = e.target.value })} /></div>
-      </div>
-      <div className="mb-2"><label className={labelCls}>Адрес</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
-      <div className="grid grid-cols-3 gap-2">
-        <div><label className={labelCls}>ИИК</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
-        <div><label className={labelCls}>Банк</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
-        <div><label className={labelCls}>БИК</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
-      </div>
+      {isRegular ? (
+        <>
+          {/* Физлицо: ИИН + удостоверение личности (без «основания»/банка). */}
+          <div className="mb-2"><label className={labelCls}>ИИН</label><input className={inputCls} value={p.iin || ""} onChange={(e) => onChange((x) => { x.iin = e.target.value })} /></div>
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <div><label className={labelCls}>№ удостоверения</label><input className={inputCls} value={p.idDocNumber ?? ""} onChange={(e) => onChange((x) => { x.idDocNumber = e.target.value })} /></div>
+            <div><label className={labelCls}>Кем выдан</label><input className={inputCls} value={p.idDocIssuedBy ?? ""} onChange={(e) => onChange((x) => { x.idDocIssuedBy = e.target.value })} /></div>
+            <div><label className={labelCls}>Дата выдачи</label><input className={inputCls} placeholder="дд.мм.гггг" value={p.idDocIssuedAt ?? ""} onChange={(e) => onChange((x) => { x.idDocIssuedAt = e.target.value })} /></div>
+            <div><label className={labelCls}>Действует до</label><input className={inputCls} placeholder="дд.мм.гггг" value={p.idDocExpiresAt ?? ""} onChange={(e) => onChange((x) => { x.idDocExpiresAt = e.target.value })} /></div>
+          </div>
+        </>
+      ) : (
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          {/* ИП/ЧСИ/адвокат/нотариус — по ИИН, ТОО/АО — по БИН; основание = устав/лицензия. */}
+          <div><label className={labelCls}>{p.type === "too" ? "БИН" : "ИИН"}</label><input className={inputCls} value={(p.type === "too" ? p.bin : p.iin) || ""} onChange={(e) => onChange((x) => { if (x.type === "too") x.bin = e.target.value; else x.iin = e.target.value })} /></div>
+          <div><label className={labelCls}>Основание</label><input className={inputCls} value={p.basis} onChange={(e) => onChange((x) => { x.basis = e.target.value })} /></div>
+        </div>
+      )}
+      <div className="mb-2"><label className={labelCls}>{isIndiv ? "Адрес проживания" : "Адрес"}</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
+      {!isRegular && (
+        <div className="grid grid-cols-3 gap-2">
+          <div><label className={labelCls}>ИИК</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
+          <div><label className={labelCls}>Банк</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
+          <div><label className={labelCls}>БИК</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
+        </div>
+      )}
     </div>
   )
 }
