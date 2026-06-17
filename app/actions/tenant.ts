@@ -365,6 +365,19 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     data.basisDocument = v || null
   }
 
+  // Удостоверение личности физлица — sentinel «idDocForm=1». Поля показываются
+  // только для PHYSICAL; для прочих форм собственности очищаются. Даты → Date|null.
+  if (formData.has("idDocForm")) {
+    const num = String(formData.get("idDocNumber") ?? "").trim()
+    const by = String(formData.get("idDocIssuedBy") ?? "").trim()
+    const issued = String(formData.get("idDocIssuedAt") ?? "").trim()
+    const expires = String(formData.get("idDocExpiresAt") ?? "").trim()
+    data.idDocNumber = num || null
+    data.idDocIssuedBy = by || null
+    data.idDocIssuedAt = issued ? new Date(issued) : null
+    data.idDocExpiresAt = expires ? new Date(expires) : null
+  }
+
   // НДС — sentinel «isVatPayerForm=1» означает «эта форма управляет НДС».
   // Без sentinel НДС не трогаем (другая форма могла не иметь чекбокса).
   if (formData.has("isVatPayerForm")) {

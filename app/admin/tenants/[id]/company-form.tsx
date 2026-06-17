@@ -3,10 +3,9 @@
 // Server component: inline server action updateTenant.
 
 import { updateTenant } from "@/app/actions/tenant"
-import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { Button } from "@/components/ui/button"
 import { KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
-import { TenantIdentityFields } from "../tenant-identity-fields"
+import { TenantPartyFields } from "./tenant-party-fields"
 import { IndexationHint } from "./indexation-hint"
 import { RentalPeriodCard } from "./rental-period-card"
 
@@ -24,6 +23,10 @@ export type CompanyFormTenant = {
   directorPosition: string | null
   usePurpose: string | null
   basisDocument: string | null
+  idDocNumber: string | null
+  idDocIssuedBy: string | null
+  idDocIssuedAt: Date | null
+  idDocExpiresAt: Date | null
   contractEnd: Date | null
 }
 
@@ -58,19 +61,24 @@ export function CompanyForm({
       <input type="hidden" name="isVatPayerForm" value="1" />
 
       <fieldset disabled={!canEditCompany} className="contents">
-      <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название компании</label>
-        <input
-          name="companyName"
-          defaultValue={tenant.companyName}
-          required
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
-      <TenantIdentityFields
-        initialLegalType={tenant.legalType}
-        initialBin={tenant.bin}
-        initialIin={tenant.iin}
+      {/* Поля стороны-арендатора (зависят от правовой формы; для физлица —
+          ФИО/адрес проживания/удостоверение, без директора и основания). */}
+      <TenantPartyFields
+        tenant={{
+          companyName: tenant.companyName,
+          legalType: tenant.legalType,
+          bin: tenant.bin,
+          iin: tenant.iin,
+          legalAddress: tenant.legalAddress,
+          actualAddress: tenant.actualAddress,
+          directorName: tenant.directorName,
+          directorPosition: tenant.directorPosition,
+          basisDocument: tenant.basisDocument,
+          idDocNumber: tenant.idDocNumber,
+          idDocIssuedBy: tenant.idDocIssuedBy,
+          idDocIssuedAt: tenant.idDocIssuedAt?.toISOString().slice(0, 10) ?? null,
+          idDocExpiresAt: tenant.idDocExpiresAt?.toISOString().slice(0, 10) ?? null,
+        }}
       />
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
@@ -115,44 +123,6 @@ export function CompanyForm({
           </div>
         </div>
       </div>
-      <div className="col-span-2">
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>
-        <AddressAutocompleteInput
-          name="legalAddress"
-          defaultValue={tenant.legalAddress ?? ""}
-          includeStructuredFields={false}
-          placeholder="г. Усть-Каменогорск, ул..."
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
-      <div className="col-span-2">
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Фактический адрес</label>
-        <AddressAutocompleteInput
-          name="actualAddress"
-          defaultValue={tenant.actualAddress ?? ""}
-          includeStructuredFields={false}
-          placeholder="Если совпадает с юридическим — оставьте пустым"
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО руководителя</label>
-        <input
-          name="directorName"
-          defaultValue={tenant.directorName ?? ""}
-          placeholder="Иванов Иван Иванович"
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Должность руководителя</label>
-        <input
-          name="directorPosition"
-          defaultValue={tenant.directorPosition ?? ""}
-          placeholder="Директор / Учредитель"
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-      </div>
       <div className="col-span-full">
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Целевое использование помещения
@@ -165,21 +135,6 @@ export function CompanyForm({
         />
         <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
           Подставится в п. 1.1 договора: «для использования в целях <span className="font-mono">размещения [текст]</span>». Если пусто — «по согласованному Сторонами назначению».
-        </p>
-      </div>
-      <div className="col-span-full">
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Действует на основании
-        </label>
-        <input
-          name="basisDocument"
-          defaultValue={tenant.basisDocument ?? ""}
-          placeholder="ИП: Талона №KZ16UWQ03665823 от 01.07.2022 / ТОО: Устава / ЧСИ: лицензии №..."
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-          Подставится в шапке договора: «…действующий <span className="font-mono">на основании [текст]</span>».
-          ИП — Талона (Уведомления о начале деятельности), ТОО — Устава, ЧСИ — лицензии. Если пусто — фраза по форме собственности без БИН.
         </p>
       </div>
       {/* Период аренды — из активного Договора (вынесено в компонент). */}

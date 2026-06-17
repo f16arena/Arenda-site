@@ -722,6 +722,12 @@ model Tenant {
   // для ТОО — «Устава» уже подставляется автоматически). Подставляется
   // в {tenant_basis_document}. Если пусто — fallback по legalType.
   basisDocument    String?   @map("basis_document")
+  // Удостоверение личности — для арендатора-ФИЗЛИЦА (legalType=PHYSICAL): у него
+  // нет БИН/устава, основание в договоре — паспортные данные. Добавлено 2026-06-17.
+  idDocNumber      String?   @map("id_doc_number")
+  idDocIssuedBy    String?   @map("id_doc_issued_by")
+  idDocIssuedAt    DateTime? @map("id_doc_issued_at")
+  idDocExpiresAt   DateTime? @map("id_doc_expires_at")
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
   vatRate          Float     @default(16) @map("vat_rate")

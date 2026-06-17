@@ -17,15 +17,33 @@ type Props = {
   initialLegalType?: string | null
   initialBin?: string | null
   initialIin?: string | null
+  // Удостоверение личности (только для физлица). Даты — yyyy-MM-dd.
+  initialIdDocNumber?: string | null
+  initialIdDocIssuedBy?: string | null
+  initialIdDocIssuedAt?: string | null
+  initialIdDocExpiresAt?: string | null
+  /** Уведомлять родителя о смене правовой формы (для зависимых полей в форме). */
+  onLegalTypeChange?: (legalType: TenantLegalType) => void
 }
 
-export function TenantIdentityFields({ initialLegalType, initialBin, initialIin }: Props) {
+export function TenantIdentityFields({
+  initialLegalType, initialBin, initialIin,
+  initialIdDocNumber, initialIdDocIssuedBy, initialIdDocIssuedAt, initialIdDocExpiresAt,
+  onLegalTypeChange,
+}: Props) {
   const [legalType, setLegalType] = useState<TenantLegalType>(normalizeTenantLegalType(initialLegalType))
   const [taxId, setTaxId] = useState(() =>
     tenantTaxIdValue({ legalType: initialLegalType, bin: initialBin, iin: initialIin }),
   )
   const selectRef = useRef<HTMLSelectElement>(null)
   const [, forceRender] = useReducer((x: number) => x + 1, 0)
+
+  // Сообщаем родителю текущую правовую форму (через ref, чтобы инлайн-колбэк не
+  // вызывал перезапуск эффекта). Нужно company-form: для физлица скрываем
+  // директора/основание, меняем подписи полей.
+  const onLegalTypeChangeRef = useRef(onLegalTypeChange)
+  useEffect(() => { onLegalTypeChangeRef.current = onLegalTypeChange })
+  useEffect(() => { onLegalTypeChangeRef.current?.(legalType) }, [legalType])
 
   // React 19 после server-action делает form.reset(): нативный сброс обнуляет DOM
   // контролируемых полей (select → первый вариант, input → пусто), а React не
@@ -236,6 +254,58 @@ export function TenantIdentityFields({ initialLegalType, initialBin, initialIin 
         )}
         <input type="hidden" name={usesBin ? "iin" : "bin"} value="" />
       </div>
+
+      {/* Удостоверение личности — только для физлица: у него нет БИН/устава,
+          основание в договоре = паспортные данные. Поля submit-ятся с формой. */}
+      {legalType === "PHYSICAL" && (
+        <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Удостоверение личности</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">№ удостоверения</label>
+              <input
+                name="idDocNumber"
+                defaultValue={initialIdDocNumber ?? ""}
+                placeholder="напр. 045678901"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Кем выдан</label>
+              <input
+                name="idDocIssuedBy"
+                defaultValue={initialIdDocIssuedBy ?? ""}
+                placeholder="напр. МВД РК"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата выдачи (от)</label>
+              <input
+                name="idDocIssuedAt"
+                type="date"
+                defaultValue={initialIdDocIssuedAt ?? ""}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Действует до</label>
+              <input
+                name="idDocExpiresAt"
+                type="date"
+                defaultValue={initialIdDocExpiresAt ?? ""}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+            Подставится в шапку договора как основание физлица: «удостоверение личности №… от …, выдано …».
+          </p>
+        </div>
+      )}
+      {/* Sentinel: форма содержит блок удостоверения (даже если сейчас не физлицо) —
+          чтобы updateTenant знал, что поля можно очищать/обновлять. */}
+      <input type="hidden" name="idDocForm" value="1" />
     </>
   )
 }
