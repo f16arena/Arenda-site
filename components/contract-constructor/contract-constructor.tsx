@@ -66,6 +66,9 @@ const labelCls = "mb-1 block text-xs font-medium text-slate-600 dark:text-slate-
 const secTitleCls = "mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 first:mt-0"
 const cardCls = "rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
 
+// Варианты состояния помещения для Акта приёма-передачи (выпадающий список).
+const CONDITION_OPTIONS = ["не удовлетворительное", "удовлетворительное", "хорошее", "отличное"]
+
 const PARTY_TYPES: { v: PartyType; label: string }[] = [
   { v: "too", label: "ТОО" },
   { v: "ip", label: "ИП" },
@@ -664,13 +667,24 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
             {([
               ["conditionWalls", "Стены"], ["conditionFloor", "Пол"], ["conditionCeiling", "Потолок"],
               ["conditionWindowsDoors", "Окна, двери"], ["conditionElectrical", "Электропроводка, освещение"],
-              ["conditionPlumbing", "Сантехника, отопление"], ["conditionOther", "Иное"],
-            ] as [keyof HandoverAct, string][]).map(([key, label]) => (
-              <label key={key} className="block">
-                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
-                <input className={inputCls} value={state.handoverAct[key]} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })} placeholder="состояние / описание" />
-              </label>
-            ))}
+              ["conditionPlumbing", "Сантехника, отопление"],
+            ] as [keyof HandoverAct, string][]).map(([key, label]) => {
+              const cur = state.handoverAct[key] ?? ""
+              return (
+                <label key={key} className="block">
+                  <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                  <select className={inputCls} value={cur} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })}>
+                    <option value="">— (прочерк)</option>
+                    {CONDITION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+                    {cur && !CONDITION_OPTIONS.includes(cur) && <option value={cur}>{cur} (произвольно)</option>}
+                  </select>
+                </label>
+              )
+            })}
+            <label className="block sm:col-span-2">
+              <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Иное</span>
+              <input className={inputCls} value={state.handoverAct.conditionOther} onChange={(e) => set((s) => { s.handoverAct.conditionOther = e.target.value })} placeholder="состояние / описание" />
+            </label>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {([
