@@ -17,6 +17,7 @@ export type CompanyFormTenant = {
   iin: string | null
   category: string | null
   isVatPayer: boolean
+  esfEnabled: boolean
   legalAddress: string | null
   actualAddress: string | null
   directorName: string | null
@@ -121,8 +122,24 @@ export function CompanyForm({
               Можно выбрать только ставки, предусмотренные НК РК: 0%, 5%, 10% или 16%.
             </p>
           </div>
+          {/* Признак выставления ЭСФ (счёт-фактуры в КГД). Физлицам обычно выкл. */}
+          <label className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-300 md:col-span-2">
+            <input
+              name="esfEnabled"
+              type="checkbox"
+              defaultChecked={tenant.esfEnabled}
+              className="mt-1 rounded border-slate-300"
+            />
+            <span>
+              <span className="block font-medium text-slate-900 dark:text-slate-100">Выставлять ЭСФ в КГД</span>
+              <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+                Если выключено — у счетов этого арендатора не будет кнопки «В ЭСФ». Физлицам обычно не выставляется.
+              </span>
+            </span>
+          </label>
         </div>
       </div>
+      <input type="hidden" name="esfForm" value="1" />
       <div className="col-span-full">
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Целевое использование помещения

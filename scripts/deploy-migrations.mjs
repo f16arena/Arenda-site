@@ -21,6 +21,7 @@ const customSqlPatches = [
   "022_charge_contract.sql",
   "023_tenant_service_fee_exempt.sql",
   "024_tenant_id_document.sql",
+  "025_tenant_esf_enabled.sql",
 ]
 
 function runPrisma(args) {

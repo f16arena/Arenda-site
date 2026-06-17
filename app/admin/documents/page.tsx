@@ -244,6 +244,18 @@ export default async function DocumentsPage({
     }
   }
 
+  // Карта арендаторов с отключённым ЭСФ — чтобы скрыть кнопку «В ЭСФ» у их счетов.
+  const esfTenantIds = [...new Set(generated.map((g) => g.tenantId).filter((x): x is string => !!x))]
+  const esfDisabledTenants = new Set<string>()
+  if (esfTenantIds.length > 0) {
+    const disabled = await safe(
+      "admin.documents.esfFlags",
+      db.tenant.findMany({ where: { id: { in: esfTenantIds }, esfEnabled: false }, select: { id: true } }),
+      [] as { id: string }[],
+    )
+    disabled.forEach((t) => esfDisabledTenants.add(t.id))
+  }
+
   const generatedRows: DocRow[] = generated.map((g) => {
     const isSigned = (
       signedById.has(`${g.documentType}:${g.id}`)
@@ -274,6 +286,7 @@ export default async function DocumentsPage({
       esfStatus: g.esfStatus,
       esfRegNumber: g.esfRegNumber,
       esfError: g.esfError,
+      esfEnabled: g.tenantId ? !esfDisabledTenants.has(g.tenantId) : true,
       reconStatus: g.reconStatus,
       reconResponseNote: g.reconResponseNote,
     }

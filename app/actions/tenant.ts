@@ -378,6 +378,12 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     data.idDocExpiresAt = expires ? new Date(expires) : null
   }
 
+  // Признак выставления ЭСФ — sentinel «esfForm=1» (чекбокс без галки в FormData
+  // отсутствует, поэтому нужен sentinel, чтобы выключение сохранялось).
+  if (formData.has("esfForm")) {
+    data.esfEnabled = formData.get("esfEnabled") === "on"
+  }
+
   // НДС — sentinel «isVatPayerForm=1» означает «эта форма управляет НДС».
   // Без sentinel НДС не трогаем (другая форма могла не иметь чекбокса).
   if (formData.has("isVatPayerForm")) {

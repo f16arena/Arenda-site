@@ -731,6 +731,9 @@ model Tenant {
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
   vatRate          Float     @default(16) @map("vat_rate")
+  // Выставлять ли этому арендатору ЭСФ (счёт-фактуру в КГД). Физлицам обычно
+  // не выставляется — флаг управляется в карточке. Добавлено 2026-06-17.
+  esfEnabled       Boolean   @default(true) @map("esf_enabled")
   // Чёрный список: причина и время попадания. Если != null — нельзя завести
   // нового арендатора с таким БИН/ИИН (предупреждение администратору).
   blacklistedAt    DateTime? @map("blacklisted_at")

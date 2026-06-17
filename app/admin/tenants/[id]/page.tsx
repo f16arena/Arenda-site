@@ -153,6 +153,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       idDocIssuedBy: true,
       idDocIssuedAt: true,
       idDocExpiresAt: true,
+      esfEnabled: true,
       rentFreeMonths: true,
       depositAmount: true,
       internalNotes: true,

@@ -204,6 +204,11 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
     if (doc.esfId && doc.esfStatus !== "FAILED" && doc.esfStatus !== "DECLINED") {
       return { ok: false, error: `Счёт уже отправлен в ИС ЭСФ (статус: ${doc.esfStatus ?? "SENT"})` }
     }
+    // Признак арендатора: выставлять ли ему ЭСФ (физлицам обычно выкл).
+    const tenantEsf = await db.tenant.findFirst({ where: { id: doc.tenantId }, select: { esfEnabled: true } })
+    if (tenantEsf && !tenantEsf.esfEnabled) {
+      return { ok: false, error: "Для этого арендатора выставление ЭСФ отключено (включите в карточке арендатора → «Данные компании»)." }
+    }
 
     const avr = await buildAvrStateForTenant(orgId, doc.tenantId, doc.period)
     if (!avr.ok) return { ok: false, error: avr.error }

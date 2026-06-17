@@ -62,6 +62,8 @@ export interface DocRow {
   esfStatus?: string | null
   esfRegNumber?: string | null
   esfError?: string | null
+  /** false — у арендатора отключено выставление ЭСФ (кнопка «В ЭСФ» скрыта). */
+  esfEnabled?: boolean
   /** Сверка: статус подтверждения контрагентом (SENT|AGREED|DISPUTED) + комментарий. */
   reconStatus?: string | null
   reconResponseNote?: string | null
@@ -301,7 +303,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
             Электронный АВР не отправляем — по словам бухгалтера он блокирует
             выписку ЭСФ до подписания контрагентом (а его обычно не подписывают);
             АВР остаётся печатным документом. */}
-        {row.source === "generated" && row.generatedId && row.type === "INVOICE" && (
+        {row.source === "generated" && row.generatedId && row.type === "INVOICE" && row.esfEnabled !== false && (
           <EsfControl
             documentId={row.generatedId}
             status={row.esfStatus ?? null}
