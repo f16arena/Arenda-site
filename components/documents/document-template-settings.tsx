@@ -8,8 +8,11 @@ import {
   Package as PackageIcon,
   Receipt,
 } from "lucide-react"
-import { getActiveTemplate } from "@/app/actions/document-templates"
+import { getActiveTemplate, getActiveContractTemplates } from "@/app/actions/document-templates"
 import { CustomTemplateBlock } from "@/components/documents/custom-template-block"
+import { requireOrgAccess } from "@/lib/org"
+import { availableContractTypesForOrg } from "@/lib/contract-types-availability"
+import { CONTRACT_PLACEMENT_TYPES } from "@/lib/contract-placement-types"
 
 interface TypeMeta {
   type: "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION"
@@ -56,6 +59,7 @@ const TYPES: TypeMeta[] = [
 ]
 
 export async function DocumentTemplateSettings() {
+  const { orgId } = await requireOrgAccess()
   const activeTemplates = await Promise.all(
     TYPES.map((t) =>
       getActiveTemplate(t.type)
@@ -65,6 +69,14 @@ export async function DocumentTemplateSettings() {
   )
 
   const activeMap = new Map(activeTemplates.map((x) => [x.type, x.tpl]))
+
+  // Договор: шаблоны по предмету аренды (помещение/крыша/территория/…).
+  // Показываем только типы, реально доступные организации («умная видимость»).
+  const [contractTypeKeys, contractTpls] = await Promise.all([
+    availableContractTypesForOrg(orgId).catch(() => ["PREMISES"] as string[]),
+    getActiveContractTemplates().catch(() => ({} as Record<string, { id: string; format: string; fileName: string; fileSize: number; uploadedAt: Date }>)),
+  ])
+  const contractTypeDefs = CONTRACT_PLACEMENT_TYPES.filter((t) => contractTypeKeys.includes(t.key))
 
   return (
     <div className="space-y-6">
@@ -116,7 +128,30 @@ export async function DocumentTemplateSettings() {
                 </div>
               </div>
               <div className="p-5">
-                <CustomTemplateBlock documentType={meta.type} active={active ?? null} />
+                {meta.type === "CONTRACT" ? (
+                  <div className="space-y-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Свой шаблон под каждый предмет аренды. Если для типа шаблон не загружен — используется
+                      «общий», а если и его нет — встроенный шаблон системы.
+                    </p>
+                    <CustomTemplateBlock
+                      documentType="CONTRACT"
+                      title="Общий шаблон договора"
+                      active={(contractTpls[""] as typeof active) ?? null}
+                    />
+                    {contractTypeDefs.map((t) => (
+                      <CustomTemplateBlock
+                        key={t.key}
+                        documentType="CONTRACT"
+                        placementType={t.key}
+                        title={`Договор: ${t.short}`}
+                        active={(contractTpls[t.key] as typeof active) ?? null}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <CustomTemplateBlock documentType={meta.type} active={active ?? null} />
+                )}
                 <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <Link
                     href={meta.createHref}

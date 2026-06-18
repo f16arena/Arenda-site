@@ -9,15 +9,20 @@ export const dynamic = "force-dynamic"
 // Используется в UI: показать ссылку "скачать загруженный шаблон" /
 // показать PDF-preview.
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ type: string }> },
 ) {
   const { type } = await params
   const docType = type.toUpperCase() as "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION"
 
+  // Для договора — конкретный шаблон по предмету аренды (?placementType=...);
+  // пусто → общий шаблон (placementType=null).
+  const ptRaw = new URL(req.url).searchParams.get("placementType")
+  const placementType = docType === "CONTRACT" && ptRaw ? ptRaw : null
+
   const { orgId } = await requireOrgAccess()
   const tpl = await db.documentTemplate.findFirst({
-    where: { organizationId: orgId, documentType: docType, isActive: true },
+    where: { organizationId: orgId, documentType: docType, isActive: true, placementType },
     orderBy: { uploadedAt: "desc" },
   })
   if (!tpl) return NextResponse.json({ error: "No active template" }, { status: 404 })

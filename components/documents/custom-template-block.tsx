@@ -22,6 +22,10 @@ interface ActiveTemplate {
 interface Props {
   documentType: DocumentType
   active: ActiveTemplate | null
+  /** Тип договора по предмету аренды (для CONTRACT): PREMISES/ROOF/… Пусто — общий шаблон. */
+  placementType?: string
+  /** Заголовок блока (для слотов по типам). По умолчанию «Свой шаблон документа». */
+  title?: string
 }
 
 const TYPE_LABELS: Record<DocumentType, string> = {
@@ -31,15 +35,18 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   RECONCILIATION: "акт сверки",
 }
 
-export function CustomTemplateBlock({ documentType, active }: Props) {
+export function CustomTemplateBlock({ documentType, active, placementType, title }: Props) {
   const [pending, startTransition] = useTransition()
   const [uploadResult, setUploadResult] = useState<UploadTemplateResult | null>(null)
   const [showHelp, setShowHelp] = useState(false)
+
+  const downloadHref = `/api/templates/${documentType.toLowerCase()}${placementType ? `?placementType=${placementType}` : ""}`
 
   function handleFile(file: File | undefined) {
     if (!file) return
     const fd = new FormData()
     fd.append("file", file)
+    if (placementType) fd.append("placementType", placementType)
     startTransition(async () => {
       try {
         const r = await uploadDocumentTemplate(documentType, fd)
@@ -54,7 +61,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
 
   function remove() {
     startTransition(async () => {
-      await removeDocumentTemplate(documentType)
+      await removeDocumentTemplate(documentType, placementType ?? null)
       toast.success("Шаблон удалён, используется стандартный")
       setUploadResult(null)
     })
@@ -67,7 +74,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Свой шаблон документа</h3>
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title ?? "Свой шаблон документа"}</h3>
         </div>
         {active && (
           <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
@@ -88,7 +95,7 @@ export function CustomTemplateBlock({ documentType, active }: Props) {
               </p>
             </div>
             <a
-              href={`/api/templates/${documentType.toLowerCase()}`}
+              href={downloadHref}
               download
               className="rounded-md border border-slate-200 dark:border-slate-800 hover:bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1"
               title="Скачать оригинал шаблона"

@@ -8,6 +8,7 @@ import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { BUILDING_DEFAULT } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { resolveContractTypeForTenant } from "@/lib/contract-placement-types"
 import {
   AlignmentType,
   BorderStyle,
@@ -227,10 +228,18 @@ export async function GET(req: Request) {
     })
   }
 
-  const customTemplate = await db.documentTemplate.findFirst({
-    where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
-    orderBy: { uploadedAt: "desc" },
-  }).catch(() => null)
+  // Выбор шаблона по предмету аренды (помещение/крыша/территория/…):
+  // сперва шаблон под конкретный тип, затем общий (placementType=null), затем встроенный.
+  const placementType = resolveContractTypeForTenant(tenant)
+  const customTemplate =
+    (await db.documentTemplate.findFirst({
+      where: { organizationId: orgId, documentType: "CONTRACT", isActive: true, placementType },
+      orderBy: { uploadedAt: "desc" },
+    }).catch(() => null)) ??
+    (await db.documentTemplate.findFirst({
+      where: { organizationId: orgId, documentType: "CONTRACT", isActive: true, placementType: null },
+      orderBy: { uploadedAt: "desc" },
+    }).catch(() => null))
 
   if (customTemplate) {
     const data: Record<string, unknown> = {

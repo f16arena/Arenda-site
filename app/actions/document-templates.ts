@@ -12,8 +12,19 @@ import {
   PLACEHOLDER_DOCS,
   type DocumentType,
 } from "@/lib/template-engine"
+import { isContractPlacementType } from "@/lib/contract-placement-types"
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
+
+/**
+ * Тип договора по предмету аренды (PREMISES/ROOF/…) применим ТОЛЬКО к CONTRACT.
+ * Для прочих документов и для «общего» шаблона договора → null.
+ */
+function normalizePlacementType(documentType: DocumentType, raw: FormDataEntryValue | string | null): string | null {
+  if (documentType !== "CONTRACT") return null
+  const v = String(raw ?? "").trim()
+  return isContractPlacementType(v) ? v : null
+}
 
 export interface UploadTemplateResult {
   ok: boolean
@@ -43,6 +54,9 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
   if (!file || !(file instanceof File)) return { ok: false, error: "Файл не передан" }
   if (file.size > MAX_SIZE) return { ok: false, error: "Размер файла превышает 10 МБ" }
   if (file.size === 0) return { ok: false, error: "Файл пустой" }
+
+  // Тип договора (для CONTRACT): свой шаблон под помещение/крышу/территорию/… .
+  const placementType = normalizePlacementType(documentType, formData.get("placementType"))
 
   const format = detectFormat(file.name, file.type)
   if (!format) return { ok: false, error: "Неподдерживаемый формат. Загрузите DOCX, XLSX или PDF." }
@@ -92,9 +106,10 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
     .filter((k) => !usedKeys.has(k))
     .map((k) => ({ key: k, label: knownKeys.get(k) ?? k }))
 
-  // Деактивируем предыдущий шаблон того же типа
+  // Деактивируем предыдущий шаблон того же типа И того же предмета аренды
+  // (placementType). Для прочих документов placementType=null — поведение прежнее.
   await db.documentTemplate.updateMany({
-    where: { organizationId: orgId, documentType, isActive: true },
+    where: { organizationId: orgId, documentType, isActive: true, placementType },
     data: { isActive: false },
   })
 
@@ -102,6 +117,7 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
     data: {
       organizationId: orgId,
       documentType,
+      placementType,
       format,
       fileName: file.name,
       fileBytes: buffer,
@@ -126,11 +142,15 @@ export async function uploadDocumentTemplate(documentType: DocumentType, formDat
   }
 }
 
-export async function removeDocumentTemplate(documentType: DocumentType): Promise<{ ok: boolean }> {
+export async function removeDocumentTemplate(
+  documentType: DocumentType,
+  placementTypeRaw?: string | null,
+): Promise<{ ok: boolean }> {
   await requireCapabilityAndFeature("documents.uploadTemplate")
   const { orgId } = await requireOrgAccess()
+  const placementType = normalizePlacementType(documentType, placementTypeRaw ?? null)
   await db.documentTemplate.updateMany({
-    where: { organizationId: orgId, documentType, isActive: true },
+    where: { organizationId: orgId, documentType, isActive: true, placementType },
     data: { isActive: false },
   })
   revalidateTemplatePaths(documentType)
@@ -145,14 +165,37 @@ export interface ActiveTemplateInfo {
   uploadedAt: Date
 }
 
-export async function getActiveTemplate(documentType: DocumentType): Promise<ActiveTemplateInfo | null> {
+export async function getActiveTemplate(
+  documentType: DocumentType,
+  placementTypeRaw?: string | null,
+): Promise<ActiveTemplateInfo | null> {
   const { orgId } = await requireOrgAccess()
+  const placementType = normalizePlacementType(documentType, placementTypeRaw ?? null)
   const tpl = await db.documentTemplate.findFirst({
-    where: { organizationId: orgId, documentType, isActive: true },
+    where: { organizationId: orgId, documentType, isActive: true, placementType },
     orderBy: { uploadedAt: "desc" },
     select: { id: true, format: true, fileName: true, fileSize: true, uploadedAt: true },
   })
   return tpl
+}
+
+/**
+ * Активные шаблоны договора по типам предмета аренды: ключ "" — общий шаблон,
+ * иначе placementType (PREMISES/ROOF/…). Для UI «Настройки → Шаблоны».
+ */
+export async function getActiveContractTemplates(): Promise<Record<string, ActiveTemplateInfo>> {
+  const { orgId } = await requireOrgAccess()
+  const rows = await db.documentTemplate.findMany({
+    where: { organizationId: orgId, documentType: "CONTRACT", isActive: true },
+    orderBy: { uploadedAt: "desc" },
+    select: { id: true, format: true, fileName: true, fileSize: true, uploadedAt: true, placementType: true },
+  })
+  const map: Record<string, ActiveTemplateInfo> = {}
+  for (const r of rows) {
+    const key = r.placementType ?? ""
+    if (!map[key]) map[key] = { id: r.id, format: r.format, fileName: r.fileName, fileSize: r.fileSize, uploadedAt: r.uploadedAt }
+  }
+  return map
 }
 
 function slugForType(t: DocumentType): string {
