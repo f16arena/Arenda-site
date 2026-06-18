@@ -315,6 +315,9 @@ export async function getContractByToken(token: string) {
       number: true,
       type: true,
       content: true,
+      // Снимок конструктора — для показа ПОЛНОГО документа (с приложениями) на
+      // странице подписи, в т.ч. для старых договоров, где приложений нет в content.
+      builderState: true,
       status: true,
       startDate: true,
       endDate: true,

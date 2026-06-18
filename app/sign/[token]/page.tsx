@@ -9,6 +9,7 @@ import { DownloadSigned } from "./download-signed"
 import { LANDLORD } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
+import { renderContractText, type ContractState } from "@/lib/contract-engine"
 import { headers } from "next/headers"
 import { egovApi1Url, egovBaseFromEnv } from "@/lib/egov-sign"
 
@@ -62,7 +63,19 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   const landlord = contract.tenant.user.organizationId
     ? await getOrganizationRequisites(contract.tenant.user.organizationId)
     : null
-  const publicContractContent = redactOwnerContact(contract.content, [
+  // Для ПОКАЗА арендатору рендерим полный документ (с приложениями) из снимка
+  // конструктора — это работает и для старых договоров, где приложений нет в
+  // сохранённом content. Подпись же по-прежнему привязана к content (ниже), её не
+  // трогаем. Если снимка нет (или ошибка) — показываем content как раньше.
+  let displayText = contract.content
+  if (contract.builderState) {
+    try {
+      displayText = renderContractText(contract.builderState as unknown as ContractState)
+    } catch {
+      displayText = contract.content
+    }
+  }
+  const publicContractContent = redactOwnerContact(displayText, [
     LANDLORD.phone,
     LANDLORD.email,
     landlord?.phone ?? "",
