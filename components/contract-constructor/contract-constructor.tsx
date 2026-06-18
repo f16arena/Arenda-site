@@ -37,6 +37,7 @@ import {
   type DraftListItem,
   type ConstructorTenant,
 } from "@/app/actions/contract-builder"
+import { CONTRACT_PLACEMENT_TYPES, CORE_CONTRACT_TYPES, type ContractPlacementType } from "@/lib/contract-placement-types"
 import {
   defaultState,
   assemble,
@@ -149,6 +150,9 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
 
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
+  // Доступные типы договоров (умная видимость по организации). До выбора
+  // арендатора показываем базовые; после prefill — фактические для орг.
+  const [availableTypes, setAvailableTypes] = useState<ContractPlacementType[]>(CORE_CONTRACT_TYPES)
   // У выбранного арендатора уже есть незавершённый договор → создавать новый нельзя.
   const dupContract = tenants.find((t) => t.id === selTenant)?.existingContract ?? null
   // Контакты арендодателя на выбор: владелец (аккаунт) или администратор (контакты организации).
@@ -206,6 +210,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
       if (r.ok && r.state) {
         setState(withDefaults(r.state))
         setLandlordContacts(r.landlordContacts ?? null)
+        if (r.availableTypes?.length) setAvailableTypes(r.availableTypes)
         setDraftName(r.state.tenant.name || "Без названия")
         if (autoNumber) applyAutoNumber() // prefill сбрасывает номер — вернуть автономер
         toast.success("Данные арендатора подставлены")
@@ -359,7 +364,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
             <div className="space-y-1 p-5"><PartiesStep state={state} set={set} landlordContacts={landlordContacts} /></div>
           </CollapsibleCard>
           <CollapsibleCard title="Помещение и реквизиты договора" icon={Building2}>
-            <div className="space-y-1 p-5"><PremisesStep state={state} set={set} autoNumber={autoNumber} onSetAutoNumber={onSetAutoNumber} /></div>
+            <div className="space-y-1 p-5"><PremisesStep state={state} set={set} autoNumber={autoNumber} onSetAutoNumber={onSetAutoNumber} availableTypes={availableTypes} /></div>
           </CollapsibleCard>
           <CollapsibleCard title="Финансовая модель" icon={Wallet}>
             <div className="space-y-1 p-5"><FinancialStep state={state} set={set} /></div>
@@ -539,7 +544,7 @@ function PartiesStep({ state, set, landlordContacts }: { state: ContractState; s
   )
 }
 
-function PremisesStep({ state, set, autoNumber, onSetAutoNumber }: { state: ContractState; set: (m: Mutator) => void; autoNumber: boolean; onSetAutoNumber: (v: boolean) => void }) {
+function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes }: { state: ContractState; set: (m: Mutator) => void; autoNumber: boolean; onSetAutoNumber: (v: boolean) => void; availableTypes: ContractPlacementType[] }) {
   return (
     <>
       <div className={secTitleCls}>Договор</div>
@@ -559,7 +564,22 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber }: { state: Cont
         <div><label className={labelCls}>Начало аренды</label><input type="date" className={inputCls} value={state.term.startDate} onChange={(e) => set((s) => { s.term.startDate = e.target.value })} /></div>
         <div><label className={labelCls}>Окончание аренды</label><input type="date" className={inputCls} value={state.term.endDate} onChange={(e) => set((s) => { s.term.endDate = e.target.value })} /></div>
       </div>
-      <div className="mb-2"><label className={labelCls}>Город</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div><label className={labelCls}>Город</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>
+        <div>
+          <label className={labelCls}>Тип договора</label>
+          <select
+            className={inputCls}
+            value={state.meta.placementType ?? "PREMISES"}
+            onChange={(e) => set((s) => { s.meta.placementType = e.target.value })}
+            title="Определяется автоматически по размещению арендатора; можно изменить"
+          >
+            {CONTRACT_PLACEMENT_TYPES.filter((t) => availableTypes.includes(t.key)).map((t) => (
+              <option key={t.key} value={t.key}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
       <div className={secTitleCls}>Помещение</div>
       <div className="mb-2"><label className={labelCls}>Адрес здания</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">

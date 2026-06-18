@@ -16,6 +16,8 @@ import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { sendContractForSignature, markContractSignedByLandlord } from "@/app/actions/contract-workflow"
 import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
+import { resolveContractTypeForTenant, isContractPlacementType, type ContractPlacementType } from "@/lib/contract-placement-types"
+import { availableContractTypesForOrg } from "@/lib/contract-types-availability"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -206,6 +208,8 @@ export async function prefillFromTenant(
   error?: string
   state?: ContractState
   landlordContacts?: { owner: { phone: string; email: string }; admin: { phone: string; email: string } }
+  /** Доступные типы договоров для организации (умная видимость). */
+  availableTypes?: ContractPlacementType[]
 }> {
   try {
     await requireCapabilityAndFeature("documents.uploadTemplate")
@@ -225,7 +229,7 @@ export async function prefillFromTenant(
         bankAccounts: { select: { bankName: true, iik: true, bik: true, isPrimary: true } },
         space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
         tenantSpaces: { select: { space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } } } },
-        fullFloors: { select: { number: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
+        fullFloors: { select: { number: true, kind: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
       },
     })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
@@ -350,7 +354,11 @@ export async function prefillFromTenant(
     if (tenant.contractStart) s.term.startDate = new Date(tenant.contractStart).toISOString().slice(0, 10)
     if (tenant.contractEnd) s.term.endDate = new Date(tenant.contractEnd).toISOString().slice(0, 10)
 
-    return { ok: true, state: s, landlordContacts: { owner: ownerContacts, admin: adminContacts } }
+    // Тип договора по предмету аренды — авто-определение по размещению.
+    s.meta.placementType = resolveContractTypeForTenant(tenant)
+    const availableTypes = await availableContractTypesForOrg(orgId)
+
+    return { ok: true, state: s, landlordContacts: { owner: ownerContacts, admin: adminContacts }, availableTypes }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить арендатора" }
   }
@@ -401,9 +409,19 @@ export async function createContractFromBuilder(
 
     const tenant = await db.tenant.findFirst({
       where: { AND: [tenantScope(orgId), { id: tenantId }] },
-      select: { id: true },
+      select: {
+        id: true,
+        space: { select: { kind: true, floor: { select: { kind: true } } } },
+        tenantSpaces: { select: { space: { select: { kind: true, floor: { select: { kind: true } } } } } },
+        fullFloors: { select: { kind: true } },
+      },
     })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+
+    // Тип договора: из конструктора (если выбран) либо авто по размещению.
+    const placementType: ContractPlacementType = isContractPlacementType(builderState.meta.placementType)
+      ? builderState.meta.placementType
+      : resolveContractTypeForTenant(tenant)
 
     // Запрет дубля: у арендатора не должно быть второго незавершённого договора.
     const existing = await db.contract.findFirst({
@@ -433,6 +451,7 @@ export async function createContractFromBuilder(
         tenantId,
         number,
         type: "STANDARD",
+        placementType,
         content: renderContractText(builderState),
         status: "DRAFT",
         startDate: builderState.term.startDate ? new Date(builderState.term.startDate) : null,

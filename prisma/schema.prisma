@@ -829,6 +829,9 @@ model Contract {
   tenantId           String    @map("tenant_id")
   number             String
   type               String    @default("STANDARD")
+  // Тип договора по предмету аренды (PREMISES/ROOF/TERRITORY/…) — для выбора
+  // правильного шаблона/пунктов. См. lib/contract-placement-types.ts. Миграция 028.
+  placementType      String?   @map("placement_type")
   content            String
   // Workflow статусы:
   // DRAFT → SENT → VIEWED → SIGNED_BY_TENANT → SIGNED (обе стороны)
@@ -1399,6 +1402,9 @@ model DocumentTemplate {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")
   documentType   String   @map("document_type")
+  // Тип договора по предмету аренды (для documentType=CONTRACT): PREMISES/ROOF/
+  // TERRITORY/… Позволяет хранить разные шаблоны под разные виды аренды. Миграция 028.
+  placementType  String?  @map("placement_type")
   format         String
   fileName       String   @map("file_name")
   fileBytes      Bytes    @map("file_bytes")

@@ -174,6 +174,9 @@ export interface ContractMeta {
   contractNumber: string
   contractDate: string // ISO
   city: string
+  // Тип договора по предмету аренды (PREMISES/ROOF/TERRITORY/…). См.
+  // lib/contract-placement-types.ts. Подставляется авто по размещению арендатора.
+  placementType?: string
 }
 
 export interface ContractState {
