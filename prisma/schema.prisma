@@ -66,6 +66,7 @@ model User {
   sentPaymentReports     PaymentReport[]      @relation("PaymentReportUser")
   reviewedPaymentReports PaymentReport[]      @relation("PaymentReportReviewer")
   uploadedStoredFiles    StoredFile[]         @relation("StoredFileUploader")
+  confirmedCashReceipts  Payment[]            @relation("CashReceiptConfirmedBy")
 
   @@index([organizationId])
   @@index([organizationId, role, isActive])
@@ -731,6 +732,10 @@ model Tenant {
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
   vatRate          Float     @default(16) @map("vat_rate")
+  // Человекочитаемый НДС-статус из КГД («Плательщик НДС с …» / «Снят с учёта …»).
+  // Заполняется автоматически при лукапе по БИН/ИИН. NULL — статус не определялся
+  // (карточка предложит «Обновить из КГД»). Добавлено 2026-06-17.
+  vatStatus        String?   @map("vat_status")
   // Выставлять ли этому арендатору ЭСФ (счёт-фактуру в КГД). Физлицам обычно
   // не выставляется — флаг управляется в карточке. Добавлено 2026-06-17.
   esfEnabled       Boolean   @default(true) @map("esf_enabled")
@@ -973,11 +978,16 @@ model Payment {
   // Идентификатор из внешней системы (Kaspi txnId, импортированная строка
   // банковской выписки и т.п.) для идемпотентности webhook'ов / повторных импортов.
   externalRef String?   @unique @map("external_ref")
+  // Подтверждение квитанции о приёме наличных администратором (миграция 026).
+  // Квитанция действительна (печатается) только после подтверждения.
+  receiptConfirmedAt   DateTime? @map("receipt_confirmed_at")
+  receiptConfirmedById String?   @map("receipt_confirmed_by_id")
   createdAt   DateTime  @default(now()) @map("created_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  tenant  Tenant          @relation(fields: [tenantId], references: [id])
-  reports PaymentReport[]
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+  reports           PaymentReport[]
+  receiptConfirmedBy User?          @relation("CashReceiptConfirmedBy", fields: [receiptConfirmedById], references: [id])
 
   @@index([tenantId, paymentDate])
   @@index([deletedAt])

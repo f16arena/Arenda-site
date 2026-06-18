@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { generateMonthlyInvoicesForOrg } from "@/lib/monthly-documents"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -626,6 +627,40 @@ export async function deletePayment(paymentId: string) {
   revalidatePath("/admin/finances")
   revalidatePath("/admin/finances/balance")
   if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
+}
+
+/**
+ * Подтверждение квитанции о приёме наличных администратором. Квитанция
+ * считается действительной (и печатается) только после подтверждения —
+ * фиксируем кто и когда подтвердил. Только для оплат наличными.
+ */
+export async function confirmCashReceipt(
+  paymentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireCapabilityAndFeature("finance.confirmPayment")
+  await requireCapabilityAndFeature("finance.cashPayment")
+  const session = await auth()
+  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { orgId } = await requireOrgAccess()
+
+  const payment = await db.payment.findFirst({
+    where: { id: paymentId, ...paymentScope(orgId) },
+    select: { id: true, method: true, receiptConfirmedAt: true },
+  })
+  if (!payment) return { ok: false, error: "Платёж не найден или нет доступа" }
+  if (payment.method !== "CASH") {
+    return { ok: false, error: "Квитанция о приёме наличных доступна только для оплат наличными" }
+  }
+  if (payment.receiptConfirmedAt) return { ok: false, error: "Квитанция уже подтверждена" }
+
+  await db.payment.update({
+    where: { id: paymentId },
+    data: { receiptConfirmedAt: new Date(), receiptConfirmedById: session.user.id },
+  })
+
+  revalidatePath(`/admin/finances/receipt/${paymentId}`)
+  revalidatePath("/admin/finances")
+  return { ok: true }
 }
 
 export async function deleteExpense(expenseId: string) {

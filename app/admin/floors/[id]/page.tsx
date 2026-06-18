@@ -1,11 +1,10 @@
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
-import { ArrowLeft, Layers, Building2, User, Sparkles } from "lucide-react"
+import { Layers, Building2, User } from "lucide-react"
 import Link from "next/link"
 import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg } from "@/lib/scope-guards"
-import { hasFeature } from "@/lib/plan-features"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { FloorSettingsForm } from "./settings-form"
@@ -13,7 +12,7 @@ import { AddSpaceDialog } from "@/app/admin/spaces/space-actions"
 import { AssignTenantButton } from "./assign-tenant-button"
 import { tenantScope } from "@/lib/tenant-scope"
 import { assertBuildingAccess } from "@/lib/building-access"
-import { isZoneFloor, isObjectSpace, FLOOR_KIND_LABEL, type FloorKind } from "@/lib/zone-kinds"
+import { isZoneFloor, isObjectSpace } from "@/lib/zone-kinds"
 
 export default async function FloorSettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -62,7 +61,6 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   if (!floor) notFound()
   await assertBuildingAccess(floor.buildingId, orgId)
 
-  const hasFloorEditor = await hasFeature(orgId, "floorEditor")
   const floorTenantIds = Array.from(new Set(
     floor.spaces
       .map((space) => space.tenantSpaces[0]?.tenant?.id ?? space.tenant?.id ?? null)
@@ -132,30 +130,6 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Link href="/admin/buildings" className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
-          <ArrowLeft className="h-4 w-4" />К зданиям
-        </Link>
-        <span className="text-slate-300">/</span>
-        <Link href={`/admin/buildings`} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
-          {floor.building.name}
-        </Link>
-        <span className="text-slate-300">/</span>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-          {floor.name}
-          {isZone && (
-            <span className={cn(
-              "rounded-full px-2 py-0.5 text-[11px] font-medium",
-              floor.kind === "ROOF"
-                ? "bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300"
-                : "bg-lime-100 dark:bg-lime-500/20 text-lime-700 dark:text-lime-300",
-            )}>
-              {FLOOR_KIND_LABEL[floor.kind as FloorKind]}
-            </span>
-          )}
-        </h1>
-      </div>
-
       {/* Full-floor banner */}
       {fullFloorTenant && (
         <div className="bg-violet-50 dark:bg-violet-500/5 border border-violet-200 dark:border-violet-500/30 rounded-xl p-4">
@@ -221,39 +195,6 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
               Σ Space.area: <b className="text-slate-700 dark:text-slate-300 tabular-nums">{totalArea.toFixed(1)} м²</b>
             </p>
           </div>
-
-          {/* Visualization BETA card */}
-          {hasFloorEditor ? (
-            <Link
-              href={`/admin/floors/${floor.id}/visualization`}
-              className="block bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-500/10 dark:to-indigo-500/10 rounded-xl border border-purple-200 dark:border-purple-500/30 p-4 hover:from-purple-100 hover:to-indigo-100 transition-colors"
-            >
-              <div className="flex items-start gap-2.5">
-                <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <p className="text-sm font-semibold text-purple-900 dark:text-purple-200">Визуализация</p>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-600 text-white">BETA</span>
-                  </div>
-                  <p className="text-[11px] text-purple-700 dark:text-purple-300">
-                    PDF плана + AI распознавание помещений
-                  </p>
-                </div>
-              </div>
-            </Link>
-          ) : (
-            <div className="bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
-              <div className="flex items-start gap-2.5">
-                <Sparkles className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Визуализация (BETA)</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    Доступно на тарифе «Бизнес» — <Link href="/admin/subscription" className="underline hover:no-underline">тарифы</Link>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

@@ -28,6 +28,8 @@ export type PartyTenant = {
   idDocIssuedBy: string | null
   idDocIssuedAt: string | null
   idDocExpiresAt: string | null
+  isVatPayer: boolean
+  vatStatus: string | null
 }
 
 export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
@@ -55,6 +57,8 @@ export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
         initialIdDocIssuedBy={tenant.idDocIssuedBy}
         initialIdDocIssuedAt={tenant.idDocIssuedAt}
         initialIdDocExpiresAt={tenant.idDocExpiresAt}
+        initialIsVatPayer={tenant.isVatPayer}
+        initialVatStatus={tenant.vatStatus}
         onLegalTypeChange={setLegalType}
       />
 

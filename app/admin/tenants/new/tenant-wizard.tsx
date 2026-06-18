@@ -8,7 +8,6 @@ import { createTenant } from "@/app/actions/tenant-create"
 import { updateTenantRentalTerms } from "@/app/actions/tenant"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 import { TenantIdentityFields } from "../tenant-identity-fields"
-import { KZ_VAT_RATE_OPTIONS, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import { formatMoney } from "@/lib/utils"
 
 type WizardSpace = {
@@ -223,15 +222,6 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-5 pt-1">
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input type="checkbox" name="isVatPayer" /> Плательщик НДС
-            </label>
-            <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              Ставка НДС:
-              <select name="vatRate" defaultValue={DEFAULT_KZ_VAT_RATE} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm dark:border-slate-800 dark:bg-slate-900">
-                {KZ_VAT_RATE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-            </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input type="checkbox" name="sendWelcome" defaultChecked /> Отправить доступы в кабинет на email
             </label>

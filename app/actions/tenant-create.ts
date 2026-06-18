@@ -40,6 +40,8 @@ export async function createTenant(formData: FormData) {
   const actualAddress = String(formData.get("actualAddress") ?? "").trim()
   const isVatPayer = formData.get("isVatPayer") === "on"
   const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
+  // НДС-статус из КГД (человекочитаемый). Пустая строка → null (не определён).
+  const vatStatus = String(formData.get("vatStatus") ?? "").trim() || null
   const spaceIds = parseTenantSpaceIds(formData)
   const spaceId = spaceIds[0] ?? ""
   const buildingId = String(formData.get("buildingId") ?? "").trim()
@@ -193,6 +195,7 @@ export async function createTenant(formData: FormData) {
           actualAddress: actualAddress || null,
           isVatPayer,
           vatRate: isVatPayer ? vatRate : DEFAULT_KZ_VAT_RATE,
+          vatStatus,
           contractStart: contractStart ? new Date(contractStart) : null,
           contractEnd: contractEnd ? new Date(contractEnd) : null,
         },

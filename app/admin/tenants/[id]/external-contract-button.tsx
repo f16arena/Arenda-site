@@ -56,20 +56,73 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                 <label className={labelCls}>Номер договора *</label>
                 <input name="number" required placeholder="например, BEE-2026/14" className={inputCls} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Начало</label>
-                  <input name="startDate" type="date" className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Окончание</label>
-                  <input name="endDate" type="date" className={inputCls} />
-                </div>
-              </div>
               <div>
                 <label className={labelCls}>PDF договора *</label>
                 <input name="file" type="file" accept="application/pdf" required className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs dark:file:bg-slate-800 dark:file:text-slate-200`} />
                 <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Только PDF, до 10 МБ.</p>
+              </div>
+
+              <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-3">Условия договора</p>
+                <p className="-mt-2 mb-3 text-[11px] text-slate-400 dark:text-slate-500">
+                  Записываются в карточку — по ним система начисляет аренду и считает дедлайны. Пустые поля не меняются.
+                </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelCls}>Аренда в месяц</label>
+                    <div className="flex gap-2">
+                      <select name="rentMode" defaultValue="FIXED" className={`${inputCls} w-40 shrink-0`}>
+                        <option value="FIXED">Фикс-сумма ₸</option>
+                        <option value="RATE">Ставка ₸/м²</option>
+                      </select>
+                      <input name="rentAmount" type="number" min="0" step="any" inputMode="decimal" placeholder="например, 450000" className={inputCls} />
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                      «Ставка ₸/м²» — сумма считается как ставка × площадь помещений арендатора.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Начало</label>
+                      <input name="startDate" type="date" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Окончание</label>
+                      <input name="endDate" type="date" className={inputCls} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>День оплаты</label>
+                      <input name="paymentDueDay" type="number" min="1" max="31" placeholder="10" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Депозит, ₸</label>
+                      <input name="depositAmount" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 450000" className={inputCls} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Индексация, %/год</label>
+                      <input name="indexationPct" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 10" className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>Дата индексации</label>
+                      <input name="nextIndexationAt" type="date" className={inputCls} />
+                    </div>
+                  </div>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input name="serviceFeeExempt" type="checkbox" className="mt-0.5" />
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
+                      Без эксплуатационного сбора (не добавлять «Эксплуатационные расходы» в начисления и счёт/АВР)
+                    </span>
+                  </label>
+                </div>
               </div>
               <div className="flex gap-3 pt-1">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>

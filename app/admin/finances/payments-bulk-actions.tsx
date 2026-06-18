@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { toast } from "sonner"
-import { Trash2, X, Loader2 } from "lucide-react"
+import { Trash2, X, Loader2, Receipt } from "lucide-react"
 import { formatMoney, PAYMENT_METHOD_LABELS } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -155,6 +156,16 @@ export function PaymentsBulkActions({ payments }: { payments: PaymentRow[] }) {
               </div>
               <div className="flex items-center gap-3">
                 <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(p.amount)}</p>
+                {p.method === "CASH" && (
+                  <Link
+                    href={`/admin/finances/receipt/${p.id}`}
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                    title="Квитанция о приёме наличных"
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    Квитанция
+                  </Link>
+                )}
                 <DeleteWithUndo
                   deleteAction={deletePayment.bind(null, p.id)}
                   restoreAction={restorePayment.bind(null, p.id)}

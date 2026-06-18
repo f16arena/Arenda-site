@@ -2,7 +2,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
 import { FloorEditorLoader } from "../floor-editor-loader"
-import { ArrowLeft, Sparkles } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import Link from "next/link"
 import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
@@ -22,9 +22,6 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
   if (!hasFloorEditor) {
     return (
       <div className="space-y-4">
-        <Link href={`/admin/floors/${id}`} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 w-fit">
-          <ArrowLeft className="h-4 w-4" />К настройкам этажа
-        </Link>
         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-500/5 dark:to-indigo-500/5 border border-purple-200 dark:border-purple-500/30 rounded-xl p-8 text-center max-w-2xl mx-auto mt-12">
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-purple-600 mb-4">
             <Sparkles className="h-7 w-7 text-white" />
@@ -109,16 +106,6 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Link href={`/admin/floors/${floor.id}`} className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
-          <ArrowLeft className="h-4 w-4" />
-          К настройкам этажа
-        </Link>
-        <span className="text-slate-300">/</span>
-        <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold uppercase tracking-wider">BETA</span>
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Визуализация · {floor.name}</h1>
-      </div>
-
       <FloorEditorLoader
         floorId={floor.id}
         floorName={floor.name}

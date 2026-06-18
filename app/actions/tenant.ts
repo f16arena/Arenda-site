@@ -392,6 +392,10 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     data.vatRate = isVatPayer
       ? normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
       : DEFAULT_KZ_VAT_RATE
+    // НДС-статус из КГД (человекочитаемый). Пустая строка → null (не определён).
+    if (formData.has("vatStatus")) {
+      data.vatStatus = String(formData.get("vatStatus") ?? "").trim() || null
+    }
   }
 
   // Ставка аренды — sentinel «rentForm=1» означает «эта форма управляет ставкой».

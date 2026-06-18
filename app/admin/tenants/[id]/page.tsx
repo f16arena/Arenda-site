@@ -168,6 +168,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       penaltyPercent: true,
       isVatPayer: true,
       vatRate: true,
+      vatStatus: true,
       contractStart: true,
       contractEnd: true,
       user: { select: { id: true, name: true, email: true, phone: true } },

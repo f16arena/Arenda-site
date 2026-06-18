@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect, useReducer, useTransition } from "react"
-import { Download, Loader2 } from "lucide-react"
+import { Download, Loader2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { lookupTaxpayerAction } from "@/app/actions/taxpayer-lookup"
 import { formatKzIinBirthDate, validateKazakhstanIin } from "@/lib/kz-iin"
+import { DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
   normalizeTenantLegalType,
   tenantLegalTypeUsesBin,
@@ -22,6 +23,10 @@ type Props = {
   initialIdDocIssuedBy?: string | null
   initialIdDocIssuedAt?: string | null
   initialIdDocExpiresAt?: string | null
+  // НДС-статус арендатора (определяется автоматически из КГД). Для карточки —
+  // текущее сохранённое значение; в форме создания не передаётся (null = не определён).
+  initialIsVatPayer?: boolean | null
+  initialVatStatus?: string | null
   /** Уведомлять родителя о смене правовой формы (для зависимых полей в форме). */
   onLegalTypeChange?: (legalType: TenantLegalType) => void
 }
@@ -29,9 +34,15 @@ type Props = {
 export function TenantIdentityFields({
   initialLegalType, initialBin, initialIin,
   initialIdDocNumber, initialIdDocIssuedBy, initialIdDocIssuedAt, initialIdDocExpiresAt,
+  initialIsVatPayer, initialVatStatus,
   onLegalTypeChange,
 }: Props) {
   const [legalType, setLegalType] = useState<TenantLegalType>(normalizeTenantLegalType(initialLegalType))
+  // НДС определяется автоматически из КГД. null = ещё не определялся.
+  const [vatPayer, setVatPayer] = useState<boolean | null>(
+    typeof initialIsVatPayer === "boolean" ? initialIsVatPayer : null,
+  )
+  const [vatStatus, setVatStatus] = useState<string | null>(initialVatStatus ?? null)
   const [taxId, setTaxId] = useState(() =>
     tenantTaxIdValue({ legalType: initialLegalType, bin: initialBin, iin: initialIin }),
   )
@@ -119,17 +130,11 @@ export function TenantIdentityFields({
         return cleaned || raw
       }
       const personName = t === "IP" || t === "LZCHP" ? stripIpPrefix(r.info.name) : r.info.director
-      // Галочка «плательщик НДС» — из сервиса КГД «Поиск плательщиков НДС».
-      // null = сервис не ответил → галочку не трогаем.
-      const setCheckbox = (name: string, value: boolean | null) => {
-        if (value === null) return false
-        const input = form.elements.namedItem(name)
-        if (!(input instanceof HTMLInputElement) || input.type !== "checkbox") return false
-        if (input.checked !== value) {
-          input.checked = value
-          input.dispatchEvent(new Event("change", { bubbles: true }))
-        }
-        return true
+      // НДС-статус — из сервиса КГД «Поиск плательщиков НДС». null = сервис не
+      // ответил → прежнее значение не трогаем (статус остаётся «не определён»).
+      if (r.info.vatPayer !== null) {
+        setVatPayer(r.info.vatPayer)
+        setVatStatus(r.info.vatStatus ?? null)
       }
       const filled = [
         setField("companyName", r.info.name),
@@ -137,7 +142,7 @@ export function TenantIdentityFields({
         setField("directorName", r.info.director),
         // ФИО контакта — только если поле ещё пустое (не перетираем введённое).
         setField("name", personName, false),
-        setCheckbox("isVatPayer", r.info.vatPayer),
+        r.info.vatPayer !== null,
       ].filter(Boolean).length
       const parts = [
         r.info.name && "наименование",
@@ -253,6 +258,43 @@ export function TenantIdentityFields({
           </p>
         )}
         <input type="hidden" name={usesBin ? "iin" : "bin"} value="" />
+      </div>
+
+      {/* НДС — определяется АВТОМАТИЧЕСКИ из КГД по БИН/ИИН (без ручного ввода).
+          Ставка единая по НК РК (КГД её не отдаёт). Скрытые поля сабмитятся с формой. */}
+      <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">НДС (по данным КГД)</p>
+          {taxId.length === 12 && (
+            <button
+              type="button"
+              onClick={() => fillFromRegistry()}
+              disabled={lookupPending}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+            >
+              {lookupPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Обновить из КГД
+            </button>
+          )}
+        </div>
+        <div className="mt-1.5 text-sm">
+          {vatPayer === true ? (
+            <span className="font-medium text-emerald-700 dark:text-emerald-300">
+              ✅ {vatStatus?.trim() || "Плательщик НДС"} · ставка {DEFAULT_KZ_VAT_RATE}%
+            </span>
+          ) : vatStatus?.trim() ? (
+            <span className="text-slate-600 dark:text-slate-400">{vatStatus}</span>
+          ) : (
+            <span className="text-amber-600 dark:text-amber-400">
+              Не определён — введите {usesBin ? "БИН" : "ИИН"} (12 цифр), статус подтянется из КГД автоматически.
+            </span>
+          )}
+        </div>
+        <input type="hidden" name="isVatPayer" value={vatPayer ? "on" : "off"} />
+        <input type="hidden" name="vatRate" value={DEFAULT_KZ_VAT_RATE} />
+        <input type="hidden" name="vatStatus" value={vatStatus ?? ""} />
+        {/* Sentinel: форма управляет НДС → updateTenant применит значения. */}
+        <input type="hidden" name="isVatPayerForm" value="1" />
       </div>
 
       {/* Удостоверение личности — только для физлица: у него нет БИН/устава,

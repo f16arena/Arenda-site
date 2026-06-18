@@ -7,23 +7,17 @@ import { createTenant } from "@/app/actions/tenant-create"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "./tenant-identity-fields"
-import { DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { Button } from "@/components/ui/button"
 
+// Карточка арендатора = только реквизиты/контакты. Помещение, аренда и срок
+// задаются в договоре (помещение — на странице этажа), поэтому форма создания
+// больше не принимает выбор помещений (vacantSpaces оставлен для совместимости
+// сигнатуры вызова со страницы /admin/tenants).
 type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number; isObject?: boolean }
 
-export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space[]; buildingId?: string | null }) {
+export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingId?: string | null }) {
   const [open, setOpen] = useState(false)
-  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([])
   const [pending, startTransition] = useTransition()
-
-  function toggleSpace(spaceId: string) {
-    setSelectedSpaceIds((current) =>
-      current.includes(spaceId)
-        ? current.filter((id) => id !== spaceId)
-        : [...current, spaceId],
-    )
-  }
 
   return (
     <>
@@ -50,7 +44,6 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                   try {
                     await createTenant(formData)
                     toast.success("Арендатор создан")
-                    setSelectedSpaceIds([])
                     setOpen(false)
                   } catch (e) {
                     toast.error(e instanceof Error ? e.message : "Не удалось создать")
@@ -109,26 +102,6 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
                 <input name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
               </div>
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-                <label className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300">
-                  <input name="isVatPayer" type="checkbox" className="mt-0.5 rounded border-slate-300" />
-                  <span>
-                    <span className="block font-medium">Арендатор — плательщик НДС</span>
-                    <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Ставка выбирается только из НК РК.</span>
-                  </span>
-                </label>
-                <select
-                  name="vatRate"
-                  defaultValue={String(DEFAULT_KZ_VAT_RATE)}
-                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
-                >
-                  {KZ_VAT_RATE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>
                 <AddressAutocompleteInput
@@ -148,92 +121,20 @@ export function TenantDialog({ vacantSpaces, buildingId }: { vacantSpaces: Space
                 />
               </div>
 
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Помещение и договор</p>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                  Помещения <span className="text-slate-400">(можно выбрать несколько)</span>
+                  Описание размещения <span className="text-slate-400">(если без помещения — крыша/фасад)</span>
                 </label>
-                {selectedSpaceIds.map((id) => (
-                  <input key={id} type="hidden" name="spaceIds" value={id} />
-                ))}
-                <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  {vacantSpaces.length > 0 ? vacantSpaces.map((s) => {
-                    const checked = selectedSpaceIds.includes(s.id)
-                    return (
-                      <label
-                        key={s.id}
-                        className={[
-                          "flex cursor-pointer items-start gap-3 border-b border-slate-100 px-3 py-2 text-sm last:border-b-0 dark:border-slate-800",
-                          checked ? "bg-blue-50 dark:bg-blue-500/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/50",
-                        ].join(" ")}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleSpace(s.id)}
-                          className="mt-0.5 rounded border-slate-300"
-                        />
-                        <span>
-                          <span className="font-medium text-slate-800 dark:text-slate-100">
-                            {s.buildingName ? `${s.buildingName} · ` : ""}{s.isObject ? s.number : `Каб. ${s.number}`}
-                          </span>
-                          <span className="block text-xs text-slate-500 dark:text-slate-400">
-                            {s.isObject ? `${s.floorName} · объект (без м²)` : `${s.floorName} · ${s.area} м²`}
-                          </span>
-                        </span>
-                      </label>
-                    )
-                  }) : (
-                    <p className="px-3 py-3 text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
-                  )}
-                </div>
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  Не выбрано — арендатор будет создан без помещения.
-                </p>
+                <input
+                  name="placementNote"
+                  placeholder="например, Крыша — антенно-мачтовое сооружение Beeline"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                />
               </div>
 
-              {/* «Крышные» арендаторы без помещения: вышки Beeline/Altel, камеры Сергек */}
-              {selectedSpaceIds.length === 0 && (
-                <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-3 space-y-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                    Размещение без помещения (крыша / фасад)
-                  </p>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание размещения</label>
-                    <input
-                      name="placementNote"
-                      placeholder="Крыша — антенно-мачтовое сооружение Beeline"
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Аренда, ₸/мес (фиксированная)</label>
-                    <input
-                      name="fixedMonthlyRent"
-                      type="number"
-                      min={0}
-                      step={1000}
-                      placeholder="например, 80000"
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  {!buildingId && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                      Выберите конкретное здание в шапке — иначе арендатор без помещения не привяжется к зданию.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Начало договора</label>
-                  <input name="contractStart" type="date" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Конец договора</label>
-                  <input name="contractEnd" type="date" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
-                </div>
+              <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3 py-2.5 text-[11px] text-slate-500 dark:text-slate-400">
+                Помещение, аренду и срок задаём в договоре (помещение — на странице этажа,
+                условия — при создании договора или загрузке внешнего PDF). Здесь карточка — только реквизиты.
               </div>
 
               <div className="flex gap-3 pt-2">
