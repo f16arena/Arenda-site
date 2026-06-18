@@ -37,7 +37,8 @@ import {
   type DraftListItem,
   type ConstructorTenant,
 } from "@/app/actions/contract-builder"
-import { CONTRACT_PLACEMENT_TYPES, CORE_CONTRACT_TYPES, type ContractPlacementType } from "@/lib/contract-placement-types"
+import { CONTRACT_PLACEMENT_TYPES, CORE_CONTRACT_TYPES, isContractPlacementType, type ContractPlacementType } from "@/lib/contract-placement-types"
+import { applyContractTypePreset } from "@/lib/contract-type-presets"
 import {
   defaultState,
   assemble,
@@ -208,7 +209,12 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     startTransition(async () => {
       const r = await prefillFromTenant(id)
       if (r.ok && r.state) {
-        setState(withDefaults(r.state))
+        setState(() => {
+          const n = withDefaults(r.state!)
+          // Пресет по авто-определённому типу (крыша/территория → фикс, без эксп.расходов/уборки).
+          if (isContractPlacementType(n.meta.placementType)) applyContractTypePreset(n, n.meta.placementType)
+          return n
+        })
         setLandlordContacts(r.landlordContacts ?? null)
         if (r.availableTypes?.length) setAvailableTypes(r.availableTypes)
         setDraftName(r.state.tenant.name || "Без названия")
@@ -571,8 +577,8 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes 
           <select
             className={inputCls}
             value={state.meta.placementType ?? "PREMISES"}
-            onChange={(e) => set((s) => { s.meta.placementType = e.target.value })}
-            title="Определяется автоматически по размещению арендатора; можно изменить"
+            onChange={(e) => { const v = e.target.value; set((s) => { if (isContractPlacementType(v)) applyContractTypePreset(s, v) }) }}
+            title="Определяется автоматически по размещению арендатора; можно изменить. Крыша/территория — фикс-аренда без эксплуатационных расходов."
           >
             {CONTRACT_PLACEMENT_TYPES.filter((t) => availableTypes.includes(t.key)).map((t) => (
               <option key={t.key} value={t.key}>{t.label}</option>
