@@ -5,8 +5,9 @@ import { Check, X, ShieldCheck } from "lucide-react"
 import { rejectContractByTenant } from "@/app/actions/contract-workflow"
 import { Button } from "@/components/ui/button"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
+import { EgovQrSign } from "@/components/egov-qr-sign"
 
-export function SignActions({ token, payloadB64 }: { token: string; payloadB64?: string }) {
+export function SignActions({ token, payloadB64, egovApi1Url }: { token: string; payloadB64?: string; egovApi1Url?: string | null }) {
   const [pending, startTransition] = useTransition()
   const [showReject, setShowReject] = useState(false)
   const [rejectReason, setRejectReason] = useState("")
@@ -75,9 +76,19 @@ export function SignActions({ token, payloadB64 }: { token: string; payloadB64?:
             payloadB64={payloadB64}
             mode="tenant"
             token={token}
-            label="Подписать ЭЦП"
+            label="Подписать ЭЦП на компьютере (NCALayer)"
             onSigned={() => setDone("signed")}
           />
+          {egovApi1Url && (
+            <>
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs text-slate-400">или</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <EgovQrSign api1Url={egovApi1Url} token={token} onSigned={() => setDone("signed")} />
+            </>
+          )}
           <button
             onClick={() => setShowReject((v) => !v)}
             disabled={pending}

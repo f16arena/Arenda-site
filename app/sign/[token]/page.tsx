@@ -9,6 +9,8 @@ import { DownloadSigned } from "./download-signed"
 import { LANDLORD } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
+import { headers } from "next/headers"
+import { egovApi1Url, egovBaseFromEnv } from "@/lib/egov-sign"
 
 function redactOwnerContact(content: string, contacts: string[]) {
   return contacts.reduce((text, value) => {
@@ -77,6 +79,14 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
     endDate: contract.endDate,
     tenantCompany: contract.tenant.companyName,
   })
+
+  // URL API №1 для подписи через eGov Mobile (QR/диплинк). Домен должен быть в
+  // «доверенных» у eGov Mobile. Префикс берём из env (прод-домен) или из запроса.
+  const h = await headers()
+  const proto = h.get("x-forwarded-proto") ?? "https"
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? ""
+  const egovOrigin = egovBaseFromEnv() ?? (host ? `${proto}://${host}` : "")
+  const egovApi1 = egovOrigin ? egovApi1Url(egovOrigin, token) : null
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
@@ -205,7 +215,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
 
         {/* Действия */}
         {!isCompleted && !tenantSigned && !contract.signLinkExpired && (
-          <SignActions token={token} payloadB64={signingPayloadB64} />
+          <SignActions token={token} payloadB64={signingPayloadB64} egovApi1Url={egovApi1} />
         )}
 
         {/* Подписано обеими сторонами → даём скачать готовый документ */}
