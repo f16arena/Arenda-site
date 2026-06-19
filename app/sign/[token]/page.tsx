@@ -75,12 +75,27 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
       displayText = contract.content
     }
   }
-  const publicContractContent = redactOwnerContact(displayText, [
-    LANDLORD.phone,
-    LANDLORD.email,
-    landlord?.phone ?? "",
-    landlord?.email ?? "",
-  ])
+  const redactList = [LANDLORD.phone, LANDLORD.email, landlord?.phone ?? "", landlord?.email ?? ""]
+  const publicContractContent = redactOwnerContact(displayText, redactList)
+
+  // Дополнительные соглашения (ДС) — показываем арендатору вместе с договором.
+  const STATUS_RU: Record<string, string> = {
+    SENT: "отправлено", VIEWED: "просмотрено",
+    SIGNED_BY_TENANT: "подписано вами", SIGNED: "подписано",
+  }
+  const addenda = (contract.addenda ?? []).map((a) => {
+    let text = a.content
+    if (a.builderState) {
+      try { text = renderContractText(a.builderState as unknown as ContractState) } catch { text = a.content }
+    }
+    return {
+      id: a.id,
+      number: a.number,
+      statusLabel: STATUS_RU[a.status] ?? a.status,
+      createdAt: a.createdAt,
+      text: redactOwnerContact(text, redactList),
+    }
+  })
 
   // Канонический текст для ЭЦП считаем по ПОЛНОМУ контенту (тот же, что подпишет
   // арендодатель), а не по версии с замазанными контактами.
@@ -215,6 +230,29 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
             {publicContractContent}
           </div>
         </div>
+
+        {/* Дополнительные соглашения (ДС) к договору */}
+        {addenda.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Дополнительные соглашения ({addenda.length})
+            </p>
+            <div className="space-y-3">
+              {addenda.map((a) => (
+                <details key={a.id} className="group rounded-xl border border-slate-200 overflow-hidden">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-900">
+                    ДС № {a.number}
+                    <span className="text-xs font-normal text-slate-500">· {a.statusLabel} · {new Date(a.createdAt).toLocaleDateString("ru-RU")}</span>
+                    <span className="ml-auto text-slate-400 transition group-open:rotate-180">▾</span>
+                  </summary>
+                  <div className="border-t border-slate-100 px-4 py-3 whitespace-pre-wrap font-serif text-sm text-slate-800">
+                    {a.text}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Ссылка устарела */}
         {!isCompleted && contract.signLinkExpired && (

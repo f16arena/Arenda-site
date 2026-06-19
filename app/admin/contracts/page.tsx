@@ -11,6 +11,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
+import { contractTypeShort } from "@/lib/contract-placement-types"
 import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 
 export default async function ContractsPage() {
@@ -105,7 +106,7 @@ type TenantRow = {
   fixedMonthlyRent: number | null
   space: { number: string; area: number; floor: { name: string; ratePerSqm: number } } | null
   fullFloors: { id: string; name: string; fixedMonthlyRent: number | null }[]
-  contracts: { id: string; number: string; status: string }[]
+  contracts: { id: string; number: string; status: string; placementType?: string | null }[]
   charges: { amount: number; dueDate: Date | null }[]
 }
 
@@ -148,7 +149,16 @@ function Section({
                   <p className="font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">{t.legalType}</p>
                 </td>
-                <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{placement}</td>
+                <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span>{placement}</span>
+                    {t.contracts[0]?.placementType && (
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                        {contractTypeShort(t.contracts[0].placementType)}
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-5 py-3 text-slate-600 dark:text-slate-400 text-xs">
                   {t.contractStart && t.contractEnd ? (
                     <>

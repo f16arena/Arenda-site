@@ -336,6 +336,12 @@ export async function getContractByToken(token: string) {
           user: { select: { name: true, email: true, organizationId: true } },
         },
       },
+      // Связанные ДС («дополнения») — арендатор должен видеть их вместе с договором.
+      addenda: {
+        where: { deletedAt: null, status: { in: ["SENT", "VIEWED", "SIGNED_BY_TENANT", "SIGNED"] } },
+        select: { id: true, number: true, status: true, content: true, builderState: true, changeKind: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
   })
   if (!contract) return null

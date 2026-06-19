@@ -13,6 +13,8 @@ import { contractScope } from "@/lib/tenant-scope"
 import { assertContractInOrg } from "@/lib/scope-guards"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
+import { contractTypeShort } from "@/lib/contract-placement-types"
+import { renderContractText, type ContractState } from "@/lib/contract-engine"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
 import { SignedPdfButton } from "@/components/contract-constructor/signed-pdf-button"
 import { SendForSignatureButton } from "@/components/contract-constructor/send-for-signature-button"
@@ -59,7 +61,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   const contract = await db.contract.findFirst({
     where: { id, ...contractScope(orgId) },
     select: {
-      id: true, number: true, type: true, status: true, content: true,
+      id: true, number: true, type: true, placementType: true, status: true, content: true,
       signedAt: true, sentAt: true, viewedAt: true,
       signedByTenantAt: true, signedByTenantName: true, signedByLandlordAt: true,
       rejectedAt: true, rejectionReason: true,
@@ -85,6 +87,12 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
 
   const statusMeta = STATUS_LABELS[contract.status] ?? { label: contract.status, color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" }
   const isAddendum = contract.type === "ADDENDUM"
+  // Полный текст с приложениями — из снимка конструктора (для старых договоров,
+  // где приложений нет в сохранённом content). Иначе — content как есть.
+  let fullContractText = contract.content
+  if (contract.builderState) {
+    try { fullContractText = renderContractText(contract.builderState as unknown as ContractState) } catch { fullContractText = contract.content }
+  }
   const isCompleted = contract.status === "SIGNED" || contract.status === "REJECTED"
   const canLandlordSign = !isCompleted && !contract.signedByLandlordAt
   const landlordPayloadB64 = canLandlordSign
@@ -129,6 +137,11 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                 {TYPE_LABELS[contract.type] ?? contract.type} № {contract.number}
               </h1>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusMeta.color}`}>{statusMeta.label}</span>
+              {contract.placementType && !isAddendum && (
+                <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                  {contractTypeShort(contract.placementType)}
+                </span>
+              )}
               {contract.version > 1 && (
                 <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">Версия {contract.version}</span>
               )}
@@ -203,7 +216,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               <ChevronDown className="ml-auto h-4 w-4 text-slate-400 transition group-open:rotate-180" />
             </summary>
             <pre className="max-h-[600px] overflow-y-auto whitespace-pre-wrap border-t border-slate-100 px-5 py-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-800 dark:text-slate-300">
-              {contract.content || "(пусто)"}
+              {fullContractText || "(пусто)"}
             </pre>
           </details>
         </div>
