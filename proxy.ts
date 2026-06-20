@@ -44,6 +44,8 @@ const PUBLIC_ROOT_PREFIXES = [
   "/verify",
   // Building Studio — публичная read-only витрина по токену.
   "/showcase",
+  // Блог — публичный раздел статей (SEO).
+  "/blog",
 ]
 
 const PUBLIC_ASSET_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|map|woff2?|ttf|otf)$/i
