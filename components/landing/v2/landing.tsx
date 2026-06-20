@@ -16,19 +16,33 @@ export function LandingV2({
   pricing,
   founding,
   editorImageUrl,
+  dashboardUrl,
 }: {
   pricing: { plans: PricingPlan[]; periods: PricingPeriod[]; matrix: PricingMatrix } | null
   founding: { remaining: number; total: number; isActive: boolean } | null
   editorImageUrl?: string | null
+  dashboardUrl?: string | null
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
+  // Для залогиненного пользователя все CTA (Войти/Демо/Начать/Регистрация) ведут
+  // прямо в его рабочую зону (dashboardUrl), а не на /login — без петель.
+  const withCta = (html: string) =>
+    dashboardUrl
+      ? html
+          .replaceAll('href="/login"', `href="${dashboardUrl}"`)
+          .replaceAll('href="/signup"', `href="${dashboardUrl}"`)
+          .replaceAll('href="/demo"', `href="${dashboardUrl}"`)
+      : html
   // Подстановка реального скриншота 3D-редактора (из БД) вместо плейсхолдера.
-  const before = editorImageUrl
-    ? LANDING_BODY_BEFORE.replace(
-        '<div class="img-ph">Скриншот 3D-редактора здания</div>',
-        `<img src="${editorImageUrl}" alt="3D-редактор здания Commrent" style="width:100%;height:clamp(320px,38vw,420px);object-fit:cover;display:block" />`,
-      )
-    : LANDING_BODY_BEFORE
+  const before = withCta(
+    editorImageUrl
+      ? LANDING_BODY_BEFORE.replace(
+          '<div class="img-ph">Скриншот 3D-редактора здания</div>',
+          `<img src="${editorImageUrl}" alt="3D-редактор здания Commrent" style="width:100%;height:clamp(320px,38vw,420px);object-fit:cover;display:block" />`,
+        )
+      : LANDING_BODY_BEFORE,
+  )
+  const after = withCta(LANDING_BODY_AFTER)
 
   useEffect(() => {
     const root = rootRef.current
@@ -137,9 +151,9 @@ export function LandingV2({
       <div ref={rootRef}>
         <div dangerouslySetInnerHTML={{ __html: before }} />
         {pricing && (
-          <PricingDesignSection plans={pricing.plans} periods={pricing.periods} matrix={pricing.matrix} founding={founding} />
+          <PricingDesignSection plans={pricing.plans} periods={pricing.periods} matrix={pricing.matrix} founding={founding} ctaHref={dashboardUrl ?? "/signup"} />
         )}
-        <div dangerouslySetInnerHTML={{ __html: LANDING_BODY_AFTER }} />
+        <div dangerouslySetInnerHTML={{ __html: after }} />
       </div>
     </>
   )

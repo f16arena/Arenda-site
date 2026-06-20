@@ -22,11 +22,13 @@ export function PricingDesignSection({
   periods,
   matrix,
   founding,
+  ctaHref = "/signup",
 }: {
   plans: PricingPlan[]
   periods: PricingPeriod[]
   matrix: PricingMatrix
   founding: { remaining: number; total: number; isActive: boolean } | null
+  ctaHref?: string
 }) {
   const monthly = periods.find((p) => p.monthsCount === 1) ?? periods[0]
   // Только платные тарифы: исключаем FREE и планы с нулевой ценой (триал/бесплатный) —
@@ -90,7 +92,7 @@ export function PricingDesignSection({
                     </ul>
                   )}
                   <div className="spacer" />
-                  <a href="/signup" className={`btn ${feat ? "btn-blue" : "btn-line"}`}>
+                  <a href={ctaHref} className={`btn ${feat ? "btn-blue" : "btn-line"}`}>
                     Выбрать{feat ? <Arrow /> : null}
                   </a>
                 </div>
