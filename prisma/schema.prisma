@@ -1398,6 +1398,19 @@ model Complaint {
 // активный шаблон (предыдущие — деактивированные, для истории).
 // DOCX (через docxtemplater) и XLSX (через ExcelJS) — для генерации.
 // PDF — только как образец-превью, не для подстановки.
+// Изображения публичного сайта (лендинг), редактируемые без передеплоя.
+// Платформенный уровень (не привязано к организации); грузит платформенный
+// владелец. Ключ slot, например "landing-3d". Отдаётся через /api/site-image/[slot].
+model SiteImage {
+  slot      String   @id
+  mime      String
+  fileName  String?  @map("file_name")
+  data      Bytes
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_images")
+}
+
 model DocumentTemplate {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")

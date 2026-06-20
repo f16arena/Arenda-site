@@ -12,6 +12,7 @@ import {
   Calendar as CalendarIcon,
   Gauge,
   History,
+  Image as ImageIcon,
   LogOut,
   Package,
   Shield,
@@ -50,6 +51,7 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
           <SideLink href="/superadmin/addons" icon={Package} label="Аддоны" />
           <SideLink href="/superadmin/services" icon={Briefcase} label="Услуги" />
           <SideLink href="/superadmin/founders" icon={Sparkles} label="Founding Pricing" />
+          <SideLink href="/superadmin/site-images" icon={ImageIcon} label="Изображения сайта" />
           <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
           <SideLink href="/superadmin/errors" icon={Bug} label="Ошибки сайта" />
           <SideLink href="/superadmin/performance" icon={Gauge} label="Скорость сайта" />

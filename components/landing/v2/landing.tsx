@@ -1,7 +1,9 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { LANDING_BODY, LANDING_CSS } from "./landing-data"
+import { LANDING_BODY_AFTER, LANDING_BODY_BEFORE, LANDING_CSS } from "./landing-data"
+import { PricingDesignSection } from "./pricing-design-section"
+import type { PricingPlan, PricingPeriod, PricingMatrix } from "@/components/landing/pricing-data"
 
 /**
  * Главная страница (новый дизайн). Вёрстка/CSS из дизайна вставляются как есть
@@ -10,8 +12,23 @@ import { LANDING_BODY, LANDING_CSS } from "./landing-data"
  * калькулятор потерь, scroll-spy, параллакс героя) перенесены в useEffect с очисткой.
  * Ссылки кнопок ведут на реальные маршруты (/login, /signup, /demo).
  */
-export function LandingV2() {
+export function LandingV2({
+  pricing,
+  founding,
+  editorImageUrl,
+}: {
+  pricing: { plans: PricingPlan[]; periods: PricingPeriod[]; matrix: PricingMatrix } | null
+  founding: { remaining: number; total: number; isActive: boolean } | null
+  editorImageUrl?: string | null
+}) {
   const rootRef = useRef<HTMLDivElement>(null)
+  // Подстановка реального скриншота 3D-редактора (из БД) вместо плейсхолдера.
+  const before = editorImageUrl
+    ? LANDING_BODY_BEFORE.replace(
+        '<div class="img-ph">Скриншот 3D-редактора здания</div>',
+        `<img src="${editorImageUrl}" alt="3D-редактор здания Commrent" style="width:100%;height:clamp(320px,38vw,420px);object-fit:cover;display:block" />`,
+      )
+    : LANDING_BODY_BEFORE
 
   useEffect(() => {
     const root = rootRef.current
@@ -117,7 +134,13 @@ export function LandingV2() {
       {/* Дизайн фиксированно светлый — принудительно держим светлый фон даже при
           системной/сохранённой тёмной теме (стиль действует только на этой странице). */}
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS + "\nhtml body{background:#f4f6f9!important;color:#0a1020!important}" }} />
-      <div ref={rootRef} dangerouslySetInnerHTML={{ __html: LANDING_BODY }} />
+      <div ref={rootRef}>
+        <div dangerouslySetInnerHTML={{ __html: before }} />
+        {pricing && (
+          <PricingDesignSection plans={pricing.plans} periods={pricing.periods} matrix={pricing.matrix} founding={founding} />
+        )}
+        <div dangerouslySetInnerHTML={{ __html: LANDING_BODY_AFTER }} />
+      </div>
     </>
   )
 }
