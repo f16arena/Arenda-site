@@ -29,7 +29,13 @@ export function PricingDesignSection({
   founding: { remaining: number; total: number; isActive: boolean } | null
 }) {
   const monthly = periods.find((p) => p.monthsCount === 1) ?? periods[0]
-  const paid = plans.filter((p) => p.code !== "FREE")
+  // Только платные тарифы: исключаем FREE и планы с нулевой ценой (триал/бесплатный) —
+  // пробный период предлагается отдельной кнопкой, а не карточкой за 0 ₸.
+  const paid = plans.filter((p) => {
+    if (p.code === "FREE") return false
+    const base = monthly ? matrix[p.code]?.[monthly.code]?.normal?.basePriceMonthly ?? 0 : 0
+    return base > 0
+  })
   const useFounders = !!founding?.isActive
   // «Популярный» — средняя карточка (для нечётного — центральная).
   const featIndex = paid.length >= 3 ? 1 : -1
