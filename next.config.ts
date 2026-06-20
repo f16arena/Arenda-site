@@ -9,6 +9,11 @@ const withBundleAnalyzer = bundleAnalyzer({
 const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
+    // Загрузка изображений сайта (Server Action) — скрин лендинга до 8 МБ.
+    // Дефолт Next — 1 МБ, из-за чего загрузка падала с 500.
+    serverActions: {
+      bodySizeLimit: "8mb",
+    },
   },
   // Security headers, применяются ко всем routes.
   // CSP — отдельная задача: требует whitelist для Next.js inline-скриптов и Sentry.
