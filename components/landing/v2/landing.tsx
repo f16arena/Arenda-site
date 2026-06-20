@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { LANDING_BODY_AFTER, LANDING_BODY_BEFORE, LANDING_CSS } from "./landing-data"
 import { PricingDesignSection } from "./pricing-design-section"
+import { SeoSection } from "./seo-section"
 import type { PricingPlan, PricingPeriod, PricingMatrix } from "@/components/landing/pricing-data"
 
 /**
@@ -154,6 +155,7 @@ export function LandingV2({
           <PricingDesignSection plans={pricing.plans} periods={pricing.periods} matrix={pricing.matrix} founding={founding} ctaHref={dashboardUrl ?? "/signup"} />
         )}
         <div dangerouslySetInnerHTML={{ __html: after }} />
+        <SeoSection />
       </div>
     </>
   )
