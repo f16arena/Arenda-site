@@ -28,6 +28,9 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   verification: {
     google: "djKedxtoy91w6VUuWG5o8cT1f57Ps14K2mcMRsAQAaM",
+    // Токен из Яндекс.Вебмастера. Задаётся env-переменной — можно вставить
+    // прямо в Vercel без передеплоя кода. Если пусто — мета-тег не выводится.
+    yandex: process.env.YANDEX_VERIFICATION || undefined,
   },
   icons: {
     icon: [

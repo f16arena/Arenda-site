@@ -40,8 +40,59 @@ export default async function Home() {
     resolveDashboardUrl(),
   ])
   const editorImageUrl = editor ? `/api/site-image/landing-3d?v=${editor.updatedAt.getTime()}` : null
+
+  // Schema.org (JSON-LD): помогает поисковикам понять, что это за продукт, и даёт
+  // шанс на расширенный сниппет. Стартовую цену берём из БД (минимальный платный
+  // помесячный тариф), если доступна.
+  const monthlyPeriod = pricing?.periods.find((p) => p.monthsCount === 1) ?? pricing?.periods[0]
+  const monthlyPrices =
+    pricing && monthlyPeriod
+      ? pricing.plans
+          .filter((p) => p.code !== "FREE")
+          .map((p) => pricing.matrix[p.code]?.[monthlyPeriod.code]?.normal?.basePriceMonthly ?? 0)
+          .filter((n) => n > 0)
+      : []
+  const startingPrice = monthlyPrices.length ? Math.min(...monthlyPrices) : null
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://commrent.kz/#organization",
+        name: "Commrent",
+        url: "https://commrent.kz",
+        logo: "https://commrent.kz/commrent-logo-hero.png",
+        description:
+          "SaaS-платформа для управления коммерческой арендой в Казахстане: договоры, ЭЦП, счета, ЭСФ в КГД и оплата в одном окне.",
+        areaServed: { "@type": "Country", name: "Kazakhstan" },
+      },
+      {
+        "@type": "SoftwareApplication",
+        name: "Commrent",
+        url: "https://commrent.kz",
+        applicationCategory: "BusinessApplication",
+        operatingSystem: "Web",
+        inLanguage: "ru",
+        description:
+          "Операционная система для коммерческой аренды: договор → подпись ЭЦП → счёт/АВР → ЭСФ в КГД → оплата.",
+        publisher: { "@id": "https://commrent.kz/#organization" },
+        ...(startingPrice
+          ? {
+              offers: {
+                "@type": "Offer",
+                price: Math.round(startingPrice),
+                priceCurrency: "KZT",
+              },
+            }
+          : {}),
+      },
+    ],
+  }
+
   return (
     <>
+      {/* Структурированные данные для поисковиков (Google/Яндекс) */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* Шрифт Onest (как в дизайне) */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       {/* eslint-disable-next-line @next/next/google-font-preconnect */}
