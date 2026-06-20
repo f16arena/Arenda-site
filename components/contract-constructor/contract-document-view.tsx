@@ -2,6 +2,10 @@
 // детальной страницы). Строится из ContractState через движок (assemble +
 // deriveContext), а не из плоского текста — поэтому заголовки/таблицы/абзацы
 // выглядят как нормальный документ. Чистый серверный компонент (без "use client").
+//
+// ВАЖНО: документ — это «лист бумаги», поэтому цвета ФИКСИРОВАННО СВЕТЛЫЕ
+// (белый фон, тёмный текст), без dark:-вариантов. Иначе на странице подписи
+// (она всегда светлая) при системной тёмной теме текст становился невидимым.
 
 import { assemble, type ContractState } from "@/lib/contract-engine"
 import { deriveContext } from "@/lib/contract-engine/derive"
@@ -27,12 +31,12 @@ export function ContractDocumentView({
   const r = redact
 
   return (
-    <article className="mx-auto max-w-[760px] text-[13px] leading-relaxed text-slate-800 dark:text-slate-200">
+    <article className="mx-auto max-w-[760px] rounded-lg bg-white p-6 text-[13px] leading-relaxed text-slate-800 shadow-sm ring-1 ring-slate-200">
       {/* Шапка */}
       <header className="text-center mb-6">
-        <h2 className="text-base font-bold tracking-wide">ДОГОВОР № {state.meta.contractNumber || "____"}</h2>
+        <h2 className="text-base font-bold tracking-wide text-slate-900">ДОГОВОР № {state.meta.contractNumber || "____"}</h2>
         <p className="text-sm">аренды нежилого помещения</p>
-        <div className="mt-3 flex justify-between text-xs text-slate-500 dark:text-slate-400">
+        <div className="mt-3 flex justify-between text-xs text-slate-500">
           <span>{state.meta.city}</span>
           <span>{dateLong(state.meta.contractDate)}</span>
         </div>
@@ -47,7 +51,7 @@ export function ContractDocumentView({
       {/* Разделы */}
       {a.sections.map((sec) => (
         <section key={sec.num} className="mb-4">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1.5">{sec.num}. {sec.title}</h3>
+          <h3 className="font-semibold text-slate-900 mb-1.5">{sec.num}. {sec.title}</h3>
           <div className="space-y-1.5">
             {sec.items.map((it) => (
               <div key={it.id}>
@@ -57,7 +61,7 @@ export function ContractDocumentView({
                 {it.children.length > 0 && (
                   <div className="ml-5 mt-1 space-y-1">
                     {it.children.map((k) => (
-                      <p key={k.id} className="text-justify text-slate-600 dark:text-slate-300">
+                      <p key={k.id} className="text-justify text-slate-600">
                         <span className="font-medium">{k.num}.</span> {r(k.html)}
                       </p>
                     ))}
@@ -71,15 +75,15 @@ export function ContractDocumentView({
 
       {/* Реквизиты сторон */}
       <section className="mb-2">
-        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">{a.requisitesNum}. Реквизиты и подписи Сторон</h3>
+        <h3 className="font-semibold text-slate-900 mb-2">{a.requisitesNum}. Реквизиты и подписи Сторон</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <p className="font-semibold mb-1">АРЕНДОДАТЕЛЬ:</p>
-            <p className="whitespace-pre-line text-slate-600 dark:text-slate-300">{r(partyRequisites(state.landlord))}</p>
+            <p className="whitespace-pre-line text-slate-600">{r(partyRequisites(state.landlord))}</p>
           </div>
           <div>
             <p className="font-semibold mb-1">АРЕНДАТОР:</p>
-            <p className="whitespace-pre-line text-slate-600 dark:text-slate-300">{r(partyRequisites(state.tenant))}</p>
+            <p className="whitespace-pre-line text-slate-600">{r(partyRequisites(state.tenant))}</p>
           </div>
         </div>
       </section>
@@ -94,11 +98,11 @@ export function ContractDocumentView({
 
 function AnnexHeader({ no, state, title, subtitle }: { no: number; state: ContractState; title: string; subtitle: string }) {
   return (
-    <div className="mt-8 pt-6 border-t border-dashed border-slate-300 dark:border-slate-700">
-      <p className="text-right text-xs italic text-slate-500 dark:text-slate-400 mb-3">
+    <div className="mt-8 pt-6 border-t border-dashed border-slate-300">
+      <p className="text-right text-xs italic text-slate-500 mb-3">
         Приложение № {no} к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}
       </p>
-      <h3 className="text-center text-base font-bold">{title}</h3>
+      <h3 className="text-center text-base font-bold text-slate-900">{title}</h3>
       <p className="text-center text-sm mb-4">{subtitle}</p>
     </div>
   )
@@ -121,8 +125,8 @@ function AnnexAct({ state, no }: { state: ContractState; no: number }) {
       <table className="w-full border-collapse text-xs mb-2">
         <tbody>
           {conditions.map(([label, val]) => (
-            <tr key={label} className="border-b border-slate-100 dark:border-slate-800">
-              <td className="py-1 pr-3 text-slate-500 dark:text-slate-400 align-top w-1/2">{label}</td>
+            <tr key={label} className="border-b border-slate-100">
+              <td className="py-1 pr-3 text-slate-500 align-top w-1/2">{label}</td>
               <td className="py-1">{fill(val)}</td>
             </tr>
           ))}
@@ -148,20 +152,20 @@ function AnnexServices({ state, no }: { state: ContractState; no: number }) {
       <AnnexHeader no={no} state={state} title="ЗАЯВЛЕНИЕ" subtitle="на дополнительные услуги" />
       <p className="mb-2">Арендатор: {state.tenant.name || "________"}. Помещение: {state.premises.buildingAddress || "________"}, {state.premises.spaceAreaSqm || "____"} кв. м.</p>
       <p className="mb-2">Арендатор поручает Арендодателю оказание следующих услуг:</p>
-      <table className="w-full border border-slate-200 dark:border-slate-700 border-collapse text-xs">
+      <table className="w-full border border-slate-200 border-collapse text-xs">
         <thead>
-          <tr className="bg-slate-50 dark:bg-slate-800/50">
-            <th className="border border-slate-200 dark:border-slate-700 px-2 py-1 text-left">Услуга</th>
-            <th className="border border-slate-200 dark:border-slate-700 px-2 py-1 text-left">Тариф / стоимость</th>
-            <th className="border border-slate-200 dark:border-slate-700 px-2 py-1 text-center w-16">Заказ</th>
+          <tr className="bg-slate-50">
+            <th className="border border-slate-200 px-2 py-1 text-left">Услуга</th>
+            <th className="border border-slate-200 px-2 py-1 text-left">Тариф / стоимость</th>
+            <th className="border border-slate-200 px-2 py-1 text-center w-16">Заказ</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row[0]}>
-              <td className="border border-slate-200 dark:border-slate-700 px-2 py-1">{row[0]}</td>
-              <td className="border border-slate-200 dark:border-slate-700 px-2 py-1">{row[2]}</td>
-              <td className="border border-slate-200 dark:border-slate-700 px-2 py-1 text-center">{row[1] ? "✓" : "—"}</td>
+              <td className="border border-slate-200 px-2 py-1">{row[0]}</td>
+              <td className="border border-slate-200 px-2 py-1">{row[2]}</td>
+              <td className="border border-slate-200 px-2 py-1 text-center">{row[1] ? "✓" : "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -196,8 +200,8 @@ function AnnexOperatingCosts({ state, no, covers }: { state: ContractState; no: 
       <table className="w-full border-collapse text-xs mb-2">
         <tbody>
           {kv.map(([k, v]) => (
-            <tr key={k} className="border-b border-slate-100 dark:border-slate-800">
-              <td className="py-1 pr-3 text-slate-500 dark:text-slate-400 align-top w-2/3">{k}</td>
+            <tr key={k} className="border-b border-slate-100">
+              <td className="py-1 pr-3 text-slate-500 align-top w-2/3">{k}</td>
               <td className="py-1 font-medium">{v}</td>
             </tr>
           ))}
