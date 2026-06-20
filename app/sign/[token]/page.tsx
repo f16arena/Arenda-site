@@ -10,6 +10,7 @@ import { LANDLORD } from "@/lib/landlord"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 import { renderContractText, type ContractState } from "@/lib/contract-engine"
+import { ContractDocumentView } from "@/components/contract-constructor/contract-document-view"
 import { headers } from "next/headers"
 import { egovApi1Url, egovBaseFromEnv } from "@/lib/egov-sign"
 
@@ -77,6 +78,9 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   }
   const redactList = [LANDLORD.phone, LANDLORD.email, landlord?.phone ?? "", landlord?.email ?? ""]
   const publicContractContent = redactOwnerContact(displayText, redactList)
+  // Снимок конструктора → аккуратный HTML-рендер документа; иначе fallback на текст.
+  const builderStateForView = contract.builderState ? (contract.builderState as unknown as ContractState) : null
+  const redactContact = (s: string) => redactOwnerContact(s, redactList)
 
   // Дополнительные соглашения (ДС) — показываем арендатору вместе с договором.
   const STATUS_RU: Record<string, string> = {
@@ -226,9 +230,13 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
         {/* Содержимое */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{documentTextTitle}</p>
-          <div className="prose prose-sm max-w-none text-slate-800 whitespace-pre-wrap font-serif">
-            {publicContractContent}
-          </div>
+          {builderStateForView ? (
+            <ContractDocumentView state={builderStateForView} redact={redactContact} />
+          ) : (
+            <div className="prose prose-sm max-w-none text-slate-800 whitespace-pre-wrap font-serif">
+              {publicContractContent}
+            </div>
+          )}
         </div>
 
         {/* Дополнительные соглашения (ДС) к договору */}

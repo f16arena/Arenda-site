@@ -15,6 +15,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
 import { contractTypeShort } from "@/lib/contract-placement-types"
 import { renderContractText, type ContractState } from "@/lib/contract-engine"
+import { ContractDocumentView } from "@/components/contract-constructor/contract-document-view"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
 import { SignedPdfButton } from "@/components/contract-constructor/signed-pdf-button"
 import { SendForSignatureButton } from "@/components/contract-constructor/send-for-signature-button"
@@ -215,9 +216,13 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               Текст договора
               <ChevronDown className="ml-auto h-4 w-4 text-slate-400 transition group-open:rotate-180" />
             </summary>
-            <pre className="max-h-[600px] overflow-y-auto whitespace-pre-wrap border-t border-slate-100 px-5 py-4 font-sans text-sm leading-relaxed text-slate-700 dark:border-slate-800 dark:text-slate-300">
-              {fullContractText || "(пусто)"}
-            </pre>
+            <div className="max-h-[600px] overflow-y-auto border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+              {contract.builderState ? (
+                <ContractDocumentView state={contract.builderState as unknown as ContractState} />
+              ) : (
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700 dark:text-slate-300">{fullContractText || "(пусто)"}</pre>
+              )}
+            </div>
           </details>
         </div>
 
