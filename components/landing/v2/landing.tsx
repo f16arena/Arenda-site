@@ -24,14 +24,15 @@ export function LandingV2({
   dashboardUrl?: string | null
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  // Для залогиненного пользователя все CTA (Войти/Демо/Начать/Регистрация) ведут
-  // прямо в его рабочую зону (dashboardUrl), а не на /login — без петель.
+  // Для залогиненного пользователя CTA входа/регистрации (Войти/Начать/Попробовать)
+  // ведут прямо в его рабочую зону (dashboardUrl), а не на /login — без петель.
+  // /demo НЕ подменяем: демонстрация — отдельная песочница, доступна всем (в т.ч.
+  // залогиненным), иначе кнопка «Демо» у владельца уводила бы в его же дашборд.
   const withCta = (html: string) =>
     dashboardUrl
       ? html
           .replaceAll('href="/login"', `href="${dashboardUrl}"`)
           .replaceAll('href="/signup"', `href="${dashboardUrl}"`)
-          .replaceAll('href="/demo"', `href="${dashboardUrl}"`)
       : html
   // Подстановка реального скриншота 3D-редактора (из БД) вместо плейсхолдера.
   const before = withCta(

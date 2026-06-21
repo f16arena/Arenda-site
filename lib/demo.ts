@@ -23,7 +23,16 @@ export async function ensureDemoOrg(): Promise<{ orgId: string }> {
   const existing = await db.organization.findUnique({ where: { slug: DEMO_SLUG }, select: { id: true } })
   if (existing) {
     const hasData = await db.building.findFirst({ where: { organizationId: existing.id }, select: { id: true } })
-    if (hasData) return { orgId: existing.id }
+    if (hasData) {
+      // Самовосстановление: синхронизируем пароль демо-владельца с текущим
+      // demoPassword(). Без этого, если DEMO_PASSWORD меняли уже после сидинга,
+      // хэш в БД не совпал бы и вход в демо падал бы (пере-сидинг тут не идёт —
+      // данные уже есть).
+      await db.user
+        .update({ where: { email: DEMO_EMAIL }, data: { password: await bcrypt.hash(demoPassword(), 10) } })
+        .catch(() => {})
+      return { orgId: existing.id }
+    }
   }
   return resetDemoOrg()
 }
