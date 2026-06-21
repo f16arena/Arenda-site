@@ -375,6 +375,8 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
     {
       n: 11,
       title: "Конфиденциальность",
+      // «!== false» — обратная совместимость: у старых договоров поля нет → раздел остаётся.
+      when: () => s.modules.confidentialityEnabled !== false,
       blocks: [
         {
           id: "cl_confidentiality",

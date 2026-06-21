@@ -727,6 +727,8 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
       )}
       <ToggleRow on={state.modules.insuranceEnabled} title="Страхование" hint="Отдельный раздел про страхование ответственности. Выкл — раздел убирается, нумерация и ссылки пересчитываются." onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
       <ToggleRow on={state.modules.signageEnabled} title="Вывески (п. 1.6, 6.2.3)" onToggle={() => set((s) => { s.modules.signageEnabled = !s.modules.signageEnabled })} />
+      <ToggleRow on={state.modules.confidentialityEnabled !== false} title="Конфиденциальность" hint="Отдельный раздел о конфиденциальности. Выкл — раздел убирается, нумерация и ссылки пересчитываются." onToggle={() => set((s) => { s.modules.confidentialityEnabled = s.modules.confidentialityEnabled === false })} />
+      <ToggleRow on={state.modules.tenantExitOnUnusableEnabled === true} title="Право арендатора на отказ при непригодности" hint="Пункты об отказе арендатора и возврате депозита, если помещение стало непригодным. Выкл — эти пункты убираются." onToggle={() => set((s) => { s.modules.tenantExitOnUnusableEnabled = !(s.modules.tenantExitOnUnusableEnabled === true) })} />
       <div className={secTitleCls}>Дополнительные услуги (Прил. № 2)</div>
 
       <ToggleRow on={sv.premisesCleaning.ordered} title="Уборка внутри помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesCleaning.ordered = !sv.premisesCleaning.ordered })} />

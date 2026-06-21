@@ -153,6 +153,10 @@ export interface Modules {
   // поля в builderState нет → новые пункты не подмешиваются в их перерисованный
   // DOCX/PDF (он обязан совпадать с подписанным content). defaultState() ставит true.
   tenantExitOnUnusableEnabled?: boolean
+  // Раздел «Конфиденциальность». Опционально; по умолчанию ВКЛ. Обратная
+  // совместимость: у старых договоров поля нет → `!== false` оставляет раздел
+  // (как и было), поэтому перерисованный документ совпадает с подписанным.
+  confidentialityEnabled?: boolean
 }
 
 /** Данные Акта приёма-передачи (Приложение). Пусто → в документе остаётся прочерк. */
@@ -257,7 +261,7 @@ export function defaultState(): ContractState {
       },
     },
     term: { startDate: "", endDate: "" },
-    modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true, tenantExitOnUnusableEnabled: true },
+    modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true, tenantExitOnUnusableEnabled: true, confidentialityEnabled: true },
     handoverAct: {
       conditionWalls: "", conditionFloor: "", conditionCeiling: "", conditionWindowsDoors: "",
       conditionElectrical: "", conditionPlumbing: "", conditionOther: "",
