@@ -13,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
     { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
     { path: "/sla", changeFrequency: "yearly", priority: 0.3 },
+    { path: "/delete-account", changeFrequency: "yearly", priority: 0.3 },
   ] as const
 
   const staticEntries: MetadataRoute.Sitemap = routes.map((route) => ({

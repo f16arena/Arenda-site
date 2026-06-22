@@ -17,7 +17,7 @@ import { parseHost } from "@/lib/host"
 
 // Пути, разрешённые на корневом домене
 const PUBLIC_ROOT_PATHS = new Set([
-  "/", "/login", "/signup", "/offer", "/privacy", "/terms", "/sla",
+  "/", "/login", "/signup", "/offer", "/privacy", "/terms", "/sla", "/delete-account",
   // Публичное демо: вход в демо-организацию одним кликом (lib/demo.ts).
   "/demo",
   "/verify-email", "/forgot-password", "/reset-password",
