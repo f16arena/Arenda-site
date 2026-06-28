@@ -136,11 +136,60 @@ export async function applySignedContractChanges(contractId: string) {
     if (contract.changeKind === "SERVICES") {
       const services = asRecord(payload?.services)
       const cleaning = asRecord(services?.cleaning)
-      const data: { needsCleaning?: boolean; cleaningFee?: number } = {}
+      const deposit = asRecord(services?.deposit)
+      const operatingCosts = asRecord(services?.operatingCosts)
+
+      const data: {
+        needsCleaning?: boolean
+        cleaningFee?: number
+        depositAmount?: number
+        serviceFeeExempt?: boolean
+      } = {}
       if (cleaning) {
         data.needsCleaning = true
         const fee = numberInRange(cleaning.fee, 0, 1_000_000_000)
         if (fee !== null) data.cleaningFee = fee
+      }
+      // Депозит из ДС → карточка арендатора (источник истины для биллинга/депозитов).
+      if (deposit) {
+        const amount = numberInRange(deposit.amount, 0, 1_000_000_000)
+        if (amount !== null) data.depositAmount = amount
+      }
+      // Эксплуатационные расходы введены ДС → арендатор больше НЕ освобождён от сбора.
+      // Реальная сезонная ставка живёт на здании; задаём её, ТОЛЬКО если у здания она
+      // ещё не настроена — общий тариф здания из одного арендаторского ДС не перезаписываем.
+      if (operatingCosts) {
+        data.serviceFeeExempt = false
+        const winter = numberOrNull(operatingCosts.winterRate)
+        const summer = numberOrNull(operatingCosts.summerRate)
+        if (winter !== null || summer !== null) {
+          const t = await tx.tenant.findUnique({
+            where: { id: contract.tenantId },
+            select: {
+              space: { select: { floor: { select: { buildingId: true } } } },
+              tenantSpaces: { take: 1, select: { space: { select: { floor: { select: { buildingId: true } } } } } },
+              fullFloors: { take: 1, select: { buildingId: true } },
+            },
+          })
+          const buildingId =
+            t?.space?.floor.buildingId ??
+            t?.tenantSpaces[0]?.space.floor.buildingId ??
+            t?.fullFloors[0]?.buildingId ??
+            null
+          if (buildingId) {
+            const b = await tx.building.findUnique({
+              where: { id: buildingId },
+              select: { serviceFeeWinterRate: true, serviceFeeSummerRate: true, serviceFeeWinterMonths: true },
+            })
+            const bData: Record<string, unknown> = {}
+            if (b && b.serviceFeeWinterRate == null && winter !== null) bData.serviceFeeWinterRate = winter
+            if (b && b.serviceFeeSummerRate == null && summer !== null) bData.serviceFeeSummerRate = summer
+            if (b && (b.serviceFeeWinterMonths == null || b.serviceFeeWinterMonths === "")) {
+              bData.serviceFeeWinterMonths = "10,11,12,1,2,3,4"
+            }
+            if (Object.keys(bData).length) await tx.building.update({ where: { id: buildingId }, data: bData })
+          }
+        }
       }
       if (Object.keys(data).length) {
         await tx.tenant.update({ where: { id: contract.tenantId }, data })

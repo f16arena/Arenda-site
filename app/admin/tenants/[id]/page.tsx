@@ -164,6 +164,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       needsCleaning: true,
       customRate: true,
       fixedMonthlyRent: true,
+      rentSchedule: true,
       paymentDueDay: true,
       penaltyPercent: true,
       isVatPayer: true,
@@ -731,6 +732,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   moveInDate: tenant.moveInDate?.toISOString().slice(0, 10) ?? null,
                   indexationPct: tenant.indexationPct,
                   nextIndexationAt: tenant.nextIndexationAt?.toISOString().slice(0, 10) ?? null,
+                  rentSchedule: tenant.rentSchedule,
                 }}
               />
             ) : (

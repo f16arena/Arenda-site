@@ -13,6 +13,7 @@ import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
 import { FloorPlanLazy } from "./floor-plan-lazy"
+import { FloorCard } from "@/components/floor/floor-card"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -459,21 +460,20 @@ export default async function SpacesPage() {
 
         const fullFloorTenant = floor.fullFloorTenant
         return (
-          <div key={floor.id} id={`floor-${floor.id}`} className={cn(
-            "scroll-mt-20",
-            "bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden",
-            fullFloorTenant
-              ? "border-violet-300 dark:border-violet-500/40"
-              : "border-slate-200 dark:border-slate-800",
-          )}>
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <div className="flex items-center gap-3">
-                <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+          <FloorCard
+            key={floor.id}
+            floorId={floor.id}
+            accent={!!fullFloorTenant}
+            title={
+              <>
+                <Building2 className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{floor.name}</h2>
                 <span className="text-xs text-slate-400 dark:text-slate-500">Ставка: {formatMoney(floor.ratePerSqm)}/м²</span>
                 {floor.totalArea && <span className="text-xs text-slate-400 dark:text-slate-500">· {floor.totalArea} м²</span>}
-              </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+              </>
+            }
+            actions={
+              <>
                 <span><span className="font-medium text-blue-600 dark:text-blue-400">{floorOccupied}</span> / {floor.spaces.length} занято</span>
                 <span>{floorArea} м²</span>
                 <Link
@@ -483,8 +483,9 @@ export default async function SpacesPage() {
                 >
                   Настройки этажа →
                 </Link>
-              </div>
-            </div>
+              </>
+            }
+          >
             {fullFloorTenant && (
               <div className="px-5 py-3 bg-violet-50 dark:bg-violet-500/5 border-b border-violet-100 dark:border-violet-500/20 flex items-start gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 text-xs font-bold">⚿</span>
@@ -678,7 +679,7 @@ export default async function SpacesPage() {
                 </div>
               )}
             </div>
-          </div>
+          </FloorCard>
         )
       })}
     </div>

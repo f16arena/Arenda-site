@@ -7,7 +7,7 @@ import { LockKeyhole, FileSignature } from "lucide-react"
 import { toast } from "sonner"
 import { updateTenantRentalTerms } from "@/app/actions/tenant"
 import { formatMoney } from "@/lib/utils"
-import type { RentMode } from "@/lib/rent"
+import { parseRentSchedule, type RentMode } from "@/lib/rent"
 
 type RentalTermsInitial = {
   customRate: number | null
@@ -24,6 +24,8 @@ type RentalTermsInitial = {
   indexationPct?: number | null
   /** YYYY-MM-DD: дата следующего автоповышения. */
   nextIndexationAt?: string | null
+  /** Ступенчатая аренда (JSON-строка). Если задана — переопределяет ставку помесячно. */
+  rentSchedule?: string | null
 }
 
 type Props = {
@@ -137,6 +139,20 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
               label="Индексация"
               value={`${initial.indexationPct}% в год${initial.nextIndexationAt ? `, следующая ${new Date(initial.nextIndexationAt).toLocaleDateString("ru-RU")}` : ""}`}
             />
+          )}
+          {parseRentSchedule(initial.rentSchedule).length > 0 && (
+            <div className="border-b border-slate-100 py-2 text-sm dark:border-slate-800 last:border-0">
+              <dt className="mb-1 text-slate-500 dark:text-slate-400">График аренды (ступени)</dt>
+              <dd>
+                <ul className="space-y-0.5 text-right">
+                  {parseRentSchedule(initial.rentSchedule).map((s) => (
+                    <li key={s.from} className="font-medium tabular-nums text-slate-900 dark:text-slate-100">
+                      с {s.from}: {s.amount > 0 ? `${formatMoney(s.amount)}/мес` : "льготный (0 ₸)"}
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
           )}
         </dl>
         <p className="text-[11px] text-slate-400 dark:text-slate-500">

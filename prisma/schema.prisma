@@ -695,6 +695,10 @@ model Tenant {
   cleaningFee      Float     @default(0) @map("cleaning_fee")
   customRate       Float?    @map("custom_rate")
   fixedMonthlyRent Float?    @map("fixed_monthly_rent")
+  // Ступенчатая аренда (JSON): [{ "from": "YYYY-MM", "amount": <тенге/мес> }, ...].
+  // Если задан — переопределяет fixedMonthlyRent/customRate помесячно: движок берёт
+  // сумму ступени, активной на расчётный период (см. lib/rent.ts). Пусто — единая ставка.
+  rentSchedule     String?   @map("rent_schedule")
   contractStart    DateTime? @map("contract_start")
   contractEnd      DateTime? @map("contract_end")
   // Фактическая дата заселения. Может отличаться от contractStart: договор

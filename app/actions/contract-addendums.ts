@@ -344,6 +344,8 @@ export interface ServicesChange {
   phone?: boolean | null
   /** Охрана помещения (₸/мес). */
   security?: { monthly?: number } | null
+  /** Гарантийный депозит (₸) — вводится этим ДС, применяется к карточке при подписании. */
+  deposit?: { amount?: number } | null
   /** Прочие изменения — свободный текст. */
   other?: string | null
 }
@@ -383,6 +385,12 @@ export async function createServicesAddendum(
     }
     if (services.security && typeof services.security.monthly === "number") {
       items.push(`Подключается услуга «Охрана Помещения» — ${money(services.security.monthly)}/мес`)
+    }
+    if (services.deposit && typeof services.deposit.amount === "number" && services.deposit.amount > 0) {
+      items.push(
+        `Вводится гарантийный депозит в размере ${money(services.deposit.amount)}; ` +
+        `вносится Арендатором и возвращается при расторжении Договора за вычетом задолженности и убытков`,
+      )
     }
     if (services.other && services.other.trim()) {
       items.push(services.other.trim())

@@ -6,6 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { storeUploadedFile, TENANT_DOCUMENT_MAX_BYTES } from "@/lib/storage"
+import { parseRentSchedule, resolveScheduledRent } from "@/lib/rent"
 
 // Внешний договор: контрагент (вышки Beeline/Altel, камеры Сергек) не принимает
 // нашу редакцию — у него свой подписанный договор. Заводим запись Contract типа
@@ -55,6 +56,14 @@ export async function createExternalContract(formData: FormData) {
   const nextIndexationAt = parseDate(formData.get("nextIndexationAt"))
   const serviceFeeExempt = formData.get("serviceFeeExempt") === "on"
 
+  // Ступенчатая аренда (JSON): [{ from:"YYYY-MM", amount }]. Пусто → не трогаем.
+  const rentScheduleSteps = parseRentSchedule(String(formData.get("rentSchedule") ?? ""))
+
+  // Входящий долг — одно начисление-остаток «долг на дату перехода в систему».
+  const openingDebt = parseMoney(formData.get("openingDebt"))
+  const openingDebtPeriodRaw = String(formData.get("openingDebtPeriod") ?? "").trim()
+  const openingDebtDue = parseDate(formData.get("openingDebtDue"))
+
   let paymentDueDay: number | null = null
   const dueRaw = String(formData.get("paymentDueDay") ?? "").trim()
   if (dueRaw) {
@@ -63,14 +72,36 @@ export async function createExternalContract(formData: FormData) {
     paymentDueDay = d
   }
 
+  // Пеня за просрочку (%/день) — из условий договора (напр. 1% по п.6.1).
+  let penaltyPercent: number | null = null
+  const penaltyRaw = String(formData.get("penaltyPercent") ?? "").trim()
+  if (penaltyRaw) {
+    const n = Number(penaltyRaw.replace(",", "."))
+    if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("Пеня — число от 0 до 100 (%/день)")
+    penaltyPercent = Math.round(n * 1000) / 1000
+  }
+
+  // Арендные каникулы — N льготных месяцев после начала договора (ремонт/заселение).
+  let rentFreeMonths: number | null = null
+  const rfRaw = String(formData.get("rentFreeMonths") ?? "").trim()
+  if (rfRaw) {
+    const n = parseInt(rfRaw, 10)
+    if (!Number.isInteger(n) || n < 0 || n > 24) throw new Error("Каникулы — целое число месяцев от 0 до 24")
+    rentFreeMonths = n
+  }
+
   // Сборка обновления карточки: трогаем только заполненные поля.
   const tenantUpdate: Record<string, unknown> = {}
   // Чекбокс аддитивен: отмечен → освобождаем; не трогаем существующее значение,
   // если не отмечен (иначе случайно снимем ранее выставленное освобождение).
   if (serviceFeeExempt) tenantUpdate.serviceFeeExempt = true
+  // График аренды (если задан) переопределяет помесячную сумму в биллинге.
+  if (rentScheduleSteps.length > 0) tenantUpdate.rentSchedule = JSON.stringify(rentScheduleSteps)
   if (startDate) tenantUpdate.contractStart = startDate
   if (endDate) tenantUpdate.contractEnd = endDate
   if (paymentDueDay !== null) tenantUpdate.paymentDueDay = paymentDueDay
+  if (penaltyPercent !== null) tenantUpdate.penaltyPercent = penaltyPercent
+  if (rentFreeMonths !== null) tenantUpdate.rentFreeMonths = rentFreeMonths
   if (depositAmount !== null) tenantUpdate.depositAmount = depositAmount
   if (indexationPct !== null) tenantUpdate.indexationPct = indexationPct
   if (nextIndexationAt) tenantUpdate.nextIndexationAt = nextIndexationAt
@@ -82,6 +113,17 @@ export async function createExternalContract(formData: FormData) {
       tenantUpdate.fixedMonthlyRent = null
     } else {
       tenantUpdate.fixedMonthlyRent = rentAmount
+      tenantUpdate.customRate = null
+    }
+  }
+
+  // Если задан график — он первичен. База fixedMonthlyRent выставляется в сумму
+  // АКТИВНОЙ сейчас ступени, чтобы экраны, не читающие график (узкий select),
+  // показывали правильную текущую аренду. Биллинг по периодам всё равно берёт график.
+  if (rentScheduleSteps.length > 0) {
+    const currentStep = resolveScheduledRent(rentScheduleSteps, new Date().toISOString().slice(0, 7))
+    if (currentStep !== null) {
+      tenantUpdate.fixedMonthlyRent = currentStep
       tenantUpdate.customRate = null
     }
   }
@@ -130,6 +172,26 @@ export async function createExternalContract(formData: FormData) {
     })
     // Условия → карточка арендатора (источник истины для биллинга).
     await tx.tenant.update({ where: { id: tenantId }, data: tenantUpdate })
+
+    // Входящий долг — одно начисление-остаток на сумму задолженности на момент
+    // переноса в систему. Тип OTHER («Прочее»): считается в долге, но не конфликтует
+    // с уникальным индексом (tenant, period, RENT) и не перебивается авто-биллингом.
+    if (openingDebt && openingDebt > 0) {
+      const period = /^\d{4}-\d{2}$/.test(openingDebtPeriodRaw)
+        ? openingDebtPeriodRaw
+        : now.toISOString().slice(0, 7)
+      await tx.charge.create({
+        data: {
+          tenantId,
+          contractId: created.id,
+          period,
+          type: "OTHER",
+          amount: openingDebt,
+          description: `Задолженность по договору № ${number} на дату перехода в Commrent`,
+          dueDate: openingDebtDue,
+        },
+      })
+    }
     return created
   })
 

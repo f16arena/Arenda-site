@@ -40,6 +40,7 @@ export function AddendumActions({ contractId }: { contractId: string }) {
   const [svcInternet, setSvcInternet] = useState("")
   const [svcPhone, setSvcPhone] = useState(false)
   const [svcSecurity, setSvcSecurity] = useState("")
+  const [svcDeposit, setSvcDeposit] = useState("")
   const [svcOther, setSvcOther] = useState("")
   // Тарифы эксплуатационного сбора здания договора (для предзаполнения).
   const [bldFee, setBldFee] = useState<{ winterRate: number | null; summerRate: number | null; allInclusive: boolean } | null>(null)
@@ -64,7 +65,7 @@ export function AddendumActions({ contractId }: { contractId: string }) {
     setMode(null); setDate(""); setReason(""); setRentValue(""); setCleaning("")
     setDeposit(""); setRentFree(""); setMoveIn("")
     setOpOn(false); setOpWinter(""); setOpSummer(""); setOpAll(false)
-    setSvcCleaning(""); setSvcInternet(""); setSvcPhone(false); setSvcSecurity(""); setSvcOther("")
+    setSvcCleaning(""); setSvcInternet(""); setSvcPhone(false); setSvcSecurity(""); setSvcDeposit(""); setSvcOther("")
   }
 
   async function submit() {
@@ -102,6 +103,7 @@ export function AddendumActions({ contractId }: { contractId: string }) {
             internet: svcInternet.trim() ? { monthly: num(svcInternet) } : null,
             phone: svcPhone || null,
             security: svcSecurity.trim() ? { monthly: num(svcSecurity) } : null,
+            deposit: svcDeposit.trim() ? { amount: num(svcDeposit) } : null,
             other: svcOther.trim() || null,
           },
           date || undefined,
@@ -236,6 +238,11 @@ export function AddendumActions({ contractId }: { contractId: string }) {
                   <input type="checkbox" checked={svcPhone} onChange={(e) => setSvcPhone(e.target.checked)} className="rounded" />
                   Стационарный телефон
                 </label>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Гарантийный депозит ₸</label>
+                  <input type="number" min={0} step="0.01" className={inputCls} value={svcDeposit} onChange={(e) => setSvcDeposit(e.target.value)} placeholder="напр., 1 месячная аренда" />
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Применится к карточке после подписания ДС.</p>
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Прочие изменения (свободный текст)</label>

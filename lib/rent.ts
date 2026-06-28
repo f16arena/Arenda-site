@@ -28,6 +28,72 @@ type TenantRentInput = {
   fullFloors?: Array<{
     fixedMonthlyRent: number | null
   }> | null
+  /** Ступенчатая аренда: JSON-строка `[{ "from": "YYYY-MM", "amount": N }, ...]`
+   *  (или уже распарсенный массив). Если задана и для расчётного периода есть
+   *  активная ступень — её сумма переопределяет fixedMonthlyRent/customRate.
+   *  Пусто — обычная единая ставка. */
+  rentSchedule?: string | RentScheduleStep[] | null
+}
+
+export type RentScheduleStep = {
+  /** Период начала действия ступени, "YYYY-MM" (включительно). */
+  from: string
+  /** Сумма аренды в месяц с этого периода (0 = льготный/ремонтный период). */
+  amount: number
+}
+
+/** Разбирает график аренды из JSON-строки или массива. Сортирует по дате начала.
+ *  Любой мусор → пустой массив (тогда биллинг падает на единую ставку). */
+export function parseRentSchedule(raw: string | RentScheduleStep[] | null | undefined): RentScheduleStep[] {
+  if (!raw) return []
+  let arr: unknown = raw
+  if (typeof raw === "string") {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    try { arr = JSON.parse(trimmed) } catch { return [] }
+  }
+  if (!Array.isArray(arr)) return []
+  const steps: RentScheduleStep[] = []
+  for (const item of arr) {
+    if (!item || typeof item !== "object") continue
+    const from = String((item as { from?: unknown }).from ?? "").trim()
+    const amount = Number((item as { amount?: unknown }).amount)
+    if (!/^\d{4}-\d{2}$/.test(from)) continue
+    if (!Number.isFinite(amount) || amount < 0) continue
+    steps.push({ from, amount })
+  }
+  steps.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0))
+  return steps
+}
+
+/** Сумма аренды по графику для конкретного периода ("YYYY-MM"): берётся последняя
+ *  ступень, чья дата начала ≤ периода. Если график пуст или период раньше первой
+ *  ступени — null (вызывающий падает на единую ставку). */
+export function resolveScheduledRent(
+  schedule: string | RentScheduleStep[] | null | undefined,
+  period: string,
+): number | null {
+  const steps = parseRentSchedule(schedule)
+  if (steps.length === 0) return null
+  let active: RentScheduleStep | null = null
+  for (const step of steps) {
+    if (step.from <= period) active = step
+    else break
+  }
+  return active ? active.amount : null
+}
+
+/** Аренда в месяц с учётом графика для заданного периода ("YYYY-MM"): сумма
+ *  активной ступени, иначе — обычная единая ставка (fixed/customRate). */
+export function resolveMonthlyRentForPeriod(tenant: TenantRentInput, period: string): number {
+  const scheduled = resolveScheduledRent(tenant.rentSchedule, period)
+  if (scheduled !== null) return scheduled
+  return baseMonthlyRent(tenant)
+}
+
+function currentPeriodKey(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
 export type RentMode = "FLOOR" | "RATE" | "FIXED"
@@ -54,7 +120,9 @@ function rentableSpaces(tenant: TenantRentInput) {
   return tenant.space ? [tenant.space] : []
 }
 
-export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
+/** Аренда в месяц «как обычно»: фикс-сумма, либо ставка×площадь полов/помещений.
+ *  График не учитывает — это база, на которую падает биллinг без графика. */
+function baseMonthlyRent(tenant: TenantRentInput) {
   const tenantFixedRent = positiveAmount(tenant.fixedMonthlyRent)
   if (tenantFixedRent !== null) return tenantFixedRent
 
@@ -73,11 +141,20 @@ export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
   }, 0)
 }
 
+/** Текущая аренда в месяц (для отображения и расчётов «на сейчас»). Если задан
+ *  график — берётся сумма ступени, активной в ТЕКУЩЕМ месяце; иначе единая ставка.
+ *  Так все экраны, показывающие «аренду», автоматически отражают актуальную ступень. */
+export function calculateTenantMonthlyRent(tenant: TenantRentInput) {
+  const scheduled = resolveScheduledRent(tenant.rentSchedule, currentPeriodKey())
+  if (scheduled !== null) return scheduled
+  return baseMonthlyRent(tenant)
+}
+
 export function calculateTenantRentChargeForPeriod(
   tenant: TenantRentInput,
   period: string,
 ): TenantRentChargeSchedule {
-  const monthlyRent = calculateTenantMonthlyRent(tenant)
+  const monthlyRent = resolveMonthlyRentForPeriod(tenant, period)
   const { year, monthIndex } = parseRentPeriod(period)
   const paymentDueDay = normalizePaymentDueDay(tenant.paymentDueDay)
   const accountingDueDay = normalizeThirtyDay(paymentDueDay)

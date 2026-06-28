@@ -1,6 +1,6 @@
 import "server-only"
 import { db } from "@/lib/db"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { resolveMonthlyRentForPeriod } from "@/lib/rent"
 import { calculateServiceFeeForPeriod, getTenantBuildingId } from "@/lib/service-fee"
 
 export interface ActiveContract {
@@ -60,6 +60,7 @@ export async function buildContractPositions(
       contractEnd: true,
       customRate: true,
       fixedMonthlyRent: true,
+      rentSchedule: true,
       paymentDueDay: true,
       serviceFeeExempt: true,
       needsCleaning: true,
@@ -73,7 +74,7 @@ export async function buildContractPositions(
 
   const positions: ContractPosition[] = []
 
-  const rent = calculateTenantMonthlyRent(tenant)
+  const rent = resolveMonthlyRentForPeriod(tenant, period)
   if (rent > 0) {
     positions.push({ name: `Аренда нежилого помещения за ${period}`, amount: Math.round(rent) })
   }
