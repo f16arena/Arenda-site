@@ -60,6 +60,8 @@ export interface DocRow {
   deleteId?: string
   canDelete?: boolean
   isSigned?: boolean
+  /** Сколько подписей ЭЦП у документа (для статуса в списке; у двусторонних 2 = обе стороны). */
+  signatureCount?: number
   /** Статус оплаты для счёта (по начислениям периода): оплачен / долг / нет начислений. */
   paymentStatus?: "paid" | "debt" | "none" | null
   /** Интеграция ИС ЭСФ (для АВР): статус, рег. номер, последняя ошибка */
@@ -77,6 +79,28 @@ const RECON_BADGE: Record<string, { label: string; cls: string }> = {
   SENT: { label: "ожидает сверки", cls: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300" },
   AGREED: { label: "сверка подтверждена", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" },
   DISPUTED: { label: "расхождение", cls: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" },
+}
+
+// Двусторонние документы (нужны подписи обеих сторон). Счёт — односторонний (только поставщик).
+const TWO_SIDED_DOC_TYPES = new Set(["ACT", "RECONCILIATION", "CONTRACT", "HANDOVER"])
+
+/** Бейдж статуса подписи в списке: подписан / подписан обеими сторонами. */
+function SignBadge({ row }: { row: DocRow }) {
+  const n = row.signatureCount ?? 0
+  if (n === 0) return null
+  const twoSided = TWO_SIDED_DOC_TYPES.has(row.type)
+  if (twoSided && n < 2) {
+    return (
+      <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" title="Подписана одна сторона; ждём вторую">
+        подписан: 1 сторона
+      </span>
+    )
+  }
+  return (
+    <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" title="Документ подписан ЭЦП">
+      ✓ подписан{twoSided ? " (обе стороны)" : ""}
+    </span>
+  )
 }
 
 function ReconBadge({ row }: { row: DocRow }) {
@@ -690,6 +714,7 @@ export function DocumentsTable({
                             {TYPE_LABELS[r.type] ?? r.type}
                           </span>
                           <ReconBadge row={r} />
+                          <SignBadge row={r} />
                         </td>
                         <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
                         <td className="px-5 py-3 text-slate-600 dark:text-slate-400">{r.period ?? "—"}</td>
@@ -733,6 +758,7 @@ export function DocumentsTable({
                       {TYPE_LABELS[r.type] ?? r.type}
                     </span>
                     <ReconBadge row={r} />
+                    <SignBadge row={r} />
                   </td>
                   <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{r.number ?? "—"}</td>
                   <td className="px-5 py-3 text-slate-700 dark:text-slate-300">

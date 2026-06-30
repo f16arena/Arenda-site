@@ -175,6 +175,13 @@ export default async function DocumentsPage({
       .filter((signature) => signature.documentRef)
       .map((signature) => `${signature.documentType}:${signature.documentRef}`)
   )
+  // Сколько подписей у документа — чтобы в списке показать статус (для двусторонних: «обе стороны»).
+  const signCountById = new Map<string, number>()
+  const signCountByRef = new Map<string, number>()
+  for (const s of signatures) {
+    if (s.documentId) { const k = `${s.documentType}:${s.documentId}`; signCountById.set(k, (signCountById.get(k) ?? 0) + 1) }
+    if (s.documentRef) { const k = `${s.documentType}:${s.documentRef}`; signCountByRef.set(k, (signCountByRef.get(k) ?? 0) + 1) }
+  }
 
   const contractRows: DocRow[] = contracts.map((c) => {
     const isSigned = (
@@ -218,6 +225,7 @@ export default async function DocumentsPage({
       deleteId: c.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
+      signatureCount: signCountById.get(`CONTRACT:${c.id}`) ?? (c.number ? signCountByRef.get(`CONTRACT:${c.number}`) : undefined) ?? 0,
     }
   })
 
@@ -286,6 +294,7 @@ export default async function DocumentsPage({
       deleteId: g.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
+      signatureCount: signCountById.get(`${g.documentType}:${g.id}`) ?? (g.number ? signCountByRef.get(`${g.documentType}:${g.number}`) : undefined) ?? 0,
       paymentStatus: g.documentType === "INVOICE" && g.tenantId && g.period
         ? (paidStatusByKey.get(`${g.tenantId}|${g.period}`) ?? "none")
         : null,
