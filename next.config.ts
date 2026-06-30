@@ -9,10 +9,11 @@ const withBundleAnalyzer = bundleAnalyzer({
 const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
-    // Загрузка изображений сайта (Server Action) — скрин лендинга до 8 МБ.
-    // Дефолт Next — 1 МБ, из-за чего загрузка падала с 500.
+    // Server Actions с загрузкой файлов: скрин лендинга и внешний договор (PDF до 10 МБ).
+    // Дефолт Next — 1 МБ. Ставим 12 МБ (10 МБ файл + overhead multipart), иначе крупный
+    // PDF падал с «An unexpected response was received from the server».
     serverActions: {
-      bodySizeLimit: "8mb",
+      bodySizeLimit: "12mb",
     },
   },
   // Security headers, применяются ко всем routes.

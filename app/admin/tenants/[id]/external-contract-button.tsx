@@ -53,6 +53,11 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                 startTransition(async () => {
                   try {
                     fd.set("tenantId", tenantId)
+                    const f = fd.get("file")
+                    if (f instanceof File && f.size > 10 * 1024 * 1024) {
+                      toast.error("PDF больше 10 МБ — уменьшите файл и попробуйте снова")
+                      return
+                    }
                     await createExternalContract(fd)
                     toast.success("Внешний договор добавлен")
                     setOpen(false)
