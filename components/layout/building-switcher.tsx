@@ -68,7 +68,7 @@ export function BuildingSwitcher({
               иначе панель прячется за левой колонкой при разворачивании
               из верхнего левого угла. */}
           <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-11 z-[60] w-[min(18rem,calc(100vw-1.5rem))] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden sm:left-auto sm:right-0 sm:w-72">
+          <div className="absolute left-0 top-11 z-[60] w-[min(18rem,calc(100vw-1.5rem))] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden sm:w-72">
             <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Здания</p>
             </div>
