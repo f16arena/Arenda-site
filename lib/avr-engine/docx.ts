@@ -128,23 +128,27 @@ function itemsTable(s: AvrState): Table {
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows })
 }
 
-/** Подпись стороны: должность / подпись / расшифровка. */
-function signCell(role: string, party: { signatory: string; position: string }): TableCell {
-  return new TableCell({
-    width: { size: 50, type: WidthType.PERCENTAGE },
-    borders: noBorders,
-    children: [
-      pr([txt(role, { bold: true })], AlignmentType.LEFT, 120),
-      pr([txt("_______________ / _______________ / _______________", { size: 18 })], AlignmentType.LEFT, 20),
-      pr([txt("    должность              подпись          расшифровка подписи", { size: 14, color: "666666" })], AlignmentType.LEFT, 60),
-      pr([txt(`${party.position || ""}${party.signatory ? `, ${party.signatory}` : ""}`, { size: 18 })], AlignmentType.LEFT, 80),
-      pr([txt("М.П.", { size: 18 })], AlignmentType.LEFT, 0),
-    ],
-  })
+/** Подпись стороны: либо рукописная строка (должность/подпись/расшифровка),
+ *  либо — если сторона подписала ЭЦП — зелёный штамп вместо неё (как в договоре). */
+function signCell(role: string, party: { signatory: string; position: string }, stamp?: SignStamp): TableCell {
+  const children: Paragraph[] = [pr([txt(role, { bold: true })], AlignmentType.LEFT, 120)]
+  if (stamp) {
+    children.push(pr([txt("✔ " + (stamp.method ?? "Документ подписан ЭЦП (НУЦ РК)"), { bold: true, size: 18, color: "1A7F37" })], AlignmentType.LEFT, 16))
+    children.push(pr([txt(`${stamp.name}${stamp.taxId ? `, ИИН/БИН ${stamp.taxId}` : ""}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 8))
+    if (stamp.signedAt) children.push(pr([txt(`Время подписания: ${stamp.signedAt}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 8))
+    if (stamp.tspTime) children.push(pr([txt(`Метка времени (TSP, НУЦ РК): ${stamp.tspTime}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 0))
+  } else {
+    children.push(pr([txt("_______________ / _______________ / _______________", { size: 18 })], AlignmentType.LEFT, 20))
+    children.push(pr([txt("    должность              подпись          расшифровка подписи", { size: 14, color: "666666" })], AlignmentType.LEFT, 60))
+    children.push(pr([txt(`${party.position || ""}${party.signatory ? `, ${party.signatory}` : ""}`, { size: 18 })], AlignmentType.LEFT, 80))
+    children.push(pr([txt("М.П.", { size: 18 })], AlignmentType.LEFT, 0))
+  }
+  return new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, borders: noBorders, children })
 }
 
-/** Отметка о подписании ЭЦП + QR (как в договоре): реальный QR при verifyUrl + штампы подписантов. */
-function signingMark(qr: Buffer | null, verifyUrl: string | null, signers?: SignStamp[]): Table {
+/** Отметка о подписании ЭЦП + QR. Штампы подписантов выводятся в ячейках «Сдал/Принял»;
+ *  здесь — QR-код и ссылка проверки (как в договоре). */
+function signingMark(qr: Buffer | null, verifyUrl: string | null, signed: boolean): Table {
   const qrCell = new TableCell({
     width: { size: 22, type: WidthType.PERCENTAGE },
     borders: { top: thinGrey, bottom: thinGrey, left: thinGrey, right: thinGrey },
@@ -153,33 +157,26 @@ function signingMark(qr: Buffer | null, verifyUrl: string | null, signers?: Sign
       ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: qr, transformation: { width: 96, height: 96 } })] })]
       : [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 640, after: 640 }, children: [txt("QR", { bold: true, size: 28, color: "BBBBBB" })] })],
   })
-  const lines: Paragraph[] = [
-    pr([txt("Отметка о подписании ЭЦП (НУЦ РК)", { bold: true })], AlignmentType.LEFT, 40),
-    pr([txt(verifyUrl ? `Проверка подлинности: ${verifyUrl}` : "Проверка подлинности — по QR-коду: commrent.kz/verify/…", { size: 20 })], AlignmentType.LEFT, 60),
-  ]
-  if (signers && signers.length > 0) {
-    for (const sg of signers) {
-      lines.push(pr([txt("✔ " + (sg.method ?? "Документ подписан ЭЦП (НУЦ РК)"), { bold: true, size: 18, color: "1A7F37" })], AlignmentType.LEFT, 16))
-      lines.push(pr([txt(`${sg.name}${sg.taxId ? `, ИИН/БИН ${sg.taxId}` : ""}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 8))
-      if (sg.signedAt) lines.push(pr([txt(`Время подписания: ${sg.signedAt}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 8))
-      if (sg.tspTime) lines.push(pr([txt(`Метка времени (TSP, НУЦ РК): ${sg.tspTime}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 40))
-    }
-  } else {
-    lines.push(pr([txt("После подписания здесь фиксируются подписанты (наименование, ИИН/БИН, серийный № сертификата) и время по метке доверенного времени (TSP).", { size: 16, color: "666666" })]))
-  }
   const textCell = new TableCell({
     width: { size: 78, type: WidthType.PERCENTAGE },
     borders: { top: thinGrey, bottom: thinGrey, left: noBorder, right: thinGrey },
-    children: lines,
+    children: [
+      pr([txt("Отметка о подписании ЭЦП (НУЦ РК)", { bold: true })], AlignmentType.LEFT, 40),
+      pr([txt(verifyUrl ? `Проверка подлинности и статуса подписей: ${verifyUrl}` : "Проверка подлинности — по QR-коду: commrent.kz/verify/…", { size: 20 })], AlignmentType.LEFT, 40),
+      pr([txt(signed
+        ? "Подписи сторон и метки доверенного времени (TSP) указаны в блоке подписей выше. Сканируйте QR для проверки."
+        : "После подписания подписи сторон фиксируются в блоке «Сдал/Принял» (ИИН/БИН, время, TSP). Проверка — по QR-коду.", { size: 16, color: "666666" })]),
+    ],
   })
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: markBorders, rows: [new TableRow({ children: [qrCell, textCell] })] })
 }
 
 // ───────────────────────── entry ─────────────────────────
 
-export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string; signers?: SignStamp[] }): Promise<Buffer> {
+export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string; executorSigner?: SignStamp; customerSigner?: SignStamp }): Promise<Buffer> {
   const verifyUrl = opts?.verifyUrl ?? null
   const qr = verifyUrl ? await QRCode.toBuffer(verifyUrl, { width: 240, margin: 1, errorCorrectionLevel: "M" }) : null
+  const signed = !!(opts?.executorSigner || opts?.customerSigner)
 
   const children: (Paragraph | Table)[] = []
   // Шапка формы (справа)
@@ -231,11 +228,11 @@ export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string; si
   children.push(pr([txt("Работы (услуги) выполнены в полном объёме и в установленные сроки. Стороны претензий друг к другу не имеют.")], AlignmentType.LEFT, 200))
 
   // Подписи
-  children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: noBorders, rows: [new TableRow({ children: [signCell("Сдал (Исполнитель):", s.executor), signCell("Принял (Заказчик):", s.customer)] })] }))
+  children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: noBorders, rows: [new TableRow({ children: [signCell("Сдал (Исполнитель):", s.executor, opts?.executorSigner), signCell("Принял (Заказчик):", s.customer, opts?.customerSigner)] })] }))
   children.push(pr([txt("Дата подписания (принятия) работ (услуг): ____________________")], AlignmentType.LEFT, 160))
 
   // QR/ЭЦП
-  children.push(signingMark(qr, verifyUrl, opts?.signers))
+  children.push(signingMark(qr, verifyUrl, signed))
 
   const doc = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 20 } } } },

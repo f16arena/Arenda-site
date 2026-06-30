@@ -267,8 +267,10 @@ export function DocumentsTable({
         // Пользователь отменил или NCALayer недоступен — не откатываемся.
         failed.push(many.error)
       } else {
-        // 3) Откат: поштучно (пароль на каждый документ).
-        toast.message("Групповая подпись не поддержана NCALayer — подписываю по очереди")
+        // 3) Откат: поштучно (пароль на каждый документ). Показываем реальную причину,
+        //    чтобы диагностировать формат multisign конкретной версии NCALayer.
+        console.warn("[bulkSign] multisign недоступен:", many.code, many.error)
+        toast.message(`Групповая подпись недоступна (${many.code ?? "?"}: ${many.error}) — подписываю по очереди`)
         for (let i = 0; i < queue.length; i++) {
           const row = queue[i]
           try {

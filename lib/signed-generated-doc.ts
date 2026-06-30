@@ -37,15 +37,31 @@ export async function buildSignedGeneratedDocxBuffer(doc: SignedDocRow): Promise
   const fmtDt = (d: Date | null | undefined) =>
     d ? new Date(d).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined
 
-  const signers: SignStamp[] = sigs.map((s) => ({
+  const stampOf = (s: (typeof sigs)[number]): SignStamp => ({
     name: s.signerName,
     taxId: digits(s.signerOrgBin) || digits(s.signerIin) || undefined,
     signedAt: fmtDt(s.signedAt),
     tspTime: fmtDt(s.tspGenTime),
     method: "Документ подписан ЭЦП (НУЦ РК)",
-  }))
+  })
   const verifyUrl = `https://commrent.kz/verify/${doc.id}`
 
-  if (doc.documentType === "INVOICE") return renderInvoiceDocx(doc.sourceState as InvoiceState, { verifyUrl, signers })
-  return renderAvrDocx(doc.sourceState as AvrState, { verifyUrl, signers })
+  // Счёт подписывает только поставщик (арендодатель).
+  if (doc.documentType === "INVOICE") {
+    return renderInvoiceDocx(doc.sourceState as InvoiceState, { verifyUrl, sellerSigner: stampOf(sigs[0]) })
+  }
+
+  // АВР — двусторонний: сопоставляем подписи Исполнителю/Заказчику по ИИН/БИН.
+  const avr = doc.sourceState as AvrState
+  const execIds = [digits(avr.executor?.binIin)].filter((x) => x.length === 12)
+  const custIds = [digits(avr.customer?.binIin)].filter((x) => x.length === 12)
+  let executorSigner: SignStamp | undefined
+  let customerSigner: SignStamp | undefined
+  for (const s of sigs) {
+    const ids = [digits(s.signerOrgBin), digits(s.signerIin)].filter((x) => x.length === 12)
+    if (ids.some((i) => custIds.includes(i))) customerSigner = stampOf(s)
+    else if (ids.some((i) => execIds.includes(i))) executorSigner = stampOf(s)
+    else if (!executorSigner) executorSigner = stampOf(s) // не сматчилось → исполнитель (арендодатель подписывает со своей стороны)
+  }
+  return renderAvrDocx(avr, { verifyUrl, executorSigner, customerSigner })
 }
