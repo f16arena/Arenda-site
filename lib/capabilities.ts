@@ -98,7 +98,12 @@ export const ACTION_CAPABILITY_GROUPS: readonly ActionCapabilityGroup[] = [
       cap("finance.importBank", "Импортировать выписку банка", "Загрузка банковской выписки и авто-матчинг платежей.", "finances", "edit", "finance", "bankImport"),
       cap("finance.manageTariffs", "Менять коммунальные тарифы", "Ставки за свет, воду, уборку и другие услуги.", "finances", "edit", "finance", "meters"),
       cap("finance.deleteRecords", "Удалять финансовые записи", "Удаление начислений, оплат и расходов.", "finances", "sensitive", "finance", undefined, "sensitive"),
-      cap("finance.export", "Выгружать финансы", "Excel/PDF-выгрузки и отчеты владельца.", "analytics", "view", "finance", "ownerReports"),
+      cap("finance.export", "Выгружать финансы (Excel)", "Excel-выгрузка финансов и отчётов.", "finances", "view", "finance"),
+      cap("finance.export1c", "Экспорт 1С", "Выгрузка данных в формате 1С-Enterprise.", "finances", "view", "finance"),
+      cap("finance.exportZip", "Скачать ZIP документов", "Все счета и АВР за месяц одним архивом.", "finances", "view", "finance"),
+      cap("finance.installments", "Рассрочка долга", "Реструктуризация задолженности арендатора в рассрочку.", "finances", "edit", "finance", undefined, "business"),
+      cap("finance.deposits", "Гарантийные депозиты", "Раздел депозитов: начисление, возврат, контроль.", "finances", "edit", "finance", undefined, "business"),
+      cap("finance.viewBalance", "Баланс счетов и кассы", "Просмотр баланса банковских счетов и кассы.", "finances", "view", "finance"),
     ],
   },
   {

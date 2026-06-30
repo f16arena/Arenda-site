@@ -18,7 +18,9 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 import { deleteExpense } from "@/app/actions/finance"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { chargeScope, paymentScope, expenseScope, paymentReportScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -70,6 +72,17 @@ async function renderFinancesPage({
   searchParams,
 }: FinancesPageProps) {
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: каждая кнопка показывается только при наличии своего права.
+  // OWNER/платформенный админ получают все права (минус заблокированные тарифом).
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/finances", orgId })
   const resolvedSearchParams = await searchParams
@@ -371,6 +384,7 @@ async function renderFinancesPage({
         subtitle={formatPeriod(currentPeriod)}
         actions={
           <>
+          {caps.has("finance.viewBalance") && (
           <Link
             href="/admin/finances/balance"
             className="flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
@@ -378,6 +392,8 @@ async function renderFinancesPage({
             <Wallet className="h-4 w-4" />
             Баланс счетов
           </Link>
+          )}
+          {caps.has("finance.manageExpenses") && (
           <Link
             href="/admin/finances/recurring"
             className="flex items-center gap-2 rounded-lg border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/20 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300"
@@ -385,6 +401,8 @@ async function renderFinancesPage({
             <Repeat className="h-4 w-4" />
             Постоянные расходы
           </Link>
+          )}
+          {caps.has("finance.installments") && (
           <Link
             href="/admin/finances/installments"
             className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 px-4 py-2 text-sm font-medium text-rose-700 dark:text-rose-300"
@@ -392,6 +410,8 @@ async function renderFinancesPage({
             <CalendarClock className="h-4 w-4" />
             Рассрочка
           </Link>
+          )}
+          {caps.has("finance.deposits") && (
           <Link
             href="/admin/finances/deposits"
             className="flex items-center gap-2 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300"
@@ -399,6 +419,8 @@ async function renderFinancesPage({
             <ShieldCheck className="h-4 w-4" />
             Депозиты
           </Link>
+          )}
+          {caps.has("finance.importBank") && (
           <Link
             href="/admin/finances/import"
             className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300"
@@ -406,6 +428,8 @@ async function renderFinancesPage({
             <Upload className="h-4 w-4" />
             Импорт банка
           </Link>
+          )}
+          {caps.has("finance.exportZip") && (
           <a
             href={`/api/export/documents-zip?period=${currentPeriod}`}
             download
@@ -415,6 +439,8 @@ async function renderFinancesPage({
             <FileSpreadsheet className="h-4 w-4" />
             ZIP за месяц
           </a>
+          )}
+          {caps.has("finance.export1c") && (
           <a
             href="/api/export/1c"
             download
@@ -424,6 +450,8 @@ async function renderFinancesPage({
             <FileSpreadsheet className="h-4 w-4" />
             1С
           </a>
+          )}
+          {caps.has("finance.export") && (
           <a
             href="/api/export/finances"
             download
@@ -432,10 +460,14 @@ async function renderFinancesPage({
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </a>
-          <GenerateChargesButton />
-          <GenerateInvoicesButton />
-          <BatchBillingButton defaultPeriod={currentPeriod} />
+          )}
+          {caps.has("finance.createInvoice") && <GenerateChargesButton />}
+          {caps.has("finance.createInvoice") && <GenerateInvoicesButton />}
+          {caps.has("documents.generateBulk") && <BatchBillingButton defaultPeriod={currentPeriod} />}
+          {caps.has("finance.manageExpenses") && (
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
+          )}
+          {caps.has("finance.recordPayment") && (
           <PaymentDialog
             tenants={dialogTenantOptions}
             unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
@@ -443,6 +475,7 @@ async function renderFinancesPage({
             initialTenantId={selectedPaymentTenant?.id}
             autoOpen={Boolean(selectedPaymentTenant)}
           />
+          )}
           </>
         }
       />
