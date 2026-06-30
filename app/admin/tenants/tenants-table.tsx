@@ -39,7 +39,7 @@ function parseSortKey(value: string | null): SortKey {
   return value && (SORT_KEYS as string[]).includes(value) ? (value as SortKey) : "companyName"
 }
 
-export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
+export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRow[]; canDelete?: boolean }) {
   const sp = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -320,7 +320,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
             </div>
             <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
               <DebtPill debt={t.debt} />
-              <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />
+              {canDelete && <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />}
             </div>
           </div>
         ))}
@@ -401,7 +401,7 @@ export function TenantsTable({ tenants }: { tenants: TenantRow[] }) {
                     >
                       Открыть
                     </Link>
-                    <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />
+                    {canDelete && <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />}
                   </div>
                 </td>
               </tr>

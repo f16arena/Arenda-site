@@ -245,7 +245,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
         />
       </StatGrid>
 
-      <TenantsTableLoader tenants={rows} />
+      <TenantsTableLoader tenants={rows} canDelete={allowedCapabilities.has("tenants.delete")} />
       <PaginationControls
         basePath="/admin/tenants"
         page={page}
