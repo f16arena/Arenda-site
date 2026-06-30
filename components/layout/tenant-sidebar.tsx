@@ -53,7 +53,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
     <>
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white shadow-lg"
+        className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-900 border border-slate-200 dark:bg-slate-900 dark:text-white dark:border-transparent shadow-lg"
         aria-label="Открыть меню"
       >
         <Menu className="h-5 w-5" />
@@ -67,27 +67,27 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
       )}
 
       <div className={cn(
-        "flex h-full flex-col bg-slate-900 z-50 transition-transform",
+        "flex h-full flex-col bg-white border-r border-slate-200 dark:border-transparent dark:bg-slate-900 z-50 transition-transform",
         "lg:relative lg:w-60 lg:translate-x-0",
         "fixed top-0 left-0 w-64 -translate-x-full",
         mobileOpen && "translate-x-0"
       )}>
       <button
         onClick={() => setMobileOpen(false)}
-        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-slate-800"
+        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         aria-label="Закрыть меню"
       >
         <X className="h-5 w-5" />
       </button>
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-200 dark:border-slate-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600">
           <Building className="h-4 w-4 text-white" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white truncate">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
             {companyName ?? "Личный кабинет"}
           </p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">Арендатор</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">Арендатор</p>
         </div>
       </div>
 
@@ -95,7 +95,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
         {nav.map((section, si) => (
           <div key={si}>
             {section.title && (
-              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+              <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
                 {section.title}
               </p>
             )}
@@ -107,8 +107,8 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                       isActive(item.href, "exact" in item ? item.exact : undefined)
-                        ? "bg-teal-600/20 text-white border-l-2 border-teal-500 pl-[10px]"
-                        : "text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+                        ? "bg-teal-600/10 text-teal-700 dark:bg-teal-600/20 dark:text-white border-l-2 border-teal-500 pl-[10px]"
+                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
@@ -121,11 +121,11 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
         ))}
       </nav>
 
-      <div className="border-t border-slate-800 p-3">
+      <div className="border-t border-slate-200 dark:border-slate-800 p-3">
         <form action="/api/logout" method="post">
           <button
             type="submit"
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 dark:text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Выйти
