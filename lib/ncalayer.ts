@@ -262,12 +262,16 @@ export async function signWithNCALayer(
 }
 
 /**
- * Модуль basics возвращает CMS в base64URL (символы «-» и «_» вместо «+»/«/», без
- * паддинга), а NCANode/сервер ждут ОБЫЧНЫЙ base64 (иначе «Illegal base64 character 2d»).
- * Нормализуем: -→+, _→/, добавляем «=» до кратности 4. Обычный base64 не меняется.
+ * Нормализует CMS-подпись из модуля basics в ОБЫЧНЫЙ base64 (как у commonUtils).
+ * basics часто отдаёт подпись в PEM-обёртке («-----BEGIN CMS-----» … «-----END CMS-----»):
+ *  - символ «-» (0x2d) ломал декодер → «Illegal base64 character 2d»,
+ *  - после наивной замены -→+ заголовки превращались в мусор → «Too big integer».
+ * Поэтому: срезаем PEM-армор, убираем пробелы/переводы строк, на всякий случай
+ * конвертируем оставшиеся base64url-символы, добавляем паддинг. Голый base64 не меняется.
  */
 function toStdBase64(s: string): string {
-  let out = s.replace(/-/g, "+").replace(/_/g, "/").replace(/\s+/g, "")
+  let out = s.replace(/-----[A-Z0-9 ]+-----/g, "").replace(/\s+/g, "")
+  if (/[-_]/.test(out)) out = out.replace(/-/g, "+").replace(/_/g, "/")
   while (out.length % 4 !== 0) out += "="
   return out
 }
