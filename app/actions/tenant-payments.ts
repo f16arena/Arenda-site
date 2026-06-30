@@ -17,12 +17,20 @@ import {
   storeBufferFile,
 } from "@/lib/storage"
 import { applyConfirmedPaymentReport } from "@/lib/payment-report-workflow"
+import { actionErrorResult } from "@/lib/action-error"
 import { revalidatePath } from "next/cache"
 
 type ActionResult = {
   ok: boolean
   message?: string
   error?: string
+}
+
+// Next.js redirect()/notFound() бросают служебные «ошибки» с digest — в catch их
+// нельзя глотать, иначе сломается переход. Пробрасываем дальше.
+function isNextControlFlowError(e: unknown): boolean {
+  const digest = (e as { digest?: unknown } | null)?.digest
+  return typeof digest === "string" && (digest === "NEXT_NOT_FOUND" || digest.startsWith("NEXT_REDIRECT"))
 }
 
 const PAYMENT_METHODS = new Set(["TRANSFER", "KASPI", "CASH", "CARD"])
@@ -219,6 +227,20 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
 }
 
 export async function confirmPaymentReport(formData: FormData): Promise<ActionResult> {
+  // Гард доступа (assertTenantBuildingAccess) и транзакция могут бросить исключение —
+  // нельзя ронять страницу белым экраном (#0HBM6GB). Превращаем в понятный {ok:false}.
+  try {
+    return await confirmPaymentReportImpl(formData)
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e
+    return actionErrorResult(e, "Не удалось провести платёж", {
+      source: "tenant-payments.confirmPaymentReport",
+      route: "/admin/finances",
+    })
+  }
+}
+
+async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResult> {
   await requireCapabilityAndFeature("finance.confirmPayment")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
@@ -325,6 +347,18 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
 }
 
 export async function markPaymentReportDisputed(formData: FormData): Promise<ActionResult> {
+  try {
+    return await markPaymentReportDisputedImpl(formData)
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e
+    return actionErrorResult(e, "Не удалось пометить оплату спорной", {
+      source: "tenant-payments.markPaymentReportDisputed",
+      route: "/admin/finances",
+    })
+  }
+}
+
+async function markPaymentReportDisputedImpl(formData: FormData): Promise<ActionResult> {
   await requireCapabilityAndFeature("finance.disputePayment")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
@@ -368,6 +402,18 @@ export async function markPaymentReportDisputed(formData: FormData): Promise<Act
 }
 
 export async function rejectPaymentReport(formData: FormData): Promise<ActionResult> {
+  try {
+    return await rejectPaymentReportImpl(formData)
+  } catch (e) {
+    if (isNextControlFlowError(e)) throw e
+    return actionErrorResult(e, "Не удалось отклонить заявку об оплате", {
+      source: "tenant-payments.rejectPaymentReport",
+      route: "/admin/finances",
+    })
+  }
+}
+
+async function rejectPaymentReportImpl(formData: FormData): Promise<ActionResult> {
   await requireCapabilityAndFeature("finance.rejectPayment")
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
