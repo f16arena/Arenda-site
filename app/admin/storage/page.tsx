@@ -8,6 +8,7 @@ import { deleteStoredFile } from "@/app/actions/storage"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { requireSection } from "@/lib/acl"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-access"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { db } from "@/lib/db"
@@ -67,6 +68,13 @@ export default async function StoragePage({
   if (!session || session.user.role === "TENANT") redirect("/login")
 
   const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canDeleteFiles = caps.has("storage.delete")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/storage", orgId, userId: session.user.id })
   const resolved = await searchParams
@@ -408,14 +416,14 @@ export default async function StoragePage({
                               <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                                 связан
                               </span>
-                            ) : (
+                            ) : canDeleteFiles ? (
                               <DeleteAction
                                 action={deleteStoredFile.bind(null, file.id)}
                                 entity="файл"
                                 description="Файл будет перенесён в корзину. Если он связан с документом или оплатой, система заблокирует удаление."
                                 successMessage="Файл перенесён в корзину"
                               />
-                            )}
+                            ) : null}
                           </>
                         )}
                         {showDeleted && (
