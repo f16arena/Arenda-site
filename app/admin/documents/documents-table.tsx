@@ -15,6 +15,10 @@ import { formatMoney } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LandlordSignButton } from "@/components/documents/landlord-sign-button"
 import { EsfControl } from "./esf-send-button"
+import { useRouter } from "next/navigation"
+import { signWithNCALayer, fetchAsBase64, type KeyStoragePref } from "@/lib/ncalayer"
+import { signIssuedDocumentByLandlordEcp } from "@/app/actions/landlord-signatures"
+import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 
 const LANDLORD_SIGNABLE_TYPES = new Set(["ACT", "RECONCILIATION", "INVOICE"])
 
@@ -126,6 +130,11 @@ export function DocumentsTable({
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
+  // Групповое подписание ЭЦП: тип ключа (файл/токен) + прогресс.
+  const [keyPref, setKeyPref] = useState<KeyStoragePref>("file")
+  const [bulkSigning, setBulkSigning] = useState(false)
+  const [signProgress, setSignProgress] = useState<{ done: number; total: number } | null>(null)
   const [groupBy, setGroupBy] = useState<"none" | "tenant">("none")
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null)
@@ -166,6 +175,11 @@ export function DocumentsTable({
   // Для bulk delete нужны строки с deleteId и canDelete — это уже сужает выборку.
   const deletableSelected = localRows.filter(
     (r) => r.generatedId && selected.has(r.generatedId) && r.deleteId && r.canDelete,
+  )
+  // Подписываемые выбранные: сгенерированные АВР/счёт/сверка, ещё не подписанные.
+  const signableSelected = localRows.filter(
+    (r) => r.generatedId && selected.has(r.generatedId) && r.source === "generated"
+      && LANDLORD_SIGNABLE_TYPES.has(r.type) && !r.isSigned,
   )
 
   function toggle(genId: string) {
@@ -212,6 +226,52 @@ export function DocumentsTable({
         toast.error(e instanceof Error ? e.message : "Ошибка")
       }
     })
+  }
+
+  // Групповое подписание ЭЦП: подписываем выбранные документы по очереди.
+  // NCALayer не умеет batch — каждый документ = отдельный вызов (для .p12 НУЦ
+  // спросит пароль на каждый, для токена PIN обычно кэшируется). Прерываемся,
+  // если пользователь отменил или NCALayer недоступен.
+  async function bulkSign() {
+    if (signableSelected.length === 0 || bulkSigning) return
+    setBulkSigning(true)
+    const queue = signableSelected
+    const total = queue.length
+    setSignProgress({ done: 0, total })
+    let ok = 0
+    const failed: string[] = []
+    for (let i = 0; i < queue.length; i++) {
+      const row = queue[i]
+      const id = row.generatedId!
+      const label = `${TYPE_LABELS[row.type] ?? row.type} ${row.number ?? ""}`.trim()
+      try {
+        const fileB64 = await fetchAsBase64(`/api/documents/archive/${id}`)
+        const res = await signWithNCALayer(fileB64, "cms", { tsp: true, storage: keyPref })
+        if (!res.ok) {
+          failed.push(`${label}: ${res.error}`)
+          setSignProgress({ done: i + 1, total })
+          // Отмена/нет NCALayer — дальше нет смысла, прерываем весь пакет.
+          if (res.code === "USER_CANCELLED" || res.code === "NO_CONNECT" || res.code === "WS_ERROR") break
+          continue
+        }
+        const saved = await signIssuedDocumentByLandlordEcp(id, res.signature)
+        if (!saved.ok) {
+          failed.push(`${label}: ${saved.error ?? "не удалось сохранить"}`)
+          setSignProgress({ done: i + 1, total })
+          continue
+        }
+        ok++
+        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next })
+      } catch (e) {
+        failed.push(`${label}: ${e instanceof Error ? e.message : "ошибка"}`)
+      }
+      setSignProgress({ done: i + 1, total })
+    }
+    setBulkSigning(false)
+    setSignProgress(null)
+    if (ok > 0) toast.success(`Подписано ЭЦП: ${ok} из ${total}`)
+    if (failed.length > 0) toast.error(`Не подписано: ${failed.length}. Первая: ${failed[0]}`)
+    router.refresh()
   }
 
   function performDelete(row: DocRow) {
@@ -456,14 +516,30 @@ export function DocumentsTable({
             <button
               onClick={() => setSelected(new Set())}
               className="text-xs text-slate-300 hover:text-white"
-              disabled={pending || bulkDeleting}
+              disabled={pending || bulkDeleting || bulkSigning}
             >
               Снять выделение
             </button>
+            {canSign && signableSelected.length > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={bulkSigning || pending} />
+                <button
+                  onClick={bulkSign}
+                  disabled={bulkSigning || pending}
+                  title="Подписать выбранные документы своей ЭЦП по очереди"
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                >
+                  {bulkSigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  {bulkSigning && signProgress
+                    ? `Подписываю ${signProgress.done}/${signProgress.total}`
+                    : `Подписать ЭЦП (${signableSelected.length})`}
+                </button>
+              </span>
+            )}
             {canExportZip && (
               <button
                 onClick={downloadArchive}
-                disabled={pending || bulkDeleting}
+                disabled={pending || bulkDeleting || bulkSigning}
                 className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
               >
                 {pending && !bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
@@ -487,7 +563,7 @@ export function DocumentsTable({
                 trigger={
                   <button
                     type="button"
-                    disabled={pending || bulkDeleting}
+                    disabled={pending || bulkDeleting || bulkSigning}
                     className="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
                   >
                     {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
