@@ -270,7 +270,7 @@ export function AdminSidebar({
       {/* Кнопка-гамбургер на мобиле — фиксирована в шапке */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white shadow-lg"
+        className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-900 border border-slate-200 dark:bg-slate-900 dark:text-white dark:border-transparent shadow-lg"
         aria-label="Открыть меню"
       >
         <Menu className="h-5 w-5" />
@@ -285,7 +285,7 @@ export function AdminSidebar({
       )}
 
       <div className={cn(
-        "flex h-full flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 z-50",
+        "flex h-full flex-col bg-white border-r border-slate-200 dark:border-transparent dark:bg-gradient-to-b dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 z-50",
         "transition-[width,transform] duration-300 ease-out",
         // Десктоп: всегда виден слева; ширина зависит от режима рейки
         "lg:relative lg:translate-x-0",
@@ -297,7 +297,7 @@ export function AdminSidebar({
       {/* Кнопка закрыть на мобиле */}
       <button
         onClick={() => setMobileOpen(false)}
-        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800"
+        className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         aria-label="Закрыть меню"
       >
         <X className="h-5 w-5" />
@@ -305,7 +305,7 @@ export function AdminSidebar({
 
       {/* Logo */}
       <div className={cn(
-        "flex items-center gap-3 border-b border-slate-800/80 px-5 py-5",
+        "flex items-center gap-3 border-b border-slate-200 dark:border-slate-800/80 px-5 py-5",
         rail && "lg:justify-center lg:px-2",
       )}>
         {/* Брендирование: логотип организации; без него — логотип Commrent */}
@@ -321,10 +321,10 @@ export function AdminSidebar({
           </div>
         )}
         <div className={cn("min-w-0", rail && "lg:hidden")}>
-          <p className="text-sm font-semibold text-white truncate">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
             {buildingName ?? "Commrent"}
           </p>
-          <p className="text-[11px] text-slate-400">{orgLogoUrl ? "Панель управления" : "Commrent · панель управления"}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{orgLogoUrl ? "Панель управления" : "Commrent · панель управления"}</p>
         </div>
       </div>
 
@@ -351,7 +351,7 @@ export function AdminSidebar({
                   type="button"
                   onClick={() => toggleSection(section.title!)}
                   className={cn(
-                    "w-full px-2 mb-1 flex items-center justify-between text-[10px] font-semibold tracking-widest text-slate-500 uppercase transition-colors hover:text-slate-300",
+                    "w-full px-2 mb-1 flex items-center justify-between text-[10px] font-semibold tracking-widest text-slate-500 uppercase transition-colors hover:text-slate-700 dark:hover:text-slate-300",
                     rail && "lg:hidden",
                   )}
                   aria-expanded={!isCollapsed}
@@ -371,7 +371,7 @@ export function AdminSidebar({
               ) : null}
               {/* Разделитель между секциями в режиме рейки */}
               {section.title && si > 0 && rail && (
-                <div className="hidden lg:block mx-3 mb-2 border-t border-slate-800/80" />
+                <div className="hidden lg:block mx-3 mb-2 border-t border-slate-200 dark:border-slate-800/80" />
               )}
               {/* grid-rows трюк: плавное сворачивание без измерения высоты.
                   В режиме рейки секции на десктопе всегда раскрыты (заголовков нет). */}
@@ -395,7 +395,7 @@ export function AdminSidebar({
                             rail && "lg:justify-center lg:px-0 lg:py-2.5",
                             active
                               ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-md shadow-blue-950/40"
-                              : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-100 hover:translate-x-0.5",
+                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/80 dark:hover:text-slate-100 hover:translate-x-0.5",
                             active && rail && "lg:from-blue-600 lg:to-blue-600",
                           )}
                         >
@@ -449,12 +449,12 @@ export function AdminSidebar({
           Logout через API route → браузер делает полную навигацию, получает
           Set-Cookie с очисткой и редирект на корневой /login. Server action
           не используется — непредсказуем с cookie на slug-поддоменах. */}
-      <div className={cn("border-t border-slate-800/80 p-3 space-y-1", rail && "lg:p-2")}>
+      <div className={cn("border-t border-slate-200 dark:border-slate-800/80 p-3 space-y-1", rail && "lg:p-2")}>
         <button
           type="button"
           onClick={toggleRail}
           className={cn(
-            "hidden lg:flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-800/80 hover:text-slate-200",
+            "hidden lg:flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800/80 dark:hover:text-slate-200",
             rail && "lg:justify-center lg:px-0",
           )}
           title={rail ? "Развернуть меню" : "Свернуть в иконки"}
@@ -475,7 +475,7 @@ export function AdminSidebar({
             {initials}
           </Link>
           <div className={cn("min-w-0 flex-1", rail && "lg:hidden")}>
-            <p className="truncate text-xs font-medium text-slate-200">{userName ?? "Профиль"}</p>
+            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{userName ?? "Профиль"}</p>
             {roleLabel && <p className="truncate text-[10px] text-slate-500">{roleLabel}</p>}
           </div>
           <form action="/api/logout" method="post" className="shrink-0">
@@ -483,7 +483,7 @@ export function AdminSidebar({
               type="submit"
               title="Выйти"
               aria-label="Выйти"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-800 hover:text-red-400"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
             >
               <LogOut className="h-4 w-4" />
             </button>
