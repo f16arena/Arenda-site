@@ -15,7 +15,11 @@ export const dynamic = "force-dynamic"
 // (по tenantId), иначе тенант мог скачать документ соседнего арендатора.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const wantPdf = new URL(_req.url).searchParams.get("format") === "pdf"
+  const sp = new URL(_req.url).searchParams
+  const wantPdf = sp.get("format") === "pdf"
+  // raw=1 — отдать ОРИГИНАЛЬНЫЙ файл без пересборки. Нужно для ПОДПИСАНИЯ: подпись
+  // должна покрывать канонические байты документа, а QR/штампы — отображение поверх.
+  const wantRaw = sp.get("raw") === "1"
   const session = await auth()
   const { orgId } = await requireOrgAccess()
 
@@ -35,10 +39,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // пересобираем DOCX со штампами подписантов и QR-кодом на /verify/{id}
   // (как у договора). Иначе/при ошибке — отдаём оригинальные байты.
   let bytes = Buffer.from(doc.fileBytes as unknown as Uint8Array)
-  try {
-    const signed = await buildSignedGeneratedDocxBuffer({ id: doc.id, documentType: doc.documentType, sourceState: doc.sourceState })
-    if (signed) bytes = Buffer.from(signed)
-  } catch { /* отдаём оригинал */ }
+  if (!wantRaw) {
+    try {
+      const signed = await buildSignedGeneratedDocxBuffer({ id: doc.id, documentType: doc.documentType, sourceState: doc.sourceState })
+      if (signed) bytes = Buffer.from(signed)
+    } catch { /* отдаём оригинал */ }
+  }
 
   // PDF по запросу: конвертируем DOCX → PDF (конвертер на VPS).
   // Если конвертер не настроен или ошибка — отдаём оригинальный DOCX (graceful).

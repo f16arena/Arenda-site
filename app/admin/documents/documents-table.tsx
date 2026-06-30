@@ -253,7 +253,7 @@ export function DocumentsTable({
     try {
       // 1) Скачиваем все выбранные документы (base64).
       const files: string[] = []
-      for (const row of queue) files.push(await fetchAsBase64(`/api/documents/archive/${row.generatedId}`))
+      for (const row of queue) files.push(await fetchAsBase64(`/api/documents/archive/${row.generatedId}?raw=1`))
 
       // 2) Настоящий групповой подпис — один ввод пароля на все.
       const many = await signManyWithNCALayer(files, { storage: keyPref })

@@ -17,7 +17,7 @@ export function LandlordSignButton({ documentId }: { documentId: string }) {
   async function signEcp() {
     setBusy(true)
     try {
-      const fileB64 = await fetchAsBase64(`/api/documents/archive/${documentId}`)
+      const fileB64 = await fetchAsBase64(`/api/documents/archive/${documentId}?raw=1`)
       const res = await signWithNCALayer(fileB64, "cms", { tsp: true, storage: keyPref })
       if (!res.ok) { toast.error(res.error || "NCALayer не вернул подпись"); return }
       const saved = await signIssuedDocumentByLandlordEcp(documentId, res.signature)
