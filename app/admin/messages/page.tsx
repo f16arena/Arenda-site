@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import { ChatViewLoader } from "@/components/messages/chat-view-loader"
 import type { ChatUser, ChatMessage } from "@/components/messages/chat-view"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
 import { MessageSquare } from "lucide-react"
 
@@ -15,6 +16,15 @@ export default async function AdminMessagesPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
   const { orgId } = await requireOrgAccess()
+
+  // Гранулярные права: рассылка (broadcast) доступна только при праве messages.send.
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canSend = caps.has("messages.send")
 
   const me = session.user.id
 
@@ -102,7 +112,7 @@ export default async function AdminMessagesPage() {
         currentUserId={me}
         contacts={contacts}
         messagesByContact={messagesByContact}
-        showBroadcast
+        showBroadcast={canSend}
       />
     </div>
   )

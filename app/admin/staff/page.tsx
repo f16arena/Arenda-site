@@ -6,11 +6,24 @@ import { formatMoney, ROLES, ROLE_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { CreateStaffDialog, EditStaffDialog, DeactivateButton, GenerateSalaryButton, MarkSalaryPaidButton } from "./staff-modals"
 import { requireOrgAccess } from "@/lib/org"
+import { auth } from "@/auth"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
 import { UsersRound } from "lucide-react"
 
 export default async function StaffPage() {
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: каждая кнопка-действие показывается только при наличии
+  // своего права. OWNER/платформенный админ получают все права.
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
   const currentPeriod = new Date().toISOString().slice(0, 7)
 
   const users = await db.user.findMany({
@@ -41,8 +54,8 @@ export default async function StaffPage() {
         subtitle={`${active.length} активных · ${inactive.length} уволенных`}
         actions={
           <>
-            <GenerateSalaryButton period={currentPeriod} />
-            <CreateStaffDialog buildings={buildings} />
+            {caps.has("staff.manageSalary") && <GenerateSalaryButton period={currentPeriod} />}
+            {caps.has("users.invite") && <CreateStaffDialog buildings={buildings} />}
           </>
         }
       />
@@ -78,16 +91,16 @@ export default async function StaffPage() {
                     <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", lastPayment.status === "PAID" ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300")}>
                       {lastPayment.status === "PAID" ? "Выплачено" : "Ожидает"}
                     </span>
-                    {lastPayment.status === "PENDING" && <MarkSalaryPaidButton salaryPaymentId={lastPayment.id} />}
+                    {lastPayment.status === "PENDING" && caps.has("staff.manageSalary") && <MarkSalaryPaidButton salaryPaymentId={lastPayment.id} />}
                   </span>
                 ) : <span className="text-xs text-slate-400 dark:text-slate-500">Зарплата не начислена</span>}
                 <div className="flex items-center gap-3">
-                  <EditStaffDialog user={{
+                  {caps.has("users.edit") && <EditStaffDialog user={{
                     id: u.id, name: u.name, phone: u.phone, email: u.email, role: u.role, isActive: u.isActive,
                     staff: u.staff ? { id: u.staff.id, position: u.staff.position, salary: u.staff.salary } : null,
                     buildingIds: u.buildingAccess.map((a) => a.buildingId),
-                  }} buildings={buildings} />
-                  <DeactivateButton userId={u.id} isActive={u.isActive} />
+                  }} buildings={buildings} />}
+                  {caps.has("users.deactivate") && <DeactivateButton userId={u.id} isActive={u.isActive} />}
                 </div>
               </div>
             </div>
@@ -157,7 +170,7 @@ export default async function StaffPage() {
                         )}>
                           {lastPayment.status === "PAID" ? "Выплачено" : "Ожидает"}
                         </span>
-                        {lastPayment.status === "PENDING" && (
+                        {lastPayment.status === "PENDING" && caps.has("staff.manageSalary") && (
                           <MarkSalaryPaidButton salaryPaymentId={lastPayment.id} />
                         )}
                       </div>
@@ -165,7 +178,7 @@ export default async function StaffPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3 justify-end">
-                      <EditStaffDialog user={{
+                      {caps.has("users.edit") && <EditStaffDialog user={{
                         id: u.id,
                         name: u.name,
                         phone: u.phone,
@@ -174,8 +187,8 @@ export default async function StaffPage() {
                         isActive: u.isActive,
                         staff: u.staff ? { id: u.staff.id, position: u.staff.position, salary: u.staff.salary } : null,
                         buildingIds: u.buildingAccess.map((a) => a.buildingId),
-                      }} buildings={buildings} />
-                      <DeactivateButton userId={u.id} isActive={u.isActive} />
+                      }} buildings={buildings} />}
+                      {caps.has("users.deactivate") && <DeactivateButton userId={u.id} isActive={u.isActive} />}
                     </div>
                   </td>
                 </tr>
@@ -212,7 +225,7 @@ export default async function StaffPage() {
                     </Link>
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <DeactivateButton userId={u.id} isActive={false} />
+                    {caps.has("users.deactivate") && <DeactivateButton userId={u.id} isActive={false} />}
                   </td>
                 </tr>
               ))}

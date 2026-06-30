@@ -4,7 +4,9 @@ import { db } from "@/lib/db"
 import { CheckCircle, MessagesSquare } from "lucide-react"
 import { RespondButton } from "./complaint-actions"
 import { PageHeader } from "@/components/ui/page"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { complaintScope } from "@/lib/tenant-scope"
 import { cn } from "@/lib/utils"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -42,6 +44,17 @@ export default async function ComplaintsPage({
   searchParams?: Promise<{ status?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: кнопки-действия показываются только при наличии своего права.
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canManage = caps.has("complaints.manage")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/complaints", orgId })
   const selectedFilter = normalizeFilter((await searchParams)?.status)
@@ -128,7 +141,7 @@ export default async function ComplaintsPage({
                   {new Date(c.createdAt).toLocaleDateString("ru-RU")}
                 </p>
               </div>
-              {c.status !== "RESOLVED" && (
+              {canManage && c.status !== "RESOLVED" && (
                 <RespondButton complaintId={c.id} hasResponse={!!c.response} />
               )}
             </div>

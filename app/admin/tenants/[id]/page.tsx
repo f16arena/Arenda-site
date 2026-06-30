@@ -91,6 +91,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const canBlacklistTenant = allowedCapabilities.has("tenants.blacklist")
   const canDeleteTenant = allowedCapabilities.has("tenants.delete")
   const canCreateDocuments = allowedCapabilities.has("documents.create")
+  const canCreateAddendum = allowedCapabilities.has("documents.addendum")
   const canCreateInvoice = allowedCapabilities.has("finance.createInvoice")
   const canRecordPayment = allowedCapabilities.has("finance.recordPayment")
   const canSendMessages = allowedCapabilities.has("messages.send")
@@ -454,14 +455,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {activeContract?.status === "SIGNED" && (
+          {canCreateAddendum && activeContract?.status === "SIGNED" && (
             <RenewContractButton
               contractId={activeContract.id}
               contractNumber={activeContract.number}
               currentEnd={activeContract.endDate?.toISOString().slice(0, 10) ?? null}
             />
           )}
-          {totalDebt > 0 && <PaymentReminderButton tenantId={tenant.id} />}
+          {canSendMessages && totalDebt > 0 && <PaymentReminderButton tenantId={tenant.id} />}
           {canBlacklistTenant && (
           <BlacklistButton
             tenantId={tenant.id}

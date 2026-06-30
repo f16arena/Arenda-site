@@ -191,7 +191,9 @@ export default async function TenantsPage(props: TenantsPageProps) {
         subtitle={`${totalTenants} зарегистрировано`}
         actions={
           <>
-            <BulkNotifyButton available={bulkNotificationsAvailable} totalTenants={totalTenants} />
+            {allowedCapabilities.has("messages.send") && (
+              <BulkNotifyButton available={bulkNotificationsAvailable} totalTenants={totalTenants} />
+            )}
             {allowedCapabilities.has("tenants.create") && (
               <Link
                 href="/admin/tenants/new"

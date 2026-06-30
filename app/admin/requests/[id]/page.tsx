@@ -1,6 +1,8 @@
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { assertRequestInOrg } from "@/lib/scope-guards"
 import { cn } from "@/lib/utils"
 import {
@@ -14,6 +16,17 @@ import { Button } from "@/components/ui/button"
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: кнопки-действия показываются только при наличии своего права.
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canManage = caps.has("requests.manage")
   try {
     await assertRequestInOrg(id, orgId)
   } catch {
@@ -126,7 +139,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                 <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">Комментариев нет</p>
               )}
             </div>
-            {request.status !== "CLOSED" && (
+            {canManage && request.status !== "CLOSED" && (
               <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <form action={async (fd) => {
                   "use server"
@@ -182,6 +195,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
             </div>
 
             {/* Assignee */}
+            {canManage && (
             <div>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-1.5">Исполнитель</p>
               <form action={async (fd) => {
@@ -201,10 +215,11 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                 </button>
               </form>
             </div>
+            )}
           </div>
 
           {/* Status transitions */}
-          {nextStatuses.length > 0 && (
+          {canManage && nextStatuses.length > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-2">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Изменить статус</p>
               {nextStatuses.map((s) => (

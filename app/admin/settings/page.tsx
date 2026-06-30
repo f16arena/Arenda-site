@@ -8,6 +8,7 @@ import { ServerForm } from "@/components/ui/server-form"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 import { VatSection } from "@/components/settings/vat-section"
 import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
@@ -26,6 +27,19 @@ export default async function SettingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: изменяющие секции настроек показываются только при наличии
+  // соответствующего права. OWNER/платформенный админ получают все права.
+  // Реквизиты арендодателя содержат и общие реквизиты, и банковские счета в одной
+  // форме (одна кнопка «Сохранить реквизиты»), поэтому показываем секцию при любом
+  // из двух прав.
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canEditOrg = caps.has("settings.updateOrganization")
+  const canEditRequisites = canEditOrg || caps.has("settings.updateBankDetails")
   // Оборачиваем запросы в safeServerValue (как остальные admin-страницы): при
   // транзиентном сбое пула/запроса страница деградирует, а не падает в
   // Server Components render error.
@@ -95,7 +109,7 @@ export default async function SettingsPage() {
       <div className="space-y-6">
         <PageHeader icon={SettingsIcon} title="Настройки" subtitle="Реквизиты организации и параметры объектов" />
         <SettingsSourceMap buildingName={null} />
-        {organization && (
+        {organization && canEditRequisites && (
           <section id="organization-requisites">
             <OrganizationRequisitesSection organization={organization} />
           </section>
@@ -130,6 +144,7 @@ export default async function SettingsPage() {
       )}
 
       {/* Building info */}
+      {canEditOrg && (
       <div id="building-settings" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -295,14 +310,16 @@ export default async function SettingsPage() {
           </div>
         </ServerForm>
       </div>
+      )}
 
-      {organization && (
+      {organization && canEditRequisites && (
         <section id="organization-requisites">
           <OrganizationRequisitesSection organization={organization} />
         </section>
       )}
 
       {/* Floors */}
+      {canEditOrg && (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -358,20 +375,22 @@ export default async function SettingsPage() {
         </div>
       </div>
 
+      )}
+
       {/* НДС настройки */}
-      {organization && <VatSection organization={organization} />}
+      {organization && canEditOrg && <VatSection organization={organization} />}
 
       {/* Дополнительные начисления — вкл/выкл раздела в карточке арендатора */}
-      {organization && <AdditionalChargesSection organization={organization} />}
+      {organization && canEditOrg && <AdditionalChargesSection organization={organization} />}
 
       {/* Налоговая ставка для отчёта владельца */}
-      {organization && <TaxSettingsSection organization={organization} />}
+      {organization && canEditOrg && <TaxSettingsSection organization={organization} />}
 
       {/* Реквизиты ИС ЭСФ (только владелец) */}
       {session.user.role === "OWNER" && <EsfSection config={esfConfig} />}
 
       {/* Document numbering */}
-      <DocumentNumberingSection building={building} />
+      {canEditOrg && <DocumentNumberingSection building={building} />}
 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -394,6 +413,7 @@ export default async function SettingsPage() {
       </div>
 
       {/* Tariffs */}
+      {canEditOrg && (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -497,8 +517,10 @@ export default async function SettingsPage() {
           </div>
         </ServerForm>
       </div>
+      )}
 
       {/* Emergency contacts */}
+      {canEditOrg && (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <div className="flex items-center gap-2">
@@ -593,6 +615,7 @@ export default async function SettingsPage() {
           </div>
         </ServerForm>
       </div>
+      )}
     </div>
   )
 }

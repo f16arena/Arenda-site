@@ -45,6 +45,11 @@ export default async function DocumentsPage({
   const canCreateDocuments = allowedCapabilities.has("documents.create")
   const canDeleteUnsignedDocuments = allowedCapabilities.has("documents.deleteUnsigned")
   const canDeleteSignedDocuments = isOwnerLikeUser && allowedCapabilities.has("documents.deleteSigned")
+  // Массовое формирование счетов и АВР за месяц («Счета и АВР за месяц»).
+  const canGenerateBulk = allowedCapabilities.has("documents.generateBulk")
+  // Подпись ЭЦП (NCALayer) и скачивание ZIP-архива документов.
+  const canSignDocuments = allowedCapabilities.has("documents.sign")
+  const canExportZip = allowedCapabilities.has("finance.exportZip")
 
   const { type, q, period, create, tenantId: createTenantId } = await searchParams
   const CREATE_TABS = ["contract", "addendum", "avr", "invoice", "reconciliation"] as const
@@ -301,7 +306,7 @@ export default async function DocumentsPage({
       <PageHeader
         icon={FileText}
         title="Документы"
-        actions={canCreateDocuments && <BackfillDocumentsButton />}
+        actions={canGenerateBulk && <BackfillDocumentsButton />}
       />
 
       <DocumentsHub
@@ -313,6 +318,8 @@ export default async function DocumentsPage({
             initialType={(type ?? "ALL").toUpperCase()}
             initialSearch={q?.trim() ?? ""}
             initialPeriod={period ?? ""}
+            canSign={canSignDocuments}
+            canExportZip={canExportZip}
           />
         }
         create={canCreateDocuments ? <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} /> : null}

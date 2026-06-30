@@ -96,7 +96,19 @@ export const DOC_CATEGORY_TABS: { key: DocCategory; label: string }[] = [
   { key: "archive", label: "Архив" },
 ]
 
-export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint: string }) {
+export function DocumentsTable({
+  rows,
+  emptyHint,
+  canSign = false,
+  canExportZip = false,
+}: {
+  rows: DocRow[]
+  emptyHint: string
+  /** Право на подпись ЭЦП (NCALayer) — кнопка «Подписать». */
+  canSign?: boolean
+  /** Право скачивать ZIP-архив документов — кнопка «Скачать ZIP». */
+  canExportZip?: boolean
+}) {
   // Локальный state — позволяет оптимистично убирать удалённые строки сразу,
   // без ожидания router.refresh(). Если сервер вернул ошибку — возвращаем строку
   // обратно. Синхронизация с свежими props через паттерн «adjusting state during
@@ -296,7 +308,7 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
     const isDeleting = deletingRowId === row.id && pending
     return (
       <div className="flex items-center justify-end gap-2">
-        {row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
+        {canSign && row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
           <LandlordSignButton documentId={row.generatedId} />
         )}
         {/* ИС ЭСФ (КГД): выписываем счёт-фактуру (ЭСФ) ТОЛЬКО со счёта.
@@ -446,14 +458,16 @@ export function DocumentsTable({ rows, emptyHint }: { rows: DocRow[]; emptyHint:
             >
               Снять выделение
             </button>
-            <button
-              onClick={downloadArchive}
-              disabled={pending || bulkDeleting}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
-            >
-              {pending && !bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
-              Скачать ZIP
-            </button>
+            {canExportZip && (
+              <button
+                onClick={downloadArchive}
+                disabled={pending || bulkDeleting}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+              >
+                {pending && !bulkDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                Скачать ZIP
+              </button>
+            )}
             {deletableSelected.length > 0 && (
               <ConfirmDialog
                 variant="danger"

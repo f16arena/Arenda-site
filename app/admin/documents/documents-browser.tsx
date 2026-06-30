@@ -34,11 +34,17 @@ export function DocumentsBrowser({
   initialType = "ALL",
   initialSearch = "",
   initialPeriod = "",
+  canSign = false,
+  canExportZip = false,
 }: {
   rows: DocRow[]
   initialType?: string
   initialSearch?: string
   initialPeriod?: string
+  /** Право на подпись ЭЦП (NCALayer). */
+  canSign?: boolean
+  /** Право скачивать ZIP-архив документов. */
+  canExportZip?: boolean
 }) {
   const [type, setType] = useState(initialType.toUpperCase())
   const [q, setQ] = useState(initialSearch)
@@ -139,7 +145,7 @@ export function DocumentsBrowser({
         </div>
       </div>
 
-      <DocumentsTableLoader rows={pageRows} emptyHint={emptyHint} />
+      <DocumentsTableLoader rows={pageRows} emptyHint={emptyHint} canSign={canSign} canExportZip={canExportZip} />
 
       {pages > 1 && (
         <div className="flex flex-col gap-3 border-t border-slate-100 px-1 py-3 text-sm dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">

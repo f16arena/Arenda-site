@@ -6,7 +6,9 @@ import { MeterReadingDialog, AddMeterDialog, InlineReadingButton } from "./meter
 import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { deleteMeter } from "@/app/actions/meters"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { meterScope, spaceScope, tariffScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -34,6 +36,17 @@ const TARIFF_TYPE_BY_METER: Record<string, string> = {
 
 export default async function MetersPage() {
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: кнопки-действия показываются только при наличии своего права.
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canManage = caps.has("meters.manage")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/meters", orgId })
   const currentBuildingId = await getCurrentBuildingId()
@@ -117,10 +130,12 @@ export default async function MetersPage() {
         title="Счётчики"
         subtitle={`${meters.length} счётчиков · ${currentPeriod}`}
         actions={
-          <>
-            <AddMeterDialog spaces={spaces} />
-            <MeterReadingDialog meters={meterProps} />
-          </>
+          canManage ? (
+            <>
+              <AddMeterDialog spaces={spaces} />
+              <MeterReadingDialog meters={meterProps} />
+            </>
+          ) : undefined
         }
       />
 
@@ -190,13 +205,15 @@ export default async function MetersPage() {
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <div className="flex items-center justify-end gap-3">
-                      {!current && <InlineReadingButton meterId={meter.id} period={currentPeriod} />}
-                      <DeleteAction
-                        action={deleteMeter.bind(null, meter.id)}
-                        entity="счётчик"
-                        description="Все показания этого счётчика будут удалены."
-                        successMessage="Счётчик удалён"
-                      />
+                      {canManage && !current && <InlineReadingButton meterId={meter.id} period={currentPeriod} />}
+                      {canManage && (
+                        <DeleteAction
+                          action={deleteMeter.bind(null, meter.id)}
+                          entity="счётчик"
+                          description="Все показания этого счётчика будут удалены."
+                          successMessage="Счётчик удалён"
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>

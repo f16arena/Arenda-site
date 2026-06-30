@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
-import { requireOrgFeature } from "@/lib/capabilities"
+import { requireOrgFeature, canPerformCapability } from "@/lib/capabilities"
 import ExcelJS from "exceljs"
 
 export const dynamic = "force-dynamic"
@@ -18,6 +18,9 @@ export async function GET(req: Request) {
   }
 
   const { orgId } = await requireOrgAccess()
+  if (!(await canPerformCapability(session.user.role, "finance.export", !!session.user.isPlatformOwner, session.user.id))) {
+    return NextResponse.json({ error: "Нет права на экспорт финансов" }, { status: 403 })
+  }
   try {
     await requireOrgFeature(orgId, "excelExport")
   } catch {

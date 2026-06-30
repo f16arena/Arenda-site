@@ -561,7 +561,7 @@ export default async function SpacesPage() {
                             ) : <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
                           </div>
                           {space.description && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{space.description}</p>}
-                          {(canEditSpaces || canDeleteSpaces) && (
+                          {(canEditSpaces || canDeleteSpaces || canAssignSpaces) && (
                             <div className="mt-2 flex items-center gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
                               {canEditSpaces && (
                                 <EditSpaceDialog
@@ -571,12 +571,14 @@ export default async function SpacesPage() {
                                 />
                               )}
                               {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
-                              {canEditSpaces && space.status === "VACANT" && !displayTenant && (
+                              {space.status === "VACANT" && !displayTenant && (
                                 <>
-                                  <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-                                    <UserPlus className="h-3.5 w-3.5" /> Заселить
-                                  </Link>
-                                  <KrishaListingButton spaceId={space.id} />
+                                  {canAssignSpaces && (
+                                    <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                      <UserPlus className="h-3.5 w-3.5" /> Заселить
+                                    </Link>
+                                  )}
+                                  {canEditSpaces && <KrishaListingButton spaceId={space.id} />}
                                 </>
                               )}
                             </div>
@@ -660,12 +662,14 @@ export default async function SpacesPage() {
                                   />
                                 )}
                                 {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
-                                {canEditSpaces && space.status === "VACANT" && !displayTenant && (
+                                {space.status === "VACANT" && !displayTenant && (
                                 <>
-                                  <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-                                    <UserPlus className="h-3.5 w-3.5" /> Заселить
-                                  </Link>
-                                  <KrishaListingButton spaceId={space.id} />
+                                  {canAssignSpaces && (
+                                    <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                      <UserPlus className="h-3.5 w-3.5" /> Заселить
+                                    </Link>
+                                  )}
+                                  {canEditSpaces && <KrishaListingButton spaceId={space.id} />}
                                 </>
                               )}
                               </div>

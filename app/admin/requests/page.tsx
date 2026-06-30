@@ -10,7 +10,9 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { PageHeader, Card } from "@/components/ui/page"
 import { deleteRequest } from "@/app/actions/requests"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { requestScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -55,6 +57,16 @@ export default async function RequestsPage({
   }>
 }) {
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: кнопки-действия показываются только при наличии своего права.
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/requests", orgId })
   const resolvedSearchParams = await searchParams
@@ -236,11 +248,13 @@ export default async function RequestsPage({
                   {new Date(r.createdAt).toLocaleDateString("ru-RU")}
                 </td>
                 <td className="px-5 py-3.5">
-                  <DeleteAction
-                    action={deleteRequest.bind(null, r.id)}
-                    entity="заявку"
-                    successMessage="Заявка удалена"
-                  />
+                  {caps.has("requests.manage") && (
+                    <DeleteAction
+                      action={deleteRequest.bind(null, r.id)}
+                      entity="заявку"
+                      successMessage="Заявка удалена"
+                    />
+                  )}
                 </td>
               </tr>
             ))}

@@ -5,7 +5,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
-import { requireOrgFeature } from "@/lib/capabilities"
+import { requireOrgFeature, canPerformCapability } from "@/lib/capabilities"
 
 export const dynamic = "force-dynamic"
 
@@ -18,6 +18,9 @@ export async function GET(req: Request) {
   }
 
   const { orgId } = await requireOrgAccess()
+  if (!(await canPerformCapability(session.user.role, "finance.export1c", !!session.user.isPlatformOwner, session.user.id))) {
+    return NextResponse.json({ error: "Нет права на экспорт 1С" }, { status: 403 })
+  }
   try {
     await requireOrgFeature(orgId, "export1c")
   } catch {

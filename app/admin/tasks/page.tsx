@@ -10,7 +10,9 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { PageHeader } from "@/components/ui/page"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { taskScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -40,6 +42,17 @@ export default async function TasksPage({
   searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: кнопки-действия показываются только при наличии своего права.
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canManage = caps.has("tasks.manage")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/tasks", orgId })
   const resolvedSearchParams = await searchParams
@@ -146,7 +159,7 @@ export default async function TasksPage({
         icon={CheckSquare}
         title="Задачи"
         subtitle={`${stats.total} задач · ${stats.inProgress} в работе`}
-        actions={<TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} />}
+        actions={canManage ? <TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} /> : undefined}
       />
 
       {/* Status tabs */}
@@ -219,6 +232,7 @@ export default async function TasksPage({
                   <p className="text-xs text-slate-400 dark:text-slate-500">Факт: {formatMoney(task.actualCost)}</p>
                 )}
                 {/* Quick status change */}
+                {canManage && (
                 <div className="flex items-center gap-2">
                   {task.status === "NEW" && (
                     <form action={async () => { "use server"; await updateTaskStatus(task.id, "IN_PROGRESS") }}>
@@ -240,6 +254,7 @@ export default async function TasksPage({
                     successMessage="Задача удалена"
                   />
                 </div>
+                )}
               </div>
             </div>
           </div>

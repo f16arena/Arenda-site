@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { isTenantRole } from "@/lib/role-capabilities"
+import { canPerformCapability } from "@/lib/capabilities"
 
 export const dynamic = "force-dynamic"
 
@@ -24,6 +25,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const { orgId } = await requireOrgAccess()
+  if (!(await canPerformCapability(session.user.role, "finance.exportZip", !!session.user.isPlatformOwner, session.user.id))) {
+    return NextResponse.json({ error: "Нет права на скачивание архива документов" }, { status: 403 })
+  }
 
   const url = new URL(req.url)
   const period = url.searchParams.get("period") ?? new Date().toISOString().slice(0, 7)

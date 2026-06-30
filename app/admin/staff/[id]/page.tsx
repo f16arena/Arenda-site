@@ -12,6 +12,7 @@ import {
   CheckCircle, AlertCircle, Calendar, History,
 } from "lucide-react"
 import { StaffEditForm } from "./staff-edit-form"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { safeServerValue } from "@/lib/server-fallback"
 
 export default async function StaffDetailPage({
@@ -22,6 +23,14 @@ export default async function StaffDetailPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  // Гранулярные права: форма редактирования сотрудника (изменение/смена пароля/
+  // увольнение) показывается только при наличии права users.edit.
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/staff/[id]", orgId, userId: session.user.id, entity: "user" })
   const { id } = await params
@@ -137,6 +146,7 @@ export default async function StaffDetailPage({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Edit form */}
         <div className="lg:col-span-2 space-y-5">
+          {caps.has("users.edit") && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -161,6 +171,7 @@ export default async function StaffDetailPage({
               />
             </div>
           </div>
+          )}
 
           {/* Salary history */}
           {user.staff && user.staff.salaryPayments.length > 0 && (

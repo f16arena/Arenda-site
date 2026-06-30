@@ -5,10 +5,21 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { FilePlus2 } from "lucide-react"
 import { DocumentTemplateSettings } from "@/components/documents/document-template-settings"
+import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 export default async function SettingsDocumentTemplatesPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  // Загрузка кастомных шаблонов — изменяющая настройка: показываем только при
+  // наличии права settings.updateOrganization.
+  const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
 
   // Конструкторы (договор/АВР) переехали в «Документы → Создать». Здесь остаётся
   // только загрузка кастомных шаблонов (счёт/АВР/сверка) — это настройка.
@@ -21,7 +32,13 @@ export default async function SettingsDocumentTemplatesPage() {
         <FilePlus2 className="h-4 w-4" />
         Создать документ — в «Документы → Создать»
       </Link>
-      <DocumentTemplateSettings />
+      {caps.has("settings.updateOrganization") ? (
+        <DocumentTemplateSettings />
+      ) : (
+        <p className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          Недостаточно прав для настройки шаблонов документов.
+        </p>
+      )}
     </div>
   )
 }
