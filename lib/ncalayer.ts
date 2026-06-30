@@ -306,9 +306,14 @@ export async function signManyWithNCALayer(
     args: {
       allowedStorages,
       format: "cms",
+      // decode:true → NCALayer декодирует base64 и подписывает БАЙТЫ файла (как
+      //   commonUtils.createCMSSignatureFromBase64), иначе подпись была бы над
+      //   base64-текстом и сервер бы её отклонил.
+      // encapsulate:true → attached CMS (данные внутри подписи).
       data: dataB64List,
-      signingParams: { decode: false, encapsulate: true, digested: false, tsaProfile: null },
-      signerParams: { extKeyUsageOids: null },
+      signingParams: { decode: true, encapsulate: true, digested: false, tsaProfile: null },
+      // extKeyUsageOids:[] — пустой массив, не null (на null NCALayer бросает INVOCATION_ERROR).
+      signerParams: { extKeyUsageOids: [] },
       locale: "ru",
     },
   }, timeoutMs)
