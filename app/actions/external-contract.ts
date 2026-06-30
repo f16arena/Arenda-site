@@ -163,7 +163,9 @@ export async function createExternalContract(formData: FormData) {
         content: "Внешний договор контрагента (PDF приложен).",
         status: "SIGNED",
         signedAt: startDate ?? now,
+        // Внешний PDF подписан офлайн ОБЕИМИ сторонами — отмечаем обе подписи.
         signedByLandlordAt: now,
+        signedByTenantAt: now,
         startDate,
         endDate,
         attachmentFileId: stored.id,

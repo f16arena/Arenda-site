@@ -105,7 +105,7 @@ export default async function DocumentsPage({
           createdAt: true,
           attachmentFileId: true,
           builderState: true,
-          tenant: { select: { id: true, companyName: true } },
+          tenant: { select: { id: true, companyName: true, fixedMonthlyRent: true } },
         },
         orderBy: { createdAt: "desc" },
         take: DOCUMENT_SOURCE_LIMIT,
@@ -123,7 +123,7 @@ export default async function DocumentsPage({
         createdAt: Date
         attachmentFileId: string | null
         builderState: unknown
-        tenant: { id: string; companyName: string }
+        tenant: { id: string; companyName: string; fixedMonthlyRent: number | null }
       }>,
     ),
     safe(
@@ -214,7 +214,10 @@ export default async function DocumentsPage({
       totalAmount: (() => {
         const bs = c.builderState as { financials?: { monthlyRent?: number } } | null
         const rent = bs?.financials?.monthlyRent
-        return typeof rent === "number" && rent > 0 ? rent : null
+        if (typeof rent === "number" && rent > 0) return rent
+        // Внешний договор: помесячная аренда из карточки (фикс-сумма / текущая ступень).
+        if (c.type === "EXTERNAL" && typeof c.tenant.fixedMonthlyRent === "number" && c.tenant.fixedMonthlyRent > 0) return c.tenant.fixedMonthlyRent
+        return null
       })(),
       generatedAt: c.createdAt,
       source: "contract",
@@ -225,7 +228,11 @@ export default async function DocumentsPage({
       deleteId: c.id,
       canDelete: isSigned ? canDeleteSignedDocuments : canDeleteUnsignedDocuments,
       isSigned,
-      signatureCount: signCountById.get(`CONTRACT:${c.id}`) ?? (c.number ? signCountByRef.get(`CONTRACT:${c.number}`) : undefined) ?? 0,
+      signatureCount: Math.max(
+        signCountById.get(`CONTRACT:${c.id}`) ?? (c.number ? signCountByRef.get(`CONTRACT:${c.number}`) : 0) ?? 0,
+        // Внешний/офлайн-подписанный договор: число сторон по отметкам подписи.
+        (c.signedByLandlordAt ? 1 : 0) + (c.signedByTenantAt ? 1 : 0),
+      ),
     }
   })
 
