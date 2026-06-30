@@ -46,11 +46,14 @@ export async function createExternalContract(formData: FormData) {
   // Условия договора → пишем в карточку арендатора (их читает биллинг).
   const startDate = parseDate(formData.get("startDate"))
   const endDate = parseDate(formData.get("endDate"))
-  if (startDate && endDate && endDate < startDate) {
+  if (!startDate) throw new Error("Укажите дату начала договора")
+  if (!endDate) throw new Error("Укажите дату окончания договора")
+  if (endDate < startDate) {
     throw new Error("Дата окончания раньше даты начала")
   }
   const rentMode = String(formData.get("rentMode") ?? "FIXED").trim()
   const rentAmount = parseMoney(formData.get("rentAmount"))
+  if (rentAmount === null) throw new Error("Укажите сумму аренды в месяц")
   const depositAmount = parseMoney(formData.get("depositAmount"))
   const indexationPct = parseMoney(formData.get("indexationPct"))
   const nextIndexationAt = parseDate(formData.get("nextIndexationAt"))

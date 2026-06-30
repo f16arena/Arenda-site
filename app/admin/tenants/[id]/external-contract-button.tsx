@@ -88,13 +88,13 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
 
                 <div className="space-y-4">
                   <div>
-                    <label className={labelCls}>Аренда в месяц</label>
+                    <label className={labelCls}>Аренда в месяц *</label>
                     <div className="flex gap-2">
                       <select name="rentMode" defaultValue="FIXED" className={`${inputCls} w-40 shrink-0`}>
                         <option value="FIXED">Фикс-сумма ₸</option>
                         <option value="RATE">Ставка ₸/м²</option>
                       </select>
-                      <input name="rentAmount" type="number" min="0" step="any" inputMode="decimal" placeholder="например, 450000" className={inputCls} />
+                      <input name="rentAmount" type="number" min="0" step="any" inputMode="decimal" required placeholder="например, 450000" className={inputCls} />
                     </div>
                     <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                       «Ставка ₸/м²» — сумма считается как ставка × площадь помещений арендатора.
@@ -103,12 +103,12 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelCls}>Начало</label>
-                      <input name="startDate" type="date" className={inputCls} />
+                      <label className={labelCls}>Начало *</label>
+                      <input name="startDate" type="date" required className={inputCls} />
                     </div>
                     <div>
-                      <label className={labelCls}>Окончание</label>
-                      <input name="endDate" type="date" className={inputCls} />
+                      <label className={labelCls}>Окончание *</label>
+                      <input name="endDate" type="date" required className={inputCls} />
                     </div>
                   </div>
 
