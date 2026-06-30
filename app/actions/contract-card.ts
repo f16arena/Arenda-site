@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 
 export interface ContractCardData {
   id: string
@@ -55,11 +56,11 @@ export async function getContractCard(
         tenant: {
           select: {
             id: true, companyName: true,
-            fixedMonthlyRent: true, customRate: true, depositAmount: true,
+            fixedMonthlyRent: true, customRate: true, depositAmount: true, rentSchedule: true,
             serviceFeeExempt: true, paymentDueDay: true, penaltyPercent: true, indexationPct: true,
-            space: { select: { number: true, floor: { select: { name: true } } } },
-            tenantSpaces: { select: { space: { select: { number: true, floor: { select: { name: true } } } } } },
-            fullFloors: { select: { name: true } },
+            space: { select: { number: true, area: true, floor: { select: { name: true, ratePerSqm: true } } } },
+            tenantSpaces: { select: { space: { select: { number: true, area: true, floor: { select: { name: true, ratePerSqm: true } } } } } },
+            fullFloors: { select: { name: true, fixedMonthlyRent: true } },
           },
         },
       },
@@ -72,7 +73,17 @@ export async function getContractCard(
     for (const ts of t.tenantSpaces) if (ts.space) spaces.push(`${ts.space.number}${ts.space.floor ? ` · ${ts.space.floor.name}` : ""}`)
     for (const f of t.fullFloors) spaces.push(`${f.name} (целиком)`)
 
-    const monthly = typeof t.fixedMonthlyRent === "number" && t.fixedMonthlyRent > 0 ? t.fixedMonthlyRent : null
+    // Месячная аренда «как на сейчас»: учитывает фикс-сумму, ставку×площадь,
+    // аренду целого этажа и график ступеней (как на карточке арендатора).
+    const computedRent = calculateTenantMonthlyRent({
+      fixedMonthlyRent: t.fixedMonthlyRent,
+      customRate: t.customRate,
+      rentSchedule: t.rentSchedule,
+      fullFloors: t.fullFloors,
+      space: t.space,
+      tenantSpaces: t.tenantSpaces,
+    })
+    const monthly = computedRent > 0 ? computedRent : null
 
     return {
       ok: true,

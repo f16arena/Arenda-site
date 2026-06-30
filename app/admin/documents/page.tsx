@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
@@ -105,7 +106,12 @@ export default async function DocumentsPage({
           createdAt: true,
           attachmentFileId: true,
           builderState: true,
-          tenant: { select: { id: true, companyName: true, fixedMonthlyRent: true } },
+          tenant: { select: {
+            id: true, companyName: true, fixedMonthlyRent: true, customRate: true, rentSchedule: true,
+            space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
+            tenantSpaces: { select: { space: { select: { area: true, floor: { select: { ratePerSqm: true } } } } } },
+            fullFloors: { select: { fixedMonthlyRent: true } },
+          } },
         },
         orderBy: { createdAt: "desc" },
         take: DOCUMENT_SOURCE_LIMIT,
@@ -123,7 +129,13 @@ export default async function DocumentsPage({
         createdAt: Date
         attachmentFileId: string | null
         builderState: unknown
-        tenant: { id: string; companyName: string; fixedMonthlyRent: number | null }
+        tenant: {
+          id: string; companyName: string; fixedMonthlyRent: number | null; customRate: number | null
+          rentSchedule: string | null
+          space: { area: number; floor: { ratePerSqm: number } } | null
+          tenantSpaces: Array<{ space: { area: number; floor: { ratePerSqm: number } } }>
+          fullFloors: Array<{ fixedMonthlyRent: number | null }>
+        }
       }>,
     ),
     safe(
@@ -215,9 +227,17 @@ export default async function DocumentsPage({
         const bs = c.builderState as { financials?: { monthlyRent?: number } } | null
         const rent = bs?.financials?.monthlyRent
         if (typeof rent === "number" && rent > 0) return rent
-        // Внешний договор: помесячная аренда из карточки (фикс-сумма / текущая ступень).
-        if (c.type === "EXTERNAL" && typeof c.tenant.fixedMonthlyRent === "number" && c.tenant.fixedMonthlyRent > 0) return c.tenant.fixedMonthlyRent
-        return null
+        // Помесячная аренда из условий арендатора: фикс-сумма, ставка×площадь,
+        // аренда целого этажа или текущая ступень графика.
+        const computed = calculateTenantMonthlyRent({
+          fixedMonthlyRent: c.tenant.fixedMonthlyRent,
+          customRate: c.tenant.customRate,
+          rentSchedule: c.tenant.rentSchedule,
+          fullFloors: c.tenant.fullFloors,
+          space: c.tenant.space,
+          tenantSpaces: c.tenant.tenantSpaces,
+        })
+        return computed > 0 ? computed : null
       })(),
       generatedAt: c.createdAt,
       source: "contract",

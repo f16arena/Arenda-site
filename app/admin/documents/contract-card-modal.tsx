@@ -37,12 +37,8 @@ export function ContractCardButton({ contractId }: { contractId: string }) {
     })
   }
 
-  const rentText = data
-    ? data.rentMode === "RATE" && data.customRate
-      ? `${formatMoney(data.customRate)} ₸/м²`
-      : data.monthlyRent
-        ? `${formatMoney(data.monthlyRent)} ₸/мес`
-        : "—"
+  const rentText = data?.monthlyRent
+    ? `${formatMoney(data.monthlyRent)} ₸/мес${data.rentMode === "RATE" && data.customRate ? ` (ставка ${formatMoney(data.customRate)} ₸/м²)` : ""}`
     : "—"
 
   return (
