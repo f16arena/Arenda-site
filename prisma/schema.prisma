@@ -1452,6 +1452,9 @@ model GeneratedDocument {
   generatedById  String?   @map("generated_by_id")
   generatedAt    DateTime  @default(now()) @map("generated_at")
   templateUsedId String?   @map("template_used_id")
+  // Исходное состояние конструктора (InvoiceState/AvrState/...) — чтобы пересобрать
+  // подписанную версию с QR и штампами ЭЦП при скачивании (как у договора).
+  sourceState    Json?     @map("source_state")
   deletedAt      DateTime? @map("deleted_at")
   // Договор-источник: счёт/АВР/сверка выписаны по нему (номер, дата, суммы).
   // Жёсткая связь для «дерева документов» арендатора и ссылок ЭСФ.

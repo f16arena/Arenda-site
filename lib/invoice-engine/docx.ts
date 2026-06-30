@@ -3,11 +3,13 @@
 
 import {
   Document, Packer, Paragraph, TextRun, AlignmentType,
-  Table, TableRow, TableCell, WidthType, BorderStyle, VerticalAlign,
+  Table, TableRow, TableCell, WidthType, BorderStyle, VerticalAlign, ImageRun,
 } from "docx"
+import QRCode from "qrcode"
 import { money, moneyWithWords, dateLong } from "@/lib/contract-engine"
 import { periodLabel } from "@/lib/avr-engine"
 import { type InvoiceState, itemSum, invSubtotal, invVat, invTotal } from "./schema"
+import type { SignStamp } from "@/lib/doc-sign-stamp"
 
 const thin = { style: BorderStyle.SINGLE, size: 4, color: "000000" }
 const cellBorders = { top: thin, bottom: thin, left: thin, right: thin }
@@ -55,6 +57,41 @@ function itemsTable(s: InvoiceState): Table {
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows })
 }
 
+const thinGrey = { style: BorderStyle.SINGLE, size: 4, color: "999999" }
+const markBorders = { top: thinGrey, bottom: thinGrey, left: thinGrey, right: thinGrey, insideHorizontal: thinGrey, insideVertical: noBorder }
+
+/** Блок «Отметка о подписании ЭЦП (НУЦ РК)» + QR + штампы подписантов (как у договора/АВР). */
+function signingMark(qr: Buffer | null, verifyUrl: string | null, signers?: SignStamp[]): Table {
+  const qrCell = new TableCell({
+    width: { size: 22, type: WidthType.PERCENTAGE },
+    borders: { top: thinGrey, bottom: thinGrey, left: thinGrey, right: thinGrey },
+    verticalAlign: VerticalAlign.CENTER,
+    children: qr
+      ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: qr, transformation: { width: 96, height: 96 } })] })]
+      : [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 640, after: 640 }, children: [new TextRun({ text: "QR", bold: true, size: 28, color: "BBBBBB" })] })],
+  })
+  const lines: Paragraph[] = [
+    pr([new TextRun({ text: "Отметка о подписании ЭЦП (НУЦ РК)", bold: true, size: 20 })], AlignmentType.LEFT, 40),
+    pr([new TextRun({ text: verifyUrl ? `Проверка подлинности: ${verifyUrl}` : "Проверка подлинности — по QR-коду: commrent.kz/verify/…", size: 20 })], AlignmentType.LEFT, 60),
+  ]
+  if (signers && signers.length > 0) {
+    for (const sg of signers) {
+      lines.push(pr([new TextRun({ text: "✔ " + (sg.method ?? "Документ подписан ЭЦП (НУЦ РК)"), bold: true, size: 18, color: "1A7F37" })], AlignmentType.LEFT, 16))
+      lines.push(pr([new TextRun({ text: `${sg.name}${sg.taxId ? `, ИИН/БИН ${sg.taxId}` : ""}`, size: 16, color: "444444" })], AlignmentType.LEFT, 8))
+      if (sg.signedAt) lines.push(pr([new TextRun({ text: `Время подписания: ${sg.signedAt}`, size: 16, color: "444444" })], AlignmentType.LEFT, 8))
+      if (sg.tspTime) lines.push(pr([new TextRun({ text: `Метка времени (TSP, НУЦ РК): ${sg.tspTime}`, size: 16, color: "444444" })], AlignmentType.LEFT, 40))
+    }
+  } else {
+    lines.push(pr([new TextRun({ text: "После подписания здесь фиксируются подписанты (наименование, ИИН/БИН) и время по метке доверенного времени (TSP).", size: 16, color: "666666" })], AlignmentType.LEFT, 40))
+  }
+  const textCell = new TableCell({
+    width: { size: 78, type: WidthType.PERCENTAGE },
+    borders: { top: thinGrey, bottom: thinGrey, left: noBorder, right: thinGrey },
+    children: lines,
+  })
+  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: markBorders, rows: [new TableRow({ children: [qrCell, textCell] })] })
+}
+
 function partyCell(title: string, lines: string[]): TableCell {
   return new TableCell({
     width: { size: 50, type: WidthType.PERCENTAGE },
@@ -66,7 +103,9 @@ function partyCell(title: string, lines: string[]): TableCell {
   })
 }
 
-export async function renderInvoiceDocx(s: InvoiceState): Promise<Buffer> {
+export async function renderInvoiceDocx(s: InvoiceState, opts?: { verifyUrl?: string; signers?: SignStamp[] }): Promise<Buffer> {
+  const verifyUrl = opts?.verifyUrl ?? null
+  const qr = verifyUrl ? await QRCode.toBuffer(verifyUrl, { width: 240, margin: 1, errorCorrectionLevel: "M" }) : null
   const children: (Paragraph | Table)[] = []
   children.push(pr([txt(`Счёт на оплату № ${s.meta.number || "____"} от ${s.meta.date ? dateLong(s.meta.date) : "____"}`, { bold: true, size: 26 })], AlignmentType.CENTER, 80))
   if (s.contractRef.number) children.push(pr([txt(`По договору № ${s.contractRef.number}${s.contractRef.date ? ` от ${dateLong(s.contractRef.date)}` : ""}`)], AlignmentType.LEFT, 30))
@@ -96,6 +135,12 @@ export async function renderInvoiceDocx(s: InvoiceState): Promise<Buffer> {
   else children.push(pr([txt("Без НДС (поставщик не плательщик НДС).")], AlignmentType.LEFT, 40))
   children.push(pr([txt(`Всего к оплате: ${moneyWithWords(invTotal(s))}.`, { bold: true })], AlignmentType.LEFT, 240))
   children.push(pr([txt(`${s.seller.signatoryPosition || "Поставщик"}: ___________________ / ${s.seller.signatory || "________"} /    М.П.`)], AlignmentType.LEFT, 0))
+
+  // Блок ЭЦП + QR — только для подписанной версии (verifyUrl присутствует при пересборке).
+  if (verifyUrl) {
+    children.push(pr([txt("", { size: 20 })], AlignmentType.LEFT, 160))
+    children.push(signingMark(qr, verifyUrl, opts?.signers))
+  }
 
   const doc = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 20 } } } },

@@ -19,6 +19,7 @@ import {
 import QRCode from "qrcode"
 import { money, moneyWithWords, dateLong } from "@/lib/contract-engine"
 import { type AvrState, itemSum, avrSubtotal, avrVat, avrTotal, periodLabel } from "./schema"
+import type { SignStamp } from "@/lib/doc-sign-stamp"
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -142,8 +143,8 @@ function signCell(role: string, party: { signatory: string; position: string }):
   })
 }
 
-/** Отметка о подписании ЭЦП + QR (как в договоре): реальный QR при verifyUrl, иначе место под него. */
-function signingMark(qr: Buffer | null, verifyUrl: string | null): Table {
+/** Отметка о подписании ЭЦП + QR (как в договоре): реальный QR при verifyUrl + штампы подписантов. */
+function signingMark(qr: Buffer | null, verifyUrl: string | null, signers?: SignStamp[]): Table {
   const qrCell = new TableCell({
     width: { size: 22, type: WidthType.PERCENTAGE },
     borders: { top: thinGrey, bottom: thinGrey, left: thinGrey, right: thinGrey },
@@ -152,21 +153,31 @@ function signingMark(qr: Buffer | null, verifyUrl: string | null): Table {
       ? [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ type: "png", data: qr, transformation: { width: 96, height: 96 } })] })]
       : [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 640, after: 640 }, children: [txt("QR", { bold: true, size: 28, color: "BBBBBB" })] })],
   })
+  const lines: Paragraph[] = [
+    pr([txt("Отметка о подписании ЭЦП (НУЦ РК)", { bold: true })], AlignmentType.LEFT, 40),
+    pr([txt(verifyUrl ? `Проверка подлинности: ${verifyUrl}` : "Проверка подлинности — по QR-коду: commrent.kz/verify/…", { size: 20 })], AlignmentType.LEFT, 60),
+  ]
+  if (signers && signers.length > 0) {
+    for (const sg of signers) {
+      lines.push(pr([txt("✔ " + (sg.method ?? "Документ подписан ЭЦП (НУЦ РК)"), { bold: true, size: 18, color: "1A7F37" })], AlignmentType.LEFT, 16))
+      lines.push(pr([txt(`${sg.name}${sg.taxId ? `, ИИН/БИН ${sg.taxId}` : ""}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 8))
+      if (sg.signedAt) lines.push(pr([txt(`Время подписания: ${sg.signedAt}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 8))
+      if (sg.tspTime) lines.push(pr([txt(`Метка времени (TSP, НУЦ РК): ${sg.tspTime}`, { size: 16, color: "444444" })], AlignmentType.LEFT, 40))
+    }
+  } else {
+    lines.push(pr([txt("После подписания здесь фиксируются подписанты (наименование, ИИН/БИН, серийный № сертификата) и время по метке доверенного времени (TSP).", { size: 16, color: "666666" })]))
+  }
   const textCell = new TableCell({
     width: { size: 78, type: WidthType.PERCENTAGE },
     borders: { top: thinGrey, bottom: thinGrey, left: noBorder, right: thinGrey },
-    children: [
-      pr([txt("Отметка о подписании ЭЦП (НУЦ РК)", { bold: true })], AlignmentType.LEFT, 40),
-      pr([txt(verifyUrl ? `Проверка подлинности: ${verifyUrl}` : "Проверка подлинности — по QR-коду: commrent.kz/verify/…", { size: 20 })], AlignmentType.LEFT, 40),
-      pr([txt("После подписания здесь фиксируются подписанты (наименование, ИИН/БИН, серийный № сертификата) и время по метке доверенного времени (TSP).", { size: 16, color: "666666" })]),
-    ],
+    children: lines,
   })
   return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: markBorders, rows: [new TableRow({ children: [qrCell, textCell] })] })
 }
 
 // ───────────────────────── entry ─────────────────────────
 
-export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string }): Promise<Buffer> {
+export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string; signers?: SignStamp[] }): Promise<Buffer> {
   const verifyUrl = opts?.verifyUrl ?? null
   const qr = verifyUrl ? await QRCode.toBuffer(verifyUrl, { width: 240, margin: 1, errorCorrectionLevel: "M" }) : null
 
@@ -224,7 +235,7 @@ export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string }):
   children.push(pr([txt("Дата подписания (принятия) работ (услуг): ____________________")], AlignmentType.LEFT, 160))
 
   // QR/ЭЦП
-  children.push(signingMark(qr, verifyUrl))
+  children.push(signingMark(qr, verifyUrl, opts?.signers))
 
   const doc = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 20 } } } },

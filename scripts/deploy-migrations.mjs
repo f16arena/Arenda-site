@@ -27,6 +27,7 @@ const customSqlPatches = [
   "028_contract_placement_type.sql",
   "029_site_images.sql",
   "030_tenant_rent_schedule.sql",
+  "031_generated_document_source_state.sql",
 ]
 
 function runPrisma(args) {

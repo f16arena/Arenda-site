@@ -71,6 +71,8 @@ export async function createInvoiceForTenant(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fileBytes: buf as any,
       fileSize: buf.length,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sourceState: state as any,
       format: "DOCX",
       generatedById: null,
     },
@@ -113,6 +115,8 @@ export async function createActForTenant(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fileBytes: buf as any,
       fileSize: buf.length,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sourceState: state as any,
       format: "DOCX",
       generatedById: null,
     },

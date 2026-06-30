@@ -115,6 +115,8 @@ export async function createInvoiceFromBuilder(
         fileBytes: buf as any,
         fileSize: buf.length,
         format: "DOCX",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sourceState: finalState as any,
         generatedById: session?.user.id ?? null,
       },
       select: { id: true },

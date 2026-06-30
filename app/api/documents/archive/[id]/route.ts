@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { isTenantRole } from "@/lib/role-capabilities"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
+import { buildSignedGeneratedDocxBuffer } from "@/lib/signed-generated-doc"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 export const dynamic = "force-dynamic"
@@ -30,11 +31,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const doc = await db.generatedDocument.findFirst({ where })
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // PDF по запросу: конвертируем хранимый DOCX → PDF (конвертер на VPS).
+  // Подписанная версия: если счёт/АВР подписан ЭЦП и хранит исходное состояние —
+  // пересобираем DOCX со штампами подписантов и QR-кодом на /verify/{id}
+  // (как у договора). Иначе/при ошибке — отдаём оригинальные байты.
+  let bytes = Buffer.from(doc.fileBytes as unknown as Uint8Array)
+  try {
+    const signed = await buildSignedGeneratedDocxBuffer({ id: doc.id, documentType: doc.documentType, sourceState: doc.sourceState })
+    if (signed) bytes = Buffer.from(signed)
+  } catch { /* отдаём оригинал */ }
+
+  // PDF по запросу: конвертируем DOCX → PDF (конвертер на VPS).
   // Если конвертер не настроен или ошибка — отдаём оригинальный DOCX (graceful).
   if (wantPdf && doc.format === "DOCX" && pdfConvertConfigured()) {
     try {
-      const pdf = await convertDocxToPdf(Buffer.from(doc.fileBytes as unknown as Uint8Array), doc.fileName)
+      const pdf = await convertDocxToPdf(bytes, doc.fileName)
       const pdfName = doc.fileName.replace(/\.docx$/i, "") + ".pdf"
       return new NextResponse(pdf as unknown as BodyInit, {
         headers: {
@@ -51,7 +61,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     doc.format === "PDF"  ? "application/pdf" :
     "application/octet-stream"
 
-  return new NextResponse(doc.fileBytes as unknown as BodyInit, {
+  return new NextResponse(bytes as unknown as BodyInit, {
     headers: {
       "Content-Type": mime,
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(doc.fileName)}`,

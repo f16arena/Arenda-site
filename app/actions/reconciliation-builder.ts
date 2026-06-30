@@ -198,6 +198,8 @@ export async function createReconFromBuilder(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         fileBytes: buf as any,
         fileSize: buf.length,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sourceState: finalState as any,
         format: "DOCX",
         generatedById: session?.user.id ?? null,
         // Акт сверки отправляется арендатору на подтверждение взаиморасчётов.
