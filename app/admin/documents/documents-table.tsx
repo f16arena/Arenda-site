@@ -393,7 +393,7 @@ export function DocumentsTable({
     const isDeleting = deletingRowId === row.id && pending
     return (
       <div className="flex items-center justify-end gap-2">
-        {canSign && row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && (
+        {canSign && row.source === "generated" && row.generatedId && LANDLORD_SIGNABLE_TYPES.has(row.type) && !row.isSigned && (
           <LandlordSignButton documentId={row.generatedId} />
         )}
         {/* ИС ЭСФ (КГД): выписываем счёт-фактуру (ЭСФ) ТОЛЬКО со счёта.
