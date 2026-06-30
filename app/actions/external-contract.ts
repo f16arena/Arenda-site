@@ -31,7 +31,7 @@ function parseDate(value: FormDataEntryValue | null): Date | null {
 }
 
 export async function createExternalContract(formData: FormData) {
-  const session = await requireCapabilityAndFeature("documents.uploadTemplate")
+  const session = await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
 
   const tenantId = String(formData.get("tenantId") ?? "").trim()

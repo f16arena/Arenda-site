@@ -6,6 +6,7 @@ import { auth } from "@/auth"
 import { FaqSearch } from "@/components/faq/faq-search"
 import { type FaqAudience } from "@/lib/faq-types"
 import { getFaqArticlesForAdmin, getFaqItemsFromDb } from "@/lib/faq-db"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import { FaqManager } from "./faq-manager"
 import { PageHeader } from "@/components/ui/page"
@@ -14,6 +15,16 @@ export default async function AdminFaqPage() {
   const session = await auth()
   if (!session) redirect("/login")
   const { orgId } = await requireOrgAccess()
+
+  const caps = new Set(
+    await getAllowedCapabilityKeysForUser({
+      userId: session.user.id,
+      role: session.user.role,
+      isPlatformOwner: session.user.isPlatformOwner,
+      orgId,
+    }),
+  )
+  const canManage = caps.has("faq.manage")
 
   const canSeeOwnerFaq = session.user.role === "OWNER" || session.user.isPlatformOwner
   const canManageFaq = session.user.role === "OWNER" || session.user.role === "ADMIN" || session.user.isPlatformOwner
@@ -43,6 +54,7 @@ export default async function AdminFaqPage() {
           articles={adminArticles}
           audiences={["owner", "admin", "tenant"]}
           defaultAudience={defaultAudience}
+          canManage={canManage}
         />
       )}
     </div>

@@ -5,10 +5,21 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { ImportClient } from "./import-client"
 import { getCurrentBuildingId } from "@/lib/current-building"
+import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
 export default async function ImportPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+
+  const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canApply = caps.has("finance.importBank")
 
   const buildingId = await getCurrentBuildingId()
   const floorIds = buildingId
@@ -32,7 +43,7 @@ export default async function ImportPage() {
         </p>
       </div>
 
-      <ImportClient tenants={tenants} />
+      <ImportClient tenants={tenants} canApply={canApply} />
     </div>
   )
 }

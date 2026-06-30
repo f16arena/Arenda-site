@@ -53,7 +53,17 @@ const SOURCE_LABELS: Record<string, string> = {
   WORD_OF_MOUTH: "Сарафан", CALL: "Звонок", OTHER: "Прочее",
 }
 
-export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpaces: Space[] }) {
+export function LeadKanban({
+  leads,
+  vacantSpaces,
+  canManageLeads = true,
+  canBookSpace = true,
+}: {
+  leads: Lead[]
+  vacantSpaces: Space[]
+  canManageLeads?: boolean
+  canBookSpace?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [bookingFor, setBookingFor] = useState<Lead | null>(null)
   const [pending, startTransition] = useTransition()
@@ -65,12 +75,14 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Воронка лидов</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{leads.length} потенциальных арендаторов</p>
         </div>
-        <Button
-          onClick={() => setOpen(true)}
-          leftIcon={<Plus className="h-4 w-4" />}
-        >
-          Новый лид
-        </Button>
+        {canManageLeads && (
+          <Button
+            onClick={() => setOpen(true)}
+            leftIcon={<Plus className="h-4 w-4" />}
+          >
+            Новый лид
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-5 gap-3">
@@ -88,6 +100,8 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
                   <LeadCard
                     key={l.id}
                     lead={l}
+                    canManageLeads={canManageLeads}
+                    canBookSpace={canBookSpace}
                     onMove={(dir) => {
                       const idx = LEAD_STATUSES.indexOf(l.status as typeof LEAD_STATUSES[number])
                       const next = LEAD_STATUSES[Math.max(0, Math.min(LEAD_STATUSES.length - 1, idx + dir))]
@@ -142,12 +156,14 @@ export function LeadKanban({ leads, vacantSpaces }: { leads: Lead[]; vacantSpace
   )
 }
 
-function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
+function LeadCard({ lead, onMove, onBook, onUnbook, onDelete, canManageLeads, canBookSpace }: {
   lead: Lead
   onMove: (dir: -1 | 1) => void
   onBook: () => void
   onUnbook: () => void
   onDelete: () => void
+  canManageLeads: boolean
+  canBookSpace: boolean
 }) {
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-2.5 shadow-sm hover:shadow-md transition-shadow group">
@@ -156,19 +172,21 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{lead.name}</p>
           {lead.companyName && <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{lead.companyName}</p>}
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-          <ConfirmDialog
-            variant="danger"
-            title={`Удалить лида «${lead.name}»?`}
-            confirmLabel="Удалить"
-            onConfirm={onDelete}
-            trigger={
-              <button className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
-                <Trash2 className="h-3 w-3" />
-              </button>
-            }
-          />
-        </div>
+        {canManageLeads && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            <ConfirmDialog
+              variant="danger"
+              title={`Удалить лида «${lead.name}»?`}
+              confirmLabel="Удалить"
+              onConfirm={onDelete}
+              trigger={
+                <button className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              }
+            />
+          </div>
+        )}
       </div>
 
       <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
@@ -199,24 +217,30 @@ function LeadCard({ lead, onMove, onBook, onUnbook, onDelete }: {
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-1">
-        <button onClick={() => onMove(-1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-          <ArrowLeft className="h-3 w-3 inline" />
-        </button>
-        {!lead.spaceId && lead.status !== "LOST" && lead.status !== "SIGNED" && (
-          <button onClick={onBook} className="flex-1 rounded text-[10px] py-1 hover:bg-purple-100 dark:hover:bg-purple-500/20 text-purple-600 dark:text-purple-400">
-            Бронь
-          </button>
-        )}
-        {lead.spaceId && (
-          <button onClick={onUnbook} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-            Снять
-          </button>
-        )}
-        <button onClick={() => onMove(1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-          <ArrowRight className="h-3 w-3 inline" />
-        </button>
-      </div>
+      {(canManageLeads || canBookSpace) && (
+        <div className="mt-2 flex items-center gap-1">
+          {canManageLeads && (
+            <button onClick={() => onMove(-1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+              <ArrowLeft className="h-3 w-3 inline" />
+            </button>
+          )}
+          {canBookSpace && !lead.spaceId && lead.status !== "LOST" && lead.status !== "SIGNED" && (
+            <button onClick={onBook} className="flex-1 rounded text-[10px] py-1 hover:bg-purple-100 dark:hover:bg-purple-500/20 text-purple-600 dark:text-purple-400">
+              Бронь
+            </button>
+          )}
+          {canBookSpace && lead.spaceId && (
+            <button onClick={onUnbook} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+              Снять
+            </button>
+          )}
+          {canManageLeads && (
+            <button onClick={() => onMove(1)} className="flex-1 rounded text-[10px] py-1 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+              <ArrowRight className="h-3 w-3 inline" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

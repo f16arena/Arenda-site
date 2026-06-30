@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { LeadKanbanLoader } from "./lead-kanban-loader"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { safeServerValue } from "@/lib/server-fallback"
 
@@ -13,6 +14,12 @@ export default async function LeadsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/leads", orgId, userId: session.user.id })
 
@@ -54,5 +61,12 @@ export default async function LeadsPage() {
     [],
   )
 
-  return <LeadKanbanLoader leads={leads} vacantSpaces={vacantSpaces} />
+  return (
+    <LeadKanbanLoader
+      leads={leads}
+      vacantSpaces={vacantSpaces}
+      canManageLeads={caps.has("leads.manage")}
+      canBookSpace={caps.has("leads.bookSpace")}
+    />
+  )
 }

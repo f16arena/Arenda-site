@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation"
 import { Layers, Building2, User } from "lucide-react"
 import Link from "next/link"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { assertFloorInOrg } from "@/lib/scope-guards"
 import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
@@ -18,6 +19,12 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
 
   const { id } = await params
   try {
@@ -161,6 +168,7 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
           </div>
           <FloorSettingsForm
             floorId={floor.id}
+            canEdit={caps.has("floors.edit")}
             initial={{
               name: floor.name,
               ratePerSqm: floor.ratePerSqm,
@@ -207,17 +215,19 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
               {unitWord} ({floor.spaces.length})
             </h2>
           </div>
-          <AddSpaceDialog
-            floors={[{
-              id: floor.id,
-              number: floor.number,
-              name: floor.name,
-              totalArea: floor.totalArea,
-              usedArea: totalArea,
-              kind: floor.kind,
-            }]}
-            objectTenants={isZone ? candidates.map((c) => ({ id: c.id, companyName: c.companyName })) : []}
-          />
+          {caps.has("spaces.edit") && (
+            <AddSpaceDialog
+              floors={[{
+                id: floor.id,
+                number: floor.number,
+                name: floor.name,
+                totalArea: floor.totalArea,
+                usedArea: totalArea,
+                kind: floor.kind,
+              }]}
+              objectTenants={isZone ? candidates.map((c) => ({ id: c.id, companyName: c.companyName })) : []}
+            />
+          )}
         </div>
         {floor.spaces.length === 0 ? (
           <div className="p-8 text-center">
@@ -264,12 +274,14 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                         <span className="text-slate-400 dark:text-slate-600 text-[11px]">не сдаётся</span>
                       ) : fullFloorTenant ? (
                         <span className="text-slate-400 dark:text-slate-600 text-[11px]">этаж сдан</span>
-                      ) : (
+                      ) : caps.has("spaces.assignTenant") ? (
                         <AssignTenantButton
                           spaceId={sp.id}
                           spaceNumber={sp.number}
                           candidates={candidates}
                         />
+                      ) : (
+                        <span className="text-slate-300 dark:text-slate-600">—</span>
                       )}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums">

@@ -59,7 +59,7 @@ export interface DraftListItem {
 
 export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: boolean; id?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const session = await auth()
     const { orgId } = await requireOrgAccess()
 
@@ -116,7 +116,7 @@ export async function loadContractDraft(
 }
 
 export async function deleteContractDraft(id: string): Promise<{ ok: boolean }> {
-  await requireCapabilityAndFeature("documents.uploadTemplate")
+  await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
   await db.contractDraft.updateMany({
     where: { id, organizationId: orgId, deletedAt: null },
@@ -212,7 +212,7 @@ export async function prefillFromTenant(
   availableTypes?: ContractPlacementType[]
 }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId, userId } = await requireOrgAccess()
 
     const tenant = await db.tenant.findFirst({
@@ -382,7 +382,7 @@ async function computeNextContractNumber(orgId: string): Promise<string> {
 /** Возвращает следующий свободный номер договора (для предпросмотра автонумерации). */
 export async function getNextContractNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await computeNextContractNumber(orgId) }
   } catch (e) {
@@ -403,7 +403,7 @@ export async function createContractFromBuilder(
   opts?: { send?: boolean; landlordSign?: boolean; autoNumber?: boolean },
 ): Promise<{ ok: boolean; error?: string; contractId?: string; sent?: boolean; landlordSigned?: boolean; signUrl?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }
 
@@ -500,7 +500,7 @@ export async function generateContractDocx(
   builderState: ContractState,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
 
     const a = assemble(builderState)
@@ -525,7 +525,7 @@ export async function generateSignedContractDocx(
   contractId: string,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const contract = await db.contract.findFirst({
       where: { id: contractId, ...contractScope(orgId) },
@@ -550,7 +550,7 @@ export async function generateSignedContractPdf(
   contractId: string,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const contract = await db.contract.findFirst({
       where: { id: contractId, ...contractScope(orgId) },

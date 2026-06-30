@@ -91,6 +91,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const canBlacklistTenant = allowedCapabilities.has("tenants.blacklist")
   const canDeleteTenant = allowedCapabilities.has("tenants.delete")
   const canCreateDocuments = allowedCapabilities.has("documents.create")
+  const canSignDocuments = allowedCapabilities.has("documents.sign")
   const canCreateAddendum = allowedCapabilities.has("documents.addendum")
   const canCreateInvoice = allowedCapabilities.has("finance.createInvoice")
   const canRecordPayment = allowedCapabilities.has("finance.recordPayment")
@@ -587,6 +588,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         legalType={tenant.legalType}
         period={currentPeriod}
         defaultDueDate={defaultServiceDueDate}
+        canSignDocuments={canSignDocuments}
       >
       {/* Табы карточки арендатора. Полоса заголовков сверху, контент
           активной — на полную ширину под полосой. CSS-only переключение,

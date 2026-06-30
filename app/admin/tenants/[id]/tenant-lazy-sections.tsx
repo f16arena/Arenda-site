@@ -117,6 +117,7 @@ const TenantLazyContext = createContext<{
   legalType: string
   period: string
   defaultDueDate: string
+  canSignDocuments: boolean
   state: LazyState
 } | null>(null)
 
@@ -125,12 +126,14 @@ export function TenantLazySectionsProvider({
   legalType,
   period,
   defaultDueDate,
+  canSignDocuments,
   children,
 }: {
   tenantId: string
   legalType: string
   period: string
   defaultDueDate: string
+  canSignDocuments: boolean
   children: ReactNode
 }) {
   const [state, setState] = useState<LazyState>({ loading: true, error: null, data: null })
@@ -160,8 +163,8 @@ export function TenantLazySectionsProvider({
   }, [period, tenantId])
 
   const value = useMemo(
-    () => ({ tenantId, legalType, period, defaultDueDate, state }),
-    [defaultDueDate, legalType, period, state, tenantId],
+    () => ({ tenantId, legalType, period, defaultDueDate, canSignDocuments, state }),
+    [canSignDocuments, defaultDueDate, legalType, period, state, tenantId],
   )
 
   return (
@@ -248,7 +251,13 @@ export function TenantLazyContractsSidebar() {
   const { data } = ctx.state
   if (!data) return <LazyError message="Данные арендатора не загрузились" />
 
-  return <TenantContractsSidebarClient items={data.contracts.items} total={data.contracts.total} />
+  return (
+    <TenantContractsSidebarClient
+      items={data.contracts.items}
+      total={data.contracts.total}
+      canSign={ctx.canSignDocuments}
+    />
+  )
 }
 
 export function TenantLazyRecentChargesSidebar() {
@@ -290,7 +299,7 @@ function LazyError({ message }: { message: string }) {
   )
 }
 
-function TenantContractsSidebarClient({ items, total }: { items: ContractItem[]; total: number }) {
+function TenantContractsSidebarClient({ items, total, canSign }: { items: ContractItem[]; total: number; canSign: boolean }) {
   return (
     <CollapsibleCard title="Договоры" icon={FileText} meta={`${total} шт.`}>
       <div className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -335,9 +344,11 @@ function TenantContractsSidebarClient({ items, total }: { items: ContractItem[];
                     : "Изменения вступят только после подписи"}
                 </p>
               )}
-              <div className="mt-2">
-                <ContractWorkflowActions contract={contract} />
-              </div>
+              {canSign && (
+                <div className="mt-2">
+                  <ContractWorkflowActions contract={contract} />
+                </div>
+              )}
             </div>
           )
         })}

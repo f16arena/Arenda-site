@@ -11,11 +11,12 @@ type FaqManagerProps = {
   articles: FaqArticleForAdmin[]
   audiences: FaqAudience[]
   defaultAudience: FaqAudience
+  canManage: boolean
 }
 
 const NEW_ID = "__new__"
 
-export function FaqManager({ articles, audiences, defaultAudience }: FaqManagerProps) {
+export function FaqManager({ articles, audiences, defaultAudience, canManage }: FaqManagerProps) {
   const [activeAudience, setActiveAudience] = useState<FaqAudience>(defaultAudience)
   const [selectedId, setSelectedId] = useState(articles.find((item) => item.audience === defaultAudience)?.id ?? NEW_ID)
 
@@ -37,15 +38,17 @@ export function FaqManager({ articles, audiences, defaultAudience }: FaqManagerP
             Вопросы хранятся в базе данных этой организации. Изменения сразу видны в FAQ владельца, администратора и арендатора.
           </p>
         </div>
-        <form action={restoreDefaultFaqArticles}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <RotateCcw className="h-4 w-4" />
-            Вернуть базовые вопросы
-          </button>
-        </form>
+        {canManage && (
+          <form action={restoreDefaultFaqArticles}>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Вернуть базовые вопросы
+            </button>
+          </form>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -66,14 +69,16 @@ export function FaqManager({ articles, audiences, defaultAudience }: FaqManagerP
             {faqAudienceLabels[audience]}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => setSelectedId(NEW_ID)}
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-        >
-          <Plus className="h-4 w-4" />
-          Новый вопрос
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setSelectedId(NEW_ID)}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+          >
+            <Plus className="h-4 w-4" />
+            Новый вопрос
+          </button>
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -108,7 +113,7 @@ export function FaqManager({ articles, audiences, defaultAudience }: FaqManagerP
           )}
         </div>
 
-        <FaqArticleForm key={formKey} article={selected} activeAudience={activeAudience} />
+        <FaqArticleForm key={formKey} article={selected} activeAudience={activeAudience} canManage={canManage} />
       </div>
     </section>
   )
@@ -117,9 +122,11 @@ export function FaqManager({ articles, audiences, defaultAudience }: FaqManagerP
 function FaqArticleForm({
   article,
   activeAudience,
+  canManage,
 }: {
   article?: FaqArticleForAdmin
   activeAudience: FaqAudience
+  canManage: boolean
 }) {
   const isNew = !article
 
@@ -246,17 +253,19 @@ function FaqArticleForm({
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {isNew ? "Новая запись будет сохранена в БД." : `Обновлено: ${new Date(article.updatedAt).toLocaleString("ru-RU")}`}
           </p>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            <Save className="h-4 w-4" />
-            Сохранить
-          </button>
+          {canManage && (
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              <Save className="h-4 w-4" />
+              Сохранить
+            </button>
+          )}
         </div>
       </form>
 
-      {!isNew && (
+      {!isNew && canManage && (
         <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
           <ConfirmDialog
             variant="danger"

@@ -369,6 +369,7 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
  * Применяется как «начать с нуля» вместе с очисткой плана.
  */
 export async function deleteAllSpacesOnFloor(floorId: string) {
+  await requireCapabilityAndFeature("spaces.delete")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 

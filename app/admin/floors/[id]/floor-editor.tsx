@@ -67,6 +67,9 @@ export function FloorEditor({
   initialTotalArea,
   spaces,
   buildingFootprint,
+  canEditFloor = true,
+  canDeleteSpaces = true,
+  canDeleteFloor = true,
 }: {
   floorId: string
   floorName: string
@@ -78,6 +81,9 @@ export function FloorEditor({
   spaces: SpaceLite[]
   /** Габариты здания (м) — опорный контур в редакторе территории. */
   buildingFootprint?: { width: number; depth: number; name: string } | null
+  canEditFloor?: boolean
+  canDeleteSpaces?: boolean
+  canDeleteFloor?: boolean
 }) {
   const router = useRouter()
   const [layout, setLayoutRaw] = useState<FloorLayoutV2>(() => initialLayout ?? DEFAULT_LAYOUT)
@@ -1638,6 +1644,9 @@ export function FloorEditor({
           floorName={floorName}
           spacesCount={spaces.length}
           elementsCount={layout.elements.length}
+          canEditFloor={canEditFloor}
+          canDeleteSpaces={canDeleteSpaces}
+          canDeleteFloor={canDeleteFloor}
           onClearElements={() => {
             setLayout((prev) => ({ ...prev, elements: [] }))
             setSelectedId(null)

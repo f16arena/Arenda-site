@@ -17,7 +17,7 @@ const computeNextInvoiceNumber = (orgId: string) => nextDocumentNumber(orgId, "I
 
 export async function getNextInvoiceNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await computeNextInvoiceNumber(orgId) }
   } catch (e) {
@@ -30,7 +30,7 @@ export async function prefillInvoiceFromTenant(
   period: string,
 ): Promise<{ ok: boolean; error?: string; state?: InvoiceState; source?: "charges" | "contract" }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     // Вся сборка (включая правило действующего договора и позиции из договора) —
     // в lib/invoice-engine/prefill, общая с автогенерацией при подписании.
@@ -42,7 +42,7 @@ export async function prefillInvoiceFromTenant(
 
 export async function generateInvoiceDocx(state: InvoiceState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     const buf = await renderInvoiceDocx(state)
     const num = (state.meta.number || "").trim() || "счёт"
@@ -55,7 +55,7 @@ export async function generateInvoiceDocx(state: InvoiceState): Promise<{ ok: bo
 /** Счёт строго в PDF (DOCX → конвертер на VPS). */
 export async function generateInvoicePdf(state: InvoiceState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
     const buf = await renderInvoiceDocx(state)
@@ -73,7 +73,7 @@ export async function createInvoiceFromBuilder(
   opts?: { autoNumber?: boolean },
 ): Promise<{ ok: boolean; error?: string; documentId?: string; number?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const session = await auth()
     if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { contractScope } from "@/lib/tenant-scope"
 import { createActForTenant, createInvoiceForTenant } from "@/lib/auto-documents"
 
@@ -17,6 +18,11 @@ import { createActForTenant, createInvoiceForTenant } from "@/lib/auto-documents
 export async function backfillMonthlyDocuments(): Promise<
   { ok: true; created: number; tenants: number } | { ok: false; error: string }
 > {
+  try {
+    await requireCapabilityAndFeature("documents.generateBulk")
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+  }
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
   if (session.user.role !== "OWNER" && session.user.role !== "ADMIN" && !session.user.isPlatformOwner) {

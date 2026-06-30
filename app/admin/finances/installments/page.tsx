@@ -7,7 +7,9 @@ import { formatMoney } from "@/lib/utils"
 import { INSTALLMENT_STATUS_LABELS } from "@/lib/installments"
 import { PageHeader, Card } from "@/components/ui/page"
 import { EmptyState } from "@/components/ui/empty-state"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { tenantScope } from "@/lib/tenant-scope"
 import { safeServerValue } from "@/lib/server-fallback"
 import { CreateInstallmentDialog, MarkInstallmentPaidButton, CancelPlanButton } from "./installments-actions"
@@ -21,6 +23,16 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function InstallmentsPage() {
   const { orgId } = await requireOrgAccess()
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canInstallments = caps.has("finance.installments")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/finances/installments", orgId })
 
@@ -94,7 +106,7 @@ export default async function InstallmentsPage() {
               <ArrowLeft className="h-4 w-4" />
               К финансам
             </Link>
-            <CreateInstallmentDialog debtors={debtors} />
+            {canInstallments && <CreateInstallmentDialog debtors={debtors} />}
           </>
         }
       />
@@ -131,7 +143,7 @@ export default async function InstallmentsPage() {
                       {nextDue && plan.status === "ACTIVE" && (
                         <span>Следующий: {new Date(nextDue.dueDate).toLocaleDateString("ru-RU")} — {formatMoney(nextDue.amount)}</span>
                       )}
-                      {(plan.status === "ACTIVE" || plan.status === "BROKEN") && <CancelPlanButton planId={plan.id} />}
+                      {canInstallments && (plan.status === "ACTIVE" || plan.status === "BROKEN") && <CancelPlanButton planId={plan.id} />}
                     </div>
                   </div>
                   {plan.note && <div className="px-5 pt-3 text-xs text-slate-500 dark:text-slate-400">{plan.note}</div>}
@@ -157,8 +169,10 @@ export default async function InstallmentsPage() {
                           <div className="mt-1.5">
                             {inst.isPaid ? (
                               <span className="text-[11px] text-emerald-600 dark:text-emerald-400">оплачен ✓</span>
-                            ) : (
+                            ) : canInstallments ? (
                               <MarkInstallmentPaidButton installmentId={inst.id} />
+                            ) : (
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">не оплачен</span>
                             )}
                           </div>
                         </div>

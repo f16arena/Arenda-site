@@ -23,7 +23,13 @@ export interface PaymentRow {
   paymentDate: Date
 }
 
-export function PaymentsBulkActions({ payments }: { payments: PaymentRow[] }) {
+export function PaymentsBulkActions({
+  payments,
+  canDelete = false,
+}: {
+  payments: PaymentRow[]
+  canDelete?: boolean
+}) {
   const router = useRouter()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
@@ -85,6 +91,7 @@ export function PaymentsBulkActions({ payments }: { payments: PaymentRow[] }) {
             Выбрано: {selectedIds.size}
           </span>
           <div className="flex flex-wrap items-center gap-2">
+            {canDelete && (
             <ConfirmDialog
               variant="danger"
               title={`Удалить ${selectedIds.size} ${pluralizePayments(selectedIds.size)}?`}
@@ -102,6 +109,7 @@ export function PaymentsBulkActions({ payments }: { payments: PaymentRow[] }) {
                 </Button>
               }
             />
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -166,12 +174,14 @@ export function PaymentsBulkActions({ payments }: { payments: PaymentRow[] }) {
                     Квитанция
                   </Link>
                 )}
+                {canDelete && (
                 <DeleteWithUndo
                   deleteAction={deletePayment.bind(null, p.id)}
                   restoreAction={restorePayment.bind(null, p.id)}
                   entity="платёж"
                   successMessage="Платёж удалён"
                 />
+                )}
               </div>
             </div>
           )

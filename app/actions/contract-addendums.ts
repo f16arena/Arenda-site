@@ -118,7 +118,7 @@ export async function createExtensionAddendum(
   newEndDate: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
     const end = new Date(newEndDate)
     if (Number.isNaN(end.getTime())) return { ok: false, error: "Укажите корректную дату окончания" }
@@ -179,7 +179,7 @@ export async function createTerminationAddendum(
   reason?: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
     const term = new Date(terminationDate)
     if (Number.isNaN(term.getTime())) return { ok: false, error: "Укажите корректную дату расторжения" }
@@ -257,7 +257,7 @@ export async function createRentalTermsAddendum(
   effectiveDateStr?: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
 
     // Должна быть указана хотя бы одна стоимость аренды (ставка ИЛИ фикс. сумма).
@@ -362,7 +362,7 @@ export async function createServicesAddendum(
   effectiveDateStr?: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
 
     const op = services.operatingCosts

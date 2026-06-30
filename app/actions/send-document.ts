@@ -6,6 +6,7 @@ import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 import { requireOrgAccess } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
 
@@ -53,6 +54,11 @@ const BODIES: Record<DocumentType, (companyName: string) => { intro: string; det
 }
 
 export async function sendDocumentToTenant(params: SendDocumentParams): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireCapabilityAndFeature("documents.create")
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+  }
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
     return { ok: false, error: "Не авторизован" }

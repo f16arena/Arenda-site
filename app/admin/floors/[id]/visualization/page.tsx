@@ -6,6 +6,7 @@ import { Sparkles } from "lucide-react"
 import Link from "next/link"
 import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { assertFloorInOrg } from "@/lib/scope-guards"
 import { hasFeature } from "@/lib/plan-features"
 import { getF16TemplateByFloorNumber } from "@/lib/f16-templates"
@@ -14,6 +15,12 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
 
   const { id } = await params
 
@@ -116,6 +123,9 @@ export default async function FloorVisualizationPage({ params }: { params: Promi
         initialLayout={initialLayout}
         initialTotalArea={floor.totalArea ?? null}
         spaces={floor.spaces}
+        canEditFloor={caps.has("floors.edit")}
+        canDeleteSpaces={caps.has("spaces.delete")}
+        canDeleteFloor={caps.has("floors.delete")}
       />
     </div>
   )

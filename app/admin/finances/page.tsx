@@ -580,6 +580,8 @@ async function renderFinancesPage({
             />
           ) : (
             <ChargesBulkActions
+              canMarkPaid={caps.has("finance.recordPayment")}
+              canDelete={caps.has("finance.deleteRecords")}
               charges={charges.map((c) => ({
                 id: c.id,
                 tenantName: c.tenant.companyName,
@@ -618,6 +620,7 @@ async function renderFinancesPage({
             />
           ) : (
             <PaymentsBulkActions
+              canDelete={caps.has("finance.deleteRecords")}
               payments={payments.slice(0, 10).map((p) => ({
                 id: p.id,
                 tenantName: p.tenant.companyName,

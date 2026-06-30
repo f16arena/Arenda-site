@@ -42,7 +42,7 @@ async function computeNextReconNumber(orgId: string): Promise<string> {
 
 export async function getNextReconNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await computeNextReconNumber(orgId) }
   } catch (e) {
@@ -56,7 +56,7 @@ export async function prefillReconFromTenant(
   to: string,
 ): Promise<{ ok: boolean; error?: string; state?: ReconState }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const range = resolveMonthRange({ from, to })
 
@@ -127,7 +127,7 @@ export async function prefillReconFromTenant(
 
 export async function generateReconDocx(state: ReconState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     const buf = await renderReconDocx(state)
     const num = (state.meta.number || "").trim() || "сверка"
@@ -140,7 +140,7 @@ export async function generateReconDocx(state: ReconState): Promise<{ ok: boolea
 /** Акт сверки строго в PDF (DOCX → конвертер на VPS). */
 export async function generateReconPdf(state: ReconState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
     const buf = await renderReconDocx(state)
@@ -158,7 +158,7 @@ export async function createReconFromBuilder(
   opts?: { autoNumber?: boolean; requestSignature?: boolean },
 ): Promise<{ ok: boolean; error?: string; documentId?: string; number?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const session = await auth()
     if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }

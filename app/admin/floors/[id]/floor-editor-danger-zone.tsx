@@ -16,6 +16,9 @@ export function DangerZone({
   onClearElements,
   onPlanCleared,
   onFloorDeleted,
+  canEditFloor = true,
+  canDeleteSpaces = true,
+  canDeleteFloor = true,
 }: {
   floorId: string
   floorName: string
@@ -24,6 +27,9 @@ export function DangerZone({
   onClearElements: () => void
   onPlanCleared: () => void
   onFloorDeleted: () => void
+  canEditFloor?: boolean
+  canDeleteSpaces?: boolean
+  canDeleteFloor?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -74,6 +80,9 @@ export function DangerZone({
     ? "\n\nНа этаже есть помещения. Они тоже будут удалены, если ни одно не занято арендатором."
     : ""
 
+  // Если ни одно действие недоступно — не показываем «Опасную зону» вовсе.
+  if (!canEditFloor && !canDeleteSpaces && !canDeleteFloor) return null
+
   return (
     <details
       className="overflow-hidden rounded-xl border border-red-200 bg-white dark:border-red-500/30 dark:bg-slate-900"
@@ -85,6 +94,8 @@ export function DangerZone({
         Опасная зона
       </summary>
       <div className="space-y-2 border-t border-red-100 px-4 py-3 dark:border-red-500/20">
+        {canEditFloor && (
+        <>
         <ConfirmDialog
           variant="danger"
           title="Удалить все элементы с плана?"
@@ -118,6 +129,9 @@ export function DangerZone({
             />
           }
         />
+        </>
+        )}
+        {canDeleteSpaces && (
         <ConfirmDialog
           variant="danger"
           title={`Удалить все помещения этажа «${floorName}»?`}
@@ -136,6 +150,8 @@ export function DangerZone({
             />
           }
         />
+        )}
+        {canDeleteFloor && (
         <ConfirmDialog
           variant="danger"
           title={`Удалить этаж «${floorName}» полностью?`}
@@ -154,6 +170,7 @@ export function DangerZone({
             />
           }
         />
+        )}
       </div>
     </details>
   )

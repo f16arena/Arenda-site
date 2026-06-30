@@ -24,7 +24,15 @@ export interface ChargeRow {
   isPaid: boolean
 }
 
-export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
+export function ChargesBulkActions({
+  charges,
+  canMarkPaid = false,
+  canDelete = false,
+}: {
+  charges: ChargeRow[]
+  canMarkPaid?: boolean
+  canDelete?: boolean
+}) {
   const router = useRouter()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
@@ -147,6 +155,7 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
             Выбрано: {selectedIds.size}
           </span>
           <div className="flex flex-wrap items-center gap-2">
+            {canMarkPaid && (
             <Button
               variant="primary"
               size="sm"
@@ -156,6 +165,8 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
             >
               Отметить оплаченными
             </Button>
+            )}
+            {canDelete && (
             <ConfirmDialog
               variant="danger"
               title={`Удалить ${selectedIds.size} ${pluralizeCharges(selectedIds.size)}?`}
@@ -173,6 +184,7 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
                 </Button>
               }
             />
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -232,7 +244,7 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
                     {c.isPaid ? "Оплачено" : "Не оплачено"}
                   </span>
                 </div>
-                {c.type === "PENALTY" ? (
+                {canDelete && (c.type === "PENALTY" ? (
                   <ConfirmDialog
                     variant="danger"
                     title="Отменить пеню?"
@@ -267,7 +279,7 @@ export function ChargesBulkActions({ charges }: { charges: ChargeRow[] }) {
                       </button>
                     }
                   />
-                )}
+                ))}
               </div>
             </div>
           )

@@ -15,6 +15,9 @@ type FloorEditorProps = {
   initialTotalArea?: number | null
   spaces: SpaceLite[]
   buildingFootprint?: { width: number; depth: number; name: string } | null
+  canEditFloor?: boolean
+  canDeleteSpaces?: boolean
+  canDeleteFloor?: boolean
 }
 
 const FloorEditor = dynamic(

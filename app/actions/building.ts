@@ -125,7 +125,7 @@ function readOptionalNumber(formData: FormData, name: string) {
 }
 
 export async function updateFloor(floorId: string, formData: FormData) {
-  await requireCapabilityAndFeature("floors.create")
+  await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 

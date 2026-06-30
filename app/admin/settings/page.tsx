@@ -209,15 +209,16 @@ export default async function SettingsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон здания</label>
             <KzPhoneInput
               name="phone"
               defaultValue={building.phone ?? ""}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
+            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Контакт этого здания (для арендаторов). Контакт арендодателя — в «Реквизитах».</p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email здания</label>
             <AsciiEmailInput
               name="email"
               defaultValue={building.email ?? ""}

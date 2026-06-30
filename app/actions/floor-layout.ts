@@ -3,7 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
-import { requireOrgFeature } from "@/lib/capabilities"
+import { requireOrgFeature, requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertFloorInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
@@ -74,6 +74,7 @@ export async function saveFloorLayout(
  * Используется как «начать рисовать с нуля».
  */
 export async function clearFloorPlan(floorId: string) {
+  await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
 

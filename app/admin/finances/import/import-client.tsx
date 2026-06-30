@@ -9,7 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Tenant = { id: string; companyName: string; bin: string | null; iin: string | null }
 
-export function ImportClient({ tenants }: { tenants: Tenant[] }) {
+export function ImportClient({ tenants, canApply = false }: { tenants: Tenant[]; canApply?: boolean }) {
   const router = useRouter()
   const [rows, setRows] = useState<ParsedRow[]>([])
   const [errors, setErrors] = useState<string[]>([])
@@ -112,6 +112,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
               >
                 Очистить
               </button>
+              {canApply && (
               <ConfirmDialog
                 title={`Импортировать ${matchedCount} платеж${matchedCount === 1 ? "" : matchedCount < 5 ? "а" : "ей"}?`}
                 description="Будут созданы платежи и автоматически закрыты совпадающие начисления."
@@ -127,6 +128,7 @@ export function ImportClient({ tenants }: { tenants: Tenant[] }) {
                   </button>
                 }
               />
+              )}
             </div>
           </div>
 

@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button"
 export function FloorSettingsForm({
   floorId,
   initial,
+  canEdit = true,
 }: {
   floorId: string
   initial: { name: string; ratePerSqm: number; totalArea: number | null }
+  canEdit?: boolean
 }) {
   const [name, setName] = useState(initial.name)
   const [ratePerSqm, setRatePerSqm] = useState(String(initial.ratePerSqm))
@@ -79,16 +81,18 @@ export function FloorSettingsForm({
         </p>
       </div>
 
-      <div className="flex justify-end pt-2">
-        <Button
-          type="submit"
-          size="lg"
-          loading={pending}
-          className="font-medium"
-        >
-          {pending ? "Сохранение..." : "Сохранить"}
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end pt-2">
+          <Button
+            type="submit"
+            size="lg"
+            loading={pending}
+            className="font-medium"
+          >
+            {pending ? "Сохранение..." : "Сохранить"}
+          </Button>
+        </div>
+      )}
     </form>
   )
 }

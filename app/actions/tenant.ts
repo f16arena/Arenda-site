@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingAccess, assertTenantBuildingAccess } from "@/lib/building-access"
-import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { requireCapabilityAndFeature, canPerformCapability } from "@/lib/capabilities"
+import { auth } from "@/auth"
 import {
   assertTenantInOrg,
   assertSpaceInOrg,
@@ -1130,7 +1131,14 @@ export async function deleteTenant(
 }
 
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {
-  await requireCapabilityAndFeature("tenants.assignSpaces")
+  // Назначение арендатора доступно как из карточки арендатора (tenants.assignSpaces),
+  // так и со страницы этажа (spaces.assignTenant) — достаточно одного из прав.
+  const session = await auth()
+  if (!session?.user) redirect("/login")
+  const allowedToAssign =
+    (await canPerformCapability(session.user.role, "spaces.assignTenant", session.user.isPlatformOwner, session.user.id)) ||
+    (await canPerformCapability(session.user.role, "tenants.assignSpaces", session.user.isPlatformOwner, session.user.id))
+  if (!allowedToAssign) throw new Error("Нет права: назначать арендатора в помещение")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   if (spaceId) await assertSpaceInOrg(spaceId, orgId)

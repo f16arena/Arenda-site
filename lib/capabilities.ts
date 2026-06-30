@@ -60,6 +60,7 @@ export const ACTION_CAPABILITY_GROUPS: readonly ActionCapabilityGroup[] = [
       cap("buildings.toggle", "Включать и отключать здания", "Деактивация здания без удаления данных.", "buildings", "sensitive", "objects", "multiBuilding", "business"),
       cap("buildings.delete", "Удалять здания", "Удаление пустого здания без этажей и помещений.", "buildings", "sensitive", "objects", "multiBuilding", "sensitive"),
       cap("floors.create", "Создавать этажи", "Добавление этажа и базовой ставки.", "buildings", "edit", "objects"),
+      cap("floors.edit", "Редактировать этажи", "Изменение названия, ставки, площади и плана этажа.", "buildings", "edit", "objects"),
       cap("floors.delete", "Удалять этажи", "Удаление этажа с защитой от занятых помещений.", "buildings", "sensitive", "objects", undefined, "sensitive"),
       cap("spaces.edit", "Редактировать помещения", "Номер, площадь, статус и описание помещения.", "spaces", "edit", "objects"),
       cap("spaces.assignTenant", "Назначать арендатора в помещение", "Связь помещения с арендатором и статусом занятости.", "spaces", "sensitive", "objects", undefined, "business"),

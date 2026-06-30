@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { contractScope } from "@/lib/tenant-scope"
 import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
@@ -155,6 +156,11 @@ export async function sendContractForSignature(
 ): Promise<{ ok: true; signUrl: string } | { ok: false; error: string }> {
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
+  try {
+    await requireCapabilityAndFeature("documents.sign")
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+  }
   const { orgId } = await requireOrgAccess()
 
   const contract = await db.contract.findFirst({
@@ -238,6 +244,11 @@ export async function getLandlordSignPayload(
 ): Promise<{ ok: true; payloadB64: string } | { ok: false; error: string }> {
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
+  try {
+    await requireCapabilityAndFeature("documents.sign")
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+  }
   const { orgId } = await requireOrgAccess()
   const c = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
@@ -525,6 +536,11 @@ export async function signContractByLandlordEcp(
   const session = await auth()
   if (!session?.user) return { ok: false, error: "Не авторизован" }
   if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
+  try {
+    await requireCapabilityAndFeature("documents.sign")
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+  }
   const { orgId, userId } = await requireOrgAccess()
 
   const contract = await db.contract.findFirst({

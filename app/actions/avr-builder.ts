@@ -18,7 +18,7 @@ const computeNextActNumber = (orgId: string) => nextDocumentNumber(orgId, "ACT")
 
 export async function getNextActNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await computeNextActNumber(orgId) }
   } catch (e) {
@@ -37,7 +37,7 @@ export async function prefillAvrFromTenant(
   period: string,
 ): Promise<{ ok: boolean; error?: string; state?: AvrState; source?: "charges" | "contract" }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     // Вся сборка (включая правило действующего договора и строки из договора) —
     // в lib/avr-engine/prefill, общая с автогенерацией при подписании.
@@ -50,7 +50,7 @@ export async function prefillAvrFromTenant(
 /** Генерирует DOCX акта (base64) для скачивания/предпросмотра без сохранения. */
 export async function generateAvrDocx(state: AvrState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     const buf = await renderAvrDocx(state)
     const num = (state.meta.number || "").trim() || "акт"
@@ -63,7 +63,7 @@ export async function generateAvrDocx(state: AvrState): Promise<{ ok: boolean; e
 /** АВР строго в PDF (DOCX → конвертер на VPS). Word наружу не отдаём. */
 export async function generateAvrPdf(state: AvrState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
     const buf = await renderAvrDocx(state)
@@ -85,7 +85,7 @@ export async function createAvrFromBuilder(
   opts?: { autoNumber?: boolean; requestSignature?: boolean },
 ): Promise<{ ok: boolean; error?: string; documentId?: string; number?: string }> {
   try {
-    await requireCapabilityAndFeature("documents.uploadTemplate")
+    await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const session = await auth()
     if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }

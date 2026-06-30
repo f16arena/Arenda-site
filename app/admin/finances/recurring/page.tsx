@@ -8,7 +8,9 @@ import { PageHeader, Card } from "@/components/ui/page"
 import { DataTable } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
 import { DeleteAction } from "@/components/ui/delete-action"
+import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { recurringExpenseScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -24,6 +26,16 @@ function scheduleLabel(months: string | null): string {
 
 export default async function RecurringExpensesPage() {
   const { orgId } = await requireOrgAccess()
+  const session = await auth()
+  const caps = session?.user
+    ? new Set(await getAllowedCapabilityKeysForUser({
+        userId: session.user.id,
+        role: session.user.role,
+        isPlatformOwner: !!session.user.isPlatformOwner,
+        orgId,
+      }))
+    : new Set<string>()
+  const canManage = caps.has("finance.manageExpenses")
   const currentPeriod = new Date().toISOString().slice(0, 7)
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
@@ -88,8 +100,8 @@ export default async function RecurringExpensesPage() {
               <ArrowLeft className="h-4 w-4" />
               К финансам
             </Link>
-            <GenerateRecurringButton period={currentPeriod} />
-            <RecurringExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
+            {canManage && <GenerateRecurringButton period={currentPeriod} />}
+            {canManage && <RecurringExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />}
           </>
         }
       />
@@ -125,13 +137,21 @@ export default async function RecurringExpensesPage() {
                 <td className="text-slate-500 dark:text-slate-400">{scheduleLabel(t.months)}</td>
                 <td className="text-center text-slate-500 dark:text-slate-400">{t.dayOfMonth}</td>
                 <td className="text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(t.amount)}</td>
-                <td className="text-center"><RecurringToggle id={t.id} isActive={t.isActive} /></td>
+                <td className="text-center">
+                  {canManage ? (
+                    <RecurringToggle id={t.id} isActive={t.isActive} />
+                  ) : (
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">{t.isActive ? "Активен" : "Пауза"}</span>
+                  )}
+                </td>
                 <td className="text-right">
-                  <DeleteAction
-                    action={deleteRecurringExpense.bind(null, t.id)}
-                    entity="постоянный расход"
-                    successMessage="Шаблон удалён"
-                  />
+                  {canManage && (
+                    <DeleteAction
+                      action={deleteRecurringExpense.bind(null, t.id)}
+                      entity="постоянный расход"
+                      successMessage="Шаблон удалён"
+                    />
+                  )}
                 </td>
               </tr>
             ))}

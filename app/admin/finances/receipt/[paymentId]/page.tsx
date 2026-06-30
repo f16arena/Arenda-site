@@ -6,6 +6,7 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, CheckCircle2, FileClock } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { paymentScope } from "@/lib/tenant-scope"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { moneyWithWords, dateLong } from "@/lib/contract-engine/numerals"
@@ -31,6 +32,13 @@ export default async function CashReceiptPrint({
     redirect("/admin")
   }
   const { orgId } = await requireOrgAccess()
+  const caps = new Set(await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  }))
+  const canConfirm = caps.has("finance.cashPayment")
 
   const payment = await db.payment.findFirst({
     where: { AND: [{ id: paymentId }, paymentScope(orgId)] },
@@ -89,7 +97,7 @@ export default async function CashReceiptPrint({
             </p>
           </div>
         </div>
-        {isCash && (isConfirmed ? <CabinetPrintButton /> : <ConfirmReceiptButton paymentId={payment.id} />)}
+        {isCash && (isConfirmed ? <CabinetPrintButton /> : canConfirm ? <ConfirmReceiptButton paymentId={payment.id} /> : null)}
       </div>
 
       {!isCash && (
