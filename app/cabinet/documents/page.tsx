@@ -122,7 +122,7 @@ export default async function CabinetDocuments() {
                     )
                   )}
                   <a
-                    href={`/api/documents/archive/${doc.id}`}
+                    href={`/api/documents/archive/${doc.id}?format=pdf`}
                     download
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                   >

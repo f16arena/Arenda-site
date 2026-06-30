@@ -244,7 +244,7 @@ export default async function CabinetDashboard() {
                 </Link>
                 {recentDocs.find((d) => d.documentType === "INVOICE") && (
                   <a
-                    href={`/api/documents/archive/${recentDocs.find((d) => d.documentType === "INVOICE")?.id}`}
+                    href={`/api/documents/archive/${recentDocs.find((d) => d.documentType === "INVOICE")?.id}?format=pdf`}
                     download
                     className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
                   >
@@ -455,8 +455,8 @@ export default async function CabinetDashboard() {
                     </p>
                   </div>
                   <a
-                    href={`/api/documents/archive/${d.id}`}
-                    download={d.fileName}
+                    href={`/api/documents/archive/${d.id}?format=pdf`}
+                    download
                     className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
                     title="Скачать"
                   >
