@@ -40,9 +40,9 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !pending && setOpen(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white dark:bg-slate-900 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white dark:bg-slate-900 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="shrink-0 border-b border-slate-100 dark:border-slate-800 px-6 py-4">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Внешний договор (PDF)</h3>
               <p className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
                 Договор контрагента, подписанный офлайн. Конструктор и ЭЦП не нужны — просто прикрепите PDF.
@@ -62,8 +62,9 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                   }
                 })
               }
-              className="p-6 space-y-4"
+              className="flex min-h-0 flex-1 flex-col"
             >
+              <div className="flex-1 space-y-4 overflow-y-auto p-6">
               <div>
                 <label className={labelCls}>Номер договора *</label>
                 <input name="number" required placeholder="например, BEE-2026/14" className={inputCls} />
@@ -219,7 +220,8 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                   </div>
                 </div>
               </div>
-              <div className="flex gap-3 pt-1">
+              </div>
+              <div className="flex shrink-0 gap-3 border-t border-slate-100 dark:border-slate-800 p-4">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
                 <Button type="submit" loading={pending} className="flex-1">
                   <Upload className="mr-1.5 h-3.5 w-3.5" /> {pending ? "Загрузка..." : "Добавить"}
