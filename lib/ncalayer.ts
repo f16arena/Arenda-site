@@ -261,6 +261,17 @@ export async function signWithNCALayer(
   })
 }
 
+/**
+ * Модуль basics возвращает CMS в base64URL (символы «-» и «_» вместо «+»/«/», без
+ * паддинга), а NCANode/сервер ждут ОБЫЧНЫЙ base64 (иначе «Illegal base64 character 2d»).
+ * Нормализуем: -→+, _→/, добавляем «=» до кратности 4. Обычный base64 не меняется.
+ */
+function toStdBase64(s: string): string {
+  let out = s.replace(/-/g, "+").replace(/_/g, "/").replace(/\s+/g, "")
+  while (out.length % 4 !== 0) out += "="
+  return out
+}
+
 /** Достаёт МАССИВ base64-CMS из ответа NCALayer (модуль basics, multisign). */
 function extractSignatureArray(msg: NcaWsMessage): string[] | null {
   for (const candidate of [msg.body?.result, msg.result, msg.responseObject]) {
@@ -322,7 +333,7 @@ export async function signManyWithNCALayer(
 
   const signatures = extractSignatureArray(r.msg)
   if (signatures && signatures.length === dataB64List.length) {
-    return { ok: true, signatures }
+    return { ok: true, signatures: signatures.map(toStdBase64) }
   }
   // Метод не поддержан / неожиданный формат → пусть вызывающий откатится на поштучно.
   const { error, code } = errorFromMsg(r.msg)
