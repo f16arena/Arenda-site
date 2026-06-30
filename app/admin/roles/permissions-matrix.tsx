@@ -1,9 +1,9 @@
 "use client"
 
 import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react"
-import { AlertTriangle, ClipboardCheck, Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Zap } from "lucide-react"
+import { AlertTriangle, ClipboardCheck, Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Users, Zap } from "lucide-react"
 import { toast } from "sonner"
-import { createRole, deleteRole, setCapability, setPermission } from "@/app/actions/permissions"
+import { createRole, deleteRole, setCapability, setPermission, setUserCapabilityOverride } from "@/app/actions/permissions"
 import { cn } from "@/lib/utils"
 import { capabilityPermissionKey } from "@/lib/capability-keys"
 import type { Section } from "@/lib/acl"
@@ -50,6 +50,17 @@ type CapabilityGroupInfo = {
   capabilities: string[]
 }
 
+type UserInfo = {
+  id: string
+  name: string
+  email: string | null
+  role: string
+  roleLabel: string
+  isActive: boolean
+}
+type OverrideMode = "ALLOW" | "DENY"
+type UserOverrideMap = Record<string, Record<string, OverrideMode>>
+
 type PermMap = Record<string, Record<string, { canView: boolean; canEdit: boolean }>>
 type CapabilityFilter = "all" | "enabled" | "highRisk" | "locked" | "explicit"
 type RoleReview = {
@@ -76,6 +87,8 @@ export function PermissionsMatrix({
   capabilities,
   capabilityGroups,
   permissions,
+  users,
+  userOverrides,
   editable,
 }: {
   roles: RoleInfo[]
@@ -84,9 +97,14 @@ export function PermissionsMatrix({
   capabilities: CapabilityInfo[]
   capabilityGroups: CapabilityGroupInfo[]
   permissions: PermMap
+  users: UserInfo[]
+  userOverrides: UserOverrideMap
   editable: boolean
 }) {
   const [perms, setPerms] = useState(permissions)
+  const [tab, setTab] = useState<"roles" | "users">("roles")
+  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "")
+  const [userOv, setUserOv] = useState(userOverrides)
   const [selectedRole, setSelectedRole] = useState(roles.find((role) => role.key !== "OWNER")?.key ?? roles[0]?.key ?? "")
   const [label, setLabel] = useState("")
   const [sourceRole, setSourceRole] = useState(selectedRole)
@@ -108,6 +126,46 @@ export function PermissionsMatrix({
     const enabled = capability.level === "view" ? sectionPerm.canView : sectionPerm.canEdit
     return { enabled, inherited: true }
   }, [perms])
+
+  const selectedUser = users.find((user) => user.id === selectedUserId) ?? users[0] ?? null
+
+  // Что даёт РОЛЬ пользователя по этому праву (база, поверх которой идёт override).
+  const roleCapabilityEnabled = useCallback((roleKey: string, capability: CapabilityInfo) => {
+    if (roleKey === "OWNER") return true
+    const permissionKey = capabilityPermissionKey(capability.key)
+    const explicit = perms[roleKey]?.[permissionKey]
+    if (explicit) return explicit.canView || explicit.canEdit
+    const sectionPerm = perms[roleKey]?.[capability.section] ?? { canView: false, canEdit: false }
+    return capability.level === "view" ? sectionPerm.canView : sectionPerm.canEdit
+  }, [perms])
+
+  const changeUserOverride = (user: UserInfo, capability: CapabilityInfo, mode: "INHERIT" | OverrideMode) => {
+    if (!editable) return
+    if (capability.locked) {
+      toast.info(`Действие закрыто тарифом: ${capability.requiredFeatureLabel ?? capability.requiredFeature}`)
+      return
+    }
+    const prev = userOv[user.id]?.[capability.key]
+    setUserOv((state) => {
+      const nextUser = { ...(state[user.id] ?? {}) }
+      if (mode === "INHERIT") delete nextUser[capability.key]
+      else nextUser[capability.key] = mode
+      return { ...state, [user.id]: nextUser }
+    })
+    startTransition(async () => {
+      try {
+        await setUserCapabilityOverride(user.id, capability.key, mode)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Не удалось сохранить право пользователя")
+        setUserOv((state) => {
+          const nextUser = { ...(state[user.id] ?? {}) }
+          if (prev) nextUser[capability.key] = prev
+          else delete nextUser[capability.key]
+          return { ...state, [user.id]: nextUser }
+        })
+      }
+    })
+  }
 
   const selectedStats = useMemo(() => {
     if (!selected) return { view: 0, edit: 0, enabled: 0, explicit: 0, highRiskEnabled: 0, locked: 0 }
@@ -316,7 +374,47 @@ export function PermissionsMatrix({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+    <div className="space-y-4">
+      <div className="inline-flex rounded-xl border border-slate-800 bg-slate-900 p-1">
+        <button
+          type="button"
+          onClick={() => setTab("roles")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
+            tab === "roles" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200",
+          )}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          По ролям
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("users")}
+          className={cn(
+            "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
+            tab === "users" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200",
+          )}
+        >
+          <Users className="h-4 w-4" />
+          По пользователю
+        </button>
+      </div>
+      {tab === "users" ? (
+        <UsersView
+          users={users}
+          selectedUserId={selectedUser?.id ?? ""}
+          onSelectUser={setSelectedUserId}
+          capabilityGroups={capabilityGroups}
+          capabilityMap={capabilityMap}
+          userOv={userOv}
+          roleCapabilityEnabled={roleCapabilityEnabled}
+          editable={editable}
+          onChange={changeUserOverride}
+          query={query}
+          setQuery={setQuery}
+        />
+      ) : (
+      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
       <aside className="space-y-4">
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
           <div className="flex items-center justify-between">
@@ -651,6 +749,214 @@ export function PermissionsMatrix({
           </div>
         </div>
       </section>
+    </div>
+      )}
+    </div>
+  )
+}
+
+function UsersView({
+  users,
+  selectedUserId,
+  onSelectUser,
+  capabilityGroups,
+  capabilityMap,
+  userOv,
+  roleCapabilityEnabled,
+  editable,
+  onChange,
+  query,
+  setQuery,
+}: {
+  users: UserInfo[]
+  selectedUserId: string
+  onSelectUser: (id: string) => void
+  capabilityGroups: CapabilityGroupInfo[]
+  capabilityMap: Map<string, CapabilityInfo>
+  userOv: UserOverrideMap
+  roleCapabilityEnabled: (roleKey: string, capability: CapabilityInfo) => boolean
+  editable: boolean
+  onChange: (user: UserInfo, capability: CapabilityInfo, mode: "INHERIT" | OverrideMode) => void
+  query: string
+  setQuery: (value: string) => void
+}) {
+  const user = users.find((item) => item.id === selectedUserId) ?? users[0] ?? null
+
+  if (!user) {
+    return (
+      <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center text-sm text-slate-400">
+        Нет сотрудников для индивидуальной настройки. Сначала пригласите сотрудников.
+      </div>
+    )
+  }
+
+  const needle = query.trim().toLowerCase()
+  const visibleGroups = capabilityGroups
+    .map((group) => ({
+      ...group,
+      capabilities: group.capabilities.filter((key) => {
+        const capability = capabilityMap.get(key)
+        if (!capability) return false
+        if (!needle) return true
+        return [capability.key, capability.label, capability.description].join(" ").toLowerCase().includes(needle)
+      }),
+    }))
+    .filter((group) => group.capabilities.length > 0)
+
+  const overrideCount = Object.keys(userOv[user.id] ?? {}).length
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
+      <aside className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-100">Сотрудники</p>
+            <p className="mt-1 text-xs text-slate-500">Точечно выдайте или отнимите право поверх роли.</p>
+          </div>
+          <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">{users.length}</span>
+        </div>
+        <div className="mt-4 space-y-2">
+          {users.map((item) => {
+            const count = Object.keys(userOv[item.id] ?? {}).length
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectUser(item.id)}
+                className={cn(
+                  "w-full rounded-lg border px-3 py-2 text-left transition",
+                  selectedUserId === item.id ? "border-blue-500 bg-blue-500/10" : "border-slate-800 bg-slate-950/40 hover:border-slate-700",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-medium text-slate-100">{item.name || item.email || "Без имени"}</span>
+                  {count > 0 && <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">{count}</span>}
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  {item.roleLabel}{!item.isActive ? " · отключён" : ""}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+      </aside>
+
+      <section className="rounded-xl border border-slate-800 bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-800 p-5 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-base font-semibold text-slate-100">{user.name || user.email}</p>
+            <p className="mt-1 text-sm text-slate-400">
+              Роль <span className="text-slate-200">{user.roleLabel}</span> даёт базовый набор. Здесь можно
+              отдельно <span className="text-emerald-300">выдать</span> или <span className="text-red-300">отнять</span> право этому человеку.
+              {overrideCount > 0 && <> Сейчас переопределено: <span className="text-amber-300">{overrideCount}</span>.</>}
+            </p>
+          </div>
+          <div className="relative w-full md:w-72">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Поиск действия..."
+              className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-5 p-5">
+          {visibleGroups.map((group) => (
+            <div key={group.key}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</p>
+              <div className="space-y-2">
+                {group.capabilities.map((key) => {
+                  const capability = capabilityMap.get(key)
+                  if (!capability) return null
+                  const inherited = roleCapabilityEnabled(user.role, capability)
+                  const override = userOv[user.id]?.[capability.key] ?? null
+                  return (
+                    <UserCapabilityRow
+                      key={capability.key}
+                      capability={capability}
+                      inherited={inherited}
+                      override={override}
+                      editable={editable}
+                      onChange={(mode) => onChange(user, capability, mode)}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          {visibleGroups.length === 0 && (
+            <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 text-center text-sm text-slate-500">
+              По такому запросу действий не найдено.
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function UserCapabilityRow({
+  capability,
+  inherited,
+  override,
+  editable,
+  onChange,
+}: {
+  capability: CapabilityInfo
+  inherited: boolean
+  override: OverrideMode | null
+  editable: boolean
+  onChange: (mode: "INHERIT" | OverrideMode) => void
+}) {
+  const effective = override === "ALLOW" ? true : override === "DENY" ? false : inherited
+  const sensitive = capability.risk === "sensitive" || capability.level === "sensitive"
+  const states: Array<{ mode: "INHERIT" | OverrideMode; label: string; active: string }> = [
+    { mode: "INHERIT", label: `Как у роли (${inherited ? "вкл" : "выкл"})`, active: "bg-slate-700 text-slate-100" },
+    { mode: "ALLOW", label: "Выдать", active: "bg-emerald-600 text-white" },
+    { mode: "DENY", label: "Отнять", active: "bg-red-600 text-white" },
+  ]
+  const current: "INHERIT" | OverrideMode = override ?? "INHERIT"
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:justify-between",
+        capability.locked ? "border-slate-800 bg-slate-900/80 opacity-60" : "border-slate-800 bg-slate-950/40",
+      )}
+    >
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
+          {capability.label}
+          {sensitive && (
+            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">важно</span>
+          )}
+          <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", effective ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700/50 text-slate-400")}>
+            {effective ? "доступно" : "скрыто"}
+          </span>
+        </p>
+        <p className="mt-0.5 text-xs text-slate-500">{capability.description}</p>
+        {capability.locked && (
+          <p className="mt-1 text-[11px] text-slate-600">Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}</p>
+        )}
+      </div>
+      <div className="inline-flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5">
+        {states.map((state) => (
+          <button
+            key={state.mode}
+            type="button"
+            disabled={!editable || capability.locked}
+            onClick={() => onChange(state.mode)}
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed",
+              current === state.mode ? state.active : "text-slate-400 hover:text-slate-200",
+            )}
+          >
+            {state.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

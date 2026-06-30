@@ -19,6 +19,7 @@ import {
   buildRoleOptions,
   displayRoleLabel,
 } from "@/lib/role-capabilities"
+import { capabilityKeyFromPermission, userIdFromCapabilityRole } from "@/lib/capability-keys"
 import { PermissionsMatrix } from "./permissions-matrix"
 import { PageHeader } from "@/components/ui/page"
 
@@ -57,8 +58,31 @@ export default async function RolesPage() {
 
   const users = await db.user.findMany({
     where: { organizationId: orgId },
-    select: { role: true, isActive: true },
+    select: { id: true, name: true, email: true, role: true, isActive: true },
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
   })
+
+  // Override'ы по пользователю: строки RolePermission с role="user:<id>", section="cap:<право>".
+  // canView||canEdit → выдано (ALLOW), оба false → отнято (DENY), нет строки → как у роли.
+  const userOverrides: Record<string, Record<string, "ALLOW" | "DENY">> = {}
+  for (const row of rows) {
+    const uid = userIdFromCapabilityRole(row.role)
+    if (!uid) continue
+    const capKey = capabilityKeyFromPermission(row.section)
+    if (!capKey) continue
+    ;(userOverrides[uid] ??= {})[capKey] = row.canView || row.canEdit ? "ALLOW" : "DENY"
+  }
+
+  const userList = users
+    .filter((user) => user.role !== "TENANT" && user.role !== "OWNER")
+    .map((user) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      roleLabel: displayRoleLabel(user.role),
+      isActive: user.isActive,
+    }))
 
   const roles = buildRoleOptions(
     [...rows.map((row) => row.role), ...users.map((user) => user.role)],
@@ -171,6 +195,8 @@ export default async function RolesPage() {
         capabilities={capabilities}
         capabilityGroups={capabilityGroups}
         permissions={map}
+        users={userList}
+        userOverrides={userOverrides}
         editable={editable}
       />
     </div>
