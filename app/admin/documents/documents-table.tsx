@@ -15,6 +15,7 @@ import { formatMoney } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LandlordSignButton } from "@/components/documents/landlord-sign-button"
 import { EsfControl } from "./esf-send-button"
+import { ContractCardButton } from "./contract-card-modal"
 import { useRouter } from "next/navigation"
 import { signWithNCALayer, signManyWithNCALayer, fetchAsBase64, type KeyStoragePref } from "@/lib/ncalayer"
 import { signIssuedDocumentByLandlordEcp } from "@/app/actions/landlord-signatures"
@@ -444,6 +445,9 @@ export function DocumentsTable({
           >
             <ShieldCheck className="h-3 w-3" /> Подписи
           </Link>
+        )}
+        {row.source === "contract" && row.deleteId && (
+          <ContractCardButton contractId={row.deleteId} />
         )}
         {row.downloadHref ? (
           <a
