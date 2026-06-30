@@ -117,13 +117,13 @@ function isHeartbeat(msg: NcaWsMessage): boolean {
  * т.к. формат поля code/status разнится между версиями NCALayer). ok:false — только
  * транспортные сбои (нет соединения / таймаут / не-JSON).
  */
-function rawRpc(request: unknown): Promise<{ ok: true; msg: NcaWsMessage } | { ok: false; error: string; code: string }> {
+function rawRpc(request: unknown, timeoutMs: number = TIMEOUT_MS): Promise<{ ok: true; msg: NcaWsMessage } | { ok: false; error: string; code: string }> {
   return new Promise((resolve) => {
     connect().then((ws) => {
       const timeout = setTimeout(() => {
         try { ws.close() } catch { /* noop */ }
         resolve({ ok: false, error: "Превышено время ожидания. Введите PIN в окне NCALayer и попробуйте снова.", code: "TIMEOUT" })
-      }, TIMEOUT_MS)
+      }, timeoutMs)
 
       ws.onmessage = (event) => {
         let msg: NcaWsMessage
@@ -259,6 +259,69 @@ export async function signWithNCALayer(
     method: "createCMSSignatureFromBase64",
     args: [storage, "SIGNATURE", dataB64, true],
   })
+}
+
+/** Достаёт МАССИВ base64-CMS из ответа NCALayer (модуль basics, multisign). */
+function extractSignatureArray(msg: NcaWsMessage): string[] | null {
+  for (const candidate of [msg.body?.result, msg.result, msg.responseObject]) {
+    if (Array.isArray(candidate)) {
+      const arr = candidate.filter((x): x is string => typeof x === "string" && x.length > 100)
+      if (arr.length > 0) return arr
+    }
+    if (typeof candidate === "string" && candidate.length > 100) return [candidate]
+  }
+  return null
+}
+
+/**
+ * Групповое подписание: модуль `kz.gov.pki.knca.basics`, метод `sign` принимает
+ * МАССИВ данных (data: string[]) и подписывает их за ОДИН выбор ключа / ввод пароля
+ * (в отличие от commonUtils.createCMSSignatureFromBase64, который спрашивает пароль
+ * на каждый документ). Возвращает массив CMS-подписей в том же порядке.
+ *
+ * Доступно не во всех версиях NCALayer — если метод не поддержан, возвращаем ok:false
+ * (вызывающий откатывается на поштучное подписание).
+ *
+ * @param dataB64List Документы для подписи (base64), по одному на элемент.
+ * @param opts.storage Предпочтение хранилища ключа (file → только PKCS12).
+ */
+export async function signManyWithNCALayer(
+  dataB64List: string[],
+  opts?: { storage?: KeyStoragePref },
+): Promise<{ ok: true; signatures: string[] } | NcaSignError> {
+  if (typeof window === "undefined") {
+    return { ok: false, error: "NCALayer работает только в браузере" }
+  }
+  if (dataB64List.length === 0) return { ok: true, signatures: [] }
+
+  // file → ограничиваем хранилище файлом .p12; token/auto → null (NCALayer даст выбрать).
+  const allowedStorages = opts?.storage === "file" ? ["PKCS12"] : null
+
+  // Тайм-аут больше обычного: один ввод пароля, но подписей много.
+  const timeoutMs = Math.min(10 * 60_000, 60_000 + dataB64List.length * 20_000)
+
+  const r = await rawRpc({
+    module: "kz.gov.pki.knca.basics",
+    method: "sign",
+    args: {
+      allowedStorages,
+      format: "cms",
+      data: dataB64List,
+      signingParams: { decode: false, encapsulate: true, digested: false, tsaProfile: null },
+      signerParams: { extKeyUsageOids: null },
+      locale: "ru",
+    },
+  }, timeoutMs)
+
+  if (!r.ok) return { ok: false, error: r.error, code: r.code }
+
+  const signatures = extractSignatureArray(r.msg)
+  if (signatures && signatures.length === dataB64List.length) {
+    return { ok: true, signatures }
+  }
+  // Метод не поддержан / неожиданный формат → пусть вызывающий откатится на поштучно.
+  const { error, code } = errorFromMsg(r.msg)
+  return { ok: false, error, code: code === "unknown" ? "MULTISIGN_UNSUPPORTED" : code }
 }
 
 /**

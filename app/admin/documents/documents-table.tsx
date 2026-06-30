@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LandlordSignButton } from "@/components/documents/landlord-sign-button"
 import { EsfControl } from "./esf-send-button"
 import { useRouter } from "next/navigation"
-import { signWithNCALayer, fetchAsBase64, type KeyStoragePref } from "@/lib/ncalayer"
+import { signWithNCALayer, signManyWithNCALayer, fetchAsBase64, type KeyStoragePref } from "@/lib/ncalayer"
 import { signIssuedDocumentByLandlordEcp } from "@/app/actions/landlord-signatures"
 import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 
@@ -228,10 +228,9 @@ export function DocumentsTable({
     })
   }
 
-  // Групповое подписание ЭЦП: подписываем выбранные документы по очереди.
-  // NCALayer не умеет batch — каждый документ = отдельный вызов (для .p12 НУЦ
-  // спросит пароль на каждый, для токена PIN обычно кэшируется). Прерываемся,
-  // если пользователь отменил или NCALayer недоступен.
+  // Групповое подписание ЭЦП. Сначала пробуем НАСТОЯЩИЙ multisign (модуль basics):
+  // один выбор ключа / ввод пароля — на все документы. Если версия NCALayer его не
+  // поддерживает — откатываемся на поштучное (старый способ, пароль на каждый).
   async function bulkSign() {
     if (signableSelected.length === 0 || bulkSigning) return
     setBulkSigning(true)
@@ -240,33 +239,57 @@ export function DocumentsTable({
     setSignProgress({ done: 0, total })
     let ok = 0
     const failed: string[] = []
-    for (let i = 0; i < queue.length; i++) {
-      const row = queue[i]
-      const id = row.generatedId!
-      const label = `${TYPE_LABELS[row.type] ?? row.type} ${row.number ?? ""}`.trim()
-      try {
-        const fileB64 = await fetchAsBase64(`/api/documents/archive/${id}`)
-        const res = await signWithNCALayer(fileB64, "cms", { tsp: true, storage: keyPref })
-        if (!res.ok) {
-          failed.push(`${label}: ${res.error}`)
-          setSignProgress({ done: i + 1, total })
-          // Отмена/нет NCALayer — дальше нет смысла, прерываем весь пакет.
-          if (res.code === "USER_CANCELLED" || res.code === "NO_CONNECT" || res.code === "WS_ERROR") break
-          continue
-        }
-        const saved = await signIssuedDocumentByLandlordEcp(id, res.signature)
-        if (!saved.ok) {
-          failed.push(`${label}: ${saved.error ?? "не удалось сохранить"}`)
-          setSignProgress({ done: i + 1, total })
-          continue
-        }
+    const labelOf = (row: DocRow) => `${TYPE_LABELS[row.type] ?? row.type} ${row.number ?? ""}`.trim()
+    const save = async (row: DocRow, signature: string) => {
+      const saved = await signIssuedDocumentByLandlordEcp(row.generatedId!, signature)
+      if (saved.ok) {
         ok++
-        setSelected((prev) => { const next = new Set(prev); next.delete(id); return next })
-      } catch (e) {
-        failed.push(`${label}: ${e instanceof Error ? e.message : "ошибка"}`)
+        setSelected((prev) => { const next = new Set(prev); next.delete(row.generatedId!); return next })
+      } else {
+        failed.push(`${labelOf(row)}: ${saved.error ?? "не удалось сохранить"}`)
       }
-      setSignProgress({ done: i + 1, total })
     }
+
+    try {
+      // 1) Скачиваем все выбранные документы (base64).
+      const files: string[] = []
+      for (const row of queue) files.push(await fetchAsBase64(`/api/documents/archive/${row.generatedId}`))
+
+      // 2) Настоящий групповой подпис — один ввод пароля на все.
+      const many = await signManyWithNCALayer(files, { storage: keyPref })
+      if (many.ok) {
+        for (let i = 0; i < queue.length; i++) {
+          try { await save(queue[i], many.signatures[i]) }
+          catch (e) { failed.push(`${labelOf(queue[i])}: ${e instanceof Error ? e.message : "ошибка"}`) }
+          setSignProgress({ done: i + 1, total })
+        }
+      } else if (many.code === "USER_CANCELLED" || many.code === "NO_CONNECT" || many.code === "WS_ERROR") {
+        // Пользователь отменил или NCALayer недоступен — не откатываемся.
+        failed.push(many.error)
+      } else {
+        // 3) Откат: поштучно (пароль на каждый документ).
+        toast.message("Групповая подпись не поддержана NCALayer — подписываю по очереди")
+        for (let i = 0; i < queue.length; i++) {
+          const row = queue[i]
+          try {
+            const res = await signWithNCALayer(files[i], "cms", { tsp: true, storage: keyPref })
+            if (!res.ok) {
+              failed.push(`${labelOf(row)}: ${res.error}`)
+              setSignProgress({ done: i + 1, total })
+              if (res.code === "USER_CANCELLED" || res.code === "NO_CONNECT" || res.code === "WS_ERROR") break
+              continue
+            }
+            await save(row, res.signature)
+          } catch (e) {
+            failed.push(`${labelOf(row)}: ${e instanceof Error ? e.message : "ошибка"}`)
+          }
+          setSignProgress({ done: i + 1, total })
+        }
+      }
+    } catch (e) {
+      failed.push(e instanceof Error ? e.message : "Ошибка подписания")
+    }
+
     setBulkSigning(false)
     setSignProgress(null)
     if (ok > 0) toast.success(`Подписано ЭЦП: ${ok} из ${total}`)
@@ -530,8 +553,10 @@ export function DocumentsTable({
                   className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
                 >
                   {bulkSigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                  {bulkSigning && signProgress
-                    ? `Подписываю ${signProgress.done}/${signProgress.total}`
+                  {bulkSigning
+                    ? (signProgress && signProgress.done > 0
+                        ? `Сохраняю ${signProgress.done}/${signProgress.total}`
+                        : "Подписываю…")
                     : `Подписать ЭЦП (${signableSelected.length})`}
                 </button>
               </span>
