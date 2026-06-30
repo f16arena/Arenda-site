@@ -118,6 +118,7 @@ export const ACTION_CAPABILITY_GROUPS: readonly ActionCapabilityGroup[] = [
       cap("documents.generateBulk", "Массово формировать документы", "Пакетное создание документов.", "documents", "edit", "documents", "bulkDocuments"),
       cap("documents.sign", "Подписывать документы", "Запуск и контроль подписей NCALayer.", "contracts", "sensitive", "documents", "ncalayerSigning", "business"),
       cap("documents.addendum", "Создавать доп. соглашения", "Изменение условий только через документ-основание.", "contracts", "sensitive", "documents", "addendums", "business"),
+      cap("documents.esf", "Отправлять в ЭСФ", "Выписка/отправка счёта-фактуры в ИС ЭСФ КГД.", "documents", "sensitive", "documents", undefined, "business"),
       cap("storage.upload", "Загружать файлы", "Файлы организации, арендаторов, чеки и вложения.", "documents", "edit", "documents", "storage"),
       cap("storage.delete", "Удалять файлы", "Удаление файла из DB-хранилища с проверкой связей.", "documents", "sensitive", "documents", "storage", "sensitive"),
     ],

@@ -113,6 +113,7 @@ export default async function AdminMessagesPage() {
         contacts={contacts}
         messagesByContact={messagesByContact}
         showBroadcast={canSend}
+        canSend={canSend}
       />
     </div>
   )

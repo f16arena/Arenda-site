@@ -101,11 +101,13 @@ export function DocumentsTable({
   emptyHint,
   canSign = false,
   canExportZip = false,
+  canEsf = false,
 }: {
   rows: DocRow[]
   emptyHint: string
   /** Право на подпись ЭЦП (NCALayer) — кнопка «Подписать». */
   canSign?: boolean
+  canEsf?: boolean
   /** Право скачивать ZIP-архив документов — кнопка «Скачать ZIP». */
   canExportZip?: boolean
 }) {
@@ -315,7 +317,7 @@ export function DocumentsTable({
             Электронный АВР не отправляем — по словам бухгалтера он блокирует
             выписку ЭСФ до подписания контрагентом (а его обычно не подписывают);
             АВР остаётся печатным документом. */}
-        {row.source === "generated" && row.generatedId && row.type === "INVOICE" && row.esfEnabled !== false && (
+        {canEsf && row.source === "generated" && row.generatedId && row.type === "INVOICE" && row.esfEnabled !== false && (
           <EsfControl
             documentId={row.generatedId}
             status={row.esfStatus ?? null}

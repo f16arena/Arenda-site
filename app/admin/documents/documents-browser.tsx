@@ -36,6 +36,7 @@ export function DocumentsBrowser({
   initialPeriod = "",
   canSign = false,
   canExportZip = false,
+  canEsf = false,
 }: {
   rows: DocRow[]
   initialType?: string
@@ -43,6 +44,7 @@ export function DocumentsBrowser({
   initialPeriod?: string
   /** Право на подпись ЭЦП (NCALayer). */
   canSign?: boolean
+  canEsf?: boolean
   /** Право скачивать ZIP-архив документов. */
   canExportZip?: boolean
 }) {
@@ -145,7 +147,7 @@ export function DocumentsBrowser({
         </div>
       </div>
 
-      <DocumentsTableLoader rows={pageRows} emptyHint={emptyHint} canSign={canSign} canExportZip={canExportZip} />
+      <DocumentsTableLoader rows={pageRows} emptyHint={emptyHint} canSign={canSign} canExportZip={canExportZip} canEsf={canEsf} />
 
       {pages > 1 && (
         <div className="flex flex-col gap-3 border-t border-slate-100 px-1 py-3 text-sm dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">

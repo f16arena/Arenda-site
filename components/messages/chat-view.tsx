@@ -32,6 +32,9 @@ interface ChatViewProps {
   contacts: ChatUser[]
   messagesByContact: Record<string, ChatMessage[]>
   showBroadcast?: boolean
+  /** Можно ли отправлять сообщения (право messages.send). По умолчанию true —
+   *  кабинет арендатора всегда может писать; админ-страница передаёт явно. */
+  canSend?: boolean
 }
 
 const BROADCAST_ID = "BROADCAST_ALL"
@@ -44,7 +47,7 @@ const ROLE_LABELS: Record<string, string> = {
   TENANT: "Арендатор",
 }
 
-export function ChatView({ currentUserId, contacts, messagesByContact, showBroadcast }: ChatViewProps) {
+export function ChatView({ currentUserId, contacts, messagesByContact, showBroadcast, canSend = true }: ChatViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(contacts[0]?.id ?? null)
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
@@ -253,7 +256,8 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Composer */}
+            {/* Composer — скрыт, если нет права messages.send */}
+            {canSend && (
             <form
               ref={formRef}
               action={handleSend}
@@ -292,6 +296,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               </div>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Enter — отправить, Shift+Enter — новая строка</p>
             </form>
+            )}
           </>
         )}
       </div>

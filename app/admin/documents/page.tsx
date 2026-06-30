@@ -50,6 +50,7 @@ export default async function DocumentsPage({
   // Подпись ЭЦП (NCALayer) и скачивание ZIP-архива документов.
   const canSignDocuments = allowedCapabilities.has("documents.sign")
   const canExportZip = allowedCapabilities.has("finance.exportZip")
+  const canEsf = allowedCapabilities.has("documents.esf")
 
   const { type, q, period, create, tenantId: createTenantId } = await searchParams
   const CREATE_TABS = ["contract", "addendum", "avr", "invoice", "reconciliation"] as const
@@ -320,6 +321,7 @@ export default async function DocumentsPage({
             initialPeriod={period ?? ""}
             canSign={canSignDocuments}
             canExportZip={canExportZip}
+            canEsf={canEsf}
           />
         }
         create={canCreateDocuments ? <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} /> : null}

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { canPerformCapability } from "@/lib/capabilities"
 import { buildAvrStateForTenant } from "@/lib/avr-engine/prefill"
 import { getActiveContractForTenant } from "@/lib/active-contract"
 import { buildAwpXml, type AwpXmlInput } from "@/lib/esf/awp-xml"
@@ -32,6 +33,9 @@ async function requireStaffAccess() {
   if (!session?.user || session.user.role === "TENANT") throw new Error("Не авторизован")
   if (session.user.role !== "OWNER" && session.user.role !== "ADMIN" && !session.user.isPlatformOwner) {
     throw new Error("Доступно владельцу и администратору")
+  }
+  if (!(await canPerformCapability(session.user.role, "documents.esf", !!session.user.isPlatformOwner, session.user.id))) {
+    throw new Error("Нет права на отправку в ЭСФ")
   }
   return requireOrgAccess()
 }
