@@ -7,10 +7,13 @@ import { db } from "@/lib/db"
  * и автоматической генерации — чтобы нумерация не расходилась.
  */
 export async function nextDocumentNumber(orgId: string, documentType: string): Promise<string> {
-  const rows = await db.generatedDocument.findMany({
-    where: { organizationId: orgId, documentType },
-    select: { number: true },
-  })
+  const [rows, org] = await Promise.all([
+    db.generatedDocument.findMany({
+      where: { organizationId: orgId, documentType },
+      select: { number: true },
+    }),
+    db.organization.findUnique({ where: { id: orgId }, select: { docNumberStart: true } }),
+  ])
   let max = 0
   for (const r of rows) {
     const t = (r.number ?? "").trim()
@@ -19,5 +22,12 @@ export async function nextDocumentNumber(orgId: string, documentType: string): P
       if (n > max) max = n
     }
   }
-  return String(max + 1).padStart(3, "0")
+  // Стартовый номер (продолжение нумерации из 1С): { "ACT": 58, "INVOICE": 28 }.
+  // Это НИЖНЯЯ граница «следующего» номера, если своих документов ещё нет/меньше.
+  const starts = (org?.docNumberStart ?? null) as Record<string, number> | null
+  const floor = starts && typeof starts[documentType] === "number" && starts[documentType] > 0
+    ? starts[documentType]
+    : 1
+  const next = Math.max(max + 1, floor)
+  return String(next).padStart(3, "0")
 }

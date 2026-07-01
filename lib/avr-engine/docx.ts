@@ -18,7 +18,7 @@ import {
 } from "docx"
 import QRCode from "qrcode"
 import { money, moneyWithWords, dateLong } from "@/lib/contract-engine"
-import { type AvrState, itemSum, avrSubtotal, avrVat, avrTotal, periodLabel } from "./schema"
+import { type AvrState, itemSum, avrSubtotal, avrVat, avrTotal } from "./schema"
 import type { SignStamp } from "@/lib/doc-sign-stamp"
 
 // ───────────────────────── helpers ─────────────────────────
@@ -209,8 +209,9 @@ export async function renderAvrDocx(s: AvrState, opts?: { verifyUrl?: string; ex
   )
 
   // Заголовок
-  children.push(pr([txt("АКТ ВЫПОЛНЕННЫХ РАБОТ (ОКАЗАННЫХ УСЛУГ)", { bold: true, size: 24 })], AlignmentType.CENTER, 60))
-  children.push(pr([txt(`за ${periodLabel(s.period)}`, { size: 20 })], AlignmentType.CENTER, 160))
+  // Подзаголовок «за {период}» убран по замечанию бухгалтера — дата уже указана
+  // в шапке (дата составления) и в колонке «Дата выполнения работ».
+  children.push(pr([txt("АКТ ВЫПОЛНЕННЫХ РАБОТ (ОКАЗАННЫХ УСЛУГ)", { bold: true, size: 24 })], AlignmentType.CENTER, 160))
 
   // Таблица позиций
   children.push(itemsTable(s))

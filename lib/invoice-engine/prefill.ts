@@ -58,8 +58,17 @@ export async function buildInvoiceStateForTenant(
   const req = organizationToRequisites(organization)
   const s = defaultInvoiceState()
   s.period = period
-  const now = new Date()
-  s.meta.date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+  // Дата счёта — ПОСЛЕДНЕЕ число расчётного месяца (замечание бухгалтера: не дата
+  // создания; иначе счёт от 29-го и т.п.). Для 2026-06 → 2026-06-30. Как в АВР.
+  const pm = /^(\d{4})-(\d{2})$/.exec(period)
+  if (pm) {
+    const py = Number(pm[1]); const mm = Number(pm[2])
+    const lastDay = new Date(py, mm, 0).getDate()
+    s.meta.date = `${py}-${String(mm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+  } else {
+    const now = new Date()
+    s.meta.date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
+  }
 
   s.seller = {
     type: invoicePartyType(req.legalType),
