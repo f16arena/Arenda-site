@@ -239,10 +239,27 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
 
     // num — только цифры (схема [0-9]{1,30}). Из номера счёта, иначе из периода.
     const num = (doc.number ?? "").replace(/\D/g, "") || doc.period.replace(/\D/g, "")
-    // Дата оборота не может быть в будущем (КГД ФЛК) — ставим дату выписки,
-    // как и в ручном ЭСФ.
+    // Дата оборота (A3): по правилам ЭСФ для услуг это дата, когда КЛИЕНТ (арендатор)
+    // подписал документ (принял услугу). Ищем подпись арендатора на счёте и АВР этого
+    // периода, берём последнюю. Если клиент ещё не подписал — дата выписки (не в будущем).
     const issueDate = new Date()
-    const turnoverDate = issueDate
+    const periodDocs = await db.generatedDocument.findMany({
+      where: { organizationId: orgId, tenantId: doc.tenantId, period: doc.period, documentType: { in: ["INVOICE", "ACT"] }, deletedAt: null },
+      select: { id: true, documentType: true },
+    })
+    const periodSigs = periodDocs.length
+      ? await db.documentSignature.findMany({
+          where: { OR: periodDocs.map((d) => ({ documentType: d.documentType, documentId: d.id })) },
+          select: { signerOrgBin: true, signerIin: true, signedAt: true, tspGenTime: true },
+        })
+      : []
+    const onlyDigits = (v: string | null) => String(v ?? "").replace(/\D/g, "")
+    const tenantSignDate = periodSigs
+      .filter((sg) => [onlyDigits(sg.signerOrgBin), onlyDigits(sg.signerIin)].includes(tenantTin))
+      .map((sg) => sg.tspGenTime ?? sg.signedAt)
+      .filter((d): d is Date => !!d)
+      .reduce<Date | null>((latest, d) => (latest && latest > d ? latest : d), null)
+    const turnoverDate = tenantSignDate && tenantSignDate <= issueDate ? tenantSignDate : issueDate
 
     const ndsEnabled = s.vat.enabled
     const ndsRate = ndsEnabled ? s.vat.rate : 0
