@@ -594,6 +594,12 @@ export async function deleteCharge(chargeId: string) {
   if (!charge) throw new Error("Начисление не найдено или нет доступа")
   // Soft delete (миграция 019). Восстановление возможно через recycle bin.
   await db.charge.update({ where: { id: chargeId }, data: { deletedAt: new Date() } })
+  // Пени по этому начислению тоже в корзину — иначе они «осиротеют» (пеня на
+  // удалённом долге остаётся, да ещё и как «оплаченная», искажая собираемость).
+  await db.charge.updateMany({
+    where: { type: "PENALTY", deletedAt: null, description: { contains: chargeId } },
+    data: { deletedAt: new Date() },
+  })
   revalidatePath("/admin/finances")
   if (charge.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
 }
@@ -809,6 +815,11 @@ export async function bulkDeleteCharges(
     if (eligibleIds.length === 0) return { ok: false, error: "Нет доступных для удаления начислений" }
     await db.charge.updateMany({
       where: { id: { in: eligibleIds } },
+      data: { deletedAt: new Date() },
+    })
+    // Пени по удаляемым начислениям — тоже в корзину (не оставляем сирот).
+    await db.charge.updateMany({
+      where: { type: "PENALTY", deletedAt: null, OR: eligibleIds.map((id) => ({ description: { contains: id } })) },
       data: { deletedAt: new Date() },
     })
     revalidatePath("/admin/finances")
