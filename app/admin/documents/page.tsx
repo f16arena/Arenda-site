@@ -267,7 +267,9 @@ export default async function DocumentsPage({
     const charges = await safe(
       "admin.documents.invoiceCharges",
       db.charge.findMany({
-        where: { tenantId: { in: tenantIds }, period: { in: periods } },
+        // Статус счёта — по начислениям АРЕНДЫ/УСЛУГ. Депозит (разовая гарантия) и
+        // пеня не входят в счёт, иначе неоплаченный депозит красит счёт в «долг».
+        where: { tenantId: { in: tenantIds }, period: { in: periods }, deletedAt: null, type: { notIn: ["DEPOSIT", "DEPOSIT_REFUND", "PENALTY"] } },
         select: { tenantId: true, period: true, isPaid: true },
       }),
       [] as Array<{ tenantId: string; period: string; isPaid: boolean }>,
