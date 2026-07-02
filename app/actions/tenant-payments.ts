@@ -93,6 +93,10 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
   const paymentPurpose = String(formData.get("paymentPurpose") ?? "").trim().slice(0, 300)
   const receipt = await parseReceipt(formData.get("receipt"))
   if (receipt && "error" in receipt) return { ok: false, error: receipt.error }
+  // Чек обязателен для безналичных способов (наличные подтверждает администратор).
+  if (method !== "CASH" && !receipt) {
+    return { ok: false, error: "Прикрепите чек об оплате — без чека подтверждение невозможно (кроме наличных)" }
+  }
   const organizationId = session.user.organizationId
   if (!organizationId) return { ok: false, error: "Организация не найдена" }
 

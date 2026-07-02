@@ -5,6 +5,7 @@ import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRe
 import { formatTenantPlacement, getTenantAreaTotal } from "@/lib/tenant-placement"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { PaymentPanel } from "./payment-panel"
+import { PaymentDocuments } from "./payment-documents"
 import { PageHeader } from "@/components/ui/page"
 import { Wallet } from "lucide-react"
 
@@ -85,6 +86,34 @@ export default async function CabinetFinances() {
     .then((mod) => mod.default.toDataURL(qrText, { margin: 1, width: 180 }))
     .catch(() => null)
 
+  // Документы к оплате (счёт/АВР) + отметка, подписал ли их сам арендатор.
+  const orgId = tenant.user.organizationId ?? session!.user.organizationId!
+  const paymentDocsRaw = await db.generatedDocument.findMany({
+    where: { organizationId: orgId, tenantId: tenant.id, documentType: { in: ["INVOICE", "ACT"] }, deletedAt: null },
+    orderBy: { generatedAt: "desc" },
+    take: 6,
+    select: { id: true, documentType: true, number: true, period: true },
+  }).catch(() => [])
+  const tenantTins = [tenant.bin, tenant.iin].map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
+  const docSigs = paymentDocsRaw.length
+    ? await db.documentSignature.findMany({
+        where: { documentId: { in: paymentDocsRaw.map((d) => d.id) } },
+        select: { documentId: true, signerOrgBin: true, signerIin: true },
+      }).catch(() => [])
+    : []
+  const signedByTenantIds = new Set(
+    docSigs
+      .filter((sg) => [String(sg.signerOrgBin ?? "").replace(/\D/g, ""), String(sg.signerIin ?? "").replace(/\D/g, "")].some((t) => t.length === 12 && tenantTins.includes(t)))
+      .map((sg) => sg.documentId),
+  )
+  const paymentDocs = paymentDocsRaw.map((d) => ({
+    id: d.id,
+    type: d.documentType,
+    number: d.number,
+    period: d.period,
+    signedByTenant: signedByTenantIds.has(d.id),
+  }))
+
   const byPeriod = tenant.charges.reduce<Record<string, typeof tenant.charges>>((acc, c) => {
     acc[c.period] = acc[c.period] ?? []
     acc[c.period].push(c)
@@ -117,6 +146,8 @@ export default async function CabinetFinances() {
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Аренда в месяц</p>
         </div>
       </div>
+
+      <PaymentDocuments docs={paymentDocs} />
 
       <PaymentPanel
         requisites={requisites}

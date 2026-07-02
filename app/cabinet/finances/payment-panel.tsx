@@ -133,13 +133,21 @@ export function PaymentPanel({
 
           <form
             id="report-payment"
-            action={(formData) =>
+            action={(formData) => {
+              // Чек обязателен для безналичных способов (наличные подтверждает админ).
+              const method = String(formData.get("method") ?? "")
+              const receipt = formData.get("receipt")
+              const hasReceipt = receipt instanceof File && receipt.size > 0
+              if (method !== "CASH" && !hasReceipt) {
+                toast.error("Прикрепите чек об оплате — без чека отправить нельзя")
+                return
+              }
               startTransition(async () => {
                 const result = await reportTenantPayment(formData)
                 if (result.ok) toast.success(result.message ?? "Отправлено")
                 else toast.error(result.error ?? "Не удалось отправить")
               })
-            }
+            }}
             encType="multipart/form-data"
             className="grid gap-3 rounded-lg border border-slate-200 p-4 dark:border-slate-800"
           >
@@ -193,7 +201,9 @@ export function PaymentPanel({
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Фото или PDF чека</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Фото или PDF чека <span className="text-red-500">* обязательно</span> (кроме наличных)
+              </span>
               <input
                 name="receipt"
                 type="file"
@@ -201,7 +211,7 @@ export function PaymentPanel({
                 className="mt-1 block w-full cursor-pointer rounded-lg border border-slate-200 bg-white text-sm text-slate-500 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400 dark:file:bg-slate-800 dark:file:text-slate-200"
               />
               <span className="mt-1 block text-[11px] text-slate-400 dark:text-slate-500">
-                PDF, JPG, PNG или WebP до 2 МБ. Чек сохранится в защищённом хранилище БД.
+                PDF, JPG, PNG или WebP до 2 МБ. Чек сохранится в защищённом хранилище БД. Без чека отправить нельзя (кроме наличных).
               </span>
             </label>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
