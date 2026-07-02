@@ -400,7 +400,6 @@ export async function GET(req: Request) {
     }
 
     // ── 3. Пени (только для орг с фичей automatedFees) ──────
-    const todayStr = now.toISOString().slice(0, 10)
     // Префетч орг с включённой автопеней — фильтруем начисления по их арендаторам.
     const orgsForFees = await db.organization.findMany({
       where: { isActive: true, isSuspended: false },
@@ -471,11 +470,15 @@ export async function GET(req: Request) {
       const penaltyAmount = Math.round((c.amount * penaltyPercent / 100) * daysOverdue)
       const cap = Math.round(c.amount * 0.1)
 
+      // Идемпотентность «раз в день» — по дате создания (не по period, т.к. период
+      // пени теперь = месяц исходного начисления, а не сегодняшняя дата).
+      const startOfToday = new Date(now)
+      startOfToday.setHours(0, 0, 0, 0)
       const existingPenaltyToday = await db.charge.findFirst({
         where: {
           tenantId: c.tenant.id,
           type: "PENALTY",
-          period: todayStr,
+          createdAt: { gte: startOfToday },
           description: { contains: c.id },
         },
       })
@@ -510,7 +513,9 @@ export async function GET(req: Request) {
       await db.charge.create({
         data: {
           tenantId: c.tenant.id,
-          period: todayStr,
+          // Период пени = месяц просроченного начисления (чтобы пеня была видна и
+          // отменяема в том же месяце, что и долг; раньше был today → пеня «терялась»).
+          period: c.period,
           type: "PENALTY",
           amount: actualPenalty,
           description: `Пеня по начислению ${c.id} (${daysOverdue} дн. × ${penaltyPercent}%, не более 10%${alreadyPaid > 0 ? `, оплачено ранее ${alreadyPaid}` : ""})`,
