@@ -10,6 +10,7 @@ import Link from "next/link"
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, GenerateInvoicesButton, VariableExpenseReminder } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { BatchBillingButton } from "./batch-billing-button"
+import { FinancesPeriodPicker } from "./period-picker"
 import { ChargesBulkActions } from "./charges-bulk-actions"
 import { PaymentsBulkActions } from "./payments-bulk-actions"
 import { DataTable } from "@/components/ui/data-table"
@@ -44,6 +45,7 @@ type FinancesPageProps = {
     tenantId?: string | string[]
     chargeType?: string | string[]
     chargeStatus?: string | string[]
+    period?: string | string[]
   }>
 }
 
@@ -94,7 +96,10 @@ async function renderFinancesPage({
   const selectedChargeType = validChargeTypes.has(rawChargeType) ? rawChargeType : ""
   const rawChargeStatus = readSearchParam(resolvedSearchParams?.chargeStatus).toLowerCase()
   const selectedChargeStatus = ["paid", "unpaid"].includes(rawChargeStatus) ? rawChargeStatus : ""
-  const currentPeriod = new Date().toISOString().slice(0, 7) // YYYY-MM
+  // Период можно выбрать через ?period=YYYY-MM (по умолчанию текущий месяц) —
+  // чтобы смотреть/отменять пени и начисления прошлых месяцев.
+  const rawPeriod = readSearchParam(resolvedSearchParams?.period)
+  const currentPeriod = /^\d{4}-\d{2}$/.test(rawPeriod) ? rawPeriod : new Date().toISOString().slice(0, 7) // YYYY-MM
   const currentBuildingId = await getCurrentBuildingId()
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -384,6 +389,7 @@ async function renderFinancesPage({
         subtitle={formatPeriod(currentPeriod)}
         actions={
           <>
+          <FinancesPeriodPicker period={currentPeriod} />
           {caps.has("finance.viewBalance") && (
           <Link
             href="/admin/finances/balance"
