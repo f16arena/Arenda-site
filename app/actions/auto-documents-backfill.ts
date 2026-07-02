@@ -15,8 +15,8 @@ import { createActForTenant, createInvoiceForTenant } from "@/lib/auto-documents
  * только в момент подписания) — месячный cron закроет следующий период сам.
  * Идемпотентно: документ (арендатор × период × тип) не дублируется.
  */
-export async function backfillMonthlyDocuments(): Promise<
-  { ok: true; created: number; tenants: number } | { ok: false; error: string }
+export async function backfillMonthlyDocuments(periodInput?: string): Promise<
+  { ok: true; created: number; tenants: number; period: string } | { ok: false; error: string }
 > {
   try {
     await requireCapabilityAndFeature("documents.generateBulk")
@@ -31,7 +31,9 @@ export async function backfillMonthlyDocuments(): Promise<
   const { orgId } = await requireOrgAccess()
   if (!orgId) return { ok: false, error: "Организация не определена" }
 
-  const period = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+  // Период можно выбрать (напр. закрыть и июнь, и июль). По умолчанию — текущий месяц.
+  const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+  const period = periodInput && /^\d{4}-\d{2}$/.test(periodInput) ? periodInput : currentPeriod
 
   // Последний подписанный договор каждого арендатора (не ДС)
   const contracts = await db.contract.findMany({
@@ -55,5 +57,5 @@ export async function backfillMonthlyDocuments(): Promise<
   }
 
   revalidatePath("/admin/documents")
-  return { ok: true, created, tenants: latestByTenant.size }
+  return { ok: true, created, tenants: latestByTenant.size, period }
 }
