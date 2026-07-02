@@ -433,7 +433,9 @@ export async function GET(req: Request) {
     const overdueCharges = await db.charge.findMany({
       where: {
         isPaid: false,
-        type: { not: "PENALTY" },
+        // Пеня начисляется только на АРЕНДУ/УСЛУГИ. Депозит (разовая гарантия) и сама
+        // пеня пеней не облагаются — иначе просроченный депозит «накручивал» пеню.
+        type: { notIn: ["PENALTY", "DEPOSIT", "DEPOSIT_REFUND"] },
         // Начисления в действующей рассрочке пеней не облагаются.
         installmentPlanId: null,
         // Пеня по начислению отменена админом вручную (waivePenalty) — пропускаем.
