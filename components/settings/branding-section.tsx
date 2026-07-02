@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { ImagePlus, Loader2, Palette, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updateOrgLogo } from "@/app/actions/branding"
 
 /**
@@ -69,12 +70,8 @@ export function BrandingSection({ currentLogoUrl }: { currentLogoUrl: string | n
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-3 flex items-center gap-2">
-        <Palette className="h-4 w-4 text-slate-400" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Брендирование</h2>
-      </div>
-      <div className="flex items-center gap-4">
+    <CollapsibleCard title="Брендирование" icon={Palette}>
+      <div className="flex items-center gap-4 p-5">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -119,6 +116,6 @@ export function BrandingSection({ currentLogoUrl }: { currentLogoUrl: string | n
           </div>
         </div>
       </div>
-    </div>
+    </CollapsibleCard>
   )
 }

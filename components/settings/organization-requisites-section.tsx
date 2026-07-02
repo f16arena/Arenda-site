@@ -3,6 +3,7 @@ import { Landmark } from "lucide-react"
 import { updateOrganizationRequisites } from "@/app/actions/organization-settings"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { OrganizationBankFields } from "@/components/settings/organization-bank-fields"
 import { OrganizationIdentityFields } from "@/components/settings/organization-identity-fields"
 import { ServerForm } from "@/components/ui/server-form"
@@ -40,17 +41,11 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
   const labelClass = "block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
-        <div className="flex items-center gap-2">
-          <Landmark className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Реквизиты арендодателя</h2>
-        </div>
-        <span className="text-xs text-slate-500 dark:text-slate-400">
-          Подставляются в договоры, счета и экран оплаты
-        </span>
-      </div>
-
+    <CollapsibleCard
+      title="Реквизиты арендодателя"
+      icon={Landmark}
+      headerRight="Подставляются в договоры, счета и экран оплаты"
+    >
       <ServerForm
         action={updateOrganizationRequisites.bind(null, organization.id)}
         successMessage="Реквизиты организации сохранены"
@@ -254,6 +249,6 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
           </Button>
         </div>
       </ServerForm>
-    </div>
+    </CollapsibleCard>
   )
 }

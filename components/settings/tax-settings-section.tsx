@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Receipt } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updateOrganizationTax } from "@/app/actions/organization-settings"
 import { getTaxRatePercent, getTaxRegime } from "@/lib/org-features"
 import { Button } from "@/components/ui/button"
@@ -24,11 +25,7 @@ export function TaxSettingsSection({ organization }: Props) {
   const [regime, setRegime] = useState(getTaxRegime(organization.features))
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Налог (для отчёта владельца)</h2>
-      </div>
+    <CollapsibleCard title="Налог (для отчёта владельца)" icon={Receipt}>
       <ServerForm
         action={updateOrganizationTax.bind(null, organization.id)}
         successMessage="Налоговая ставка сохранена"
@@ -89,6 +86,6 @@ export function TaxSettingsSection({ organization }: Props) {
           <Button type="submit" variant="primary" size="sm">Сохранить</Button>
         </div>
       </ServerForm>
-    </div>
+    </CollapsibleCard>
   )
 }

@@ -9,6 +9,7 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 import { VatSection } from "@/components/settings/vat-section"
 import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
@@ -147,11 +148,8 @@ export default async function SettingsPage() {
 
       {/* Building info */}
       {canEditOrg && (
-      <div id="building-settings" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Основные сведения</h2>
-        </div>
+      <div id="building-settings">
+      <CollapsibleCard title="Основные сведения" icon={Building2}>
         <ServerForm
           action={updateBuilding.bind(null, building.id)}
           successMessage="Данные здания сохранены"
@@ -312,6 +310,7 @@ export default async function SettingsPage() {
             </Button>
           </div>
         </ServerForm>
+      </CollapsibleCard>
       </div>
       )}
 
@@ -323,11 +322,7 @@ export default async function SettingsPage() {
 
       {/* Floors */}
       {canEditOrg && (
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Этажи и ставки</h2>
-        </div>
+      <CollapsibleCard title="Этажи и ставки" icon={Layers}>
         <div className="divide-y divide-slate-50">
           {building.floors.map((floor) => (
             <ServerForm
@@ -376,7 +371,7 @@ export default async function SettingsPage() {
             </ServerForm>
           ))}
         </div>
-      </div>
+      </CollapsibleCard>
 
       )}
 
@@ -420,11 +415,7 @@ export default async function SettingsPage() {
 
       {/* Tariffs */}
       {canEditOrg && (
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Тарифы коммунальных услуг</h2>
-        </div>
+      <CollapsibleCard title="Тарифы коммунальных услуг" icon={Zap}>
         <div className="divide-y divide-slate-50">
           {building.tariffs.length === 0 && (
             <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">Тарифы не настроены — добавьте ниже</p>
@@ -522,18 +513,12 @@ export default async function SettingsPage() {
             </button>
           </div>
         </ServerForm>
-      </div>
+      </CollapsibleCard>
       )}
 
       {/* Emergency contacts */}
       {canEditOrg && (
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <div className="flex items-center gap-2">
-            <Phone className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Экстренные контакты</h2>
-          </div>
-        </div>
+      <CollapsibleCard title="Экстренные контакты" icon={Phone}>
         <div className="divide-y divide-slate-50">
           {building.emergencyContacts.map((ec) => (
             <ServerForm
@@ -620,7 +605,7 @@ export default async function SettingsPage() {
             </button>
           </div>
         </ServerForm>
-      </div>
+      </CollapsibleCard>
       )}
     </div>
   )

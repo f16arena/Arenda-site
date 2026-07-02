@@ -1,5 +1,6 @@
 import { Hash } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { setDocumentPrefix } from "@/app/actions/contracts"
 import {
   DOC_KIND_LABEL,
@@ -41,11 +42,7 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
   const year = new Date().getFullYear()
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <Hash className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Нумерация документов</h2>
-      </div>
+    <CollapsibleCard title="Нумерация документов" icon={Hash}>
       <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-50">
         Префикс — это короткое обозначение здания (например, F16). Система добавляет к нему тип документа,
         год и порядковый номер. Если оставить поле пустым, префикс сгенерируется автоматически из названия здания.
@@ -97,6 +94,6 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
           )
         })}
       </div>
-    </div>
+    </CollapsibleCard>
   )
 }

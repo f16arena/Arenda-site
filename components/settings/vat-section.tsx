@@ -1,5 +1,6 @@
 import { Receipt } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updateOrganizationVat } from "@/app/actions/organization-settings"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE, KZ_VAT_RATE_OPTIONS } from "@/lib/kz-vat"
 import { Button } from "@/components/ui/button"
@@ -17,11 +18,7 @@ export function VatSection({ organization }: Props) {
   const selectedRate = coerceKzVatRate(organization.vatRate, DEFAULT_KZ_VAT_RATE)
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">НДС</h2>
-      </div>
+    <CollapsibleCard title="НДС" icon={Receipt}>
       <ServerForm
         action={updateOrganizationVat.bind(null, organization.id)}
         successMessage="Настройки НДС сохранены"
@@ -91,6 +88,6 @@ export function VatSection({ organization }: Props) {
           <i>счёт на оплату</i> и <i>акт оказанных услуг</i> — это самостоятельные документы, не заменяющие ЭСФ.
         </div>
       </ServerForm>
-    </div>
+    </CollapsibleCard>
   )
 }

@@ -1,5 +1,6 @@
 import { FileSignature } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { Button } from "@/components/ui/button"
 import { saveOrgEsfConfig } from "@/app/actions/esf-config"
 
@@ -20,11 +21,8 @@ const inputCls =
 export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
   const c = config
   return (
-    <div id="esf-settings" className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <FileSignature className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Электронные счета-фактуры (ИС ЭСФ)</h2>
-      </div>
+    <div id="esf-settings">
+      <CollapsibleCard title="Электронные счета-фактуры (ИС ЭСФ)" icon={FileSignature}>
       <ServerForm action={saveOrgEsfConfig} successMessage="Реквизиты ЭСФ сохранены" encType="multipart/form-data" className="p-5 grid grid-cols-2 gap-4">
         <p className="col-span-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
           Реквизиты для выписки электронных счетов-фактур (ЭСФ) в ИС ЭСФ (КГД) прямо из счёта. Учётка ЭСФ — это
@@ -89,6 +87,7 @@ export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
           <Button type="submit" size="lg" className="font-medium">Сохранить</Button>
         </div>
       </ServerForm>
+      </CollapsibleCard>
     </div>
   )
 }

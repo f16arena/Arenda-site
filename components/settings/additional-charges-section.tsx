@@ -1,5 +1,6 @@
 import { Zap } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updateOrganizationFeatures } from "@/app/actions/organization-settings"
 import { additionalChargesEnabled } from "@/lib/org-features"
 import { Button } from "@/components/ui/button"
@@ -12,11 +13,7 @@ interface Props {
 export function AdditionalChargesSection({ organization }: Props) {
   const enabled = additionalChargesEnabled(organization.features)
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <Zap className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные начисления</h2>
-      </div>
+    <CollapsibleCard title="Дополнительные начисления" icon={Zap}>
       <ServerForm
         action={updateOrganizationFeatures.bind(null, organization.id)}
         successMessage="Настройка сохранена"
@@ -43,6 +40,6 @@ export function AdditionalChargesSection({ organization }: Props) {
           <Button type="submit" variant="primary" size="sm">Сохранить</Button>
         </div>
       </ServerForm>
-    </div>
+    </CollapsibleCard>
   )
 }

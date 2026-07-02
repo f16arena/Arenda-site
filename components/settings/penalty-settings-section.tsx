@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
+import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updatePenaltySettings } from "@/app/actions/organization-settings"
 import { Button } from "@/components/ui/button"
 
@@ -18,11 +19,7 @@ export function PenaltySettingsSection({ organization }: Props) {
   const [grace, setGrace] = useState(organization.penaltyGraceDays)
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <AlertTriangle className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Пеня за просрочку</h2>
-      </div>
+    <CollapsibleCard title="Пеня за просрочку" icon={AlertTriangle}>
       <ServerForm
         action={updatePenaltySettings.bind(null, organization.id)}
         successMessage="Настройки пени сохранены"
@@ -49,6 +46,6 @@ export function PenaltySettingsSection({ organization }: Props) {
           <Button type="submit" variant="primary" size="sm">Сохранить</Button>
         </div>
       </ServerForm>
-    </div>
+    </CollapsibleCard>
   )
 }
