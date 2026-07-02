@@ -77,6 +77,37 @@ export async function updateOrganizationTax(orgId: string, formData: FormData) {
   }
 }
 
+export async function updatePenaltySettings(orgId: string, formData: FormData) {
+  try {
+    await requireCapabilityAndFeature("settings.updateOrganization")
+    const { orgId: scopeOrgId } = await requireOrgAccess()
+    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+
+    const rawPercent = String(formData.get("defaultPenaltyPercent") ?? "").trim().replace(",", ".")
+    const parsedPercent = parseFloat(rawPercent)
+    if (!Number.isFinite(parsedPercent) || parsedPercent < 0 || parsedPercent > 10) {
+      throw new Error("Пеня — число от 0 до 10 (%/день)")
+    }
+    const rawGrace = String(formData.get("penaltyGraceDays") ?? "").trim()
+    const parsedGrace = parseInt(rawGrace, 10)
+    if (!Number.isInteger(parsedGrace) || parsedGrace < 0 || parsedGrace > 60) {
+      throw new Error("Льготный период — целое число дней от 0 до 60")
+    }
+
+    await db.organization.update({
+      where: { id: orgId },
+      data: { defaultPenaltyPercent: Math.round(parsedPercent * 1000) / 1000, penaltyGraceDays: parsedGrace },
+    })
+
+    revalidatePath("/admin/settings")
+    revalidatePath("/admin/finances")
+    revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
+    return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")

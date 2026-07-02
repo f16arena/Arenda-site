@@ -403,10 +403,12 @@ export async function GET(req: Request) {
     // Префетч орг с включённой автопеней — фильтруем начисления по их арендаторам.
     const orgsForFees = await db.organization.findMany({
       where: { isActive: true, isSuspended: false },
-      select: { id: true, plan: { select: { features: true } } },
+      select: { id: true, penaltyGraceDays: true, plan: { select: { features: true } } },
     })
     const autoFeesOrgIds = new Set<string>()
+    const orgGraceMap = new Map<string, number>()
     for (const o of orgsForFees) {
+      orgGraceMap.set(o.id, typeof o.penaltyGraceDays === "number" ? o.penaltyGraceDays : PENALTY_GRACE_DAYS)
       try {
         const f = JSON.parse(o.plan?.features ?? "{}") as { automatedFees?: boolean }
         if (f?.automatedFees === true) autoFeesOrgIds.add(o.id)
@@ -440,7 +442,8 @@ export async function GET(req: Request) {
         installmentPlanId: null,
         // Пеня по начислению отменена админом вручную (waivePenalty) — пропускаем.
         penaltyWaived: false,
-        dueDate: { lt: graceDate },
+        // Все просроченные (льготный период применяется по организации в цикле ниже).
+        dueDate: { lt: now },
       },
       select: {
         id: true,
@@ -465,7 +468,9 @@ export async function GET(req: Request) {
       // Gate: автопеня только для орг с фичей automatedFees (Starter+).
       const orgId = c.tenant.user?.organizationId
       if (!orgId || !autoFeesOrgIds.has(orgId)) continue
-      const daysOverdue = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000) - PENALTY_GRACE_DAYS
+      // Льготный период — из настроек организации (fallback на дефолт).
+      const graceDays = orgGraceMap.get(orgId) ?? PENALTY_GRACE_DAYS
+      const daysOverdue = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000) - graceDays
       if (daysOverdue <= 0) continue
 
       const penaltyPercent = c.tenant.penaltyPercent ?? 1

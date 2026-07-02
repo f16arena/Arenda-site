@@ -13,6 +13,7 @@ import { DocumentNumberingSection } from "@/components/settings/document-numberi
 import { VatSection } from "@/components/settings/vat-section"
 import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
 import { TaxSettingsSection } from "@/components/settings/tax-settings-section"
+import { PenaltySettingsSection } from "@/components/settings/penalty-settings-section"
 import { OrganizationRequisitesSection } from "@/components/settings/organization-requisites-section"
 import { BrandingSection } from "@/components/settings/branding-section"
 import { EsfSection } from "@/components/settings/esf-section"
@@ -57,6 +58,7 @@ export default async function SettingsPage() {
           vatRate: true,
           vatNumber: true,
           defaultPenaltyPercent: true,
+          penaltyGraceDays: true,
           features: true,
           logoUrl: true,
         },
@@ -386,6 +388,9 @@ export default async function SettingsPage() {
 
       {/* Налоговая ставка для отчёта владельца */}
       {organization && canEditOrg && <TaxSettingsSection organization={organization} />}
+
+      {/* Пеня за просрочку: ставка %/день + льготный период */}
+      {organization && canEditOrg && <PenaltySettingsSection organization={organization} />}
 
       {/* Реквизиты ИС ЭСФ (только владелец) */}
       {session.user.role === "OWNER" && <EsfSection config={esfConfig} />}
