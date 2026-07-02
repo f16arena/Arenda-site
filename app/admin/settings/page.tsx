@@ -149,7 +149,7 @@ export default async function SettingsPage() {
       {/* Building info */}
       {canEditOrg && (
       <div id="building-settings">
-      <CollapsibleCard title="Основные сведения" icon={Building2}>
+      <CollapsibleCard title="Основные сведения" icon={<Building2 className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
         <ServerForm
           action={updateBuilding.bind(null, building.id)}
           successMessage="Данные здания сохранены"
@@ -322,7 +322,7 @@ export default async function SettingsPage() {
 
       {/* Floors */}
       {canEditOrg && (
-      <CollapsibleCard title="Этажи и ставки" icon={Layers}>
+      <CollapsibleCard title="Этажи и ставки" icon={<Layers className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
         <div className="divide-y divide-slate-50">
           {building.floors.map((floor) => (
             <ServerForm
@@ -415,7 +415,7 @@ export default async function SettingsPage() {
 
       {/* Tariffs */}
       {canEditOrg && (
-      <CollapsibleCard title="Тарифы коммунальных услуг" icon={Zap}>
+      <CollapsibleCard title="Тарифы коммунальных услуг" icon={<Zap className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
         <div className="divide-y divide-slate-50">
           {building.tariffs.length === 0 && (
             <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">Тарифы не настроены — добавьте ниже</p>
@@ -518,7 +518,7 @@ export default async function SettingsPage() {
 
       {/* Emergency contacts */}
       {canEditOrg && (
-      <CollapsibleCard title="Экстренные контакты" icon={Phone}>
+      <CollapsibleCard title="Экстренные контакты" icon={<Phone className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
         <div className="divide-y divide-slate-50">
           {building.emergencyContacts.map((ec) => (
             <ServerForm

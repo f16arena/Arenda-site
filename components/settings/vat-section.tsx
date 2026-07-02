@@ -18,7 +18,7 @@ export function VatSection({ organization }: Props) {
   const selectedRate = coerceKzVatRate(organization.vatRate, DEFAULT_KZ_VAT_RATE)
 
   return (
-    <CollapsibleCard title="НДС" icon={Receipt}>
+    <CollapsibleCard title="НДС" icon={<Receipt className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <ServerForm
         action={updateOrganizationVat.bind(null, organization.id)}
         successMessage="Настройки НДС сохранены"

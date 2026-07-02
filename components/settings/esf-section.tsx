@@ -22,7 +22,7 @@ export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
   const c = config
   return (
     <div id="esf-settings">
-      <CollapsibleCard title="Электронные счета-фактуры (ИС ЭСФ)" icon={FileSignature}>
+      <CollapsibleCard title="Электронные счета-фактуры (ИС ЭСФ)" icon={<FileSignature className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <ServerForm action={saveOrgEsfConfig} successMessage="Реквизиты ЭСФ сохранены" encType="multipart/form-data" className="p-5 grid grid-cols-2 gap-4">
         <p className="col-span-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
           Реквизиты для выписки электронных счетов-фактур (ЭСФ) в ИС ЭСФ (КГД) прямо из счёта. Учётка ЭСФ — это

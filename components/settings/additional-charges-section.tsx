@@ -13,7 +13,7 @@ interface Props {
 export function AdditionalChargesSection({ organization }: Props) {
   const enabled = additionalChargesEnabled(organization.features)
   return (
-    <CollapsibleCard title="Дополнительные начисления" icon={Zap}>
+    <CollapsibleCard title="Дополнительные начисления" icon={<Zap className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <ServerForm
         action={updateOrganizationFeatures.bind(null, organization.id)}
         successMessage="Настройка сохранена"

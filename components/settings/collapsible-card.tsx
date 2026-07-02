@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode, type ElementType } from "react"
+import { useState, type ReactNode } from "react"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -11,13 +11,15 @@ import { cn } from "@/lib/utils"
  */
 export function CollapsibleCard({
   title,
-  icon: Icon,
+  icon,
   defaultOpen = true,
   headerRight,
   children,
 }: {
   title: string
-  icon?: ElementType
+  /** Готовый элемент иконки (напр. <Receipt className="h-4 w-4 ..." />) — НЕ компонент,
+   *  чтобы страницу-серверный компонент можно было передавать через границу. */
+  icon?: ReactNode
   defaultOpen?: boolean
   /** Доп. содержимое справа в заголовке (напр. подпись «Подставляются в договоры…»). */
   headerRight?: ReactNode
@@ -35,7 +37,7 @@ export function CollapsibleCard({
           open && "border-b border-slate-100 dark:border-slate-800",
         )}
       >
-        {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}
+        {icon}
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
         {headerRight && <div className="ml-auto text-xs text-slate-400 dark:text-slate-500">{headerRight}</div>}
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", !headerRight && "ml-auto", open ? "" : "-rotate-90")} />

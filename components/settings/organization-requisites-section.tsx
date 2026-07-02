@@ -43,7 +43,7 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
   return (
     <CollapsibleCard
       title="Реквизиты арендодателя"
-      icon={Landmark}
+      icon={<Landmark className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}
       headerRight="Подставляются в договоры, счета и экран оплаты"
     >
       <ServerForm

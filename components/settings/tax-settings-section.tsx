@@ -25,7 +25,7 @@ export function TaxSettingsSection({ organization }: Props) {
   const [regime, setRegime] = useState(getTaxRegime(organization.features))
 
   return (
-    <CollapsibleCard title="Налог (для отчёта владельца)" icon={Receipt}>
+    <CollapsibleCard title="Налог (для отчёта владельца)" icon={<Receipt className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <ServerForm
         action={updateOrganizationTax.bind(null, organization.id)}
         successMessage="Налоговая ставка сохранена"

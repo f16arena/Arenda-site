@@ -19,7 +19,7 @@ export function PenaltySettingsSection({ organization }: Props) {
   const [grace, setGrace] = useState(organization.penaltyGraceDays)
 
   return (
-    <CollapsibleCard title="Пеня за просрочку" icon={AlertTriangle}>
+    <CollapsibleCard title="Пеня за просрочку" icon={<AlertTriangle className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <ServerForm
         action={updatePenaltySettings.bind(null, organization.id)}
         successMessage="Настройки пени сохранены"

@@ -42,7 +42,7 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
   const year = new Date().getFullYear()
 
   return (
-    <CollapsibleCard title="Нумерация документов" icon={Hash}>
+    <CollapsibleCard title="Нумерация документов" icon={<Hash className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <div className="px-5 py-4 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-50">
         Префикс — это короткое обозначение здания (например, F16). Система добавляет к нему тип документа,
         год и порядковый номер. Если оставить поле пустым, префикс сгенерируется автоматически из названия здания.
