@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { Plus, X, DollarSign, TrendingDown, FileText } from "lucide-react"
-import { recordPayment, addExpense, generateMonthlyCharges, generateMonthlyInvoicesNow } from "@/app/actions/finance"
+import { recordPayment, addExpense, generateMonthlyCharges, generateMonthlyInvoicesNow, listChargeableTenants } from "@/app/actions/finance"
 // calculatePenalties удалена — пени теперь только cron-ом.
 import { Button } from "@/components/ui/button"
 import { EXPENSE_CATEGORIES, formatMoney, formatPeriod } from "@/lib/utils"
@@ -346,27 +346,132 @@ export function GenerateInvoicesButton({ period: periodProp }: { period?: string
   )
 }
 
+type ChargeableRow = { id: string; name: string; placement: string; amount: number; shouldCreate: boolean; alreadyCharged: boolean }
+
+/** Выборочное начисление аренды: диалог со списком арендаторов (галочки). */
 export function GenerateChargesButton({ period: periodProp }: { period?: string } = {}) {
+  const period = periodProp && /^\d{4}-\d{2}$/.test(periodProp) ? periodProp : new Date().toISOString().slice(0, 7)
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [rows, setRows] = useState<ChargeableRow[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<string | null>(null)
-  const period = periodProp && /^\d{4}-\d{2}$/.test(periodProp) ? periodProp : new Date().toISOString().slice(0, 7)
+
+  const selectable = rows.filter((r) => r.shouldCreate && !r.alreadyCharged)
+
+  async function loadRows() {
+    setLoading(true)
+    try {
+      const list = await listChargeableTenants(period)
+      setRows(list)
+      setSelected(new Set(list.filter((r) => r.shouldCreate && !r.alreadyCharged).map((r) => r.id)))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openDialog() {
+    setOpen(true)
+    setResult(null)
+    void loadRows()
+  }
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function submit() {
+    startTransition(async () => {
+      const r = await generateMonthlyCharges(period, [...selected])
+      setResult(r.created > 0 ? `✓ Начислено: ${r.created}` : "Ничего не начислено (уже есть)")
+      await loadRows()
+      setTimeout(() => { setOpen(false); setResult(null) }, 1400)
+    })
+  }
 
   return (
-    <div className="flex items-center gap-3">
-      {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
+    <>
       <button
         type="button"
-        onClick={() => startTransition(async () => {
-          const r = await generateMonthlyCharges(period)
-          setResult(r.created > 0 ? `✓ Создано ${r.created} начислений за ${period}` : "Начисления за этот месяц уже существуют")
-          setTimeout(() => setResult(null), 4000)
-        })}
-        disabled={pending}
-        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-60"
+        onClick={openDialog}
+        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
       >
         <Plus className="h-4 w-4" />
-        {pending ? "Генерация..." : `Начислить за ${period}`}
+        Начислить за {formatPeriod(period)}
       </button>
-    </div>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
+          <div
+            className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начислить аренду за {formatPeriod(period)}</h3>
+              <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-[120px] flex-1 overflow-y-auto p-3">
+              {loading ? (
+                <div className="py-10 text-center text-sm text-slate-400">Загрузка…</div>
+              ) : rows.length === 0 ? (
+                <div className="py-10 text-center text-sm text-slate-400">Нет арендаторов для начисления за этот месяц</div>
+              ) : (
+                rows.map((r) => {
+                  const disabled = !r.shouldCreate || r.alreadyCharged
+                  return (
+                    <label
+                      key={r.id}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 ${disabled ? "opacity-60" : "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(r.id)}
+                        disabled={disabled}
+                        onChange={() => toggle(r.id)}
+                        className="h-4 w-4 accent-blue-600"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-slate-800 dark:text-slate-100">{r.name}</div>
+                        {r.placement && <div className="truncate text-[11px] text-slate-400 dark:text-slate-500">{r.placement}</div>}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{r.amount.toLocaleString()} ₸</div>
+                        {r.alreadyCharged && <div className="text-[11px] text-emerald-600 dark:text-emerald-400">уже начислено</div>}
+                      </div>
+                    </label>
+                  )
+                })
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+              {result ? (
+                <span className="text-sm text-emerald-600 dark:text-emerald-400">{result}</span>
+              ) : (
+                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                  <span>Выбрано: {selected.size}</span>
+                  <button type="button" onClick={() => setSelected(new Set(selectable.map((r) => r.id)))} className="text-blue-600 hover:underline dark:text-blue-400">
+                    Все ({selectable.length})
+                  </button>
+                  <button type="button" onClick={() => setSelected(new Set())} className="text-slate-400 hover:underline">Снять</button>
+                </div>
+              )}
+              <Button type="button" variant="primary" size="sm" onClick={submit} disabled={pending || selected.size === 0}>
+                {pending ? "Начисление…" : `Начислить (${selected.size})`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

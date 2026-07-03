@@ -255,18 +255,22 @@ export async function generateMonthlyInvoicesNow(period: string) {
   return r
 }
 
-export async function generateMonthlyCharges(period: string) {
+export async function generateMonthlyCharges(period: string, tenantIds?: string[]) {
   await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
   const buildingId = await getCurrentBuildingId()
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
+  // Выборочное начисление: если передан список арендаторов — начисляем только им.
+  const onlyTenants = Array.isArray(tenantIds) && tenantIds.length > 0 ? tenantIds : null
+
   // Только арендаторы текущей организации
   const tenants = await db.tenant.findMany({
     where: {
       AND: [
         tenantScope(orgId),
+        ...(onlyTenants ? [{ id: { in: onlyTenants } }] : []),
         {
           OR: [
             { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
@@ -340,6 +344,55 @@ export async function generateMonthlyCharges(period: string) {
 
   revalidatePath("/admin/finances")
   return { success: true, created }
+}
+
+/**
+ * Список арендаторов для ВЫБОРОЧНОГО начисления аренды за период: имя, помещение,
+ * рассчитанная сумма аренды и флаг «уже начислено». Показываем только тех, кому
+ * реально можно начислить (shouldCreate) или уже начислено (для наглядности).
+ */
+export async function listChargeableTenants(period: string) {
+  await requireCapabilityAndFeature("finance.createInvoice")
+  const { orgId } = await requireOrgAccess()
+  const buildingId = await getCurrentBuildingId()
+  const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
+  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+
+  const tenants = await db.tenant.findMany({
+    where: {
+      AND: [
+        tenantScope(orgId),
+        {
+          OR: [
+            { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+            { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
+            { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+          ],
+        },
+      ],
+    },
+    include: {
+      space: { include: { floor: true } },
+      tenantSpaces: { include: { space: { include: { floor: true } } } },
+      fullFloors: true,
+      charges: { where: { period, type: "RENT" } },
+    },
+  })
+
+  return tenants
+    .map((t) => {
+      const schedule = calculateTenantRentChargeForPeriod(t, period)
+      return {
+        id: t.id,
+        name: t.companyName ?? "—",
+        placement: formatTenantPlacement(t, { includeFloorName: false }),
+        amount: schedule.shouldCreate ? schedule.amount : 0,
+        shouldCreate: schedule.shouldCreate,
+        alreadyCharged: t.charges.length > 0,
+      }
+    })
+    .filter((t) => t.shouldCreate || t.alreadyCharged)
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"))
 }
 
 /**
