@@ -467,8 +467,8 @@ async function renderFinancesPage({
             Excel
           </a>
           )}
-          {caps.has("finance.createInvoice") && <GenerateChargesButton />}
-          {caps.has("finance.createInvoice") && <GenerateInvoicesButton />}
+          {caps.has("finance.createInvoice") && <GenerateChargesButton period={currentPeriod} />}
+          {caps.has("finance.createInvoice") && <GenerateInvoicesButton period={currentPeriod} />}
           {caps.has("documents.generateBulk") && <BatchBillingButton defaultPeriod={currentPeriod} />}
           {caps.has("finance.manageExpenses") && (
           <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />

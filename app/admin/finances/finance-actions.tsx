@@ -320,10 +320,10 @@ export function VariableExpenseReminder({
 
 // PenaltyButton удалён (см. app/actions/penalties.ts). Пени теперь автоматические.
 
-export function GenerateInvoicesButton() {
+export function GenerateInvoicesButton({ period: periodProp }: { period?: string } = {}) {
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<string | null>(null)
-  const period = new Date().toISOString().slice(0, 7)
+  const period = periodProp && /^\d{4}-\d{2}$/.test(periodProp) ? periodProp : new Date().toISOString().slice(0, 7)
 
   return (
     <div className="flex items-center gap-3">
@@ -346,10 +346,10 @@ export function GenerateInvoicesButton() {
   )
 }
 
-export function GenerateChargesButton() {
+export function GenerateChargesButton({ period: periodProp }: { period?: string } = {}) {
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<string | null>(null)
-  const period = new Date().toISOString().slice(0, 7)
+  const period = periodProp && /^\d{4}-\d{2}$/.test(periodProp) ? periodProp : new Date().toISOString().slice(0, 7)
 
   return (
     <div className="flex items-center gap-3">
