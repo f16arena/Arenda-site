@@ -39,6 +39,8 @@ export async function getActiveContractForTenant(tenantId: string): Promise<Acti
 export interface ContractPosition {
   name: string
   amount: number
+  /** Тип начисления для биллинга (RENT | SERVICE_FEE | CLEANING | OTHER). */
+  type: string
 }
 
 /**
@@ -76,7 +78,7 @@ export async function buildContractPositions(
 
   const rent = resolveMonthlyRentForPeriod(tenant, period)
   if (rent > 0) {
-    positions.push({ name: `Аренда нежилого помещения за ${period}`, amount: Math.round(rent) })
+    positions.push({ name: `Аренда нежилого помещения за ${period}`, amount: Math.round(rent), type: "RENT" })
   }
 
   // Эксплуатационные расходы — сезонная ставка здания. Пропускаем, если
@@ -96,7 +98,7 @@ export async function buildContractPositions(
     if (building) {
       const fee = calculateServiceFeeForPeriod({ ...tenant, id: tenantId }, building, period, tenant.paymentDueDay ?? 10)
       if (fee.shouldCreate && fee.amount > 0) {
-        positions.push({ name: `Эксплуатационные расходы за ${period}`, amount: fee.amount })
+        positions.push({ name: `Эксплуатационные расходы за ${period}`, amount: fee.amount, type: "SERVICE_FEE" })
       }
     }
   }
@@ -121,17 +123,17 @@ export async function buildContractPositions(
   const cleaningFromCard = tenant.needsCleaning && (tenant.cleaningFee ?? 0) > 0 ? Math.round(tenant.cleaningFee ?? 0) : 0
   const cleaning = cleaningFromCard || orderedAmount(add?.premisesCleaning)
   if (cleaning > 0) {
-    positions.push({ name: `Уборка помещения за ${period}`, amount: cleaning })
+    positions.push({ name: `Уборка помещения за ${period}`, amount: cleaning, type: "CLEANING" })
   }
 
   const security = orderedAmount(add?.premisesSecurity)
   if (security > 0) {
-    positions.push({ name: `Охрана помещения за ${period}`, amount: security })
+    positions.push({ name: `Охрана помещения за ${period}`, amount: security, type: "SECURITY" })
   }
 
   const internet = orderedAmount(add?.internet)
   if (internet > 0) {
-    positions.push({ name: `Услуги интернета за ${period}`, amount: internet })
+    positions.push({ name: `Услуги интернета за ${period}`, amount: internet, type: "INTERNET" })
   }
 
   return positions

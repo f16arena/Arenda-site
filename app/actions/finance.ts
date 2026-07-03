@@ -14,6 +14,7 @@ import { notifyUser } from "@/lib/notify"
 import { CHARGE_TYPES } from "@/lib/utils"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
+import { buildContractPositions, getActiveContractForTenant } from "@/lib/active-contract"
 import {
   getServiceChargeDescription,
   isServiceChargeType,
@@ -340,6 +341,33 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
         if (!isUniqueConstraintError(e)) throw e
       }
     }
+
+    // Эксплуатационные расходы + доп. услуги (охрана/интернет) — из позиций
+    // действующего договора, чтобы начисление совпадало со счётом
+    // (аренда + эксп.расходы + услуги), а не только аренда.
+    const contract = await getActiveContractForTenant(tenant.id)
+    if (contract) {
+      const positions = await buildContractPositions(tenant.id, period, contract)
+      for (const pos of positions) {
+        if (pos.type === "RENT" || pos.type === "CLEANING" || pos.amount <= 0) continue // уже созданы выше
+        try {
+          await db.charge.create({
+            data: {
+              tenantId: tenant.id,
+              contractId: activeContractId,
+              period,
+              type: pos.type,
+              amount: pos.amount,
+              description: pos.name,
+              dueDate: rentSchedule.dueDate,
+            },
+          })
+          created++
+        } catch (e) {
+          if (!isUniqueConstraintError(e)) throw e
+        }
+      }
+    }
   }
 
   revalidatePath("/admin/finances")
@@ -379,20 +407,28 @@ export async function listChargeableTenants(period: string) {
     },
   })
 
-  return tenants
-    .map((t) => {
+  const rows = await Promise.all(
+    tenants.map(async (t) => {
       const schedule = calculateTenantRentChargeForPeriod(t, period)
+      let amount = schedule.shouldCreate ? schedule.amount : 0
+      // Полная сумма = позиции договора (аренда + эксп.расходы + услуги), как в счёте.
+      const contract = await getActiveContractForTenant(t.id)
+      if (contract) {
+        const positions = await buildContractPositions(t.id, period, contract)
+        const total = positions.reduce((s, p) => s + p.amount, 0)
+        if (total > 0) amount = total
+      }
       return {
         id: t.id,
         name: t.companyName ?? "—",
         placement: formatTenantPlacement(t, { includeFloorName: false }),
-        amount: schedule.shouldCreate ? schedule.amount : 0,
-        shouldCreate: schedule.shouldCreate,
+        amount,
+        shouldCreate: amount > 0,
         alreadyCharged: t.charges.length > 0,
       }
-    })
-    .filter((t) => t.shouldCreate || t.alreadyCharged)
-    .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+    }),
+  )
+  return rows.filter((t) => t.shouldCreate || t.alreadyCharged).sort((a, b) => a.name.localeCompare(b.name, "ru"))
 }
 
 /**
