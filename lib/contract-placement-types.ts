@@ -34,7 +34,7 @@ export const CONTRACT_PLACEMENT_TYPES: ContractTypeDef[] = [
     description: "Складское помещение." },
   { key: "ADVERTISING", label: "Размещение рекламной конструкции", short: "Реклама/щит", core: false,
     description: "Рекламные конструкции, билборды, баннеры." },
-  { key: "EQUIPMENT", label: "Размещение оборудования", short: "Оборудование", core: false,
+  { key: "EQUIPMENT", label: "Размещение оборудования", short: "Оборудование", core: true,
     description: "Автоматы (хватайка, вендинг), банкоматы, кофемашины — размещение оборудования арендатора (фикс-сумма, без эксп.сбора)." },
   { key: "PARKING", label: "Аренда парковочного места", short: "Парковка", core: false,
     description: "Парковочное место." },
