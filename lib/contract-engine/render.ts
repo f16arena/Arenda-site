@@ -10,6 +10,7 @@ import { assemble, type AssemblyResult } from "./assemble"
 import { partyIntro, partyRequisites } from "./parties"
 import { dateLong, money } from "./numerals"
 import { deriveContext } from "./derive"
+import { contractDocSubtitle, contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
 
 function fillBlank(v: string | undefined | null, blank = "____________________________"): string {
   return v && v.trim() ? v.trim() : blank
@@ -33,10 +34,11 @@ function renderAnnexesText(s: ContractState): string[] {
   if (c.annexes.act) {
     const p = s.premises
     const h = s.handoverAct
-    head(c.annexNumbers.act, "АКТ", "приёма-передачи нежилого помещения")
+    head(c.annexNumbers.act, "АКТ", contractActSubtitle(s.meta.placementType))
     out.push(`${s.meta.city}    ${dateLong(s.meta.contractDate)}`, "")
     out.push(`${s.landlord.name || "Арендодатель"} (Арендодатель) и ${s.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:`)
-    out.push(`1. Арендодатель передал, а Арендатор принял нежилое помещение по адресу: ${p.buildingAddress || "________"}${p.placement ? ", " + p.placement : ""}, общей площадью ${p.spaceAreaSqm || "____"} кв. м.`)
+    const actObject = isPremisesLikeType(s.meta.placementType) ? "нежилое помещение" : "место (Помещение)"
+    out.push(`1. Арендодатель передал, а Арендатор принял ${actObject} по адресу: ${p.buildingAddress || "________"}${p.placement ? ", " + p.placement : ""}, общей площадью ${p.spaceAreaSqm || "____"} кв. м.`)
     out.push("2. Состояние Помещения на момент передачи:")
     const conditions: [string, string][] = [
       ["стены", h?.conditionWalls ?? ""], ["пол", h?.conditionFloor ?? ""], ["потолок", h?.conditionCeiling ?? ""],
@@ -97,7 +99,7 @@ export function renderContractText(s: ContractState): string {
   const lines: string[] = []
 
   lines.push(`ДОГОВОР № ${s.meta.contractNumber || "____"}`)
-  lines.push("аренды нежилого помещения")
+  lines.push(contractDocSubtitle(s.meta.placementType))
   lines.push("")
   lines.push(`${s.meta.city}    ${dateLong(s.meta.contractDate)}`)
   lines.push("")

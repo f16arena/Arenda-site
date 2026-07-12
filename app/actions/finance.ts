@@ -15,6 +15,7 @@ import { CHARGE_TYPES } from "@/lib/utils"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import { buildContractPositions, getActiveContractForTenant } from "@/lib/active-contract"
+import { isPremisesLikeType, rentItemName } from "@/lib/contract-placement-types"
 import {
   getServiceChargeDescription,
   isServiceChargeType,
@@ -305,6 +306,14 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
     const placement = formatTenantPlacement(tenant, { includeFloorName: false })
     const activeContractId = tenant.contracts[0]?.id ?? null
 
+    // Действующий договор — нужен и для типа предмета (название позиции аренды), и
+    // для эксп.расходов/услуг ниже. Грузим один раз.
+    const contract = await getActiveContractForTenant(tenant.id)
+    const placementType = (contract?.builderState as { meta?: { placementType?: string } } | null)?.meta?.placementType ?? null
+    const rentDescription = isPremisesLikeType(placementType)
+      ? getTenantRentChargeDescription(placement, period, rentSchedule)
+      : rentItemName(placementType, period)
+
     // try/catch P2002: миграция 020 — partial unique index на (tenant_id, period, type).
     // Если cron monthly-invoices опередил — просто пропускаем дубликат.
     try {
@@ -315,7 +324,7 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
           period,
           type: "RENT",
           amount: rentSchedule.amount,
-          description: getTenantRentChargeDescription(placement, period, rentSchedule),
+          description: rentDescription,
           dueDate: rentSchedule.dueDate,
         },
       })
@@ -345,7 +354,6 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
     // Эксплуатационные расходы + доп. услуги (охрана/интернет) — из позиций
     // действующего договора, чтобы начисление совпадало со счётом
     // (аренда + эксп.расходы + услуги), а не только аренда.
-    const contract = await getActiveContractForTenant(tenant.id)
     if (contract) {
       const positions = await buildContractPositions(tenant.id, period, contract)
       for (const pos of positions) {

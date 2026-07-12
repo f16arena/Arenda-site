@@ -2,6 +2,7 @@ import "server-only"
 import { db } from "@/lib/db"
 import { resolveMonthlyRentForPeriod } from "@/lib/rent"
 import { calculateServiceFeeForPeriod, getTenantBuildingId } from "@/lib/service-fee"
+import { rentItemName, isPremisesLikeType } from "@/lib/contract-placement-types"
 
 export interface ActiveContract {
   id: string
@@ -76,15 +77,21 @@ export async function buildContractPositions(
 
   const positions: ContractPosition[] = []
 
+  // Тип предмета (помещение/оборудование/…) — из конструктора договора: влияет на
+  // название позиции аренды в счёте/АВР («Размещение оборудования за …» и т.п.).
+  const placementType = (contract.builderState as { meta?: { placementType?: string } } | null)?.meta?.placementType ?? null
+
   const rent = resolveMonthlyRentForPeriod(tenant, period)
   if (rent > 0) {
-    positions.push({ name: `Аренда нежилого помещения за ${period}`, amount: Math.round(rent), type: "RENT" })
+    positions.push({ name: rentItemName(placementType, period), amount: Math.round(rent), type: "RENT" })
   }
 
-  // Эксплуатационные расходы — сезонная ставка здания. Пропускаем, если
-  // арендатор освобождён от сбора (per-tenant исключение).
+  // Эксплуатационные расходы — сезонная ставка здания. Пропускаем, если арендатор
+  // освобождён от сбора (per-tenant исключение) ИЛИ предмет — не помещение
+  // (оборудование/крыша/территория/реклама/парковка): у таких объектов нет
+  // площади-базы, аренда фиксированная, эксп.сбор не начисляется.
   const buildingId = getTenantBuildingId(tenant)
-  if (buildingId && !tenant.serviceFeeExempt) {
+  if (buildingId && !tenant.serviceFeeExempt && isPremisesLikeType(placementType)) {
     const building = await db.building.findUnique({
       where: { id: buildingId },
       select: {

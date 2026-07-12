@@ -6,6 +6,7 @@ import { type ContractState } from "./schema"
 import { UTILITY_GENITIVE } from "./schema"
 import { type DerivedContext } from "./derive"
 import { money, moneyWithWords, dateLong } from "./numerals"
+import { isPremisesLikeType } from "@/lib/contract-placement-types"
 
 export interface ClauseChild {
   id: string
@@ -53,7 +54,9 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
         {
           id: "cl_subject",
           html: () =>
-            `Арендодатель обязуется передать, а Арендатор принять во временное возмездное владение и пользование (аренду) нежилое помещение, расположенное по адресу: ${addr}, общей площадью ${area} кв. м (далее — «Помещение»), в здании, принадлежащем Арендодателю на праве собственности, для использования в целях ${p.purposeUse || "деятельности Арендатора"}.`,
+            isPremisesLikeType(s.meta.placementType)
+              ? `Арендодатель обязуется передать, а Арендатор принять во временное возмездное владение и пользование (аренду) нежилое помещение, расположенное по адресу: ${addr}, общей площадью ${area} кв. м (далее — «Помещение»), в здании, принадлежащем Арендодателю на праве собственности, для использования в целях ${p.purposeUse || "деятельности Арендатора"}.`
+              : `Арендодатель обязуется предоставить, а Арендатор принять во временное возмездное пользование место, расположенное по адресу: ${addr}, общей площадью ${area} кв. м (далее — «Помещение»), в здании, принадлежащем Арендодателю на праве собственности, для целей ${p.purposeUse || "размещения (эксплуатации) оборудования Арендатора"}.`,
         },
         {
           id: "cl_subject_act",

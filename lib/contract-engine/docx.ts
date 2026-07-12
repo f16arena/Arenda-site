@@ -26,6 +26,7 @@ import { assemble } from "./assemble"
 import { deriveContext } from "./derive"
 import { partyIntro } from "./parties"
 import { money, dateLong } from "./numerals"
+import { contractDocSubtitle, contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -165,7 +166,7 @@ function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string
   const a = assemble(s)
   const out: (Paragraph | Table)[] = []
   out.push(h1(`ДОГОВОР № ${s.meta.contractNumber || "____"}`))
-  out.push(new Paragraph({ text: "аренды нежилого помещения", alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
+  out.push(new Paragraph({ text: contractDocSubtitle(s.meta.placementType), alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
   out.push(metaTable(s.meta.city, s.meta.contractDate))
   out.push(para(`${partyIntro(s.landlord, "Арендодатель")}, с одной стороны, и ${partyIntro(s.tenant, "Арендатор")}, с другой стороны, совместно именуемые «Стороны», заключили настоящий Договор о нижеследующем:`))
 
@@ -188,10 +189,11 @@ function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null
   const out: (Paragraph | Table)[] = []
   out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № ${annexNo} к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
   out.push(h1("АКТ"))
-  out.push(new Paragraph({ text: "приёма-передачи нежилого помещения", alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
+  out.push(new Paragraph({ text: contractActSubtitle(s.meta.placementType), alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
   out.push(metaTable(s.meta.city, s.meta.contractDate))
   out.push(para(`${s.landlord.name || "Арендодатель"} (Арендодатель) и ${s.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:`))
-  out.push(para(`1. Арендодатель передал, а Арендатор принял нежилое помещение по адресу: ${p.buildingAddress || "________"}${p.placement ? ", " + p.placement : ""}, общей площадью ${p.spaceAreaSqm || "____"} кв. м.`))
+  const actObject = isPremisesLikeType(s.meta.placementType) ? "нежилое помещение" : "место (Помещение)"
+  out.push(para(`1. Арендодатель передал, а Арендатор принял ${actObject} по адресу: ${p.buildingAddress || "________"}${p.placement ? ", " + p.placement : ""}, общей площадью ${p.spaceAreaSqm || "____"} кв. м.`))
   const h = s.handoverAct ?? {
     conditionWalls: "", conditionFloor: "", conditionCeiling: "", conditionWindowsDoors: "",
     conditionElectrical: "", conditionPlumbing: "", conditionOther: "",

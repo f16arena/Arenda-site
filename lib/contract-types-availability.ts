@@ -39,7 +39,9 @@ export async function availableContractTypesForOrg(
     tpls.map((t) => t.placementType).filter((x): x is string => !!x),
   )
 
-  const available = new Set<ContractPlacementType>(["PREMISES"])
+  // Помещение — всегда. Размещение оборудования (автоматы/вендинг/банкоматы) —
+  // общий кейс без привязки к виду этажа, поэтому доступно всегда.
+  const available = new Set<ContractPlacementType>(["PREMISES", "EQUIPMENT"])
   if (floorKinds.has("ROOF")) available.add("ROOF")
   if (floorKinds.has("TERRITORY")) available.add("TERRITORY")
   // Любой тип (в т.ч. расширенный) — если под него загружен шаблон.
