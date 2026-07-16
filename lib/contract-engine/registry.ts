@@ -2,11 +2,19 @@
 // clauseId; отображаемый номер присваивается при сборке (§3.5, ренумерация).
 // Тексты — без жёстких номеров. Портировано из прототипа commrent-constructor.html.
 
-import { type ContractState } from "./schema"
+import { type ContractState, debtRemainder, validRentSteps } from "./schema"
 import { UTILITY_GENITIVE } from "./schema"
 import { type DerivedContext } from "./derive"
-import { money, moneyWithWords, dateLong } from "./numerals"
+import { money, moneyWithWords, moneyWithWordsTiyn, monthsGenitive, monthYearGenitive, monthYearNominative, dateLong } from "./numerals"
 import { isPremisesLikeType } from "@/lib/contract-placement-types"
+
+/** "YYYY-MM" → предыдущий месяц "YYYY-MM" (для «по … включительно»). */
+function prevMonth(ym: string): string {
+  const [y, m] = ym.split("-").map(Number)
+  const py = m === 1 ? y - 1 : y
+  const pm = m === 1 ? 12 : m - 1
+  return `${py}-${String(pm).padStart(2, "0")}`
+}
 
 export interface ClauseChild {
   id: string
@@ -79,6 +87,83 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
         { id: "cl_signage_clause", html: () => c.signageClause },
       ],
     },
+    // Статические n:13/14 — НЕ по порядку в документе: n — стабильный ключ для
+    // перекрёстных ссылок (sectionNumbers), новые разделы получили следующие
+    // свободные ключи. Отображаемый номер присваивает assemble() по позиции.
+    {
+      n: 13,
+      title: "Состояние Помещения и осведомлённость Арендатора",
+      when: () => s.modules.asIsAcceptanceEnabled === true,
+      blocks: [
+        {
+          id: "cl_asis_awareness",
+          html: () =>
+            "Арендатор ранее использовал данное Помещение и обладает опытом его фактической эксплуатации, в связи с чем полностью осведомлён о его действительном состоянии, технических и эксплуатационных характеристиках, включая техническое состояние, работу инженерных и отопительных систем, состояние отделки и иных элементов, а равно о любых его особенностях и недостатках — как явных, так и выявляемых в процессе эксплуатации.",
+        },
+        {
+          id: "cl_asis_accept",
+          html: () =>
+            "Арендатор принимает Помещение в его текущем фактическом состоянии («как есть»), подтверждает, что оно пригодно для целей его деятельности и полностью удовлетворяет её требованиям, и не имеет по состоянию Помещения каких-либо замечаний.",
+        },
+        {
+          id: "cl_asis_noclaims",
+          html: () =>
+            "Арендатор не имеет и не будет иметь к Арендодателю каких-либо претензий, требований о возмещении расходов, зачёте, снижении арендной платы или иных выплатах в связи с состоянием Помещения, в том числе по любым скрытым недостаткам, поскольку таковые известны Арендатору по результатам предшествующего пользования, и отказывается от таких претензий.",
+        },
+        {
+          id: "cl_asis_repairs",
+          html: () =>
+            "Все работы по ремонту и приведению Помещения в необходимое для деятельности Арендатора состояние Арендатор осуществляет самостоятельно и за свой счёт.",
+        },
+      ],
+    },
+    {
+      n: 14,
+      title: "Урегулирование ранее образовавшейся задолженности",
+      when: () => f.debtSettlement?.enabled === true && (f.debtSettlement?.totalAmount ?? 0) > 0,
+      blocks: [
+        {
+          id: "cl_debt_confirm",
+          html: () => {
+            const d = f.debtSettlement!
+            // Точку в конце документа-основания снимаем — иначе «…29.06.2026 г..»
+            const basis = d.basisDoc.trim().replace(/\.$/, "")
+            return `Стороны подтверждают, что на дату заключения настоящего Договора за Арендатором перед Арендодателем числится задолженность по ранее действовавшим отношениям аренды в размере ${moneyWithWords(d.totalAmount)}${basis ? `, что подтверждается ${basis}` : ""}.`
+          },
+        },
+        {
+          id: "cl_debt_discount",
+          when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
+          html: () => {
+            const d = f.debtSettlement!
+            return `Идя навстречу Арендатору, Арендодатель уменьшает указанную задолженность на ${d.discountPercent}%. Остаток к погашению составляет ${moneyWithWordsTiyn(debtRemainder(d))}.`
+          },
+        },
+        {
+          id: "cl_debt_discount_scope",
+          when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
+          html: () =>
+            "Указанное уменьшение предоставляется в счёт полного и окончательного урегулирования всех взаимных претензий Сторон, связанных с ранее действовавшими отношениями аренды и состоянием Помещения. Расходы Арендатора, превышающие сумму уменьшения, возмещению, зачёту либо снижению арендной платы не подлежат.",
+        },
+        {
+          id: "cl_debt_due",
+          html: () => {
+            const d = f.debtSettlement!
+            const rem = debtRemainder(d)
+            const label = d.discountPercent > 0 ? "Остаток задолженности" : "Задолженность"
+            return `${label} в размере ${moneyWithWordsTiyn(rem)} Арендатор погашает в течение ${monthsGenitive(d.payWithinMonths)} со дня подписания настоящего Договора.`
+          },
+        },
+        {
+          id: "cl_debt_forfeit",
+          when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
+          html: () => {
+            const d = f.debtSettlement!
+            return `В случае нарушения срока погашения остатка предусмотренное настоящим разделом уменьшение утрачивает силу, и Арендодатель вправе требовать задолженность в полном объёме (${money(d.totalAmount)}) с начислением пени, предусмотренной настоящим Договором.`
+          },
+        },
+      ],
+    },
     {
       n: 2,
       title: "Срок Аренды",
@@ -118,8 +203,20 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
       blocks: [
         {
           id: "cl_rent_amount",
-          html: () =>
-            `Арендная плата за Помещение составляет ${f.monthlyRent ? moneyWithWords(f.monthlyRent) : "________ (____) тенге"} в месяц.${f.vatIncluded ? " Арендная плата включает налог на добавленную стоимость (если применимо в соответствии с налоговым режимом Арендодателя)." : ""}`,
+          html: () => {
+            const vat = f.vatIncluded ? " Арендная плата включает налог на добавленную стоимость (если применимо в соответствии с налоговым режимом Арендодателя)." : ""
+            // Ступенчатая аренда: ≥2 ступеней заменяют текст о едином размере платы.
+            const steps = validRentSteps(f.rentSteps)
+            if (steps.length >= 2) {
+              const parts = steps.map((st, i) => {
+                const next = steps[i + 1]
+                const until = next ? ` (по ${monthYearNominative(prevMonth(next.from))} включительно)` : " и до окончания срока аренды"
+                return `с ${monthYearGenitive(st.from)}${until} — ${moneyWithWords(st.amount)} в месяц`
+              })
+              return `Размер арендной платы за Помещение устанавливается ступенчато: ${parts.join("; ")}. Указанные размеры согласованы Сторонами на весь срок аренды и дополнительного оформления при переходе между ступенями не требуют.${vat}`
+            }
+            return `Арендная плата за Помещение составляет ${f.monthlyRent ? moneyWithWords(f.monthlyRent) : "________ (____) тенге"} в месяц.${vat}`
+          },
         },
         {
           id: "cl_prepay",

@@ -95,6 +95,9 @@ export function applyAmendment(state: ContractState, a: Amendment): ContractStat
     case "rent_change": {
       const nr = num("newRent")
       if (nr != null) s.financials.monthlyRent = nr
+      // Явно согласованная новая плата отменяет ступенчатый график —
+      // иначе пункт о плате продолжил бы рендериться по старой лестнице.
+      if (nr != null) s.financials.rentSteps = []
       if (p.recalcDeposit === true && nr != null) s.financials.deposit.amount = nr
       break
     }
@@ -102,6 +105,7 @@ export function applyAmendment(state: ContractState, a: Amendment): ContractStat
       let pct = num("inflationPercent") ?? 0
       if (s.financials.indexation.enabled) pct = Math.min(pct, s.financials.indexation.capPercent)
       s.financials.monthlyRent = Math.round(s.financials.monthlyRent * (1 + pct / 100))
+      s.financials.rentSteps = []
       break
     }
     case "set_operating_costs":

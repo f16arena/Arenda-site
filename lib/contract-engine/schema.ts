@@ -125,8 +125,39 @@ export interface Deposit {
   installmentAllowed: boolean
 }
 
+/** Ступень графика арендной платы (ступенчатая аренда, п. «Арендная плата»). */
+export interface RentStep {
+  /** Начало действия ступени, "YYYY-MM" (включительно). Первая ступень обычно = месяц начала аренды. */
+  from: string
+  amount: Money
+}
+
+/**
+ * Урегулирование ранее образовавшейся задолженности (входящий долг легаси-арендатора,
+ * продолжающего отношения по новому договору). При enabled добавляется отдельный
+ * раздел договора, а при подписании — начисление-остаток (Charge type OTHER),
+ * см. lib/opening-debt.ts.
+ */
+export interface DebtSettlement {
+  enabled: boolean
+  /** Долг на дату заключения договора, тенге. */
+  totalAmount: Money
+  /** Документ-подтверждение («Акт сверки взаимных расчётов № 27 от 29.06.2026 г.»). Пусто — без ссылки. */
+  basisDoc: string
+  /** Прощаемая часть, % (0 — без уменьшения). Остаток = totalAmount × (1 − %/100). */
+  discountPercent: number
+  /** Срок погашения остатка, месяцев со дня подписания. */
+  payWithinMonths: number
+}
+
 export interface Financials {
   monthlyRent: Money
+  /** Ступенчатая аренда: ≥2 ступеней заменяют текст пункта о размере платы.
+   *  Опционально (старые договоры поля не имеют — рендер не меняется).
+   *  UI держит monthlyRent = сумме первой ступени (база для депозита/синка). */
+  rentSteps?: RentStep[]
+  /** Входящий долг. Опционально; отсутствие = выключено (обратная совместимость). */
+  debtSettlement?: DebtSettlement
   paymentDueDay: number // 1..28
   vatIncluded: boolean
   penalty: Penalty
@@ -135,6 +166,19 @@ export interface Financials {
   operatingCosts: OperatingCosts
   deposit: Deposit
   additionalServices: AdditionalServices
+}
+
+/** Остаток входящего долга к погашению (2 знака). */
+export function debtRemainder(d: DebtSettlement): number {
+  const pct = Math.min(Math.max(d.discountPercent || 0, 0), 100)
+  return Math.round(d.totalAmount * (100 - pct)) / 100
+}
+
+/** Корректные ступени графика аренды (валидный месяц + сумма), в порядке возрастания. */
+export function validRentSteps(steps: RentStep[] | null | undefined): RentStep[] {
+  return (steps ?? [])
+    .filter((st) => /^\d{4}-\d{2}$/.test(st.from || "") && st.amount > 0)
+    .sort((a, b) => a.from.localeCompare(b.from))
 }
 
 export interface Term {
@@ -147,6 +191,11 @@ export interface Modules {
   insuranceEnabled: boolean // раздел 7
   signageEnabled: boolean // п.1.6, 6.2.3
   actEnabled: boolean // Прил.№1 (default true)
+  // Раздел «Состояние Помещения и осведомлённость Арендатора» («как есть»,
+  // отказ от претензий) — для арендаторов, уже занимающих помещение по ранее
+  // действовавшему договору. Опционально, по умолчанию ВЫКЛ; у старых договоров
+  // поля нет → раздел не подмешивается (обратная совместимость).
+  asIsAcceptanceEnabled?: boolean
   // Право арендатора на односторонний отказ при непригодности Помещения + возврат
   // депозита (п. «Изменение и расторжение» и п. «Депозит»). Опционально и по
   // умолчанию ВЫКЛ для обратной совместимости: у ранее подписанных договоров этого
@@ -228,6 +277,8 @@ export function defaultState(): ContractState {
     },
     financials: {
       monthlyRent: 0,
+      rentSteps: [],
+      debtSettlement: { enabled: false, totalAmount: 0, basisDoc: "", discountPercent: 0, payWithinMonths: 2 },
       paymentDueDay: 5,
       vatIncluded: true,
       penalty: { tenantPerDay: 0.5, tenantCapPercent: 10, landlordPerDay: 0.5, landlordCapPercent: 10 },
@@ -261,7 +312,7 @@ export function defaultState(): ContractState {
       },
     },
     term: { startDate: "", endDate: "" },
-    modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true, tenantExitOnUnusableEnabled: true, confidentialityEnabled: true },
+    modules: { insuranceEnabled: true, signageEnabled: true, actEnabled: true, tenantExitOnUnusableEnabled: true, confidentialityEnabled: true, asIsAcceptanceEnabled: false },
     handoverAct: {
       conditionWalls: "", conditionFloor: "", conditionCeiling: "", conditionWindowsDoors: "",
       conditionElectrical: "", conditionPlumbing: "", conditionOther: "",

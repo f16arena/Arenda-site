@@ -10,6 +10,7 @@ import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 import { applySignedContractChanges } from "@/lib/contract-addendum"
 import { ensureDepositCharge } from "@/lib/deposit"
+import { ensureOpeningDebtCharge } from "@/lib/opening-debt"
 import { sendSignedContractEmails } from "@/lib/contract-signed-email"
 import { autoCreateDocumentsForSignedContract } from "@/lib/auto-documents"
 import { headers } from "next/headers"
@@ -298,6 +299,7 @@ export async function markContractSignedByLandlord(
   if (newStatus === "SIGNED") {
     await applySignedContractChanges(contract.id)
     await ensureDepositCharge(contract.id)
+    await ensureOpeningDebtCharge(contract.id)
     // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
     after(() => sendSignedContractEmails(contract.id))
     // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.
@@ -511,6 +513,7 @@ export async function signContractByTenantEcp(
     if (newStatus === "SIGNED") {
       await applySignedContractChanges(contract.id)
       await ensureDepositCharge(contract.id)
+      await ensureOpeningDebtCharge(contract.id)
       // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
       after(() => sendSignedContractEmails(contract.id))
       // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.
@@ -596,6 +599,7 @@ export async function signContractByLandlordEcp(
     if (newStatus === "SIGNED") {
       await applySignedContractChanges(contract.id)
       await ensureDepositCharge(contract.id)
+      await ensureOpeningDebtCharge(contract.id)
       // Подписанный договор уходит на email обеим сторонам после ответа (не блокируем UI).
       after(() => sendSignedContractEmails(contract.id))
       // Конвейер: счёт + АВР за текущий месяц создаются автоматически, владельцу — на подпись.

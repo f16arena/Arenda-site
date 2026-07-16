@@ -64,6 +64,20 @@ export async function applySignedContractChanges(contractId: string) {
         // договорной цене счета расходятся с подписанным договором.
         const financials = asRecord(asRecord(contract.builderState)?.financials)
         const contractRent = numberOrNull(financials?.monthlyRent)
+        // Ступенчатая аренда из конструктора → tenant.rentSchedule (его читает
+        // биллинг: resolveMonthlyRentForPeriod). Договор — источник правды:
+        // при ≥2 валидных ступенях пишем график, иначе очищаем (иначе старый
+        // график на карточке перебил бы единую ставку нового договора).
+        const rawSteps = Array.isArray(financials?.rentSteps) ? (financials!.rentSteps as unknown[]) : []
+        const rentSteps = rawSteps
+          .map((st) => {
+            const rec = asRecord(st)
+            const from = typeof rec?.from === "string" && /^\d{4}-\d{2}$/.test(rec.from) ? rec.from : null
+            const amount = numberOrNull(rec?.amount)
+            return from && amount ? { from, amount } : null
+          })
+          .filter((st): st is { from: string; amount: number } => st !== null)
+          .sort((a, b) => a.from.localeCompare(b.from))
         const deposit = asRecord(financials?.deposit)
         const depositEnabled = boolOrNull(deposit?.enabled)
         const depositAmount = numberOrNull(deposit?.amount)
@@ -79,6 +93,9 @@ export async function applySignedContractChanges(contractId: string) {
           // Фиксированная договорная аренда; customRate обнуляем, чтобы не было
           // «двойной аренды» (она же — проверка качества данных на дашборде).
           ...(contractRent ? { fixedMonthlyRent: contractRent, customRate: null } : {}),
+          // График ступеней (или его очистка) — только когда конструктор задал
+          // аренду; договоры без builderState-финансов карточку не трогают.
+          ...(contractRent ? { rentSchedule: rentSteps.length >= 2 ? JSON.stringify(rentSteps) : null } : {}),
           // Депозит: явно отключён в конструкторе → 0 (не требуется); задана
           // сумма → она; иначе поле не трогаем.
           ...(depositEnabled === false
@@ -217,6 +234,7 @@ export async function applySignedContractChanges(contractId: string) {
     const data: {
       customRate: number | null
       fixedMonthlyRent: number | null
+      rentSchedule: string | null
       cleaningFee?: number
       needsCleaning?: boolean
       paymentDueDay?: number
@@ -227,6 +245,9 @@ export async function applySignedContractChanges(contractId: string) {
     } = {
       customRate: rentChoice.customRate,
       fixedMonthlyRent: rentChoice.fixedMonthlyRent,
+      // ДС заново фиксирует основание аренды — старый ступенчатый график
+      // не должен перебивать новую ставку в биллинге (schedule приоритетнее).
+      rentSchedule: null,
     }
 
     const cleaningFee = numberInRange(newTerms.cleaningFee, 0, 1_000_000_000)

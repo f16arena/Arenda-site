@@ -9,7 +9,7 @@ import { Prisma } from "@/app/generated/prisma/client"
 import { tenantScope, contractScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { calculateTenantMonthlyRent, parseRentSchedule } from "@/lib/rent"
 import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
 import { renderContractDocx } from "@/lib/contract-engine/docx"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
@@ -220,7 +220,7 @@ export async function prefillFromTenant(
       select: {
         companyName: true, bin: true, iin: true, bankName: true, iik: true, bik: true,
         legalType: true, legalAddress: true, actualAddress: true, directorName: true,
-        usePurpose: true, customRate: true, fixedMonthlyRent: true,
+        usePurpose: true, customRate: true, fixedMonthlyRent: true, rentSchedule: true,
         contractStart: true, contractEnd: true, depositAmount: true, paymentDueDay: true,
         penaltyPercent: true, basisDocument: true, needsCleaning: true, cleaningFee: true,
         isVatPayer: true,
@@ -343,6 +343,12 @@ export async function prefillFromTenant(
     // Финансы
     const rent = calculateTenantMonthlyRent(tenant)
     s.financials.monthlyRent = rent
+    // Ступенчатая аренда с карточки (легаси-график) → ступени конструктора,
+    // чтобы пункт о плате в новом договоре сразу отражал согласованную лестницу.
+    const schedule = parseRentSchedule(tenant.rentSchedule)
+    if (schedule.length >= 2) {
+      s.financials.rentSteps = schedule.map((st) => ({ from: st.from, amount: st.amount }))
+    }
     s.financials.deposit.amount = tenant.depositAmount ?? rent
     s.financials.paymentDueDay = tenant.paymentDueDay
     s.financials.penalty.tenantPerDay = tenant.penaltyPercent

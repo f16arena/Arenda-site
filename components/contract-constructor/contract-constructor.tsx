@@ -44,6 +44,8 @@ import {
   assemble,
   advise,
   applyAdvisorFix,
+  debtRemainder,
+  validRentSteps,
   UTILITY_ORDER,
   UTILITY_LABELS,
   money,
@@ -593,22 +595,89 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes 
         <div><label className={labelCls}>Площадь, кв. м</label><input type="number" className={inputCls} value={state.premises.spaceAreaSqm || ""} onChange={(e) => set((s) => { s.premises.spaceAreaSqm = Number(e.target.value) })} /></div>
       </div>
       <div className="mb-2"><label className={labelCls}>Целевое назначение</label><input className={inputCls} value={state.premises.purposeUse} onChange={(e) => set((s) => { s.premises.purposeUse = e.target.value })} /></div>
-      <div><label className={labelCls}>Общая площадь здания, кв. м <span className="text-slate-400 dark:text-slate-500">(для долевого расчёта)</span></label><input type="number" className={inputCls} value={state.building.totalRentableAreaSqm || ""} onChange={(e) => set((s) => { s.building.totalRentableAreaSqm = Number(e.target.value) })} /></div>
+      <div className="mb-2"><label className={labelCls}>Общая площадь здания, кв. м <span className="text-slate-400 dark:text-slate-500">(для долевого расчёта)</span></label><input type="number" className={inputCls} value={state.building.totalRentableAreaSqm || ""} onChange={(e) => set((s) => { s.building.totalRentableAreaSqm = Number(e.target.value) })} /></div>
+      <ToggleRow
+        on={state.modules.asIsAcceptanceEnabled === true}
+        title="Принято «как есть» (без претензий)"
+        hint="Для арендатора, уже занимающего Помещение по прежнему договору: раздел об осведомлённости о состоянии, принятии «как есть» и отказе от претензий."
+        onToggle={() => set((s) => { s.modules.asIsAcceptanceEnabled = s.modules.asIsAcceptanceEnabled !== true })}
+      />
     </>
   )
+}
+
+// "YYYY-MM" + n месяцев → "YYYY-MM" (для автоподстановки следующей ступени).
+function plusMonths(ym: string, n: number): string {
+  const [y, m] = ym.split("-").map(Number)
+  const t = y * 12 + (m - 1) + n
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`
+}
+
+// База «плата в месяц» следует за первой ступенью графика (клоз депозита и
+// синк в карточку при подписании опираются на monthlyRent).
+function syncBaseRent(s: ContractState) {
+  const v = validRentSteps(s.financials.rentSteps)
+  if (v.length) s.financials.monthlyRent = v[0].amount
 }
 
 function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
   const f = state.financials
   const op = f.operatingCosts
+  const stepsOn = (f.rentSteps?.length ?? 0) > 0
+  const debt = f.debtSettlement
   return (
     <>
       <div className={secTitleCls}>Арендная плата</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Плата в месяц, ₸</label><input type="number" className={inputCls} value={f.monthlyRent || ""} onChange={(e) => set((s) => { s.financials.monthlyRent = Number(e.target.value) })} /></div>
+        <div>
+          <label className={labelCls}>Плата в месяц, ₸ {stepsOn && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из 1-й ступени</span>}</label>
+          <input type="number" className={`${inputCls} disabled:opacity-60`} disabled={stepsOn} value={f.monthlyRent || ""} onChange={(e) => set((s) => { s.financials.monthlyRent = Number(e.target.value) })} />
+        </div>
         <div><label className={labelCls}>День оплаты (1–28)</label><input type="number" className={inputCls} value={f.paymentDueDay} onChange={(e) => set((s) => { s.financials.paymentDueDay = Number(e.target.value) })} /></div>
       </div>
       <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.vatIncluded} onChange={(e) => set((s) => { s.financials.vatIncluded = e.target.checked })} /> НДС включён в плату</label>
+
+      <ToggleRow
+        on={stepsOn}
+        title="Ступенчатая аренда (график)"
+        hint="Разные ставки по периодам («первые 12 месяцев — X, далее — Y»). Пункт о плате в договоре и биллинг считаются по графику."
+        onToggle={() => set((s) => {
+          if ((s.financials.rentSteps?.length ?? 0) > 0) { s.financials.rentSteps = [] } else {
+            const startYm = (s.term.startDate || s.meta.contractDate || "").slice(0, 7)
+            const first = /^\d{4}-\d{2}$/.test(startYm) ? startYm : ""
+            s.financials.rentSteps = [
+              { from: first, amount: s.financials.monthlyRent || 0 },
+              { from: first ? plusMonths(first, 12) : "", amount: 0 },
+            ]
+          }
+        })}
+      />
+      {stepsOn && (
+        <div className="mb-2 space-y-1.5">
+          {(f.rentSteps ?? []).map((st, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-1.5">
+              <div><label className={labelCls}>{i === 0 ? "Ступень 1 — с месяца" : `Ступень ${i + 1} — с месяца`}</label><input type="month" className={inputCls} value={st.from} onChange={(e) => set((s) => { s.financials.rentSteps![i].from = e.target.value; syncBaseRent(s) })} /></div>
+              <div><label className={labelCls}>Сумма, ₸/мес</label><input type="number" className={inputCls} value={st.amount || ""} onChange={(e) => set((s) => { s.financials.rentSteps![i].amount = Number(e.target.value); syncBaseRent(s) })} /></div>
+              <button
+                type="button"
+                title="Убрать ступень"
+                disabled={(f.rentSteps?.length ?? 0) <= 2}
+                onClick={() => set((s) => { s.financials.rentSteps!.splice(i, 1); syncBaseRent(s) })}
+                className="rounded-md border border-slate-200 px-2.5 py-2 text-xs text-slate-500 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+              >✕</button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => set((s) => {
+              const steps = s.financials.rentSteps ?? (s.financials.rentSteps = [])
+              const last = steps[steps.length - 1]
+              steps.push({ from: last && /^\d{4}-\d{2}$/.test(last.from) ? plusMonths(last.from, 12) : "", amount: 0 })
+            })}
+            className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+          >+ ступень</button>
+        </div>
+      )}
 
       <div className={secTitleCls}>Пресет</div>
       <div className="grid gap-2">
@@ -660,6 +729,38 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
         <>
           <div className="mb-1"><label className={labelCls}>Сумма, ₸</label><input type="number" className={inputCls} value={f.deposit.amount || ""} onChange={(e) => set((s) => { s.financials.deposit.amount = Number(e.target.value) })} /></div>
           <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.deposit.installmentAllowed} onChange={(e) => set((s) => { s.financials.deposit.installmentAllowed = e.target.checked })} /> Разрешить рассрочку депозита</label>
+        </>
+      )}
+
+      <div className={secTitleCls}>Входящий долг</div>
+      <ToggleRow
+        on={debt?.enabled === true}
+        title="Урегулирование прошлой задолженности"
+        hint="Долг арендатора по прежнему договору: отдельный раздел в тексте, а при подписании — начисление-остаток со сроком оплаты."
+        onToggle={() => set((s) => {
+          const d = s.financials.debtSettlement ?? (s.financials.debtSettlement = { enabled: false, totalAmount: 0, basisDoc: "", discountPercent: 0, payWithinMonths: 2 })
+          d.enabled = !d.enabled
+        })}
+      />
+      {debt?.enabled === true && (
+        <>
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <div><label className={labelCls}>Сумма долга, ₸</label><input type="number" className={inputCls} value={debt.totalAmount || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.totalAmount = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>Скидка (прощаем), %</label><input type="number" min="0" max="99" className={inputCls} value={debt.discountPercent || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.discountPercent = Number(e.target.value) })} /></div>
+          </div>
+          <div className="mb-2"><label className={labelCls}>Документ-основание</label><input className={inputCls} placeholder="Акт сверки взаимных расчётов № __ от __.__.____ г." value={debt.basisDoc} onChange={(e) => set((s) => { s.financials.debtSettlement!.basisDoc = e.target.value })} /></div>
+          <div className="mb-2 grid grid-cols-2 gap-2">
+            <div><label className={labelCls}>Срок погашения, мес.</label><input type="number" min="1" max="36" className={inputCls} value={debt.payWithinMonths || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.payWithinMonths = Number(e.target.value) })} /></div>
+            <div>
+              <label className={labelCls}>Остаток к погашению</label>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100">
+                {debt.totalAmount > 0 ? debtRemainder(debt).toLocaleString("ru-RU") + " ₸" : "—"}
+              </div>
+            </div>
+          </div>
+          {debt.discountPercent > 0 && (
+            <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">При нарушении срока скидка по договору сгорает — недостающую часть в этом случае доначислите вручную в «Финансах».</p>
+          )}
         </>
       )}
 
