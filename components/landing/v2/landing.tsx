@@ -23,7 +23,7 @@ export function LandingV2({
   editorImageUrl?: string | null
   dashboardUrl?: string | null
 }) {
-  const rootRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLElement>(null)
   // Для залогиненного пользователя CTA входа/регистрации (Войти/Начать/Попробовать)
   // ведут прямо в его рабочую зону (dashboardUrl), а не на /login — без петель.
   // /demo НЕ подменяем: демонстрация — отдельная песочница, доступна всем (в т.ч.
@@ -149,13 +149,20 @@ export function LandingV2({
       {/* Дизайн фиксированно светлый — принудительно держим светлый фон даже при
           системной/сохранённой тёмной теме (стиль действует только на этой странице). */}
       <style dangerouslySetInnerHTML={{ __html: LANDING_CSS + "\nhtml body{background:#f4f6f9!important;color:#0a1020!important}" }} />
-      <div ref={rootRef}>
+      {/* <main> — семантика + смоук-тесты ждут основной лендмарк на странице. */}
+      <main ref={rootRef}>
         <div dangerouslySetInnerHTML={{ __html: before }} />
-        {pricing && (
-          <PricingDesignSection plans={pricing.plans} periods={pricing.periods} matrix={pricing.matrix} founding={founding} ctaHref={dashboardUrl ?? "/signup"} />
-        )}
+        {/* Секция тарифов рендерится всегда (якорь #pricing из шапки должен жить):
+            при недоступной БД pricing=null → пустые массивы, заголовок и CTA остаются. */}
+        <PricingDesignSection
+          plans={pricing?.plans ?? []}
+          periods={pricing?.periods ?? []}
+          matrix={pricing?.matrix ?? {}}
+          founding={founding}
+          ctaHref={dashboardUrl ?? "/signup"}
+        />
         <div dangerouslySetInnerHTML={{ __html: after }} />
-      </div>
+      </main>
     </>
   )
 }

@@ -4,6 +4,7 @@ import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { formatTenantPlacement, getTenantAreaTotal } from "@/lib/tenant-placement"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
+import { safeServerValue } from "@/lib/server-fallback"
 import { PaymentPanel } from "./payment-panel"
 import { PaymentDocuments } from "./payment-documents"
 import { PageHeader } from "@/components/ui/page"
@@ -88,18 +89,26 @@ export default async function CabinetFinances() {
 
   // Документы к оплате (счёт/АВР) + отметка, подписал ли их сам арендатор.
   const orgId = tenant.user.organizationId ?? session!.user.organizationId!
-  const paymentDocsRaw = await db.generatedDocument.findMany({
-    where: { organizationId: orgId, tenantId: tenant.id, documentType: { in: ["INVOICE", "ACT"] }, deletedAt: null },
-    orderBy: { generatedAt: "desc" },
-    take: 6,
-    select: { id: true, documentType: true, number: true, period: true },
-  }).catch(() => [])
+  const paymentDocsRaw = await safeServerValue(
+    db.generatedDocument.findMany({
+      where: { organizationId: orgId, tenantId: tenant.id, documentType: { in: ["INVOICE", "ACT"] }, deletedAt: null },
+      orderBy: { generatedAt: "desc" },
+      take: 6,
+      select: { id: true, documentType: true, number: true, period: true },
+    }),
+    [],
+    { source: "cabinet-finances:payment-docs", route: "/cabinet/finances", orgId, userId: session!.user.id },
+  )
   const tenantTins = [tenant.bin, tenant.iin].map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
   const docSigs = paymentDocsRaw.length
-    ? await db.documentSignature.findMany({
-        where: { documentId: { in: paymentDocsRaw.map((d) => d.id) } },
-        select: { documentId: true, signerOrgBin: true, signerIin: true },
-      }).catch(() => [])
+    ? await safeServerValue(
+        db.documentSignature.findMany({
+          where: { documentId: { in: paymentDocsRaw.map((d) => d.id) } },
+          select: { documentId: true, signerOrgBin: true, signerIin: true },
+        }),
+        [],
+        { source: "cabinet-finances:doc-signatures", route: "/cabinet/finances", orgId, userId: session!.user.id },
+      )
     : []
   const signedByTenantIds = new Set(
     docSigs

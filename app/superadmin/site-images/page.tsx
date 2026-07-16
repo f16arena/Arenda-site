@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
+import { safeServerValue } from "@/lib/server-fallback"
 import { ImageIcon } from "lucide-react"
 import { SiteImageUploader } from "./uploader"
 
@@ -17,7 +18,11 @@ export default async function SiteImagesPage() {
   const session = await auth()
   if (!session?.user?.isPlatformOwner) redirect("/admin")
 
-  const rows = await db.siteImage.findMany({ select: { slot: true, updatedAt: true } }).catch(() => [])
+  const rows = await safeServerValue(
+    db.siteImage.findMany({ select: { slot: true, updatedAt: true } }),
+    [],
+    { source: "superadmin-site-images:list", route: "/superadmin/site-images", userId: session.user.id },
+  )
   const versionBySlot = new Map(rows.map((r) => [r.slot, r.updatedAt.getTime()]))
 
   return (

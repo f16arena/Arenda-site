@@ -53,7 +53,9 @@ test.describe("public website smoke tests", () => {
     expect(await page.locator('a[href="/login"]').count()).toBeGreaterThan(0)
     expect(await page.locator('a[href="/signup"]').count()).toBeGreaterThan(0)
 
-    for (const sectionId of ["features", "modules", "cases", "pricing", "integrations", "faq", "blog"]) {
+    // Секции актуального лендинга v2 (components/landing/v2/landing-data.ts):
+    // gov (госсистемы), features, compare, pricing, faq.
+    for (const sectionId of ["gov", "features", "compare", "pricing", "faq"]) {
       await expect(page.locator(`#${sectionId}`), `#${sectionId} should exist`).toBeVisible()
     }
 
@@ -65,7 +67,8 @@ test.describe("public website smoke tests", () => {
     const browserErrors = collectBrowserErrors(page)
 
     await gotoPublicPage(page, "/")
-    await page.locator('section a[href="#features"]').first().click()
+    // Якорные ссылки лендинга v2 живут в шапке (<header id="head">), не в section.
+    await page.locator('header a[href="#features"]').first().click()
 
     await expect(page).toHaveURL(/#features$/)
     await expect(page.locator("#features")).toBeInViewport()
