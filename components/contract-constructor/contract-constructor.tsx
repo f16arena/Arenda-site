@@ -969,6 +969,9 @@ function ContractPreview({ state }: { state: ContractState }) {
 
 function Annex1Preview({ state, annexNo }: { state: ContractState; annexNo: number }) {
   const p = state.premises
+  const h = state.handoverAct
+  const asIs = state.modules.asIsAcceptanceEnabled === true
+  const hasMeters = !!(h.meterElectricity?.trim() || h.meterColdWater?.trim() || h.meterHotWater?.trim())
   return (
     <div className="space-y-2 text-slate-700 dark:text-slate-300">
       <div className={docTagCls}>Приложение № {annexNo} к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
@@ -976,18 +979,30 @@ function Annex1Preview({ state, annexNo }: { state: ContractState; annexNo: numb
       <div className={docSubCls}>приёма-передачи нежилого помещения</div>
       <p>{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
       <p>1. Передано нежилое помещение по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
-      <p>2. Состояние помещения на момент передачи:</p>
-      <ul className="ml-4 list-disc space-y-0.5">
-        {([
-          ["стены", state.handoverAct.conditionWalls], ["пол", state.handoverAct.conditionFloor],
-          ["потолок", state.handoverAct.conditionCeiling], ["окна, двери", state.handoverAct.conditionWindowsDoors],
-          ["электропроводка, освещение", state.handoverAct.conditionElectrical],
-          ["сантехника, отопление", state.handoverAct.conditionPlumbing], ["иное", state.handoverAct.conditionOther],
-        ] as [string, string][]).map(([k, v]) => <li key={k}>{k}: {v?.trim() ? v : "____________________"}</li>)}
-      </ul>
-      <p>3. Показания счётчиков: электроэнергия {state.handoverAct.meterElectricity?.trim() || "______"} кВт·ч; холодная вода {state.handoverAct.meterColdWater?.trim() || "______"} куб. м; горячая вода {state.handoverAct.meterHotWater?.trim() || "______"} куб. м.</p>
-      <p>4. Передаваемые ключи: {state.handoverAct.keysCount?.trim() || "____"} комплектов.</p>
-      <p>5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.</p>
+      {asIs ? (
+        <>
+          <p>2. Помещение находится в фактическом пользовании Арендатора; Арендатор ознакомлен с его действительным состоянием по результатам предшествующей эксплуатации, включая инженерные и отопительные системы и состояние отделки.</p>
+          <p>3. Арендатор принимает Помещение в его текущем состоянии («как есть»), подтверждает его соответствие требованиям своей деятельности и не имеет каких-либо претензий по состоянию Помещения, в том числе по скрытым недостаткам.</p>
+          {hasMeters && (
+            <p>4. Показания счётчиков: электроэнергия {h.meterElectricity?.trim() || "______"} кВт·ч; холодная вода {h.meterColdWater?.trim() || "______"} куб. м; горячая вода {h.meterHotWater?.trim() || "______"} куб. м.</p>
+          )}
+        </>
+      ) : (
+        <>
+          <p>2. Состояние помещения на момент передачи:</p>
+          <ul className="ml-4 list-disc space-y-0.5">
+            {([
+              ["стены", h.conditionWalls], ["пол", h.conditionFloor],
+              ["потолок", h.conditionCeiling], ["окна, двери", h.conditionWindowsDoors],
+              ["электропроводка, освещение", h.conditionElectrical],
+              ["сантехника, отопление", h.conditionPlumbing], ["иное", h.conditionOther],
+            ] as [string, string][]).map(([k, v]) => <li key={k}>{k}: {v?.trim() ? v : "____________________"}</li>)}
+          </ul>
+          <p>3. Показания счётчиков: электроэнергия {h.meterElectricity?.trim() || "______"} кВт·ч; холодная вода {h.meterColdWater?.trim() || "______"} куб. м; горячая вода {h.meterHotWater?.trim() || "______"} куб. м.</p>
+          <p>4. Передаваемые ключи: {h.keysCount?.trim() || "____"} комплектов.</p>
+          <p>5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.</p>
+        </>
+      )}
     </div>
   )
 }
