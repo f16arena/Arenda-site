@@ -39,16 +39,26 @@ function renderAnnexesText(s: ContractState): string[] {
     out.push(`${s.landlord.name || "Арендодатель"} (Арендодатель) и ${s.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:`)
     const actObject = isPremisesLikeType(s.meta.placementType) ? "нежилое помещение" : "место (Помещение)"
     out.push(`1. Арендодатель передал, а Арендатор принял ${actObject} по адресу: ${p.buildingAddress || "________"}${p.placement ? ", " + p.placement : ""}, общей площадью ${p.spaceAreaSqm || "____"} кв. м.`)
-    out.push("2. Состояние Помещения на момент передачи:")
-    const conditions: [string, string][] = [
-      ["стены", h?.conditionWalls ?? ""], ["пол", h?.conditionFloor ?? ""], ["потолок", h?.conditionCeiling ?? ""],
-      ["окна, двери", h?.conditionWindowsDoors ?? ""], ["электропроводка, освещение", h?.conditionElectrical ?? ""],
-      ["сантехника, отопление", h?.conditionPlumbing ?? ""], ["иное", h?.conditionOther ?? ""],
-    ]
-    for (const [label, value] of conditions) out.push(`    — ${label}: ${fillBlank(value)}`)
-    out.push(`3. Показания счётчиков: электроэнергия ${fillBlank(h?.meterElectricity, "________")} кВт·ч; холодная вода ${fillBlank(h?.meterColdWater, "________")} куб. м; горячая вода ${fillBlank(h?.meterHotWater, "________")} куб. м.`)
-    out.push(`4. Передаваемые ключи: ${fillBlank(h?.keysCount, "____")} комплектов.`)
-    out.push("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.")
+    if (s.modules.asIsAcceptanceEnabled === true) {
+      // Вариант «как есть»: Помещение уже в фактическом пользовании — вместо
+      // чек-листа состояния и ключей фиксируем осведомлённость и отказ от претензий.
+      out.push("2. Помещение находится в фактическом пользовании Арендатора; Арендатор ознакомлен с его действительным состоянием по результатам предшествующей эксплуатации, включая инженерные и отопительные системы и состояние отделки.")
+      out.push("3. Арендатор принимает Помещение в его текущем состоянии («как есть»), подтверждает его соответствие требованиям своей деятельности и не имеет каких-либо претензий по состоянию Помещения, в том числе по скрытым недостаткам.")
+      if (h?.meterElectricity?.trim() || h?.meterColdWater?.trim() || h?.meterHotWater?.trim()) {
+        out.push(`4. Показания счётчиков: электроэнергия ${fillBlank(h?.meterElectricity, "________")} кВт·ч; холодная вода ${fillBlank(h?.meterColdWater, "________")} куб. м; горячая вода ${fillBlank(h?.meterHotWater, "________")} куб. м.`)
+      }
+    } else {
+      out.push("2. Состояние Помещения на момент передачи:")
+      const conditions: [string, string][] = [
+        ["стены", h?.conditionWalls ?? ""], ["пол", h?.conditionFloor ?? ""], ["потолок", h?.conditionCeiling ?? ""],
+        ["окна, двери", h?.conditionWindowsDoors ?? ""], ["электропроводка, освещение", h?.conditionElectrical ?? ""],
+        ["сантехника, отопление", h?.conditionPlumbing ?? ""], ["иное", h?.conditionOther ?? ""],
+      ]
+      for (const [label, value] of conditions) out.push(`    — ${label}: ${fillBlank(value)}`)
+      out.push(`3. Показания счётчиков: электроэнергия ${fillBlank(h?.meterElectricity, "________")} кВт·ч; холодная вода ${fillBlank(h?.meterColdWater, "________")} куб. м; горячая вода ${fillBlank(h?.meterHotWater, "________")} куб. м.`)
+      out.push(`4. Передаваемые ключи: ${fillBlank(h?.keysCount, "____")} комплектов.`)
+      out.push("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.")
+    }
   }
 
   if (c.annexes.services) {

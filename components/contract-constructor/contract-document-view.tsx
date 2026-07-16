@@ -111,6 +111,8 @@ function AnnexHeader({ no, state, title, subtitle }: { no: number; state: Contra
 function AnnexAct({ state, no }: { state: ContractState; no: number }) {
   const p = state.premises
   const h = state.handoverAct
+  const asIs = state.modules.asIsAcceptanceEnabled === true
+  const hasMeters = !!(h?.meterElectricity?.trim() || h?.meterColdWater?.trim() || h?.meterHotWater?.trim())
   const conditions: [string, string][] = [
     ["Стены", h?.conditionWalls ?? ""], ["Пол", h?.conditionFloor ?? ""], ["Потолок", h?.conditionCeiling ?? ""],
     ["Окна, двери", h?.conditionWindowsDoors ?? ""], ["Электропроводка, освещение", h?.conditionElectrical ?? ""],
@@ -121,20 +123,32 @@ function AnnexAct({ state, no }: { state: ContractState; no: number }) {
       <AnnexHeader no={no} state={state} title="АКТ" subtitle="приёма-передачи нежилого помещения" />
       <p className="mb-2">{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
       <p className="mb-2">1. Арендодатель передал, а Арендатор принял нежилое помещение по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
-      <p className="mb-1 font-medium">2. Состояние Помещения на момент передачи:</p>
-      <table className="w-full border-collapse text-xs mb-2">
-        <tbody>
-          {conditions.map(([label, val]) => (
-            <tr key={label} className="border-b border-slate-100">
-              <td className="py-1 pr-3 text-slate-500 align-top w-1/2">{label}</td>
-              <td className="py-1">{fill(val)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mb-1">3. Показания счётчиков: электроэнергия {fill(h?.meterElectricity, "______")} кВт·ч; холодная вода {fill(h?.meterColdWater, "______")} куб. м; горячая вода {fill(h?.meterHotWater, "______")} куб. м.</p>
-      <p className="mb-1">4. Передаваемые ключи: {fill(h?.keysCount, "____")} комплектов.</p>
-      <p>5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.</p>
+      {asIs ? (
+        <>
+          <p className="mb-2">2. Помещение находится в фактическом пользовании Арендатора; Арендатор ознакомлен с его действительным состоянием по результатам предшествующей эксплуатации, включая инженерные и отопительные системы и состояние отделки.</p>
+          <p className="mb-2">3. Арендатор принимает Помещение в его текущем состоянии («как есть»), подтверждает его соответствие требованиям своей деятельности и не имеет каких-либо претензий по состоянию Помещения, в том числе по скрытым недостаткам.</p>
+          {hasMeters && (
+            <p className="mb-1">4. Показания счётчиков: электроэнергия {fill(h?.meterElectricity, "______")} кВт·ч; холодная вода {fill(h?.meterColdWater, "______")} куб. м; горячая вода {fill(h?.meterHotWater, "______")} куб. м.</p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="mb-1 font-medium">2. Состояние Помещения на момент передачи:</p>
+          <table className="w-full border-collapse text-xs mb-2">
+            <tbody>
+              {conditions.map(([label, val]) => (
+                <tr key={label} className="border-b border-slate-100">
+                  <td className="py-1 pr-3 text-slate-500 align-top w-1/2">{label}</td>
+                  <td className="py-1">{fill(val)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mb-1">3. Показания счётчиков: электроэнергия {fill(h?.meterElectricity, "______")} кВт·ч; холодная вода {fill(h?.meterColdWater, "______")} куб. м; горячая вода {fill(h?.meterHotWater, "______")} куб. м.</p>
+          <p className="mb-1">4. Передаваемые ключи: {fill(h?.keysCount, "____")} комплектов.</p>
+          <p>5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет.</p>
+        </>
+      )}
     </section>
   )
 }

@@ -787,7 +787,25 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
     <>
       <div className={secTitleCls}>Модули</div>
       <ToggleRow on={state.modules.actEnabled} title="Акт приёма-передачи (Прил. № 1)" hint="Рекомендуется держать включённым" onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
-      {state.modules.actEnabled && (
+      {state.modules.actEnabled && state.modules.asIsAcceptanceEnabled === true && (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 my-1 space-y-2 dark:border-slate-800 dark:bg-slate-800/40">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+            Включён режим «как есть» (шаг «Помещение»): Акт оформляется в кратком виде — помещение уже в фактическом пользовании, Арендатор принимает его без претензий (в т.ч. по скрытым недостаткам). Чек-лист состояния и ключи не включаются. Показания счётчиков попадут в Акт, только если заполнены.
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {([
+              ["meterElectricity", "Эл-энергия, кВт·ч"], ["meterColdWater", "Хол. вода, м³"],
+              ["meterHotWater", "Гор. вода, м³"],
+            ] as [keyof HandoverAct, string][]).map(([key, label]) => (
+              <label key={key} className="block">
+                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                <input className={inputCls} value={state.handoverAct[key]} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })} placeholder="—" />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {state.modules.actEnabled && state.modules.asIsAcceptanceEnabled !== true && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 my-1 space-y-2 dark:border-slate-800 dark:bg-slate-800/40">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Состояние помещения и счётчики для Акта (необязательно — пустые останутся прочерком)</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

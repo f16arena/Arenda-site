@@ -200,18 +200,28 @@ function annex1Act(s: ContractState, qr: Buffer | null, verifyUrl: string | null
     keysCount: "", meterElectricity: "", meterColdWater: "", meterHotWater: "",
   }
   const fill = (v: string, blank = "____________________________") => (v && v.trim() ? v.trim() : blank)
-  out.push(para("2. Состояние Помещения на момент передачи:"))
-  const conditions: [string, string][] = [
-    ["стены", h.conditionWalls], ["пол", h.conditionFloor], ["потолок", h.conditionCeiling],
-    ["окна, двери", h.conditionWindowsDoors], ["электропроводка, освещение", h.conditionElectrical],
-    ["сантехника, отопление", h.conditionPlumbing], ["иное", h.conditionOther],
-  ]
-  for (const [label, value] of conditions) {
-    out.push(new Paragraph({ children: [new TextRun(`— ${label}: ${fill(value)}`)], indent: { left: 360 }, spacing: { after: 30 } }))
+  if (s.modules.asIsAcceptanceEnabled === true) {
+    // Вариант «как есть» (зеркало render.ts): Помещение уже в фактическом
+    // пользовании — без чек-листа состояния и ключей.
+    out.push(para("2. Помещение находится в фактическом пользовании Арендатора; Арендатор ознакомлен с его действительным состоянием по результатам предшествующей эксплуатации, включая инженерные и отопительные системы и состояние отделки."))
+    out.push(para("3. Арендатор принимает Помещение в его текущем состоянии («как есть»), подтверждает его соответствие требованиям своей деятельности и не имеет каких-либо претензий по состоянию Помещения, в том числе по скрытым недостаткам."))
+    if (h.meterElectricity?.trim() || h.meterColdWater?.trim() || h.meterHotWater?.trim()) {
+      out.push(para(`4. Показания счётчиков: электроэнергия ${fill(h.meterElectricity, "________")} кВт·ч; холодная вода ${fill(h.meterColdWater, "________")} куб. м; горячая вода ${fill(h.meterHotWater, "________")} куб. м.`))
+    }
+  } else {
+    out.push(para("2. Состояние Помещения на момент передачи:"))
+    const conditions: [string, string][] = [
+      ["стены", h.conditionWalls], ["пол", h.conditionFloor], ["потолок", h.conditionCeiling],
+      ["окна, двери", h.conditionWindowsDoors], ["электропроводка, освещение", h.conditionElectrical],
+      ["сантехника, отопление", h.conditionPlumbing], ["иное", h.conditionOther],
+    ]
+    for (const [label, value] of conditions) {
+      out.push(new Paragraph({ children: [new TextRun(`— ${label}: ${fill(value)}`)], indent: { left: 360 }, spacing: { after: 30 } }))
+    }
+    out.push(para(`3. Показания счётчиков: электроэнергия ${fill(h.meterElectricity, "________")} кВт·ч; холодная вода ${fill(h.meterColdWater, "________")} куб. м; горячая вода ${fill(h.meterHotWater, "________")} куб. м.`))
+    out.push(para(`4. Передаваемые ключи: ${fill(h.keysCount, "____")} комплектов.`))
+    out.push(para("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет."))
   }
-  out.push(para(`3. Показания счётчиков: электроэнергия ${fill(h.meterElectricity, "________")} кВт·ч; холодная вода ${fill(h.meterColdWater, "________")} куб. м; горячая вода ${fill(h.meterHotWater, "________")} куб. м.`))
-  out.push(para(`4. Передаваемые ключи: ${fill(h.keysCount, "____")} комплектов.`))
-  out.push(para("5. Помещение соответствует условиям Договора, претензий по состоянию у Арендатора нет."))
   out.push(...requisitesBlock(s, qr, verifyUrl, signers))
   return out
 }
