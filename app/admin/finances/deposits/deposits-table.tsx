@@ -6,6 +6,9 @@ import Link from "next/link"
 import { formatMoney } from "@/lib/utils"
 import { issueDepositCharge, markDepositPaid, returnDeposit } from "@/app/actions/deposits"
 import type { DepositStatus } from "@/lib/deposit"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 
 export interface DepositRow {
@@ -47,7 +50,7 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
   }
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <Card className="block py-0">
       {error && (
         <div className="px-4 py-2 text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/30">
           {error}
@@ -94,9 +97,9 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
                     {row.status === "NOT_REQUIRED" || row.status === "RETURNED" ? "—" : remaining > 0 ? formatMoney(remaining) : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[row.status]}`}>
+                    <Badge className={STATUS_STYLES[row.status]}>
                       {row.statusLabel}
-                    </span>
+                    </Badge>
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     {busy ? (
@@ -143,7 +146,7 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
           </tbody>
         </table>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -157,16 +160,8 @@ function ActionButton({
   primary?: boolean
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        primary
-          ? "rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 px-3 py-1.5 text-xs font-medium text-white"
-          : "rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
-      }
-    >
+    <Button type="button" size="sm" variant={primary ? "default" : "outline"} onClick={onClick}>
       {children}
-    </button>
+    </Button>
   )
 }

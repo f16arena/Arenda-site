@@ -6,6 +6,7 @@ import { CalendarClock, ArrowLeft } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
 import { INSTALLMENT_STATUS_LABELS } from "@/lib/installments"
 import { PageHeader, Card } from "@/components/ui/page"
+import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/ui/empty-state"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
@@ -132,9 +133,9 @@ export default async function InstallmentsPage() {
                   <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{plan.tenant.companyName}</span>
-                      <span className={`text-[11px] rounded-full px-2.5 py-0.5 border ${STATUS_STYLES[plan.status] ?? STATUS_STYLES.CANCELLED}`}>
+                      <Badge className={STATUS_STYLES[plan.status] ?? STATUS_STYLES.CANCELLED}>
                         {INSTALLMENT_STATUS_LABELS[plan.status] ?? plan.status}
-                      </span>
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                       <span>

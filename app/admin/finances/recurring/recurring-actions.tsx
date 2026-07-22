@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { X, Repeat, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   addRecurringExpense,
   toggleRecurringExpense,
@@ -33,14 +34,10 @@ export function RecurringExpenseDialog({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-      >
+      <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" />
         Постоянный расход
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -94,11 +91,11 @@ export function RecurringExpenseDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма, ₸ *</label>
-                  <input name="amount" type="number" step="0.01" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                  <Input name="amount" type="number" step="0.01" required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Число месяца</label>
-                  <input name="dayOfMonth" type="number" min={1} max={28} defaultValue={1} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                  <Input name="dayOfMonth" type="number" min={1} max={28} defaultValue={1} />
                 </div>
               </div>
 
@@ -113,7 +110,7 @@ export function RecurringExpenseDialog({
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                <input name="description" placeholder="Необязательно" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                <Input name="description" placeholder="Необязательно" />
               </div>
 
               {cashAccounts && cashAccounts.length > 0 && (
@@ -180,8 +177,9 @@ export function GenerateRecurringButton({ period }: { period: string }) {
   return (
     <div className="flex items-center gap-3">
       {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
-      <button
+      <Button
         type="button"
+        variant="outline"
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -191,11 +189,10 @@ export function GenerateRecurringButton({ period }: { period: string }) {
             setTimeout(() => setResult(null), 4000)
           })
         }
-        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-60"
       >
         <Repeat className="h-4 w-4" />
         {pending ? "Генерация..." : `Сгенерировать за ${period}`}
-      </button>
+      </Button>
     </div>
   )
 }

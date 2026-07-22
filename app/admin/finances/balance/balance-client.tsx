@@ -12,6 +12,8 @@ import {
   transferBetweenAccounts, adjustAccountBalance,
 } from "@/app/actions/cash-accounts"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 
 interface Transaction {
   id: string
@@ -63,21 +65,18 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
     <div className="space-y-5">
       {/* Кнопки сверху */}
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
+          variant="outline"
           onClick={() => setDialog({ kind: "transfer" })}
           disabled={accounts.length < 2}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 disabled:opacity-50"
         >
           <ArrowRightLeft className="h-4 w-4" />
           Перевод между счетами
-        </button>
-        <button
-          onClick={() => setDialog({ kind: "create" })}
-          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-2 text-sm font-medium text-white"
-        >
+        </Button>
+        <Button onClick={() => setDialog({ kind: "create" })}>
           <Plus className="h-4 w-4" />
           Добавить счёт
-        </button>
+        </Button>
       </div>
 
       {/* Карточки счетов */}
@@ -85,10 +84,7 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
         {accounts.map((acc) => {
           const TypeIcon = TYPE_META[acc.type]?.icon ?? Wallet
           return (
-            <div
-              key={acc.id}
-              className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
-            >
+            <Card key={acc.id} className="block py-0">
               <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between">
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
@@ -161,22 +157,19 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
                   })
                 )}
               </div>
-            </div>
+            </Card>
           )
         })}
 
         {accounts.length === 0 && (
-          <div className="md:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
+          <Card className="md:col-span-2 block p-10 text-center">
             <Wallet className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
             <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет счетов</p>
-            <button
-              onClick={() => setDialog({ kind: "create" })}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-            >
+            <Button onClick={() => setDialog({ kind: "create" })} className="mt-3">
               <Plus className="h-4 w-4" />
               Создать счёт
-            </button>
-          </div>
+            </Button>
+          </Card>
         )}
       </div>
 
@@ -326,7 +319,7 @@ function Field({
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
-      <input
+      <Input
         name={name}
         type={type}
         step={step}
@@ -334,7 +327,6 @@ function Field({
         defaultValue={defaultValue}
         placeholder={placeholder}
         min={min}
-        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none"
       />
     </div>
   )

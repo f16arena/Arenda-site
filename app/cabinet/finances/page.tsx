@@ -8,6 +8,8 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { PaymentPanel } from "./payment-panel"
 import { PaymentDocuments } from "./payment-documents"
 import { PageHeader } from "@/components/ui/page"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Wallet } from "lucide-react"
 
 export default async function CabinetFinances() {
@@ -134,7 +136,7 @@ export default async function CabinetFinances() {
       <PageHeader icon={Wallet} title="Финансы" subtitle="Начисления и оплаты" />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+        <Card className="block p-5">
           <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {formatMoney(totalDebt)}
           </p>
@@ -142,18 +144,18 @@ export default async function CabinetFinances() {
             Задолженность{unpaidDeposit > 0 ? ` · в т.ч. депозит ${formatMoney(unpaidDeposit)}` : ""}
             {tenantCredit > 0 ? ` · аванс ${formatMoney(tenantCredit)}` : ""}
           </p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+        </Card>
+        <Card className="block p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{area} м²</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Площадь</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
             {hasFixedTenantRent(tenant.fixedMonthlyRent) || hasFullFloorFixedRent ? "Фикс. сумма" : `Ставка: ${formatMoney(rate)}/м²`}
           </p>
-        </div>
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+        </Card>
+        <Card className="block p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatMoney(monthlyRent)}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Аренда в месяц</p>
-        </div>
+        </Card>
       </div>
 
       <PaymentDocuments docs={paymentDocs} />
@@ -167,7 +169,7 @@ export default async function CabinetFinances() {
       />
 
       {tenant.paymentReports.length > 0 && (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <Card className="block p-0">
           <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Отправленные чеки и оплаты</h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -184,23 +186,23 @@ export default async function CabinetFinances() {
                     {report.receiptName ? ` · чек: ${report.receiptName}` : ""}
                   </p>
                 </div>
-                <span className={`w-fit rounded-full px-2 py-0.5 text-xs font-medium ${
+                <Badge variant="secondary" className={
                   report.status === "DISPUTED"
                     ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
                     : report.status === "REJECTED"
                       ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
                       : "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
-                }`}>
+                }>
                   {report.status === "DISPUTED" ? "Требует уточнения" : report.status === "REJECTED" ? "Отклонено" : "На проверке"}
-                </span>
+                </Badge>
               </div>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
       {tenant.payments.length > 0 && (
-        <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <Card className="block p-0">
           <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">История оплат</h2>
           </div>
@@ -214,13 +216,13 @@ export default async function CabinetFinances() {
                   </p>
                   {payment.note && <p className="text-xs text-slate-400 dark:text-slate-500">{payment.note}</p>}
                 </div>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                   Проведено
-                </span>
+                </Badge>
               </div>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* Charges by period */}
@@ -232,7 +234,7 @@ export default async function CabinetFinances() {
             const periodPaid = periodCharges.filter((c) => c.isPaid).reduce((s, c) => s + c.amount, 0)
 
             return (
-              <div key={period} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <Card key={period} className="block p-0">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatPeriod(period)}</h3>
                   <div className="text-right text-xs text-slate-500 dark:text-slate-400">
@@ -248,21 +250,21 @@ export default async function CabinetFinances() {
                       </div>
                       <div className="flex items-center gap-3">
                         <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(c.amount)}</p>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.isPaid ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"}`}>
+                        <Badge variant="secondary" className={c.isPaid ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"}>
                           {c.isPaid ? "Оплачено" : "Долг"}
-                        </span>
+                        </Badge>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             )
           })}
 
         {tenant.charges.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
+          <Card className="block py-16 text-center">
             <p className="text-sm text-slate-400 dark:text-slate-500">Начислений нет</p>
-          </div>
+          </Card>
         )}
       </div>
     </div>

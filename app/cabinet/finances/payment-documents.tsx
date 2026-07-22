@@ -2,6 +2,7 @@
 
 import { FileText, Download, ShieldCheck } from "lucide-react"
 import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
+import { Card } from "@/components/ui/card"
 
 export type PaymentDoc = {
   id: string
@@ -20,7 +21,7 @@ const TYPE_LABEL: Record<string, string> = {
 export function PaymentDocuments({ docs }: { docs: PaymentDoc[] }) {
   if (docs.length === 0) return null
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-0">
       <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы к оплате</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -58,6 +59,6 @@ export function PaymentDocuments({ docs }: { docs: PaymentDoc[] }) {
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   )
 }

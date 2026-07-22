@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { ClipboardList, Paperclip } from "lucide-react"
 import { RequestDialog } from "./request-dialog"
 import { PageHeader } from "@/components/ui/page"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 export default async function CabinetRequests() {
   const session = await auth()
@@ -64,17 +66,17 @@ export default async function CabinetRequests() {
 
       <div className="space-y-3">
         {tenant.requests.map((r) => (
-          <div key={r.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:shadow-sm transition-shadow">
+          <Card key={r.id} className="block p-5 hover:shadow-sm transition-shadow">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.title}</h3>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[r.status])}>
+                  <Badge variant="secondary" className={cn(STATUS_COLORS[r.status])}>
                     {STATUS_LABELS[r.status] ?? r.status}
-                  </span>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PRIORITY_COLORS[r.priority])}>
+                  </Badge>
+                  <Badge variant="secondary" className={cn(PRIORITY_COLORS[r.priority])}>
                     {PRIORITY_LABELS[r.priority] ?? r.priority}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{r.description}</p>
                 {(attachmentsByRequest.get(r.id)?.length ?? 0) > 0 && (
@@ -102,17 +104,17 @@ export default async function CabinetRequests() {
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
         ))}
 
         {tenant.requests.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
+          <Card className="block py-16 text-center">
             <ClipboardList className="h-10 w-10 text-slate-200 mx-auto mb-3" />
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Заявок нет</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Создайте заявку на замену лампочки, подключение интернета или любой другой вопрос
             </p>
-          </div>
+          </Card>
         )}
       </div>
     </div>
@@ -127,9 +129,9 @@ function RequestStat({ label, value, tone }: { label: string; value: number; ton
       : "text-emerald-600 dark:text-emerald-300"
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-4">
       <p className={`text-2xl font-bold ${toneClass}`}>{value}</p>
       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{label}</p>
-    </div>
+    </Card>
   )
 }

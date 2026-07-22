@@ -5,6 +5,8 @@ import { Upload, Check, AlertTriangle, Save } from "lucide-react"
 import { toast } from "sonner"
 import { parseBankCsv, applyBankImport, type ParsedRow } from "@/app/actions/bank-import"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Tenant = { id: string; companyName: string; bin: string | null; iin: string | null }
@@ -106,12 +108,9 @@ export function ImportClient({ tenants, canApply = false }: { tenants: Tenant[];
               <span className="text-amber-600 dark:text-amber-400">{rows.filter((r) => !r.matchedTenantId).length} требует ручного выбора</span>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => setRows([])}
-                className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-              >
+              <Button variant="outline" size="sm" onClick={() => setRows([])}>
                 Очистить
-              </button>
+              </Button>
               {canApply && (
               <ConfirmDialog
                 title={`Импортировать ${matchedCount} платеж${matchedCount === 1 ? "" : matchedCount < 5 ? "а" : "ей"}?`}
@@ -138,7 +137,7 @@ export function ImportClient({ tenants, canApply = false }: { tenants: Tenant[];
             </div>
           )}
 
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
+          <Card className="block overflow-x-auto py-0">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -185,7 +184,7 @@ export function ImportClient({ tenants, canApply = false }: { tenants: Tenant[];
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         </>
       )}
     </div>

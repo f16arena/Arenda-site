@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Upload, Loader2, Trash2, X } from "lucide-react"
 import { uploadMyDocument, deleteMyDocument } from "@/app/actions/cabinet-docs"
+import { Button } from "@/components/ui/button"
 
 const DOC_TYPES: { value: string; label: string }[] = [
   { value: "OTHER", label: "Прочее" },
@@ -42,14 +43,10 @@ export function MyDocumentUpload() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-      >
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Upload className="h-3 w-3" />
         Загрузить
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setOpen(false)}>

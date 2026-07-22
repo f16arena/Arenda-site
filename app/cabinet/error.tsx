@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useMemo } from "react"
 import { reportClientError } from "@/lib/client-error-report"
 import { formatErrorId } from "@/lib/error-id"
+import { Button } from "@/components/ui/button"
 
 export default function Error({
   error,
@@ -39,13 +40,10 @@ export default function Error({
             {error.message}
           </p>
         )}
-        <button
-          onClick={reset}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
-        >
+        <Button onClick={reset} className="mt-4">
           <RotateCcw className="h-4 w-4" />
           Попробовать снова
-        </button>
+        </Button>
       </div>
     </div>
   )

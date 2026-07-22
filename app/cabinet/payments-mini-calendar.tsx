@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { formatMoney } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 
 interface ChargeRow {
   id: string
@@ -84,7 +86,7 @@ export function PaymentsMiniCalendar({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+      <Card className="block p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => nav(-1)} aria-label="Предыдущий месяц"
@@ -99,16 +101,15 @@ export function PaymentsMiniCalendar({
               <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </button>
           </div>
-          <button type="button" onClick={goToday}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300">
+          <Button type="button" variant="outline" size="sm" onClick={goToday}>
             Сегодня
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         {/* Сетка */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <Card className="block p-0">
           <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             {WEEKDAYS.map((d) => (
               <div key={d} className="px-2 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{d}</div>
@@ -160,10 +161,10 @@ export function PaymentsMiniCalendar({
               )
             })}
           </div>
-        </div>
+        </Card>
 
         {/* Боковая панель: детали выбранного дня + легенда */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+        <Card className="block p-4 space-y-3">
           {selCell ? (
             <>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -209,7 +210,7 @@ export function PaymentsMiniCalendar({
               <p className="text-xs text-slate-400 dark:text-slate-500 pt-1">Нажмите на дату — покажем платежи этого дня.</p>
             </>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   )

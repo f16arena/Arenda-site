@@ -5,6 +5,7 @@ import { Plus, X, DollarSign, TrendingDown, FileText } from "lucide-react"
 import { recordPayment, addExpense, generateMonthlyCharges, generateMonthlyInvoicesNow, listChargeableTenants } from "@/app/actions/finance"
 // calculatePenalties удалена — пени теперь только cron-ом.
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { EXPENSE_CATEGORIES, formatMoney, formatPeriod } from "@/lib/utils"
 import { Droplet, Zap, Flame, CheckCircle2 } from "lucide-react"
 
@@ -53,11 +54,11 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма, ₸ *</label>
-                  <input name="amount" type="number" step="0.01" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none" />
+                  <Input name="amount" type="number" step="0.01" required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата</label>
-                  <input name="paymentDate" type="date" defaultValue={today} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:outline-none" />
+                  <Input name="paymentDate" type="date" defaultValue={today} />
                 </div>
               </div>
               <div>
@@ -101,10 +102,10 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
               )}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Примечание</label>
-                <input name="note" placeholder="Необязательно" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:outline-none" />
+                <Input name="note" placeholder="Необязательно" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
                 <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-60">
                   {pending ? "Сохранение..." : "Зафиксировать"}
                 </button>
@@ -183,20 +184,20 @@ export function ExpenseDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма, ₸ *</label>
-                  <input name="amount" type="number" step="0.01" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                  <Input name="amount" type="number" step="0.01" required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Период</label>
-                  <input name="period" defaultValue={period} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                  <Input name="period" defaultValue={period} />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата</label>
-                <input name="date" type="date" defaultValue={today} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                <Input name="date" type="date" defaultValue={today} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                <input name="description" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm" />
+                <Input name="description" />
               </div>
               {cashAccounts && cashAccounts.length > 0 && (
                 <div>
@@ -328,20 +329,20 @@ export function GenerateInvoicesButton({ period: periodProp }: { period?: string
   return (
     <div className="flex items-center gap-3">
       {result && <span className="text-xs text-emerald-600 dark:text-emerald-400">{result}</span>}
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={() => startTransition(async () => {
           const r = await generateMonthlyInvoicesNow(period)
           setResult(r.created > 0 ? `✓ Выставлено ${r.created} счетов за ${period}` : "Счета за этот месяц уже выставлены (или нет начислений)")
           setTimeout(() => setResult(null), 5000)
         })}
         disabled={pending}
-        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 disabled:opacity-60"
         title="Сформировать счета на оплату из начислений и отправить арендаторам в кабинет"
       >
         <FileText className="h-4 w-4" />
         {pending ? "Генерация..." : `Выставить счета за ${period}`}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -397,14 +398,10 @@ export function GenerateChargesButton({ period: periodProp }: { period?: string 
 
   return (
     <>
-      <button
-        type="button"
-        onClick={openDialog}
-        className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
-      >
+      <Button type="button" variant="outline" onClick={openDialog}>
         <Plus className="h-4 w-4" />
         Начислить за {formatPeriod(period)}
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>

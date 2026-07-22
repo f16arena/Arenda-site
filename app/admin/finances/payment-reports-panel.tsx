@@ -4,6 +4,9 @@ import { useState, useTransition } from "react"
 import { AlertTriangle, CheckCircle2, Eye, FileText, ReceiptText, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { confirmPaymentReport, markPaymentReportDisputed, rejectPaymentReport } from "@/app/actions/tenant-payments"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { CHARGE_TYPES, PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
 
 type CashAccount = {
@@ -70,9 +73,9 @@ export function PaymentReportsPanel({ reports, cashAccounts }: Props) {
             </p>
           </div>
         </div>
-        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
           {open ? "Свернуть" : "Показать"}
-        </span>
+        </Badge>
       </button>
 
       {open && (
@@ -157,16 +160,16 @@ function ReportCard({
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {new Date(report.paymentDate).toLocaleDateString("ru-RU")}
               </p>
-              <p className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <Badge className="mt-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {PAYMENT_METHOD_LABELS[report.method] ?? report.method}
-              </p>
-              <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+              </Badge>
+              <Badge className={`mt-1 ${
                 isDisputed
                   ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
                   : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
               }`}>
                 {isDisputed ? "Спорная" : "Ждет проверки"}
-              </p>
+              </Badge>
             </div>
           </div>
 
@@ -205,28 +208,30 @@ function ReportCard({
               <input type="hidden" name="reportId" value={report.id} />
               <label className="block">
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Причина отклонения</span>
-                <textarea
+                <Textarea
                   name="reason"
                   rows={3}
                   placeholder="Например: сумма не поступила на счет"
-                  className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  className="mt-1 resize-none"
                 />
               </label>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={() => setRejecting(false)}
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                  className="flex-1"
                 >
                   Назад
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  variant="destructive"
                   disabled={pending}
-                  className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  className="flex-1"
                 >
                   Отклонить
-                </button>
+                </Button>
               </div>
             </form>
           ) : (

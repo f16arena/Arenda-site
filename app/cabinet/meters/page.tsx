@@ -4,6 +4,8 @@ import { redirect } from "next/navigation"
 import { Gauge } from "lucide-react"
 import { submitTenantMeterReading } from "@/app/actions/meters"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card } from "@/components/ui/card"
 import { PageHeader } from "@/components/ui/page"
 
 const typeLabel: Record<string, string> = {
@@ -65,10 +67,10 @@ export default async function CabinetMetersPage() {
       />
 
       {meters.length === 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
+        <Card className="block py-16 text-center">
           <Gauge className="h-8 w-8 text-slate-200 mx-auto mb-2" />
           <p className="text-sm text-slate-400 dark:text-slate-500">Счётчики не установлены</p>
-        </div>
+        </Card>
       )}
 
       {meters.map((meter) => {
@@ -76,7 +78,7 @@ export default async function CabinetMetersPage() {
         const hasCurrent = latest?.period === currentPeriod
 
         return (
-          <div key={meter.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+          <Card key={meter.id} className="block p-5">
             <div className="flex items-center gap-2 mb-4">
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[meter.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
                 {typeLabel[meter.type] ?? meter.type}
@@ -119,13 +121,13 @@ export default async function CabinetMetersPage() {
               }}>
                 <input type="hidden" name="meterId" value={meter.id} />
                 <div className="flex gap-3">
-                  <input
+                  <Input
                     name="value"
                     type="number"
                     step="0.01"
                     required
                     placeholder="Введите текущее показание"
-                    className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="flex-1"
                   />
                   <Button type="submit" className="font-medium">
                     Передать
@@ -133,7 +135,7 @@ export default async function CabinetMetersPage() {
                 </div>
               </form>
             )}
-          </div>
+          </Card>
         )
       })}
     </div>

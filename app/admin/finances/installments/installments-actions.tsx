@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { X, Plus, Check, CalendarClock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { CHARGE_TYPES, formatMoney } from "@/lib/utils"
 import {
   getTenantUnpaidChargesForPlan,
@@ -82,14 +83,10 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-      >
+      <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" />
         Оформить рассрочку
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -145,22 +142,20 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Число платежей *</label>
-                      <input
+                      <Input
                         type="number"
                         min={2}
                         max={60}
                         value={count}
                         onChange={(e) => setCount(Math.max(2, Math.min(60, parseInt(e.target.value, 10) || 2)))}
-                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Первый платёж</label>
-                      <input
+                      <Input
                         type="date"
                         value={firstDue}
                         onChange={(e) => setFirstDue(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
@@ -172,11 +167,10 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
 
                   <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Примечание</label>
-                    <input
+                    <Input
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
                       placeholder="Необязательно"
-                      className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
                     />
                   </div>
                 </>

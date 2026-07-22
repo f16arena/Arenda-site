@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import type { ComponentProps } from "react"
+import { Card } from "@/components/ui/card"
 import type { BalanceClient } from "./balance-client"
 
 type BalanceClientProps = ComponentProps<typeof BalanceClient>
@@ -27,14 +28,14 @@ function BalanceSkeleton() {
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <Card key={index} className="block p-5">
             <div className="h-6 w-32 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
             <div className="mt-4 h-8 w-40 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
             <div className="mt-5 space-y-2">
               <div className="h-4 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
               <div className="h-4 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>

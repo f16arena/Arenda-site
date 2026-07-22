@@ -6,6 +6,11 @@ import Link from "next/link"
 import { Banknote, CheckCircle2, Copy, MessageSquare, Send } from "lucide-react"
 import { toast } from "sonner"
 import { reportTenantPayment } from "@/app/actions/tenant-payments"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 
 type PaymentRequisites = {
   recipient: string
@@ -67,7 +72,7 @@ export function PaymentPanel({
   ].join("\n")
 
   return (
-    <section id="payment" className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <Card id="payment" className="block p-0">
       <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-800/50 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Оплата аренды</h2>
@@ -75,14 +80,10 @@ export function PaymentPanel({
             Реквизиты арендодателя, назначение платежа и уведомление администратора.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => copy(allRequisites, "Реквизиты")}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-        >
+        <Button type="button" variant="outline" onClick={() => copy(allRequisites, "Реквизиты")}>
           <Copy className="h-4 w-4" />
           Скопировать всё
-        </button>
+        </Button>
       </div>
 
       <div className="grid gap-5 p-5 lg:grid-cols-[1fr_280px]">
@@ -97,9 +98,9 @@ export function PaymentPanel({
                     {account.label}
                   </p>
                   {account.isPrimary && (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                    <Badge variant="secondary" className="bg-emerald-100 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                       основной
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 <RequisiteRow label="Банк" value={account.bank} onCopy={copy} />
@@ -155,22 +156,22 @@ export function PaymentPanel({
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Сумма оплаты</span>
-                <input
+                <Input
                   name="amount"
                   type="number"
                   min="1"
                   step="1"
                   defaultValue={Math.round(suggestedAmount)}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/10"
+                  className="mt-1"
                 />
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Дата оплаты</span>
-                <input
+                <Input
                   name="paymentDate"
                   type="date"
                   defaultValue={todayInputValue()}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/10"
+                  className="mt-1"
                 />
               </label>
             </div>
@@ -193,11 +194,11 @@ export function PaymentPanel({
             </label>
             <label className="block">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Комментарий или номер чека</span>
-              <textarea
+              <Textarea
                 name="note"
                 rows={3}
                 placeholder="Например: оплатил через Kaspi, чек №..."
-                className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/10"
+                className="mt-1 resize-none"
               />
             </label>
             <label className="block">
@@ -218,14 +219,10 @@ export function PaymentPanel({
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Это не отмечает счет оплаченным автоматически. Администратор проверит поступление.
               </p>
-              <button
-                type="submit"
-                disabled={pending}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60 sm:w-auto"
-              >
+              <Button type="submit" disabled={pending} className="w-full sm:w-auto">
                 <Send className="h-4 w-4" />
                 Я оплатил
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -266,7 +263,7 @@ export function PaymentPanel({
           </Link>
         </aside>
       </div>
-    </section>
+    </Card>
   )
 }
 

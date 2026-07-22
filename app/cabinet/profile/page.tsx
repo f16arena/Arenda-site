@@ -10,6 +10,7 @@ import { NotificationSettingsForm } from "@/components/profile/notification-sett
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 import { formatPersonShortName } from "@/lib/display-name"
 import { PageHeader } from "@/components/ui/page"
+import { Card } from "@/components/ui/card"
 
 export default async function CabinetProfilePage() {
   const session = await auth()
@@ -45,7 +46,7 @@ export default async function CabinetProfilePage() {
         notificationsSlot={
           <div className="space-y-5">
             <NotificationSettingsForm initial={notifSettings} />
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <Card className="block p-0">
               <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <Send className="h-4 w-4 text-blue-500" />
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Telegram-бот</h2>
@@ -53,7 +54,7 @@ export default async function CabinetProfilePage() {
               <div className="p-5">
                 <TelegramSetup currentChatId={user.telegramChatId} />
               </div>
-            </div>
+            </Card>
           </div>
         }
       />

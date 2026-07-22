@@ -5,6 +5,7 @@ import { Zap, Check } from "lucide-react"
 import { toast } from "sonner"
 import { generateMonthlyChargesForOrg } from "@/app/actions/billing-batch"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Input } from "@/components/ui/input"
 
 export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string }) {
   const [open, setOpen] = useState(false)
@@ -68,11 +69,11 @@ export function BatchBillingButton({ defaultPeriod }: { defaultPeriod: string })
       </p>
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Период *</label>
-        <input
+        <Input
           type="month"
           value={period}
           onChange={(e) => setPeriod(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none"
+          className="font-mono"
         />
       </div>
       {result && (

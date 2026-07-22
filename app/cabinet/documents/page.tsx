@@ -9,6 +9,8 @@ import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
 import { ReconciliationResponse } from "@/components/cabinet/reconciliation-response"
 import { RequestExtensionButton } from "./request-extension-button"
 import { PageHeader } from "@/components/ui/page"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 export default async function CabinetDocuments() {
   const session = await auth()
@@ -86,7 +88,7 @@ export default async function CabinetDocuments() {
 
       {/* Выставленные документы от арендодателя */}
       {issued.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <Card className="block p-0">
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Выставленные документы</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Счета, акты и акты сверки от арендодателя — скачайте при необходимости.</p>
@@ -132,11 +134,11 @@ export default async function CabinetDocuments() {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Документы для печати */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы для печати</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -163,10 +165,10 @@ export default async function CabinetDocuments() {
             icon={<Wallet className="h-4 w-4" />}
           />
         </div>
-      </div>
+      </Card>
 
       {/* Contracts */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Договоры и акты</h2>
         </div>
@@ -195,9 +197,9 @@ export default async function CabinetDocuments() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[c.status])}>
+                  <Badge variant="secondary" className={cn(STATUS_COLORS[c.status])}>
                     {STATUS_LABELS[c.status] ?? c.status}
-                  </span>
+                  </Badge>
                   {canRequestExtension(c) && <RequestExtensionButton contractId={c.id} />}
                   {(c.status === "SENT" || c.status === "VIEWED") && c.signToken && (
                     <Link href={`/sign/${c.signToken}`} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
@@ -214,10 +216,10 @@ export default async function CabinetDocuments() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* My documents */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Мои документы</h2>
           <MyDocumentUpload />
@@ -251,7 +253,7 @@ export default async function CabinetDocuments() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   )
 }
@@ -285,9 +287,9 @@ function DocumentStat({ label, value, tone }: { label: string; value: number; to
       : "text-emerald-600 dark:text-emerald-300"
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-4">
       <p className={`text-2xl font-bold ${toneClass}`}>{value}</p>
       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{label}</p>
-    </div>
+    </Card>
   )
 }

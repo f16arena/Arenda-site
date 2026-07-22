@@ -4,6 +4,8 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { CheckCircle2, AlertTriangle, X } from "lucide-react"
 import { respondToReconciliation } from "@/app/actions/reconciliation-response"
+import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
 
 export function ReconciliationResponse({
   documentId,
@@ -22,20 +24,21 @@ export function ReconciliationResponse({
 
   if (status === "AGREED") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+      <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
         <CheckCircle2 className="h-3.5 w-3.5" /> Сверка подтверждена
-      </span>
+      </Badge>
     )
   }
 
   if (status === "DISPUTED") {
     return (
-      <span
-        className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
+      <Badge
+        variant="secondary"
+        className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
         title={note ?? undefined}
       >
         <AlertTriangle className="h-3.5 w-3.5" /> Заявлено расхождение
-      </span>
+      </Badge>
     )
   }
 
@@ -82,12 +85,12 @@ export function ReconciliationResponse({
               <X className="h-3.5 w-3.5 text-amber-500" />
             </button>
           </div>
-          <textarea
+          <Textarea
             value={disputeNote}
             onChange={(e) => setDisputeNote(e.target.value)}
             rows={3}
             placeholder="Например: не учтена оплата от 5 числа на 120 000 ₸"
-            className="w-full rounded-lg border border-amber-200 dark:border-amber-500/30 bg-white dark:bg-slate-900 px-3 py-2 text-xs"
+            className="border-amber-200 dark:border-amber-500/30 bg-white dark:bg-slate-900 text-xs md:text-xs"
           />
           <button
             type="button"

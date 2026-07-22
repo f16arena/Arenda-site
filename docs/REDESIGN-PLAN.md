@@ -15,31 +15,35 @@
 к тексту!), ЭСФ, конструкторы документов (движки lib/*-engine), cron. Меняем только UI-слой,
 маршруты (с редиректами) и композицию страниц.
 
-## Этап 0. Фундамент — дизайн-система ✅/⬜
+## Этап 0. Фундамент — дизайн-система ✅ (22.07, коммит 7f89868)
 
-- [ ] shadcn/ui init (Tailwind v4, @theme в globals.css), токены: primary, радиусы, светлая+тёмная
-- [ ] Примитивы: Button (замена своего), Input, Textarea, Select, Card, Badge, Dialog, Table,
-      Tabs, DropdownMenu, Tooltip, Checkbox, Switch, Label
-- [ ] Удалить «linear-style» POC из globals.css (перекрашивает часть страниц)
-- [ ] Свести акценты: один primary; emerald — только деньги/успех; убрать 6 stray indigo
-- [ ] Витрина: 2–3 страницы переведены как образец, утверждение стиля владельцем
+- [x] shadcn/ui init (radix, Tailwind v4), токены slate+синий primary, светлая+тёмная
+- [x] Примитивы: Button (CVA на токенах, старый API сохранён), Input, Textarea, Select, Card,
+      Badge, Dialog, AlertDialog, Sheet, Table, Tabs, DropdownMenu, Tooltip, Checkbox, Switch,
+      Separator, Popover, Label
+- [x] Удалён «linear-style» POC (globals.css + карточка арендатора)
+- [ ] Свести акценты по всему коду: убрать stray indigo (этап 2 попутно)
+- [x] Прод-сборка зелёная, задеплоено на commrent.kz
 
-## Этап 1. Структура: одна логика — одно место ⬜
+## Этап 1. Структура: одна логика — одно место ✅ (22.07, коммиты f0e8ff7…db60dac)
+
+Механизм: RouteTabs (ui/route-tabs) + наборы в lib/hub-tabs — страницы остаются
+роутами со своими правами, но выглядят одним разделом со вкладками.
 
 | Дубль | Действие | Статус |
 |---|---|---|
-| /admin/ops дублирует /admin | удалить, redirect на /admin | ⬜ |
-| staff ↔ users ↔ roles | одна «Команда»: вкладки Люди / Доступы / Роли | ⬜ |
-| dashboard/owner + reports + analytics | «Аналитика и отчёты» с вкладками (+фин.дашборд) | ⬜ |
-| documents ↔ contracts | один раздел «Документы»: вкладки Договоры/Счета/АВР/Прочее | ⬜ |
-| onboarding ↔ data-quality ↔ system-health | одна «Здоровье платформы» с вкладками | ⬜ |
-| import (хаб+3) ↔ finances/import | один хаб «Импорт» | ⬜ |
-| documents/templates (конструкторы) vs settings/document-templates (шаблоны) | развести нейминг, вход «Создать документ» | ⬜ |
-| Сироты: api-keys (0 ссылок!), contracts, import, builder, data-quality, system-health | в меню или удалить | ⬜ |
+| /admin/ops дублирует /admin | удалён, redirect на /admin | ✅ |
+| staff ↔ users ↔ roles | хаб «Команда и доступы», 1 пункт меню | ✅ |
+| dashboard/owner + reports + analytics | хаб «Аналитика и отчёты», 1 пункт | ✅ |
+| documents ↔ contracts | хаб «Документы и договоры» (вкладки) | ✅ (глубокое слияние списков — этап 3) |
+| onboarding ↔ data-quality ↔ system-health | хаб «Здоровье платформы» | ✅ |
+| import (хаб+3) ↔ finances/import | вкладки на всех 5 страницах | ✅ |
+| documents/templates vs settings/document-templates | развести нейминг | ⬜ (этап 3, вместе с редизайном документов) |
+| Сироты contracts/import/api-keys/data-quality/system-health | в меню/вкладках | ✅ |
 
-- [ ] Новое меню админки: 7 групп / ~22 пункта (целевое дерево — в аудите навигации)
-- [ ] Суперадмин-меню: 3 группы вместо плоских 14 пунктов
-- [ ] Все старые URL — redirect'ы (закладки пользователей живут)
+- [x] Меню админки: 7 групп / 20 видимых пунктов (было 9/30)
+- [x] Суперадмин-меню: блоки Клиенты / Биллинг / Платформа
+- [x] Старые URL работают (роуты сохранены, ops — redirect)
 
 ## Этап 2. Машинная зачистка копипаста (весь код) ⬜
 
