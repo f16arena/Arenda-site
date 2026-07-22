@@ -1,159 +1,146 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-/* Tailwind v4: настраиваем dark-вариант через .dark класс на html */
+/* Tailwind v4: dark-вариант через .dark класс на html (ставит theme-toggle) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ============================================================
+   Токены дизайн-системы (этап 0 редизайна, docs/REDESIGN-PLAN.md).
+   Нейтраль — slate, primary — синий (де-факто акцент продукта),
+   деньги/успех — emerald (через semantic-классы, не токен).
+   Все новые компоненты используют ТОЛЬКО эти токены.
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(1 0 0);                     /* white */
+  --foreground: oklch(0.208 0.042 265.755);       /* slate-900 */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.208 0.042 265.755);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.208 0.042 265.755);
+  --primary: oklch(0.546 0.245 262.881);          /* blue-600 */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.968 0.007 247.896);        /* slate-100 */
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.554 0.046 257.417); /* slate-500 */
+  --accent: oklch(0.968 0.007 247.896);
+  --accent-foreground: oklch(0.208 0.042 265.755);
+  --destructive: oklch(0.577 0.245 27.325);       /* red-600 */
+  --border: oklch(0.929 0.013 255.508);           /* slate-200 */
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.623 0.214 259.815);             /* blue-500 */
+  --chart-1: oklch(0.546 0.245 262.881);          /* blue-600 */
+  --chart-2: oklch(0.696 0.17 162.48);            /* emerald-500 */
+  --chart-3: oklch(0.769 0.188 70.08);            /* amber-500 */
+  --chart-4: oklch(0.606 0.25 292.717);           /* violet-500 */
+  --chart-5: oklch(0.645 0.246 16.439);           /* rose-500 */
+  --radius: 0.625rem;
+  --sidebar: oklch(0.984 0.003 247.858);          /* slate-50 */
+  --sidebar-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-primary: oklch(0.546 0.245 262.881);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.929 0.013 255.508);
+  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.623 0.214 259.815);
 }
 
 .dark {
-  --background: #0a0e1a;
-  --foreground: #ededed;
+  --background: oklch(0.129 0.042 264.695);       /* slate-950 */
+  --foreground: oklch(0.968 0.007 247.896);       /* slate-100 */
+  --card: oklch(0.208 0.042 265.755);             /* slate-900 */
+  --card-foreground: oklch(0.968 0.007 247.896);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.968 0.007 247.896);
+  --primary: oklch(0.623 0.214 259.815);          /* blue-500 */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.279 0.041 260.031);        /* slate-800 */
+  --secondary-foreground: oklch(0.968 0.007 247.896);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);  /* slate-400 */
+  --accent: oklch(0.279 0.041 260.031);
+  --accent-foreground: oklch(0.968 0.007 247.896);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(0.279 0.041 260.031);           /* slate-800 */
+  --input: oklch(0.279 0.041 260.031);
+  --ring: oklch(0.707 0.165 254.624);             /* blue-400 */
+  --chart-1: oklch(0.623 0.214 259.815);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.606 0.25 292.717);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.208 0.042 265.755);          /* slate-900 */
+  --sidebar-foreground: oklch(0.968 0.007 247.896);
+  --sidebar-primary: oklch(0.623 0.214 259.815);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.968 0.007 247.896);
+  --sidebar-border: oklch(0.279 0.041 260.031);
+  --sidebar-ring: oklch(0.707 0.165 254.624);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* Manrope — премиальный sans c отличной кириллицей; переменную ставит
+     next/font в layout.tsx. НЕ заменять на var(--font-sans) — циклическая
+     ссылка ломает шрифт (см. docs vercel:shadcn gotcha). */
   --font-sans: var(--font-manrope), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  font-feature-settings: "ss01", "ss02", "cv01", "cv03";
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv03";
+  }
 }
 
 /* Табличные цифры для финансовых чисел — выравниваются в столбцы */
 .tabular-nums, table td, .font-mono {
   font-variant-numeric: tabular-nums;
-}
-
-/* ============================================================
-   Linear-style — POC обёртка (2026-05-27).
-   Применяется через <div className="linear-style"> на отдельные
-   страницы. Идиомы linear.app: компактнее, hairline, мягче shadow,
-   subtle hover, чёткие focus rings, tabular numerals везде, чуть
-   меньшие радиусы (lg=8px вместо xl=12px).
-
-   Принцип: переопределяет Tailwind-классы внутри скоупа через
-   [class*="..."] селекторы. Реверсивно — убрать класс на root div,
-   страница вернётся к стандартному виду.
-
-   Если понравится — расширим на всю платформу (заменим скоуп на body
-   или :root). Сейчас точечно как POC.
-   ============================================================ */
-.linear-style {
-  --ls-accent: #5e6ad2;
-  --ls-accent-hover: #4d59c9;
-  --ls-accent-soft: #eef0fc;
-  --ls-hairline: #e4e4e7;
-  --ls-hairline-strong: #d4d4d8;
-  --ls-text: #18181b;
-  --ls-text-muted: #71717a;
-  --ls-bg: #fafafa;
-  --ls-bg-card: #ffffff;
-  font-feature-settings: "ss01", "ss02", "cv01", "cv03", "tnum" 1, "lnum" 1;
-  letter-spacing: -0.005em;
-}
-
-/* Чуть меньшие радиусы — Linear использует rounded-lg (8px) для карточек,
-   а не rounded-xl/2xl */
-.linear-style [class*="rounded-2xl"] { border-radius: 0.625rem !important; } /* 10px */
-.linear-style [class*="rounded-xl"]  { border-radius: 0.5rem !important; }   /* 8px */
-.linear-style [class*="rounded-lg"]  { border-radius: 0.375rem !important; } /* 6px */
-
-/* Hairline borders — слабее обычных Tailwind. Дублирующиеся правила для
-   light/dark — селектор поднимает специфичность достаточно. */
-.linear-style [class*="border-slate-200"],
-.linear-style [class*="border-zinc-200"],
-.linear-style [class*="border-gray-200"] {
-  border-color: var(--ls-hairline) !important;
-}
-.linear-style [class*="border-slate-300"] {
-  border-color: var(--ls-hairline-strong) !important;
-}
-
-/* Минимальные shadow — Linear почти не использует тени, только 1px hairline
-   снизу для отделения. */
-.linear-style [class*="shadow-sm"],
-.linear-style [class*="shadow-md"],
-.linear-style [class*="shadow-lg"] {
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04) !important;
-}
-.linear-style [class*="shadow-2xl"] {
-  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08) !important;
-}
-
-/* Плавные transitions на всё — Linear очень отзывчивый, 100-150ms ease */
-.linear-style button,
-.linear-style a,
-.linear-style [role="button"],
-.linear-style [class*="hover:"] {
-  transition-property: background-color, border-color, color, opacity, box-shadow, transform !important;
-  transition-duration: 120ms !important;
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-/* Focus rings — чёткие и заметные. Linear использует violet-accent. */
-.linear-style :focus-visible {
-  outline: 2px solid var(--ls-accent) !important;
-  outline-offset: 2px;
-}
-.linear-style input:focus-visible,
-.linear-style textarea:focus-visible,
-.linear-style select:focus-visible {
-  outline: none !important;
-  border-color: var(--ls-accent) !important;
-  box-shadow: 0 0 0 3px var(--ls-accent-soft) !important;
-}
-
-/* Blue accent → Linear violet */
-.linear-style [class*="text-blue-600"],
-.linear-style [class*="text-blue-700"],
-.linear-style [class*="text-blue-500"] {
-  color: var(--ls-accent) !important;
-}
-.linear-style [class*="bg-blue-600"],
-.linear-style [class*="bg-blue-700"] {
-  background-color: var(--ls-accent) !important;
-}
-.linear-style [class*="bg-blue-600"]:hover,
-.linear-style [class*="bg-blue-700"]:hover {
-  background-color: var(--ls-accent-hover) !important;
-}
-.linear-style [class*="bg-blue-50"],
-.linear-style [class*="bg-blue-100"] {
-  background-color: var(--ls-accent-soft) !important;
-}
-.linear-style [class*="border-blue-500"],
-.linear-style [class*="border-blue-600"] {
-  border-color: var(--ls-accent) !important;
-}
-
-/* Font-weight нормализация: Linear использует только 400 (body), 500 (emphasis), 600 (heading).
-   Никаких 700/800 — оставляем естественный вес шрифта. */
-.linear-style [class*="font-bold"] {
-  font-weight: 600 !important;
-}
-
-/* Тёмная тема: инвертируем переменные. Linear-app в тёмной — slate-900 фон,
-   slate-800 карточки, almost-pure-white текст. */
-.dark .linear-style {
-  --ls-accent: #7c89eb;
-  --ls-accent-hover: #909ceb;
-  --ls-accent-soft: rgba(94, 106, 210, 0.15);
-  --ls-hairline: #27272a;
-  --ls-hairline-strong: #3f3f46;
-  --ls-text: #fafafa;
-  --ls-text-muted: #a1a1aa;
-  --ls-bg: #09090b;
-  --ls-bg-card: #18181b;
-}
-.dark .linear-style [class*="border-slate-700"],
-.dark .linear-style [class*="border-slate-800"] {
-  border-color: var(--ls-hairline) !important;
 }
