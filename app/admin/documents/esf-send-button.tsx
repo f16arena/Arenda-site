@@ -87,7 +87,7 @@ export function EsfControl({
           title={kind === "invoice"
             ? "Выписать электронную счёт-фактуру (ЭСФ) в ИС ЭСФ (КГД)"
             : "Отправить электронный АВР в ИС ЭСФ (КГД) — арендатор подтвердит его ЭЦП в своём кабинете"}
-          className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 dark:border-indigo-500/40 dark:bg-indigo-500/15 dark:text-indigo-300 dark:hover:bg-indigo-500/25"
+          className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-500/40 dark:bg-blue-500/15 dark:text-blue-300 dark:hover:bg-blue-500/25"
         >
           {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Landmark className="h-3 w-3" />}
           {status ? "Повторить в ЭСФ" : "В ЭСФ"}

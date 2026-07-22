@@ -13,7 +13,10 @@ import {
 } from "@/app/actions/tenant"
 import { validateRequisites } from "@/lib/kz-validators"
 import { findBankByBik, findBankByName, findSingleBankSuggestion, isKnownBankName, KZ_BANKS } from "@/lib/kz-banks"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Input } from "@/components/ui/input"
 
 type BankAccount = {
   id: string
@@ -138,11 +141,10 @@ function BankFields({
         <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
           Название счета
         </label>
-        <input
+        <Input
           value={label}
           onChange={(event) => setLabel(event.target.value.slice(0, 80))}
           placeholder="Например: основной, Kaspi, Halyk"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800"
         />
       </div>
 
@@ -151,7 +153,7 @@ function BankFields({
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">БИК банка</label>
           {bik && <StatusIcon ok={checks.bik?.ok ?? null} />}
         </div>
-        <input
+        <Input
           name="bik"
           value={bik}
           onChange={(event) => handleBikChange(event.target.value)}
@@ -163,9 +165,9 @@ function BankFields({
           list={bikListId}
           pattern="[A-Z]{8,11}"
           maxLength={8}
-          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
+          className={`font-mono uppercase ${
             !bik
-              ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
+              ? ""
               : checks.bik?.ok
                 ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-500/40"
                 : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
@@ -193,13 +195,12 @@ function BankFields({
         <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
           Название банка
         </label>
-        <input
+        <Input
           value={bankName}
           onChange={(event) => handleBankNameChange(event.target.value)}
           onBlur={handleBankNameBlur}
           list={bankNameListId}
           placeholder="Начните писать банк или выберите из списка"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800"
         />
         <datalist id={bankNameListId}>
           {KZ_BANKS.map((bank) => (
@@ -220,16 +221,16 @@ function BankFields({
           </label>
           {iik && <StatusIcon ok={checks.iik?.ok ?? null} />}
         </div>
-        <input
+        <Input
           name="iik"
           value={iik}
           onChange={(event) => setIik(normalizeIikInput(event.target.value))}
           placeholder="KZ123456789012345678"
           pattern="^KZ[A-Za-z0-9]{18}$"
           maxLength={32}
-          className={`w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase focus:outline-none focus:ring-2 ${
+          className={`font-mono uppercase ${
             !iik
-              ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
+              ? ""
               : checks.iik?.ok
                 ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-500/40"
                 : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
@@ -321,18 +322,19 @@ function ExistingAccount({ account }: { account: BankAccount }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {account.isPrimary ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-300">
+            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
               <Star className="h-3.5 w-3.5 fill-current" /> Основной
-            </span>
+            </Badge>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={pending}
               onClick={makePrimary}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-white disabled:opacity-60 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               <Star className="h-3.5 w-3.5" /> Сделать основным
-            </button>
+            </Button>
           )}
           <ConfirmDialog
             variant="danger"
@@ -367,16 +369,15 @@ function ExistingAccount({ account }: { account: BankAccount }) {
       <div className="mt-4 flex justify-end">
         <div className="flex flex-col items-end gap-1">
           {inputError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{inputError}</p>}
-          <button
+          <Button
             type="button"
             disabled={pending || !!inputError}
             onClick={save}
             title={inputError ?? undefined}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
             {pending ? "Сохранение..." : "Сохранить счёт"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -493,16 +494,15 @@ function AddAccountForm({ tenantId }: { tenantId: string }) {
       <div className="mt-4 flex justify-end">
         <div className="flex flex-col items-end gap-1">
           {inputError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{inputError}</p>}
-          <button
+          <Button
             type="button"
             disabled={pending || !!inputError}
             onClick={submit}
             title={inputError ?? undefined}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
           >
             <Plus className="h-4 w-4" />
             {pending ? "Добавление..." : "Добавить счёт"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -551,7 +551,7 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
         </label>
         {taxId && <StatusIcon ok={taxCheck?.ok ?? null} />}
       </div>
-      <input
+      <Input
         name={isIin ? "iin" : "bin"}
         value={taxId}
         onChange={(event) => setTaxId(event.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
@@ -559,9 +559,9 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
         pattern="\d{12}"
         maxLength={12}
         inputMode="numeric"
-        className={`w-full rounded-lg border px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 ${
+        className={`font-mono ${
           !taxId
-            ? "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800"
+            ? ""
             : taxCheck?.ok
               ? "border-emerald-300 dark:border-emerald-500/40"
               : "border-red-300 dark:border-red-500/40"
@@ -574,14 +574,9 @@ function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
         <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{taxCheck.warning}</p>
       )}
       <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={save}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-        >
+        <Button type="button" disabled={pending} onClick={save}>
           {pending ? "Сохранение..." : "Сохранить"}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -600,9 +595,9 @@ export function RequisitesForm({ tenantId, initial, isIin }: Props) {
               Основной счёт используется в договорах, счетах и старых шаблонах.
             </p>
           </div>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <Badge variant="secondary">
             {initial.bankAccounts.length}
-          </span>
+          </Badge>
         </div>
 
         {initial.bankAccounts.length === 0 ? (

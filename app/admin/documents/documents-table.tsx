@@ -12,6 +12,7 @@ import {
   bulkDeleteAdminDocuments,
 } from "@/app/actions/documents"
 import { formatMoney } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LandlordSignButton } from "@/components/documents/landlord-sign-button"
 import { EsfControl } from "./esf-send-button"
@@ -92,15 +93,15 @@ function SignBadge({ row }: { row: DocRow }) {
   const twoSided = TWO_SIDED_DOC_TYPES.has(row.type)
   if (twoSided && n < 2) {
     return (
-      <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" title="Подписана одна сторона; ждём вторую">
+      <Badge className="ml-1.5 px-1.5 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" title="Подписана одна сторона; ждём вторую">
         подписан: 1 сторона
-      </span>
+      </Badge>
     )
   }
   return (
-    <span className="ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" title="Документ подписан ЭЦП">
+    <Badge className="ml-1.5 px-1.5 text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" title="Документ подписан ЭЦП">
       ✓ подписан{twoSided ? " (обе стороны)" : ""}
-    </span>
+    </Badge>
   )
 }
 
@@ -109,12 +110,12 @@ function ReconBadge({ row }: { row: DocRow }) {
   const b = RECON_BADGE[row.reconStatus]
   if (!b) return null
   return (
-    <span
-      className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${b.cls}`}
+    <Badge
+      className={`ml-1.5 px-1.5 text-[10px] ${b.cls}`}
       title={row.reconStatus === "DISPUTED" && row.reconResponseNote ? row.reconResponseNote : undefined}
     >
       {b.label}
-    </span>
+    </Badge>
   )
 }
 
@@ -399,9 +400,9 @@ export function DocumentsTable({
   function renderAmount(r: DocRow) {
     if (r.totalAmount == null && (!r.paymentStatus || r.paymentStatus === "none")) return <>—</>
     const badge = r.paymentStatus && r.paymentStatus !== "none" ? (
-      <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${r.paymentStatus === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"}`}>
+      <Badge className={`px-1.5 text-[10px] ${r.paymentStatus === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"}`}>
         {r.paymentStatus === "paid" ? "оплачен" : "долг"}
-      </span>
+      </Badge>
     ) : null
     return (
       <div className="flex items-center justify-end gap-2">
@@ -714,9 +715,9 @@ export function DocumentsTable({
                           ) : null}
                         </td>
                         <td className="px-5 py-3">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                          <Badge className={TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}>
                             {TYPE_LABELS[r.type] ?? r.type}
-                          </span>
+                          </Badge>
                           <ReconBadge row={r} />
                           <SignBadge row={r} />
                         </td>
@@ -758,9 +759,9 @@ export function DocumentsTable({
                     ) : null}
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+                    <Badge className={TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}>
                       {TYPE_LABELS[r.type] ?? r.type}
-                    </span>
+                    </Badge>
                     <ReconBadge row={r} />
                     <SignBadge row={r} />
                   </td>

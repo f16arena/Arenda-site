@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useReducer, useTransition } from "react"
 import { Download, Loader2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { lookupTaxpayerAction } from "@/app/actions/taxpayer-lookup"
+import { Input } from "@/components/ui/input"
 import { formatKzIinBirthDate, validateKazakhstanIin } from "@/lib/kz-iin"
 import { DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
@@ -205,7 +206,7 @@ export function TenantIdentityFields({
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           {taxIdLabel} <span className="text-slate-300 dark:text-slate-600">12 цифр</span>
         </label>
-        <input
+        <Input
           name={usesBin ? "bin" : "iin"}
           value={taxId}
           onChange={(event) => setTaxId(event.target.value.replace(/\D/g, "").slice(0, 12))}
@@ -224,10 +225,10 @@ export function TenantIdentityFields({
           pattern="\d{12}"
           maxLength={12}
           className={[
-            "w-full rounded-lg border px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2",
+            "font-mono",
             iinValidation && !iinValidation.ok
               ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-              : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/20",
+              : "",
           ].join(" ")}
         />
         {taxId.length === 12 && (
@@ -305,38 +306,34 @@ export function TenantIdentityFields({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">№ удостоверения</label>
-              <input
+              <Input
                 name="idDocNumber"
                 defaultValue={initialIdDocNumber ?? ""}
                 placeholder="напр. 045678901"
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Кем выдан</label>
-              <input
+              <Input
                 name="idDocIssuedBy"
                 defaultValue={initialIdDocIssuedBy ?? ""}
                 placeholder="напр. МВД РК"
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата выдачи (от)</label>
-              <input
+              <Input
                 name="idDocIssuedAt"
                 type="date"
                 defaultValue={initialIdDocIssuedAt ?? ""}
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Действует до</label>
-              <input
+              <Input
                 name="idDocExpiresAt"
                 type="date"
                 defaultValue={initialIdDocExpiresAt ?? ""}
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
               />
             </div>
           </div>

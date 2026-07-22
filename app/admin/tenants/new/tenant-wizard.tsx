@@ -7,6 +7,9 @@ import { Check, ChevronLeft, ChevronRight, FileSignature, Loader2, UserPlus } fr
 import { createTenant } from "@/app/actions/tenant-create"
 import { updateTenantRentalTerms } from "@/app/actions/tenant"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { formatMoney } from "@/lib/utils"
 
@@ -185,13 +188,14 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
       </div>
 
       {/* Одна форма на все шаги: скрытые шаги остаются в DOM, данные не теряются. */}
-      <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+      <Card className="block p-6">
+      <form ref={formRef} onSubmit={(e) => e.preventDefault()}>
         {/* ── Шаг 1: контакты и компания ── */}
         <div className={step === 0 ? "space-y-4" : "hidden"}>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Контактное лицо</p>
           <div>
             <label className={labelCls}>ФИО *</label>
-            <input name="name" className={inputCls} placeholder="Иванов Иван Иванович" />
+            <Input name="name" placeholder="Иванов Иван Иванович" />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
@@ -206,7 +210,7 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
           <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Компания</p>
           <div>
             <label className={labelCls}>Название компании *</label>
-            <input name="companyName" className={inputCls} placeholder="ТОО «Ромашка» / ИП Иванов" />
+            <Input name="companyName" placeholder="ТОО «Ромашка» / ИП Иванов" />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TenantIdentityFields />
@@ -214,11 +218,11 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Вид деятельности</label>
-              <input name="category" className={inputCls} placeholder="розничная торговля, офис…" />
+              <Input name="category" placeholder="розничная торговля, офис…" />
             </div>
             <div>
               <label className={labelCls}>Юридический адрес</label>
-              <input name="legalAddress" className={inputCls} />
+              <Input name="legalAddress" />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-5 pt-1">
@@ -302,34 +306,34 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
             {rentMode === "RATE" && (
               <div>
                 <label className={labelCls}>Ставка ₸/м² *</label>
-                <input name="customRate" type="number" step="0.01" min={0} className={inputCls} />
+                <Input name="customRate" type="number" step="0.01" min={0} />
               </div>
             )}
             {rentMode === "FIXED" && (
               <div>
                 <label className={labelCls}>Аренда ₸/мес *</label>
-                <input name="fixedMonthlyRent" type="number" step="0.01" min={0} className={inputCls} />
+                <Input name="fixedMonthlyRent" type="number" step="0.01" min={0} />
               </div>
             )}
             <div>
               <label className={labelCls}>День оплаты</label>
-              <input name="paymentDueDay" type="number" min={1} max={31} defaultValue={10} className={inputCls} />
+              <Input name="paymentDueDay" type="number" min={1} max={31} defaultValue={10} />
             </div>
             <div>
               <label className={labelCls}>Депозит ₸</label>
-              <input name="depositAmount" type="number" min={0} step="0.01" className={inputCls} placeholder="= 1 мес. аренды" />
+              <Input name="depositAmount" type="number" min={0} step="0.01" placeholder="= 1 мес. аренды" />
             </div>
             <div>
               <label className={labelCls}>Пеня % в день</label>
-              <input name="penaltyPercent" type="number" step="0.1" min={0} max={100} defaultValue={0.5} className={inputCls} />
+              <Input name="penaltyPercent" type="number" step="0.1" min={0} max={100} defaultValue={0.5} />
             </div>
             <div>
               <label className={labelCls}>Каникулы, мес.</label>
-              <input name="rentFreeMonths" type="number" min={0} max={24} defaultValue={0} className={inputCls} />
+              <Input name="rentFreeMonths" type="number" min={0} max={24} defaultValue={0} />
             </div>
             <div>
               <label className={labelCls}>Индексация, %/год</label>
-              <input name="indexationPct" type="number" step="0.1" min={0} max={100} className={inputCls} placeholder="0 = нет" />
+              <Input name="indexationPct" type="number" step="0.1" min={0} max={100} placeholder="0 = нет" />
             </div>
           </div>
 
@@ -337,19 +341,19 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <label className={labelCls}>Начало договора</label>
-              <input name="contractStart" type="date" className={inputCls} />
+              <Input name="contractStart" type="date" />
             </div>
             <div>
               <label className={labelCls}>Окончание</label>
-              <input name="contractEnd" type="date" className={inputCls} />
+              <Input name="contractEnd" type="date" />
             </div>
             <div>
               <label className={labelCls}>Дата заселения</label>
-              <input name="moveInDate" type="date" className={inputCls} />
+              <Input name="moveInDate" type="date" />
             </div>
             <div>
               <label className={labelCls}>Следующая индексация</label>
-              <input name="nextIndexationAt" type="date" className={inputCls} />
+              <Input name="nextIndexationAt" type="date" />
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -357,7 +361,7 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
               <input type="checkbox" name="needsCleaning" /> Уборка помещения
             </label>
             <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input name="cleaningFee" type="number" min={0} step="0.01" placeholder="₸/мес" className={`${inputCls} w-28`} />
+              <Input name="cleaningFee" type="number" min={0} step="0.01" placeholder="₸/мес" className="w-28" />
             </div>
           </div>
         </div>
@@ -380,22 +384,18 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
 
         {/* Навигация */}
         <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => setStep((s) => Math.max(0, s - 1))}
             disabled={step === 0 || pending}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 disabled:opacity-40 dark:border-slate-800 dark:text-slate-400"
           >
             <ChevronLeft className="h-4 w-4" /> Назад
-          </button>
+          </Button>
           {step < 2 ? (
-            <button
-              type="button"
-              onClick={next}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
-            >
+            <Button type="button" onClick={next}>
               Далее <ChevronRight className="h-4 w-4" />
-            </button>
+            </Button>
           ) : (
             <button
               type="button"
@@ -409,6 +409,7 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
           )}
         </div>
       </form>
+      </Card>
     </div>
   )
 }

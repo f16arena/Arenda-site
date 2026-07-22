@@ -8,6 +8,7 @@ import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "./tenant-identity-fields"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 // Карточка арендатора = только реквизиты/контакты. Помещение, аренда и срок
 // задаются в договоре (помещение — на странице этажа), поэтому форма создания
@@ -56,7 +57,7 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Контактное лицо</p>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО *</label>
-                <input name="name" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="name" required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -72,7 +73,7 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
                   Пароль для входа <span className="text-slate-400">(если пусто — сгенерируем)</span>
                 </label>
-                <input name="password" type="text" placeholder="tenant123 или оставьте пустым" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="password" type="text" placeholder="tenant123 или оставьте пустым" />
               </div>
               <label className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                 <input
@@ -93,14 +94,14 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide pt-2">Компания</p>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название компании *</label>
-                <input name="companyName" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="companyName" required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <TenantIdentityFields initialLegalType="IP" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
-                <input name="category" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="category" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Юридический адрес</label>
@@ -125,10 +126,9 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
                   Описание размещения <span className="text-slate-400">(если без помещения — крыша/фасад)</span>
                 </label>
-                <input
+                <Input
                   name="placementNote"
                   placeholder="например, Крыша — антенно-мачтовое сооружение Beeline"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
 

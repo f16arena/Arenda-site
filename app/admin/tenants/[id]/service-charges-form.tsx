@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { saveTenantServiceCharges } from "@/app/actions/finance"
 import { SERVICE_CHARGE_TYPES } from "@/lib/service-charges"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 type ExistingServiceCharge = {
   id: string
@@ -23,9 +24,6 @@ type Props = {
    *  Они скрываются из формы — арендатору не выставляются отдельно. */
   utilitiesInServiceFee?: string[]
 }
-
-const inputClass =
-  "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:disabled:bg-slate-800/70"
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Не удалось сохранить начисления"
@@ -74,22 +72,20 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
             Период
           </label>
-          <input
+          <Input
             name="period"
             type="month"
             defaultValue={period}
-            className={inputClass}
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
             Срок оплаты
           </label>
-          <input
+          <Input
             name="dueDate"
             type="date"
             defaultValue={defaultDueDate}
-            className={inputClass}
           />
         </div>
       </div>
@@ -128,7 +124,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
                   />
                   {item.label}
                 </label>
-                <input
+                <Input
                   name={`amount_${item.type}`}
                   type="number"
                   step="0.01"
@@ -137,14 +133,12 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
                   disabled={!active || pending}
                   defaultValue={existing?.amount ?? ""}
                   placeholder="0"
-                  className={inputClass}
                 />
-                <input
+                <Input
                   name={`description_${item.type}`}
                   disabled={!active || pending}
                   defaultValue={existing?.description ?? ""}
                   placeholder={item.description}
-                  className={inputClass}
                 />
               </div>
             )

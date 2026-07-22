@@ -9,6 +9,8 @@ import {
   Clock, Users, Receipt, History as HistoryIcon, ChevronDown,
 } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { contractScope } from "@/lib/tenant-scope"
 import { assertContractInOrg } from "@/lib/scope-guards"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
@@ -24,7 +26,7 @@ import { AddendumActions } from "@/components/contract-constructor/addendum-acti
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   DRAFT:             { label: "Черновик",       color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
   SENT:              { label: "Отправлен",      color: "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300" },
-  VIEWED:            { label: "Просмотрен",     color: "bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300" },
+  VIEWED:            { label: "Просмотрен",     color: "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300" },
   SIGNED_BY_TENANT:  { label: "Подписал арендатор", color: "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
   SIGNED:            { label: "Подписан",       color: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   ACTIVE:            { label: "Действующий",    color: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
@@ -127,7 +129,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       />
 
       {/* Шапка-карточка */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+      <Card className="block p-5">
         <Link href="/admin/contracts" className="mb-3 inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
           <ArrowLeft className="h-3.5 w-3.5" /> К списку договоров
         </Link>
@@ -137,14 +139,14 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
                 {TYPE_LABELS[contract.type] ?? contract.type} № {contract.number}
               </h1>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusMeta.color}`}>{statusMeta.label}</span>
+              <Badge className={statusMeta.color}>{statusMeta.label}</Badge>
               {contract.placementType && !isAddendum && (
-                <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                   {contractTypeShort(contract.placementType)}
-                </span>
+                </Badge>
               )}
               {contract.version > 1 && (
-                <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">Версия {contract.version}</span>
+                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">Версия {contract.version}</Badge>
               )}
             </div>
             <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
@@ -169,7 +171,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Две колонки: контент слева, сводка + связи справа */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -268,7 +270,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                   <li key={v.id}>
                     <Link href={`/admin/contracts/${v.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:border-slate-800 dark:hover:bg-blue-500/10">
                       <span><span className="font-medium text-slate-900 dark:text-slate-100">v{v.version}</span><span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{fmtDate(v.createdAt)}</span></span>
-                      <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_LABELS[v.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[v.status]?.label ?? v.status}</span>
+                      <Badge className={`px-1.5 font-normal ${STATUS_LABELS[v.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[v.status]?.label ?? v.status}</Badge>
                     </Link>
                   </li>
                 ))}
@@ -284,7 +286,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                     <Link href={`/admin/contracts/${a.id}`} className="flex flex-col gap-1 rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:border-slate-800 dark:hover:bg-blue-500/10">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-slate-900 dark:text-slate-100">ДС № {a.number}</span>
-                        <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_LABELS[a.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[a.status]?.label ?? a.status}</span>
+                        <Badge className={`px-1.5 font-normal ${STATUS_LABELS[a.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[a.status]?.label ?? a.status}</Badge>
                       </div>
                       {a.changeKind && <span className="text-xs text-slate-500 dark:text-slate-400">{CHANGE_KIND_LABELS[a.changeKind] ?? a.changeKind}</span>}
                       <span className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(a.createdAt)}</span>
@@ -302,13 +304,13 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
 
 function Section({ title, icon: Icon, children }: { title: string; icon: typeof FileText; children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block overflow-hidden p-0">
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
         <Icon className="h-4 w-4 text-slate-400 dark:text-slate-500" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
       </div>
       <div className="p-5">{children}</div>
-    </div>
+    </Card>
   )
 }
 

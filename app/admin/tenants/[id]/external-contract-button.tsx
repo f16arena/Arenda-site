@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { FilePlus2, Upload } from "lucide-react"
 import { createExternalContract } from "@/app/actions/external-contract"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 // Внешний договор (PDF контрагента) — для арендаторов, не принимающих нашу
 // редакцию (вышки Beeline/Altel, камеры Сергек). Загружаем готовый PDF.
@@ -31,13 +32,9 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-      >
+      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
         <FilePlus2 className="h-3.5 w-3.5" /> Внешний договор (PDF)
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -72,11 +69,11 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
               <div className="flex-1 space-y-4 overflow-y-auto p-6">
               <div>
                 <label className={labelCls}>Номер договора *</label>
-                <input name="number" required placeholder="например, BEE-2026/14" className={inputCls} />
+                <Input name="number" required placeholder="например, BEE-2026/14" />
               </div>
               <div>
                 <label className={labelCls}>PDF договора *</label>
-                <input name="file" type="file" accept="application/pdf" required className={`${inputCls} file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs dark:file:bg-slate-800 dark:file:text-slate-200`} />
+                <Input name="file" type="file" accept="application/pdf" required className="file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs dark:file:bg-slate-800 dark:file:text-slate-200" />
                 <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Только PDF, до 10 МБ.</p>
               </div>
 
@@ -94,7 +91,7 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                         <option value="FIXED">Фикс-сумма ₸</option>
                         <option value="RATE">Ставка ₸/м²</option>
                       </select>
-                      <input name="rentAmount" type="number" min="0" step="any" inputMode="decimal" required placeholder="например, 450000" className={inputCls} />
+                      <Input name="rentAmount" type="number" min="0" step="any" inputMode="decimal" required placeholder="например, 450000" />
                     </div>
                     <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
                       «Ставка ₸/м²» — сумма считается как ставка × площадь помещений арендатора.
@@ -104,45 +101,45 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>Начало *</label>
-                      <input name="startDate" type="date" required className={inputCls} />
+                      <Input name="startDate" type="date" required />
                     </div>
                     <div>
                       <label className={labelCls}>Окончание *</label>
-                      <input name="endDate" type="date" required className={inputCls} />
+                      <Input name="endDate" type="date" required />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>День оплаты</label>
-                      <input name="paymentDueDay" type="number" min="1" max="31" placeholder="10" className={inputCls} />
+                      <Input name="paymentDueDay" type="number" min="1" max="31" placeholder="10" />
                     </div>
                     <div>
                       <label className={labelCls}>Депозит, ₸</label>
-                      <input name="depositAmount" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 450000" className={inputCls} />
+                      <Input name="depositAmount" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 450000" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>Индексация, %/год</label>
-                      <input name="indexationPct" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 10" className={inputCls} />
+                      <Input name="indexationPct" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 10" />
                     </div>
                     <div>
                       <label className={labelCls}>Дата индексации</label>
-                      <input name="nextIndexationAt" type="date" className={inputCls} />
+                      <Input name="nextIndexationAt" type="date" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelCls}>Пеня, %/день</label>
-                      <input name="penaltyPercent" type="number" min="0" max="100" step="any" inputMode="decimal" placeholder="напр., 1" className={inputCls} />
+                      <Input name="penaltyPercent" type="number" min="0" max="100" step="any" inputMode="decimal" placeholder="напр., 1" />
                       <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">За просрочку (0 = без пени).</p>
                     </div>
                     <div>
                       <label className={labelCls}>Каникулы, мес</label>
-                      <input name="rentFreeMonths" type="number" min="0" max="24" step="1" inputMode="numeric" placeholder="напр., 3" className={inputCls} />
+                      <Input name="rentFreeMonths" type="number" min="0" max="24" step="1" inputMode="numeric" placeholder="напр., 3" />
                       <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Льготные месяцы (ремонт). Если задан график с 0 — не обязательно.</p>
                     </div>
                   </div>
@@ -170,13 +167,13 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                       <div className="space-y-2">
                         {steps.map((st, i) => (
                           <div key={i} className="flex items-center gap-2">
-                            <input
+                            <Input
                               type="month"
                               value={st.from}
                               onChange={(e) => updateStep(i, "from", e.target.value)}
-                              className={`${inputCls} w-40 shrink-0`}
+                              className="w-40 shrink-0"
                             />
-                            <input
+                            <Input
                               type="number"
                               min="0"
                               step="any"
@@ -184,7 +181,6 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                               placeholder="₸/мес (0 = льгота)"
                               value={st.amount}
                               onChange={(e) => updateStep(i, "amount", e.target.value)}
-                              className={inputCls}
                             />
                             <button
                               type="button"
@@ -210,16 +206,16 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className={labelCls}>Сумма долга, ₸</label>
-                        <input name="openingDebt" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 6000000" className={inputCls} />
+                        <Input name="openingDebt" type="number" min="0" step="any" inputMode="decimal" placeholder="напр., 6000000" />
                       </div>
                       <div>
                         <label className={labelCls}>Период долга</label>
-                        <input name="openingDebtPeriod" type="month" className={inputCls} />
+                        <Input name="openingDebtPeriod" type="month" />
                       </div>
                     </div>
                     <div className="mt-3">
                       <label className={labelCls}>Срок оплаты долга (необязательно)</label>
-                      <input name="openingDebtDue" type="date" className={inputCls} />
+                      <Input name="openingDebtDue" type="date" />
                       <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Пусто — пеня на долг автоматически не начисляется.</p>
                     </div>
                   </div>
