@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import Link from "next/link"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { HEALTH_TABS } from "@/lib/hub-tabs"
 import { redirect } from "next/navigation"
 import {
   ArrowRight,
@@ -98,6 +100,7 @@ export default async function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      <RouteTabs items={HEALTH_TABS} className="mb-2" />
       <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="grid gap-5 lg:grid-cols-[1.4fr_0.8fr] lg:items-center">
           <div className="flex items-start gap-4">

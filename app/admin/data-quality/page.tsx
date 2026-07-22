@@ -28,6 +28,8 @@ import { canManageRoleInOrg, displayRoleLabel, isStaffLikeRole } from "@/lib/rol
 import { getRelationshipIntegrityOverview } from "@/lib/relationship-integrity"
 import { RelationshipIntegrityPanelLazy } from "./relationship-integrity-panel-lazy"
 import { PageHeader, StatCard } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { HEALTH_TABS } from "@/lib/hub-tabs"
 
 type Severity = "critical" | "warning" | "info"
 
@@ -794,6 +796,7 @@ export default async function DataQualityPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={HEALTH_TABS} className="mb-2" />
       <PageHeader
         icon={ClipboardCheck}
         title="Качество данных"

@@ -7,12 +7,12 @@ import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
   MessageSquare, AlertCircle, Phone, BarChart3,
-  Shield, Package, Settings as SettingsIcon,
+  Package, Settings as SettingsIcon,
   Mail, History, TrendingUp,
   LogOut, Building,
   CalendarDays, ChevronDown,
-  Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles, FileBarChart,
-  PanelLeftClose, PanelLeftOpen, Megaphone, Box, FileSignature, Upload, KeyRound,
+  Menu, X, Rocket, CircleHelp, HardDrive, Sparkles,
+  PanelLeftClose, PanelLeftOpen, Megaphone, Box, Upload, KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -91,16 +91,15 @@ const nav: NavSection[] = [
     title: "ФИНАНСЫ",
     items: [
       { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
-      { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
-      { href: "/admin/reports", label: "Отчётность", icon: FileBarChart, section: "analytics", ownerOnly: true },
-      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
+      // Хаб: аналитика + фин.дашборд + отчётность — вкладки внутри (lib/hub-tabs).
+      { href: "/admin/analytics", label: "Аналитика и отчёты", icon: BarChart3, section: "analytics" },
     ],
   },
   {
     title: "ДОКУМЕНТЫ",
     items: [
-      { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents", counter: "documents" },
-      { href: "/admin/contracts", label: "Договоры", icon: FileSignature, section: "documents" },
+      // Хаб: все документы + договоры — вкладки внутри (lib/hub-tabs).
+      { href: "/admin/documents", label: "Документы и договоры", icon: FileText, section: "documents", counter: "documents" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
@@ -121,9 +120,8 @@ const nav: NavSection[] = [
     collapsible: true,
     items: [
       { href: "/admin/settings", label: "Настройки организации", icon: SettingsIcon, section: "settings" },
-      { href: "/admin/staff", label: "Сотрудники", icon: Users, section: "staff" },
-      { href: "/admin/users", label: "Все пользователи", icon: UserCog, section: "users" },
-      { href: "/admin/roles", label: "Роли и доступы", icon: Shield, section: "settings" },
+      // Хаб: сотрудники + доступы/здания + роли — вкладки внутри (lib/hub-tabs).
+      { href: "/admin/staff", label: "Команда и доступы", icon: Users, section: "staff" },
       { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
       { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "settings" },
       { href: "/admin/api-keys", label: "API-ключи", icon: KeyRound, section: "settings" },

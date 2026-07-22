@@ -13,6 +13,8 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import { contractTypeShort } from "@/lib/contract-placement-types"
 import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { DOCUMENTS_TABS } from "@/lib/hub-tabs"
 
 export default async function ContractsPage() {
   const session = await auth()
@@ -64,6 +66,7 @@ export default async function ContractsPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
       <PageHeader
         icon={FileText}
         title="Договоры"

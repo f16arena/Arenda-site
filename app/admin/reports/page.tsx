@@ -14,6 +14,8 @@ import { getMarketComparison } from "@/lib/market"
 import { ReportView } from "./report-view"
 import { MarketSection } from "./market-section"
 import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { ANALYTICS_TABS } from "@/lib/hub-tabs"
 import { FileBarChart } from "lucide-react"
 
 type Period = "month" | "prev" | "quarter" | "year"
@@ -67,6 +69,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={ANALYTICS_TABS} className="mb-2" />
       <PageHeader
         icon={FileBarChart}
         title="Отчётность"

@@ -9,6 +9,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { auth } from "@/auth"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { TEAM_TABS } from "@/lib/hub-tabs"
 import { UsersRound } from "lucide-react"
 
 export default async function StaffPage() {
@@ -48,6 +50,7 @@ export default async function StaffPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={TEAM_TABS} className="mb-2" />
       <PageHeader
         icon={UsersRound}
         title="Сотрудники"

@@ -17,6 +17,8 @@ import { chargeScope, expenseScope, tenantScope } from "@/lib/tenant-scope"
 import { calculateTenantRentChargeForPeriod } from "@/lib/rent"
 import { safeServerValue } from "@/lib/server-fallback"
 import { GroupedBarChart, GaugeBar, type MultiSeries } from "@/components/dashboard/simple-chart"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { ANALYTICS_TABS } from "@/lib/hub-tabs"
 
 const MONTH_LABELS = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
 
@@ -247,6 +249,7 @@ export default async function OwnerDashboardPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={ANALYTICS_TABS} className="mb-2" />
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">

@@ -22,6 +22,8 @@ import {
 } from "@/lib/system-health"
 import { getReleaseInfo } from "@/lib/release"
 import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { HEALTH_TABS } from "@/lib/hub-tabs"
 
 const statusMeta: Record<SystemCheckStatus, {
   label: string
@@ -66,6 +68,7 @@ export default async function SystemHealthPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={HEALTH_TABS} className="mb-2" />
       <PageHeader
         icon={ShieldCheck}
         title="Проверка системы"

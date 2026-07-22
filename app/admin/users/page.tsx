@@ -33,6 +33,8 @@ import {
 } from "./user-actions"
 import { APPROVAL_PENDING, APPROVAL_REJECTED, approvalLabel } from "@/lib/approval"
 import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { TEAM_TABS } from "@/lib/hub-tabs"
 
 type EffectiveCapabilityState = {
   allowed: boolean
@@ -259,6 +261,7 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={TEAM_TABS} className="mb-2" />
       <PageHeader
         icon={Shield}
         tone="violet"

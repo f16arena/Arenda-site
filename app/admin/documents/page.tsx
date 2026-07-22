@@ -17,6 +17,8 @@ import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { DOCUMENTS_TABS } from "@/lib/hub-tabs"
 import { FileText } from "lucide-react"
 
 // Грузим расширенный набор — фильтрация/поиск/пагинация делаются на клиенте.
@@ -342,6 +344,7 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
       <PageHeader
         icon={FileText}
         title="Документы"

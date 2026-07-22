@@ -14,6 +14,8 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { safeServerValue } from "@/lib/server-fallback"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { ANALYTICS_TABS } from "@/lib/hub-tabs"
 
 export default async function AnalyticsPage() {
   const session = await auth()
@@ -38,6 +40,7 @@ export default async function AnalyticsPage() {
   if (!features.analyticsBasic) {
     return (
       <div className="space-y-4">
+        <RouteTabs items={ANALYTICS_TABS} className="mb-2" />
         <PageHeader icon={Activity} title="Аналитика" />
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
           <div className="flex items-start gap-3">

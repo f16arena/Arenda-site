@@ -22,6 +22,8 @@ import {
 import { capabilityKeyFromPermission, userIdFromCapabilityRole } from "@/lib/capability-keys"
 import { PermissionsMatrix } from "./permissions-matrix"
 import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { TEAM_TABS } from "@/lib/hub-tabs"
 
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "bg-purple-500/10 text-purple-300 border-purple-500/30",
@@ -141,6 +143,7 @@ export default async function RolesPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={TEAM_TABS} className="mb-2" />
       <PageHeader
         icon={Shield}
         tone="violet"
