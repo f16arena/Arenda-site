@@ -20,6 +20,8 @@ import { AddressAutocompleteInput } from "@/components/forms/address-autocomplet
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { formatMoney } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
 import { isZoneFloor, type FloorKind } from "@/lib/zone-kinds"
 
 const FIELD_CLASS = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
@@ -79,11 +81,11 @@ export function CreateBuildingButton() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Префикс договоров</label>
-                <input
+                <Input
                   name="contractPrefix"
                   placeholder="F16"
                   maxLength={10}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
+                  className="font-mono uppercase"
                 />
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Используется в номере: {`{префикс}-{год}-{№}`}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.</p>
               </div>
@@ -138,7 +140,8 @@ export function BuildingActions({
   return (
     <div className="flex items-center gap-2">
       {!isCurrent && isActive && (
-        <button
+        <Button
+          size="sm"
           onClick={() =>
             startTransition(async () => {
               try {
@@ -149,10 +152,9 @@ export function BuildingActions({
               }
             })
           }
-          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
         >
           Переключиться
-        </button>
+        </Button>
       )}
 
       {canEdit && (
@@ -263,12 +265,12 @@ export function BuildingActions({
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Префикс договоров</label>
-                <input
+                <Input
                   name="contractPrefix"
                   defaultValue={building.contractPrefix ?? ""}
                   placeholder="F16"
                   maxLength={10}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono uppercase focus:border-blue-500 focus:outline-none"
+                  className="font-mono uppercase"
                 />
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Формат: {`{префикс}-{год}-{№}`} → {building.contractPrefix || "F16"}-{new Date().getFullYear()}-001</p>
               </div>
@@ -328,14 +330,14 @@ export function FloorsList({
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5">
                       <span className="truncate">{f.name}</span>
                       {f.kind === "ROOF" && (
-                        <span className="shrink-0 rounded-full bg-sky-100 dark:bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:text-sky-300">
+                        <Badge className="shrink-0 bg-sky-100 dark:bg-sky-500/20 px-1.5 text-[10px] text-sky-700 dark:text-sky-300">
                           Крыша
-                        </span>
+                        </Badge>
                       )}
                       {f.kind === "TERRITORY" && (
-                        <span className="shrink-0 rounded-full bg-lime-100 dark:bg-lime-500/20 px-1.5 py-0.5 text-[10px] font-medium text-lime-700 dark:text-lime-300">
+                        <Badge className="shrink-0 bg-lime-100 dark:bg-lime-500/20 px-1.5 text-[10px] text-lime-700 dark:text-lime-300">
                           Территория
-                        </span>
+                        </Badge>
                       )}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -457,14 +459,13 @@ function Field({
   return (
     <div>
       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
-      <input
+      <Input
         name={name}
         type={type}
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue ?? ""}
         step={step}
-        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
       />
     </div>
   )

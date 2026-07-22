@@ -3,6 +3,7 @@
 import { useState, useEffect, type ReactNode } from "react"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Card } from "@/components/ui/card"
 
 /**
  * Карточка этажа в «Помещениях» с раскрытием/сворачиванием по клику на шапку.
@@ -64,10 +65,10 @@ export function FloorCard({
   }
 
   return (
-    <div
+    <Card
       id={`floor-${floorId}`}
       className={cn(
-        "scroll-mt-20 bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden",
+        "block p-0 scroll-mt-20 rounded-2xl ring-0 border",
         accent
           ? "border-violet-300 dark:border-violet-500/40"
           : "border-slate-200 dark:border-slate-800",
@@ -101,6 +102,6 @@ export function FloorCard({
         </div>
       </div>
       {!collapsed && children}
-    </div>
+    </Card>
   )
 }

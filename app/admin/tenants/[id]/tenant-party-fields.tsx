@@ -8,6 +8,7 @@
 
 import { useState } from "react"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
+import { Input } from "@/components/ui/input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { normalizeTenantLegalType, type TenantLegalType } from "@/lib/tenant-identity"
 
@@ -40,12 +41,11 @@ export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
     <>
       <div>
         <label className={labelCls}>{isPhysical ? "ФИО арендатора" : "Название компании"}</label>
-        <input
+        <Input
           name="companyName"
           defaultValue={tenant.companyName}
           required
           placeholder={isPhysical ? "Иванов Иван Иванович" : "ТОО «Название» / ИП ФИО"}
-          className={inputCls}
         />
       </div>
 
@@ -90,19 +90,18 @@ export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
         <>
           <div>
             <label className={labelCls}>ФИО руководителя</label>
-            <input name="directorName" defaultValue={tenant.directorName ?? ""} placeholder="Иванов Иван Иванович" className={inputCls} />
+            <Input name="directorName" defaultValue={tenant.directorName ?? ""} placeholder="Иванов Иван Иванович" />
           </div>
           <div>
             <label className={labelCls}>Должность руководителя</label>
-            <input name="directorPosition" defaultValue={tenant.directorPosition ?? ""} placeholder="Директор / Учредитель" className={inputCls} />
+            <Input name="directorPosition" defaultValue={tenant.directorPosition ?? ""} placeholder="Директор / Учредитель" />
           </div>
           <div className="col-span-full">
             <label className={labelCls}>Действует на основании</label>
-            <input
+            <Input
               name="basisDocument"
               defaultValue={tenant.basisDocument ?? ""}
               placeholder="ИП: Талона №… от … / ТОО: Устава / ЧСИ: лицензии №…"
-              className={inputCls}
             />
             <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
               Подставится в шапке договора: «…действующий <span className="font-mono">на основании [текст]</span>».

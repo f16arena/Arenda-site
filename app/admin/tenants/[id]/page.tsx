@@ -44,6 +44,8 @@ import { CompanyForm } from "./company-form"
 import { Tabs, Tab } from "@/components/ui/server-tabs"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
@@ -480,7 +482,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
       </div>
 
       {/* Quick stats + actions */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 md:grid-cols-3 md:divide-x md:divide-y-0">
           <QuickStat
             icon={Wallet}
@@ -574,7 +576,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             Заявки
           </Link>
         </div>
-      </div>
+      </Card>
 
       <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
 
@@ -608,12 +610,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               <fieldset disabled={!canEditContacts} className="contents">
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО</label>
-                <input
+                <Input
                   name="name"
                   defaultValue={tenant.user.name}
                   required
                   autoComplete="name"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
               <div>
@@ -963,7 +964,7 @@ function TenantHealthPanel({
   const issueCount = items.filter((item) => !item.ok).length
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -1015,7 +1016,7 @@ function TenantHealthPanel({
           </Link>
         ))}
       </div>
-    </section>
+    </Card>
   )
 }
 

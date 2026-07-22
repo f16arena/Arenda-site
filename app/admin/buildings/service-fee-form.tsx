@@ -2,8 +2,11 @@
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
-import { Loader2, Save, Sparkles, Sun, Snowflake } from "lucide-react"
+import { Save, Sparkles, Sun, Snowflake } from "lucide-react"
 import { updateBuildingServiceFee } from "@/app/actions/service-fee"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 
 const MONTH_LABELS = [
   "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
@@ -65,7 +68,7 @@ export function ServiceFeeForm({
   const summerMonthly = summer && Number(summer) > 0 ? Number(summer) * previewArea : null
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-4">
+    <Card className="block p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-amber-500" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Эксплуатационный сбор</h2>
@@ -81,14 +84,13 @@ export function ServiceFeeForm({
             <Snowflake className="h-3.5 w-3.5 text-blue-500" />
             Зимний тариф, ₸/м²/мес
           </span>
-          <input
+          <Input
             type="number"
             min={0}
             step={1}
             value={winter}
             onChange={(e) => setWinter(e.target.value)}
             placeholder="например 608"
-            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
           />
           {winterMonthly !== null && (
             <span className="text-[11px] text-slate-500">
@@ -102,14 +104,13 @@ export function ServiceFeeForm({
             <Sun className="h-3.5 w-3.5 text-orange-500" />
             Летний тариф, ₸/м²/мес
           </span>
-          <input
+          <Input
             type="number"
             min={0}
             step={1}
             value={summer}
             onChange={(e) => setSummer(e.target.value)}
             placeholder="например 270"
-            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
           />
           {summerMonthly !== null && (
             <span className="text-[11px] text-slate-500">
@@ -149,14 +150,13 @@ export function ServiceFeeForm({
         <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
           Годовая индексация, %
         </span>
-        <input
+        <Input
           type="number"
           min={0}
           max={100}
           step={0.5}
           value={pct}
           onChange={(e) => setPct(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
         />
         <span className="text-[11px] text-slate-500">
           Применяется автоматически раз в год.{" "}
@@ -167,16 +167,15 @@ export function ServiceFeeForm({
       </label>
 
       <div className="pt-2">
-        <button
+        <Button
           type="button"
           onClick={save}
-          disabled={pending}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          loading={pending}
+          leftIcon={<Save className="h-4 w-4" />}
         >
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Сохранить
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   )
 }

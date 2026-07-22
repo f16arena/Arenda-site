@@ -7,6 +7,7 @@ import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Sparkles, Snowflake, Sun, ArrowRight, AlertCircle } from "lucide-react"
 import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
 import { PageHeader } from "@/components/ui/page"
+import { Card } from "@/components/ui/card"
 
 export default async function ServiceFeeListPage() {
   await requireCapabilityAndFeature("buildings.view")
@@ -52,11 +53,11 @@ export default async function ServiceFeeListPage() {
       )}
 
       {buildings.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 text-center">
+        <Card className="block p-12 text-center">
           <p className="text-sm text-slate-500">У вас пока нет зданий. <Link href="/admin/buildings" className="text-blue-600 hover:underline">Создать первое</Link></p>
-        </div>
+        </Card>
       ) : (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+        <Card className="block p-0">
           <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
@@ -121,7 +122,7 @@ export default async function ServiceFeeListPage() {
               })}
             </tbody>
           </table></div>
-        </div>
+        </Card>
       )}
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-4 text-xs text-slate-600 dark:text-slate-400">

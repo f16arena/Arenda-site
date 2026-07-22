@@ -1,5 +1,6 @@
 ﻿import { Eye, AlertCircle, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 
 export type EmailLogItem = {
@@ -60,9 +61,9 @@ export function EmailLog({ items }: { items: EmailLogItem[] }) {
               <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{TYPE_LABELS[m.type] ?? m.type}</td>
               <td className="px-4 py-2.5 text-slate-600 dark:text-slate-400 max-w-[300px] truncate">{m.subject}</td>
               <td className="px-4 py-2.5">
-                <span className={cn("px-1.5 py-0.5 rounded-full text-[10px] font-medium", STATUS_COLORS[m.status] ?? STATUS_COLORS.QUEUED)}>
+                <Badge className={cn("px-1.5 text-[10px]", STATUS_COLORS[m.status] ?? STATUS_COLORS.QUEUED)}>
                   {STATUS_LABELS[m.status] ?? m.status}
-                </span>
+                </Badge>
                 {m.error && (
                   <span title={m.error} className="ml-1 inline-flex">
                     <AlertCircle className="h-3 w-3 text-red-500" />

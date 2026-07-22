@@ -24,6 +24,7 @@ import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { PageHeader, StatGrid, StatCard } from "@/components/ui/page"
 
 type SafeQuery = <T>(source: string, promise: Promise<T>, fallback: T) => Promise<T>
@@ -218,17 +219,17 @@ export default async function SpacesPage() {
           <StatCard label="Свободно" value={vacant} tone="emerald" />
         </StatGrid>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+        <Card className="block rounded-2xl p-4">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Общая арендопригодная площадь</p>
           <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{totalArea.toFixed(1)} м²</p>
           <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
             Для добавления или редактирования помещений выберите конкретное здание в переключателе сверху.
           </p>
-        </div>
+        </Card>
 
         <div className="grid gap-4 lg:grid-cols-2">
           {buildingSummaries.map((building) => (
-            <div key={building.id} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <Card key={building.id} className="block rounded-2xl p-5">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{building.name}</h2>
@@ -282,7 +283,7 @@ export default async function SpacesPage() {
                   </p>
                 )}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       </div>
@@ -366,7 +367,7 @@ export default async function SpacesPage() {
         const utilizationVsFloors = hasFloorAreas ? (rentableArea / sumFloorArea) * 100 : 0
         const coverageVsBuilding = hasBuildingArea ? (sumFloorArea / buildingTotalArea) * 100 : 0
         return (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5">
+          <Card className="block rounded-2xl p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Площади</h3>
               <span className={`text-xs font-medium ${overFloors || overBuilding ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
@@ -449,7 +450,7 @@ export default async function SpacesPage() {
                 💡 Заполните общие площади всех этажей и здания, чтобы система могла защищать вас от ввода помещений сверх лимита.
               </p>
             )}
-          </div>
+          </Card>
         )
       })()}
 

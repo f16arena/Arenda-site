@@ -34,14 +34,14 @@ export function DocumentsChecklist({
       icon={FileText}
       meta={`${completed} из ${required.length} обязательных`}>
       <div className="flex justify-end px-5 py-3 border-b border-slate-50 dark:border-slate-800">
-        <button
+        <Button
           type="button"
+          size="sm"
           onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
         >
           <Plus className="h-3.5 w-3.5" />
           Загрузить
-        </button>
+        </Button>
       </div>
 
       <div className="divide-y divide-slate-50">

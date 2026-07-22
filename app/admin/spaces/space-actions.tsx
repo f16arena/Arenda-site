@@ -8,6 +8,7 @@ import { SpacePhotosField } from "./space-photos-field"
 import { parseSpacePhotos } from "@/lib/space-photos"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { isZoneFloor, SPACE_OBJECT_KIND } from "@/lib/zone-kinds"
 
 type Floor = {
@@ -130,14 +131,14 @@ export function AddSpaceDialog({
                   <input type="hidden" name="kind" value={SPACE_OBJECT_KIND} />
                   <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название объекта *</label>
-                    <input name="number" required placeholder="Антенна Beeline / Парковка №5 / Щит А" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                    <Input name="number" required placeholder="Антенна Beeline / Парковка №5 / Щит А" />
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
                       Без квадратных метров — аренда задаётся фиксированной суммой при назначении арендатора.
                     </p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                    <input name="description" placeholder="Антенно-мачтовое сооружение, юго-восток…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                    <Input name="description" placeholder="Антенно-мачтовое сооружение, юго-восток…" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Арендатор <span className="font-normal text-slate-400">— необязательно</span></label>
@@ -156,13 +157,12 @@ export function AddSpaceDialog({
                   {objTenantId && (
                     <div>
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Аренда, ₸/мес</label>
-                      <input
+                      <Input
                         name="fixedMonthlyRent"
                         type="number"
                         step="1"
                         min="0"
                         placeholder="например, 150000"
-                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                       />
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
                         Фиксированная сумма за объект. Можно оставить пустым и задать позже в карточке арендатора.
@@ -175,11 +175,11 @@ export function AddSpaceDialog({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер кабинета *</label>
-                      <input name="number" required placeholder="101" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                      <Input name="number" required placeholder="101" />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м² *</label>
-                      <input
+                      <Input
                         name="area"
                         type="number"
                         step="0.1"
@@ -188,11 +188,7 @@ export function AddSpaceDialog({
                         value={areaStr}
                         onChange={(e) => setAreaStr(e.target.value)}
                         max={available ?? undefined}
-                        className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none ${
-                          exceeds
-                            ? "border-red-300 dark:border-red-500/40 focus:border-red-500"
-                            : "border-slate-200 dark:border-slate-800 focus:border-blue-500"
-                        }`}
+                        className={exceeds ? "border-red-300 dark:border-red-500/40 focus-visible:border-red-500" : undefined}
                       />
                       {exceeds && (
                         <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
@@ -225,7 +221,7 @@ export function AddSpaceDialog({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                    <input name="description" placeholder="Угловой офис, окна на юг…" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                    <Input name="description" placeholder="Угловой офис, окна на юг…" />
                   </div>
                 </>
               )}
@@ -336,11 +332,11 @@ export function EditSpaceDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер</label>
-                  <input name="number" defaultValue={space.number} required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <Input name="number" defaultValue={space.number} required />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м²</label>
-                  <input name="area" type="number" step="0.1" defaultValue={space.area} required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <Input name="area" type="number" step="0.1" defaultValue={space.area} required />
                 </div>
               </div>
               <div>
@@ -369,12 +365,12 @@ export function EditSpaceDialog({
                       <label className="block text-xs font-medium text-blue-900 dark:text-blue-200 mb-1.5">
                         Кем занято *
                       </label>
-                      <input
+                      <Input
                         type="search"
                         value={tenantQuery}
                         onChange={(event) => setTenantQuery(event.target.value)}
                         placeholder="Поиск по названию, БИН или ИИН"
-                        className="mb-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-blue-500/30 dark:bg-slate-950 dark:text-slate-100"
+                        className="mb-2 border-blue-200 bg-white dark:border-blue-500/30 dark:bg-slate-950"
                       />
                       <select
                         name="tenantId"
@@ -416,7 +412,7 @@ export function EditSpaceDialog({
               )}
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                <input name="description" defaultValue={space.description ?? ""} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="description" defaultValue={space.description ?? ""} />
               </div>
               {/* Фото — сохраняются отдельным action сразу при добавлении/удалении */}
               <SpacePhotosField spaceId={space.id} initialPhotos={parseSpacePhotos(space.photos)} />

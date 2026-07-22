@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Megaphone, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
 import { sendBulkNotificationToTenants } from "@/app/actions/bulk-notify"
+import { Button } from "@/components/ui/button"
 
 /**
  * Кнопка «Рассылка арендаторам» + модалка. Если фича недоступна в тарифе —
@@ -62,14 +63,14 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
       >
         <Megaphone className="h-4 w-4" />
         Рассылка
-      </button>
+      </Button>
 
       {open && (
         <div

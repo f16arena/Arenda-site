@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import type { ComponentProps } from "react"
+import { Card } from "@/components/ui/card"
 import type { CalendarView } from "./calendar-view"
 
 type CalendarViewProps = ComponentProps<typeof CalendarView>
@@ -20,7 +21,7 @@ export function CalendarViewLoader(props: CalendarViewProps) {
 
 function CalendarSkeleton() {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-4">
       <div className="flex items-center justify-between">
         <div className="h-7 w-40 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
         <div className="flex gap-2">
@@ -36,6 +37,6 @@ function CalendarSkeleton() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   )
 }

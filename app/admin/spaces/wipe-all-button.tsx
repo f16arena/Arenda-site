@@ -5,6 +5,7 @@ import { AlertTriangle, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { deleteAllSpacesInBuilding } from "@/app/actions/spaces"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 const CONFIRM_WORD = "удалить"
 
@@ -99,12 +100,12 @@ export function WipeAllSpacesButton({
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
                   Для подтверждения напишите: <span className="font-semibold text-slate-900 dark:text-slate-100">удалить</span>
                 </label>
-                <input
+                <Input
                   value={confirmText}
                   onChange={(event) => setConfirmText(event.target.value)}
                   disabled={pending}
                   autoFocus
-                  className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-slate-800 dark:bg-slate-950"
+                  className="mt-1.5 focus-visible:border-red-500 focus-visible:ring-red-500/20"
                 />
               </div>
             </div>

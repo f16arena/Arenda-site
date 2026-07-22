@@ -7,6 +7,8 @@ import {
   ChevronLeft, ChevronRight, Wallet, AlertTriangle,
   Calendar as CalendarIcon, CheckSquare, X,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 
 export type CalendarEventType =
   | "payment_due"
@@ -103,38 +105,41 @@ export function CalendarView({
   return (
     <div className="space-y-4">
       {/* Header: navigation + filters */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+      <Card className="block p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon-sm"
               onClick={() => navigateMonth(-1)}
               aria-label="Предыдущий месяц"
               title="Предыдущий месяц"
-              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2"
             >
               <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-            </button>
+            </Button>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 min-w-[180px] text-center">
               {MONTHS[currentMonth - 1]} {currentYear}
             </h2>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon-sm"
               onClick={() => navigateMonth(1)}
               aria-label="Следующий месяц"
               title="Следующий месяц"
-              className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2"
             >
               <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-            </button>
+            </Button>
           </div>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => router.push("?")}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300"
           >
             Сегодня
-          </button>
+          </Button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -159,11 +164,11 @@ export function CalendarView({
             }
           )}
         </div>
-      </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         {/* Calendar grid */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <Card className="block overflow-hidden p-0">
           <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
             {WEEKDAYS.map((d) => (
               <div key={d} className="px-2 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
@@ -222,10 +227,10 @@ export function CalendarView({
               )
             })}
           </div>
-        </div>
+        </Card>
 
         {/* Side panel: details for selected date */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3 lg:max-h-[600px] lg:overflow-y-auto">
+        <Card className="block p-4 space-y-3 lg:max-h-[600px] lg:overflow-y-auto">
           {selectedDate ? (
             <>
               <div className="flex items-center justify-between">
@@ -311,7 +316,7 @@ export function CalendarView({
               </ul>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   )

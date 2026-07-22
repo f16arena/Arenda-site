@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Plus, X, Gauge } from "lucide-react"
 import { saveMeterReading, createMeter } from "@/app/actions/meters"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 type Meter = { id: string; type: string; number: string; space: { number: string } }
 type Space = { id: string; number: string; floor: { name: string } }
@@ -42,8 +43,7 @@ export function InlineReadingButton({ meterId, period }: { meterId: string; peri
               <input type="hidden" name="period" value={period} />
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Текущее показание *</label>
-                <input name="value" type="number" step="0.01" required autoFocus
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="value" type="number" step="0.01" required autoFocus />
               </div>
               {msg && <p className="text-xs text-center text-emerald-600 dark:text-emerald-400">{msg}</p>}
               <div className="flex gap-3">
@@ -108,8 +108,7 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Текущее показание *</label>
-                <input name="value" type="number" step="0.01" required
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                <Input name="value" type="number" step="0.01" required />
               </div>
               <input type="hidden" name="period" value={period} />
               {msg && <p className="text-sm text-center text-emerald-600 dark:text-emerald-400">{msg}</p>}
@@ -134,17 +133,17 @@ export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
 
   return (
     <>
-      <button
+      <Button
+        variant="outline"
         onClick={() => {
           if (hasSpaces) setOpen(true)
         }}
         disabled={!hasSpaces}
         title={hasSpaces ? "Добавить счётчик" : "Сначала добавьте помещение"}
-        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
+        leftIcon={<Plus className="h-4 w-4" />}
       >
-        <Plus className="h-4 w-4" />
         Добавить счётчик
-      </button>
+      </Button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
@@ -177,17 +176,16 @@ export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер *</label>
-                  <input name="number" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+                  <Input name="number" required />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Начальное показание</label>
-                <input
+                <Input
                   name="initialValue"
                   type="number"
                   step="0.01"
                   placeholder="Текущее показание счётчика на момент установки"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">От этого значения будет считаться расход</p>
               </div>

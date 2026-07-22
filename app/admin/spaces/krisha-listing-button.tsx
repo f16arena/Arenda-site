@@ -5,6 +5,8 @@ import { Megaphone, Copy, ExternalLink, X, Download, Check } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { generateListingDraft, setListingStatus, type GeneratedListing } from "@/app/actions/krisha-listing"
 
 function money(v: number | null): string {
@@ -135,11 +137,11 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
                     <Copy className="h-3 w-3" /> Копировать
                   </button>
                 </div>
-                <textarea
+                <Textarea
                   readOnly
                   value={data.description}
                   rows={9}
-                  className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-800"
+                  className="field-sizing-fixed resize-none text-xs md:text-xs"
                 />
               </div>
 
@@ -184,12 +186,12 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
 
               {/* Отметить опубликованным */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <input
+                <Input
                   type="url"
                   value={publishedUrl}
                   onChange={(e) => setPublishedUrl(e.target.value)}
                   placeholder="Ссылка на объявление (необяз.)"
-                  className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                  className="min-w-0 flex-1"
                 />
                 <button
                   type="button"

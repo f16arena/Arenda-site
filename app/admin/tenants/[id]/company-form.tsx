@@ -4,6 +4,7 @@
 
 import { updateTenant } from "@/app/actions/tenant"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { TenantPartyFields } from "./tenant-party-fields"
 import { IndexationHint } from "./indexation-hint"
 import { RentalPeriodCard } from "./rental-period-card"
@@ -83,10 +84,9 @@ export function CompanyForm({
       />
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
-        <input
+        <Input
           name="category"
           defaultValue={tenant.category ?? ""}
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
       </div>
       <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
@@ -112,11 +112,10 @@ export function CompanyForm({
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
           Целевое использование помещения
         </label>
-        <input
+        <Input
           name="usePurpose"
           defaultValue={tenant.usePurpose ?? ""}
           placeholder="например: офиса частного судебного исполнителя / розничной торговли / салона красоты"
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
         <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
           Подставится в п. 1.1 договора: «для использования в целях <span className="font-mono">размещения [текст]</span>». Если пусто — «по согласованному Сторонами назначению».

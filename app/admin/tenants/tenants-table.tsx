@@ -8,6 +8,10 @@ import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { tenantTaxIdValue } from "@/lib/tenant-identity"
 import { DeleteTenantButton } from "./delete-tenant-button"
 import { EmptyState } from "@/components/ui/empty-state"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { TONE_CHIP, TONE_BADGE, type Tone } from "@/lib/ui-tones"
 import { cn } from "@/lib/utils"
 
@@ -242,12 +246,12 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <input
+          <Input
             type="text"
             value={displayedSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Поиск: компания, БИН, ФИО, телефон..."
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 pl-9 pr-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="pl-9"
           />
         </div>
         <select
@@ -274,22 +278,22 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
         </select>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <Button
+            variant="outline"
             onClick={exportCSV}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
             title="Экспорт в CSV (открывается в Excel)"
           >
             <FileSpreadsheet className="h-4 w-4" />
             Excel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
             onClick={exportPDF}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
             title="Экспорт в PDF (через печать)"
           >
             <FileText className="h-4 w-4" />
             PDF
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -300,7 +304,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
       {/* Мобильные карточки (узкие экраны) — таблица режется, поэтому карточный вид */}
       <div className="space-y-2.5 sm:hidden">
         {filtered.map((t) => (
-          <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900">
+          <Card key={t.id} className="block p-3.5">
             <div className="flex items-start justify-between gap-2">
               <Link href={`/admin/tenants/${t.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
                 <Avatar name={t.companyName} legalType={t.legalType} size="sm" />
@@ -322,16 +326,16 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
               <DebtPill debt={t.debt} />
               {canDelete && <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />}
             </div>
-          </div>
+          </Card>
         ))}
         {filtered.length === 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+          <Card className="block p-6">
             <EmptyState
               icon={<Search className="h-5 w-5" />}
               title={tenants.length === 0 ? "Арендаторы ещё не добавлены" : "По фильтрам ничего не найдено"}
               description={tenants.length === 0 ? "Начните с первого арендатора или импорта из Excel." : "Измените поиск или фильтры."}
             />
-          </div>
+          </Card>
         )}
       </div>
 
@@ -487,24 +491,24 @@ function Avatar({ name, legalType, size = "md" }: { name: string; legalType: str
 
 function LegalBadge({ legalType }: { legalType: string }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", TONE_BADGE[legalTone(legalType)])}>
+    <Badge className={TONE_BADGE[legalTone(legalType)]}>
       {LEGAL_TYPE_LABELS[legalType] ?? legalType}
-    </span>
+    </Badge>
   )
 }
 
 function DebtPill({ debt }: { debt: number }) {
   if (debt > 0) {
     return (
-      <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold", TONE_BADGE.red)}>
+      <Badge className={cn("font-semibold", TONE_BADGE.red)}>
         {formatMoney(debt)}
-      </span>
+      </Badge>
     )
   }
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", TONE_BADGE.emerald)}>
+    <Badge className={TONE_BADGE.emerald}>
       Нет долга
-    </span>
+    </Badge>
   )
 }
 

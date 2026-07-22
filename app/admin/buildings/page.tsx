@@ -14,6 +14,8 @@ import { getAccessibleBuildingIdsForSession, isOwnerLike } from "@/lib/building-
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { safeServerValue } from "@/lib/server-fallback"
 import { PageHeader } from "@/components/ui/page"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { TONE_CHIP, TONE_TEXT, type Tone } from "@/lib/ui-tones"
 
 type BuildingListItem = {
@@ -273,11 +275,11 @@ export default async function BuildingsPage() {
       />
 
       {buildings.length === 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
+        <Card className="block py-16 text-center">
           <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
           <p className="text-sm text-slate-500 dark:text-slate-400">Нет зданий</p>
           {canCreateBuildings && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
-        </div>
+        </Card>
       )}
 
       <div className="space-y-4">
@@ -285,10 +287,10 @@ export default async function BuildingsPage() {
           const s = statsById.get(b.id) ?? { tenantsCount: 0, spacesCount: 0, occupiedCount: 0 }
           const isCurrent = b.id === currentBuildingId
           return (
-            <div
+            <Card
               key={b.id}
               className={cn(
-                "bg-white dark:bg-slate-900 rounded-2xl border-2 overflow-hidden",
+                "block p-0 rounded-2xl ring-0 border-2",
                 isCurrent ? "border-blue-500" : "border-slate-200 dark:border-slate-800",
                 !b.isActive && "opacity-60"
               )}
@@ -298,15 +300,15 @@ export default async function BuildingsPage() {
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{b.name}</h2>
                     {isCurrent && (
-                      <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                      <Badge className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
                         <Check className="h-3 w-3" />
                         Выбрано
-                      </span>
+                      </Badge>
                     )}
                     {!b.isActive && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">
+                      <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                         Неактивно
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1.5">
@@ -445,7 +447,7 @@ export default async function BuildingsPage() {
                 canCreate={canCreateFloors}
                 canDelete={canDeleteFloors}
               />
-            </div>
+            </Card>
           )
         })}
       </div>

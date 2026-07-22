@@ -5,6 +5,7 @@ import { Download, Mail, FileText, Receipt, FileCheck, Box } from "lucide-react"
 import { toast } from "sonner"
 import { sendDocumentToTenant, type DocumentType } from "@/app/actions/send-document"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
+import { Button } from "@/components/ui/button"
 
 const DOCS: { type: DocumentType; label: string; icon: typeof FileText; color: string }[] = [
   { type: "INVOICE", label: "Счёт-фактура", icon: Receipt, color: "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30" },
@@ -76,15 +77,15 @@ export function DocumentsActions({
                 <Download className="h-3.5 w-3.5" />
                 DOCX
               </a>
-              <button
+              <Button
+                size="sm"
                 onClick={() => handleSend(d.type)}
                 disabled={!tenantHasEmail || sending === d.type}
-                className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                 title={tenantHasEmail ? "Отправить на email" : "Email не указан"}
               >
                 <Mail className="h-3.5 w-3.5" />
                 {sending === d.type ? "..." : "Email"}
-              </button>
+              </Button>
             </div>
           )
         })}

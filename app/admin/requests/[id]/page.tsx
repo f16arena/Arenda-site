@@ -12,6 +12,9 @@ import { ArrowLeft, Paperclip, User } from "lucide-react"
 import Link from "next/link"
 import { addRequestComment, updateRequestStatus } from "@/app/actions/requests"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
 
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -97,7 +100,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* Main info */}
         <div className="space-y-4 lg:col-span-2">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+          <Card className="block p-5">
             <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{request.description}</p>
             {attachments.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
@@ -115,10 +118,10 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                 ))}
               </div>
             )}
-          </div>
+          </Card>
 
           {/* Comments */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <Card className="block overflow-hidden p-0">
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Комментарии</p>
             </div>
@@ -150,12 +153,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                       <User className="h-3.5 w-3.5 text-white" />
                     </div>
                     <div className="flex-1">
-                      <textarea
+                      <Textarea
                         name="text"
                         required
                         rows={2}
                         placeholder="Добавить комментарий..."
-                        className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none bg-white dark:bg-slate-900"
+                        className="resize-none"
                       />
                       <div className="flex justify-end mt-2">
                         <Button type="submit" size="sm" className="font-medium">
@@ -167,23 +170,23 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                 </form>
               </div>
             )}
-          </div>
+          </Card>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+          <Card className="block p-5 space-y-4">
             <div>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Статус</p>
-              <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[request.status])}>
+              <Badge className={cn(STATUS_COLORS[request.status])}>
                 {STATUS_LABELS[request.status] ?? request.status}
-              </span>
+              </Badge>
             </div>
             <div>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Приоритет</p>
-              <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PRIORITY_COLORS[request.priority])}>
+              <Badge className={cn(PRIORITY_COLORS[request.priority])}>
                 {PRIORITY_LABELS[request.priority] ?? request.priority}
-              </span>
+              </Badge>
             </div>
             <div>
               <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Тип</p>
@@ -210,17 +213,17 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <button type="submit" className="mt-1.5 w-full rounded-lg border border-slate-200 dark:border-slate-800 py-1 text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <Button type="submit" variant="outline" size="sm" className="mt-1.5 w-full">
                   Назначить
-                </button>
+                </Button>
               </form>
             </div>
             )}
-          </div>
+          </Card>
 
           {/* Status transitions */}
           {canManage && nextStatuses.length > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-2">
+            <Card className="block p-4 space-y-2">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Изменить статус</p>
               {nextStatuses.map((s) => (
                 <form key={s} action={async () => {
@@ -233,7 +236,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                   </button>
                 </form>
               ))}
-            </div>
+            </Card>
           )}
         </div>
       </div>

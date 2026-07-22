@@ -10,6 +10,8 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { PageHeader } from "@/components/ui/page"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
@@ -188,24 +190,24 @@ export default async function TasksPage({
       {/* Tasks list */}
       <div className="space-y-3">
         {tasks.map((task) => (
-          <div
+          <Card
             key={task.id}
-            className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:shadow-sm transition-shadow"
+            className="block p-5 hover:shadow-sm transition-shadow"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[task.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
+                  <Badge className={cn(STATUS_COLORS[task.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                     {STATUS_LABELS[task.status] ?? task.status}
-                  </span>
-                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PRIORITY_COLORS[task.priority] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
+                  </Badge>
+                  <Badge className={cn(PRIORITY_COLORS[task.priority] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
                     {PRIORITY_LABELS[task.priority] ?? task.priority}
-                  </span>
+                  </Badge>
                   {task.category && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                       {CATEGORY_LABELS[task.category] ?? task.category}
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 {task.description && (
@@ -257,11 +259,11 @@ export default async function TasksPage({
                 )}
               </div>
             </div>
-          </div>
+          </Card>
         ))}
 
         {tasks.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 py-16 text-center">
+          <Card className="block py-16 text-center">
             {totalAllTasks === 0 ? (
               <EmptyState
                 icon={<CheckSquare className="h-5 w-5" />}
@@ -282,7 +284,7 @@ export default async function TasksPage({
                 ]}
               />
             )}
-          </div>
+          </Card>
         )}
       </div>
       <PaginationControls
