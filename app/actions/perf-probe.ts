@@ -62,7 +62,6 @@ const PROBE_ROUTES = [
   "/admin/messages",
   "/admin/meters",
   "/admin/onboarding",
-  "/admin/ops",
   "/admin/profile",
   "/admin/requests",
   "/admin/roles",

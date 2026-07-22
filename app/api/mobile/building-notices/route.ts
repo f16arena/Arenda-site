@@ -129,7 +129,7 @@ export async function POST(req: Request) {
     type: "BUILDING_NOTICE",
     title,
     message,
-    link: recipient.role === "TENANT" ? "/cabinet" : "/admin/ops",
+    link: recipient.role === "TENANT" ? "/cabinet" : "/admin",
     sendEmail: false,
     sendTelegram: false,
     sendPush: body?.sendPush !== false,

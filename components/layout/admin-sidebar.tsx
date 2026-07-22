@@ -12,7 +12,7 @@ import {
   LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive, UserCog, Sparkles, FileBarChart,
-  PanelLeftClose, PanelLeftOpen, Megaphone, Box,
+  PanelLeftClose, PanelLeftOpen, Megaphone, Box, FileSignature, Upload, KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -58,10 +58,11 @@ const ROLE_RU: Record<string, string> = {
   STAFF: "Сотрудник",
 }
 
+// Целевая IA редизайна (docs/REDESIGN-PLAN.md, этап 1): 7 групп, одна задача —
+// одно место. /admin/ops удалён (redirect на /admin); сироты contracts/import/
+// api-keys получили пункты; CRM вынесен из «Настроек» в «Аренду и клиентов».
 const nav: NavSection[] = [
   {
-    // /admin/ops удалён из sidebar — операционные действия уже на главной (/admin).
-    // /admin/onboarding объединён с /admin/data-quality в «Здоровье платформы».
     items: [
       { href: "/admin", label: "Обзор", icon: LayoutDashboard, exact: true, section: "dashboard" },
       { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
@@ -73,27 +74,33 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
       { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
-      { href: "/admin/builder/projects", label: "3D-конструктор", icon: Box, section: "buildings" },
       { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
+      { href: "/admin/service-fee", label: "Эксплуатационный сбор", icon: Sparkles, section: "buildings" },
+      { href: "/admin/builder/projects", label: "3D-конструктор", icon: Box, section: "buildings" },
     ],
   },
   {
-    title: "АРЕНДА",
+    title: "АРЕНДА И КЛИЕНТЫ",
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
+      { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "leads" },
+      { href: "/admin/listings", label: "Объявления", icon: Megaphone, section: "leads" },
     ],
   },
   {
     title: "ФИНАНСЫ",
     items: [
       { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
-      { href: "/admin/service-fee", label: "Эксплуатационный сбор", icon: Sparkles, section: "buildings" },
+      { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
+      { href: "/admin/reports", label: "Отчётность", icon: FileBarChart, section: "analytics", ownerOnly: true },
+      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
     ],
   },
   {
     title: "ДОКУМЕНТЫ",
     items: [
       { href: "/admin/documents", label: "Все документы", icon: FileText, section: "documents", counter: "documents" },
+      { href: "/admin/contracts", label: "Договоры", icon: FileSignature, section: "documents" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
@@ -104,25 +111,10 @@ const nav: NavSection[] = [
       { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks", counter: "tasks" },
       { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages", counter: "messages" },
       { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints", counter: "complaints" },
-      { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
+      { href: "/admin/faq", label: "FAQ и помощь", icon: CircleHelp },
     ],
   },
-  {
-    title: "АНАЛИТИКА",
-    items: [
-      { href: "/admin/dashboard/owner", label: "Финансовый дашборд", icon: BarChart3, section: "analytics", ownerOnly: true },
-      { href: "/admin/reports", label: "Отчётность", icon: FileBarChart, section: "analytics", ownerOnly: true },
-      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
-      // /admin/data-quality и /admin/system-health убраны из sidebar — см. историю в git.
-    ],
-  },
-  {
-    title: "ПОМОЩЬ",
-    items: [
-      { href: "/admin/faq", label: "FAQ", icon: CircleHelp },
-    ],
-  },
-  // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию.
+  // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию. Только конфигурация и служебное.
   {
     title: "НАСТРОЙКИ",
     ownerOnly: true,
@@ -130,11 +122,12 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/settings", label: "Настройки организации", icon: SettingsIcon, section: "settings" },
       { href: "/admin/staff", label: "Сотрудники", icon: Users, section: "staff" },
+      { href: "/admin/users", label: "Все пользователи", icon: UserCog, section: "users" },
       { href: "/admin/roles", label: "Роли и доступы", icon: Shield, section: "settings" },
       { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
-      { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "leads" },
-      { href: "/admin/listings", label: "Объявления", icon: Megaphone, section: "leads" },
-      { href: "/admin/users", label: "Все пользователи", icon: UserCog, section: "users" },
+      { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "settings" },
+      { href: "/admin/api-keys", label: "API-ключи", icon: KeyRound, section: "settings" },
+      { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
       { href: "/admin/email-logs", label: "Журнал email", icon: Mail, section: "settings" },
       { href: "/admin/audit", label: "Журнал операций", icon: History, section: "settings" },
     ],
