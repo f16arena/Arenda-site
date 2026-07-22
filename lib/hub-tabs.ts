@@ -24,3 +24,11 @@ export const DOCUMENTS_TABS = [
   { href: "/admin/documents", label: "Все документы" },
   { href: "/admin/contracts", label: "Договоры" },
 ]
+
+export const IMPORT_TABS = [
+  { href: "/admin/import", label: "Обзор" },
+  { href: "/admin/import/tenants", label: "Арендаторы" },
+  { href: "/admin/import/contracts", label: "Договоры" },
+  { href: "/admin/import/charges", label: "Начисления" },
+  { href: "/admin/finances/import", label: "Банковская выписка" },
+]

@@ -43,19 +43,26 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+          {/* Группировка (редизайн, этап 1): 3 смысловых блока вместо плоских 14 пунктов. */}
           <SideLink href="/superadmin" icon={BarChart3} label="Обзор" />
+
+          <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-purple-300/70">Клиенты</p>
           <SideLink href="/superadmin/orgs" icon={Building2} label="Организации" />
           <SideLink href="/superadmin/users" icon={UserCog} label="Владельцы" />
           <SideLink href="/superadmin/subscriptions" icon={CalendarIcon} label="Подписки" />
+
+          <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-purple-300/70">Биллинг</p>
           <SideLink href="/superadmin/plans" icon={Package} label="Тарифы" />
           <SideLink href="/superadmin/addons" icon={Package} label="Аддоны" />
           <SideLink href="/superadmin/services" icon={Briefcase} label="Услуги" />
           <SideLink href="/superadmin/founders" icon={Sparkles} label="Founding Pricing" />
+
+          <p className="px-3 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-purple-300/70">Платформа</p>
           <SideLink href="/superadmin/site-images" icon={ImageIcon} label="Изображения сайта" />
-          <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
           <SideLink href="/superadmin/errors" icon={Bug} label="Ошибки сайта" />
           <SideLink href="/superadmin/performance" icon={Gauge} label="Скорость сайта" />
           <SideLink href="/superadmin/system-health" icon={Activity} label="Проверка системы" />
+          <SideLink href="/superadmin/audit" icon={History} label="Журнал" />
           <SideLink href="/superadmin/profile" icon={UserCircle} label="Профиль" />
 
           <div className="my-3 border-t border-purple-800" />

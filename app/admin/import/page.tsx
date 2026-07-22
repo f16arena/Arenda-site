@@ -1,11 +1,14 @@
 export const dynamic = "force-dynamic"
 
 import Link from "next/link"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { IMPORT_TABS } from "@/lib/hub-tabs"
 import { Users, FileText, ArrowRight, Upload, FileSpreadsheet } from "lucide-react"
 
 export default function ImportHomePage() {
   return (
     <div className="space-y-5 max-w-4xl">
+      <RouteTabs items={IMPORT_TABS} className="mb-2" />
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Импорт данных</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">

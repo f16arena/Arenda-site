@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { IMPORT_TABS } from "@/lib/hub-tabs"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { ImportClient } from "./import-client"
@@ -36,6 +38,7 @@ export default async function ImportPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={IMPORT_TABS} className="mb-2" />
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Импорт банковской выписки</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
