@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
 import { Sparkles, Users, Calendar, ExternalLink } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { ROOT_HOST } from "@/lib/host"
 import { FoundersStateForm, ReleaseSlotButton, GrantSlotButton } from "./client-actions"
 
@@ -66,7 +67,7 @@ export default async function SuperadminFoundersPage() {
       </div>
 
       {/* Состояние программы */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+      <Card className="block p-5">
         <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Заполнено</p>
@@ -101,10 +102,10 @@ export default async function SuperadminFoundersPage() {
           totalSlots={state.totalSlots}
           discountPct={state.discountPct}
         />
-      </div>
+      </Card>
 
       {/* Участники */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
           <Users className="h-4 w-4 text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Участники программы ({members.length})</h2>
@@ -169,11 +170,11 @@ export default async function SuperadminFoundersPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
 
       {/* Ручное добавление */}
       {remaining > 0 && state.isActive && eligibleOrgs.length > 0 && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <Card className="block p-0">
           <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
             <Calendar className="h-4 w-4 text-slate-400" />
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Выдать статус вручную</h2>
@@ -209,7 +210,7 @@ export default async function SuperadminFoundersPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
     </div>
   )

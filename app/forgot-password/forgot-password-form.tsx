@@ -5,6 +5,7 @@ import { Mail, CheckCircle2, Copy } from "lucide-react"
 import { requestPasswordReset } from "@/app/actions/password-reset"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 export function ForgotPasswordForm() {
   const [pending, startTransition] = useTransition()
@@ -33,16 +34,17 @@ export function ForgotPasswordForm() {
               <code className="flex-1 truncate rounded bg-white px-2 py-1 text-[11px] font-mono text-slate-700 border border-slate-200">
                 {previewLink}
               </code>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon-sm"
                 onClick={() => {
                   navigator.clipboard.writeText(previewLink)
                   toast.success("Скопировано")
                 }}
-                className="rounded-md border border-slate-200 bg-white hover:bg-slate-50 px-2 py-1 text-xs text-slate-700"
               >
                 <Copy className="h-3 w-3" />
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -89,13 +91,13 @@ export function ForgotPasswordForm() {
         <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
         <div className="relative">
           <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
+          <Input
             type="email"
             name="email"
             required
             placeholder="you@example.com"
             autoComplete="email"
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="pl-9"
           />
         </div>
       </div>

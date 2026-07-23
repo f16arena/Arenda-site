@@ -6,6 +6,7 @@ import { useEffect, useMemo } from "react"
 import Link from "next/link"
 import { reportClientError } from "@/lib/client-error-report"
 import { formatErrorId } from "@/lib/error-id"
+import { Button } from "@/components/ui/button"
 
 export default function Error({
   error,
@@ -40,13 +41,10 @@ export default function Error({
           )}
         </div>
         <div className="mt-5 flex gap-2 justify-center">
-          <button
-            onClick={reset}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
-          >
+          <Button onClick={reset}>
             <RotateCcw className="h-4 w-4" />
             Попробовать снова
-          </button>
+          </Button>
           <Link
             href="/superadmin"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"

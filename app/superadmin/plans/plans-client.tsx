@@ -17,6 +17,8 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { createPlan, deletePlan, duplicatePlan, updatePlan } from "@/app/actions/plans"
 import {
   annualDiscountPercent,
@@ -50,7 +52,7 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
 
   return (
     <>
-      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <Card className="block p-0">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -90,7 +92,7 @@ export function PlansClient({ plans }: { plans: Plan[] }) {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {(editing || creating) && (
         <PlanForm
@@ -112,7 +114,7 @@ function PlanCard({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
   const estimatedMrr = plan.priceMonthly * plan._count.organizations
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+    <Card className="block p-0">
       <div className="border-b border-slate-100 p-4 dark:border-slate-800">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -121,16 +123,17 @@ function PlanCard({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
               <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 {plan.code}
               </span>
-              <span
+              <Badge
+                variant="secondary"
                 className={cn(
-                  "rounded px-2 py-0.5 text-[11px] font-medium",
+                  "text-[11px]",
                   plan.isActive
                     ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
                     : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
                 )}
               >
                 {plan.isActive ? "Активен" : "Отключен"}
-              </span>
+              </Badge>
             </div>
             {plan.description && (
               <p className="mt-1 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">{plan.description}</p>
@@ -233,7 +236,7 @@ function PlanCard({ plan, onEdit }: { plan: Plan; onEdit: () => void }) {
         <span>Используют: {plan._count.organizations} организаций</span>
         <span>Подписок в истории: {plan._count.subscriptions}</span>
       </div>
-    </div>
+    </Card>
   )
 }
 

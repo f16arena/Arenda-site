@@ -1,4 +1,5 @@
 import { Building2, Users, Briefcase, TrendingUp } from "lucide-react"
+import { Card } from "@/components/ui/card"
 
 export function LimitsCard({
   buildings,
@@ -20,13 +21,13 @@ export function LimitsCard({
   maxLeads: number | null
 }) {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
+    <Card className="block p-5 space-y-3">
       <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Использование тарифа</p>
       <Row label="Зданий" current={buildings} max={maxBuildings} icon={Building2} />
       <Row label="Арендаторов" current={tenants} max={maxTenants} icon={Briefcase} />
       <Row label="Пользователей" current={users} max={maxUsers} icon={Users} />
       <Row label="Лидов" current={leads} max={maxLeads} icon={TrendingUp} />
-    </div>
+    </Card>
   )
 }
 

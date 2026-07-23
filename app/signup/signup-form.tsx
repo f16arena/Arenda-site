@@ -7,6 +7,8 @@ import { slugify } from "@/lib/slugify"
 import Link from "next/link"
 import { Loader2, Check, AlertCircle } from "lucide-react"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 export function SignupForm() {
   const [state, action, isPending] = useActionState(signup, undefined)
@@ -101,17 +103,17 @@ export function SignupForm() {
             Адрес вашей рабочей зоны *
           </label>
           <div className="relative">
-            <input
+            <Input
               name="slug"
               value={slug}
               onChange={(e) => updateSlug(e.currentTarget.value)}
               required
               maxLength={20}
               placeholder="bc-almaty"
-              className={`w-full rounded-lg border px-3.5 py-2.5 pr-12 text-sm font-mono lowercase focus:outline-none focus:ring-2 transition ${
-                isSlugOk ? "border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20"
-                : isSlugBad ? "border-red-300 focus:border-red-500 focus:ring-red-500/20"
-                : "border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+              className={`pr-12 font-mono lowercase ${
+                isSlugOk ? "border-emerald-300 focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
+                : isSlugBad ? "border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500/20"
+                : ""
               }`}
             />
             <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">
@@ -191,14 +193,15 @@ export function SignupForm() {
         </span>
       </label>
 
-      <button
+      <Button
         type="submit"
+        size="lg"
+        loading={isPending}
         disabled={isPending || isSlugBad || !acceptedTerms}
-        className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 py-3 text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition"
+        className="w-full font-semibold"
       >
-        {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         {isPending ? "Создаём..." : "Начать 14-дневный триал бесплатно"}
-      </button>
+      </Button>
 
       <p className="text-center text-xs text-slate-500">
         Без оплаты, без карты. После триала — выберете тариф или продолжите смотреть в режиме чтения.
@@ -235,14 +238,13 @@ function Field({ label, name, type = "text", value, onChange, required, placehol
       ) : type === "email" ? (
         <AsciiEmailInput name={name} defaultValue={value} required={required} className={inputCls} />
       ) : (
-        <input
+        <Input
           name={name}
           type={type}
           value={value}
           onChange={onChange ? (e) => onChange(e.currentTarget.value) : undefined}
           required={required}
           placeholder={placeholder}
-          className={inputCls}
         />
       )}
       {hint && <p className="text-[11px] text-slate-400 mt-1">{hint}</p>}

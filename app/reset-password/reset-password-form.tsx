@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Lock, CheckCircle2 } from "lucide-react"
 import { resetPassword } from "@/app/actions/password-reset"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [pending, startTransition] = useTransition()
@@ -54,14 +55,14 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <label className="block text-sm font-medium text-slate-700 mb-1.5">Новый пароль</label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
+          <Input
             type={show ? "text" : "password"}
             name="newPassword"
             minLength={8}
             required
             placeholder="••••••••"
             autoComplete="new-password"
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="pl-9"
           />
         </div>
         <p className="text-xs text-slate-500 mt-1">Минимум 8 символов</p>
@@ -71,14 +72,14 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <label className="block text-sm font-medium text-slate-700 mb-1.5">Повторите пароль</label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
+          <Input
             type={show ? "text" : "password"}
             name="confirmPassword"
             minLength={8}
             required
             placeholder="••••••••"
             autoComplete="new-password"
-            className="w-full rounded-lg border border-slate-200 pl-9 pr-3.5 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="pl-9"
           />
         </div>
       </div>

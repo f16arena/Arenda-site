@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Loader2, Save, X, Plus } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import {
   updateFoundersState,
   releaseFoundersSlot,
@@ -63,25 +64,23 @@ export function FoundersStateForm({
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Всего слотов</span>
-        <input
+        <Input
           type="number"
           min={1}
           max={1000}
           value={slots}
           onChange={(e) => setSlots(Number(e.target.value))}
-          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
         />
       </label>
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Скидка lifetime, %</span>
-        <input
+        <Input
           type="number"
           min={0}
           max={100}
           value={pct}
           onChange={(e) => setPct(Number(e.target.value))}
-          className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
         />
       </label>
 

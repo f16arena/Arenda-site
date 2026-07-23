@@ -22,6 +22,8 @@ import {
 } from "@/lib/system-health"
 import { getReleaseInfo } from "@/lib/release"
 import { requirePlatformOwner } from "@/lib/org"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { TestEmailTool } from "./test-email"
 
@@ -186,7 +188,7 @@ function PriorityPanel({
   checks: SystemCheck[]
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
+    <Card className="block rounded-2xl p-5">
       <div className="mb-4 flex items-center gap-2">
         <Icon className="h-4 w-4 text-amber-500 dark:text-amber-300" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
@@ -203,7 +205,7 @@ function PriorityPanel({
           ))}
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -218,9 +220,9 @@ function CheckCard({ check }: { check: SystemCheck }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</h2>
-              <span className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium", meta.pillClass)}>
+              <Badge variant="secondary" className={cn("text-[11px]", meta.pillClass)}>
                 {meta.label}
-              </span>
+              </Badge>
             </div>
             <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{check.message}</p>
           </div>

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { Building2, Check, RotateCcw, Sparkles } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { enterDemo } from "@/app/actions/demo"
 
 export const metadata = {
@@ -17,10 +18,10 @@ export default function DemoPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
       <div className="w-full max-w-xl">
         <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8 sm:p-10">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-purple-500/10 border border-purple-500/30 px-3 py-1 text-xs font-semibold text-purple-300">
+          <Badge className="mb-6 h-auto gap-2 border-purple-500/30 bg-purple-500/10 px-3 py-1 font-semibold text-purple-300">
             <Sparkles className="h-3.5 w-3.5" />
             ДЕМО-РЕЖИМ
-          </div>
+          </Badge>
           <h1 className="text-2xl sm:text-3xl font-bold text-white">
             Попробуйте Commrent на готовом бизнес-центре
           </h1>

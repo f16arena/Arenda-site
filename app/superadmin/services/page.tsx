@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
 import { Briefcase, Clock, CheckCircle2, FileBadge, XCircle } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { MarkPaidButton, MarkDeliveredButton, CancelButton } from "./client-actions"
 
 type SearchParams = Promise<{ status?: string }>
@@ -52,7 +53,7 @@ export default async function SuperadminServicesPage({ searchParams }: { searchP
         <FilterTab href="/superadmin/services?status=all" active={filter === "all"} label="Все" icon={Briefcase} color="slate" />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         {services.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-slate-400 dark:text-slate-500">
             {filter === "pending" ? "Нет ожидающих заявок" : "Нет записей"}
@@ -114,7 +115,7 @@ export default async function SuperadminServicesPage({ searchParams }: { searchP
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
     </div>
   )
 }

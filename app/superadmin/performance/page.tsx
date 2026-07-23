@@ -15,6 +15,8 @@ import {
   ShieldCheck,
   TrendingUp,
 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
@@ -307,9 +309,9 @@ export default async function SuperadminPerformancePage({
               <div key={action.title} className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{action.title}</h3>
-                  <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", priorityClass(action.priority))}>
+                  <Badge variant="secondary" className={cn("text-[11px]", priorityClass(action.priority))}>
                     {action.priority}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="text-xs leading-5 text-slate-600 dark:text-slate-400">{action.body}</p>
                 {action.path ? (
@@ -337,9 +339,9 @@ export default async function SuperadminPerformancePage({
               <div key={target.file} className="rounded-xl border border-slate-100 p-3 dark:border-slate-800">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="min-w-0 truncate font-mono text-xs text-slate-900 dark:text-slate-100">{target.file}</p>
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                  <Badge variant="secondary" className="bg-blue-100 text-[11px] text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
                     ≤ {target.budget}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{target.action}</p>
               </div>
@@ -396,9 +398,9 @@ export default async function SuperadminPerformancePage({
                           {item.count} замеров · худшее: {item.worstMetric} {formatMetricValue(item.worstMetric, item.worstValue)}
                         </p>
                       </div>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", ratingClass(item.worstRating))}>
+                      <Badge variant="secondary" className={cn("text-[11px]", ratingClass(item.worstRating))}>
                         {ratingLabel(item.worstRating)}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -429,9 +431,9 @@ export default async function SuperadminPerformancePage({
                           {item._count._all} замеров · среднее {formatDurationMs(item._avg.durationMs)}
                         </p>
                       </div>
-                      <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", durationToneClass(item._max.durationMs ?? 0))}>
+                      <Badge variant="secondary" className={cn("text-[11px]", durationToneClass(item._max.durationMs ?? 0))}>
                         max {formatDurationMs(item._max.durationMs)}
-                      </span>
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -631,14 +633,14 @@ function StatCard({
   tone?: "cyan" | "red" | "amber" | "emerald" | "blue" | "purple"
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block rounded-2xl p-5">
       <div className={cn("mb-4 flex h-9 w-9 items-center justify-center rounded-lg", toneBgClass(tone))}>
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</p>
       <p className="mt-1 text-sm font-medium text-slate-700 dark:text-slate-300">{label}</p>
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>
-    </div>
+    </Card>
   )
 }
 

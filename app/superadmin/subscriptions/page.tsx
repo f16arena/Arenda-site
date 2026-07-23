@@ -12,6 +12,8 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
 import { ROOT_HOST } from "@/lib/host"
@@ -240,16 +242,16 @@ async function renderSubscriptionsTimelinePage({
               {filter !== "all" && <input type="hidden" name="status" value={filter} />}
               <label className="relative flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
+                <Input
                   name="q"
                   defaultValue={query}
                   placeholder="Поиск по организации или slug..."
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-blue-500"
+                  className="border-slate-700 bg-slate-950 pl-9 text-slate-100 placeholder:text-slate-600"
                 />
               </label>
-              <button className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500">
+              <Button>
                 Найти
-              </button>
+              </Button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
               {FILTERS.map((item) => (

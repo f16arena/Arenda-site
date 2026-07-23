@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import Link from "next/link"
 import { Package, Clock, CheckCircle2 } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { ADDON_CATALOG } from "@/lib/addons-catalog"
 import { ActivateButton, DeactivateButton, RejectButton } from "./client-actions"
 
@@ -58,7 +59,7 @@ export default async function SuperadminAddonsPage({ searchParams }: { searchPar
         <FilterTab href="/superadmin/addons?status=all" active={filter === "all"} label="Все" icon={Package} color="slate" />
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <Card className="block p-0">
         {addons.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-slate-400 dark:text-slate-500">
             {filter === "pending" ? "Нет заявок на активацию" : filter === "active" ? "Нет активных аддонов" : "Нет аддонов"}
@@ -135,7 +136,7 @@ export default async function SuperadminAddonsPage({ searchParams }: { searchPar
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
     </div>
   )
 }

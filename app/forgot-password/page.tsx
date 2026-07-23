@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Building } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { ForgotPasswordForm } from "./forgot-password-form"
 
 export const dynamic = "force-dynamic"
@@ -18,9 +19,9 @@ export default function ForgotPasswordPage() {
           <p className="text-sm text-slate-500 mt-1">Введите email — отправим ссылку для сброса</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <Card className="block p-6">
           <ForgotPasswordForm />
-        </div>
+        </Card>
 
         <p className="text-center text-sm text-slate-500 mt-4">
           Вспомнили пароль?{" "}

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { changeOwnPassword } from "@/app/actions/change-password"
 import { ShieldCheck, AlertCircle, CheckCircle2, KeyRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 
 type FormState = { ok: boolean; message?: string; error?: string } | undefined
 
@@ -58,18 +60,17 @@ export function ChangePasswordForm({
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      <Card className="block p-6">
         <form action={action} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Текущий пароль
             </label>
-            <input
+            <Input
               name="currentPassword"
               type="password"
               autoComplete="current-password"
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
@@ -77,13 +78,12 @@ export function ChangePasswordForm({
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Новый пароль (минимум 8 символов)
             </label>
-            <input
+            <Input
               name="newPassword"
               type="password"
               autoComplete="new-password"
               minLength={8}
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
@@ -91,13 +91,12 @@ export function ChangePasswordForm({
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Подтвердите новый пароль
             </label>
-            <input
+            <Input
               name="confirmPassword"
               type="password"
               autoComplete="new-password"
               minLength={8}
               required
-              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
@@ -129,7 +128,7 @@ export function ChangePasswordForm({
             {isPending ? "Сохранение..." : state?.ok ? "Готово" : "Сменить пароль"}
           </Button>
         </form>
-      </div>
+      </Card>
     </div>
   )
 }

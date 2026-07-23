@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft, Check, Sparkles } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { SignupForm } from "./signup-form"
 
 export const dynamic = "force-dynamic"
@@ -47,13 +48,13 @@ export default async function SignupPage() {
 
         <div className="grid lg:grid-cols-[1fr_360px] gap-10">
           {/* Форма */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8">
+          <Card className="block p-6 sm:p-8">
             <div className="mb-6">
               <h1 className="text-2xl font-bold text-slate-900">Создать аккаунт</h1>
               <p className="text-sm text-slate-500 mt-1">14 дней бесплатно. Без оплаты, без карты.</p>
             </div>
             <SignupForm />
-          </div>
+          </Card>
 
           {/* Что внутри триала */}
           <aside className="space-y-4">
@@ -83,7 +84,7 @@ export default async function SignupPage() {
               </p>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
+            <Card className="block p-5">
               <p className="text-sm font-semibold text-slate-900 mb-2">Что будет после регистрации</p>
               <ol className="space-y-2 text-sm text-slate-700 list-decimal list-inside">
                 <li>Получите свой поддомен (например, <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded font-mono">your.commrent.kz</code>)</li>
@@ -91,7 +92,7 @@ export default async function SignupPage() {
                 <li>Импортируете арендаторов из Excel или вводите вручную</li>
                 <li>Готово — отправляете арендаторам ссылки на их кабинеты</li>
               </ol>
-            </div>
+            </Card>
           </aside>
         </div>
       </main>

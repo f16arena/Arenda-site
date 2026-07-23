@@ -7,6 +7,8 @@ import { createOrganization, checkSlugAvailable, type SlugCheckResult } from "@/
 import { slugify } from "@/lib/slugify"
 import { Copy, Check, Loader2, AlertCircle, ExternalLink } from "lucide-react"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 
 type Plan = {
   id: string
@@ -90,17 +92,18 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           >
             Перейти к организации
           </button>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
               setCreated(null)
               setName("")
               setSlug("")
               setSlugTouched(false)
             }}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
             Создать ещё
-          </button>
+          </Button>
         </div>
       </div>
     )
@@ -267,7 +270,7 @@ function Field({
       ) : type === "email" ? (
         <AsciiEmailInput name={name ?? ""} defaultValue={defaultValue ?? value} required={required} className={inputCls} />
       ) : (
-        <input
+        <Input
           name={name}
           type={type}
           value={value}
@@ -275,7 +278,6 @@ function Field({
           defaultValue={defaultValue}
           required={required}
           placeholder={placeholder}
-          className={inputCls}
         />
       )}
       {hint && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{hint}</p>}

@@ -10,6 +10,9 @@ import { normalizePage, pageSkip } from "@/lib/pagination"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { safeServerValue } from "@/lib/server-fallback"
 import { OrgRowActions } from "./row-actions"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { APPROVAL_PENDING, APPROVAL_REJECTED } from "@/lib/approval"
 import { RegistrationApprovalButtons } from "./registration-approval-buttons"
@@ -167,21 +170,21 @@ export default async function OrgsListPage({
         </Link>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <Card className="block p-3">
         <form className="flex flex-col gap-3 lg:flex-row lg:items-center">
           <input type="hidden" name="status" value={status === "all" ? "" : status} />
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-            <input
+            <Input
               name="q"
               defaultValue={query}
               placeholder="Поиск по названию или slug..."
-              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-slate-800 dark:bg-slate-950"
+              className="pl-9"
             />
           </div>
-          <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+          <Button>
             Найти
-          </button>
+          </Button>
         </form>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {[
@@ -216,7 +219,7 @@ export default async function OrgsListPage({
             )
           })}
         </div>
-      </div>
+      </Card>
 
       {/* KPI mini-cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -228,13 +231,13 @@ export default async function OrgsListPage({
       </div>
 
       {items.length === 0 ? (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+        <Card className="block rounded-2xl p-12 text-center">
           <Building2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Пока нет организаций</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Создайте первую через кнопку выше</p>
-        </div>
+        </Card>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <Card className="block p-0">
           <OrgsTable items={items} rootHost={ROOT_HOST} />
           <PaginationControls
             basePath="/superadmin/orgs"
@@ -243,7 +246,7 @@ export default async function OrgsListPage({
             total={total}
             params={{ q: query, status: status === "all" ? null : status }}
           />
-        </div>
+        </Card>
       )}
     </div>
   )
@@ -454,7 +457,7 @@ function KpiCard({ label, value, icon: Icon, color }: {
     red: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
   }
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+    <Card className="block p-4">
       <div className="flex items-center gap-3">
         <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${colors[color]}`}>
           <Icon className="h-4 w-4" />
@@ -464,6 +467,6 @@ function KpiCard({ label, value, icon: Icon, color }: {
           <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
         </div>
       </div>
-    </div>
+    </Card>
   )
 }

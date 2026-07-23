@@ -8,6 +8,8 @@ import { BookingForm } from "./booking-form"
 import { getBuildingTenantAdminContacts } from "@/lib/tenant-admin-contact"
 import { parseSpacePhotos } from "@/lib/space-photos"
 import { ImageOff } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
 
 export default async function PublicBookingPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
@@ -100,7 +102,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {allVacantSpaces.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+          <Card className="block p-12 text-center">
             <Building2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
             <h2 className="text-lg font-semibold text-slate-900 mb-1">Свободных помещений нет</h2>
             <p className="text-sm text-slate-500 mb-4">
@@ -112,7 +114,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                 buildings={org.buildings.map((b) => ({ id: b.id, name: b.name }))}
               />
             )}
-          </div>
+          </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Список */}
@@ -138,7 +140,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                   )
                 if (buildingSpaces.length === 0) return null
                 return (
-                  <div key={b.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  <Card key={b.id} className="block overflow-hidden p-0">
                     <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
                       <h3 className="text-base font-semibold text-slate-900">{b.name}</h3>
                       <p className="text-xs text-slate-500 mt-0.5 inline-flex items-center gap-1">
@@ -152,7 +154,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                         const photos = parseSpacePhotos(s.photos)
                         const cover = photos[0] ?? null
                         return (
-                          <div key={s.id} className="overflow-hidden rounded-xl border border-slate-200 transition hover:shadow-md">
+                          <Card key={s.id} className="block overflow-hidden p-0 transition hover:shadow-md">
                             <div className="relative aspect-[4/3] w-full bg-slate-100">
                               {cover ? (
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -164,13 +166,13 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                                 </div>
                               )}
                               {photos.length > 1 && (
-                                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                                <Badge className="absolute bottom-2 right-2 bg-black/60 text-[10px] font-medium text-white">
                                   +{photos.length - 1} фото
-                                </span>
+                                </Badge>
                               )}
-                              <span className="absolute left-2 top-2 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                              <Badge className="absolute left-2 top-2 bg-emerald-500 text-[10px] font-semibold text-white">
                                 свободно
-                              </span>
+                              </Badge>
                             </div>
                             <div className="p-4">
                               <div className="flex items-start justify-between gap-2">
@@ -193,18 +195,18 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                                 Записаться на просмотр →
                               </a>
                             </div>
-                          </div>
+                          </Card>
                         )
                       })}
                     </div>
-                  </div>
+                  </Card>
                 )
               })}
             </div>
 
             {/* Sidebar — форма */}
             <aside className="space-y-4">
-              <div id="booking-form" className="bg-white rounded-2xl border border-slate-200 p-5 sticky top-24">
+              <Card id="booking-form" className="block p-5 sticky top-24">
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar className="h-4 w-4 text-blue-600" />
                   <h3 className="text-sm font-semibold text-slate-900">Записаться на просмотр</h3>
@@ -213,11 +215,11 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                   orgSlug={orgSlug}
                   buildings={org.buildings.map((b) => ({ id: b.id, name: b.name }))}
                 />
-              </div>
+              </Card>
 
               {/* Контакты */}
               {(publicContact?.phone || publicContact?.email) && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-5">
+                <Card className="block p-5">
                   <h3 className="text-sm font-semibold text-slate-900 mb-2">Связаться с администратором</h3>
                   <p className="text-xs text-slate-500 mb-3">{publicContact.name}</p>
                   <div className="space-y-2 text-sm">
@@ -234,7 +236,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                       </a>
                     )}
                   </div>
-                </div>
+                </Card>
               )}
             </aside>
           </div>

@@ -4,7 +4,10 @@ import { useActionState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { login } from "@/app/actions/auth"
-import { Loader2, AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
+import { AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 
 export function LoginForm() {
   const [state, action, isPending] = useActionState(login, undefined)
@@ -26,18 +29,17 @@ export function LoginForm() {
       </Link>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+      <Card className="block p-6">
         <form action={action} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Телефон или Email
             </label>
-            <input
+            <Input
               name="login"
               type="text"
               placeholder="+7 700 000 00 00"
               autoComplete="username"
-              className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             />
           </div>
 
@@ -50,12 +52,11 @@ export function LoginForm() {
                 Забыли пароль?
               </Link>
             </div>
-            <input
+            <Input
               name="password"
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
-              className="w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-colors"
             />
           </div>
 
@@ -70,13 +71,13 @@ export function LoginForm() {
                   </p>
                 </div>
               </div>
-              <input
+              <Input
                 name="totp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 placeholder="000000 или XXXX-XXXX"
                 autoFocus
-                className="w-full rounded-lg border border-emerald-300 px-3.5 py-2.5 text-base font-mono tracking-widest text-center bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="border-emerald-300 bg-white text-center font-mono text-base tracking-widest focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
               />
             </div>
           )}
@@ -90,16 +91,16 @@ export function LoginForm() {
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={isPending}
-            className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+            size="lg"
+            loading={isPending}
+            className="w-full font-semibold"
           >
-            {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             {isPending ? "Вход..." : "Войти"}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
 
       {/* Diagnostic block */}
       {state?.details && state.details.length > 0 && (

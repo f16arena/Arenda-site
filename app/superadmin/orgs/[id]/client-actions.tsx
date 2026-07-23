@@ -15,6 +15,7 @@ import {
 } from "@/app/actions/organizations"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boolean }) {
   const router = useRouter()
@@ -39,13 +40,13 @@ export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boole
             })
           }
           trigger={
-            <button
+            <Button
+              size="sm"
               disabled={pending}
-              className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-2 text-xs font-medium text-white"
             >
               <LogIn className="h-3.5 w-3.5" />
               Войти как клиент
-            </button>
+            </Button>
           }
         />
       )}
@@ -78,11 +79,10 @@ export function OrgEditForm({
     >
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Название</label>
-        <input
+        <Input
           name="name"
           defaultValue={initial.name}
           required
-          className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
         />
       </div>
       <div>
@@ -128,7 +128,7 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Срок (месяцев)</label>
-          <input
+          <Input
             type="number"
             min={1}
             max={36}
@@ -138,16 +138,14 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
               setMonths(m)
               setPaid(m * planPrice)
             }}
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Оплачено ₸</label>
-          <input
+          <Input
             type="number"
             value={paid}
             onChange={(e) => setPaid(parseFloat(e.target.value) || 0)}
-            className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
           />
         </div>
       </div>
@@ -252,13 +250,15 @@ export function DangerZone({
             </p>
           </div>
           {!showDelete && (
-            <button
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => setShowDelete(true)}
-              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-2 text-xs font-medium text-white"
+              className="shrink-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Удалить…
-            </button>
+            </Button>
           )}
         </div>
 
@@ -292,23 +292,25 @@ export function DangerZone({
                   })
                 }
                 trigger={
-                  <button
+                  <Button
+                    variant="destructive"
+                    size="sm"
                     disabled={pending || confirmInput.trim() !== orgSlug}
-                    className="rounded-lg bg-red-600 hover:bg-red-700 disabled:bg-slate-300 px-3 py-2 text-xs font-medium text-white"
                   >
                     Удалить навсегда
-                  </button>
+                  </Button>
                 }
               />
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setShowDelete(false)
                   setConfirmInput("")
                 }}
-                className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300"
               >
                 Отмена
-              </button>
+              </Button>
             </div>
             {usersCount > 0 && (
               <p className="text-[10px] text-amber-700 dark:text-amber-300">

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, Download, RefreshCw, XCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { probePages, type ProbeReport } from "@/app/actions/perf-probe"
 
 export function ProbePagesButton() {
@@ -53,13 +54,10 @@ export function ProbePagesButton() {
             {pending ? "Проверяю…" : "Перепроверить страницы"}
           </button>
           {report && (
-            <button
-              onClick={downloadReport}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
+            <Button variant="outline" onClick={downloadReport}>
               <Download className="h-4 w-4" />
               Скачать отчёт
-            </button>
+            </Button>
           )}
         </div>
       </div>

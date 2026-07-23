@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, Mail, XCircle } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import { sendTestEmail, type TestEmailResult } from "@/app/actions/test-email"
 
 export function TestEmailTool() {
@@ -37,12 +38,12 @@ export function TestEmailTool() {
         Отправляет тестовое письмо через Resend и показывает реальный ответ. Если «Забыли пароль» не доходит — здесь видна точная причина (напр. домен не подтверждён в Resend).
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <input
+        <Input
           type="email"
           value={to}
           onChange={(e) => setTo(e.target.value)}
           placeholder="вашe@email.com"
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-purple-400 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+          className="min-w-0 flex-1"
         />
         <button
           onClick={run}

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Upload, Loader2, Trash2 } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { uploadSiteImage, removeSiteImage } from "@/app/actions/site-images"
 
 export function SiteImageUploader({
@@ -36,7 +37,7 @@ export function SiteImageUploader({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-5">
       <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</p>
       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{hint} · slot: <code>{slot}</code></p>
 
@@ -61,6 +62,6 @@ export function SiteImageUploader({
           </button>
         )}
       </div>
-    </div>
+    </Card>
   )
 }

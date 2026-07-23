@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Building, AlertCircle } from "lucide-react"
 import { db } from "@/lib/db"
+import { Card } from "@/components/ui/card"
 import { ResetPasswordForm } from "./reset-password-form"
 
 export const dynamic = "force-dynamic"
@@ -38,7 +39,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
           <p className="text-sm text-slate-500 mt-1">Установите новый пароль для входа</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <Card className="block p-6">
           {validationError ? (
             <div className="space-y-4">
               <div className="rounded-lg bg-red-50 border border-red-200 p-4">
@@ -60,7 +61,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
           ) : (
             <ResetPasswordForm token={token!} />
           )}
-        </div>
+        </Card>
 
         <p className="text-center text-sm text-slate-500 mt-4">
           <Link href="/login" className="text-blue-600 hover:underline font-medium">

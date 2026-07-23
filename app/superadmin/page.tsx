@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 import { ROOT_HOST } from "@/lib/host"
 import { safeServerValue } from "@/lib/server-fallback"
+import { Card as UICard } from "@/components/ui/card"
 
 export default async function SuperadminHomePage() {
   const { userId } = await requirePlatformOwner()
@@ -47,14 +48,14 @@ export default async function SuperadminHomePage() {
         <TopOrgsByMrr userId={userId} />
       </Suspense>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <UICard className="block p-0">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия (всех организаций)</h2>
         </div>
         <Suspense fallback={<div className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Загрузка…</div>}>
           <RecentAuditTable userId={userId} />
         </Suspense>
-      </div>
+      </UICard>
     </div>
   )
 }
@@ -112,7 +113,7 @@ async function PlansDistribution({ userId }: { userId: string }) {
   )
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <UICard className="block p-0">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Package className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -137,7 +138,7 @@ async function PlansDistribution({ userId }: { userId: string }) {
           )
         })}
       </div>
-    </div>
+    </UICard>
   )
 }
 
@@ -177,7 +178,7 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
   if (sorted.length === 0) return null
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <UICard className="block p-0">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ организаций по MRR</h2>
         <Link href="/superadmin/orgs" className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1">
@@ -228,7 +229,7 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </UICard>
   )
 }
 
@@ -271,7 +272,7 @@ async function SubscriptionDynamics({ userId }: { userId: string }) {
   const maxRevenue = Math.max(...months.map((m) => m.revenue), 1)
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <UICard className="block p-0">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Динамика выручки (6 мес)</h2>
       </div>
@@ -296,7 +297,7 @@ async function SubscriptionDynamics({ userId }: { userId: string }) {
           })}
         </div>
       </div>
-    </div>
+    </UICard>
   )
 }
 
@@ -585,7 +586,7 @@ function Kpi({ icon: Icon, color, label, value, sub }: {
     slate: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
   }
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+    <UICard className="block p-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</span>
         <div className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${colors[color]}`}>
@@ -594,7 +595,7 @@ function Kpi({ icon: Icon, color, label, value, sub }: {
       </div>
       <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
       {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
-    </div>
+    </UICard>
   )
 }
 
@@ -612,13 +613,13 @@ function Card({ label, value, icon: Icon, color, sub }: {
     purple: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
   }
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+    <UICard className="block p-5">
       <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colors[color]} mb-3`}>
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
       {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{sub}</p>}
-    </div>
+    </UICard>
   )
 }

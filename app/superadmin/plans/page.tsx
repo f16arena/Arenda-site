@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { Layers3, PackageCheck, Power, TrendingUp } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
@@ -116,13 +117,13 @@ function SummaryCard({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <Card className="block p-4">
       <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${tones[tone]}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
       <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">{detail}</div>
-    </div>
+    </Card>
   )
 }

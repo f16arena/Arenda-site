@@ -8,6 +8,7 @@ import { Activity, ArrowLeft, Building2, Bug, Users, AlertTriangle, FileText, Ha
 import { OrgActions, OrgEditForm, ExtendForm, ChangeOwnerForm, DangerZone } from "./client-actions"
 import { OrgUrlCard } from "./org-url-card"
 import { LimitsCard } from "./limits-card"
+import { Card as UICard } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { ROOT_HOST } from "@/lib/host"
 import { tenantScope, leadScope } from "@/lib/tenant-scope"
@@ -302,14 +303,14 @@ function Stat({ label, value, sub, icon: Icon, accent }: {
 }) {
   const accentClass = accent === "red" ? "text-red-600 dark:text-red-400" : accent === "amber" ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4">
+    <UICard className="block p-4">
       <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1">
         {Icon && <Icon className="h-3.5 w-3.5" />}
         {label}
       </div>
       <p className={cn("text-xl font-bold", accentClass)}>{value}</p>
       {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
-    </div>
+    </UICard>
   )
 }
 
@@ -497,9 +498,9 @@ function formatSupportDate(value: Date): string {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
+    <UICard className="block p-5">
       <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">{title}</p>
       {children}
-    </div>
+    </UICard>
   )
 }

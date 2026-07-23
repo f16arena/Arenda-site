@@ -4,6 +4,8 @@ import { useState, useTransition } from "react"
 import { Check } from "lucide-react"
 import { createBookingLead } from "@/app/actions/booking"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 
 export function BookingForm({
@@ -47,12 +49,11 @@ export function BookingForm({
     >
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">Имя *</label>
-        <input
+        <Input
           name="name"
           required
           maxLength={100}
           placeholder="Как к вам обращаться"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
         />
       </div>
       <div>
@@ -89,12 +90,12 @@ export function BookingForm({
       )}
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">Что ищете</label>
-        <textarea
+        <Textarea
           name="comment"
           rows={2}
           maxLength={500}
           placeholder="Кабинет 30-50 м², этаж не выше 3..."
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
+          className="resize-none"
         />
       </div>
 
