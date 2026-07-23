@@ -3,9 +3,11 @@
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Upload, Loader2, Trash2, X } from "lucide-react"
+import { Upload, Loader2, Trash2 } from "lucide-react"
 import { uploadMyDocument, deleteMyDocument } from "@/app/actions/cabinet-docs"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 const DOC_TYPES: { value: string; label: string }[] = [
   { value: "OTHER", label: "Прочее" },
@@ -48,22 +50,15 @@ export function MyDocumentUpload() {
         Загрузить
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setOpen(false)}>
-          <form
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={submit}
-            className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl p-5 space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Загрузить документ</h3>
-              <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
-            </div>
-
+      <Dialog open={open} onOpenChange={(v) => { if (!busy) setOpen(v) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Загрузить документ</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submit} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Название *</label>
-              <input name="name" required maxLength={200} placeholder="например, Свидетельство ИП"
-                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none" />
+              <Input name="name" required maxLength={200} placeholder="например, Свидетельство ИП" />
             </div>
 
             <div>
@@ -82,18 +77,17 @@ export function MyDocumentUpload() {
               <p className="mt-1 text-[11px] text-slate-400">PDF, изображения, Word/Excel. До 10 МБ.</p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setOpen(false)} disabled={busy}
-                className="rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50">Отмена</button>
-              <button type="submit" disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={busy}>
+                Отмена
+              </Button>
+              <Button type="submit" loading={busy} leftIcon={<Upload className="h-4 w-4" />}>
                 Загрузить
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

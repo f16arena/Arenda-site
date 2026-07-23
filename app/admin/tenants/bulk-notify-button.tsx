@@ -1,10 +1,13 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Megaphone, Loader2, X } from "lucide-react"
+import { Megaphone } from "lucide-react"
 import { toast } from "sonner"
 import { sendBulkNotificationToTenants } from "@/app/actions/bulk-notify"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 /**
  * Кнопка «Рассылка арендаторам» + модалка. Если фича недоступна в тарифе —
@@ -72,75 +75,66 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
         Рассылка
       </Button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          onMouseDown={(e) => { if (e.target === e.currentTarget) close() }}
-        >
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Рассылка арендаторам</h3>
-              <button onClick={close} aria-label="Закрыть" className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4 px-6 py-5">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {scope === "all"
-                  ? <>Уведомление получат <b>все {totalTenants} арендаторов</b> текущей организации (в колокольчике; письмо — по галочке).</>
-                  : <>Уведомление получат <b>только арендаторы с неоплаченными начислениями</b> (в колокольчике; письмо — по галочке).</>}
-              </p>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Кому</label>
-                <select
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value === "debtors" ? "debtors" : "all")}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="all">Всем арендаторам</option>
-                  <option value="debtors">Только должникам (есть неоплаченные начисления)</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Заголовок</label>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={120}
-                  placeholder="Напр.: Изменение реквизитов"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Текст</label>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={5}
-                  maxLength={1500}
-                  placeholder="Текст сообщения для арендаторов…"
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <input type="checkbox" checked={alsoEmail} onChange={(e) => setAlsoEmail(e.target.checked)} />
-                Также отправить email
-              </label>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800 px-6 py-4">
-              <button onClick={close} className="rounded-lg border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50">Отмена</button>
-              <button
-                onClick={submit}
-                disabled={pending || !title.trim() || !message.trim()}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Рассылка арендаторам</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {scope === "all"
+                ? <>Уведомление получат <b>все {totalTenants} арендаторов</b> текущей организации (в колокольчике; письмо — по галочке).</>
+                : <>Уведомление получат <b>только арендаторы с неоплаченными начислениями</b> (в колокольчике; письмо — по галочке).</>}
+            </p>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Кому</label>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value === "debtors" ? "debtors" : "all")}
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               >
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />}
-                {pending ? "Отправляю…" : scope === "all" ? `Отправить ${totalTenants}` : "Отправить должникам"}
-              </button>
+                <option value="all">Всем арендаторам</option>
+                <option value="debtors">Только должникам (есть неоплаченные начисления)</option>
+              </select>
             </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Заголовок</label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={120}
+                placeholder="Напр.: Изменение реквизитов"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Текст</label>
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={5}
+                maxLength={1500}
+                placeholder="Текст сообщения для арендаторов…"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={alsoEmail} onChange={(e) => setAlsoEmail(e.target.checked)} />
+              Также отправить email
+            </label>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close}>Отмена</Button>
+            <Button
+              type="button"
+              onClick={submit}
+              disabled={pending || !title.trim() || !message.trim()}
+              loading={pending}
+              leftIcon={<Megaphone className="h-4 w-4" />}
+            >
+              {pending ? "Отправляю…" : scope === "all" ? `Отправить ${totalTenants}` : "Отправить должникам"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

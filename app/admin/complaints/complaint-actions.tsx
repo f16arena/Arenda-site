@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { X, MessageSquare, CheckCircle } from "lucide-react"
+import { MessageSquare, CheckCircle } from "lucide-react"
 import { respondToComplaint, resolveComplaint } from "@/app/actions/complaints"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 export function RespondButton({ complaintId, hasResponse }: { complaintId: string; hasResponse: boolean }) {
   const [open, setOpen] = useState(false)
@@ -36,37 +38,34 @@ export function RespondButton({ complaintId, hasResponse }: { complaintId: strin
         )}
       </div>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Ответить на жалобу</h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ответить на жалобу</DialogTitle>
+          </DialogHeader>
+          <form
+            action={(fd) => startTransition(async () => { await respondToComplaint(complaintId, fd); setOpen(false) })}
+            className="space-y-4"
+          >
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ответ администратора</label>
+              <Textarea
+                name="response"
+                required
+                rows={4}
+                className="resize-none"
+                placeholder="Введите ответ..."
+              />
             </div>
-            <form
-              action={(fd) => startTransition(async () => { await respondToComplaint(complaintId, fd); setOpen(false) })}
-              className="p-6 space-y-4"
-            >
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ответ администратора</label>
-                <textarea
-                  name="response"
-                  required
-                  rows={4}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
-                  placeholder="Введите ответ..."
-                />
-              </div>
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
-                <Button type="submit" loading={pending} className="flex-1">
-                  {pending ? "Отправка..." : "Ответить"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+              <Button type="submit" loading={pending} className="flex-1">
+                {pending ? "Отправка..." : "Ответить"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
