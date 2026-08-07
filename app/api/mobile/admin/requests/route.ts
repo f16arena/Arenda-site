@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { mobileError } from "@/lib/mobile-context"
-import { getMobileStaffRequest, requestInBuildingsWhere } from "@/lib/mobile-admin"
+import { getMobileStaffRequest, requestInBuildingsWhere, tenantInBuildingsWhere } from "@/lib/mobile-admin"
 import { notifyUser } from "@/lib/notify"
 import { REQUEST_STATUS_SET } from "@/lib/request-statuses"
 
@@ -72,6 +72,84 @@ export async function GET(req: Request) {
       done: requests.filter((request) => ["DONE", "CLOSED"].includes(request.status)).length,
     },
   })
+}
+
+const REQUEST_TYPE_SET = new Set(["TECHNICAL", "INTERNET", "CLEANING", "QUESTION", "OTHER"])
+const REQUEST_PRIORITY_SET = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"])
+
+/**
+ * Создание заявки сотрудником в интересах арендатора.
+ *
+ * Автором (`userId`) остаётся сам сотрудник — так в истории видно, что заявку
+ * завели со стороны УК, а не арендатор. Арендатор при этом выбирается явно и
+ * видит заявку у себя в кабинете.
+ */
+export async function POST(req: Request) {
+  const result = await getMobileStaffRequest(req)
+  if (!result.ok) return result.response
+
+  const body = await req.json().catch(() => null) as {
+    tenantId?: string
+    title?: string
+    description?: string
+    type?: string
+    priority?: string
+  } | null
+
+  const tenantId = String(body?.tenantId ?? "").trim()
+  const title = String(body?.title ?? "").trim().slice(0, 200)
+  const description = String(body?.description ?? "").trim().slice(0, 4000)
+  const type = String(body?.type ?? "OTHER").trim().toUpperCase()
+  const priority = String(body?.priority ?? "MEDIUM").trim().toUpperCase()
+
+  if (!tenantId) return mobileError("Выберите арендатора")
+  if (title.length < 3) return mobileError("Укажите тему заявки")
+  if (description.length < 5) return mobileError("Опишите заявку подробнее")
+  if (!REQUEST_TYPE_SET.has(type)) return mobileError("Некорректный тип заявки")
+  if (!REQUEST_PRIORITY_SET.has(priority)) return mobileError("Некорректный приоритет")
+
+  const tenant = await db.tenant.findFirst({
+    where: { id: tenantId, ...tenantInBuildingsWhere(result.buildingIds) },
+    select: { id: true, companyName: true, userId: true },
+  })
+  if (!tenant) return mobileError("Арендатор недоступен", 403)
+
+  const created = await db.request.create({
+    data: {
+      tenantId: tenant.id,
+      userId: result.ctx.user.id,
+      title,
+      description,
+      type,
+      priority,
+      status: "NEW",
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      priority: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  })
+
+  if (tenant.userId) {
+    await notifyUser({
+      userId: tenant.userId,
+      type: "REQUEST_CREATED",
+      title: "Создана заявка",
+      message: title,
+      link: "/cabinet/requests",
+      sendEmail: false,
+      sendPush: true,
+      pushData: { requestId: created.id },
+    })
+  }
+
+  return NextResponse.json({ data: created })
 }
 
 export async function PATCH(req: Request) {
