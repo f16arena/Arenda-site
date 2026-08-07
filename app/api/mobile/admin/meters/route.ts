@@ -67,7 +67,9 @@ export async function GET(req: Request) {
       floor: { select: { name: true, building: { select: { id: true, name: true } } } },
     },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
-    take: 500,
+    // Держим ниже порога гейта производительности (take >= 150 запрещён).
+    // Для объектов крупнее этого списка форма фильтруется параметром buildingId.
+    take: 120,
   })
 
   const spaces = spaceRows.map((space) => ({
