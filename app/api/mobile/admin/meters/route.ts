@@ -57,7 +57,30 @@ export async function GET(req: Request) {
     take: 100,
   })
 
-  return NextResponse.json({ data: meters })
+  // Список помещений нужен форме создания: клиент обязан прислать настоящий
+  // spaceId, а до этого в приложении было поле «ID помещения» руками.
+  const spaceRows = await db.space.findMany({
+    where: { floor: { buildingId: { in: targetBuildings } } },
+    select: {
+      id: true,
+      number: true,
+      floor: { select: { name: true, building: { select: { id: true, name: true } } } },
+    },
+    orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
+    // Держим ниже порога гейта производительности (take >= 150 запрещён).
+    // Для объектов крупнее этого списка форма фильтруется параметром buildingId.
+    take: 120,
+  })
+
+  const spaces = spaceRows.map((space) => ({
+    id: space.id,
+    number: space.number,
+    floorName: space.floor.name,
+    buildingId: space.floor.building.id,
+    buildingName: space.floor.building.name,
+  }))
+
+  return NextResponse.json({ data: meters, spaces })
 }
 
 export async function POST(req: Request) {
