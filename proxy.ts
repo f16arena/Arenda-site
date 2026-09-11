@@ -84,6 +84,13 @@ export default auth((req) => {
   const isSuperadminRoute = path.startsWith("/superadmin")
   const isLoginPage = path === "/login"
 
+  // Server action — это POST на адрес текущей страницы с заголовком next-action.
+  // Редирект в ответ на такой POST клиент разобрать не может: React получает HTML
+  // страницы-назначения вместо потока ответа действия и падает с «An unexpected
+  // response was received from the server». Поэтому редиректы, рассчитанные на
+  // навигацию, к server actions не применяем — пусть действие отработает само.
+  const isServerAction = req.method === "POST" && req.headers.has("next-action")
+
   // ─── Reserved subdomain — 404 ───────────────────────────────────
   if (host.kind === "reserved") {
     return withTiming(new NextResponse("Not Found", { status: 404 }))
@@ -152,7 +159,9 @@ export default auth((req) => {
   // ─── Login для платформ-админа: сразу в /superadmin ─────────────
   // (для остальных: server-component на /login сам сделает редирект на slug-поддомен,
   // через middleware не делаем — иначе redirect loop с /admin на root домене.)
-  if (isLoginPage && isLoggedIn && isPlatformOwner) {
+  // Server action формы входа тоже идёт POST'ом на /login — его не трогаем,
+  // иначе повторное нажатие «Войти» при живой сессии ломает страницу.
+  if (isLoginPage && isLoggedIn && isPlatformOwner && !isServerAction) {
     const res = NextResponse.redirect(new URL("/superadmin", req.url))
     res.cookies.delete("impersonating")
     res.cookies.delete("superadmin_currentOrgId")
