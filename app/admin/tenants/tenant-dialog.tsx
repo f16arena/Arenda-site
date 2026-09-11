@@ -1,13 +1,20 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Plus, X } from "lucide-react"
+import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import { createTenant } from "@/app/actions/tenant-create"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { TenantIdentityFields } from "./tenant-identity-fields"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
 // Карточка арендатора = только реквизиты/контакты. Помещение, аренда и срок
@@ -29,30 +36,33 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
         Добавить арендатора
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Новый арендатор</h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Пока идёт создание — Esc и клик мимо не закрывают окно.
+          if (pending) return
+          setOpen(next)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Новый арендатор</DialogTitle>
+          </DialogHeader>
 
-            <form
-              action={(formData) => {
-                startTransition(async () => {
-                  try {
-                    await createTenant(formData)
-                    toast.success("Арендатор создан")
-                    setOpen(false)
-                  } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Не удалось создать")
-                  }
-                })
-              }}
-              className="p-6 space-y-4"
-            >
+          <form
+            action={(formData) => {
+              startTransition(async () => {
+                try {
+                  await createTenant(formData)
+                  toast.success("Арендатор создан")
+                  setOpen(false)
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Не удалось создать")
+                }
+              })
+            }}
+            className="space-y-4"
+          >
               {buildingId && <input type="hidden" name="buildingId" value={buildingId} />}
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Контактное лицо</p>
               <div>
@@ -137,16 +147,15 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
                 условия — при создании договора или загрузке внешнего PDF). Здесь карточка — только реквизиты.
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
-                <Button type="submit" loading={pending} className="flex-1">
-                  {pending ? "Создание..." : "Создать"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+              <Button type="submit" loading={pending} className="flex-1">
+                {pending ? "Создание..." : "Создать"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

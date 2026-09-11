@@ -2,9 +2,18 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { GitBranch, X } from "lucide-react"
+import { GitBranch } from "lucide-react"
 import { toast } from "sonner"
 import { createContractVersion } from "@/app/actions/contracts"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 type Props = {
   contractId: string
@@ -52,65 +61,47 @@ export function ContractVersionButton({ contractId, contractNumber, currentVersi
         Новая версия
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Новая версия договора № {contractNumber}
-              </h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" title="Закрыть">
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Пока создаётся версия — Esc и клик мимо не закрывают окно.
+          if (pending) return
+          setOpen(next)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Новая версия договора № {contractNumber}</DialogTitle>
+          </DialogHeader>
+
+          <form action={onSubmit} className="space-y-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Текущая версия (v{currentVersion}) будет архивирована. Новая версия v{currentVersion + 1}
+              {" "}создастся в статусе DRAFT — её нужно будет отправить на подпись отдельно.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата начала</label>
+              <Input type="date" name="startDate" defaultValue={defaultStartDate ?? ""} />
             </div>
-            <form action={onSubmit} className="p-6 space-y-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Текущая версия (v{currentVersion}) будет архивирована. Новая версия v{currentVersion + 1}
-                {" "}создастся в статусе DRAFT — её нужно будет отправить на подпись отдельно.
-              </p>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата начала</label>
-                <input
-                  type="date"
-                  name="startDate"
-                  defaultValue={defaultStartDate ?? ""}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата окончания</label>
-                <input
-                  type="date"
-                  name="endDate"
-                  defaultValue={defaultEndDate ?? ""}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
-                />
-              </div>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                Содержимое договора копируется из предыдущей версии. Изменить можно
-                позже через редактирование договора.
-              </p>
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400"
-                  disabled={pending}
-                >
-                  Отмена
-                </button>
-                <button
-                  type="submit"
-                  disabled={pending}
-                  className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {pending ? "Создание…" : "Создать версию"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата окончания</label>
+              <Input type="date" name="endDate" defaultValue={defaultEndDate ?? ""} />
+            </div>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Содержимое договора копируется из предыдущей версии. Изменить можно
+              позже через редактирование договора.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending} className="flex-1">
+                Отмена
+              </Button>
+              <Button type="submit" loading={pending} className="flex-1">
+                {pending ? "Создание…" : "Создать версию"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

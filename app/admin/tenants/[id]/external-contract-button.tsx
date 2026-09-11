@@ -6,6 +6,14 @@ import { toast } from "sonner"
 import { FilePlus2, Upload } from "lucide-react"
 import { createExternalContract } from "@/app/actions/external-contract"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
 // Внешний договор (PDF контрагента) — для арендаторов, не принимающих нашу
@@ -36,16 +44,22 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
         <FilePlus2 className="h-3.5 w-3.5" /> Внешний договор (PDF)
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-xl bg-white dark:bg-slate-900 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="shrink-0 border-b border-slate-100 dark:border-slate-800 px-6 py-4">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Внешний договор (PDF)</h3>
-              <p className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
-                Договор контрагента, подписанный офлайн. Конструктор и ЭЦП не нужны — просто прикрепите PDF.
-              </p>
-            </div>
-            <form
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Пока идёт загрузка — Esc и клик мимо не закрывают окно.
+          if (pending) return
+          setOpen(next)
+        }}
+      >
+        <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-md">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>Внешний договор (PDF)</DialogTitle>
+            <DialogDescription className="text-[11.5px]">
+              Договор контрагента, подписанный офлайн. Конструктор и ЭЦП не нужны — просто прикрепите PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <form
               action={(fd) =>
                 startTransition(async () => {
                   try {
@@ -64,9 +78,9 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                   }
                 })
               }
-              className="flex min-h-0 flex-1 flex-col"
+              className="flex min-h-0 flex-1 flex-col gap-4"
             >
-              <div className="flex-1 space-y-4 overflow-y-auto p-6">
+              <div className="flex-1 space-y-4 overflow-y-auto">
               <div>
                 <label className={labelCls}>Номер договора *</label>
                 <Input name="number" required placeholder="например, BEE-2026/14" />
@@ -222,16 +236,15 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
                 </div>
               </div>
               </div>
-              <div className="flex shrink-0 gap-3 border-t border-slate-100 dark:border-slate-800 p-4">
+              <DialogFooter className="shrink-0">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
                 <Button type="submit" loading={pending} className="flex-1">
                   <Upload className="mr-1.5 h-3.5 w-3.5" /> {pending ? "Загрузка..." : "Добавить"}
                 </Button>
-              </div>
+              </DialogFooter>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        </Dialog>
     </>
   )
 }

@@ -2,9 +2,18 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { CalendarPlus, Loader2, X } from "lucide-react"
+import { CalendarPlus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { createExtensionAddendum } from "@/app/actions/contract-addendums"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 
 function addMonths(base: Date, months: number): string {
   const d = new Date(base)
@@ -53,63 +62,63 @@ export function RenewContractButton({
         Продлить
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false) }}
-        >
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-6 py-4">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Продление договора № {contractNumber}</h3>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4 px-6 py-5">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Будет создано доп. соглашение о продлении{currentEnd ? ` (сейчас договор до ${new Date(currentEnd).toLocaleDateString("ru-RU")})` : ""} и сразу отправлено арендатору на подпись.
-                Остальные условия не меняются.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDate(addMonths(base, 6))}
-                  className={`rounded-lg border px-3 py-2 text-sm ${date === addMonths(base, 6) ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"}`}
-                >
-                  +6 месяцев
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDate(addMonths(base, 12))}
-                  className={`rounded-lg border px-3 py-2 text-sm ${date === addMonths(base, 12) ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"}`}
-                >
-                  +12 месяцев
-                </button>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Новая дата окончания</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 dark:border-slate-800 px-6 py-4">
-              <button onClick={() => setOpen(false)} className="rounded-lg border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm text-slate-600 dark:text-slate-400">Отмена</button>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Пока создаётся ДС — Esc и клик мимо не закрывают окно.
+          if (pending) return
+          setOpen(next)
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Продление договора № {contractNumber}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Будет создано доп. соглашение о продлении{currentEnd ? ` (сейчас договор до ${new Date(currentEnd).toLocaleDateString("ru-RU")})` : ""} и сразу отправлено арендатору на подпись.
+              Остальные условия не меняются.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={submit}
-                disabled={pending || !date}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                type="button"
+                onClick={() => setDate(addMonths(base, 6))}
+                className={`rounded-lg border px-3 py-2 text-sm ${date === addMonths(base, 6) ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"}`}
               >
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
-                Создать и отправить
+                +6 месяцев
               </button>
+              <button
+                type="button"
+                onClick={() => setDate(addMonths(base, 12))}
+                className={`rounded-lg border px-3 py-2 text-sm ${date === addMonths(base, 12) ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"}`}
+              >
+                +12 месяцев
+              </button>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Новая дата окончания</label>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
           </div>
-        </div>
-      )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>Отмена</Button>
+            <button
+              onClick={submit}
+              disabled={pending || !date}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
+              Создать и отправить
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
