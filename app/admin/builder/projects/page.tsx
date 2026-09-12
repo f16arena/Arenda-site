@@ -2,10 +2,12 @@ export const dynamic = "force-dynamic"
 
 import { Box } from "lucide-react"
 import { listBuilderProjects } from "@/app/actions/builder"
+import { listBuildableBuildings } from "@/app/actions/builder-from-building"
 import { ProjectsList } from "./projects-client"
+import { BuildFromBuilding } from "./build-from-building"
 
 export default async function BuilderProjectsPage() {
-  const projects = await listBuilderProjects()
+  const [projects, buildings] = await Promise.all([listBuilderProjects(), listBuildableBuildings()])
 
   return (
     <div className="space-y-5">
@@ -18,6 +20,7 @@ export default async function BuilderProjectsPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400">Мои здания — сохранённые проекты Building Studio</p>
         </div>
       </div>
+      <BuildFromBuilding buildings={buildings} />
       <ProjectsList projects={projects} />
     </div>
   )
