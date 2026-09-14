@@ -75,7 +75,8 @@ describe("сборка проекта из данных здания", () => {
           number: 1,
           name: "1 этаж",
           kind: "FLOOR",
-          totalArea: 310,
+          // Помещения покрывают 310 м² из 400: остаток — коридоры и лестницы.
+          totalArea: 400,
           // План существует, но пустой — в проде это обычный случай.
           layoutJson: '{"version":2,"width":20,"height":36,"elements":[]}',
           spaces: areas.map((a, i) => ({ id: `s${i}`, number: `20${i}`, area: a, kind: "RENTABLE" })),
@@ -91,9 +92,11 @@ describe("сборка проекта из данных здания", () => {
     expect(report.mismatches).toEqual([])
 
     const fl = doc.buildings[0].floors[0]
-    // Комнаты плюс коридор между рядами.
     const rooms = roomAreasM2(fl.wallGraph)
+    // Помещения плюс общая зона: они не покрывают весь этаж целиком.
     expect(rooms.length).toBe(areas.length + 1)
+    // Общая зона — это именно остаток контура, а не выдуманная площадь.
+    expect(rooms[0]).toBe(Math.round(400 - areas.reduce((a, b) => a + b, 0)))
     // Для каждой карточки есть комната той же площади с точностью до 5% —
     // ровно та граница, начиная с которой конвертер сам сообщает о расхождении.
     for (const a of areas) {
@@ -161,7 +164,55 @@ describe("сборка проекта из данных здания", () => {
     expect(report.spacesUnlinked).not.toContain("101")
   })
 
-  it("считает отметку пола от нуля: подземные этажи уходят вниз", () => {
+  it("ставит все этажи на один контур здания", () => {
+    // Из-за раскладки каждого этажа по отдельности этажи выходили разного
+    // размера и не складывались в здание. Контур должен быть один.
+    const floor = (n: number, spaces: { id: string; number: string; area: number; kind: string }[]) => ({
+      id: `f${n}`,
+      number: n,
+      name: `${n} этаж`,
+      kind: "FLOOR",
+      totalArea: 645,
+      layoutJson: null,
+      spaces,
+    })
+    const src: SourceBuilding = {
+      id: "b",
+      name: "БЦ",
+      floors: [
+        floor(0, [{ id: "s0", number: "Весь", area: 645, kind: "RENTABLE" }]),
+        floor(1, [
+          { id: "s1", number: "101", area: 613.5, kind: "RENTABLE" },
+          { id: "s2", number: "102", area: 31.5, kind: "RENTABLE" },
+        ]),
+        floor(2, [
+          { id: "s3", number: "201", area: 66.5, kind: "RENTABLE" },
+          { id: "s4", number: "202", area: 78.2, kind: "RENTABLE" },
+        ]),
+      ],
+    }
+
+    const { doc } = buildProjectFromBuilding(src)
+    const boxes = doc.buildings[0].floors.map((fl) => {
+      const xs = Object.values(fl.wallGraph.nodes).map((n) => n.x)
+      const ys = Object.values(fl.wallGraph.nodes).map((n) => n.y)
+      return {
+        w: Math.round(Math.max(...xs) - Math.min(...xs)),
+        h: Math.round(Math.max(...ys) - Math.min(...ys)),
+      }
+    })
+    expect(boxes).toHaveLength(3)
+    for (const b of boxes) {
+      expect(b.w).toBe(boxes[0].w)
+      expect(b.h).toBe(boxes[0].h)
+    }
+    // И этажи стоят друг на друге, а не в одной плоскости.
+    const elevations = doc.buildings[0].floors.map((fl) => fl.elevation)
+    expect(elevations).toEqual([...elevations].sort((a, b) => a - b))
+    expect(new Set(elevations).size).toBe(3)
+  })
+
+  it("считает отметку пола от земли: вниз уходят только минусовые этажи", () => {
     const floor = (n: number, name: string) => ({
       id: `f${n}`,
       number: n,
@@ -174,13 +225,13 @@ describe("сборка проекта из данных здания", () => {
     const src: SourceBuilding = {
       id: "b",
       name: "БЦ",
-      floors: [floor(0, "Цоколь"), floor(1, "1 этаж"), floor(2, "2 этаж")],
+      floors: [floor(-1, "Подвал"), floor(0, "Цоколь"), floor(1, "1 этаж")],
     }
 
     const { doc } = buildProjectFromBuilding(src)
     const byName = Object.fromEntries(doc.buildings[0].floors.map((f) => [f.name, f.elevation]))
-    expect(byName["Цоколь"]).toBeLessThan(0)
-    expect(byName["1 этаж"]).toBe(0)
-    expect(byName["2 этаж"]).toBeGreaterThan(0)
+    expect(byName["Подвал"]).toBeLessThan(0)
+    expect(byName["Цоколь"]).toBe(0)
+    expect(byName["1 этаж"]).toBeGreaterThan(0)
   })
 })

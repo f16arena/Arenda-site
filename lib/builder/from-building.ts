@@ -9,8 +9,9 @@
 //
 // Два пути на этаж:
 //   1. Есть сохранённый план (Floor.layoutJson, FloorLayoutV2) — точная сборка.
-//   2. Плана нет, есть только помещения с площадями — приблизительная раскладка
-//      вдоль коридора. Грубо, но человеку есть что двигать.
+//   2. Плана нет, есть только помещения с площадями — общий контур здания
+//      делится на комнаты нужной площади. Контур ОДИН на все этажи, иначе они
+//      не складываются в здание. Грубо, но человеку есть что двигать.
 
 import { uid } from "@/core/id"
 import type { BuilderDocument, Floor, Building, Opening, Stair } from "@/types/builder"
@@ -185,116 +186,155 @@ function planFromLayout(layout: FloorLayoutV2): PlannedFloor {
   return { rooms, walls, openings, stairsAt, heightMm }
 }
 
-// ── путь 2: приблизительная раскладка по площадям ────────────────────────────
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+// ── путь 2: раскладка по площадям внутри общего контура здания ──────────────
 
 /**
- * Плана нет — раскладываем помещения по площадям. Площадь каждой комнаты
- * совпадает с карточкой: глубина ряда фиксирована, ширина выводится из площади.
- * Это заготовка под ручную правку, а не проект.
- *
- * Одна комната — делаем её примерно квадратной. Много комнат — два ряда вдоль
- * центрального коридора, как на обычном офисном этаже.
+ * Контур здания — один на все этажи. Иначе этажи получаются разного размера и
+ * не складываются в здание: нулевой квадратом, второй вытянутым в кишку.
+ * Берём самый большой этаж и делаем прямоугольник с нормальными пропорциями.
  */
-function planFromAreas(spaces: SourceSpace[], heightMm: number): PlannedFloor {
-  const CORRIDOR_M = 2.5
-  const MIN_W_M = 2.5
+export function buildingFootprint(floors: SourceFloor[]): { w: number; h: number } {
+  const RATIO = 1.6 // ширина к глубине, обычный офисный корпус
+  let maxArea = 0
+  for (const f of floors) {
+    const bySpaces = f.spaces
+      .filter((sp) => sp.kind !== "OBJECT")
+      .reduce((sum, sp) => sum + Math.max(0, sp.area), 0)
+    maxArea = Math.max(maxArea, bySpaces, f.totalArea ?? 0)
+  }
+  if (maxArea <= 0) return { w: 0, h: 0 }
+  const h = Math.sqrt(maxArea / RATIO)
+  return { w: (maxArea / h) * 1000, h: h * 1000 }
+}
 
-  // Помещения-объекты (антенны на крыше, камеры на фасаде) площади не имеют —
-  // комнатами они не являются. Совсем крошечные записи тоже пропускаем: комната
-  // в 1 м² выродится в щель, а если её растянуть до минимума, площадь в модели
-  // разойдётся с карточкой в десятки раз. Такие привязываются руками.
-  const MIN_AREA_M2 = 3
-  const usable = spaces.filter((s) => s.area >= MIN_AREA_M2 && s.kind !== "OBJECT")
+type Rect = { x: number; y: number; w: number; h: number }
+type Cell = { spaceId: string | null; label: string; area: number }
+
+/** Худшее соотношение сторон в ряду — критерий остановки squarified treemap. */
+function worstRatio(areas: number[], side: number): number {
+  const sum = areas.reduce((a, b) => a + b, 0)
+  if (sum <= 0) return Infinity
+  const max = Math.max(...areas)
+  const min = Math.min(...areas)
+  const s2 = sum * sum
+  const l2 = side * side
+  return Math.max((l2 * max) / s2, s2 / (l2 * min))
+}
+
+/**
+ * Squarified treemap: режет прямоугольник на ячейки заданной площади так, чтобы
+ * они выходили близкими к квадрату, а не к полоскам. Площадь каждой ячейки
+ * сохраняется точно — это важно, потому что она равна площади из карточки.
+ */
+function squarify(cells: Cell[], rect: Rect): { cell: Cell; rect: Rect }[] {
+  const out: { cell: Cell; rect: Rect }[] = []
+  const total = cells.reduce((sum, c) => sum + c.area, 0)
+  if (total <= 0 || rect.w <= 0 || rect.h <= 0) return out
+
+  const scale = (rect.w * rect.h) / total
+  const items = cells
+    .map((cell) => ({ cell, a: cell.area * scale }))
+    .sort((x, y) => y.a - x.a)
+
+  let free: Rect = { ...rect }
+  let i = 0
+  while (i < items.length) {
+    const side = Math.min(free.w, free.h)
+    const row = [items[i]]
+    i += 1
+    while (i < items.length) {
+      const withNext = row.concat([items[i]]).map((r) => r.a)
+      if (worstRatio(withNext, side) <= worstRatio(row.map((r) => r.a), side)) {
+        row.push(items[i])
+        i += 1
+      } else break
+    }
+
+    const rowArea = row.reduce((sum, r) => sum + r.a, 0)
+    if (free.w >= free.h) {
+      const rw = rowArea / free.h
+      let y = free.y
+      for (const r of row) {
+        const rh = r.a / rw
+        out.push({ cell: r.cell, rect: { x: free.x, y, w: rw, h: rh } })
+        y += rh
+      }
+      free = { x: free.x + rw, y: free.y, w: free.w - rw, h: free.h }
+    } else {
+      const rh = rowArea / free.w
+      let x = free.x
+      for (const r of row) {
+        const rw = r.a / rh
+        out.push({ cell: r.cell, rect: { x, y: free.y, w: rw, h: rh } })
+        x += rw
+      }
+      free = { x: free.x, y: free.y + rh, w: free.w, h: free.h - rh }
+    }
+  }
+  return out
+}
+
+/**
+ * Этаж без плана: делим общий контур здания на комнаты по площадям из карточек.
+ * Если помещения не покрывают весь этаж, остаток становится общей зоной —
+ * коридорами, лестницами и санузлами, которые в карточках не заведены.
+ */
+function planFromAreas(spaces: SourceSpace[], footprint: { w: number; h: number }, heightMm: number): PlannedFloor {
   const empty: PlannedFloor = { rooms: [], walls: [], openings: [], stairsAt: [], heightMm }
+  if (footprint.w <= 0 || footprint.h <= 0) return empty
+
+  // Помещения-объекты (антенны, камеры) площади не имеют — комнатами не станут.
+  // Совсем крошечные записи тоже пропускаем: комната в 1 м² вырождается в щель.
+  const MIN_AREA_M2 = 3
+  const usable = spaces.filter((sp) => sp.area >= MIN_AREA_M2 && sp.kind !== "OBJECT")
   if (usable.length === 0) return empty
+
+  const footprintM2 = (footprint.w / 1000) * (footprint.h / 1000)
+  const cells: Cell[] = usable.map((sp) => ({ spaceId: sp.id, label: sp.number, area: sp.area }))
+  // Остаток контура — коридоры, лестницы и санузлы, которых нет в карточках.
+  // Мелкий остаток не выделяем: он вырождается в щель вдоль стены. Комнаты тогда
+  // растянутся на него, но это доли процента — внутри допуска расхождения.
+  const MIN_COMMON_M2 = 5
+  const rest = footprintM2 - usable.reduce((sum, sp) => sum + sp.area, 0)
+  if (rest > MIN_COMMON_M2) cells.push({ spaceId: null, label: "Общая зона", area: rest })
+
+  // Контур центрируем в начале координат — здание стоит по центру участка.
+  const origin: Rect = { x: -footprint.w / 2, y: -footprint.h / 2, w: footprint.w, h: footprint.h }
+  const placed = squarify(cells, origin)
 
   const rooms: PlannedRoom[] = []
   const openings: PlannedFloor["openings"] = []
+  const edge = 1 // допуск попадания на границу контура, мм
 
-  // Одно помещение на весь этаж — просто прямоугольник, близкий к квадрату.
-  if (usable.length === 1) {
-    const s = usable[0]
-    const side = Math.sqrt(s.area)
-    const hw = (side / 2) * 1000
-    const hh = (s.area / side / 2) * 1000
+  for (const { cell, rect } of placed) {
+    const x0 = rect.x
+    const y0 = rect.y
+    const x1 = rect.x + rect.w
+    const y1 = rect.y + rect.h
     rooms.push({
       outline: [
-        { x: -hw, y: -hh },
-        { x: hw, y: -hh },
-        { x: hw, y: hh },
-        { x: -hw, y: hh },
+        { x: x0, y: y0 },
+        { x: x1, y: y0 },
+        { x: x1, y: y1 },
+        { x: x0, y: y1 },
       ],
-      spaceId: s.id,
-      label: s.number,
+      spaceId: cell.spaceId,
+      label: cell.label,
     })
-    openings.push({ at: { x: 0, y: hh }, type: "door", width: 1000 })
-    return { rooms, walls: [], openings, stairsAt: [], heightMm }
-  }
 
-  const total = usable.reduce((sum, s) => sum + s.area, 0)
-  const depthM = clamp(Math.sqrt((total / usable.length) * 1.3), 4, 14)
-
-  // Раскидываем по двум рядам, добирая в тот, что сейчас короче, — так ряды
-  // получаются примерно одной длины и этаж не вытягивается в кишку.
-  const top: SourceSpace[] = []
-  const bottom: SourceSpace[] = []
-  let topW = 0
-  let bottomW = 0
-  const widthOf = (s: SourceSpace) => Math.max(MIN_W_M, s.area / depthM)
-  for (const s of [...usable].sort((a, b) => b.area - a.area)) {
-    const w = widthOf(s)
-    if (topW <= bottomW) {
-      top.push(s)
-      topW += w
-    } else {
-      bottom.push(s)
-      bottomW += w
+    // Дверь — на самой длинной внутренней грани комнаты, окно — на наружной.
+    const sides = [
+      { mid: { x: (x0 + x1) / 2, y: y0 }, len: rect.w, outer: Math.abs(y0 - origin.y) < edge },
+      { mid: { x: (x0 + x1) / 2, y: y1 }, len: rect.w, outer: Math.abs(y1 - (origin.y + origin.h)) < edge },
+      { mid: { x: x0, y: (y0 + y1) / 2 }, len: rect.h, outer: Math.abs(x0 - origin.x) < edge },
+      { mid: { x: x1, y: (y0 + y1) / 2 }, len: rect.h, outer: Math.abs(x1 - (origin.x + origin.w)) < edge },
+    ]
+    const inner = sides.filter((sd) => !sd.outer).sort((a, b) => b.len - a.len)[0]
+    if (inner && inner.len > 1200) openings.push({ at: inner.mid, type: "door", width: 900 })
+    for (const sd of sides) {
+      if (sd.outer && sd.len > 4000) openings.push({ at: sd.mid, type: "window", width: 1400 })
     }
   }
-
-  const rowW = Math.max(topW, bottomW)
-  const halfRow = (rowW / 2) * 1000
-  const depth = depthM * 1000
-  const corridor = CORRIDOR_M * 1000
-  const topY = -(depth + corridor / 2)
-  const corridorTop = topY + depth
-  const corridorBottom = corridorTop + corridor
-
-  const layRow = (row: SourceSpace[], y0: number, doorAtTop: boolean) => {
-    let x = -halfRow
-    for (const s of row) {
-      const w = widthOf(s) * 1000
-      rooms.push({
-        outline: [
-          { x, y: y0 },
-          { x: x + w, y: y0 },
-          { x: x + w, y: y0 + depth },
-          { x, y: y0 + depth },
-        ],
-        spaceId: s.id,
-        label: s.number,
-      })
-      // Дверь в коридор: у верхнего ряда снизу, у нижнего сверху.
-      openings.push({ at: { x: x + w / 2, y: doorAtTop ? y0 : y0 + depth }, type: "door", width: 900 })
-      x += w
-    }
-  }
-  layRow(top, topY, false)
-  layRow(bottom, corridorBottom, true)
-
-  // Коридор между рядами.
-  rooms.push({
-    outline: [
-      { x: -halfRow, y: corridorTop },
-      { x: halfRow, y: corridorTop },
-      { x: halfRow, y: corridorBottom },
-      { x: -halfRow, y: corridorBottom },
-    ],
-    spaceId: null,
-    label: "Коридор",
-  })
 
   return { rooms, walls: [], openings, stairsAt: [], heightMm }
 }
@@ -442,7 +482,7 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
   // Отметка пола накапливается от нулевого уровня: надземные этажи вверх,
   // подземные вниз. Высота у этажей бывает разной, поэтому не умножаем на номер.
   const planned: { source: SourceFloor; plan: PlannedFloor; floorId: string }[] = []
-  const firstAbove = floors.findIndex((f) => f.number >= 1)
+  const firstAbove = floors.findIndex((f) => f.number >= 0)
   const belowCount = firstAbove === -1 ? floors.length : firstAbove
   const elevations = new Map<string, number>()
   let up = 0
@@ -458,13 +498,15 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
     elevations.set(f.id, down)
   }
 
+  const footprint = buildingFootprint(floors)
+
   for (const f of floors) {
     // План может существовать, но быть пустым — в проде это обычный случай:
     // холст создан, комнаты не нарисованы. Тогда идём по площадям.
     const parsed = parseLayout(f.layoutJson)
     const fromLayout = parsed ? planFromLayout(parsed) : null
     const exact = !!fromLayout && fromLayout.rooms.length > 0
-    const plan = exact ? fromLayout! : planFromAreas(f.spaces, planHeight(f))
+    const plan = exact ? fromLayout! : planFromAreas(f.spaces, footprint, planHeight(f))
     if (plan.rooms.length === 0) {
       report.floorsSkipped.push(f.name)
       continue
