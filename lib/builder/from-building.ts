@@ -23,6 +23,7 @@ import {
   AddOpeningCommand,
   AddStairCommand,
   LinkPremiseCommand,
+  SetRoofCommand,
 } from "@/core/document/commands"
 import { emptyGraph, type WallDefaults } from "@/core/geometry/wall-graph"
 import { detectRooms } from "@/core/geometry/room-detection"
@@ -322,7 +323,9 @@ function planFromAreas(spaces: SourceSpace[], footprint: { w: number; h: number 
       label: cell.label,
     })
 
-    // Дверь — на самой длинной внутренней грани комнаты, окно — на наружной.
+    // Дверь — на самой длинной внутренней грани комнаты. Окна здесь не ставим:
+    // по одному в центр комнаты они выходят редкими квадратиками вразнобой.
+    // Фасад набирается ровным шагом отдельно, см. facadeWindows.
     const sides = [
       { mid: { x: (x0 + x1) / 2, y: y0 }, len: rect.w, outer: Math.abs(y0 - origin.y) < edge },
       { mid: { x: (x0 + x1) / 2, y: y1 }, len: rect.w, outer: Math.abs(y1 - (origin.y + origin.h)) < edge },
@@ -331,12 +334,49 @@ function planFromAreas(spaces: SourceSpace[], footprint: { w: number; h: number 
     ]
     const inner = sides.filter((sd) => !sd.outer).sort((a, b) => b.len - a.len)[0]
     if (inner && inner.len > 1200) openings.push({ at: inner.mid, type: "door", width: 900 })
-    for (const sd of sides) {
-      if (sd.outer && sd.len > 4000) openings.push({ at: sd.mid, type: "window", width: 1400 })
-    }
   }
 
   return { rooms, walls: [], openings, stairsAt: [], heightMm }
+}
+
+// ── фасад: окна ровным шагом по наружным стенам ─────────────────────────────
+
+/** Ширина окна, высота, отметка низа и шаг между центрами, мм. */
+const WIN = { width: 1800, height: 1600, sill: 800, pitch: 3200, margin: 1400 }
+
+/**
+ * Ставит окна по всем наружным стенам этажа с постоянным шагом. Так фасад
+ * читается зданием, а не стеной с редкими квадратиками там, где случайно
+ * оказался центр комнаты.
+ */
+function facadeWindows(floor: Floor): Opening[] {
+  const out: Opening[] = []
+  for (const edge of Object.values(floor.wallGraph.edges)) {
+    if (edge.kind !== "exterior") continue
+    const a = floor.wallGraph.nodes[edge.a]
+    const b = floor.wallGraph.nodes[edge.b]
+    if (!a || !b) continue
+    const len = Math.hypot(b.x - a.x, b.y - a.y)
+    const usable = len - 2 * WIN.margin
+    if (usable < WIN.width) continue
+
+    const count = Math.max(1, Math.floor(usable / WIN.pitch) + 1)
+    const step = count > 1 ? usable / (count - 1) : 0
+    for (let i = 0; i < count; i += 1) {
+      const offset = count > 1 ? WIN.margin + step * i : len / 2
+      out.push({
+        id: uid("op"),
+        wallId: edge.id,
+        type: "window",
+        variant: "standard",
+        width: WIN.width,
+        height: WIN.height,
+        sillHeight: WIN.sill,
+        offset,
+      })
+    }
+  }
+  return out
 }
 
 // ── сборка одного этажа ──────────────────────────────────────────────────────
@@ -481,7 +521,7 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
 
   // Отметка пола накапливается от нулевого уровня: надземные этажи вверх,
   // подземные вниз. Высота у этажей бывает разной, поэтому не умножаем на номер.
-  const planned: { source: SourceFloor; plan: PlannedFloor; floorId: string }[] = []
+  const planned: { source: SourceFloor; plan: PlannedFloor; floorId: string; exact: boolean }[] = []
   const firstAbove = floors.findIndex((f) => f.number >= 0)
   const belowCount = firstAbove === -1 ? floors.length : firstAbove
   const elevations = new Map<string, number>()
@@ -534,7 +574,7 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
     }
     run(new AddFloorCommand(building.id, floor))
     for (const cmd of wallCommands(floorId, plan)) run(cmd)
-    planned.push({ source: f, plan, floorId })
+    planned.push({ source: f, plan, floorId, exact })
   }
 
   // ── проёмы, привязки помещений и расхождения площадей ──────────────────────
@@ -542,9 +582,15 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
   for (const f of src.floors) for (const s of f.spaces) areaBySpaceId.set(s.id, { number: s.number, area: s.area })
   const linkedSpaceIds = new Set<string>()
 
-  for (const { plan, floorId } of planned) {
+  for (const { plan, floorId, exact } of planned) {
     const built = doc.buildings[0].floors.find((fl) => fl.id === floorId)
     if (!built) continue
+
+    // У этажа с нарисованным планом окна свои — из плана. У разложенного по
+    // площадям окон нет вовсе, поэтому набираем фасад ровным шагом.
+    if (!exact) {
+      for (const win of facadeWindows(built)) run(new AddOpeningCommand(floorId, win))
+    }
 
     for (const op of plan.openings) {
       const snap = snapOpening(built, op.at)
@@ -584,6 +630,21 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
 
   for (const [id, card] of areaBySpaceId) {
     if (!linkedSpaceIds.has(id)) report.spacesUnlinked.push(card.number)
+  }
+
+  // ── крыша на верхнем этаже ────────────────────────────────────────────────
+  // Без неё сверху видно голое перекрытие: здание выглядит недостроенным.
+  const top = planned[planned.length - 1]
+  if (top) {
+    run(
+      new SetRoofCommand(top.floorId, {
+        type: "flat",
+        pitchDeg: 0,
+        overhang: 400,
+        thickness: 250,
+        materialId: "concrete",
+      }),
+    )
   }
 
   // ── лестницы между соседними этажами ──────────────────────────────────────

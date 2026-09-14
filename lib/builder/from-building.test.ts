@@ -105,6 +105,36 @@ describe("сборка проекта из данных здания", () => {
     }
   })
 
+  it("накрывает верхний этаж крышей и набирает фасад окнами", () => {
+    const floor = (n: number) => ({
+      id: `f${n}`,
+      number: n,
+      name: `${n} этаж`,
+      kind: "FLOOR",
+      totalArea: 645,
+      layoutJson: null,
+      spaces: [{ id: `s${n}`, number: `${n}01`, area: 645, kind: "RENTABLE" }],
+    })
+    const src: SourceBuilding = { id: "b", name: "БЦ", floors: [floor(0), floor(1), floor(2)] }
+
+    const { doc } = buildProjectFromBuilding(src)
+    const floors = doc.buildings[0].floors
+
+    // Крыша только на верхнем, иначе перекрытия растут посреди здания.
+    expect(floors[floors.length - 1].roof?.type).toBe("flat")
+    for (const fl of floors.slice(0, -1)) expect(fl.roof).toBeUndefined()
+
+    // Окна идут по периметру ровным шагом, а не по одному в центр комнаты.
+    for (const fl of floors) {
+      const windows = fl.openings.filter((o) => o.type === "window")
+      expect(windows.length).toBeGreaterThan(10)
+      const walls = new Set(windows.map((w) => w.wallId))
+      // Задействованы все наружные стены контура, а не одна.
+      expect(walls.size).toBe(4)
+      for (const w of windows) expect(w.sillHeight).toBeGreaterThan(0)
+    }
+  })
+
   it("не считает этажами крышу и территорию", () => {
     const src: SourceBuilding = {
       id: "b",
