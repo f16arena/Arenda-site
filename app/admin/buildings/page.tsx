@@ -5,7 +5,7 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import Link from "next/link"
-import { Building2, MapPin, Layers, Users, Check, Sparkles, Box, DoorClosed, DoorOpen } from "lucide-react"
+import { Building2, MapPin, Layers, Users, Check, Sparkles, Box, DoorClosed, DoorOpen, Map as MapIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
@@ -347,6 +347,14 @@ export default async function BuildingsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Link
+                    href={`/admin/buildings/${b.id}/map`}
+                    title="Карта: план этажа с арендаторами и свободными площадями"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+                  >
+                    <MapIcon className="h-3.5 w-3.5" />
+                    Карта
+                  </Link>
                   <Link
                     href={`/admin/buildings/${b.id}/3d`}
                     title="Объёмный вид здания: этажи, помещения, территория"
