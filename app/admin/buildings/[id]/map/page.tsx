@@ -58,6 +58,28 @@ export default async function BuildingMapPage({ params }: { params: Promise<{ id
     },
   })
 
+  // Долг — сумма неоплаченных начислений арендатора. Считаем одним запросом
+  // на всё здание, чтобы не ходить в базу за каждым помещением.
+  const tenantIds = Array.from(
+    new Set(
+      floors.flatMap((floor) =>
+        floor.spaces.flatMap((space) => {
+          const tenant = space.tenant ?? space.tenantSpaces[0]?.tenant ?? null
+          return tenant ? [tenant.id] : []
+        }),
+      ),
+    ),
+  )
+  const debtRows =
+    tenantIds.length > 0
+      ? await db.charge.groupBy({
+          by: ["tenantId"],
+          where: { tenantId: { in: tenantIds }, isPaid: false, deletedAt: null },
+          _sum: { amount: true },
+        })
+      : []
+  const debtByTenant = new Map(debtRows.map((row) => [row.tenantId, row._sum.amount ?? 0]))
+
   const data: FloorData[] = floors.map((floor) => ({
     id: floor.id,
     number: floor.number,
@@ -78,6 +100,7 @@ export default async function BuildingMapPage({ params }: { params: Promise<{ id
         tenantName: tenant?.companyName ?? null,
         contractEnd: tenant?.contractEnd ? tenant.contractEnd.toISOString() : null,
         category: classifyCategory(tenant?.category, tenant?.usePurpose),
+        debt: tenant ? (debtByTenant.get(tenant.id) ?? 0) : 0,
       }
     }),
   }))

@@ -7,7 +7,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useRef, useState, useTransition } from "react"
-import { Box, LayoutGrid, Map as MapIcon, PencilRuler, Search, TriangleAlert, X } from "lucide-react"
+import { Box, Download, LayoutGrid, Map as MapIcon, PencilRuler, Printer, Search, TriangleAlert, X } from "lucide-react"
 import { generateFloorSchema } from "@/app/actions/indoor-map"
 import { layoutBox } from "@/lib/indoor-map/geometry"
 import { VolumeLoader } from "./volume-loader"
@@ -118,8 +118,20 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
+      {/* печатная шапка — на экране не видна */}
+      <div className="hidden print:block">
+        <p className="text-base font-semibold">{active?.name ?? "План этажа"}</p>
+        <p className="text-xs text-slate-500">
+          {view
+            ? `Свободно ${view.vacantArea.toFixed(0)} м² в ${view.vacantCount} помещениях${
+                occupancy !== null ? ` · заполняемость ${occupancy}%` : ""
+              }`
+            : ""}
+        </p>
+      </div>
+
       {/* панель управления */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
           {(
             [
@@ -150,6 +162,7 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
               { key: "all", label: "Все" },
               { key: "vacant", label: "Свободные" },
               { key: "expiring", label: "Освобождаются" },
+              { key: "debt", label: "С долгом" },
             ] as Array<{ key: MapFilter; label: string }>
           ).map((item) => (
             <button
@@ -193,6 +206,11 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
                 <b className="text-slate-900 tabular-nums dark:text-slate-100">{occupancy}%</b>
               </span>
             ) : null}
+            {view.debtCount > 0 ? (
+              <span className="text-red-600 dark:text-red-400">
+                С долгом <b className="tabular-nums">{view.debtCount}</b>
+              </span>
+            ) : null}
           </div>
         ) : null}
 
@@ -211,6 +229,30 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
               </span>
             ))}
           </div>
+          {mode === "plan" && layout ? (
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  mapRef.current?.exportPng(
+                    `${active?.name ?? "этаж"} — план.png`.replace(/[\/:*?"<>|]/g, "-"),
+                  )
+                }
+                title="Скачать план картинкой"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                <Download className="h-3.5 w-3.5" /> PNG
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                title="Распечатать план или сохранить в PDF"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                <Printer className="h-3.5 w-3.5" /> Печать
+              </button>
+            </>
+          ) : null}
           {active ? (
             <Link
               href={`/admin/floors/${active.id}/visualization`}
@@ -264,7 +306,7 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
       ) : null}
 
       {/* карта + лента этажей */}
-      <div className="flex min-h-0 flex-1 gap-3">
+      <div className="flex min-h-0 flex-1 gap-3 print:block">
         <div className="min-w-0 flex-1">
           {mode === "volume" && volumeFloors.length > 0 ? (
             <VolumeLoader
@@ -326,7 +368,7 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
 
         {/* лента этажей: активный подсвечен, без плана — приглушён */}
         {floors.length > 1 ? (
-          <div className="flex w-12 shrink-0 flex-col-reverse gap-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex w-12 shrink-0 flex-col-reverse gap-1 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 print:hidden dark:border-slate-800 dark:bg-slate-900">
             {floors.map((floor) => {
               const has = parseLayout(floor.layoutJson) !== null
               const isActive = floor.id === activeId
@@ -357,7 +399,7 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
 
       {/* карточка выбранного помещения */}
       {selected ? (
-        <div className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-3 print:hidden dark:border-slate-800 dark:bg-slate-900">
           <span
             className="mt-1 inline-block h-3 w-3 shrink-0 rounded-sm border"
             style={{
@@ -376,6 +418,11 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
                 {selected.area.toFixed(1)} м²
               </span>
             </div>
+            {selected.debt > 0 ? (
+              <p className="mt-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                Долг {Math.round(selected.debt).toLocaleString("ru-RU")} ₸
+              </p>
+            ) : null}
             {selected.contractEnd ? (
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 Договор до {new Date(selected.contractEnd).toLocaleDateString("ru-RU")}

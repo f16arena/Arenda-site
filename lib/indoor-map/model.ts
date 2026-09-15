@@ -18,6 +18,8 @@ export type SpaceLite = {
   tenantName: string | null
   contractEnd: string | null
   category: TenantCategory | null
+  /** неоплаченные начисления арендатора, ₸ */
+  debt: number
 }
 
 export type RoomView = {
@@ -35,6 +37,7 @@ export type RoomView = {
   contractEnd: string | null
   daysLeft: number | null
   category: TenantCategory | null
+  debt: number
 }
 
 export type FloorView = {
@@ -43,6 +46,8 @@ export type FloorView = {
   rentableArea: number
   occupiedCount: number
   vacantCount: number
+  /** сколько помещений на этаже с неоплаченными начислениями */
+  debtCount: number
 }
 
 function daysUntil(iso: string | null, now: Date): number | null {
@@ -108,6 +113,7 @@ export function buildFloorView(
       contractEnd: space?.contractEnd ?? null,
       daysLeft,
       category: space?.category ?? null,
+      debt: space?.debt ?? 0,
     })
   }
 
@@ -115,9 +121,11 @@ export function buildFloorView(
   let rentableArea = 0
   let occupiedCount = 0
   let vacantCount = 0
+  let debtCount = 0
   for (const r of rooms) {
     if (r.status === "COMMON") continue
     rentableArea += r.area
+    if (r.debt > 0) debtCount += 1
     if (r.status === "VACANT") {
       vacantArea += r.area
       vacantCount += 1
@@ -126,5 +134,5 @@ export function buildFloorView(
     }
   }
 
-  return { rooms, vacantArea, rentableArea, occupiedCount, vacantCount }
+  return { rooms, vacantArea, rentableArea, occupiedCount, vacantCount, debtCount }
 }

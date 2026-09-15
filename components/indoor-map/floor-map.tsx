@@ -13,7 +13,7 @@ import type { FloorView, RoomView } from "@/lib/indoor-map/model"
 import { PAPER, STATUS_STYLE, STROKE, ZOOM_MAX, ZOOM_MIN, detailFor } from "@/lib/indoor-map/tokens"
 import { CategoryGlyph, ServiceGlyph, type ServiceKind } from "./glyphs"
 
-export type MapFilter = "all" | "vacant" | "expiring"
+export type MapFilter = "all" | "vacant" | "expiring" | "debt"
 
 type Camera = { cx: number; cy: number; zoom: number }
 
@@ -21,6 +21,7 @@ type Camera = { cx: number; cy: number; zoom: number }
 export type FloorMapHandle = {
   focus: (room: RoomView) => void
   fit: () => void
+  exportPng: (fileName: string) => Promise<void>
 }
 
 type Props = {
@@ -36,11 +37,13 @@ function matchesFilter(room: RoomView, filter: MapFilter): boolean {
   if (room.status === "COMMON") return true
   if (filter === "all") return true
   if (filter === "vacant") return room.status === "VACANT"
+  if (filter === "debt") return room.debt > 0
   return room.status === "EXPIRING"
 }
 
 export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const [size, setSize] = useState({ w: 900, h: 600 })
   const [camera, setCamera] = useState<Camera | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -97,10 +100,76 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
 
   const fit = useCallback(() => setCamera(null), [])
 
+  /**
+   * Выгрузка плана картинкой. Сам SVG растеризуется как есть, а подписи
+   * дорисовываются на холст: они живут HTML-оверлеем и в SVG их нет.
+   */
+  const exportPng = useCallback(async function exportPng(fileName: string) {
+    const svg = svgRef.current
+    if (!svg) return
+    const scale = 2
+    const clone = svg.cloneNode(true) as SVGSVGElement
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+    const url = URL.createObjectURL(
+      new Blob([new XMLSerializer().serializeToString(clone)], {
+        type: "image/svg+xml;charset=utf-8",
+      }),
+    )
+    try {
+      const image = new Image()
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve()
+        image.onerror = () => reject(new Error("Не удалось отрисовать план"))
+        image.src = url
+      })
+      const canvas = document.createElement("canvas")
+      canvas.width = size.w * scale
+      canvas.height = size.h * scale
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+      ctx.scale(scale, scale)
+      ctx.fillStyle = PAPER.ground
+      ctx.fillRect(0, 0, size.w, size.h)
+      ctx.drawImage(image, 0, 0, size.w, size.h)
+
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      for (const label of labels) {
+        if (label.mode === "icon") continue
+        const room = roomById.get(label.roomId)
+        if (!room) continue
+        ctx.fillStyle = STATUS_STYLE[room.status].ink
+        ctx.font = `600 ${fontSize}px Onest, system-ui, sans-serif`
+        ctx.fillText(label.text, label.x, label.y)
+        if (label.withArea) {
+          ctx.font = `500 ${fontSize - 2.5}px Onest, system-ui, sans-serif`
+          ctx.globalAlpha = 0.7
+          ctx.fillText(
+            `${room.number ? `${room.number} · ` : ""}${room.area.toFixed(0)} м²`,
+            label.x,
+            label.y + fontSize * 0.95,
+          )
+          ctx.globalAlpha = 1
+        }
+      }
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
+      if (!blob) return
+      const link = document.createElement("a")
+      link.href = URL.createObjectURL(blob)
+      link.download = fileName
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }, [size.w, size.h, labels, roomById, fontSize])
+
   useImperativeHandle(
     ref,
     () => ({
       fit,
+      exportPng,
       focus: (room: RoomView) =>
         setCamera((prev) => ({
           cx: room.anchor.x,
@@ -108,7 +177,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
           zoom: Math.max(prev?.zoom ?? fitted.zoom, 22),
         })),
     }),
-    [fit, fitted.zoom],
+    [fit, fitted.zoom, exportPng],
   )
 
   function handleWheel(event: React.WheelEvent) {
@@ -173,7 +242,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
         setHoveredId(null)
       }}
     >
-      <svg width={size.w} height={size.h} className="block">
+      <svg ref={svgRef} width={size.w} height={size.h} className="block">
         <g transform={`translate(${tx} ${ty}) scale(${cam.zoom})`}>
           {/* плита этажа */}
           <rect
@@ -310,6 +379,29 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
           })
         : null}
 
+      {/* долг: точка в углу помещения, видна независимо от подписи */}
+      {detail !== "far"
+        ? visibleRooms
+            .filter((room) => room.debt > 0)
+            .map((room) => {
+              const corner = room.points.reduce(
+                (best, point) =>
+                  point.y - point.x < best.y - best.x ? { x: point.x, y: point.y } : best,
+                room.points[0],
+              )
+              const p = project({ x: corner.x, y: corner.y })
+              return (
+                <span
+                  key={`debt-${room.id}`}
+                  title={`Долг ${Math.round(room.debt).toLocaleString("ru-RU")} ₸`}
+                  className="pointer-events-none absolute h-[7px] w-[7px] rounded-full bg-red-500 ring-2 ring-white"
+                  // угол правый верхний, поэтому уводим внутрь помещения: влево и вниз
+                  style={{ left: p.x - 12, top: p.y + 8 }}
+                />
+              )
+            })
+        : null}
+
       {/* подписи */}
       {labels.map((label) => {
         const room = roomById.get(label.roomId)
@@ -370,6 +462,11 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
               ? ` · договор ещё ${hovered.daysLeft} дн.`
               : ""}
           </div>
+          {hovered.debt > 0 ? (
+            <div className="mt-0.5 text-xs font-semibold text-red-600">
+              Долг {Math.round(hovered.debt).toLocaleString("ru-RU")} ₸
+            </div>
+          ) : null}
         </div>
       ) : null}
 

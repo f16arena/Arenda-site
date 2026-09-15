@@ -80,6 +80,7 @@ export function demoFloor(now: Date = new Date()): { layout: FloorLayoutV2; spac
           ? null
           : new Date(now.getTime() + unit.endsInDays * 86_400_000).toISOString(),
       category: null, // проставляется классификатором по строке category ниже
+      debt: unit.status === "OCCUPIED" && unit.number.endsWith("2") ? 480_000 : 0,
     })
   }
 

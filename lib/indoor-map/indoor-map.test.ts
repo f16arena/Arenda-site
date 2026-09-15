@@ -60,6 +60,7 @@ function space(partial: Partial<SpaceLite> & { id: string }): SpaceLite {
     tenantName: null,
     contractEnd: null,
     category: null,
+    debt: 0,
     ...partial,
   }
 }
@@ -94,6 +95,25 @@ describe("статусы", () => {
     const view = buildFloorView(layout, [space({ id: "s1", status: "MAINTENANCE" })], now)
     expect(view.rooms[0].status).toBe("MAINTENANCE")
     expect(view.rooms[0].title).toBe("Не сдаётся")
+  })
+
+  it("помещения с долгом считаются отдельно от статуса аренды", () => {
+    const layout = layoutOf([
+      { id: "r1", spaceId: "s1", x: 0, w: 10 },
+      { id: "r2", spaceId: "s2", x: 10, w: 10 },
+    ])
+    const view = buildFloorView(
+      layout,
+      [
+        space({ id: "s1", tenantName: "Должник", debt: 480000, contractEnd: inDays(400) }),
+        space({ id: "s2", tenantName: "Платит вовремя", contractEnd: inDays(400) }),
+      ],
+      now,
+    )
+    expect(view.debtCount).toBe(1)
+    // долг не меняет статус: помещение по-прежнему занято
+    expect(view.rooms[0].status).toBe("OCCUPIED")
+    expect(view.rooms[0].debt).toBe(480000)
   })
 
   it("свободная площадь считается только по арендопригодным", () => {
