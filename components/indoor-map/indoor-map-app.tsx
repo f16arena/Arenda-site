@@ -8,7 +8,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useRef, useState, useTransition } from "react"
 import { Box, Download, LayoutGrid, Map as MapIcon, PencilRuler, Printer, Search, TriangleAlert, X } from "lucide-react"
-import { generateFloorSchema } from "@/app/actions/indoor-map"
+import { generateBuildingSchemas, generateFloorSchema } from "@/app/actions/indoor-map"
 import { layoutBox } from "@/lib/indoor-map/geometry"
 import { VolumeLoader } from "./volume-loader"
 import type { VolumeFloor } from "./volume-view"
@@ -32,11 +32,22 @@ type Props = {
   floors: FloorData[]
 }
 
+/**
+ * Пустая запись плана — это отсутствие плана.
+ * У этажей в базе layoutJson может лежать с нулевым набором элементов
+ * (этаж заводили в редакторе, но ничего не нарисовали). Если считать такой
+ * план существующим, карта показывает голую плиту без единого помещения —
+ * выглядит как поломка. Поэтому план без комнат приравниваем к его отсутствию.
+ */
 function parseLayout(raw: string | null): FloorLayoutV2 | null {
   if (!raw) return null
   try {
     const parsed: unknown = JSON.parse(raw)
-    return isLayoutV2(parsed) ? parsed : null
+    if (!isLayoutV2(parsed)) return null
+    const hasRooms = parsed.elements.some(
+      (element) => element.type === "rect" || element.type === "polygon",
+    )
+    return hasRooms ? parsed : null
   } catch {
     return null
   }
@@ -57,6 +68,18 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
   const [pending, startTransition] = useTransition()
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [confirmReplace, setConfirmReplace] = useState(false)
+
+  function buildAllSchemas() {
+    setSchemaError(null)
+    startTransition(async () => {
+      const result = await generateBuildingSchemas(buildingId)
+      if (result.built === 0) {
+        setSchemaError("Ни на одном этаже нет помещений с площадью — собирать схемы не из чего.")
+        return
+      }
+      router.refresh()
+    })
+  }
 
   function buildSchema(floorId: string, replace: boolean) {
     setSchemaError(null)
@@ -351,6 +374,16 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
                     <LayoutGrid className="h-3.5 w-3.5" />
                     {pending ? "Собираю…" : "Собрать схему из помещений"}
                   </button>
+                  {floors.length > 1 ? (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={buildAllSchemas}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" /> Сразу для всех этажей
+                    </button>
+                  ) : null}
                   <Link
                     href={`/admin/floors/${active.id}/visualization`}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
