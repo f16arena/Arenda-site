@@ -7,8 +7,11 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useRef, useState, useTransition } from "react"
-import { LayoutGrid, PencilRuler, Search, TriangleAlert, X } from "lucide-react"
+import { Box, LayoutGrid, Map as MapIcon, PencilRuler, Search, TriangleAlert, X } from "lucide-react"
 import { generateFloorSchema } from "@/app/actions/indoor-map"
+import { layoutBox } from "@/lib/indoor-map/geometry"
+import { VolumeLoader } from "./volume-loader"
+import type { VolumeFloor } from "./volume-view"
 import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
 import { buildFloorView, type SpaceLite } from "@/lib/indoor-map/model"
 import { STATUS_ORDER, STATUS_STYLE } from "@/lib/indoor-map/tokens"
@@ -45,6 +48,7 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
     [floors],
   )
   const [activeId, setActiveId] = useState<string>(withPlan[0]?.id ?? floors[0]?.id ?? "")
+  const [mode, setMode] = useState<"plan" | "volume">("plan")
   const [filter, setFilter] = useState<MapFilter>("all")
   const [selected, setSelected] = useState<RoomView | null>(null)
   const [query, setQuery] = useState("")
@@ -78,6 +82,23 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
     [layout, active],
   )
 
+  // Объём собирается из планов всех этажей, у которых они есть
+  const volumeFloors = useMemo<VolumeFloor[]>(() => {
+    const built: VolumeFloor[] = []
+    for (const floor of floors) {
+      const floorLayout = parseLayout(floor.layoutJson)
+      if (!floorLayout) continue
+      built.push({
+        id: floor.id,
+        number: floor.number,
+        name: floor.name,
+        box: layoutBox(floorLayout),
+        rooms: buildFloorView(floorLayout, floor.spaces).rooms,
+      })
+    }
+    return built
+  }, [floors])
+
   // Поиск арендатора по активному этажу: найденное помещение выделяем и
   // подводим к нему камеру прямо из обработчика ввода.
   function handleQuery(value: string) {
@@ -99,6 +120,30 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
     <div className="flex h-full min-h-0 flex-col gap-3">
       {/* панель управления */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+          {(
+            [
+              { key: "plan", label: "План", icon: MapIcon },
+              { key: "volume", label: "Объём", icon: Box },
+            ] as Array<{ key: "plan" | "volume"; label: string; icon: typeof Box }>
+          ).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              disabled={item.key === "volume" && volumeFloors.length === 0}
+              onClick={() => setMode(item.key)}
+              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
+                mode === item.key
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              }`}
+            >
+              <item.icon className="h-3.5 w-3.5" />
+              {item.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
           {(
             [
@@ -221,7 +266,20 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
       {/* карта + лента этажей */}
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-w-0 flex-1">
-          {layout && view ? (
+          {mode === "volume" && volumeFloors.length > 0 ? (
+            <VolumeLoader
+              floors={volumeFloors}
+              activeFloorId={active?.id ?? null}
+              onPickFloor={(floorId) => {
+                setActiveId(floorId)
+                setSelected(null)
+              }}
+              onPickRoom={(floorId, room) => {
+                setActiveId(floorId)
+                setSelected(room)
+              }}
+            />
+          ) : layout && view ? (
             <FloorMap
               key={active?.id ?? "none"}
               ref={mapRef}

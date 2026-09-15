@@ -28,6 +28,7 @@ export const STATUS_ORDER: RoomStatus[] = ["VACANT", "EXPIRING", "OCCUPIED", "MA
 export const PAPER = {
   ground: "#edf0f5", // фон вокруг здания
   plate: "#f6f8fc", // плита этажа: чуть темнее коридоров, иначе они не читаются
+  slab: "#dfe5ef", // перекрытие в объёме: из них складывается полосатый бок здания
   outline: "#dce2ec", // контур этажа
   wall: "#46516a", // несущая линия
   opening: "#ffffff", // проём двери/окна
