@@ -5,8 +5,10 @@
 // объёмный включается здесь же кнопкой 2D/3D, когда будет готов (SPEC §8).
 
 import Link from "next/link"
-import { useMemo, useRef, useState } from "react"
-import { PencilRuler, Search, X } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useMemo, useRef, useState, useTransition } from "react"
+import { LayoutGrid, PencilRuler, Search, TriangleAlert, X } from "lucide-react"
+import { generateFloorSchema } from "@/app/actions/indoor-map"
 import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
 import { buildFloorView, type SpaceLite } from "@/lib/indoor-map/model"
 import { STATUS_ORDER, STATUS_STYLE } from "@/lib/indoor-map/tokens"
@@ -47,6 +49,27 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
   const [selected, setSelected] = useState<RoomView | null>(null)
   const [query, setQuery] = useState("")
   const mapRef = useRef<FloorMapHandle>(null)
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [schemaError, setSchemaError] = useState<string | null>(null)
+  const [confirmReplace, setConfirmReplace] = useState(false)
+
+  function buildSchema(floorId: string, replace: boolean) {
+    setSchemaError(null)
+    startTransition(async () => {
+      const result = await generateFloorSchema(floorId, replace)
+      if (result.success) {
+        setConfirmReplace(false)
+        router.refresh()
+        return
+      }
+      if (result.reason === "no-spaces") {
+        setSchemaError("У этажа нет помещений с площадью — собирать схему не из чего.")
+      } else {
+        setConfirmReplace(true)
+      }
+    })
+  }
 
   const active = floors.find((floor) => floor.id === activeId) ?? floors[0] ?? null
   const layout = active ? parseLayout(active.layoutJson) : null
@@ -154,6 +177,47 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
         </div>
       </div>
 
+      {/* схему честно помечаем: это не обмерный план */}
+      {layout?.source === "schema" && active ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Схема по площадям помещений, а не обмерный план: расположение условное, площади
+            настоящие. Точную геометрию даст обводка по подложке в редакторе.
+          </span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => buildSchema(active.id, true)}
+            className="ml-auto rounded-md border border-amber-300 px-2 py-1 font-medium hover:bg-amber-100 disabled:opacity-60 dark:border-amber-500/40 dark:hover:bg-amber-500/20"
+          >
+            {pending ? "Собираю…" : "Пересобрать"}
+          </button>
+        </div>
+      ) : null}
+
+      {confirmReplace && active ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+          <span>У этажа есть нарисованный план. Схема затрёт его — это не отменить.</span>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => buildSchema(active.id, true)}
+            className="ml-auto rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            Затереть и собрать
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmReplace(false)}
+            className="rounded-md border border-red-300 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
+          >
+            Отмена
+          </button>
+        </div>
+      ) : null}
+
       {/* карта + лента этажей */}
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-w-0 flex-1">
@@ -172,17 +236,31 @@ export function IndoorMapApp({ buildingId, floors }: Props) {
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 У этого этажа ещё нет плана
               </p>
-              <p className="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
-                План рисуется в редакторе: по подложке из PDF архитектора или по фактическим
-                площадям помещений.
+              <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
+                Точный план обводится в редакторе по подложке из PDF архитектора. Если его пока
+                нет, соберём схему по площадям помещений — статусы и арендаторы будут видны сразу.
               </p>
               {active ? (
-                <Link
-                  href={`/admin/floors/${active.id}/visualization`}
-                  className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
-                >
-                  <PencilRuler className="h-3.5 w-3.5" /> Нарисовать план
-                </Link>
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => buildSchema(active.id, false)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                    {pending ? "Собираю…" : "Собрать схему из помещений"}
+                  </button>
+                  <Link
+                    href={`/admin/floors/${active.id}/visualization`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <PencilRuler className="h-3.5 w-3.5" /> Нарисовать план
+                  </Link>
+                </div>
+              ) : null}
+              {schemaError ? (
+                <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">{schemaError}</p>
               ) : null}
             </div>
           )}

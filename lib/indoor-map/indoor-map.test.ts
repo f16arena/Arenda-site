@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
-import type { FloorLayoutV2 } from "@/lib/floor-layout"
+import type { FloorElement, FloorLayoutV2, RectRoom } from "@/lib/floor-layout"
 import { classifyCategory } from "./category"
+import { generateSchemaLayout } from "./generate"
 import { centroid, labelAnchor, pointInPolygon, widthAt } from "./geometry"
 import { layoutLabels } from "./labels"
 import { buildFloorView, type SpaceLite } from "./model"
@@ -167,5 +168,68 @@ describe("категории", () => {
   it("непонятный текст даёт «прочее», пустой — ничего", () => {
     expect(classifyCategory("ТОО Ромашка")).toBe("other")
     expect(classifyCategory(null, undefined, "  ")).toBeNull()
+  })
+})
+
+describe("схема из помещений", () => {
+  it("раскладывает помещения по двум галереям и сохраняет площади", () => {
+    const layout = generateSchemaLayout([
+      { id: "a", number: "101", area: 40, kind: "RENTABLE" },
+      { id: "b", number: "102", area: 60, kind: "RENTABLE" },
+      { id: "c", number: "103", area: 50, kind: "RENTABLE" },
+      { id: "d", number: "104", area: 30, kind: "RENTABLE" },
+    ])
+    expect(layout).not.toBeNull()
+    const isLinkedRoom = (el: FloorElement): el is RectRoom => el.type === "rect" && Boolean(el.spaceId)
+    const rooms = layout!.elements.filter(isLinkedRoom)
+    expect(rooms).toHaveLength(4)
+
+    // площадь каждого прямоугольника совпадает с площадью помещения
+    const bySpace = new Map(rooms.map((el) => [el.spaceId, el]))
+    for (const [spaceId, area] of [["a", 40], ["b", 60], ["c", 50], ["d", 30]] as const) {
+      const room = bySpace.get(spaceId)
+      expect(room).toBeDefined()
+      expect(room!.width * room!.height).toBeCloseTo(area, 0)
+    }
+
+    // ровно две линии галерей, коридор и пометка «схема»
+    expect(layout!.source).toBe("schema")
+    expect(layout!.elements.filter((el) => el.type === "wall")).toHaveLength(2)
+    expect(layout!.elements.some((el) => el.id === "schema-corridor")).toBe(true)
+  })
+
+  it("две галереи получаются сопоставимой длины", () => {
+    const layout = generateSchemaLayout(
+      Array.from({ length: 9 }, (_, i) => ({
+        id: `s${i}`,
+        number: `10${i}`,
+        area: 20 + i * 15,
+        kind: "RENTABLE",
+      })),
+    )!
+    const rects = layout.elements.filter(
+      (el): el is RectRoom => el.type === "rect" && Boolean(el.spaceId),
+    )
+    const top = rects.filter((el) => el.y === 0)
+    const bottom = rects.filter((el) => el.y !== 0)
+    expect(top.length).toBeGreaterThan(0)
+    expect(bottom.length).toBeGreaterThan(0)
+    const widthOf = (list: RectRoom[]) => list.reduce((sum, el) => sum + el.width, 0)
+    const longer = Math.max(widthOf(top), widthOf(bottom))
+    const shorter = Math.min(widthOf(top), widthOf(bottom))
+    expect(shorter / longer).toBeGreaterThan(0.7)
+  })
+
+  it("общие зоны остаются общими, а пустой список даёт null", () => {
+    const layout = generateSchemaLayout([
+      { id: "wc", number: "001", area: 12, kind: "COMMON" },
+      { id: "a", number: "101", area: 40, kind: "RENTABLE" },
+    ])!
+    const wc = layout.elements.find(
+      (el): el is RectRoom => el.type === "rect" && el.spaceId === "wc",
+    )
+    expect(wc?.kind).toBe("common")
+    expect(generateSchemaLayout([])).toBeNull()
+    expect(generateSchemaLayout([{ id: "x", number: "1", area: 0, kind: "RENTABLE" }])).toBeNull()
   })
 })

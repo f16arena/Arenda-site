@@ -1,7 +1,10 @@
 // Оффлайн-превью indoor-карты: рендерит настоящий компонент FloorMap в HTML,
 // чтобы смотреть визуальную систему без базы и без dev-сервера.
 //
-//   npx tsx scripts/indoor-map-preview.tsx [out.html]
+//   npx tsx scripts/indoor-map-preview.tsx [out.html] [schema]
+//
+// Второй аргумент "schema" показывает не нарисованный план, а схему, собранную
+// из площадей помещений (lib/indoor-map/generate).
 //
 // Дальше файл открывается в браузере или снимается headless-Chrome.
 
@@ -11,9 +14,22 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { FloorMap } from "../components/indoor-map/floor-map"
 import { classifyCategory } from "../lib/indoor-map/category"
 import { DEMO_ACTIVITY, demoFloor } from "../lib/indoor-map/demo-floor"
+import { generateSchemaLayout } from "../lib/indoor-map/generate"
 import { buildFloorView } from "../lib/indoor-map/model"
 
-const { layout, spaces } = demoFloor()
+const demo = demoFloor()
+const spaces = demo.spaces
+const asSchema = process.argv[3] === "schema"
+const layout = asSchema
+  ? (generateSchemaLayout(
+      spaces.map((space) => ({
+        id: space.id,
+        number: space.number,
+        area: space.area,
+        kind: space.kind,
+      })),
+    ) ?? demo.layout)
+  : demo.layout
 const withCategories = spaces.map((space) => ({
   ...space,
   category: classifyCategory(DEMO_ACTIVITY[space.id]),

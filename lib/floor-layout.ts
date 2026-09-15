@@ -9,6 +9,10 @@ export type FloorLayoutV2 = {
   height: number // высота холста в метрах
   ceilingHeight?: number | null  // высота потолка (м), для будущего 3D-вида
   underlayUrl?: string | null
+  // Откуда взялась геометрия: "drawn" — нарисовано человеком по подложке,
+  // "schema" — собрано автоматически из площадей помещений. Схема честно
+  // помечается в интерфейсе, чтобы её не приняли за обмерный план.
+  source?: "drawn" | "schema"
   elements: FloorElement[]
 }
 
