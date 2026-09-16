@@ -12,27 +12,10 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingAccess } from "@/lib/building-access"
-import { parseDocument } from "@/types/builder"
+import { parseDocument, type Floor } from "@/types/builder"
 import { buildProjectFromBuilding, type SourceBuilding } from "@/lib/builder/from-building"
 
-export type BuildingModel = {
-  projectId: string
-  buildingId: string
-  buildingName: string
-  /** модель только что собрана из данных — первый вход */
-  created: boolean
-}
-
-/**
- * Найти модель здания или собрать её один раз из данных.
- * Если снимков-проектов несколько (наследие), берём последний сохранённый.
- */
-export async function openBuildingModel(buildingId: string): Promise<BuildingModel> {
-  const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
-  const { orgId } = await requireOrgAccess()
-  await assertBuildingAccess(buildingId, orgId)
-
+async function loadSourceBuilding(buildingId: string, orgId: string): Promise<SourceBuilding & { name: string }> {
   const building = await db.building.findFirst({
     where: { id: buildingId, organizationId: orgId },
     select: {
@@ -56,6 +39,44 @@ export async function openBuildingModel(buildingId: string): Promise<BuildingMod
     },
   })
   if (!building) throw new Error("Здание не найдено")
+  return building
+}
+
+/**
+ * Собрать этаж заново из данных здания — «сброс к данным», когда этаж в модели
+ * испорчен (утащили узел, снесли стену). Возвращает свежий этаж; в документ его
+ * кладёт клиент командой ReplaceFloorCommand, так что сброс откатывается Ctrl+Z.
+ */
+export async function rebuildModelFloor(buildingId: string, level: number): Promise<Floor | null> {
+  const session = await auth()
+  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingAccess(buildingId, orgId)
+  const building = await loadSourceBuilding(buildingId, orgId)
+  const { doc } = buildProjectFromBuilding(building)
+  const validated = parseDocument(doc)
+  return validated.buildings.flatMap((b) => b.floors).find((f) => f.level === level) ?? null
+}
+
+export type BuildingModel = {
+  projectId: string
+  buildingId: string
+  buildingName: string
+  /** модель только что собрана из данных — первый вход */
+  created: boolean
+}
+
+/**
+ * Найти модель здания или собрать её один раз из данных.
+ * Если снимков-проектов несколько (наследие), берём последний сохранённый.
+ */
+export async function openBuildingModel(buildingId: string): Promise<BuildingModel> {
+  const session = await auth()
+  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingAccess(buildingId, orgId)
+
+  const building = await loadSourceBuilding(buildingId, orgId)
 
   const existing = await db.builderProject.findFirst({
     where: { organizationId: orgId, buildingId: building.id },

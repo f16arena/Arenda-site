@@ -456,7 +456,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         a.remove()
       }} />}
       {!readOnly && <ToolOptions />}
-      {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} />}
+      {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
       {!readOnly && ready && <LabelLayer />}
       <PropertyPanel />
       <CameraControls onFit={() => engineRef.current?.frameAll()} />

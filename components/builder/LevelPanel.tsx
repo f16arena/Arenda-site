@@ -4,10 +4,12 @@
 // уровень, режимы отображения (всё/активный/срез/призрак), «стены вниз», добавление
 // этажа копией плана нижнего (remapGraph — свежие id, без коллизий мешей).
 
+import { useState } from "react"
 import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
+import { rebuildModelFloor } from "@/app/actions/building-model"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
-import { AddFloorCommand, DeleteFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
+import { AddFloorCommand, DeleteFloorCommand, ReplaceFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
 import { UnderlayPanel, type PendingMeasure } from "./UnderlayPanel"
 import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
@@ -53,7 +55,19 @@ function LevelRow({ name, sub, Icon, active, onClick, onRename, onDelete }: { na
   )
 }
 
-export function LevelPanel({ measure = null, onMeasureConsumed = () => {} }: { measure?: PendingMeasure; onMeasureConsumed?: () => void }) {
+export function LevelPanel({
+  measure = null,
+  onMeasureConsumed = () => {},
+  buildingId,
+}: {
+  measure?: PendingMeasure
+  onMeasureConsumed?: () => void
+  /** здание в базе — даёт «сброс этажа к данным» */
+  buildingId?: string
+}) {
+  // Сброс к данным: двухшаговое подтверждение прямо в кнопке, без window.confirm
+  const [resetArmed, setResetArmed] = useState(false)
+  const [resetBusy, setResetBusy] = useState(false)
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -107,6 +121,25 @@ export function LevelPanel({ measure = null, onMeasureConsumed = () => {} }: { m
     }
     execute(new AddFloorCommand(building.id, floor))
     setActiveLevel(floor.id)
+  }
+
+  // Этаж испорчен (утащили узел, снесли стену) — собрать его заново из данных
+  // здания. Подложка-скан остаётся, id этажа тот же; откатывается Ctrl+Z.
+  const resetActiveToData = async () => {
+    if (!building || !buildingId) return
+    const current = building.floors.find((f) => f.id === activeLevelId)
+    if (!current) return
+    setResetBusy(true)
+    try {
+      const fresh = await rebuildModelFloor(buildingId, current.level)
+      if (!fresh) return
+      useDocumentStore
+        .getState()
+        .execute(new ReplaceFloorCommand(building.id, { ...fresh, id: current.id, underlay: current.underlay }, current))
+    } finally {
+      setResetBusy(false)
+      setResetArmed(false)
+    }
   }
 
   // Дубль активного этажа: стены и проёмы копируются, привязки к карточкам — нет
@@ -239,6 +272,41 @@ export function LevelPanel({ measure = null, onMeasureConsumed = () => {} }: { m
       >
         Дублировать этаж
       </button>
+      {buildingId && activeLevelId && activeLevelId !== "site" && (
+        <div className="flex gap-1">
+          {resetArmed ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void resetActiveToData()}
+                disabled={resetBusy}
+                className="flex-1 rounded-lg py-1.5 text-[11px] font-semibold disabled:opacity-50"
+                style={{ background: "#f59e0b", color: "#0b1220" }}
+              >
+                {resetBusy ? "Собираю…" : "Да, заменить этаж"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setResetArmed(false)}
+                className="rounded-lg px-2 py-1.5 text-[11px] font-medium"
+                style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+              >
+                Нет
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setResetArmed(true)}
+              title="Собрать этот этаж заново из помещений здания. Нарисованное на этаже заменится, подложка останется. Откат — Ctrl+Z"
+              className="flex-1 rounded-lg py-1.5 text-[11px] font-medium"
+              style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+            >
+              Сбросить этаж к данным
+            </button>
+          )}
+        </div>
+      )}
       <button
         type="button"
         onClick={addBasement}

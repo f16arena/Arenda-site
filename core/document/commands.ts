@@ -80,6 +80,27 @@ export class AddFloorCommand implements Command {
   }
 }
 
+// ── ReplaceFloor (этаж целиком заменяется другим, напр. сброс к данным) ───────
+export class ReplaceFloorCommand implements Command {
+  readonly kind = "replace-floor"
+  readonly label = "сброс этажа"
+  constructor(private buildingId: string, private next: Floor, private prev: Floor) {}
+  private swap(doc: BuilderDocument, floor: Floor): BuilderDocument {
+    return {
+      ...doc,
+      buildings: doc.buildings.map((b) =>
+        b.id === this.buildingId ? { ...b, floors: b.floors.map((f) => (f.id === floor.id ? floor : f)) } : b,
+      ),
+    }
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    return this.swap(doc, this.next)
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return this.swap(doc, this.prev)
+  }
+}
+
 // ── DeleteFloor (удаление этажа целиком, с возможностью undo) ──────────────────
 export class DeleteFloorCommand implements Command {
   readonly kind = "delete-floor"
