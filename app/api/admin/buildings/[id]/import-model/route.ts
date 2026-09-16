@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { storeBufferFile } from "@/lib/storage"
@@ -24,6 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { orgId } = await requireOrgAccess()
   const { id: buildingId } = await params
   await assertBuildingInOrg(buildingId, orgId)
+  await assertBuildingAccess(buildingId, orgId)
 
   let body: { dataUrl?: string; fileName?: string; level?: string; x?: number; z?: number }
   try {

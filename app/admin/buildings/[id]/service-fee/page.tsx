@@ -4,6 +4,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { ArrowLeft, Sparkles } from "lucide-react"
@@ -15,6 +16,7 @@ export default async function BuildingServiceFeePage({ params }: { params: Promi
   const { orgId } = await requireOrgAccess()
   const { id } = await params
   await assertBuildingInOrg(id, orgId)
+  await assertBuildingAccess(id, orgId)
 
   const building = await db.building.findUnique({
     where: { id },
