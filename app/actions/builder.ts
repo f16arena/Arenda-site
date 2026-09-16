@@ -12,6 +12,9 @@ import { requireOrgAccess } from "@/lib/org"
 import { uid } from "@/core/id"
 import { parseDocument, type BuilderDocument } from "@/types/builder"
 import { assertBuildingAccess } from "@/lib/building-access"
+import { floorToLayout } from "@/lib/builder/to-layout"
+import { revalidateTag } from "next/cache"
+import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 
 /** Модель, привязанная к зданию, открыта только тем, кому открыто здание. */
 async function assertProjectAccess(id: string, orgId: string): Promise<void> {
@@ -67,7 +70,42 @@ export async function saveBuilderProject(
     },
   })
   if (res.count === 0) return { revision, conflict: true }
+  // Одна геометрия: план этажа на карте выводится из модели. Ошибка
+  // вывода не должна ломать сохранение модели — она отдельная и логируется.
+  try {
+    await syncLayoutsFromDocument(id, validated)
+  } catch (cause) {
+    console.error("[builder] не удалось вывести планы этажей из модели", cause)
+  }
   return { revision: revision + 1 }
+}
+
+/**
+ * Записать планы этажей здания из модели. Этаж модели находит свой этаж в
+ * базе по sourceFloorId (новые модели) или по номеру этажа (старые).
+ * Этажи без единой комнаты в модели не трогаем: нарисованное или схему
+ * пустотой не затираем.
+ */
+async function syncLayoutsFromDocument(projectId: string, doc: BuilderDocument): Promise<void> {
+  const project = await db.builderProject.findUnique({ where: { id: projectId }, select: { buildingId: true } })
+  if (!project?.buildingId) return
+  const dbFloors = await db.floor.findMany({
+    where: { buildingId: project.buildingId },
+    select: { id: true, number: true },
+  })
+  const byId = new Map(dbFloors.map((f) => [f.id, f]))
+  const byNumber = new Map(dbFloors.map((f) => [f.number, f]))
+  const modelFloors = doc.buildings.flatMap((b) => b.floors)
+  for (const floor of modelFloors) {
+    const target = (floor.sourceFloorId && byId.get(floor.sourceFloorId)) || byNumber.get(floor.level)
+    if (!target) continue
+    const layout = floorToLayout(floor)
+    const hasRooms = layout.elements.some((el) => el.type === "polygon")
+    if (!hasRooms) continue
+    await db.floor.update({ where: { id: target.id }, data: { layoutJson: JSON.stringify(layout) } })
+  }
+  revalidateTag(floorsForBuildingTag(project.buildingId), { expire: 0 })
+  revalidatePath(`/admin/buildings/${project.buildingId}/map`)
 }
 
 export async function loadBuilderProject(id: string): Promise<{ id: string; name: string; doc: BuilderDocument; revision: number } | null> {

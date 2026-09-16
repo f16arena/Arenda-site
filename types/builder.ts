@@ -104,6 +104,8 @@ export const FloorSchema = z.object({
   floorMaterialId: z.string().optional(),
   roomMaterials: z.record(z.string(), z.string()).default({}), // roomId → materialId (ведро)
   underlay: UnderlaySchema.optional(),
+  /** id этажа в базе (Floor.id), если этаж собран из данных здания */
+  sourceFloorId: z.string().optional(),
 })
 
 export const BuildingSchema = z.object({

@@ -571,6 +571,7 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
       premiseLinks: {},
       floorMaterialId: "laminate",
       roomMaterials: {},
+      sourceFloorId: f.id,
     }
     run(new AddFloorCommand(building.id, floor))
     for (const cmd of wallCommands(floorId, plan)) run(cmd)
