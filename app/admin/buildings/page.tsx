@@ -356,8 +356,8 @@ export default async function BuildingsPage() {
                     Карта
                   </Link>
                   <Link
-                    href={`/admin/buildings/${b.id}/map?mode=volume`}
-                    title="Объёмный вид здания: этажи стопкой, статусы помещений"
+                    href={`/admin/builder/${b.id}`}
+                    title="Конструктор здания: модель в 3D"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
                   >
                     <Box className="h-3.5 w-3.5" />

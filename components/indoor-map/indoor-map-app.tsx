@@ -26,9 +26,6 @@ import { EditPanel } from "./edit-panel"
 import { UnderlayPanel } from "./underlay-panel"
 import { useFloorEditor } from "./use-floor-editor"
 import { generateBuildingSchemas, generateFloorSchema } from "@/app/actions/indoor-map"
-import { layoutBox } from "@/lib/indoor-map/geometry"
-import { VolumeLoader } from "./volume-loader"
-import type { VolumeFloor } from "./volume-view"
 import { readLayout as parseLayout } from "@/lib/indoor-map/layout-source"
 import { buildFloorView, type SpaceLite } from "@/lib/indoor-map/model"
 import { STATUS_ORDER, STATUS_STYLE } from "@/lib/indoor-map/tokens"
@@ -47,8 +44,6 @@ export type FloorData = {
 type Props = {
   buildingId: string
   floors: FloorData[]
-  /** С какого режима открывать: из 3D-объектов приходим сразу в объём. */
-  initialMode?: "plan" | "volume"
   /** Есть ли право править планы (capability floors.edit). */
   canEdit?: boolean
 }
@@ -56,7 +51,6 @@ type Props = {
 export function IndoorMapApp({
   buildingId,
   floors,
-  initialMode = "plan",
   canEdit = false,
 }: Props) {
   const withPlan = useMemo(
@@ -64,11 +58,6 @@ export function IndoorMapApp({
     [floors],
   )
   const [activeId, setActiveId] = useState<string>(withPlan[0]?.id ?? floors[0]?.id ?? "")
-  const [mode, setMode] = useState<"plan" | "volume">(initialMode)
-  // В объёме этаж выбирается отдельно от плана: пока не выбран — показываем
-  // здание целиком. Иначе, открыв объём на нулевом этаже, человек видит
-  // одну плиту вместо здания.
-  const [volumeFocus, setVolumeFocus] = useState<string | null>(null)
   const [filter, setFilter] = useState<MapFilter>("all")
   const [selected, setSelected] = useState<RoomView | null>(null)
   const [query, setQuery] = useState("")
@@ -130,23 +119,6 @@ export function IndoorMapApp({
     }
   }
 
-  // Объём собирается из планов всех этажей, у которых они есть
-  const volumeFloors = useMemo<VolumeFloor[]>(() => {
-    const built: VolumeFloor[] = []
-    for (const floor of floors) {
-      const floorLayout = parseLayout(floor.layoutJson)
-      if (!floorLayout) continue
-      built.push({
-        id: floor.id,
-        number: floor.number,
-        name: floor.name,
-        box: layoutBox(floorLayout),
-        rooms: buildFloorView(floorLayout, floor.spaces).rooms,
-      })
-    }
-    return built
-  }, [floors])
-
   // Поиск арендатора по активному этажу: найденное помещение выделяем и
   // подводим к нему камеру прямо из обработчика ввода.
   function handleQuery(value: string) {
@@ -180,32 +152,12 @@ export function IndoorMapApp({
 
       {/* панель управления */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
-          {(
-            [
-              { key: "plan", label: "План", icon: MapIcon },
-              { key: "volume", label: "Объём", icon: Box },
-            ] as Array<{ key: "plan" | "volume"; label: string; icon: typeof Box }>
-          ).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              disabled={item.key === "volume" && volumeFloors.length === 0}
-              onClick={() => {
-                setMode(item.key)
-                if (item.key === "volume") setVolumeFocus(null)
-              }}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
-                mode === item.key
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-              }`}
-            >
-              <item.icon className="h-3.5 w-3.5" />
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <Link
+          href={`/admin/builder/${buildingId}`}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
+        >
+          <Box className="h-3.5 w-3.5" /> Конструктор 3D
+        </Link>
 
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
           {(
@@ -241,16 +193,6 @@ export function IndoorMapApp({
             className="h-8 w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
           />
         </div>
-
-        {mode === "volume" && volumeFocus ? (
-          <button
-            type="button"
-            onClick={() => setVolumeFocus(null)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            ← Всё здание
-          </button>
-        ) : null}
 
         {view ? (
           <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
@@ -290,7 +232,7 @@ export function IndoorMapApp({
               </span>
             ))}
           </div>
-          {mode === "plan" && layout ? (
+          {layout ? (
             <>
               <button
                 type="button"
@@ -314,7 +256,7 @@ export function IndoorMapApp({
               </button>
             </>
           ) : null}
-          {canEdit && mode === "plan" && shownLayout ? (
+          {canEdit && shownLayout ? (
             <button
               type="button"
               onClick={() => setEditing((value) => !value)}
@@ -440,23 +382,7 @@ export function IndoorMapApp({
       {/* карта + лента этажей */}
       <div className="flex min-h-0 flex-1 gap-3 print:block">
         <div className="min-w-0 flex-1">
-          {mode === "volume" && volumeFloors.length > 0 ? (
-            <VolumeLoader
-              floors={volumeFloors}
-              activeFloorId={volumeFocus}
-              // Клик по объёму только выбирает этаж на ленте: резать стопку
-              // по клику оказалось неожиданным — кажется, что «переключило этажи».
-              // Срез делает явное нажатие номера в ленте, «← Всё здание» возвращает.
-              onPickFloor={(floorId) => {
-                setActiveId(floorId)
-                setSelected(null)
-              }}
-              onPickRoom={(floorId, room) => {
-                setActiveId(floorId)
-                setSelected(room)
-              }}
-            />
-          ) : shownLayout && view ? (
+          {shownLayout && view ? (
             <FloorMap
               key={active?.id ?? "none"}
               ref={mapRef}
@@ -538,7 +464,6 @@ export function IndoorMapApp({
                   onClick={() => {
                     setActiveId(floor.id)
                     setSelected(null)
-                    if (mode === "volume") setVolumeFocus(floor.id)
                   }}
                   className={`h-9 shrink-0 rounded-lg text-sm font-semibold tabular-nums transition-colors ${
                     isActive

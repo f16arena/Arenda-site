@@ -17,18 +17,11 @@ import { IndoorMapApp, type FloorData } from "@/components/indoor-map/indoor-map
  * Indoor-карта здания: план этажа с арендаторами и статусами, лента этажей.
  * Источник правды по модулю — docs/indoor-map/SPEC.md.
  */
-export default async function BuildingMapPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>
-  searchParams: Promise<{ mode?: string }>
-}) {
+export default async function BuildingMapPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
   const { id } = await params
-  const { mode } = await searchParams
 
   const caps = await getAllowedCapabilityKeysForUser({
     userId: session.user.id,
@@ -151,7 +144,6 @@ export default async function BuildingMapPage({
         <IndoorMapApp
           buildingId={building.id}
           floors={data}
-          initialMode={mode === "volume" ? "volume" : "plan"}
           canEdit={canEdit}
         />
       </div>

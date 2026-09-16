@@ -328,7 +328,7 @@ export default async function SpacesPage() {
           <>
             {building && hasFloorEditor && (
               <Link
-                href={`/admin/buildings/${building.id}/map?mode=volume`}
+                href={`/admin/builder/${building.id}`}
                 title="Объёмный вид здания целиком: этажи, помещения, территория"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
               >

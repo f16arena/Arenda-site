@@ -11,6 +11,17 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { uid } from "@/core/id"
 import { parseDocument, type BuilderDocument } from "@/types/builder"
+import { assertBuildingAccess } from "@/lib/building-access"
+
+/** Модель, привязанная к зданию, открыта только тем, кому открыто здание. */
+async function assertProjectAccess(id: string, orgId: string): Promise<void> {
+  const project = await db.builderProject.findFirst({
+    where: { id, organizationId: orgId },
+    select: { buildingId: true },
+  })
+  if (!project) throw new Error("Модель не найдена")
+  if (project.buildingId) await assertBuildingAccess(project.buildingId, orgId)
+}
 
 async function requireBuilderAccess(): Promise<string> {
   const session = await auth()
@@ -44,6 +55,7 @@ export async function saveBuilderProject(
   name?: string,
 ): Promise<{ revision: number; conflict?: boolean }> {
   const orgId = await requireBuilderAccess()
+  await assertProjectAccess(id, orgId)
   const validated = parseDocument(doc)
   const res = await db.builderProject.updateMany({
     where: { id, organizationId: orgId, revision },
@@ -60,6 +72,7 @@ export async function saveBuilderProject(
 
 export async function loadBuilderProject(id: string): Promise<{ id: string; name: string; doc: BuilderDocument; revision: number } | null> {
   const orgId = await requireBuilderAccess()
+  await assertProjectAccess(id, orgId)
   const p = await db.builderProject.findFirst({
     where: { id, organizationId: orgId },
     select: { id: true, name: true, doc: true, revision: true },
