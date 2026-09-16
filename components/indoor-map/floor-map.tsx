@@ -15,6 +15,15 @@ import { CategoryGlyph, ServiceGlyph, type ServiceKind } from "./glyphs"
 
 export type MapFilter = "all" | "vacant" | "expiring" | "debt"
 
+/** Привязка редактора к карте: жесты отдаёт карта, состояние живёт снаружи. */
+export type EditBinding = {
+  tool: "select" | "rect"
+  onSelectRoom: (roomId: string | null) => void
+  onMoveVertex: (roomId: string, index: number, to: { x: number; y: number }) => void
+  onMoveRoom: (roomId: string, delta: { x: number; y: number }) => void
+  onCreateRect: (from: { x: number; y: number }, to: { x: number; y: number }) => void
+}
+
 type Camera = { cx: number; cy: number; zoom: number }
 
 /** Императивные команды карты: поиск подводит камеру, кнопка возвращает обзор. */
@@ -30,6 +39,7 @@ type Props = {
   filter: MapFilter
   selectedRoomId: string | null
   onSelect: (room: RoomView | null) => void
+  edit?: EditBinding
   ref?: React.Ref<FloorMapHandle>
 }
 
@@ -41,14 +51,23 @@ function matchesFilter(room: RoomView, filter: MapFilter): boolean {
   return room.status === "EXPIRING"
 }
 
-export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }: Props) {
+export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit, ref }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [size, setSize] = useState({ w: 900, h: 600 })
   const [camera, setCamera] = useState<Camera | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
-  const dragRef = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null)
+  const [rubber, setRubber] = useState<{
+    from: { x: number; y: number }
+    to: { x: number; y: number }
+  } | null>(null)
+  type Gesture =
+    | { kind: "pan"; x: number; y: number; cx: number; cy: number }
+    | { kind: "room"; roomId: string; from: { x: number; y: number } }
+    | { kind: "vertex"; roomId: string; index: number }
+    | { kind: "rect"; from: { x: number; y: number } }
+  const dragRef = useRef<Gesture | null>(null)
 
   const box = useMemo(() => layoutBox(layout), [layout])
 
@@ -84,6 +103,17 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
 
   const project = useCallback(
     (p: { x: number; y: number }) => ({ x: p.x * cam.zoom + tx, y: p.y * cam.zoom + ty }),
+    [cam.zoom, tx, ty],
+  )
+
+  const unproject = useCallback(
+    (clientX: number, clientY: number) => {
+      const rect = hostRef.current?.getBoundingClientRect()
+      return {
+        x: (clientX - (rect?.left ?? 0) - tx) / cam.zoom,
+        y: (clientY - (rect?.top ?? 0) - ty) / cam.zoom,
+      }
+    },
     [cam.zoom, tx, ty],
   )
 
@@ -204,28 +234,59 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
 
   function handlePointerDown(event: React.PointerEvent) {
     if (event.button !== 0) return
-    dragRef.current = { x: event.clientX, y: event.clientY, cx: cam.cx, cy: cam.cy }
-    setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
+    if (edit && edit.tool === "rect") {
+      dragRef.current = { kind: "rect", from: unproject(event.clientX, event.clientY) }
+      return
+    }
+    dragRef.current = { kind: "pan", x: event.clientX, y: event.clientY, cx: cam.cx, cy: cam.cy }
+    setDragging(true)
   }
 
   function handlePointerMove(event: React.PointerEvent) {
     const drag = dragRef.current
     if (!drag) return
-    setCamera({
-      zoom: cam.zoom,
-      cx: drag.cx - (event.clientX - drag.x) / cam.zoom,
-      cy: drag.cy - (event.clientY - drag.y) / cam.zoom,
-    })
+    if (drag.kind === "pan") {
+      setCamera({
+        zoom: cam.zoom,
+        cx: drag.cx - (event.clientX - drag.x) / cam.zoom,
+        cy: drag.cy - (event.clientY - drag.y) / cam.zoom,
+      })
+      return
+    }
+    if (!edit) return
+    const point = unproject(event.clientX, event.clientY)
+    if (drag.kind === "rect") {
+      setRubber({ from: drag.from, to: point })
+      return
+    }
+    if (drag.kind === "vertex") {
+      edit.onMoveVertex(drag.roomId, drag.index, point)
+      return
+    }
+    // перетаскивание помещения: смещение считаем от точки, где взяли
+    edit.onMoveRoom(drag.roomId, { x: point.x - drag.from.x, y: point.y - drag.from.y })
+    dragRef.current = { ...drag, from: point }
   }
 
   function handlePointerUp(event: React.PointerEvent) {
     const drag = dragRef.current
     dragRef.current = null
     setDragging(false)
+    if (!drag) return
+    if (drag.kind === "rect") {
+      setRubber(null)
+      edit?.onCreateRect(drag.from, unproject(event.clientX, event.clientY))
+      return
+    }
     // Клик без протяжки по пустому месту снимает выделение
-    if (drag && Math.abs(event.clientX - drag.x) < 3 && Math.abs(event.clientY - drag.y) < 3) {
+    if (
+      drag.kind === "pan" &&
+      Math.abs(event.clientX - drag.x) < 3 &&
+      Math.abs(event.clientY - drag.y) < 3
+    ) {
       onSelect(null)
+      edit?.onSelectRoom(null)
     }
   }
 
@@ -243,6 +304,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
       onPointerLeave={() => {
         dragRef.current = null
         setDragging(false)
+        setRubber(null)
         setHoveredId(null)
       }}
     >
@@ -292,9 +354,22 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
                   vectorEffect="non-scaling-stroke"
                   style={{ cursor: "pointer" }}
                   onPointerEnter={() => setHoveredId(room.id)}
+                  onPointerDown={(event) => {
+                    if (!edit || edit.tool !== "select") return
+                    event.stopPropagation()
+                    hostRef.current?.setPointerCapture(event.pointerId)
+                    edit.onSelectRoom(room.id)
+                    onSelect(room)
+                    dragRef.current = {
+                      kind: "room",
+                      roomId: room.id,
+                      from: unproject(event.clientX, event.clientY),
+                    }
+                  }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect(room)
+                    edit?.onSelectRoom(room.id)
                   }}
                 />
               )
@@ -363,8 +438,42 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
                 return null
               })
             : null}
+          {/* рамка создаваемого помещения */}
+          {rubber ? (
+            <rect
+              x={Math.min(rubber.from.x, rubber.to.x)}
+              y={Math.min(rubber.from.y, rubber.to.y)}
+              width={Math.abs(rubber.to.x - rubber.from.x)}
+              height={Math.abs(rubber.to.y - rubber.from.y)}
+              fill="rgba(31,84,214,.12)"
+              stroke={STATUS_STYLE.OCCUPIED.edge}
+              strokeWidth={STROKE.roomSelected}
+              strokeDasharray="6 4"
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
         </g>
       </svg>
+
+      {/* ручки на углах выбранного помещения */}
+      {edit && selectedRoomId
+        ? (roomById.get(selectedRoomId)?.points ?? []).map((point, index) => {
+            const p = project(point)
+            return (
+              <span
+                key={`handle-${selectedRoomId}-${index}`}
+                role="presentation"
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  hostRef.current?.setPointerCapture(event.pointerId)
+                  dragRef.current = { kind: "vertex", roomId: selectedRoomId, index }
+                }}
+                className="absolute h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize rounded-[2px] border-2 border-blue-600 bg-white shadow-sm"
+                style={{ left: p.x, top: p.y }}
+              />
+            )
+          })
+        : null}
 
       {/* служебные знаки — HTML, чтобы штрих не тянулся вместе с масштабом */}
       {detail !== "far"

@@ -6,6 +6,7 @@ import { ArrowLeft, Map as MapIcon } from "lucide-react"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { buildingScope } from "@/lib/tenant-scope"
 import { classifyCategory } from "@/lib/indoor-map/category"
 import type { SpaceLite } from "@/lib/indoor-map/model"
@@ -27,6 +28,14 @@ export default async function BuildingMapPage({
   const { orgId } = await requireOrgAccess()
   const { id } = await params
   const { mode } = await searchParams
+
+  const caps = await getAllowedCapabilityKeysForUser({
+    userId: session.user.id,
+    role: session.user.role,
+    isPlatformOwner: !!session.user.isPlatformOwner,
+    orgId,
+  })
+  const canEdit = caps.includes("floors.edit")
 
   const building = await db.building.findFirst({
     where: { AND: [buildingScope(orgId), { id }] },
@@ -139,6 +148,7 @@ export default async function BuildingMapPage({
           buildingId={building.id}
           floors={data}
           initialMode={mode === "volume" ? "volume" : "plan"}
+          canEdit={canEdit}
         />
       </div>
     </div>

@@ -7,7 +7,23 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useMemo, useRef, useState, useTransition } from "react"
-import { Box, Download, LayoutGrid, Map as MapIcon, PencilRuler, Printer, Search, TriangleAlert, X } from "lucide-react"
+import {
+  Box,
+  Download,
+  LayoutGrid,
+  Map as MapIcon,
+  MousePointer2,
+  PencilRuler,
+  Printer,
+  Search,
+  SquarePlus,
+  TriangleAlert,
+  Undo2,
+  X,
+} from "lucide-react"
+import { saveFloorLayout } from "@/app/actions/floor-layout"
+import { EditPanel } from "./edit-panel"
+import { useFloorEditor } from "./use-floor-editor"
 import { generateBuildingSchemas, generateFloorSchema } from "@/app/actions/indoor-map"
 import { layoutBox } from "@/lib/indoor-map/geometry"
 import { VolumeLoader } from "./volume-loader"
@@ -32,9 +48,16 @@ type Props = {
   floors: FloorData[]
   /** С какого режима открывать: из 3D-объектов приходим сразу в объём. */
   initialMode?: "plan" | "volume"
+  /** Есть ли право править планы (capability floors.edit). */
+  canEdit?: boolean
 }
 
-export function IndoorMapApp({ buildingId, floors, initialMode = "plan" }: Props) {
+export function IndoorMapApp({
+  buildingId,
+  floors,
+  initialMode = "plan",
+  canEdit = false,
+}: Props) {
   const withPlan = useMemo(
     () => floors.filter((floor) => parseLayout(floor.layoutJson) !== null),
     [floors],
@@ -81,10 +104,26 @@ export function IndoorMapApp({ buildingId, floors, initialMode = "plan" }: Props
 
   const active = floors.find((floor) => floor.id === activeId) ?? floors[0] ?? null
   const layout = active ? parseLayout(active.layoutJson) : null
+  const editor = useFloorEditor(layout)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const shownLayout = editing ? editor.layout : layout
   const view = useMemo(
-    () => (layout && active ? buildFloorView(layout, active.spaces) : null),
-    [layout, active],
+    () => (shownLayout && active ? buildFloorView(shownLayout, active.spaces) : null),
+    [shownLayout, active],
   )
+
+  async function save() {
+    if (!active || !editor.draft) return
+    setSaving(true)
+    try {
+      await saveFloorLayout(active.id, JSON.stringify(editor.draft))
+      editor.markSaved()
+      router.refresh()
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // Объём собирается из планов всех этажей, у которых они есть
   const volumeFloors = useMemo<VolumeFloor[]>(() => {
@@ -257,6 +296,19 @@ export function IndoorMapApp({ buildingId, floors, initialMode = "plan" }: Props
               </button>
             </>
           ) : null}
+          {canEdit && mode === "plan" && shownLayout ? (
+            <button
+              type="button"
+              onClick={() => setEditing((value) => !value)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${
+                editing
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+              }`}
+            >
+              <PencilRuler className="h-3.5 w-3.5" /> {editing ? "Правка включена" : "Править план"}
+            </button>
+          ) : null}
           {active ? (
             <Link
               href={`/admin/floors/${active.id}/visualization`}
@@ -309,6 +361,69 @@ export function IndoorMapApp({ buildingId, floors, initialMode = "plan" }: Props
         </div>
       ) : null}
 
+      {/* инструменты правки */}
+      {editing && shownLayout ? (
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+            {(
+              [
+                { key: "select", label: "Выбор", icon: MousePointer2 },
+                { key: "rect", label: "Помещение", icon: SquarePlus },
+              ] as Array<{ key: "select" | "rect"; label: string; icon: typeof Box }>
+            ).map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => editor.setTool(item.key)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  editor.tool === item.key
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                }`}
+              >
+                <item.icon className="h-3.5 w-3.5" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={!editor.canUndo}
+            onClick={editor.undo}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:text-slate-400"
+          >
+            <Undo2 className="h-3.5 w-3.5" /> Отменить
+          </button>
+          <span className="text-xs text-slate-500">
+            {editor.dirty ? "Есть несохранённые правки" : "Правок нет"}
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                editor.reset()
+                setEditing(false)
+              }}
+              className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400"
+            >
+              Выйти без сохранения
+            </button>
+            <button
+              type="button"
+              disabled={!editor.dirty || saving}
+              onClick={save}
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+            >
+              {saving ? "Сохраняю…" : "Сохранить план"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {editing && shownLayout && active ? (
+        <EditPanel editor={editor} layout={shownLayout} spaces={active.spaces} />
+      ) : null}
+
       {/* карта + лента этажей */}
       <div className="flex min-h-0 flex-1 gap-3 print:block">
         <div className="min-w-0 flex-1">
@@ -325,15 +440,26 @@ export function IndoorMapApp({ buildingId, floors, initialMode = "plan" }: Props
                 setSelected(room)
               }}
             />
-          ) : layout && view ? (
+          ) : shownLayout && view ? (
             <FloorMap
               key={active?.id ?? "none"}
               ref={mapRef}
-              layout={layout}
+              layout={shownLayout}
               view={view}
               filter={filter}
-              selectedRoomId={selected?.id ?? null}
+              selectedRoomId={editing ? editor.selectedId : (selected?.id ?? null)}
               onSelect={setSelected}
+              edit={
+                editing
+                  ? {
+                      tool: editor.tool,
+                      onSelectRoom: editor.setSelectedId,
+                      onMoveVertex: editor.actions.moveVertex,
+                      onMoveRoom: editor.actions.moveRoom,
+                      onCreateRect: editor.actions.createRect,
+                    }
+                  : undefined
+              }
             />
           ) : (
             <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-slate-700 dark:bg-slate-900/40">
