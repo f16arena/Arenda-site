@@ -12,7 +12,6 @@ import { getCityMedianPerSqm } from "@/lib/market"
 import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
-import { FloorPlanLazy } from "./floor-plan-lazy"
 import { FloorCard } from "@/components/floor/floor-card"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
@@ -329,7 +328,7 @@ export default async function SpacesPage() {
           <>
             {building && hasFloorEditor && (
               <Link
-                href={`/admin/buildings/${building.id}/3d`}
+                href={`/admin/buildings/${building.id}/map?mode=volume`}
                 title="Объёмный вид здания целиком: этажи, помещения, территория"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
               >
@@ -518,7 +517,14 @@ export default async function SpacesPage() {
                 <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Нет помещений на этом этаже</p>
               ) : (
                 <div className="space-y-3">
-                  {hasFloorEditor && <FloorPlanLazy floorId={floor.id} />}
+                  {hasFloorEditor && (
+                    <Link
+                      href={`/admin/buildings/${buildingId}/map`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+                    >
+                      План этажа на карте здания →
+                    </Link>
+                  )}
 
                   {/* Карточки на мобиле */}
                   <div className="space-y-2 sm:hidden">

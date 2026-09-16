@@ -310,14 +310,6 @@ export function IndoorMapApp({
               <PencilRuler className="h-3.5 w-3.5" /> {editing ? "Правка включена" : "Править план"}
             </button>
           ) : null}
-          {active ? (
-            <Link
-              href={`/admin/floors/${active.id}/visualization`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-            >
-              <PencilRuler className="h-3.5 w-3.5" /> Редактор плана
-            </Link>
-          ) : null}
         </div>
       </div>
 
@@ -495,12 +487,13 @@ export function IndoorMapApp({
                       <LayoutGrid className="h-3.5 w-3.5" /> Сразу для всех этажей
                     </button>
                   ) : null}
-                  <Link
-                    href={`/admin/floors/${active.id}/visualization`}
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
-                    <PencilRuler className="h-3.5 w-3.5" /> Нарисовать план
-                  </Link>
+                    <PencilRuler className="h-3.5 w-3.5" /> Нарисовать самому
+                  </button>
                 </div>
               ) : null}
               {schemaError ? (

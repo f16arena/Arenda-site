@@ -7,12 +7,11 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg } from "@/lib/scope-guards"
 import { cn } from "@/lib/utils"
 import { isZoneFloor, FLOOR_KIND_LABEL, type FloorKind } from "@/lib/zone-kinds"
-import { FloorTabs } from "./floor-tabs"
 
 /**
- * Общий каркас карточки этажа: хлебные крошки + вкладки «Данные / План».
- * Layout сохраняется между вкладками, поэтому переключение мгновенное,
- * а каждая вкладка (page.tsx / visualization/page.tsx) рендерится отдельно.
+ * Общий каркас карточки этажа: хлебные крошки и данные этажа.
+ * Вкладки «Данные / План» убраны вместе со старым редактором: план этажа
+ * теперь живёт в конструкторе здания (/admin/buildings/[id]/map).
  */
 export default async function FloorLayout({
   children,
@@ -68,8 +67,6 @@ export default async function FloorLayout({
           )}
         </h1>
       </div>
-
-      <FloorTabs floorId={floor.id} />
 
       {children}
     </div>
