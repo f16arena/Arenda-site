@@ -6,23 +6,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
-import { isLayoutV2 } from "@/lib/floor-layout"
+import { layoutKind } from "@/lib/indoor-map/layout-source"
 import { generateSchemaLayout } from "@/lib/indoor-map/generate"
-
-/**
- * Есть ли в плане нарисованные помещения. Пустая запись плана (или запись
- * без комнат) защиты не заслуживает — затирать там нечего.
- */
-function hasDrawnRooms(layoutJson: string | null): boolean {
-  if (!layoutJson) return false
-  try {
-    const parsed: unknown = JSON.parse(layoutJson)
-    if (!isLayoutV2(parsed) || parsed.source === "schema") return false
-    return parsed.elements.some((element) => element.type === "rect" || element.type === "polygon")
-  } catch {
-    return false
-  }
-}
 
 export type GenerateSchemaResult =
   | { success: true; rooms: number }
@@ -52,7 +37,7 @@ export async function generateFloorSchema(
   })
   if (!floor) throw new Error("Этаж не найден")
 
-  if (!replace && hasDrawnRooms(floor.layoutJson)) {
+  if (!replace && layoutKind(floor.layoutJson) === "drawn") {
     return { success: false, reason: "has-plan" }
   }
 
@@ -104,7 +89,7 @@ export async function generateBuildingSchemas(
   let built = 0
   let skipped = 0
   for (const floor of floors) {
-    if (hasDrawnRooms(floor.layoutJson)) {
+    if (layoutKind(floor.layoutJson) === "drawn") {
       skipped += 1
       continue
     }

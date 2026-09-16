@@ -10,6 +10,7 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { parseDocument } from "@/types/builder"
 import { buildProjectFromBuilding, type BuildReport, type SourceBuilding } from "@/lib/builder/from-building"
+import { layoutKind } from "@/lib/indoor-map/layout-source"
 
 async function requireBuilderAccess(): Promise<string> {
   const session = await auth()
@@ -23,6 +24,7 @@ export type BuildableBuilding = {
   name: string
   floors: number
   spaces: number
+  /** этажей с нарисованным планом (схема по площадям сюда не считается) */
   floorsWithPlan: number
 }
 
@@ -47,7 +49,7 @@ export async function listBuildableBuildings(): Promise<BuildableBuilding[]> {
       name: b.name,
       floors: floors.length,
       spaces: b.floors.reduce((sum, f) => sum + f._count.spaces, 0),
-      floorsWithPlan: floors.filter((f) => !!f.layoutJson).length,
+      floorsWithPlan: floors.filter((f) => layoutKind(f.layoutJson) === "drawn").length,
     }
   })
 }

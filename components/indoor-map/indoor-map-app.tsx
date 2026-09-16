@@ -12,7 +12,7 @@ import { generateBuildingSchemas, generateFloorSchema } from "@/app/actions/indo
 import { layoutBox } from "@/lib/indoor-map/geometry"
 import { VolumeLoader } from "./volume-loader"
 import type { VolumeFloor } from "./volume-view"
-import { isLayoutV2, type FloorLayoutV2 } from "@/lib/floor-layout"
+import { readLayout as parseLayout } from "@/lib/indoor-map/layout-source"
 import { buildFloorView, type SpaceLite } from "@/lib/indoor-map/model"
 import { STATUS_ORDER, STATUS_STYLE } from "@/lib/indoor-map/tokens"
 import { FloorMap, type FloorMapHandle, type MapFilter } from "./floor-map"
@@ -30,36 +30,17 @@ export type FloorData = {
 type Props = {
   buildingId: string
   floors: FloorData[]
+  /** С какого режима открывать: из 3D-объектов приходим сразу в объём. */
+  initialMode?: "plan" | "volume"
 }
 
-/**
- * Пустая запись плана — это отсутствие плана.
- * У этажей в базе layoutJson может лежать с нулевым набором элементов
- * (этаж заводили в редакторе, но ничего не нарисовали). Если считать такой
- * план существующим, карта показывает голую плиту без единого помещения —
- * выглядит как поломка. Поэтому план без комнат приравниваем к его отсутствию.
- */
-function parseLayout(raw: string | null): FloorLayoutV2 | null {
-  if (!raw) return null
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!isLayoutV2(parsed)) return null
-    const hasRooms = parsed.elements.some(
-      (element) => element.type === "rect" || element.type === "polygon",
-    )
-    return hasRooms ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-export function IndoorMapApp({ buildingId, floors }: Props) {
+export function IndoorMapApp({ buildingId, floors, initialMode = "plan" }: Props) {
   const withPlan = useMemo(
     () => floors.filter((floor) => parseLayout(floor.layoutJson) !== null),
     [floors],
   )
   const [activeId, setActiveId] = useState<string>(withPlan[0]?.id ?? floors[0]?.id ?? "")
-  const [mode, setMode] = useState<"plan" | "volume">("plan")
+  const [mode, setMode] = useState<"plan" | "volume">(initialMode)
   const [filter, setFilter] = useState<MapFilter>("all")
   const [selected, setSelected] = useState<RoomView | null>(null)
   const [query, setQuery] = useState("")
