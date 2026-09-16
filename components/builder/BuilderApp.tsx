@@ -139,6 +139,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   )
 
   const [hud, setHud] = useState<string | null>(null)
+  // Последний отрезок рулетки — панель подложки спросит его настоящую длину
+  const [measure, setMeasure] = useState<{ lengthMm: number } | null>(null)
   const doc = useDocumentStore((s) => s.doc)
   const rev = useDocumentStore((s) => s.rev)
   const activeTool = useEditorStore((s) => s.activeTool)
@@ -175,6 +177,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     // в панели свойств из списка помещений этого здания, а не вводится номером.
     engine.onLinkRoom = (floorId, roomId) => applyPick({ kind: "room", floorId, entityId: roomId })
     engine.onHud = (t) => setHud(t)
+    engine.onMeasure = (lengthMm) => setMeasure({ lengthMm })
     if (initialDoc) {
       useDocumentStore.getState().loadDocument(initialDoc)
       const f = initialDoc.buildings[0]?.floors?.[0]
@@ -449,7 +452,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         a.remove()
       }} />}
       {!readOnly && <ToolOptions />}
-      {!readOnly && <LevelPanel />}
+      {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} />}
       <PropertyPanel />
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
       <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />

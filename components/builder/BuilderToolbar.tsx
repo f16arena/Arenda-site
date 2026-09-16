@@ -46,6 +46,7 @@ const TOOLS: Item[] = [
   { id: "material", label: "Ведро", key: "M", Icon: Scissors, phase1: true },
   { id: "link", label: "Помещение", key: "", Icon: Copy, phase1: true },
   { id: "delete", label: "Удалить", key: "Del", Icon: Trash2, phase1: true },
+  { id: "measure", label: "Измерить", key: "I", Icon: PencilRuler, phase1: true },
 ]
 
 export function BuilderToolbar() {

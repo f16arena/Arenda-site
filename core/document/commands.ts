@@ -671,6 +671,27 @@ export class LinkPremiseCommand implements Command {
   }
 }
 
+// ── Подложка этажа ────────────────────────────────────────────────────────────
+export class SetUnderlayCommand implements Command {
+  readonly kind = "set-underlay"
+  readonly label = "подложка"
+  private prev?: Floor["underlay"]
+  private captured = false
+  constructor(private floorId: string, private underlay: Floor["underlay"] | null) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (!f) return doc
+    if (!this.captured) {
+      this.prev = f.underlay
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, underlay: this.underlay ?? undefined }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, underlay: this.prev }))
+  }
+}
+
 // ── Проёмы (двери/окна) ───────────────────────────────────────────────────────
 export class AddOpeningCommand implements Command {
   readonly kind = "add-opening"

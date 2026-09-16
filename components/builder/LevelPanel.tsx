@@ -8,6 +8,7 @@ import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
 import { AddFloorCommand, DeleteFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
+import { UnderlayPanel, type PendingMeasure } from "./UnderlayPanel"
 import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
@@ -52,7 +53,7 @@ function LevelRow({ name, sub, Icon, active, onClick, onRename, onDelete }: { na
   )
 }
 
-export function LevelPanel() {
+export function LevelPanel({ measure = null, onMeasureConsumed = () => {} }: { measure?: PendingMeasure; onMeasureConsumed?: () => void }) {
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -235,6 +236,7 @@ export function LevelPanel() {
       >
         Стены вниз {wallsDown ? "✓" : ""}
       </button>
+      <UnderlayPanel pending={measure} onConsumed={onMeasureConsumed} />
     </div>
   )
 }

@@ -125,6 +125,7 @@ export type Tool =
   | "water"
   | "pave"
   | "delete"
+  | "measure"
 
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"

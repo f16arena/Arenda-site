@@ -12,6 +12,7 @@ import {
   PointLight,
   PointerEventTypes,
   StandardMaterial,
+  Texture,
   TransformNode,
   UniversalCamera,
   Vector3,
@@ -178,6 +179,9 @@ export class BuilderEngine {
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
+  /** рулетка: отрезок задан, длина в мм плана */
+  onMeasure: (lengthMm: number, from: Vec2, to: Vec2) => void = () => {}
+  private measureStart: Vector3 | null = null
   onObjectBaseSizes: (sizes: Record<string, { w: number; d: number; h: number }>) => void = () => {}
   getDoc: () => BuilderDocument | null = () => null
   statusResolver: StatusResolver = () => undefined
@@ -362,6 +366,28 @@ export class BuilderEngine {
 
     const walls = buildWalls(f, fNode, scene, this.reg)
     const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
+    // Скан плана на полу — чуть выше пола, чтобы не мерцал с перекрытием.
+    // Не пикается: клики сквозь него попадают в пол/стены.
+    if (f.underlay) {
+      const u = f.underlay
+      const w = u.widthMm * S
+      const h = (u.widthMm / (u.aspect || 1)) * S
+      const plane = MeshBuilder.CreateGround(`underlay_${f.id}`, { width: w, height: h }, scene)
+      plane.parent = fNode
+      plane.position.set(u.x * S + w / 2, 0.015, u.y * S + h / 2)
+      plane.rotation.y = (u.rotationDeg * Math.PI) / 180
+      plane.isPickable = false
+      const mat = new StandardMaterial(`underlay_m_${f.id}`, scene)
+      const tex = new Texture(u.url, scene, false, false)
+      // картинка плана: верх картинки — «север» плана, без зеркала
+      tex.vScale = -1
+      mat.diffuseTexture = tex
+      mat.emissiveTexture = tex
+      mat.disableLighting = true
+      mat.alpha = u.opacity
+      mat.backFaceCulling = false
+      plane.material = mat
+    }
     if (reg) {
       for (const m of walls) {
         this.registerMesh(m.metadata?.entityId, m)
@@ -1018,6 +1044,10 @@ export class BuilderEngine {
       this.handleWallTap()
       return
     }
+    if (this.tool === "measure") {
+      this.handleMeasureTap()
+      return
+    }
     if (this.tool === "water") {
       this.handleWaterTap()
       return
@@ -1066,6 +1096,26 @@ export class BuilderEngine {
   // ── Стена (цепочка) ────────────────────────────────────────────────────────
   isDrawingWall(): boolean {
     return this.tool === "wall" && this.wallStart !== null
+  }
+
+  /** Рулетка: две точки на плоскости этажа → длина. Ею же калибруется подложка. */
+  private handleMeasureTap(): void {
+    const p = this.projectToPlane()
+    if (!p) return
+    const r = this.resolveWallPoint(p)
+    if (!this.measureStart) {
+      this.measureStart = r.world
+      this.showStartMarker(r.world)
+      this.onHud("Вторая точка отрезка")
+      return
+    }
+    const from: Vec2 = { x: this.measureStart.x * 1000, y: this.measureStart.z * 1000 }
+    const to: Vec2 = r.mm
+    const len = Math.hypot(to.x - from.x, to.y - from.y)
+    this.measureStart = null
+    this.preview?.dispose()
+    this.onHud(`${(len / 1000).toFixed(2)} м`)
+    this.onMeasure(len, from, to)
   }
 
   private handleWallTap(): void {

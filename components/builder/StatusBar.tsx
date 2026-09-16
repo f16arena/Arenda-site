@@ -27,6 +27,7 @@ const TOOL_RU: Record<Tool, string> = {
   water: "Вода",
   pave: "Площадка",
   delete: "Удалить",
+  measure: "Рулетка: клик — первая точка, клик — вторая. Ею же калибруется подложка.",
 }
 
 export function StatusBar() {

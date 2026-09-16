@@ -74,6 +74,18 @@ export const RoofConfigSchema = z.object({
   materialId: z.string().optional(),
 })
 
+// Подложка этажа: скан плана, положенный на пол. Размеры в мм плана.
+export const UnderlaySchema = z.object({
+  url: z.string(), // data-URL или ссылка на картинку
+  widthMm: z.number(), // ширина картинки в мм плана (калибруется)
+  aspect: z.number(), // ширина/высота картинки в пикселях
+  x: z.number().default(0), // левый верхний угол, мм
+  y: z.number().default(0),
+  rotationDeg: z.number().default(0),
+  opacity: z.number().default(0.6),
+})
+export type Underlay = z.infer<typeof UnderlaySchema>
+
 export const FloorSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -91,6 +103,7 @@ export const FloorSchema = z.object({
   premiseLinks: z.record(z.string(), z.string()).default({}), // roomId → premiseId
   floorMaterialId: z.string().optional(),
   roomMaterials: z.record(z.string(), z.string()).default({}), // roomId → materialId (ведро)
+  underlay: UnderlaySchema.optional(),
 })
 
 export const BuildingSchema = z.object({
