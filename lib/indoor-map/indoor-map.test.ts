@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { FloorElement, FloorLayoutV2, RectRoom } from "@/lib/floor-layout"
 import { classifyCategory } from "./category"
 import { shortTenantName } from "./display-name"
-import { generateSchemaLayout } from "./generate"
+import { buildingFootprint, generateSchemaLayout } from "./generate"
 import { centroid, labelAnchor, pointInPolygon, widthAt } from "./geometry"
 import { layoutLabels } from "./labels"
 import { buildFloorView, type SpaceLite } from "./model"
@@ -231,7 +231,10 @@ describe("категории", () => {
 })
 
 describe("схема из помещений", () => {
-  it("раскладывает помещения по двум галереям и сохраняет площади", () => {
+  const roomsOf = (layout: FloorLayoutV2) =>
+    layout.elements.filter((el): el is RectRoom => el.type === "rect" && Boolean(el.spaceId))
+
+  it("площадь каждого помещения сохраняется точно", () => {
     const layout = generateSchemaLayout([
       { id: "a", number: "101", area: 40, kind: "RENTABLE" },
       { id: "b", number: "102", area: 60, kind: "RENTABLE" },
@@ -239,44 +242,39 @@ describe("схема из помещений", () => {
       { id: "d", number: "104", area: 30, kind: "RENTABLE" },
     ])
     expect(layout).not.toBeNull()
-    const isLinkedRoom = (el: FloorElement): el is RectRoom => el.type === "rect" && Boolean(el.spaceId)
-    const rooms = layout!.elements.filter(isLinkedRoom)
+    const rooms = roomsOf(layout!)
     expect(rooms).toHaveLength(4)
-
-    // площадь каждого прямоугольника совпадает с площадью помещения
     const bySpace = new Map(rooms.map((el) => [el.spaceId, el]))
     for (const [spaceId, area] of [["a", 40], ["b", 60], ["c", 50], ["d", 30]] as const) {
-      const room = bySpace.get(spaceId)
-      expect(room).toBeDefined()
-      expect(room!.width * room!.height).toBeCloseTo(area, 0)
+      const room = bySpace.get(spaceId)!
+      expect(room.width * room.height).toBeCloseTo(area, 0)
     }
-
-    // ровно две линии галерей, коридор и пометка «схема»
     expect(layout!.source).toBe("schema")
-    expect(layout!.elements.filter((el) => el.type === "wall")).toHaveLength(2)
-    expect(layout!.elements.some((el) => el.id === "schema-corridor")).toBe(true)
   })
 
-  it("две галереи получаются сопоставимой длины", () => {
-    const layout = generateSchemaLayout(
-      Array.from({ length: 9 }, (_, i) => ({
-        id: `s${i}`,
-        number: `10${i}`,
-        area: 20 + i * 15,
-        kind: "RENTABLE",
-      })),
-    )!
-    const rects = layout.elements.filter(
-      (el): el is RectRoom => el.type === "rect" && Boolean(el.spaceId),
-    )
-    const top = rects.filter((el) => el.y === 0)
-    const bottom = rects.filter((el) => el.y !== 0)
-    expect(top.length).toBeGreaterThan(0)
-    expect(bottom.length).toBeGreaterThan(0)
-    const widthOf = (list: RectRoom[]) => list.reduce((sum, el) => sum + el.width, 0)
-    const longer = Math.max(widthOf(top), widthOf(bottom))
-    const shorter = Math.min(widthOf(top), widthOf(bottom))
-    expect(shorter / longer).toBeGreaterThan(0.7)
+  it("одно большое и два крошечных помещения не дают стометровую кишку", () => {
+    // ровно тот случай, на котором ломалась раскладка рядами
+    const layout = generateSchemaLayout([
+      { id: "big", number: "1", area: 600, kind: "RENTABLE" },
+      { id: "s1", number: "2", area: 20, kind: "RENTABLE" },
+      { id: "s2", number: "3", area: 26, kind: "RENTABLE" },
+    ])!
+    for (const room of roomsOf(layout)) {
+      const longest = Math.max(room.width, room.height)
+      const shortest = Math.min(room.width, room.height)
+      expect(longest).toBeLessThanOrEqual(layout.width + 0.01)
+      expect(longest / shortest).toBeLessThan(6)
+    }
+  })
+
+  it("общий контур делает этажи одного размера", () => {
+    const footprint = buildingFootprint([646, 200, 645])!
+    const small = generateSchemaLayout([{ id: "x", number: "1", area: 200, kind: "RENTABLE" }], { footprint })!
+    const large = generateSchemaLayout([{ id: "y", number: "1", area: 645, kind: "RENTABLE" }], { footprint })!
+    expect(small.width).toBe(large.width)
+    expect(small.height).toBe(large.height)
+    // на маленьком этаже остаток контура стал общей зоной
+    expect(small.elements.some((el) => el.type === "rect" && !el.spaceId && el.kind === "common")).toBe(true)
   })
 
   it("общие зоны остаются общими, а пустой список даёт null", () => {

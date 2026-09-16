@@ -8,7 +8,7 @@ import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
 import { assertBuildingAccess } from "@/lib/building-access"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { layoutKind } from "@/lib/indoor-map/layout-source"
-import { generateSchemaLayout } from "@/lib/indoor-map/generate"
+import { buildingFootprint, generateSchemaLayout } from "@/lib/indoor-map/generate"
 
 export type GenerateSchemaResult =
   | { success: true; rooms: number }
@@ -43,7 +43,16 @@ export async function generateFloorSchema(
     return { success: false, reason: "has-plan" }
   }
 
-  const layout = generateSchemaLayout(floor.spaces)
+  // Контур один на всё здание: иначе этажи выходят разного размера
+  // и стопка перестаёт быть зданием
+  const siblings = await db.floor.findMany({
+    where: { buildingId: floor.buildingId },
+    select: { spaces: { select: { area: true } } },
+  })
+  const footprint = buildingFootprint(
+    siblings.map((item) => item.spaces.reduce((sum, space) => sum + space.area, 0)),
+  )
+  const layout = generateSchemaLayout(floor.spaces, { footprint })
   if (!layout) return { success: false, reason: "no-spaces" }
 
   await db.floor.update({
@@ -89,6 +98,9 @@ export async function generateBuildingSchemas(
     },
   })
 
+  const footprint = buildingFootprint(
+    floors.map((floor) => floor.spaces.reduce((sum, space) => sum + space.area, 0)),
+  )
   let built = 0
   let skipped = 0
   for (const floor of floors) {
@@ -96,7 +108,7 @@ export async function generateBuildingSchemas(
       skipped += 1
       continue
     }
-    const layout = generateSchemaLayout(floor.spaces)
+    const layout = generateSchemaLayout(floor.spaces, { footprint })
     if (!layout) {
       skipped += 1
       continue

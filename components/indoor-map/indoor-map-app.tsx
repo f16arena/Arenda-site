@@ -341,10 +341,11 @@ export function IndoorMapApp({
           <button
             type="button"
             disabled={pending}
-            onClick={() => buildSchema(active.id, true)}
+            // контур один на всё здание, поэтому пересобираем все этажи разом
+            onClick={buildAllSchemas}
             className="ml-auto rounded-md border border-amber-300 px-2 py-1 font-medium hover:bg-amber-100 disabled:opacity-60 dark:border-amber-500/40 dark:hover:bg-amber-500/20"
           >
-            {pending ? "Собираю…" : "Пересобрать"}
+            {pending ? "Собираю…" : "Пересобрать схемы здания"}
           </button>
         </div>
       ) : null}

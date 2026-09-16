@@ -2,9 +2,20 @@
 //
 // Это НЕ обмерный план: настоящую геометрию даёт только обводка по подложке.
 // Но пока плана нет, карта пустая, а у собственника уже есть список помещений
-// с площадями — из них собирается честная схема: две галереи вдоль коридора,
-// ширина помещения пропорциональна его площади. Такую схему сразу видно на
-// карте, по ней уже читаются статусы, и она помечена как схема.
+// с площадями — из них собирается честная схема.
+//
+// Два правила, без которых схема выглядит мусором:
+//
+//  1. Контур один на всё здание. Если раскладывать каждый этаж сам по себе,
+//     этажи выходят разного размера и в объёме не складываются в здание —
+//     получается стопка полос разной длины.
+//  2. Внутри контура — squarified treemap, а не ряды. Раскладка рядами при
+//     разбросе площадей (одно помещение 600 м² и два по 20) даёт стометровую
+//     кишку. Treemap режет так, чтобы помещения выходили близкими к квадрату,
+//     сохраняя площадь каждого точно.
+//
+// Тот же алгоритм применялся в сборщике модели здания (lib/builder), здесь он
+// повторён в метрах и без зависимости от того модуля.
 
 import type { FloorElement, FloorLayoutV2 } from "@/lib/floor-layout"
 
@@ -15,26 +26,91 @@ export type SchemaSpace = {
   kind: string
 }
 
-export type SchemaOptions = {
-  /** глубина галереи, м. По умолчанию выводится из площадей помещений */
-  depth?: number
-  /** ширина коридора между галереями, м */
-  corridor?: number
-}
+/** Прямоугольный контур здания в метрах. */
+export type SchemaFootprint = { width: number; height: number }
 
-const MIN_ROOM_WIDTH = 1.5
-const MIN_DEPTH = 4
-const MAX_DEPTH = 14
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0
-  const sorted = [...values].sort((a, b) => a - b)
-  const middle = Math.floor(sorted.length / 2)
-  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle]
-}
+/** Ширина к глубине обычного офисного корпуса. */
+const RATIO = 1.6
 
 function round(value: number): number {
   return Math.round(value * 100) / 100
+}
+
+/**
+ * Контур считается по самому большому этажу: тогда все этажи помещаются
+ * внутрь одного прямоугольника и стопка выглядит зданием.
+ */
+export function buildingFootprint(floorAreas: number[], ratio = RATIO): SchemaFootprint | null {
+  const maxArea = Math.max(0, ...floorAreas.filter((area) => Number.isFinite(area)))
+  if (maxArea <= 0) return null
+  const height = Math.sqrt(maxArea / ratio)
+  return { width: round(maxArea / height), height: round(height) }
+}
+
+type Rect = { x: number; y: number; w: number; h: number }
+type Cell = { id: string | null; space: SchemaSpace | null; area: number }
+
+/** Худшее соотношение сторон в ряду — критерий остановки treemap. */
+function worstRatio(areas: number[], side: number): number {
+  const sum = areas.reduce((a, b) => a + b, 0)
+  if (sum <= 0) return Infinity
+  const max = Math.max(...areas)
+  const min = Math.min(...areas)
+  return Math.max((side * side * max) / (sum * sum), (sum * sum) / (side * side * min))
+}
+
+function squarify(cells: Cell[], rect: Rect): Array<{ cell: Cell; rect: Rect }> {
+  const out: Array<{ cell: Cell; rect: Rect }> = []
+  const total = cells.reduce((sum, cell) => sum + cell.area, 0)
+  if (total <= 0 || rect.w <= 0 || rect.h <= 0) return out
+
+  // площади масштабируем под контур, пропорции между помещениями сохраняются
+  const scale = (rect.w * rect.h) / total
+  const items = cells
+    .map((cell) => ({ cell, a: cell.area * scale }))
+    .sort((left, right) => right.a - left.a)
+
+  let free: Rect = { ...rect }
+  let index = 0
+  while (index < items.length) {
+    const side = Math.min(free.w, free.h)
+    const row = [items[index]]
+    index += 1
+    while (index < items.length) {
+      const withNext = row.concat([items[index]]).map((item) => item.a)
+      if (worstRatio(withNext, side) <= worstRatio(row.map((item) => item.a), side)) {
+        row.push(items[index])
+        index += 1
+      } else break
+    }
+
+    const rowArea = row.reduce((sum, item) => sum + item.a, 0)
+    if (free.w >= free.h) {
+      const rowWidth = rowArea / free.h
+      let y = free.y
+      for (const item of row) {
+        const height = item.a / rowWidth
+        out.push({ cell: item.cell, rect: { x: free.x, y, w: rowWidth, h: height } })
+        y += height
+      }
+      free = { x: free.x + rowWidth, y: free.y, w: free.w - rowWidth, h: free.h }
+    } else {
+      const rowHeight = rowArea / free.w
+      let x = free.x
+      for (const item of row) {
+        const width = item.a / rowHeight
+        out.push({ cell: item.cell, rect: { x, y: free.y, w: width, h: rowHeight } })
+        x += width
+      }
+      free = { x: free.x, y: free.y + rowHeight, w: free.w, h: free.h - rowHeight }
+    }
+  }
+  return out
+}
+
+export type SchemaOptions = {
+  /** общий контур здания; без него считается по этому же этажу */
+  footprint?: SchemaFootprint | null
 }
 
 /**
@@ -50,87 +126,37 @@ export function generateSchemaLayout(
     .sort((a, b) => a.number.localeCompare(b.number, "ru", { numeric: true }))
   if (usable.length === 0) return null
 
-  // Глубина галереи: делаем помещения близкими к квадрату, иначе схема
-  // вырождается в длинные кишки или в широкие полосы.
-  const depth = round(
-    Math.max(
-      MIN_DEPTH,
-      Math.min(MAX_DEPTH, options.depth ?? median(usable.map((space) => Math.sqrt(space.area)))),
-    ),
-  )
-  const corridor = round(options.corridor ?? Math.max(3, Math.min(6, depth * 0.55)))
+  const floorArea = usable.reduce((sum, space) => sum + space.area, 0)
+  const footprint = options.footprint ?? buildingFootprint([floorArea])
+  if (!footprint) return null
 
-  // Раскладываем по двум галереям, каждый раз в ту, что сейчас короче, —
-  // так обе стороны получаются примерно одной длины.
-  const rows: Array<{ width: number; items: Array<{ space: SchemaSpace; width: number }> }> = [
-    { width: 0, items: [] },
-    { width: 0, items: [] },
-  ]
-  for (const space of usable) {
-    const width = Math.max(MIN_ROOM_WIDTH, round(space.area / depth))
-    const target = rows[0].width <= rows[1].width ? rows[0] : rows[1]
-    target.items.push({ space, width })
-    target.width = round(target.width + width)
+  const cells: Cell[] = usable.map((space) => ({ id: space.id, space, area: space.area }))
+
+  // Остаток контура — коридоры, лестницы и санузлы, которых нет в карточках.
+  // Без него помещения растянулись бы на весь этаж и площади поехали.
+  const footprintArea = footprint.width * footprint.height
+  const rest = footprintArea - floorArea
+  if (rest > footprintArea * 0.02) {
+    cells.push({ id: null, space: null, area: rest })
   }
 
-  const totalWidth = round(Math.max(rows[0].width, rows[1].width, MIN_ROOM_WIDTH))
-  const totalHeight = round(depth * 2 + corridor)
-  const elements: FloorElement[] = []
-
-  rows.forEach((row, rowIndex) => {
-    const y = rowIndex === 0 ? 0 : round(depth + corridor)
-    // Более короткую галерею центрируем — так схема не выглядит обрубленной
-    let x = round((totalWidth - row.width) / 2)
-    for (const item of row.items) {
-      elements.push({
-        type: "rect",
-        id: `schema-${item.space.id}`,
-        spaceId: item.space.id,
-        kind: item.space.kind === "COMMON" ? "common" : "rentable",
-        x,
-        y,
-        width: item.width,
-        height: depth,
-      })
-      x = round(x + item.width)
-    }
-  })
-
-  elements.push({
+  const placed = squarify(cells, { x: 0, y: 0, w: footprint.width, h: footprint.height })
+  const elements: FloorElement[] = placed.map(({ cell, rect }, index) => ({
     type: "rect",
-    id: "schema-corridor",
-    kind: "common",
-    x: 0,
-    y: depth,
-    width: totalWidth,
-    height: corridor,
-    label: "Коридор",
-  })
-
-  // Линии галерей — граница коридора
-  elements.push({
-    type: "wall",
-    id: "schema-wall-top",
-    x1: 0,
-    y1: depth,
-    x2: totalWidth,
-    y2: depth,
-    thickness: 0.2,
-  })
-  elements.push({
-    type: "wall",
-    id: "schema-wall-bottom",
-    x1: 0,
-    y1: round(depth + corridor),
-    x2: totalWidth,
-    y2: round(depth + corridor),
-    thickness: 0.2,
-  })
+    id: cell.space ? `schema-${cell.space.id}` : `schema-common-${index}`,
+    spaceId: cell.space?.id ?? null,
+    kind: cell.space ? (cell.space.kind === "COMMON" ? "common" : "rentable") : "common",
+    x: round(rect.x),
+    y: round(rect.y),
+    width: round(rect.w),
+    height: round(rect.h),
+    ...(cell.space ? {} : { label: "Общая зона" }),
+  }))
 
   return {
     version: 2,
-    width: totalWidth,
-    height: totalHeight,
+    width: round(footprint.width),
+    height: round(footprint.height),
     source: "schema",
     elements,
   }
