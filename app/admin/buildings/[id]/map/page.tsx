@@ -8,6 +8,7 @@ import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { buildingScope } from "@/lib/tenant-scope"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { classifyCategory } from "@/lib/indoor-map/category"
 import type { SpaceLite } from "@/lib/indoor-map/model"
 import { IndoorMapApp, type FloorData } from "@/components/indoor-map/indoor-map-app"
@@ -42,6 +43,9 @@ export default async function BuildingMapPage({
     select: { id: true, name: true, address: true },
   })
   if (!building) notFound()
+  // орг-скоуп не заменяет доступа к конкретному зданию: у администратора
+  // может быть открыт только свой объект
+  await assertBuildingAccess(building.id, orgId)
 
   const floors = await db.floor.findMany({
     where: { buildingId: building.id },

@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireOrgFeature, requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertFloorInOrg, assertBuildingInOrg } from "@/lib/scope-guards"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
@@ -32,6 +33,8 @@ export async function saveFloorLayout(
     select: { buildingId: true },
   })
   if (!floor) throw new Error("Этаж не найден")
+  // Орг-скоупа мало: план этажа правит только тот, кому открыто здание
+  await assertBuildingAccess(floor.buildingId, orgId)
 
   // Если меняется totalArea — валидируем что не меньше Σ Space.area
   if (totalArea !== undefined) {

@@ -7,6 +7,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { buildingScope } from "@/lib/tenant-scope"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { summarizeLayouts } from "@/lib/indoor-map/layout-source"
 import { listBuilderProjects } from "@/app/actions/builder"
 import { listBuildableBuildings } from "@/app/actions/builder-from-building"
@@ -28,8 +29,10 @@ export default async function BuilderProjectsPage() {
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
 
+  // список зданий режем по доступу пользователя, а не только по организации
+  const accessibleIds = await getAccessibleBuildingIdsForSession(orgId)
   const buildings = await db.building.findMany({
-    where: buildingScope(orgId),
+    where: { AND: [buildingScope(orgId), { id: { in: accessibleIds } }] },
     orderBy: { name: "asc" },
     select: {
       id: true,

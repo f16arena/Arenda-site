@@ -11,6 +11,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { parseDocument } from "@/types/builder"
 import { buildProjectFromBuilding, type BuildReport, type SourceBuilding } from "@/lib/builder/from-building"
 import { layoutKind } from "@/lib/indoor-map/layout-source"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 async function requireBuilderAccess(): Promise<string> {
   const session = await auth()
@@ -31,8 +32,9 @@ export type BuildableBuilding = {
 /** Здания организации со сводкой: есть ли из чего строить модель. */
 export async function listBuildableBuildings(): Promise<BuildableBuilding[]> {
   const orgId = await requireBuilderAccess()
+  const accessibleIds = await getAccessibleBuildingIdsForSession(orgId)
   const buildings = await db.building.findMany({
-    where: { organizationId: orgId },
+    where: { organizationId: orgId, id: { in: accessibleIds } },
     orderBy: { name: "asc" },
     select: {
       id: true,

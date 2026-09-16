@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
 import { floorScope } from "@/lib/tenant-scope"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { parseSpacePhotos } from "@/lib/space-photos"
 
 export const dynamic = "force-dynamic"
@@ -30,6 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     },
     select: {
       id: true,
+      buildingId: true,
       name: true,
       number: true,
       ratePerSqm: true,
@@ -72,6 +74,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!floor) {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 })
   }
+
+  // Орг-скоупа мало: план этажа отдаём только тому, кому открыто это здание
+  await assertBuildingAccess(floor.buildingId, orgId)
 
   const tenantIds = Array.from(new Set(floor.spaces.flatMap((space) => {
     const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant

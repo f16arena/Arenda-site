@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { isLayoutV2 } from "@/lib/floor-layout"
 import { requireOrgAccess } from "@/lib/org"
 import { buildingScope } from "@/lib/tenant-scope"
+import { assertBuildingAccess } from "@/lib/building-access"
 
 export const dynamic = "force-dynamic"
 
@@ -73,6 +74,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!building) {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 })
   }
+
+  // Доступ к зданию, а не только к организации: у администратора
+  // может быть открыт лишь свой объект
+  await assertBuildingAccess(building.id, orgId)
 
   const tenantIds = Array.from(new Set(building.floors.flatMap((floor) =>
     floor.spaces.flatMap((space) => {

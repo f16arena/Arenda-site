@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingInOrg, assertFloorInOrg } from "@/lib/scope-guards"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { layoutKind } from "@/lib/indoor-map/layout-source"
 import { generateSchemaLayout } from "@/lib/indoor-map/generate"
@@ -36,6 +37,7 @@ export async function generateFloorSchema(
     },
   })
   if (!floor) throw new Error("Этаж не найден")
+  await assertBuildingAccess(floor.buildingId, orgId)
 
   if (!replace && layoutKind(floor.layoutJson) === "drawn") {
     return { success: false, reason: "has-plan" }
@@ -76,6 +78,7 @@ export async function generateBuildingSchemas(
   await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
+  await assertBuildingAccess(buildingId, orgId)
 
   const floors = await db.floor.findMany({
     where: { buildingId },

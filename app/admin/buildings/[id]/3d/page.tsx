@@ -7,6 +7,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { buildingScope } from "@/lib/tenant-scope"
+import { assertBuildingAccess } from "@/lib/building-access"
 import { Building3DLoader } from "@/components/building/building-3d-loader"
 
 /**
@@ -24,6 +25,7 @@ export default async function Building3DPage({ params }: { params: Promise<{ id:
     select: { id: true, name: true, address: true },
   })
   if (!building) notFound()
+  await assertBuildingAccess(building.id, orgId)
 
   return (
     <div className="flex h-[calc(100vh-7rem)] flex-col gap-3">
