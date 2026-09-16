@@ -60,9 +60,16 @@ export async function openBuildingModel(buildingId: string): Promise<BuildingMod
   const existing = await db.builderProject.findFirst({
     where: { organizationId: orgId, buildingId: building.id },
     orderBy: { updatedAt: "desc" },
-    select: { id: true },
+    select: { id: true, name: true },
   })
   if (existing) {
+    // Наследие снимков: «БЦ F16 — из данных». Модель одна — зовём её как здание.
+    if (existing.name !== building.name && /— из данных$/.test(existing.name)) {
+      await db.builderProject.update({
+        where: { id: existing.id },
+        data: { name: building.name.slice(0, 120) },
+      })
+    }
     return { projectId: existing.id, buildingId: building.id, buildingName: building.name, created: false }
   }
 
