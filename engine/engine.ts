@@ -122,7 +122,9 @@ export class BuilderEngine {
   private startMarker: Mesh | null = null
 
   // перетаскивание узла / объекта
-  private dragNode: { floorId: string; nodeId: string } | null = null
+  // moved — узел реально потянули (> 4 px). Клик по узлу без движения не
+  // должен ни двигать его на сетку, ни класть запись в историю.
+  private dragNode: { floorId: string; nodeId: string; sx: number; sy: number; moved: boolean } | null = null
   private dragObject: { target: { site: true } | { floorId: string }; objectId: string; planeY: number } | null = null
   private lastMoveAt = 0
   private hovered: Mesh | null = null
@@ -793,7 +795,7 @@ export class BuilderEngine {
     if (this.tool === "select") {
       const { meta } = this.pickMeta()
       if (meta?.kind === "node" && meta.floorId && meta.entityId) {
-        this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId }
+        this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId, sx: this.bundle.scene.pointerX, sy: this.bundle.scene.pointerY, moved: false }
         this.beginFloorDrag(meta.floorId)
         this.bundle.scene.activeCamera?.detachControl()
       } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
@@ -899,6 +901,12 @@ export class BuilderEngine {
       return
     }
     if (this.dragNode) {
+      if (!this.dragNode.moved) {
+        const dx = this.bundle.scene.pointerX - this.dragNode.sx
+        const dy = this.bundle.scene.pointerY - this.dragNode.sy
+        if (Math.hypot(dx, dy) < 4) return
+        this.dragNode.moved = true
+      }
       const p = this.projectToPlane()
       if (!p) return
       const mmX = snapToGrid(p.x * 1000, 100)
@@ -1030,7 +1038,7 @@ export class BuilderEngine {
     if (this.dragNode) {
       const p = this.projectToPlane()
       this.endFloorDrag()
-      if (p) {
+      if (p && this.dragNode.moved) {
         const mmX = snapToGrid(p.x * 1000, 100)
         const mmY = snapToGrid(p.z * 1000, 100)
         this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
