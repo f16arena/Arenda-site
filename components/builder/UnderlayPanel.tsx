@@ -7,7 +7,7 @@
 // подложка растянулась в настоящие метры → обводить стены. Подложка живёт в
 // документе модели: уезжает с автосохранением и откатывается Ctrl+Z.
 
-import { useCallback, useRef, useState } from "react"
+import { useState } from "react"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { findFloor, SetUnderlayCommand } from "@/core/document/commands"
 import { TOKENS } from "@/lib/builder/materials"
@@ -20,15 +20,11 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
   const setTool = useEditorStore((s) => s.setTool)
-  const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pages, setPages] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [realLength, setRealLength] = useState("")
-
-  // ref читается только в обработчике клика, не в рендере
-  const openFile = useCallback(() => fileRef.current?.click(), [])
 
   const floor = activeLevelId && activeLevelId !== "site" ? findFloor(doc, activeLevelId) : undefined
   if (!floor) return null
@@ -104,7 +100,6 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
         Подложка · {floor.name}
       </p>
       <input
-        ref={fileRef}
         id="builder-underlay-file"
         type="file"
         accept="application/pdf,image/*"
@@ -116,7 +111,13 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
         }}
       />
       <div className="flex flex-wrap gap-1">
-        {btn(busy ? "Загружаю…" : underlay ? "Заменить скан" : "Загрузить скан плана", openFile, !underlay, busy)}
+        <label
+          htmlFor="builder-underlay-file"
+          className="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium"
+          style={{ background: underlay ? "rgba(148,163,184,0.12)" : TOKENS.accent, color: underlay ? TOKENS.text : "#0b1220", opacity: busy ? 0.5 : 1 }}
+        >
+          {busy ? "Загружаю…" : underlay ? "Заменить скан" : "Загрузить скан плана"}
+        </label>
         {underlay && btn("Убрать", () => execute(new SetUnderlayCommand(floor.id, null)))}
       </div>
 
