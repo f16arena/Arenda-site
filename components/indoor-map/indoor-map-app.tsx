@@ -444,13 +444,14 @@ export function IndoorMapApp({
             <VolumeLoader
               floors={volumeFloors}
               activeFloorId={volumeFocus}
+              // Клик по объёму только выбирает этаж на ленте: резать стопку
+              // по клику оказалось неожиданным — кажется, что «переключило этажи».
+              // Срез делает явное нажатие номера в ленте, «← Всё здание» возвращает.
               onPickFloor={(floorId) => {
-                setVolumeFocus(floorId)
                 setActiveId(floorId)
                 setSelected(null)
               }}
               onPickRoom={(floorId, room) => {
-                setVolumeFocus(floorId)
                 setActiveId(floorId)
                 setSelected(room)
               }}
