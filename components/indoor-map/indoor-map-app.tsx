@@ -11,7 +11,6 @@ import {
   Box,
   Download,
   LayoutGrid,
-  Map as MapIcon,
   MousePointer2,
   PencilRuler,
   Printer,
