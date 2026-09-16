@@ -140,14 +140,18 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
         if (!room) continue
         ctx.fillStyle = STATUS_STYLE[room.status].ink
         ctx.font = `600 ${fontSize}px Onest, system-ui, sans-serif`
-        ctx.fillText(label.text, label.x, label.y)
+        const lineHeight = fontSize * 1.25
+        const top = label.y - ((label.lines.length - 1) * lineHeight) / 2
+        label.lines.forEach((line, index) => {
+          ctx.fillText(line, label.x, top + index * lineHeight)
+        })
         if (label.withArea) {
           ctx.font = `500 ${fontSize - 2.5}px Onest, system-ui, sans-serif`
           ctx.globalAlpha = 0.7
           ctx.fillText(
             `${room.number ? `${room.number} · ` : ""}${room.area.toFixed(0)} м²`,
             label.x,
-            label.y + fontSize * 0.95,
+            top + label.lines.length * lineHeight,
           )
           ctx.globalAlpha = 1
         }
@@ -428,8 +432,12 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, ref }
               {room.category && label.mode === "full" ? (
                 <CategoryGlyph category={room.category} size={fontSize} />
               ) : null}
-              <span className="truncate font-semibold" style={{ fontSize }}>
-                {label.text}
+              <span className="font-semibold" style={{ fontSize }}>
+                {label.lines.map((line, index) => (
+                  <span key={line + index} className="block">
+                    {line}
+                  </span>
+                ))}
               </span>
             </div>
             {label.withArea ? (

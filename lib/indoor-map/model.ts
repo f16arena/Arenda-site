@@ -2,6 +2,7 @@
 // План хранит только spaceId — статусы и подписи приходят отсюда (SPEC §2).
 
 import type { FloorLayoutV2, Point } from "@/lib/floor-layout"
+import { shortTenantName } from "./display-name"
 import { isRoom, labelAnchor, roomPolygon, area as polygonArea, widthAt } from "./geometry"
 import type { RoomStatus, TenantCategory } from "./tokens"
 
@@ -72,7 +73,8 @@ function titleFor(
   label: string | undefined,
 ): string {
   if (status === "COMMON") return label?.trim() || "Общая зона"
-  const tenant = space?.tenantName?.trim()
+  // на плане — название без формы собственности, полное имя живёт в карточке
+  const tenant = shortTenantName(space?.tenantName)
   if (tenant) return tenant
   if (status === "VACANT") return "Свободно"
   if (status === "MAINTENANCE") return space ? "Не сдаётся" : "Без привязки"

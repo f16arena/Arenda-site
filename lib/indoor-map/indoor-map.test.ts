@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { FloorElement, FloorLayoutV2, RectRoom } from "@/lib/floor-layout"
 import { classifyCategory } from "./category"
+import { shortTenantName } from "./display-name"
 import { generateSchemaLayout } from "./generate"
 import { centroid, labelAnchor, pointInPolygon, widthAt } from "./geometry"
 import { layoutLabels } from "./labels"
@@ -138,15 +139,35 @@ describe("статусы", () => {
 describe("подписи", () => {
   const project = (p: { x: number; y: number }) => ({ x: p.x * 20, y: p.y * 20 })
 
-  it("подпись, которая не влезает в помещение, опускается до номера", () => {
+  it("длинное имя переносится на две строки, а не падает сразу до номера", () => {
+    const layout = layoutOf([{ id: "r1", spaceId: "s1", x: 0, w: 9 }])
+    const view = buildFloorView(layout, [
+      space({ id: "s1", number: "208", tenantName: "Усть-Каменогорская школа Айкидо" }),
+    ])
+    const labels = layoutLabels(view.rooms, { detail: "near", pxPerMeter: 20, project })
+    expect(labels[0].mode).toBe("full")
+    expect(labels[0].lines).toHaveLength(2)
+    expect(labels[0].lines.join(" ")).toBe("Усть-Каменогорская школа Айкидо")
+  })
+
+  it("если не помогает и перенос — обрезаем многоточием, номер это крайний случай", () => {
     const layout = layoutOf([{ id: "r1", spaceId: "s1", x: 0, w: 4 }])
+    const view = buildFloorView(layout, [
+      space({ id: "s1", number: "204", tenantName: "Невероятнодлинноеназваниебезпробелов" }),
+    ])
+    const labels = layoutLabels(view.rooms, { detail: "near", pxPerMeter: 20, project })
+    expect(labels[0].mode).toBe("full")
+    expect(labels[0].lines[0].endsWith("…")).toBe(true)
+  })
+
+  it("в совсем узкое помещение уходит только номер", () => {
+    const layout = layoutOf([{ id: "r1", spaceId: "s1", x: 0, w: 2.2 }])
     const view = buildFloorView(layout, [
       space({ id: "s1", number: "204", tenantName: "Очень длинное название арендатора" }),
     ])
     const labels = layoutLabels(view.rooms, { detail: "near", pxPerMeter: 20, project })
-    expect(labels).toHaveLength(1)
     expect(labels[0].mode).toBe("short")
-    expect(labels[0].text).toBe("204")
+    expect(labels[0].lines[0]).toBe("204")
   })
 
   it("при конфликте подписей побеждает помещение с большей площадью", () => {
@@ -165,14 +186,32 @@ describe("подписи", () => {
       space({ id: "s-small", number: "2", tenantName: "Кофейня", area: 12 }),
     ])
     const labels = layoutLabels(view.rooms, { detail: "near", pxPerMeter: 20, project })
-    expect(labels.map((label) => label.roomId)).toContain("big")
-    expect(labels.map((label) => label.roomId)).not.toContain("small")
+    const byRoom = new Map(labels.map((label) => [label.roomId, label]))
+    // большая площадь забирает имя, проигравшая опускается до номера
+    expect(byRoom.get("big")?.mode).toBe("full")
+    expect(byRoom.get("small")?.mode).toBe("short")
   })
 
   it("на дальнем зуме подписей нет вовсе", () => {
     const layout = layoutOf([{ id: "r1", spaceId: "s1", x: 0, w: 10 }])
     const view = buildFloorView(layout, [space({ id: "s1", tenantName: "Технопарк" })])
     expect(layoutLabels(view.rooms, { detail: "far", pxPerMeter: 6, project })).toHaveLength(0)
+  })
+})
+
+describe("имя на плане", () => {
+  it("форма собственности и кавычки в подпись не идут", () => {
+    expect(shortTenantName('ТОО "Ювелир Trend"')).toBe("Ювелир Trend")
+    expect(shortTenantName("ИП Gold Караоке-бар")).toBe("Gold Караоке-бар")
+    expect(shortTenantName("ТОО «VEYRON»")).toBe("VEYRON")
+    expect(shortTenantName("Усть-Каменогорская школа Айкидо")).toBe(
+      "Усть-Каменогорская школа Айкидо",
+    )
+  })
+
+  it("если кроме формы собственности ничего нет, оставляем как есть", () => {
+    expect(shortTenantName("ТОО")).toBe("ТОО")
+    expect(shortTenantName(null)).toBe("")
   })
 })
 
