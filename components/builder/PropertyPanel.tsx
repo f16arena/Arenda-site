@@ -5,7 +5,8 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { usePremiseStore } from "@/store/premise-store"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
@@ -13,7 +14,6 @@ import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { distance } from "@/core/geometry/math"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
-import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 
 function Row({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
@@ -33,6 +33,8 @@ export function PropertyPanel() {
   const gizmoMode = useEditorStore((s) => s.gizmoMode)
   const setGizmoMode = useEditorStore((s) => s.setGizmoMode)
   const assetBaseSizes = useEditorStore((s) => s.assetBaseSizes)
+  const premisesById = usePremiseStore((s) => s.byId)
+  const resolvePremise = usePremiseStore((s) => s.resolve)
 
   let title = "Проект"
   const rows: React.ReactNode[] = []
@@ -89,20 +91,50 @@ export function PropertyPanel() {
     if (f) {
       const room = detectRooms(f.wallGraph).find((r) => r.id === selection.id)
       title = "Помещение"
-      if (room) rows.push(<Row key="a" label="Площадь" value={`${(room.areaMm2 / 1_000_000).toFixed(1)} м²`} />)
-      const premiseId = f.premiseLinks[selection.id]
-      if (premiseId) {
-        const st = DEMO_PREMISE_STATUS[premiseId]
-        rows.push(<Row key="p" label="Помещение Commrent" value={premiseId} />)
-        if (st) rows.push(<Row key="s" label="Статус" value={STATUS_LABEL[st]} accent={STATUS_COLOR[st]} />)
+      const drawnM2 = room ? room.areaMm2 / 1_000_000 : null
+      const linkKey = f.premiseLinks[selection.id]
+      const premise = linkKey ? resolvePremise(linkKey) : undefined
+      if (premise) {
+        rows.push(<Row key="n" label="Карточка" value={`№ ${premise.number}`} />)
+        rows.push(<Row key="t" label="Арендатор" value={premise.tenantName ?? "свободно"} />)
+        rows.push(<Row key="s" label="Статус" value={STATUS_LABEL[premise.status]} accent={STATUS_COLOR[premise.status]} />)
+        if (premise.debt > 0) rows.push(<Row key="d" label="Долг" value={`${Math.round(premise.debt).toLocaleString("ru-RU")} ₸`} accent="#f87171" />)
+        // Площадь по договору — условие договора, рисунком не меняется; расхождение показываем.
+        if (premise.areaM2 != null) rows.push(<Row key="ac" label="По договору" value={`${premise.areaM2.toFixed(1)} м²`} />)
+        if (drawnM2 != null) {
+          const pct = premise.areaM2 ? Math.round(((drawnM2 - premise.areaM2) / premise.areaM2) * 100) : null
+          const off = pct != null && Math.abs(pct) >= 2
+          rows.push(<Row key="ag" label="В модели" value={`${drawnM2.toFixed(1)} м²${off ? ` (${pct! > 0 ? "+" : ""}${pct}%)` : ""}`} accent={off ? "#fbbf24" : undefined} />)
+        }
       } else {
-        rows.push(<Row key="p" label="Привязка" value="нет" />)
+        if (drawnM2 != null) rows.push(<Row key="a" label="Площадь в модели" value={`${drawnM2.toFixed(1)} м²`} />)
+        rows.push(<Row key="p" label="Карточка" value={linkKey ? `не найдена (${linkKey})` : "не привязана"} />)
       }
       rows.push(<Row key="fl" label="Этаж" value={f.name} />)
       const fid = selection.floorId
       const rid = selection.id
+      const options = Array.from(premisesById.values())
       controls = (
         <div className="mt-2">
+          {options.length > 0 && (
+            <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
+              Карточка помещения
+              <select
+                id="room-premise"
+                value={premise?.id ?? ""}
+                onChange={(ev) => execute(new LinkPremiseCommand(fid, rid, ev.target.value || null))}
+                className="rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
+                style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+              >
+                <option value="">— не привязано —</option>
+                {options.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.floorNumber} эт · № {p.number}{p.areaM2 != null ? ` · ${p.areaM2} м²` : ""}{p.tenantName ? ` · ${p.tenantName}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <p className="pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Стиль комнаты</p>
           <div className="flex flex-wrap gap-1">
             {ROOM_PRESETS.map((pr) => (

@@ -26,5 +26,5 @@ export default async function BuildingBuilderPage({
     notFound()
   }
 
-  return <BuilderApp initialProjectId={model.projectId} />
+  return <BuilderApp initialProjectId={model.projectId} buildingId={model.buildingId} />
 }

@@ -18,6 +18,8 @@
 
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { assertBuildingAccess } from "@/lib/building-access"
+import type { BuildingPremise } from "@/store/premise-store"
 import type { PremiseStatus } from "@/lib/builder/materials"
 
 type PremiseRow = {
@@ -110,6 +112,70 @@ export async function listOrgPremises(): Promise<PremiseRow[]> {
       tenantName: tenant?.companyName ?? null,
       areaM2: typeof sp.area === "number" ? sp.area : null,
       rate: tenantRate(tenant),
+    }
+  })
+}
+
+/**
+ * Помещения одного здания — для модели этого здания. Не вся организация:
+ * у сотрудника может быть открыт только свой объект, и в модель БЦ F16
+ * незачем предлагать помещения Magic Room. Ключ — id карточки.
+ */
+export async function listBuildingPremises(buildingId: string): Promise<BuildingPremise[]> {
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingAccess(buildingId, orgId)
+  const now = new Date()
+
+  const spaces = await db.space.findMany({
+    where: { floor: { buildingId, building: { organizationId: orgId } } },
+    select: {
+      id: true,
+      number: true,
+      area: true,
+      status: true,
+      kind: true,
+      floor: { select: { number: true } },
+      tenant: {
+        select: {
+          companyName: true,
+          deletedAt: true,
+          charges: {
+            where: { isPaid: false, deletedAt: null, dueDate: { lt: now } },
+            select: { amount: true },
+          },
+        },
+      },
+      tenantSpaces: {
+        select: {
+          tenant: {
+            select: {
+              companyName: true,
+              deletedAt: true,
+              charges: {
+                where: { isPaid: false, deletedAt: null, dueDate: { lt: now } },
+                select: { amount: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
+    take: MAX_PREMISES,
+  })
+
+  return spaces.map((sp): BuildingPremise => {
+    const raw = sp.tenant ?? sp.tenantSpaces[0]?.tenant ?? null
+    const tenant = raw && !raw.deletedAt ? raw : null
+    const debt = tenant ? tenant.charges.reduce((sum, c) => sum + c.amount, 0) : 0
+    return {
+      id: sp.id,
+      number: sp.number,
+      floorNumber: sp.floor.number,
+      status: sp.kind === "COMMON" ? "free" : mapStatus(sp.status, debt > 0),
+      tenantName: tenant?.companyName ?? null,
+      areaM2: typeof sp.area === "number" ? sp.area : null,
+      debt,
     }
   })
 }

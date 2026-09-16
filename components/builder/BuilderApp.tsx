@@ -12,9 +12,10 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand } from "@/core/document/commands"
 import { uid } from "@/core/id"
-import { listOrgPremises } from "@/app/actions/builder-premise"
+import { listBuildingPremises } from "@/app/actions/builder-premise"
+import { usePremiseStore } from "@/store/premise-store"
 import type { PremiseStatus } from "@/lib/builder/materials"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
@@ -125,11 +126,17 @@ const TOOL_KEYS: Record<string, Tool> = {
 }
 const CAM_KEYS: Record<string, CameraMode> = { "1": "orbit", "2": "top", "3": "plan", "4": "walk" }
 
-export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName, shareToken }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string; shareToken?: string }) {
+export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName, shareToken, buildingId }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string; shareToken?: string; buildingId?: string }) {
   const engineRef = useRef<BuilderEngine | null>(null)
   const [ready, setReady] = useState(false)
-  const premiseMapRef = useRef<Map<string, PremiseStatus>>(new Map())
   const [premiseReady, setPremiseReady] = useState(0)
+  // Статус комнаты: по id карточки (так связывает сборка из данных), потом по
+  // номеру (старая ручная привязка). Демо-таблица — только у демо-сцены без здания.
+  const resolveStatus = useCallback(
+    (pid: string): PremiseStatus | undefined =>
+      usePremiseStore.getState().resolve(pid)?.status ?? (buildingId ? undefined : DEMO_PREMISE_STATUS[pid]),
+    [buildingId],
+  )
 
   const [hud, setHud] = useState<string | null>(null)
   const doc = useDocumentStore((s) => s.doc)
@@ -158,16 +165,15 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
-    engine.statusResolver = (pid) => premiseMapRef.current.get(pid) ?? DEMO_PREMISE_STATUS[pid]
+    engine.statusResolver = resolveStatus
     engine.getDoc = () => useDocumentStore.getState().doc
     engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
     engine.onMultiToggle = (id) => useEditorStore.getState().toggleMulti(id)
     engine.onObjectBaseSizes = (sizes) => useEditorStore.getState().setAssetBaseSizes(sizes)
-    engine.onLinkRoom = (floorId, roomId) => {
-      const num = window.prompt("Номер помещения Commrent (привязать к комнате):")
-      if (num && num.trim()) useDocumentStore.getState().execute(new LinkPremiseCommand(floorId, roomId, num.trim()))
-    }
+    // Инструмент «Помещение» просто выбирает комнату — карточка выбирается
+    // в панели свойств из списка помещений этого здания, а не вводится номером.
+    engine.onLinkRoom = (floorId, roomId) => applyPick({ kind: "room", floorId, entityId: roomId })
     engine.onHud = (t) => setHud(t)
     if (initialDoc) {
       useDocumentStore.getState().loadDocument(initialDoc)
@@ -179,17 +185,17 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       if (first) useEditorStore.getState().setActiveLevel(first.id)
     }
     setReady(true)
-  }, [readOnly, initialDoc])
+  }, [readOnly, initialDoc, resolveStatus])
 
   // Пересборка сцены при изменении документа/уровня/режима отображения.
   useEffect(() => {
     const e = engineRef.current
     if (!e || !ready) return
     e.activeFloorId = activeLevelId
-    e.statusResolver = (pid) => DEMO_PREMISE_STATUS[pid]
+    e.statusResolver = resolveStatus
     e.rebuild(doc, { activeLevelId, displayMode, wallsDown })
     e.setSelection(useEditorStore.getState().selection)
-  }, [ready, rev, activeLevelId, displayMode, wallsDown, doc, premiseReady])
+  }, [ready, rev, activeLevelId, displayMode, wallsDown, doc, premiseReady, resolveStatus])
 
   useEffect(() => {
     const e = engineRef.current
@@ -238,23 +244,21 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (e && ready) e.setCameraMode(cameraMode)
   }, [cameraMode, ready])
 
-  // Реальные статусы помещений организации (для overlay) — только в редакторе.
+  // Помещения этого здания: статусы для окраски полов и карточки для панели.
   useEffect(() => {
-    if (readOnly) return
+    if (readOnly || !buildingId) return
     let cancelled = false
-    void listOrgPremises()
+    void listBuildingPremises(buildingId)
       .then((rows) => {
         if (cancelled) return
-        const m = new Map<string, PremiseStatus>()
-        for (const r of rows) m.set(r.number, r.status)
-        premiseMapRef.current = m
+        usePremiseStore.getState().setRows(rows)
         setPremiseReady((n) => n + 1)
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [readOnly])
+  }, [readOnly, buildingId])
 
   // Загрузка сохранённого проекта по ?project (иначе остаётся demo).
   useEffect(() => {
