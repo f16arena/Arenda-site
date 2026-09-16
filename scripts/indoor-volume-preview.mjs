@@ -51,7 +51,7 @@ const root = createRoot(document.getElementById("stage"))
 root.render(
   createElement(VolumeView, {
     floors,
-    activeFloorId: "floor-2",
+    activeFloorId: null, // здание целиком, как при открытии объёма
     onPickFloor: (id) => console.log("floor", id),
     onPickRoom: (id, room) => console.log("room", id, room.title),
   }),

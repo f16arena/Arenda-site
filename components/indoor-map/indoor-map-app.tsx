@@ -65,6 +65,10 @@ export function IndoorMapApp({
   )
   const [activeId, setActiveId] = useState<string>(withPlan[0]?.id ?? floors[0]?.id ?? "")
   const [mode, setMode] = useState<"plan" | "volume">(initialMode)
+  // В объёме этаж выбирается отдельно от плана: пока не выбран — показываем
+  // здание целиком. Иначе, открыв объём на нулевом этаже, человек видит
+  // одну плиту вместо здания.
+  const [volumeFocus, setVolumeFocus] = useState<string | null>(null)
   const [filter, setFilter] = useState<MapFilter>("all")
   const [selected, setSelected] = useState<RoomView | null>(null)
   const [query, setQuery] = useState("")
@@ -187,7 +191,10 @@ export function IndoorMapApp({
               key={item.key}
               type="button"
               disabled={item.key === "volume" && volumeFloors.length === 0}
-              onClick={() => setMode(item.key)}
+              onClick={() => {
+                setMode(item.key)
+                if (item.key === "volume") setVolumeFocus(null)
+              }}
               className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 ${
                 mode === item.key
                   ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
@@ -234,6 +241,16 @@ export function IndoorMapApp({
             className="h-8 w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
           />
         </div>
+
+        {mode === "volume" && volumeFocus ? (
+          <button
+            type="button"
+            onClick={() => setVolumeFocus(null)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            ← Всё здание
+          </button>
+        ) : null}
 
         {view ? (
           <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
@@ -425,12 +442,14 @@ export function IndoorMapApp({
           {mode === "volume" && volumeFloors.length > 0 ? (
             <VolumeLoader
               floors={volumeFloors}
-              activeFloorId={active?.id ?? null}
+              activeFloorId={volumeFocus}
               onPickFloor={(floorId) => {
+                setVolumeFocus(floorId)
                 setActiveId(floorId)
                 setSelected(null)
               }}
               onPickRoom={(floorId, room) => {
+                setVolumeFocus(floorId)
                 setActiveId(floorId)
                 setSelected(room)
               }}
@@ -517,6 +536,7 @@ export function IndoorMapApp({
                   onClick={() => {
                     setActiveId(floor.id)
                     setSelected(null)
+                    if (mode === "volume") setVolumeFocus(floor.id)
                   }}
                   className={`h-9 shrink-0 rounded-lg text-sm font-semibold tabular-nums transition-colors ${
                     isActive
