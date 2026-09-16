@@ -19,7 +19,7 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   return (
     <div className="flex items-center justify-between gap-3 py-1 text-sm">
       <span style={{ color: TOKENS.muted }}>{label}</span>
-      <span className="font-medium" style={{ color: accent ?? TOKENS.text }}>{value}</span>
+      <span className="min-w-0 truncate text-right font-medium" title={value} style={{ color: accent ?? TOKENS.text }}>{value}</span>
     </div>
   )
 }
@@ -123,7 +123,7 @@ export function PropertyPanel() {
                 id="room-premise"
                 value={premise?.id ?? ""}
                 onChange={(ev) => execute(new LinkPremiseCommand(fid, rid, ev.target.value || null))}
-                className="rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
+                className="w-full max-w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
                 style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
               >
                 <option value="">— не привязано —</option>
@@ -339,7 +339,7 @@ export function PropertyPanel() {
 
   return (
     <div
-      className="absolute right-3 top-20 z-20 w-60 rounded-2xl p-3 shadow-2xl backdrop-blur-xl"
+      className="absolute right-3 top-20 z-20 w-64 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl p-3 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="mb-1.5 text-sm font-semibold">{title}</div>

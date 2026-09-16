@@ -16,6 +16,8 @@ import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCom
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
+import { useLabelStore } from "@/store/label-store"
+import { LabelLayer } from "./LabelLayer"
 import type { PremiseStatus } from "@/lib/builder/materials"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
@@ -178,6 +180,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engine.onLinkRoom = (floorId, roomId) => applyPick({ kind: "room", floorId, entityId: roomId })
     engine.onHud = (t) => setHud(t)
     engine.onMeasure = (lengthMm) => setMeasure({ lengthMm })
+    engine.onLabels = (labels) => useLabelStore.getState().setLabels(labels)
+    engine.onCursor = (mm) => useLabelStore.getState().setCursor(mm)
     if (initialDoc) {
       useDocumentStore.getState().loadDocument(initialDoc)
       const f = initialDoc.buildings[0]?.floors?.[0]
@@ -453,6 +457,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       }} />}
       {!readOnly && <ToolOptions />}
       {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} />}
+      {!readOnly && ready && <LabelLayer />}
       <PropertyPanel />
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
       <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />

@@ -109,6 +109,32 @@ export function LevelPanel({ measure = null, onMeasureConsumed = () => {} }: { m
     setActiveLevel(floor.id)
   }
 
+  // Дубль активного этажа: стены и проёмы копируются, привязки к карточкам — нет
+  // (карточка одна, помещение на другом этаже другое).
+  const duplicateActive = () => {
+    if (!building) return
+    const src = building.floors.find((f) => f.id === activeLevelId)
+    if (!src) return
+    const top = [...building.floors].sort((a, b) => a.level - b.level).pop()
+    const level = (top?.level ?? 0) + 1
+    const floor: Floor = {
+      ...src,
+      id: uid("f"),
+      name: `${level} этаж`,
+      level,
+      elevation: top ? top.elevation + top.height : 0,
+      wallGraph: remapGraph(src.wallGraph),
+      openings: [],
+      stairs: [],
+      objects: [],
+      premiseLinks: {},
+      roomMaterials: {},
+      roof: undefined,
+    }
+    execute(new AddFloorCommand(building.id, floor))
+    setActiveLevel(floor.id)
+  }
+
   const addBasement = () => {
     if (!building || building.floors.length === 0) return
     // Подвал должен встать СТРОГО под самым нижним этажом. Берём нижний этаж и
@@ -204,6 +230,14 @@ export function LevelPanel({ measure = null, onMeasureConsumed = () => {} }: { m
         style={{ background: "rgba(56,189,248,0.12)", color: TOKENS.accent, border: `1px dashed ${TOKENS.accent}` }}
       >
         <Plus className="h-3.5 w-3.5" /> Добавить этаж
+      </button>
+      <button
+        type="button"
+        onClick={duplicateActive}
+        className="rounded-lg py-1.5 text-[11px] font-medium"
+        style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+      >
+        Дублировать этаж
       </button>
       <button
         type="button"

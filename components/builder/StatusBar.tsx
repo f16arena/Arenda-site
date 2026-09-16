@@ -6,6 +6,7 @@
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { findFloor } from "@/core/document/commands"
 import { TOKENS } from "@/lib/builder/materials"
+import { useLabelStore } from "@/store/label-store"
 
 const TOOL_RU: Record<Tool, string> = {
   select: "Выбор",
@@ -27,13 +28,14 @@ const TOOL_RU: Record<Tool, string> = {
   water: "Вода",
   pave: "Площадка",
   delete: "Удалить",
-  measure: "Рулетка: клик — первая точка, клик — вторая. Ею же калибруется подложка.",
+  measure: "Рулетка",
 }
 
 export function StatusBar() {
   const doc = useDocumentStore((s) => s.doc)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
   const activeTool = useEditorStore((s) => s.activeTool)
+  const cursor = useLabelStore((s) => s.cursorMm)
   const level = activeLevelId === "site" ? "Участок" : findFloor(doc, activeLevelId)?.name ?? "—"
 
   return (
@@ -56,6 +58,9 @@ export function StatusBar() {
         <span style={{ color: TOKENS.accent2 }}>Building Studio</span>
         <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(56,189,248,0.15)", color: TOKENS.accent }}>Фаза 1</span>
       </div>
+      <span className="tabular-nums" style={{ color: TOKENS.muted }}>
+        {cursor ? `X ${(cursor.x / 1000).toFixed(2)}  Y ${(cursor.y / 1000).toFixed(2)} м` : ""}
+      </span>
     </div>
   )
 }

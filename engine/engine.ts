@@ -65,6 +65,7 @@ import { buildPavement } from "./builders/pavement-builder"
 import { LIGHT_ASSETS } from "./builders/object-builder"
 import { GizmoController, type GizmoMode } from "./gizmo"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
+import type { ScreenLabel } from "@/store/label-store"
 
 const S = 0.001
 const ACCENT = Color3.FromHexString("#38BDF8")
@@ -179,6 +180,15 @@ export class BuilderEngine {
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
+  /** экранные подписи активного этажа — раз в кадр */
+  onLabels: (labels: ScreenLabel[]) => void = () => {}
+  /** координаты курсора на плоскости этажа, мм */
+  onCursor: (mm: Vec2 | null) => void = () => {}
+  private labelAnchors: Array<
+    | { kind: "wall"; id: string; world: Vector3; lengthMm: number; angleDeg: number }
+    | { kind: "room"; id: string; floorId: string; world: Vector3; areaMm2: number }
+  > = []
+  private lastCursorAt = 0
   /** рулетка: отрезок задан, длина в мм плана */
   onMeasure: (lengthMm: number, from: Vec2, to: Vec2) => void = () => {}
   private measureStart: Vector3 | null = null
@@ -215,6 +225,8 @@ export class BuilderEngine {
     }
     this.setupPointer()
     this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
+    // Подписи проецируем после кадра: камера уже на месте, дёшево даже на сотнях якорей
+    this.bundle.scene.onAfterRenderObservable.add(() => this.projectLabels())
   }
 
   getFps(): number {
@@ -428,6 +440,32 @@ export class BuilderEngine {
     if (roof && reg) {
       this.registerMesh(roof.metadata?.entityId, roof)
       this.bundle.shadow.addShadowCaster(roof)
+    }
+
+    // якоря подписей активного этажа: середины стен и центры комнат
+    if (active && f.id === active.id && reg) {
+      const anchors: typeof this.labelAnchors = []
+      const ox = b.origin.x * S
+      const oz = b.origin.y * S
+      const y = f.elevation * S + 0.3
+      for (const eid in f.wallGraph.edges) {
+        const e = f.wallGraph.edges[eid]
+        const a = f.wallGraph.nodes[e.a]
+        const c = f.wallGraph.nodes[e.b]
+        if (!a || !c) continue
+        anchors.push({
+          kind: "wall",
+          id: eid,
+          world: new Vector3(ox + ((a.x + c.x) / 2) * S, y, oz + ((a.y + c.y) / 2) * S),
+          lengthMm: Math.hypot(c.x - a.x, c.y - a.y),
+          angleDeg: (Math.atan2(c.y - a.y, c.x - a.x) * 180) / Math.PI,
+        })
+      }
+      for (const room of detectRooms(f.wallGraph)) {
+        const c = centroid(room.polygon)
+        anchors.push({ kind: "room", id: room.id, floorId: f.id, world: new Vector3(ox + c.x * S, y, oz + c.y * S), areaMm2: room.areaMm2 })
+      }
+      this.labelAnchors = anchors
     }
 
     // ручки узлов активного этажа (для перетаскивания)
@@ -782,7 +820,34 @@ export class BuilderEngine {
     }
   }
 
+  private projectLabels(): void {
+    if (this.labelAnchors.length === 0) {
+      return
+    }
+    const { scene, engine, camera } = this.bundle
+    const w = engine.getRenderWidth()
+    const h = engine.getRenderHeight()
+    const transform = scene.getTransformMatrix()
+    const viewport = camera.viewport.toGlobal(w, h)
+    const out: ScreenLabel[] = []
+    for (const a of this.labelAnchors) {
+      const p = Vector3.Project(a.world, Matrix.Identity(), transform, viewport)
+      if (p.z < 0 || p.z > 1) continue // за камерой
+      if (p.x < -40 || p.y < -40 || p.x > w + 40 || p.y > h + 40) continue
+      if (a.kind === "wall") out.push({ kind: "wall", id: a.id, x: p.x, y: p.y, lengthMm: a.lengthMm, angleDeg: a.angleDeg })
+      else out.push({ kind: "room", id: a.id, floorId: a.floorId, x: p.x, y: p.y, areaMm2: a.areaMm2 })
+    }
+    this.onLabels(out)
+  }
+
   private handleMove(): void {
+    // координаты курсора на плоскости этажа — для статус-бара, не чаще 20 раз/с
+    const nowC = performance.now()
+    if (nowC - this.lastCursorAt > 50) {
+      this.lastCursorAt = nowC
+      const pc = this.projectToPlane()
+      this.onCursor(pc ? { x: Math.round(pc.x * 1000), y: Math.round(pc.z * 1000) } : null)
+    }
     if (this.terrainEditing) {
       this.terrainBrush()
       return
