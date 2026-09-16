@@ -7,15 +7,19 @@ import { useCallback, useMemo, useState } from "react"
 import type { FloorLayoutV2, Point } from "@/lib/floor-layout"
 import {
   addRect,
+  calibrateUnderlay,
+  distance,
   linkSpace,
   moveRoom,
   moveVertex,
   removeElement,
   setRoomKind,
+  setUnderlay,
   splitRoom,
 } from "@/lib/indoor-map/edit"
+import type { FloorUnderlay } from "@/lib/floor-layout"
 
-export type EditorTool = "select" | "rect"
+export type EditorTool = "select" | "rect" | "ruler"
 
 const UNDO_LIMIT = 50
 
@@ -26,6 +30,9 @@ export function useFloorEditor(source: FloorLayoutV2 | null) {
   const [history, setHistory] = useState<FloorLayoutV2[]>([])
   const [tool, setTool] = useState<EditorTool>("select")
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Отрезок калибровки: длина в метрах текущей системы координат ждёт,
+  // пока человек скажет, сколько это на самом деле.
+  const [measured, setMeasured] = useState<number | null>(null)
 
   const layout = draft ?? source
   const dirty = draft !== null
@@ -78,8 +85,20 @@ export function useFloorEditor(source: FloorLayoutV2 | null) {
       replace(next: FloorLayoutV2) {
         commit(next)
       },
+      setUnderlay(underlay: FloorUnderlay | null) {
+        if (layout) commit(setUnderlay(layout, underlay))
+      },
+      measure(from: Point, to: Point) {
+        setMeasured(distance(from, to))
+      },
+      calibrate(realMeters: number) {
+        if (!layout || !measured) return
+        commit(calibrateUnderlay(layout, measured, realMeters))
+        setMeasured(null)
+        setTool("select")
+      },
     }),
-    [layout, commit],
+    [layout, commit, measured],
   )
 
   const undo = useCallback(() => {
@@ -113,6 +132,8 @@ export function useFloorEditor(source: FloorLayoutV2 | null) {
     setTool,
     selectedId,
     setSelectedId,
+    measured,
+    clearMeasure: () => setMeasured(null),
     actions,
     undo,
     reset,

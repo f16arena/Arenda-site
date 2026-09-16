@@ -8,7 +8,14 @@
 // нельзя двигать мышью. Рисунок и карточка живут отдельно, а расхождение
 // между ними показывается человеку (см. areaMismatch).
 
-import type { FloorElement, FloorLayoutV2, Point, PolygonRoom, RectRoom } from "@/lib/floor-layout"
+import type {
+  FloorElement,
+  FloorLayoutV2,
+  FloorUnderlay,
+  Point,
+  PolygonRoom,
+  RectRoom,
+} from "@/lib/floor-layout"
 import { uid } from "@/lib/floor-layout"
 import { area as polygonArea, isRoom, polygonBox, roomPolygon, type RoomElement } from "./geometry"
 
@@ -246,6 +253,49 @@ export function setRoomKind(
   const room = findRoom(layout, roomId)
   if (!room) return layout
   return replaceElement(layout, { ...room, kind, ...(kind === "common" ? { spaceId: null } : {}) })
+}
+
+/** Поставить подложку. Ширину в метрах уточняют калибровкой. */
+export function setUnderlay(
+  layout: FloorLayoutV2,
+  underlay: FloorUnderlay | null,
+): FloorLayoutV2 {
+  return { ...layout, underlay }
+}
+
+/**
+ * Калибровка масштаба: человек обводит на подложке отрезок известной длины
+ * (например, стену 36,55 м со штампа) и вводит её. Подложка растягивается
+ * так, чтобы нарисованный отрезок стал этой длиной. Растягиваем от левого
+ * верхнего угла подложки — тогда сам отрезок остаётся на своём месте
+ * относительно картинки.
+ */
+export function calibrateUnderlay(
+  layout: FloorLayoutV2,
+  measuredMeters: number,
+  realMeters: number,
+): FloorLayoutV2 {
+  const underlay = layout.underlay
+  if (!underlay || measuredMeters <= 0 || realMeters <= 0) return layout
+  const k = realMeters / measuredMeters
+  if (!Number.isFinite(k) || k <= 0) return layout
+  return {
+    ...layout,
+    underlay: { ...underlay, widthMeters: round(underlay.widthMeters * k) },
+  }
+}
+
+export function moveUnderlay(layout: FloorLayoutV2, delta: Point): FloorLayoutV2 {
+  const underlay = layout.underlay
+  if (!underlay) return layout
+  return {
+    ...layout,
+    underlay: { ...underlay, x: round(underlay.x + delta.x), y: round(underlay.y + delta.y) },
+  }
+}
+
+export function distance(from: Point, to: Point): number {
+  return Math.hypot(to.x - from.x, to.y - from.y)
 }
 
 export type AreaMismatch = {

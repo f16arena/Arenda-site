@@ -17,8 +17,10 @@ export type MapFilter = "all" | "vacant" | "expiring" | "debt"
 
 /** Привязка редактора к карте: жесты отдаёт карта, состояние живёт снаружи. */
 export type EditBinding = {
-  tool: "select" | "rect"
+  tool: "select" | "rect" | "ruler"
   onSelectRoom: (roomId: string | null) => void
+  /** отрезок калибровки: длина в метрах текущей системы координат */
+  onMeasure?: (from: { x: number; y: number }, to: { x: number; y: number }) => void
   onMoveVertex: (roomId: string, index: number, to: { x: number; y: number }) => void
   onMoveRoom: (roomId: string, delta: { x: number; y: number }) => void
   onCreateRect: (from: { x: number; y: number }, to: { x: number; y: number }) => void
@@ -67,6 +69,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
     | { kind: "room"; roomId: string; from: { x: number; y: number } }
     | { kind: "vertex"; roomId: string; index: number }
     | { kind: "rect"; from: { x: number; y: number } }
+    | { kind: "ruler"; from: { x: number; y: number } }
   const dragRef = useRef<Gesture | null>(null)
 
   const box = useMemo(() => layoutBox(layout), [layout])
@@ -235,8 +238,11 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
   function handlePointerDown(event: React.PointerEvent) {
     if (event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
-    if (edit && edit.tool === "rect") {
-      dragRef.current = { kind: "rect", from: unproject(event.clientX, event.clientY) }
+    if (edit && (edit.tool === "rect" || edit.tool === "ruler")) {
+      dragRef.current = {
+        kind: edit.tool === "ruler" ? "ruler" : "rect",
+        from: unproject(event.clientX, event.clientY),
+      }
       return
     }
     dragRef.current = { kind: "pan", x: event.clientX, y: event.clientY, cx: cam.cx, cy: cam.cy }
@@ -256,7 +262,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
     }
     if (!edit) return
     const point = unproject(event.clientX, event.clientY)
-    if (drag.kind === "rect") {
+    if (drag.kind === "rect" || drag.kind === "ruler") {
       setRubber({ from: drag.from, to: point })
       return
     }
@@ -274,9 +280,11 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
     dragRef.current = null
     setDragging(false)
     if (!drag) return
-    if (drag.kind === "rect") {
+    if (drag.kind === "rect" || drag.kind === "ruler") {
+      const to = unproject(event.clientX, event.clientY)
       setRubber(null)
-      edit?.onCreateRect(drag.from, unproject(event.clientX, event.clientY))
+      if (drag.kind === "ruler") edit?.onMeasure?.(drag.from, to)
+      else edit?.onCreateRect(drag.from, to)
       return
     }
     // Клик без протяжки по пустому месту снимает выделение
@@ -310,6 +318,19 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
     >
       <svg ref={svgRef} width={size.w} height={size.h} className="block">
         <g transform={`translate(${tx} ${ty}) scale(${cam.zoom})`}>
+          {/* подложка: скан плана под всей геометрией */}
+          {layout.underlay ? (
+            <image
+              href={layout.underlay.url}
+              x={layout.underlay.x}
+              y={layout.underlay.y}
+              width={layout.underlay.widthMeters}
+              height={layout.underlay.widthMeters / (layout.underlay.aspect || 1)}
+              opacity={layout.underlay.opacity ?? 0.55}
+              preserveAspectRatio="none"
+            />
+          ) : null}
+
           {/* плита этажа */}
           <rect
             x={box.minX - 0.6}
@@ -438,8 +459,22 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
                 return null
               })
             : null}
+          {/* линейка калибровки */}
+          {rubber && edit?.tool === "ruler" ? (
+            <line
+              x1={rubber.from.x}
+              y1={rubber.from.y}
+              x2={rubber.to.x}
+              y2={rubber.to.y}
+              stroke={STATUS_STYLE.EXPIRING.edge}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+
           {/* рамка создаваемого помещения */}
-          {rubber ? (
+          {rubber && edit?.tool === "rect" ? (
             <rect
               x={Math.min(rubber.from.x, rubber.to.x)}
               y={Math.min(rubber.from.y, rubber.to.y)}

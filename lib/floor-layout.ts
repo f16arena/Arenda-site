@@ -9,6 +9,8 @@ export type FloorLayoutV2 = {
   height: number // высота холста в метрах
   ceilingHeight?: number | null  // высота потолка (м), для будущего 3D-вида
   underlayUrl?: string | null
+  /** новая подложка с масштабом и положением (underlayUrl — старый формат) */
+  underlay?: FloorUnderlay | null
   // Откуда взялась геометрия: "drawn" — нарисовано человеком по подложке,
   // "schema" — собрано автоматически из площадей помещений. Схема честно
   // помечается в интерфейсе, чтобы её не приняли за обмерный план.
@@ -17,6 +19,23 @@ export type FloorLayoutV2 = {
 }
 
 export type Point = { x: number; y: number }
+
+/**
+ * Подложка — скан или PDF плана от архитектора, по которому обводят контуры.
+ * Хранится вместе с положением и масштабом: калибровка задаёт ширину в
+ * метрах по известному размеру со штампа (например, стена 36,55 м).
+ */
+export type FloorUnderlay = {
+  url: string
+  /** ширина подложки в метрах; высота выводится из aspect */
+  widthMeters: number
+  /** ширина/высота картинки в пикселях */
+  aspect: number
+  /** левый верхний угол подложки в метрах */
+  x: number
+  y: number
+  opacity?: number
+}
 
 export type FloorElement = RectRoom | PolygonRoom | Door | Window | Label | Wall | Icon
 

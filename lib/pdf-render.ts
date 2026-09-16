@@ -29,10 +29,25 @@ export type RenderedPlan = {
  * Чем выше scale, тем чётче подложка и точнее распознавание AI.
  */
 export async function renderPdfFirstPage(file: File, scale = 3): Promise<RenderedPlan> {
+  return renderPdfPage(file, 1, scale)
+}
+
+/** Сколько страниц в PDF — чтобы предложить выбор, когда в файле несколько этажей. */
+export async function countPdfPages(file: File): Promise<number> {
+  const pdfjs = await getPdfjs()
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise
+  return pdf.numPages
+}
+
+/**
+ * Отрендерить конкретную страницу PDF. В техпаспорте на одном файле часто
+ * лежат несколько этажей подряд, поэтому страница выбирается явно.
+ */
+export async function renderPdfPage(file: File, pageNumber: number, scale = 3): Promise<RenderedPlan> {
   const pdfjs = await getPdfjs()
   const buffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: buffer }).promise
-  const page = await pdf.getPage(1)
+  const page = await pdf.getPage(Math.min(Math.max(1, pageNumber), pdf.numPages))
   const viewport = page.getViewport({ scale })
 
   const canvas = document.createElement("canvas")

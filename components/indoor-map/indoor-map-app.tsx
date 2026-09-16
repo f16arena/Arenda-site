@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { saveFloorLayout } from "@/app/actions/floor-layout"
 import { EditPanel } from "./edit-panel"
+import { UnderlayPanel } from "./underlay-panel"
 import { useFloorEditor } from "./use-floor-editor"
 import { generateBuildingSchemas, generateFloorSchema } from "@/app/actions/indoor-map"
 import { layoutBox } from "@/lib/indoor-map/geometry"
@@ -420,6 +421,8 @@ export function IndoorMapApp({
         </div>
       ) : null}
 
+      {editing && shownLayout ? <UnderlayPanel editor={editor} layout={shownLayout} /> : null}
+
       {editing && shownLayout && active ? (
         <EditPanel editor={editor} layout={shownLayout} spaces={active.spaces} />
       ) : null}
@@ -457,6 +460,7 @@ export function IndoorMapApp({
                       onMoveVertex: editor.actions.moveVertex,
                       onMoveRoom: editor.actions.moveRoom,
                       onCreateRect: editor.actions.createRect,
+                      onMeasure: editor.actions.measure,
                     }
                   : undefined
               }
