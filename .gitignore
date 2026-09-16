@@ -66,3 +66,7 @@ prisma/*-dump.json
 
 .vercel
 .env*.local
+.tmp-upload/
+
+# копируется из pdfjs-dist на postinstall
+public/pdf.worker.min.mjs

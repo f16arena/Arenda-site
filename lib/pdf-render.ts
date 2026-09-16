@@ -9,8 +9,9 @@ let _pdfjs: PdfModule | null = null
 async function getPdfjs(): Promise<PdfModule> {
   if (_pdfjs) return _pdfjs
   const pdfjs = await import("pdfjs-dist")
-  // pdfjs-dist v4 поставляет worker как .mjs. Загружаем его с CDN, чтобы не возиться с настройками турбопака.
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+  // Воркер лежит в public/ (scripts/copy-pdf-worker.mjs на postinstall): Worker
+  // с чужого домена браузер не создаёт, и pdf.js молча уходил в главный поток.
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
   _pdfjs = pdfjs
   return pdfjs
 }
@@ -43,12 +44,17 @@ export async function countPdfPages(file: File): Promise<number> {
  * Отрендерить конкретную страницу PDF. В техпаспорте на одном файле часто
  * лежат несколько этажей подряд, поэтому страница выбирается явно.
  */
-export async function renderPdfPage(file: File, pageNumber: number, scale = 3): Promise<RenderedPlan> {
+export async function renderPdfPage(file: File, pageNumber: number, scale = 3, maxDim = 2600): Promise<RenderedPlan> {
   const pdfjs = await getPdfjs()
   const buffer = await file.arrayBuffer()
   const pdf = await pdfjs.getDocument({ data: buffer }).promise
   const page = await pdf.getPage(Math.min(Math.max(1, pageNumber), pdf.numPages))
-  const viewport = page.getViewport({ scale })
+  // Сканы со сканера идут уже в 300 dpi: на scale 3 выходит холст в десятки
+  // мегапикселей, toDataURL висит секундами и роняет вкладку по памяти.
+  // Держим длинную сторону в пределах maxDim — подложке хватает.
+  const base = page.getViewport({ scale: 1 })
+  const fitted = Math.min(scale, maxDim / Math.max(base.width, base.height))
+  const viewport = page.getViewport({ scale: fitted })
 
   const canvas = document.createElement("canvas")
   canvas.width = Math.ceil(viewport.width)
@@ -56,9 +62,12 @@ export async function renderPdfPage(file: File, pageNumber: number, scale = 3): 
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("Canvas 2D недоступен в этом браузере")
 
-  await page.render({ canvasContext: ctx, viewport }).promise
+  // intent "print": рендер без requestAnimationFrame. С intent "display" pdf.js
+  // ждёт кадр, а в фоновой вкладке кадры не приходят — загрузка висела вечно.
+  await page.render({ canvasContext: ctx, viewport, intent: "print" }).promise
 
-  const dataUrl = canvas.toDataURL("image/png")
+  // JPEG: скан — растровая картинка, PNG в 5–10 раз тяжелее без пользы
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.85)
   return {
     dataUrl,
     widthPx: canvas.width,
