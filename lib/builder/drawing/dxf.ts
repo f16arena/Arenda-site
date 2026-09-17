@@ -186,6 +186,7 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string,
     w.text("A-DIMS", { x: g.mid.x + g.n.x * 1.5 * k * Math.sign(ud.offset || 1), y: g.mid.y + g.n.y * 1.5 * k * Math.sign(ud.offset || 1) }, th, String(Math.round(g.lengthMm)), g.angleDeg)
   }
   for (const t of d.texts) w.text("A-TEXT", t.at, th, t.text)
+  for (const m of d.marks) w.text("A-OPEN", m.at, th * 0.9, m.text)
 
   // сети: трассы линиями, марка у трассы, прибор — окружность с подписью вида
   if (mep) {

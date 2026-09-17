@@ -28,6 +28,15 @@ import { FACADE_TITLE, buildFacade, buildSection, type ElevationDrawing, type Fa
 import { elevationToDxf } from "@/lib/builder/drawing/dxf"
 import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
 import { dimGeometry } from "@/lib/builder/annotations"
+import { openingName, openingSchedule, roomExplication, type OpeningSchedule, type RoomRow } from "@/lib/builder/drawing/schedules"
+
+/** Экспликация и ведомость проёмов для листа плана этажа; марки — по всему зданию. */
+export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id: string) => string | null) {
+  const schedule = openingSchedule(allFloors)
+  const rooms = roomExplication(floor, premiseNumber)
+  const roomNumbers = new Map(rooms.map((r) => [r.roomId, r.number]))
+  return { schedule, rooms, options: { openingMarks: schedule.marks, roomNumbers } }
+}
 import { hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
@@ -102,11 +111,13 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const stage: PlanStage = view.startsWith("replan:") ? (view.slice(7) as PlanStage) : "plan"
   const isPlanView = view === "plan" || view.startsWith("replan:")
-  const drawing = useMemo(() => (floor ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage) : null), [floor, premiseNumbers, stage])
+  const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null) : null), [building, floors, floor, premiseNumbers])
+  const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
   const mep = useMemo(() => (floor && section !== "ar" && view === "plan" ? buildMepDrawing(floor, section) : null), [floor, section, view])
   const replanTables = stage !== "plan" && !!replan
-  const hasTables = (!!mep && (mep.legend.length > 0 || mep.spec.length > 0)) || replanTables
+  const arTables = view === "plan" && section === "ar" && !!extras && (extras.rooms.length > 0 || extras.schedule.rows.length > 0)
+  const hasTables = (!!mep && (mep.legend.length > 0 || mep.spec.length > 0)) || replanTables || arTables
   const sheet = useMemo(() => (drawing ? pickSheet(drawing, hasTables ? TABLES_W + 5 : 0) : null), [drawing, hasTables])
   const available = floor ? sectionsWithContent(floor) : []
   const sheetNo = floor ? Math.max(1, floors.indexOf(floor) + 1) : 1
@@ -249,6 +260,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           sectionMarks={view === "plan" ? ownSections : []}
           replan={replanTables ? replan : null}
           stage={stage}
+          ar={arTables && extras && floor ? { rooms: extras.rooms, schedule: extras.schedule, floorId: floor.id } : null}
           title={title}
           buildingName={buildingName}
           address={address}
@@ -282,7 +294,10 @@ export function SheetSvg({
   stage,
   svgId = "floor-sheet",
   cover,
+  ar,
 }: {
+  /** экспликация и ведомость проёмов справа от плана */
+  ar?: { rooms: RoomRow[]; schedule: OpeningSchedule; floorId: string } | null
   svgId?: string
   /** титульный лист альбома: ведомость листов вместо чертежа */
   cover?: Array<{ no: number; title: string; note: string }>
@@ -481,6 +496,12 @@ export function SheetSvg({
           </g>
         )
       })}
+      {d.marks.map((m, i) => (
+        <text key={`mk${i}`} x={X(m.at.x)} y={Y(m.at.y)} fontSize={2.2} textAnchor="middle" dominantBaseline="middle">{m.text}</text>
+      ))}
+      {ar && reserveRight > 0 && (
+        <ArTables rooms={ar.rooms} schedule={ar.schedule} floorId={ar.floorId} x={w - 5 - reserveRight + 3} y={12} w={reserveRight - 6} maxH={h - 5 - STAMP.h - 5 - 12} />
+      )}
       {d.texts.map((t, i) => (
         <text key={`tx${i}`} x={X(t.at.x)} y={Y(t.at.y)} fontSize={3} textAnchor="middle" dominantBaseline="middle">{t.text}</text>
       ))}
@@ -666,4 +687,54 @@ function CoverBody({ rows, w }: { rows: Array<{ no: number; title: string; note:
       })}
     </g>
   )
+}
+
+/** Экспликация помещений и ведомость заполнения проёмов (ГОСТ 21.501). */
+function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[]; schedule: OpeningSchedule; floorId: string; x: number; y: number; w: number; maxH: number }) {
+  const out: React.ReactNode[] = []
+  let cy = y
+  const limit = y + maxH
+  const RH = 4.6
+  const fmt = (v: number) => v.toFixed(1).replace(".", ",")
+  const table = (key: string, title: string, cols: Array<{ w: number; label: string; align?: "end" | "middle" }>, rows: string[][], total?: string[]) => {
+    if (!rows.length) return
+    const top = cy
+    out.push(<text key={`${key}t`} x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">{title}</text>)
+    cy += 6
+    const xs: number[] = []
+    let acc = x
+    for (const c of cols) { xs.push(acc); acc += c.w }
+    const cellX = (i: number) => (cols[i].align === "end" ? xs[i] + cols[i].w - 1 : cols[i].align === "middle" ? xs[i] + cols[i].w / 2 : xs[i] + 1.2)
+    const anchor = (i: number) => cols[i].align ?? "start"
+    out.push(<line key={`${key}hl0`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
+    cols.forEach((c, i) => out.push(<text key={`${key}h${i}`} x={cellX(i)} y={cy + 3.3} fontSize={2.2} textAnchor={anchor(i)}>{c.label}</text>))
+    cy += 5
+    out.push(<line key={`${key}hl1`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
+    let cut = 0
+    rows.forEach((r, ri) => {
+      if (cy + RH > limit - 8) { cut++; return }
+      r.forEach((cell, i) => {
+        const maxChars = Math.floor((cols[i].w - 2) / 1.2)
+        const t = cell.length > maxChars ? `${cell.slice(0, maxChars - 1)}…` : cell
+        out.push(<text key={`${key}r${ri}c${i}`} x={cellX(i)} y={cy + 3.2} fontSize={2.2} textAnchor={anchor(i)}>{t}</text>)
+      })
+      cy += RH
+      out.push(<line key={`${key}rl${ri}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
+    })
+    if (total) {
+      total.forEach((cell, i) => cell && out.push(<text key={`${key}tt${i}`} x={cellX(i)} y={cy + 3.3} fontSize={2.3} fontWeight={700} textAnchor={anchor(i)}>{cell}</text>))
+      cy += 5
+    }
+    xs.slice(1).forEach((xx, i) => out.push(<line key={`${key}v${i}`} x1={xx} y1={top + 6} x2={xx} y2={cy} stroke="#000" strokeWidth={0.18} />))
+    out.push(<rect key={`${key}box`} x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
+    if (cut) { out.push(<text key={`${key}cut`} x={x} y={cy + 3} fontSize={2.1}>…ещё строк: {cut}</text>); cy += 4 }
+    cy += 6
+  }
+  const total = rooms.reduce((sum, r) => sum + r.areaM2, 0)
+  table("rooms", "Экспликация помещений", [{ w: 14, label: "№", align: "middle" }, { w: w - 34, label: "Наименование" }, { w: 20, label: "Площадь, м²", align: "end" }],
+    rooms.map((r) => [r.number, r.name || "Помещение", fmt(r.areaM2)]), ["", "Итого", fmt(total)])
+  const onFloor = schedule.rows.filter((r) => (r.perFloor[floorId] ?? 0) > 0)
+  table("ops", "Ведомость заполнения проёмов", [{ w: 13, label: "Марка", align: "middle" }, { w: w - 41, label: "Наименование" }, { w: 14, label: "Этаж", align: "end" }, { w: 14, label: "Всего", align: "end" }],
+    onFloor.map((r) => [r.mark, openingName(r), String(r.perFloor[floorId] ?? 0), String(r.total)]))
+  return <g>{out}</g>
 }

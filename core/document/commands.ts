@@ -1362,3 +1362,27 @@ export class UpdateAnnotationCommand implements Command {
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, annotations: (fl.annotations ?? []).map((x) => (x.id === this.id ? prev : x)) }))
   }
 }
+
+export class SetRoomNameCommand implements Command {
+  readonly kind = "set-room-name"
+  readonly label = "наименование помещения"
+  private prev?: string
+  private captured = false
+  constructor(private floorId: string, private roomId: string, private name: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (f && !this.captured) { this.prev = f.roomNames?.[this.roomId]; this.captured = true }
+    return this.set(doc, this.name)
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return this.set(doc, this.prev)
+  }
+  private set(doc: BuilderDocument, name: string | undefined): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => {
+      const names = { ...(fl.roomNames ?? {}) }
+      if (name) names[this.roomId] = name
+      else delete names[this.roomId]
+      return { ...fl, roomNames: names }
+    })
+  }
+}

@@ -47,6 +47,13 @@ export interface RoomLabel {
   areaM2: number
 }
 
+export interface DrawingOptions {
+  /** марки проёмов по всему зданию (id проёма → «ОК-1») */
+  openingMarks?: Map<string, string>
+  /** номера помещений для неподвязанных к карточкам (roomId → «105») */
+  roomNumbers?: Map<string, string>
+}
+
 /** Стадия листа: обмерный план (было), демонтаж, монтаж, стало. */
 export type PlanStage = "plan" | "demolish" | "install" | "after"
 export type WallStyle = "solid" | "demolish" | "new"
@@ -62,6 +69,8 @@ export interface FloorDrawing {
   /** размеры и надписи, поставленные инженером */
   userDims: Array<{ a: Pt; b: Pt; offset: number }>
   texts: Array<{ at: Pt; text: string }>
+  /** марки проёмов у стены: снаружи окна, со стороны открывания двери */
+  marks: Array<{ at: Pt; text: string }>
   /** тонкие линии: окна, полотна дверей */
   thinLines: Array<[Pt, Pt]>
   /** дуги открывания дверей: центр, радиус, углы в градусах против часовой */
@@ -126,7 +135,7 @@ function axisLabelsLetters(n: number): string[] {
   return Array.from({ length: n }, (_, i) => (i < letters.length ? letters[i] : `${letters[i % letters.length]}${Math.floor(i / letters.length)}`))
 }
 
-export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: string) => string | null = () => null, stage: PlanStage = "plan"): FloorDrawing {
+export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: string) => string | null = () => null, stage: PlanStage = "plan", options: DrawingOptions = {}): FloorDrawing {
   // обмерный план и план демонтажа — «было», монтаж и итог — «стало»
   const floor = floorAtStage(source, stage === "plan" || stage === "demolish" ? "before" : "after")
   const g = floor.wallGraph
@@ -137,6 +146,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     degree.set(e.b, (degree.get(e.b) ?? 0) + 1)
   }
 
+  const marks: FloorDrawing["marks"] = []
   const wallSolids: Pt[][] = []
   const wallStyles: WallStyle[] = []
   const patches: FloorDrawing["patches"] = []
@@ -192,6 +202,12 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     pushSolid(s, L + extB)
 
     for (const o of ops) {
+      const mark = options.openingMarks?.get(o.id)
+      if (mark) {
+        const c = add(a, mul(u, o.offset))
+        // окно — марка по левой стороне стены, дверь — со стороны полотна
+        marks.push({ at: add(c, mul(nrm, (h + 450) * (o.type === "window" ? -1 : 1))), text: mark })
+      }
       const p0 = add(a, mul(u, o.offset - o.width / 2))
       const p1 = add(a, mul(u, o.offset + o.width / 2))
       if (o.type === "window") {
@@ -236,7 +252,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   // помещения
   const rooms: RoomLabel[] = detectRooms(g).map((r) => {
     const key = floor.premiseLinks[r.id]
-    return { at: labelPoint(r.polygon), number: key ? premiseNumber(key) : null, areaM2: r.areaMm2 / 1_000_000 }
+    return { at: labelPoint(r.polygon), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
   })
 
   // размерные цепочки по четырём фасадам
@@ -332,7 +348,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
 
   const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
   const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
-  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, thinLines, arcs, rooms, dims, axes }
+  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────

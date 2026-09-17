@@ -14,7 +14,7 @@ import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection 
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
 import { hasReplan, replanSummary } from "@/lib/builder/replan"
 import { pickElevationSheet } from "./ElevationSvg"
-import { FACADES, STAGE_TITLE, SheetSvg, TABLES_W, autoSections, floorTitle } from "./FloorSheet"
+import { FACADES, STAGE_TITLE, SheetSvg, TABLES_W, autoSections, floorTitle, planExtras } from "./FloorSheet"
 
 type Entry = { key: string; title: string; sheet: Sheet; props: Omit<Parameters<typeof SheetSvg>[0], "sheetNo" | "sheetCount" | "buildingName" | "address" | "author"> }
 
@@ -33,14 +33,16 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
     const num = (id: string) => premiseNumbers[id] ?? null
     const out: Entry[] = []
     const plan = (f: Floor, stage: PlanStage, section: SheetSection, title: string) => {
-      const drawing = buildFloorDrawing(f, num, stage)
+      const extras = planExtras(building.floors, f, num)
+      const drawing = buildFloorDrawing(f, num, stage, extras.options)
       const mep = section !== "ar" ? buildMepDrawing(f, section) : null
       const replan = stage !== "plan" && hasReplan(f) ? replanSummary(f) : null
-      const reserve = (mep && (mep.legend.length || mep.spec.length)) || replan ? TABLES_W + 5 : 0
+      const withAr = stage === "plan" && section === "ar"
+      const reserve = (mep && (mep.legend.length || mep.spec.length)) || replan || withAr ? TABLES_W + 5 : 0
       const sheet = pickSheet(drawing, reserve)
       out.push({
         key: `${f.id}-${stage}-${section}`, title, sheet,
-        props: { drawing, sheet, title, section, mep, reserveRight: reserve, elevation: null, sectionMarks: stage === "plan" && section === "ar" ? building.sections ?? [] : [], replan, stage },
+        props: { drawing, sheet, title, section, mep, reserveRight: reserve, elevation: null, sectionMarks: withAr ? building.sections ?? [] : [], replan, stage, ar: withAr ? { rooms: extras.rooms, schedule: extras.schedule, floorId: f.id } : null },
       })
     }
     for (const f of floors) plan(f, "plan", "ar", floorTitle(f))

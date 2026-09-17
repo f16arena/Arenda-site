@@ -157,6 +157,7 @@ export const FloorSchema = z.object({
   premiseLinks: z.record(z.string(), z.string()).default({}), // roomId → premiseId
   floorMaterialId: z.string().optional(),
   roomMaterials: z.record(z.string(), z.string()).default({}), // roomId → materialId (ведро)
+  roomNames: z.record(z.string(), z.string()).optional(), // roomId → наименование (экспликация)
   underlay: UnderlaySchema.optional(),
   /** id этажа в базе (Floor.id), если этаж собран из данных здания */
   sourceFloorId: z.string().optional(),

@@ -6,7 +6,7 @@
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { usePremiseStore } from "@/store/premise-store"
@@ -135,6 +135,19 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       const options = Array.from(premisesById.values())
       controls = (
         <div className="mt-2">
+          <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
+            Наименование (экспликация)
+            <input
+              id="room-name"
+              defaultValue={f.roomNames?.[rid] ?? ""}
+              key={`rn${rid}${f.roomNames?.[rid] ?? ""}`}
+              placeholder="Офис, Коридор, Санузел…"
+              onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur() }}
+              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== (f.roomNames?.[rid] ?? "")) execute(new SetRoomNameCommand(fid, rid, v)) }}
+              className="w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
+              style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+            />
+          </label>
           {options.length > 0 && (
             <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
               Карточка помещения
