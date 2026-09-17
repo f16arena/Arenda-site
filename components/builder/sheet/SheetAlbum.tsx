@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { ArrowLeft, Printer } from "lucide-react"
 import type { Building, Floor } from "@/types/builder"
+import { buildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -116,7 +117,7 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       </div>
       <div id="sheet-album" className="flex flex-col gap-6">
         <div className={`album-page pg-A3L`}>
-          <SheetSvg svgId="album-cover" drawing={coverDrawing} sheet={A3L} title="Общие данные" buildingName={buildingName} address={address} author={author} sheetNo={1} sheetCount={total} section="ar" mep={null} reserveRight={0} elevation={null} sectionMarks={[]} replan={null} stage="plan" cover={coverRows} />
+          <SheetSvg svgId="album-cover" drawing={coverDrawing} sheet={A3L} title="Общие данные" buildingName={buildingName} address={address} author={author} sheetNo={1} sheetCount={total} section="ar" mep={null} reserveRight={0} elevation={null} sectionMarks={[]} replan={null} stage="plan" cover={coverRows} indicators={buildingIndicators(building)} />
         </div>
         {entries.map((e, i) => (
           <div key={e.key} className={`album-page pg-${pageName(e.sheet)}`}>

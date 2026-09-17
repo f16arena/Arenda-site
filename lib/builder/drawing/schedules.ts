@@ -99,11 +99,28 @@ export function roomExplication(floor: Floor, premiseNumber: (premiseId: string)
   const prefix = floor.level < 0 ? "Ц" : String(Math.max(0, floor.level))
   let seq = 0
   // МОП и технические помещения — без номера арендатора и не сдвигают нумерацию
+  // одна карточка на несколько комнат: первая получает номер карточки, остальные — 101.2, 101.3…
+  const usedCard = new Map<string, number>()
+  // номера карточек занимают свои значения: автонумерация их не повторяет
+  const taken = new Set<string>()
+  for (const { r } of rooms) {
+    const link = floor.premiseLinks[r.id]
+    const card = link ? premiseNumber(link) : null
+    if (card) taken.add(card)
+  }
   return rooms.map(({ r }) => {
     const use = roomUse(floor, r)
     const link = use === "rent" ? floor.premiseLinks[r.id] : undefined
-    const fromCard = link ? premiseNumber(link) : null
-    if (use === "rent" && !fromCard) seq += 1
+    const card = link ? premiseNumber(link) : null
+    let fromCard: string | null = null
+    if (card) {
+      const n = (usedCard.get(card) ?? 0) + 1
+      usedCard.set(card, n)
+      fromCard = n === 1 ? card : `${card}.${n}`
+    }
+    if (use === "rent" && !fromCard) {
+      do { seq += 1 } while (taken.has(`${prefix}${String(seq).padStart(2, "0")}`))
+    }
     return {
       roomId: r.id,
       use,

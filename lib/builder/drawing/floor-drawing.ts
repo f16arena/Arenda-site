@@ -82,6 +82,8 @@ export interface FloorDrawing {
   marks: Array<{ at: Pt; text: string; base: Pt; n: Pt; half: number }>
   /** стрелки хода лестниц (ломаная через центры ступеней, стрелка вверх) */
   stairArrows: Pt[][]
+  /** контур лестничного проёма (выреза в перекрытии) — обводится на плане */
+  stairWells: Pt[][]
   /** лифты: контур шахты, кабина с крестом */
   lifts: Array<{ shaft: Pt[]; cabin: Pt[]; label: string }>
   /** выходы: точка у двери снаружи, направление наружу, вид */
@@ -291,6 +293,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   }
   // лестницы и крыльца: контуры ступеней тонкими линиями; лифты — шахта и кабина
   const stairArrows: FloorDrawing["stairArrows"] = []
+  const stairWells: FloorDrawing["stairWells"] = []
   const lifts: FloorDrawing["lifts"] = []
   for (const st of floor.stairs) {
     const rects = stairPlanRects(st, floor.height)
@@ -319,6 +322,8 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     }
     if (st.shape !== "porch" && rects.length >= 2) {
       stairArrows.push(rects.map((q) => ({ x: (q[0].x + q[2].x) / 2, y: (q[0].y + q[2].y) / 2 })))
+      // проём в перекрытии обводится: на плане видно габарит лестничной клетки
+      stairWells.push(stairHoleWorld(st, floor.height))
     }
     for (const q of rects) {
       for (let i = 0; i < 4; i++) thinLines.push([q[i], q[(i + 1) % 4]])
@@ -440,7 +445,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
 
   const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
   const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
-  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, lifts, exits, thinLines, arcs, rooms, dims, axes }
+  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, stairWells, lifts, exits, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────

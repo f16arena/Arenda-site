@@ -31,13 +31,17 @@ import { dimGeometry } from "@/lib/builder/annotations"
 import { openingName, openingSchedule, roomExplication, type OpeningSchedule, type RoomRow } from "@/lib/builder/drawing/schedules"
 
 /** Экспликация и ведомость проёмов для листа плана этажа; марки — по всему зданию. */
-export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id: string) => string | null) {
+export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id: string) => string | null, stage: PlanStage = "plan") {
   const schedule = openingSchedule(allFloors)
-  const rooms = roomExplication(floor, premiseNumber)
+  // экспликация считается по той же стадии, что и план: иначе у части помещений
+  // номер на плане не совпадал с таблицей (на обмерном плане новых стен ещё нет)
+  const staged = stage === "edit" ? floor : floorAtStage(floor, stage === "plan" || stage === "demolish" ? "before" : "after")
+  const rooms = roomExplication(staged, premiseNumber)
   const roomNumbers = new Map(rooms.map((r) => [r.roomId, r.number]))
   return { schedule, rooms, options: { openingMarks: schedule.marks, roomNumbers } }
 }
-import { hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
+import { floorAtStage, hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
+import { buildingIndicators, type BuildingIndicators } from "@/lib/builder/drawing/indicators"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
 export const STAGE_TITLE: Record<Exclude<PlanStage, "plan" | "edit">, string> = {
@@ -111,7 +115,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const stage: PlanStage = view.startsWith("replan:") ? (view.slice(7) as PlanStage) : "plan"
   const isPlanView = view === "plan" || view.startsWith("replan:")
-  const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null) : null), [building, floors, floor, premiseNumbers])
+  const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null, stage) : null), [building, floors, floor, premiseNumbers, stage])
   const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
   const mep = useMemo(() => {
@@ -298,6 +302,7 @@ export function SheetSvg({
   stage,
   svgId = "floor-sheet",
   cover,
+  indicators,
   ar,
 }: {
   /** экспликация и ведомость проёмов справа от плана */
@@ -305,6 +310,8 @@ export function SheetSvg({
   svgId?: string
   /** титульный лист альбома: ведомость листов вместо чертежа */
   cover?: Array<{ no: number; title: string; note: string }>
+  /** показатели здания для листа «Общие данные» */
+  indicators?: BuildingIndicators | null
   replan: ReplanSummary | null
   stage: PlanStage
   elevation: ElevationDrawing | null
@@ -362,7 +369,7 @@ export function SheetSvg({
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
 
-      {cover ? <CoverBody rows={cover} w={w} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
+      {cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
       {/* оси */}
       {d.axes.map((ax, i) => {
         if (ax.dir === "v") {
@@ -510,6 +517,9 @@ export function SheetSvg({
           </g>
         )
       })}
+      {d.stairWells.map((q, i) => (
+        <polygon key={`sw${i}`} points={q.map(P).join(" ")} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="4 1.2 1 1.2" />
+      ))}
       {d.stairArrows.map((pts, i) => {
         const sp = pts.map((p) => ({ x: X(p.x), y: Y(p.y) }))
         const e = sp[sp.length - 1], b = sp[sp.length - 2]
@@ -707,33 +717,117 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
   return <g>{out}</g>
 }
 
-/** Ведомость листов (ГОСТ 21.101, форма 1 в сокращённом виде). */
-function CoverBody({ rows, w }: { rows: Array<{ no: number; title: string; note: string }>; w: number }) {
-  const x = 40, tw = Math.min(260, w - 70), y0 = 30, rh = 8
-  const c1 = x + 15, c2 = x + tw - 60
-  return (
-    <g>
-      <text x={x + tw / 2} y={y0 - 6} fontSize={5} textAnchor="middle">Ведомость листов</text>
-      <rect x={x} y={y0} width={tw} height={rh * (rows.length + 1)} fill="none" stroke="#000" strokeWidth={0.5} />
-      <line x1={c1} y1={y0} x2={c1} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />
-      <line x1={c2} y1={y0} x2={c2} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />
-      <line x1={x} y1={y0 + rh} x2={x + tw} y2={y0 + rh} stroke="#000" strokeWidth={0.5} />
-      <text x={x + 7.5} y={y0 + 5.3} fontSize={3} textAnchor="middle">Лист</text>
-      <text x={(c1 + c2) / 2} y={y0 + 5.3} fontSize={3} textAnchor="middle">Наименование</text>
-      <text x={(c2 + x + tw) / 2} y={y0 + 5.3} fontSize={3} textAnchor="middle">Примечание</text>
-      {rows.map((r, i) => {
-        const y = y0 + rh * (i + 1)
-        return (
-          <g key={r.no}>
-            <line x1={x} y1={y + rh} x2={x + tw} y2={y + rh} stroke="#000" strokeWidth={0.18} />
-            <text x={x + 7.5} y={y + 5.3} fontSize={3} textAnchor="middle">{r.no}</text>
-            <text x={c1 + 3} y={y + 5.3} fontSize={3}>{r.title}</text>
-            <text x={c2 + 3} y={y + 5.3} fontSize={2.8}>{r.note}</text>
+/**
+ * Лист «Общие данные» (ГОСТ 21.101): ведомость листов, технико-экономические
+ * показатели, общие указания и условные обозначения.
+ */
+function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: string; note: string }>; w: number; indicators: BuildingIndicators | null }) {
+  const x = 30, tw = Math.min(200, w - 210), y0 = 30, rh = 7
+  const c1 = x + 13, c2 = x + tw - 48
+  const rx = x + tw + 16, rw = Math.min(190, w - tw - 50)
+  const fmt = (v: number) => v.toLocaleString("ru-RU", { maximumFractionDigits: 1 })
+  const tep: Array<[string, string]> = indicators
+    ? [
+        ["Этажность (надземных этажей)", String(indicators.above)],
+        ["Количество этажей всего", String(indicators.floors)],
+        ["Площадь застройки, м²", fmt(indicators.footprintM2)],
+        ["Общая площадь помещений, м²", fmt(indicators.totalM2)],
+        ["в т.ч. арендопригодная, м²", fmt(indicators.rentM2)],
+        ["в т.ч. МОП и технические, м²", fmt(indicators.commonM2)],
+        ["Строительный объём, м³", fmt(indicators.volumeM3)],
+        ["Высота здания, м", fmt(indicators.heightM)],
+      ]
+    : []
+  const notes = [
+    "1. Чертежи выполнены в системе Commrent по обмерам и техническому паспорту здания.",
+    "2. Размеры на планах даны в миллиметрах, отметки — в метрах.",
+    "3. Площади помещений подсчитаны по внутренним граням стен за вычетом колонн.",
+    "4. Места общего пользования и технические помещения в арендопригодную площадь не входят.",
+    "5. Все изменения в планировке согласовать с проектной организацией.",
+  ]
+  const legend: Array<[string, "solid" | "demolish" | "new" | "column" | "door" | "exit"]> = [
+    ["Существующие стены и перегородки", "solid"],
+    ["Демонтируемые конструкции", "demolish"],
+    ["Возводимые конструкции", "new"],
+    ["Колонна", "column"],
+    ["Дверной проём", "door"],
+    ["Эвакуационный выход", "exit"],
+  ]
+  const out: React.ReactNode[] = []
+  // ── ведомость листов ──
+  out.push(<text key="t1" x={x + tw / 2} y={y0 - 5} fontSize={4} textAnchor="middle">Ведомость листов</text>)
+  out.push(<rect key="b1" x={x} y={y0} width={tw} height={rh * (rows.length + 1)} fill="none" stroke="#000" strokeWidth={0.5} />)
+  out.push(<line key="v1" x1={c1} y1={y0} x2={c1} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />)
+  out.push(<line key="v2" x1={c2} y1={y0} x2={c2} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />)
+  out.push(<line key="h1" x1={x} y1={y0 + rh} x2={x + tw} y2={y0 + rh} stroke="#000" strokeWidth={0.5} />)
+  out.push(<text key="c1" x={x + 6.5} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">Лист</text>)
+  out.push(<text key="c2" x={(c1 + c2) / 2} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">Наименование</text>)
+  out.push(<text key="c3" x={(c2 + x + tw) / 2} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">Примечание</text>)
+  rows.forEach((r, i) => {
+    const y = y0 + rh * (i + 1)
+    out.push(
+      <g key={`r${r.no}`}>
+        <line x1={x} y1={y + rh} x2={x + tw} y2={y + rh} stroke="#000" strokeWidth={0.18} />
+        <text x={x + 6.5} y={y + 4.8} fontSize={2.6} textAnchor="middle">{r.no}</text>
+        <text x={c1 + 2.5} y={y + 4.8} fontSize={2.6}>{r.title}</text>
+        <text x={c2 + 2.5} y={y + 4.8} fontSize={2.4}>{r.note}</text>
+      </g>,
+    )
+  })
+  // ── общие указания ──
+  let cy = y0 + rh * (rows.length + 1) + 12
+  out.push(<text key="t2" x={x} y={cy} fontSize={4}>Общие указания</text>)
+  cy += 6
+  notes.forEach((t, i) => {
+    out.push(<text key={`n${i}`} x={x} y={cy} fontSize={2.8}>{t}</text>)
+    cy += 5
+  })
+  // ── показатели ──
+  if (tep.length) {
+    const th = 6
+    out.push(<text key="t3" x={rx + rw / 2} y={y0 - 5} fontSize={4} textAnchor="middle">Технико-экономические показатели</text>)
+    out.push(<rect key="b3" x={rx} y={y0} width={rw} height={th * tep.length} fill="none" stroke="#000" strokeWidth={0.5} />)
+    out.push(<line key="v3" x1={rx + rw - 40} y1={y0} x2={rx + rw - 40} y2={y0 + th * tep.length} stroke="#000" strokeWidth={0.5} />)
+    tep.forEach(([label, value], i) => {
+      const y = y0 + th * i
+      out.push(
+        <g key={`tep${i}`}>
+          {i > 0 && <line x1={rx} y1={y} x2={rx + rw} y2={y} stroke="#000" strokeWidth={0.18} />}
+          <text x={rx + 2.5} y={y + 4.1} fontSize={2.8}>{label}</text>
+          <text x={rx + rw - 2.5} y={y + 4.1} fontSize={2.8} textAnchor="end" fontWeight={700}>{value}</text>
+        </g>,
+      )
+    })
+  }
+  // ── условные обозначения ──
+  let ly = y0 + 6 * tep.length + 18
+  out.push(<text key="t4" x={rx} y={ly} fontSize={4}>Условные обозначения</text>)
+  ly += 7
+  legend.forEach(([label, kind], i) => {
+    const y = ly + i * 8
+    out.push(
+      <g key={`lg${i}`}>
+        {kind === "solid" && <rect x={rx} y={y - 3} width={18} height={3} fill="#000" />}
+        {kind === "demolish" && <rect x={rx} y={y - 3} width={18} height={3} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="2 1.4" />}
+        {kind === "new" && <rect x={rx} y={y - 3} width={18} height={3} fill="url(#hatch-new)" stroke="#000" strokeWidth={0.3} />}
+        {kind === "column" && <rect x={rx + 6} y={y - 4} width={6} height={5} fill="#000" />}
+        {kind === "door" && (
+          <g>
+            <rect x={rx} y={y - 3} width={18} height={3} fill="#fff" stroke="#000" strokeWidth={0.3} />
+            <path d={`M ${rx + 4} ${y} A 8 8 0 0 1 ${rx + 12} ${y - 7}`} fill="none" stroke="#000" strokeWidth={0.3} />
           </g>
-        )
-      })}
-    </g>
-  )
+        )}
+        {kind === "exit" && (
+          <g>
+            <line x1={rx} y1={y - 1.5} x2={rx + 14} y2={y - 1.5} stroke="#16a34a" strokeWidth={0.9} />
+            <polygon points={`${rx + 18},${y - 1.5} ${rx + 13},${y - 4} ${rx + 13},${y + 1}`} fill="#16a34a" />
+          </g>
+        )}
+        <text x={rx + 24} y={y} fontSize={2.8}>{label}</text>
+      </g>,
+    )
+  })
+  return <g>{out}</g>
 }
 
 /** Экспликация помещений и ведомость заполнения проёмов (ГОСТ 21.501). */
@@ -784,8 +878,7 @@ function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[
   table("rooms", "Экспликация помещений", [{ w: 14, label: "№", align: "middle" }, { w: w - 34, label: "Наименование" }, { w: 20, label: "Площадь, м²", align: "end" }],
     [
       ...ordered.map((r) => [r.number || (r.use === "tech" ? "Т" : "МОП"), r.name || "Помещение", fmt(r.areaM2)]),
-      ["", "в т.ч. арендопригодная", fmt(rent)],
-      ["", "в т.ч. МОП и технические", fmt(total - rent)],
+      ...(rent < total ? [["", "в т.ч. арендопригодная", fmt(rent)], ["", "в т.ч. МОП и технические", fmt(total - rent)]] : []),
     ], ["", "Итого", fmt(total)])
   const onFloor = schedule.rows.filter((r) => (r.perFloor[floorId] ?? 0) > 0)
   table("ops", "Ведомость заполнения проёмов", [{ w: 13, label: "Марка", align: "middle" }, { w: w - 41, label: "Наименование" }, { w: 14, label: "Этаж", align: "end" }, { w: 14, label: "Всего", align: "end" }],

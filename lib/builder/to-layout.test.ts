@@ -52,8 +52,9 @@ describe("модель → план этажа", () => {
       expect(polygon.points).toHaveLength(4)
       const xs = polygon.points.map((p) => p.x)
       const ys = polygon.points.map((p) => p.y)
-      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(6, 3)
-      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(4, 3)
+      // контур помещения — по внутренним граням стен (6 м по осям − 2×0,1 м)
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(5.8, 3)
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(3.8, 3)
     }
     expect(layout.source).toBe("model")
     expect(layout.ceilingHeight).toBe(3.5)

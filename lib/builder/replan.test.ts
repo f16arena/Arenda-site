@@ -45,8 +45,9 @@ describe("перепланировка", () => {
     const s = replanSummary(twoRooms())
     expect(s.demolishWallM).toBe(5)
     expect(s.newWallM).toBe(5)
-    // каждое новое помещение сопоставлено со старым, в котором лежит его центр
-    expect(s.rooms.map((r) => [r.before, r.after]).sort()).toEqual([[25, 15], [25, 35]])
+    // каждое новое помещение сопоставлено со старым, в котором лежит его центр;
+    // площадь — по внутренним граням стен (как в БТИ), поэтому меньше осевой
+    expect(s.rooms.map((r) => [r.before, r.after]).sort()).toEqual([[22.5, 13.1], [22.5, 31.9]])
     expect(s.areaBefore).toBe(s.areaAfter)
   })
 

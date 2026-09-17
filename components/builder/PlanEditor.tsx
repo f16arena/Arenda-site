@@ -892,6 +892,9 @@ export function PlanEditor() {
         })()}
 
         {/* лестницы, лифты, выходы */}
+        {drawing.stairWells.map((q, i) => (
+          <polygon key={`sw${i}`} points={pts(q)} fill="none" stroke="#64748b" strokeWidth={1.4} strokeDasharray="10 3 2 3" />
+        ))}
         {drawing.stairArrows.map((list, i) => {
           const sp = list.map(S)
           const e = sp[sp.length - 1], b = sp[sp.length - 2]

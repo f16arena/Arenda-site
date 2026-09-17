@@ -17,7 +17,9 @@ function room(): Floor {
 describe("площадь помещения за вычетом колонн", () => {
   it("колонна внутри — целиком, колонна в стене — только выступающей частью", () => {
     const [r] = floorRooms(room())
-    expect(r.columnsMm2 / 1e6).toBeCloseTo(0.25 + 0.18, 3)
-    expect(r.areaMm2 / 1e6).toBeCloseTo(100 - 0.43, 3)
+    // площадь по внутренним граням: 10 м по осям − 0,3 м стен = 9,7 × 9,7 м;
+    // колонна у стены выступает в помещение только частью
+    expect(r.columnsMm2 / 1e6).toBeCloseTo(0.25 + 0.09, 3)
+    expect(r.areaMm2 / 1e6).toBeCloseTo(9.7 * 9.7 - 0.34, 2)
   })
 })
