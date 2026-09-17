@@ -167,6 +167,8 @@ export class BuilderEngine {
   private dragOpening: { floorId: string; openingId: string; sx: number; sy: number; moved: boolean } | null = null
   private dragStair: { floorId: string; stairId: string; sx: number; sy: number; moved: boolean } | null = null
   private shiftDown = false
+  // нажатие левой кнопкой — для распознавания клика
+  private press: { x: number; y: number } | null = null
   // ручки-узлы: только у выделенной стены (как grips в AutoCAD)
   private grips: Mesh[] = []
   // конец перетаскивания — чтобы следом пришедший tap не сменил выделение
@@ -288,6 +290,8 @@ export class BuilderEngine {
     this.floorRootById.clear()
     this.roofByFloorId.clear()
     this.hovered = null
+    // якоря подписей заново: у «Участка» и пустого этажа их нет
+    this.labelAnchors = []
     this.docRoot = new TransformNode("docRoot", scene)
     const lightSpecs: Vector3[] = []
 
@@ -430,7 +434,8 @@ export class BuilderEngine {
       const h = (u.widthMm / (u.aspect || 1)) * S
       const plane = MeshBuilder.CreateGround(`underlay_${f.id}`, { width: w, height: h }, scene)
       plane.parent = fNode
-      plane.position.set(u.x * S + w / 2, 0.015, u.y * S + h / 2)
+      // выше сетки участка (0.06) — иначе клетка ложилась поверх скана и мешала обводке
+      plane.position.set(u.x * S + w / 2, 0.08, u.y * S + h / 2)
       plane.rotation.y = (u.rotationDeg * Math.PI) / 180
       plane.isPickable = false
       const mat = new StandardMaterial(`underlay_m_${f.id}`, scene)
@@ -722,12 +727,20 @@ export class BuilderEngine {
       // Правая и средняя кнопки — только камера (вращение/панорама). Раньше
       // панорама, начатая со стены, двигала стену.
       const primary = (ev?.button ?? 0) === 0
+      const scene = this.bundle.scene
       if (pi.type === PointerEventTypes.POINTERDOWN) {
-        if (primary) this.handleDown()
+        if (!primary) return
+        this.press = { x: scene.pointerX, y: scene.pointerY }
+        this.handleDown()
       } else if (pi.type === PointerEventTypes.POINTERMOVE) this.handleMove()
-      else if (pi.type === PointerEventTypes.POINTERUP) this.handleUp()
-      else if (pi.type === PointerEventTypes.POINTERTAP) {
-        if (primary) this.handleTap()
+      else if (pi.type === PointerEventTypes.POINTERUP) {
+        const press = this.press
+        if (primary) this.press = null
+        this.handleUp()
+        // Клик распознаём сами: нажали и отпустили на месте. Babylon считал два
+        // быстрых клика в разных точках двойным и второй терял — при обводке
+        // стен цепочкой пропадали точки.
+        if (primary && press && !passedDragThreshold(press.x, press.y, scene.pointerX, scene.pointerY)) this.handleTap()
       }
     })
   }
@@ -1052,10 +1065,17 @@ export class BuilderEngine {
     }
   }
 
+  private labelsEmpty = false
   private projectLabels(): void {
     if (this.labelAnchors.length === 0) {
+      // этаж очистили — старые подписи должны исчезнуть, а не висеть в воздухе
+      if (!this.labelsEmpty) {
+        this.labelsEmpty = true
+        this.onLabels([])
+      }
       return
     }
+    this.labelsEmpty = false
     const { scene, engine, camera } = this.bundle
     const w = engine.getRenderWidth()
     const h = engine.getRenderHeight()

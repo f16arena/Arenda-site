@@ -66,7 +66,7 @@ export function LevelPanel({
   buildingId?: string
 }) {
   // Сброс к данным: двухшаговое подтверждение прямо в кнопке, без window.confirm
-  const [resetArmed, setResetArmed] = useState(false)
+  const [armed, setArmed] = useState<"reset" | "clear" | null>(null)
   const [resetBusy, setResetBusy] = useState(false)
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
@@ -138,8 +138,25 @@ export function LevelPanel({
         .execute(new ReplaceFloorCommand(building.id, { ...fresh, id: current.id, underlay: current.underlay }, current))
     } finally {
       setResetBusy(false)
-      setResetArmed(false)
+      setArmed(null)
     }
+  }
+
+  // Чистый лист для обводки по скану: геометрия этажа уходит, подложка,
+  // имя, высота и отметка остаются. Одна команда — один Ctrl+Z.
+  const clearActive = () => {
+    if (!building) return
+    const current = building.floors.find((f) => f.id === activeLevelId)
+    if (!current) return
+    useDocumentStore.getState().execute(
+      new ReplaceFloorCommand(
+        building.id,
+        { ...current, wallGraph: emptyGraph(), openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {} },
+        current,
+      ),
+    )
+    useEditorStore.getState().setSelection({ type: "none" })
+    setArmed(null)
   }
 
   // Дубль активного этажа: стены и проёмы копируются, привязки к карточкам — нет
@@ -221,7 +238,7 @@ export function LevelPanel({
 
   return (
     <div
-      className="absolute left-3 top-40 z-20 flex w-52 flex-col gap-1 rounded-2xl p-2 shadow-2xl backdrop-blur-xl"
+      className="absolute left-3 top-40 z-20 flex max-h-[calc(100%-22rem)] w-60 flex-col overflow-x-hidden gap-1 overflow-y-auto rounded-2xl p-2 shadow-2xl backdrop-blur-xl [@media(max-height:820px)]:max-h-[calc(100%-13rem)]"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="px-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: TOKENS.muted }}>
@@ -272,22 +289,22 @@ export function LevelPanel({
       >
         Дублировать этаж
       </button>
-      {buildingId && activeLevelId && activeLevelId !== "site" && (
+      {activeLevelId && activeLevelId !== "site" && (
         <div className="flex gap-1">
-          {resetArmed ? (
+          {armed ? (
             <>
               <button
                 type="button"
-                onClick={() => void resetActiveToData()}
+                onClick={() => void (armed === "reset" ? resetActiveToData() : clearActive())}
                 disabled={resetBusy}
                 className="flex-1 rounded-lg py-1.5 text-[11px] font-semibold disabled:opacity-50"
                 style={{ background: "#f59e0b", color: "#0b1220" }}
               >
-                {resetBusy ? "Собираю…" : "Да, заменить этаж"}
+                {resetBusy ? "Собираю…" : armed === "reset" ? "Да, собрать из данных" : "Да, очистить этаж"}
               </button>
               <button
                 type="button"
-                onClick={() => setResetArmed(false)}
+                onClick={() => setArmed(null)}
                 className="rounded-lg px-2 py-1.5 text-[11px] font-medium"
                 style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
               >
@@ -295,15 +312,28 @@ export function LevelPanel({
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={() => setResetArmed(true)}
-              title="Собрать этот этаж заново из помещений здания. Нарисованное на этаже заменится, подложка останется. Откат — Ctrl+Z"
-              className="flex-1 rounded-lg py-1.5 text-[11px] font-medium"
-              style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
-            >
-              Сбросить этаж к данным
-            </button>
+            <>
+              {buildingId && (
+                <button
+                  type="button"
+                  onClick={() => setArmed("reset")}
+                  title="Собрать этот этаж заново из помещений здания. Нарисованное на этаже заменится, подложка останется. Откат — Ctrl+Z"
+                  className="flex-1 rounded-lg py-1.5 text-[11px] font-medium"
+                  style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+                >
+                  Из данных
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setArmed("clear")}
+                title="Убрать со этажа стены, проёмы, лестницы и объекты — чтобы обвести план по скану с нуля. Подложка останется. Откат — Ctrl+Z"
+                className="flex-1 rounded-lg py-1.5 text-[11px] font-medium"
+                style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+              >
+                Очистить этаж
+              </button>
+            </>
           )}
         </div>
       )}

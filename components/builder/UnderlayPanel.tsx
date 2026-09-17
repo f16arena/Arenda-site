@@ -126,7 +126,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       type="button"
       onClick={onClick}
       title={opts.title}
-      className="rounded-md px-2 py-1 text-[11px] font-medium"
+      className="whitespace-nowrap rounded-md px-2 py-1 text-[11px] font-medium"
       style={{ background: opts.accent ? TOKENS.accent : "rgba(148,163,184,0.12)", color: opts.accent ? "#0b1220" : TOKENS.text }}
     >
       {label}
@@ -215,8 +215,8 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
             />
           </div>
 
-          <div className="flex items-center justify-between gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
-            <span className="tabular-nums">Ширина {(underlay.widthMm / 1000).toFixed(2)} м</span>
+          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
+            <span className="whitespace-nowrap tabular-nums">Ширина {(underlay.widthMm / 1000).toFixed(2)} м</span>
             <div className="flex gap-1">
               {btn("Калибровать", () => startMeasure("calibrate"), {
                 title: "Отметьте рулеткой на скане размер со штампа и введите настоящую длину",

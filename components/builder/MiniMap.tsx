@@ -119,7 +119,7 @@ export function MiniMap() {
 
   return (
     <div
-      className="absolute left-3 bottom-9 z-20 flex flex-col gap-1 rounded-2xl p-2 shadow-2xl backdrop-blur-xl"
+      className="absolute left-3 bottom-9 z-20 flex flex-col gap-1 rounded-2xl p-2 shadow-2xl backdrop-blur-xl [@media(max-height:820px)]:hidden"
       style={{ width: 180, background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="truncate px-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: TOKENS.muted }}>
