@@ -17,6 +17,9 @@ import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
 import { useLabelStore } from "@/store/label-store"
+import { useUnderlayIntent } from "@/store/underlay-intent"
+import { moveUnderlay } from "@/lib/builder/underlay-math"
+import { findFloor, SetUnderlayCommand } from "@/core/document/commands"
 import { LabelLayer } from "./LabelLayer"
 import type { PremiseStatus } from "@/lib/builder/materials"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
@@ -142,7 +145,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   const [hud, setHud] = useState<string | null>(null)
   // Последний отрезок рулетки — панель подложки спросит его настоящую длину
-  const [measure, setMeasure] = useState<{ lengthMm: number } | null>(null)
+  const [measure, setMeasure] = useState<{ lengthMm: number; from: { x: number; y: number } } | null>(null)
   const doc = useDocumentStore((s) => s.doc)
   const rev = useDocumentStore((s) => s.rev)
   const activeTool = useEditorStore((s) => s.activeTool)
@@ -179,7 +182,26 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     // в панели свойств из списка помещений этого здания, а не вводится номером.
     engine.onLinkRoom = (floorId, roomId) => applyPick({ kind: "room", floorId, entityId: roomId })
     engine.onHud = (t) => setHud(t)
-    engine.onMeasure = (lengthMm) => setMeasure({ lengthMm })
+    engine.onMeasure = (lengthMm, from, to) => {
+      // «Совместить»: точка скана встаёт в точку модели сразу, без вопросов.
+      // «Калибровать»: панель подложки спросит настоящую длину отрезка.
+      const intent = useUnderlayIntent.getState().intent
+      const floorId = useEditorStore.getState().activeLevelId
+      const floor = floorId ? findFloor(useDocumentStore.getState().doc, floorId) : undefined
+      if (intent === "move" && floor?.underlay) {
+        useDocumentStore.getState().execute(new SetUnderlayCommand(floor.id, moveUnderlay(floor.underlay, from, to)))
+        useUnderlayIntent.getState().setIntent(null)
+        useEditorStore.getState().setTool("select")
+        setHud("Подложка совмещена")
+        window.setTimeout(() => setHud(null), 1500)
+        return
+      }
+      if (intent === "calibrate") {
+        useUnderlayIntent.getState().setIntent(null)
+        useEditorStore.getState().setTool("select")
+      }
+      setMeasure({ lengthMm, from })
+    }
     engine.onLabels = (labels) => useLabelStore.getState().setLabels(labels)
     engine.onCursor = (mm) => useLabelStore.getState().setCursor(mm)
     if (initialDoc) {
@@ -240,6 +262,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
+    // ушли с рулетки другим инструментом — намерение подложки сгорает
+    if (activeTool !== "measure") useUnderlayIntent.getState().setIntent(null)
     if (activeTool !== "wall") e.cancelWallTool()
     if (activeTool !== "water") e.cancelWater()
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()

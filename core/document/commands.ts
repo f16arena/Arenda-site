@@ -698,7 +698,9 @@ export class SetUnderlayCommand implements Command {
   readonly label = "подложка"
   private prev?: Floor["underlay"]
   private captured = false
-  constructor(private floorId: string, private underlay: Floor["underlay"] | null) {}
+  // mergeKey: подряд идущие правки одного рода (ползунок прозрачности) — одна
+  // запись истории, а не сотня на одно движение мыши
+  constructor(private floorId: string, private underlay: Floor["underlay"] | null, private mergeKey?: string) {}
   apply(doc: BuilderDocument): BuilderDocument {
     const f = findFloor(doc, this.floorId)
     if (!f) return doc
@@ -710,6 +712,13 @@ export class SetUnderlayCommand implements Command {
   }
   revert(doc: BuilderDocument): BuilderDocument {
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, underlay: this.prev }))
+  }
+  merge(next: Command): boolean {
+    if (next instanceof SetUnderlayCommand && this.mergeKey && next.mergeKey === this.mergeKey && next.floorId === this.floorId) {
+      this.underlay = next.underlay
+      return true
+    }
+    return false
   }
 }
 
