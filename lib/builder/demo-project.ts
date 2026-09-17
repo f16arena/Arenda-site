@@ -49,6 +49,8 @@ function makeFloor(level: number): Floor {
     premiseLinks: {},
     floorMaterialId: "laminate",
     roomMaterials: {},
+    mepRuns: [],
+    mepDevices: [],
   }
 }
 

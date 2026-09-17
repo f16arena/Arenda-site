@@ -118,6 +118,8 @@ export function LevelPanel({
       premiseLinks: {},
       floorMaterialId: "laminate",
       roomMaterials: {},
+      mepRuns: [],
+      mepDevices: [],
     }
     execute(new AddFloorCommand(building.id, floor))
     setActiveLevel(floor.id)
@@ -151,7 +153,7 @@ export function LevelPanel({
     useDocumentStore.getState().execute(
       new ReplaceFloorCommand(
         building.id,
-        { ...current, wallGraph: emptyGraph(), openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {} },
+        { ...current, wallGraph: emptyGraph(), openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {}, mepRuns: [], mepDevices: [] },
         current,
       ),
     )
@@ -210,6 +212,8 @@ export function LevelPanel({
       premiseLinks: {},
       floorMaterialId: "tile",
       roomMaterials: {},
+      mepRuns: [],
+      mepDevices: [],
     }
     execute(new AddFloorCommand(building.id, floor))
     setActiveLevel(floor.id)
@@ -385,15 +389,15 @@ export function LevelPanel({
               style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
             />
           </label>
-          {activeFloor.level === 0 && building.floors.some((f) => f.level >= 1) && activeFloor.elevation !== -Math.round(activeFloor.height / 2) && (
+          {activeFloor.level === 0 && building.floors.some((f) => f.level >= 1) && activeFloor.elevation !== -activeFloor.height && (
             <button
               type="button"
-              onClick={() => useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, -Math.round(activeFloor.height / 2)))}
-              title="Цокольный этаж: пол ниже земли на половину высоты этажа; этажи выше опустятся вместе с ним"
+              onClick={() => useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, -activeFloor.height))}
+              title="Цокольный этаж целиком в земле, 1 этаж — с уровня земли; этажи выше сдвинутся вместе с ним"
               className="mb-1.5 w-full rounded-md py-1 text-[11px] font-medium"
               style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}
             >
-              Цоколь: наполовину в земле
+              Цоколь в землю, 1 этаж — с земли
             </button>
           )}
           <p className="px-0.5 pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Крыша · {activeFloor.name}</p>

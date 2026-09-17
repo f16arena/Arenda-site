@@ -179,6 +179,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const fenceStyle = useEditorStore((s) => s.fenceStyle)
   const paveMaterial = useEditorStore((s) => s.paveMaterial)
   const snapEnabled = useEditorStore((s) => s.snapEnabled)
+  const wallArc = useEditorStore((s) => s.wallArc)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -291,6 +292,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.fenceStyle = fenceStyle
     e.paveMaterial = paveMaterial
     e.snapEnabled = snapEnabled
+    e.wallArc = wallArc
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
@@ -300,7 +302,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "water") e.cancelWater()
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()
     if (activeTool !== "pave") e.cancelPave()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, armedAsset, openingVariant, ready])
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current

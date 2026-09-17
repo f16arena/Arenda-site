@@ -167,6 +167,8 @@ export interface EditorState {
   paveMaterial: string
   assetBaseSizes: Record<string, { w: number; d: number; h: number }>
   snapEnabled: boolean
+  /** инструмент «Стена» рисует дугу: начало, конец, точка на дуге */
+  wallArc: boolean
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -192,6 +194,7 @@ export interface EditorState {
   setPaveMaterial: (id: string) => void
   setAssetBaseSizes: (r: Record<string, { w: number; d: number; h: number }>) => void
   toggleSnap: () => void
+  toggleWallArc: () => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -228,6 +231,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   paveMaterial: "asphalt",
   assetBaseSizes: {},
   snapEnabled: true,
+  wallArc: false,
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -262,6 +266,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setFenceStyle: (s) => set({ fenceStyle: s }),
   setPaveMaterial: (id) => set({ paveMaterial: id }),
   setAssetBaseSizes: (r) => set({ assetBaseSizes: r }),
+  toggleWallArc: () => set((st) => ({ wallArc: !st.wallArc })),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),

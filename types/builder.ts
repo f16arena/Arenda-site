@@ -86,6 +86,37 @@ export const UnderlaySchema = z.object({
 })
 export type Underlay = z.infer<typeof UnderlaySchema>
 
+// ── Инженерные сети ─────────────────────────────────────────────────────────
+// Системы по разделам проекта: ЭМ/ЭО — силовая и освещение, СС — слаботочка,
+// ВК — вода и канализация, ОВ — отопление и вентиляция.
+export const MEP_SYSTEMS = ["power", "lighting", "lowcurrent", "water", "hotwater", "sewer", "heating", "ventilation"] as const
+export const MepSystemSchema = z.enum(MEP_SYSTEMS)
+export type MepSystem = z.infer<typeof MepSystemSchema>
+
+/** Трасса: кабель, труба или воздуховод ломаной линией на высоте от пола этажа. */
+export const MepRunSchema = z.object({
+  id: z.string(),
+  system: MepSystemSchema,
+  points: z.array(Vec2Schema).min(2),
+  height: z.number().default(2700), // мм от пола этажа
+  size: z.string().default(""), // «ВВГнг 3×2,5», «Ду 25», «300×200»
+  label: z.string().default(""),
+})
+export type MepRun = z.infer<typeof MepRunSchema>
+
+/** Прибор: щит, розетка, светильник, стояк, радиатор, диффузор… */
+export const MepDeviceSchema = z.object({
+  id: z.string(),
+  system: MepSystemSchema,
+  kind: z.string(),
+  at: Vec2Schema,
+  height: z.number().default(300),
+  rotation: z.number().default(0), // градусы
+  label: z.string().default(""),
+  power: z.number().optional(), // Вт — для щитов и нагрузок
+})
+export type MepDevice = z.infer<typeof MepDeviceSchema>
+
 export const FloorSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -106,6 +137,8 @@ export const FloorSchema = z.object({
   underlay: UnderlaySchema.optional(),
   /** id этажа в базе (Floor.id), если этаж собран из данных здания */
   sourceFloorId: z.string().optional(),
+  mepRuns: z.array(MepRunSchema).default([]),
+  mepDevices: z.array(MepDeviceSchema).default([]),
 })
 
 export const BuildingSchema = z.object({

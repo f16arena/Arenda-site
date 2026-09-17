@@ -35,6 +35,8 @@ function roomFloor(): Floor {
     objects: [],
     premiseLinks: {},
     roomMaterials: {},
+    mepRuns: [],
+    mepDevices: [],
   }
 }
 

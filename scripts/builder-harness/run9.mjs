@@ -53,10 +53,10 @@ const click = async (p) => { await page.mouse.click(p.x, p.y); await page.waitFo
     window.__stores.useEditorStore.getState().setActiveLevel(floors[0].id)
   })
   await page.waitForTimeout(600)
-  await page.locator("button", { hasText: "Цоколь: наполовину в земле" }).click()
+  await page.locator("button", { hasText: "Цоколь в землю" }).click()
   await page.waitForTimeout(600)
   const l1 = await levels()
-  check("P1 цоколь опущен на полэтажа", l1[0].el === -l1[0].h / 2, JSON.stringify(l1))
+  check("P1 цоколь в земле", l1[0].el === -l1[0].h, JSON.stringify(l1))
   check("P2 этаж выше опустился вместе с ним", l1[1].el === l1[0].el + l1[0].h, JSON.stringify(l1))
   // ручной ввод отметки на верхнем этаже
   await page.evaluate((id) => window.__stores.useEditorStore.getState().setActiveLevel(id), (await page.evaluate(() => window.__doc().buildings[0].floors[1].id)))

@@ -31,6 +31,7 @@ import {
   AddObjectCommand,
   DeleteObjectCommand,
   MoveNodeCommand,
+  CompositeCommand,
   MoveObjectCommand,
   SetObjectRotationCommand,
   AddOpeningCommand,
@@ -54,6 +55,7 @@ import { centroid, closestOnSegment, distance, pointInPolygon, snapToGrid, type 
 import { detectRooms } from "@/core/geometry/room-detection"
 import { findPreset } from "@/lib/builder/openings"
 import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builder/drag-math"
+import { arcPoints } from "@/lib/builder/arc"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
 import { buildWalls } from "./builders/wall-builder"
@@ -118,6 +120,10 @@ export class BuilderEngine {
 
   // инструмент стены
   private wallStart: Vector3 | null = null
+  /** режим дуги: конец дуги уже задан, ждём точку на дуге */
+  wallArc = false
+  private arcEnd: Vec2 | null = null
+  private arcPreview: Mesh | null = null
   private lastDir: Vec2 = { x: 1, y: 0 }
   private lengthInput = ""
   private preview: Mesh | null = null
@@ -1328,6 +1334,11 @@ export class BuilderEngine {
       this.updatePlacerGhost()
       return
     }
+    if (this.tool === "wall" && this.wallStart && this.wallArc && this.arcEnd) {
+      const p = this.projectToPlane()
+      if (p) this.updateArcPreview(p)
+      return
+    }
     if (this.tool === "wall" && this.wallStart) {
       const p = this.projectToPlane()
       if (p) {
@@ -1624,7 +1635,44 @@ export class BuilderEngine {
       this.showStartMarker(r.world)
       return
     }
+    if (this.wallArc) {
+      if (!this.arcEnd) {
+        this.arcEnd = r.mm
+        this.preview?.dispose()
+        this.preview = null
+        this.onHud("Точка на дуге — задаёт радиус")
+        return
+      }
+      this.commitArc(p)
+      return
+    }
     this.commitWall(r.mm)
+  }
+
+  /** Дуга: начало → конец → точка на дуге (без привязки — радиус свободный). */
+  private commitArc(through: Vector3): void {
+    if (!this.wallStart || !this.arcEnd || !this.activeFloorId) return
+    const a = { x: this.wallStart.x * 1000, y: this.wallStart.z * 1000 }
+    const pts = arcPoints(a, this.arcEnd, { x: through.x * 1000, y: through.z * 1000 })
+    const cmds = []
+    for (let i = 0; i < pts.length - 1; i++) cmds.push(new InsertWallCommand(this.activeFloorId, pts[i], pts[i + 1], DEFAULT_WALL))
+    this.onCommand(new CompositeCommand("дуговая стена", cmds))
+    this.cancelWallTool()
+  }
+
+  private updateArcPreview(through: Vector3): void {
+    this.arcPreview?.dispose()
+    this.arcPreview = null
+    if (!this.wallStart || !this.arcEnd) return
+    const a = { x: this.wallStart.x * 1000, y: this.wallStart.z * 1000 }
+    const pts = arcPoints(a, this.arcEnd, { x: through.x * 1000, y: through.z * 1000 })
+    const y = this.activeFloorPlaneY() + 0.05
+    const line = MeshBuilder.CreateLines("arcPreview", { points: pts.map((p) => new Vector3(p.x * S, y, p.y * S)) }, this.bundle.scene)
+    line.color = Color3.FromHexString("#38BDF8")
+    line.isPickable = false
+    this.arcPreview = line as unknown as Mesh
+    const r = Math.hypot(this.arcEnd.x - a.x, this.arcEnd.y - a.y)
+    this.onHud(`Дуга: хорда ${(r / 1000).toFixed(2)} м, участков ${pts.length - 1}`)
   }
 
   private commitWall(end: Vec2): void {
@@ -1735,6 +1783,9 @@ export class BuilderEngine {
 
   cancelWallTool(): void {
     this.snapMarker?.setEnabled(false)
+    this.arcEnd = null
+    this.arcPreview?.dispose()
+    this.arcPreview = null
     this.wallStart = null
     this.lengthInput = ""
     this.preview?.dispose()

@@ -261,9 +261,9 @@ describe("сборка проекта из данных здания", () => {
     const { doc } = buildProjectFromBuilding(src)
     const byName = Object.fromEntries(doc.buildings[0].floors.map((f) => [f.name, f.elevation]))
     const plinth = doc.buildings[0].floors.find((f) => f.name === "Цоколь")!
-    // цоколь наполовину в земле, стопка без зазоров
-    expect(byName["Цоколь"]).toBe(-plinth.height / 2)
-    expect(byName["1 этаж"]).toBe(plinth.height / 2)
+    // цоколь в земле, 1 этаж с уровня земли, стопка без зазоров
+    expect(byName["Цоколь"]).toBe(-plinth.height)
+    expect(byName["1 этаж"]).toBe(0)
     expect(byName["Подвал"]).toBeLessThan(byName["Цоколь"])
   })
 })

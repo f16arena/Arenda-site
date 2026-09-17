@@ -23,7 +23,7 @@ function box(): Floor {
       { id: "w1", wallId: top.id, type: "window", variant: "standard", width: 1500, height: 1500, sillHeight: 900, offset },
       { id: "d1", wallId: part.id, type: "door", variant: "interior", width: 900, height: 2100, sillHeight: 0, offset: 1000 },
     ],
-    stairs: [], objects: [], premiseLinks: {}, roomMaterials: {},
+    stairs: [], objects: [], premiseLinks: {}, roomMaterials: {}, mepRuns: [], mepDevices: [],
   }
 }
 

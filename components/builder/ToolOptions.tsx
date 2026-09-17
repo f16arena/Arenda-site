@@ -71,6 +71,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export function ToolOptions() {
+  const wallArc = useEditorStore((st) => st.wallArc)
   const tool = useEditorStore((s) => s.activeTool)
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
   const setPaintMaterial = useEditorStore((s) => s.setPaintMaterial)
@@ -252,7 +253,31 @@ export function ToolOptions() {
     )
   }
   if (tool === "wall") {
-    return <Shell><span>Клик — начало, клик — конец (цепочкой). Длину — цифрами + Enter. Shift — орто (90°). Esc — стоп.</span></Shell>
+    return (
+      <Shell>
+        <button
+          type="button"
+          onClick={() => useEditorStore.getState().toggleWallArc()}
+          className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+          style={{ background: !wallArc ? TOKENS.accent : "rgba(148,163,184,0.1)", color: !wallArc ? "#0b1220" : TOKENS.text }}
+        >
+          Прямая
+        </button>
+        <button
+          type="button"
+          onClick={() => useEditorStore.getState().toggleWallArc()}
+          className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+          style={{ background: wallArc ? TOKENS.accent : "rgba(148,163,184,0.1)", color: wallArc ? "#0b1220" : TOKENS.text }}
+        >
+          Дуга
+        </button>
+        <span>
+          {wallArc
+            ? "Клик — начало, клик — конец, клик — точка на дуге (радиус). Esc — отмена."
+            : "Клик — начало, клик — конец (цепочкой). Длину — цифрами + Enter. Shift — орто (90°). Esc — стоп."}
+        </span>
+      </Shell>
+    )
   }
   if (tool === "room") {
     return <Shell><span>Зажми и растяни прямоугольник на этаже → 4 стены и пол создаются сразу.</span></Shell>
