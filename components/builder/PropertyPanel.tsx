@@ -7,7 +7,7 @@
 import { floorRooms } from "@/lib/builder/rooms"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
@@ -18,6 +18,7 @@ import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
+import { columnRow } from "@/lib/builder/plan-editor-math"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
 
 function Row({ label, value, accent }: { label: string; value: string; accent?: string }) {
@@ -38,6 +39,8 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   const gizmoMode = useEditorStore((s) => s.gizmoMode)
   const setGizmoMode = useEditorStore((s) => s.setGizmoMode)
   const assetBaseSizes = useEditorStore((s) => s.assetBaseSizes)
+  const columnSizeAll = useEditorStore((s) => s.columnSizeAll)
+  const setColumnSizeAll = useEditorStore((s) => s.setColumnSizeAll)
   const premisesById = usePremiseStore((s) => s.byId)
   const resolvePremise = usePremiseStore((s) => s.resolve)
 
@@ -428,15 +431,30 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       rows.push(<Row key="xy" label="X · Y" value={`${(st.position.x / 1000).toFixed(2)} · ${(st.position.y / 1000).toFixed(2)} м`} />)
       controls = (
         <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex items-center gap-2 text-[11px]" style={{ color: TOKENS.text }} title="Сечение одно на весь этаж: ширина и глубина меняются у всех колонн">
+            <input id="column-size-all" type="checkbox" checked={columnSizeAll} onChange={(ev) => setColumnSizeAll(ev.target.checked)} />
+            Размер — у всех колонн этажа ({f.stairs.filter((x) => x.shape === "column").length})
+          </label>
           {([["Ширина, мм", "width", st.width], ["Глубина, мм", "depth", st.depth ?? st.width]] as const).map(([label, key, value]) => (
             <label key={key} className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
               {label}
               <input id={`column-${key}`} type="number" step="10" min="100" max="3000" defaultValue={value} key={`c${key}${sid}${value}`}
-                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 100 && v !== value) execute(new SetStairCommand(fid, sid, { [key]: Math.min(3000, v) })) }}
+                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 100 && v !== value) execute(setColumnSizeCommand(f, sid, { [key]: Math.min(3000, v) }, columnSizeAll)) }}
                 className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
             </label>
           ))}
           <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+          {(() => {
+            // ряд: соседние колонны в пределах 1 м по оси встают строго на линию этой колонны
+            const rowX = columnRow(f, sid, "x"), rowY = columnRow(f, sid, "y")
+            const align = (row: typeof rowX, label: string) => execute(new CompositeCommand(label, row.map((r) => new MoveStairCommand(fid, r.id, r.x, r.y))))
+            return (
+              <div className="flex gap-1">
+                <button type="button" disabled={!rowX.length} onClick={() => align(rowX, "колонны в линию по вертикали")} title="Колонны выше и ниже (±1 м по X) встанут на одну вертикаль с этой" className="flex-1 rounded-md py-1.5 text-[11px] font-medium disabled:opacity-40" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>↕ В линию{rowX.length ? ` (${rowX.length})` : ""}</button>
+                <button type="button" disabled={!rowY.length} onClick={() => align(rowY, "колонны в линию по горизонтали")} title="Колонны левее и правее (±1 м по Y) встанут на одну горизонталь с этой" className="flex-1 rounded-md py-1.5 text-[11px] font-medium disabled:opacity-40" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>↔ В линию{rowY.length ? ` (${rowY.length})` : ""}</button>
+              </div>
+            )
+          })()}
           <button type="button" onClick={() => execute(new DeleteStairCommand(fid, sid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить колонну</button>
         </div>
       )

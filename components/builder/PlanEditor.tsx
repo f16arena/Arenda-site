@@ -37,6 +37,7 @@ import {
   SetWallPropsCommand,
   SetOpeningSizeCommand,
   SetStairCommand,
+  setColumnSizeCommand,
   type Command,
 } from "@/core/document/commands"
 import { MEP_DEVICE_BY_KIND, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
@@ -55,7 +56,7 @@ import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
-import { spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
+import { snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; view: View; moved: boolean }
@@ -87,6 +88,7 @@ export function PlanEditor() {
   const openingType = useEditorStore((s) => s.openingType)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const stairShape = useEditorStore((s) => s.stairShape)
+  const columnSizeAll = useEditorStore((s) => s.columnSizeAll)
   const annotateKind = useEditorStore((s) => s.annotateKind)
   const multi = useEditorStore((s) => s.multi)
   const mepSystem = useEditorStore((s) => s.mepSystem)
@@ -240,7 +242,8 @@ export function PlanEditor() {
       return
     }
     if (stairShape === "column") {
-      const at = snapEnabled ? { x: Math.round(p.x / 50) * 50, y: Math.round(p.y / 50) * 50 } : { x: Math.round(p.x), y: Math.round(p.y) }
+      // в одну линию с другими колоннами (центр по X/Y), иначе сетка 50 мм
+      const at = snapColumn(floor, p, tolMm, undefined, snapEnabled ? 50 : 0).p
       execute(new AddStairCommand(floor.id, { id: uid("st"), shape: "column", fromFloorId: floor.id, toFloorId: floor.id, position: at, rotationDeg: 0, width: 500, depth: 500, railing: false }))
       return
     }
@@ -312,7 +315,8 @@ export function PlanEditor() {
     const d = drag.current
     const drawing = tool === "wall" || tool === "annotate" || tool === "room" || tool === "measure"
     const prev = tool === "wall" ? chain : tool === "annotate" && dimPts.length === 1 ? dimPts[0] : tool === "measure" ? pts2[0] ?? null : null
-    const snap = drawing ? snapPoint(floor, at.p, prev, tolMm, snapEnabled && !e.altKey) : null
+    const columnTool = tool === "stair" && stairShape === "column"
+    const snap = drawing ? snapPoint(floor, at.p, prev, tolMm, snapEnabled && !e.altKey) : columnTool && !e.altKey ? snapColumn(floor, at.p, tolMm, undefined, snapEnabled ? 50 : 0) : null
     setCursor({ screen: at.s, plan: at.p, snap })
     if (!d && (tool === "select" || tool === "delete" || tool === "door" || tool === "window")) {
       const h = hitTest(floor, at.p, tolMm, gripNodes)
@@ -374,7 +378,11 @@ export function PlanEditor() {
       if (!d.moved && !far) return
       d.moved = true
       let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
-      if (snapEnabled) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
+      if (floor.stairs.find((q) => q.id === d.id)?.shape === "column" && !e.altKey) {
+        const sn = snapColumn(floor, { x, y }, tolMm, d.id, snapEnabled ? 50 : 0)
+        setCursor({ screen: at.s, plan: at.p, snap: sn })
+        x = sn.p.x; y = sn.p.y
+      } else if (snapEnabled) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
       setPreview(findFloor(new MoveStairCommand(floor.id, d.id, Math.round(x), Math.round(y)).apply(doc), floor.id) ?? null)
       return
     }
@@ -441,7 +449,8 @@ export function PlanEditor() {
         }
       } else if (d.kind === "stair") {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
-        if (snapEnabled) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
+        if (floor.stairs.find((q) => q.id === d.id)?.shape === "column" && !e.altKey) ({ x, y } = snapColumn(floor, { x, y }, tolMm, d.id, snapEnabled ? 50 : 0).p)
+        else if (snapEnabled) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
         execute(new MoveStairCommand(floor.id, d.id, Math.round(x), Math.round(y)))
       }
       return
@@ -726,8 +735,8 @@ export function PlanEditor() {
       const across = Math.round(Math.hypot(hole[1].x - hole[0].x, hole[1].y - hole[0].y))
       const along = Math.round(Math.hypot(hole[2].x - hole[1].x, hole[2].y - hole[1].y))
       if (st.shape === "column") {
-        editDims.push({ key: `cw${sid}`, at: outward(e01, cs, 22), label: "Ширина", value: st.width, min: 100, max: 3000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
-        editDims.push({ key: `cd${sid}`, at: outward(e12, cs, 22), label: "Глубина", value: st.depth ?? st.width, min: 100, max: 3000, apply: (val) => execute(new SetStairCommand(fid, sid, { depth: val })) })
+        editDims.push({ key: `cw${sid}`, at: outward(e01, cs, 22), label: columnSizeAll ? "Ширина (все)" : "Ширина", value: st.width, min: 100, max: 3000, apply: (val) => execute(setColumnSizeCommand(floor, sid, { width: val }, columnSizeAll)) })
+        editDims.push({ key: `cd${sid}`, at: outward(e12, cs, 22), label: columnSizeAll ? "Глубина (все)" : "Глубина", value: st.depth ?? st.width, min: 100, max: 3000, apply: (val) => execute(setColumnSizeCommand(floor, sid, { depth: val }, columnSizeAll)) })
       } else if (st.shape === "elevator") {
         editDims.push({ key: `ew${sid}`, at: outward(e01, cs, 22), label: "Шахта", value: st.width, min: 1200, max: 4000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
       } else {

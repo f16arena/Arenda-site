@@ -1430,3 +1430,12 @@ export class ToggleExitReverseCommand implements Command {
   apply(doc: BuilderDocument): BuilderDocument { return this.flip(doc) }
   revert(doc: BuilderDocument): BuilderDocument { return this.flip(doc) }
 }
+
+/**
+ * Размер колонны. all — у всех колонн этажа сразу (один типоразмер), иначе только у этой.
+ * Меняется только заданная сторона: у колонны без depth глубина фиксируется прежней.
+ */
+export function setColumnSizeCommand(floor: Floor, stairId: string, patch: { width?: number; depth?: number }, all: boolean): Command {
+  const list = floor.stairs.filter((s) => s.shape === "column" && (all || s.id === stairId))
+  return new CompositeCommand(all ? "размер всех колонн" : "размер колонны", list.map((s) => new SetStairCommand(floor.id, s.id, patch.width !== undefined && s.depth === undefined && patch.depth === undefined ? { ...patch, depth: s.width } : patch)))
+}

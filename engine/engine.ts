@@ -74,6 +74,7 @@ import { detectRooms } from "@/core/geometry/room-detection"
 import { findPreset } from "@/lib/builder/openings"
 import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builder/drag-math"
 import { arcPoints } from "@/lib/builder/arc"
+import { snapColumn } from "@/lib/builder/plan-editor-math"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
 import { buildWalls } from "./builders/wall-builder"
@@ -1443,7 +1444,8 @@ export class BuilderEngine {
       const now = performance.now()
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.previewFloorDrag(this.dragStair.floorId, new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
+        const to = this.stairDragTarget(this.dragStair.floorId, this.dragStair.stairId, p.x * 1000, p.z * 1000)
+        this.previewFloorDrag(this.dragStair.floorId, new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, to.x, to.y))
       }
       return
     }
@@ -1636,7 +1638,10 @@ export class BuilderEngine {
       const p = this.projectToPlane()
       this.endFloorDrag()
       if (this.dragStair.moved) this.lastDragEndAt = performance.now()
-      if (p && this.dragStair.moved) this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
+      if (p && this.dragStair.moved) {
+        const to = this.stairDragTarget(this.dragStair.floorId, this.dragStair.stairId, p.x * 1000, p.z * 1000)
+        this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, to.x, to.y))
+      }
       this.dragStair = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
@@ -2036,7 +2041,8 @@ export class BuilderEngine {
     if (this.stairShape === "column") {
       const pc = this.projectToPlane()
       if (!pc) return
-      const at = this.snapEnabled ? { x: snapToGrid(pc.x * 1000, 50), y: snapToGrid(pc.z * 1000, 50) } : { x: Math.round(pc.x * 1000), y: Math.round(pc.z * 1000) }
+      // в одну линию с другими колоннами этажа (допуск 300 мм)
+      const at = snapColumn(f, { x: pc.x * 1000, y: pc.z * 1000 }, 300, undefined, this.snapEnabled ? 50 : 0).p
       this.onCommand(new AddStairCommand(f.id, { id: uid("st"), shape: "column", fromFloorId: f.id, toFloorId: f.id, position: at, rotationDeg: 0, width: 500, depth: 500, railing: false }))
       return
     }
@@ -2460,6 +2466,14 @@ export class BuilderEngine {
   }
 
   /** Крыльцо прижимается площадкой к ближайшей стене снаружи, ступени — от здания. */
+  /** Цель перетаскивания лестницы: колонна — в линию с другими колоннами, остальное — сетка 100 мм. */
+  private stairDragTarget(floorId: string, stairId: string, x: number, y: number): { x: number; y: number } {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, floorId) : undefined
+    if (f && f.stairs.find((s) => s.id === stairId)?.shape === "column") return snapColumn(f, { x, y }, 300, stairId, 50).p
+    return { x: snapToGrid(x, 100), y: snapToGrid(y, 100) }
+  }
+
   private placePorch(f: Floor): void {
     const p = this.projectToPlane()
     if (!p) return

@@ -201,3 +201,38 @@ export function spanAt(poly: Vec2[], p: Vec2, holes: Vec2[][] = []): number {
   for (let i = 0; i + 1 < xs.length; i += 2) if (p.x >= xs[i] && p.x <= xs[i + 1]) return xs[i + 1] - xs[i]
   return 0
 }
+
+/**
+ * Колонна «в одну линию»: X или Y центра прилипает к центру другой колонны в
+ * допуске (с направляющей), иначе — к сетке grid мм (0 — без сетки).
+ */
+export function snapColumn(floor: Pick<Floor, "stairs">, raw: Vec2, tolMm: number, selfId?: string, grid = 50): Snap {
+  let ax: { v: number; d: number; c: Vec2 } | null = null
+  let ay: { v: number; d: number; c: Vec2 } | null = null
+  for (const st of floor.stairs) {
+    if (st.shape !== "column" || st.id === selfId) continue
+    const c = st.position
+    const dx = Math.abs(c.x - raw.x), dy = Math.abs(c.y - raw.y)
+    if (dx <= tolMm && (!ax || dx < ax.d)) ax = { v: c.x, d: dx, c }
+    if (dy <= tolMm && (!ay || dy < ay.d)) ay = { v: c.y, d: dy, c }
+  }
+  const round = (v: number) => (grid > 0 ? Math.round(v / grid) * grid : Math.round(v))
+  const p = { x: ax ? ax.v : round(raw.x), y: ay ? ay.v : round(raw.y) }
+  if (!ax && !ay) return { p, kind: grid > 0 ? "grid" : "free" }
+  const guides: Array<{ from: Vec2; to: Vec2 }> = []
+  if (ax) guides.push({ from: { ...ax.c }, to: p })
+  if (ay) guides.push({ from: { ...ay.c }, to: p })
+  return { p, kind: "align", guides }
+}
+
+/**
+ * Ряд колонн для выравнивания: колонны, чей центр по оси axis отстоит от
+ * выбранной не больше чем на tolMm. Возвращает новые позиции (ось axis = как у выбранной).
+ */
+export function columnRow(floor: Pick<Floor, "stairs">, id: string, axis: "x" | "y", tolMm = 1000): Array<{ id: string; x: number; y: number }> {
+  const base = floor.stairs.find((s) => s.id === id && s.shape === "column")
+  if (!base) return []
+  return floor.stairs
+    .filter((s) => s.shape === "column" && s.id !== id && Math.abs(s.position[axis] - base.position[axis]) <= tolMm && s.position[axis] !== base.position[axis])
+    .map((s) => ({ id: s.id, x: axis === "x" ? base.position.x : s.position.x, y: axis === "y" ? base.position.y : s.position.y }))
+}

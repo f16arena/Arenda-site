@@ -204,6 +204,9 @@ export interface EditorState {
   setOpeningType: (t: OpeningType) => void
   setOpeningVariant: (v: string) => void
   setStairShape: (s: StairShape) => void
+  /** размер колонны меняется у всех колонн этажа */
+  columnSizeAll: boolean
+  setColumnSizeAll: (v: boolean) => void
   setTerrainMode: (m: TerrainMode) => void
   setWaterDepth: (mm: number) => void
   setPathKind: (k: PathKind) => void
@@ -298,6 +301,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   setOpeningType: (t) => set({ openingType: t }),
   setOpeningVariant: (v) => set({ openingVariant: v }),
   setStairShape: (s) => set({ stairShape: s }),
+  columnSizeAll: true,
+  setColumnSizeAll: (v) => set({ columnSizeAll: v }),
   setTerrainMode: (m) => set({ terrainMode: m }),
   setWaterDepth: (mm) => set({ waterDepth: mm }),
   setPathKind: (k) => set({ pathKind: k }),

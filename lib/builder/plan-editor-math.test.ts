@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { emptyGraph, insertWall } from "@/core/geometry/wall-graph"
 import type { Floor } from "@/types/builder"
-import { fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, zoomAt } from "./plan-editor-math"
+import { columnRow, snapColumn, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, zoomAt } from "./plan-editor-math"
 
 function floor(): Floor {
   let g = emptyGraph()
@@ -75,5 +75,23 @@ describe("редактор плана: рамка", async () => {
     const rect = { minX: -500, minY: -500, maxX: 8500, maxY: 2000 }
     expect(wallsInRect(f, rect, false)).toHaveLength(1) // только нижняя стена целиком
     expect(wallsInRect(f, rect, true).length).toBe(3) // нижняя + две боковые задеты
+  })
+})
+
+describe("колонны в одну линию", () => {
+  const col = (id: string, x: number, y: number) => ({ id, shape: "column" as const, fromFloorId: "f", toFloorId: "f", position: { x, y }, rotationDeg: 0, width: 500, depth: 500, railing: false })
+  const floor = { stairs: [col("a", 1000, 0), col("b", 5000, 6000), col("c", 1180, 12000)] }
+  it("X прилипает к центру соседней колонны, Y — к сетке", () => {
+    const s = snapColumn(floor, { x: 1060, y: 3020 }, 100)
+    expect(s.p).toEqual({ x: 1000, y: 3000 })
+    expect(s.kind).toBe("align")
+    expect(s.guides?.length).toBe(1)
+  })
+  it("своя колонна не притягивает", () => {
+    expect(snapColumn(floor, { x: 1000, y: 3000 }, 50, "a").kind).toBe("grid")
+  })
+  it("ряд по X: соседние по вертикали встают на X выбранной", () => {
+    expect(columnRow(floor, "a", "x")).toEqual([{ id: "c", x: 1000, y: 12000 }])
+    expect(columnRow(floor, "a", "y")).toEqual([])
   })
 })
