@@ -224,6 +224,17 @@ export class BuilderEngine {
     this.renderUntil = Math.max(this.renderUntil, performance.now() + ms)
   }
 
+  /** Подсветка помещений по статусу аренды: выключается кнопкой «Арендаторы». */
+  setShowTenants(on: boolean): void {
+    this.showTenants = on
+    if (!this.docRoot) return
+    for (const m of this.docRoot.getChildMeshes()) {
+      if ((m.metadata as MeshMeta | null)?.kind === "status") m.setEnabled(on)
+    }
+    this.invalidate(600)
+  }
+  private showTenants = true
+
   /** Пауза рендера — когда 3D скрыт (открыт редактор плана). */
   setPaused(p: boolean): void {
     this.paused = p
@@ -732,6 +743,7 @@ export class BuilderEngine {
     // текстуры в реальном масштабе (объекты — со своей развёрткой)
     const objectMeshes = new Set(f.objects.flatMap((o) => this.objectRootById.get(o.id)?.getChildMeshes() ?? []))
     worldUVFor([...fNode.getChildMeshes().filter((m) => !objectMeshes.has(m)), ...(roof ? [roof] : [])])
+    if (!this.showTenants) for (const m of fNode.getChildMeshes()) if ((m.metadata as MeshMeta | null)?.kind === "status") m.setEnabled(false)
     this.applyFloorVisibility(f, fNode, roof, ctx, active)
     if (ctx.mepFocus && active && f.id === active.id && fNode.isEnabled()) {
       const mepSet = new Set(mepMeshes)

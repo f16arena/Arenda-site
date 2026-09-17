@@ -10,6 +10,7 @@ import { createPortal } from "react-dom"
 import { ArrowLeft, Printer } from "lucide-react"
 import type { Building, Floor } from "@/types/builder"
 import { buildingIndicators } from "@/lib/builder/drawing/indicators"
+import { buildEvacuation } from "@/lib/builder/drawing/evacuation"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -48,6 +49,17 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       })
     }
     for (const f of floors) plan(f, "plan", "ar", floorTitle(f))
+    // план эвакуации — на каждый этаж, сразу за планами
+    for (const f of floors) {
+      const extras = planExtras(building.floors, f, num)
+      const drawing = buildFloorDrawing(f, num, "plan", extras.options)
+      const sheet = pickSheet(drawing, 0)
+      const title = `${floorTitle(f)}. План эвакуации`
+      out.push({
+        key: `${f.id}-evac`, title, sheet,
+        props: { drawing, sheet, title, section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", evac: buildEvacuation(f) },
+      })
+    }
     for (const f of floors) {
       if (!hasReplan(f)) continue
       for (const st of ["demolish", "install", "after"] as const) plan(f, st, "ar", `${floorTitle(f)}. ${STAGE_TITLE[st]}`)

@@ -15,6 +15,8 @@ export function LabelLayer() {
   const labels = useLabelStore((s) => s.labels)
   const showDimensions = useLabelStore((s) => s.showDimensions)
   const toggleDimensions = useLabelStore((s) => s.toggleDimensions)
+  const showTenants = useLabelStore((s) => s.showTenants)
+  const toggleTenants = useLabelStore((s) => s.toggleTenants)
   const doc = useDocumentStore((s) => s.doc)
   const selection = useEditorStore((s) => s.selection)
   const resolvePremise = usePremiseStore((s) => s.resolve)
@@ -61,6 +63,19 @@ export function LabelLayer() {
       >
         Размеры
       </button>
+      <button
+        type="button"
+        onClick={toggleTenants}
+        title="Арендаторы: имена в подписях и подсветка помещений по статусу"
+        className="absolute right-3 top-[10rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
+        style={{
+          background: showTenants ? TOKENS.accent : TOKENS.panel,
+          color: showTenants ? "#0b1220" : TOKENS.text,
+          border: `1px solid ${TOKENS.panelBorder}`,
+        }}
+      >
+        Арендаторы
+      </button>
 
       <div className="pointer-events-none absolute inset-0 z-10 select-none">
         {placeable.map((label) => {
@@ -104,9 +119,12 @@ export function LabelLayer() {
           const floor = findFloor(doc, label.floorId)
           const key = floor?.premiseLinks[label.id]
           const premise = key ? resolvePremise(key) : undefined
-          const title = premise
+          // «Арендаторы» выключены — остаётся номер и площадь, без имён и статусов
+          const title = premise && showTenants
             ? `№ ${premise.number}${premise.tenantName ? ` · ${shortTenantName(premise.tenantName)}` : " · свободно"}`
-            : `${(label.areaMm2 / 1_000_000).toFixed(1)} м²`
+            : premise
+              ? `№ ${premise.number} · ${(label.areaMm2 / 1_000_000).toFixed(1)} м²`
+              : `${(label.areaMm2 / 1_000_000).toFixed(1)} м²`
           return (
             <div
               key={`r-${label.id}`}

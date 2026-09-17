@@ -75,7 +75,7 @@ export default async function BuildingSheetPage({
       initialFloorId={initial?.id ?? null}
       premiseNumbers={Object.fromEntries(premises.map((p) => [p.id, p.number]))}
       building={project.doc.buildings.find((b) => b.floors.some((f) => f.id === initial?.id)) ?? project.doc.buildings[0]}
-      initialView={view && /^(plan|replan:(demolish|install|after)|facade:(south|north|west|east)|section:[\w-]+)$/.test(view) ? view : "plan"}
+      initialView={view && /^(plan|evac|replan:(demolish|install|after)|facade:(south|north|west|east)|section:[\w-]+)$/.test(view) ? view : "plan"}
       initialSection={section && ["ar", "mep", "ЭМ", "ЭО", "СС", "ВК", "ОВ"].includes(section) ? (section as SheetSection) : "ar"}
     />
   )

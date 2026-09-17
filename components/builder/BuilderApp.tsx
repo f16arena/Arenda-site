@@ -232,6 +232,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const cameraMode = useEditorStore((s) => s.cameraMode)
   // обход от первого лица: панели убираются, остаётся прицел и подсказка
   const walking = cameraMode === "walk"
+  const showTenants = useLabelStore((s) => s.showTenants)
   const displayMode = useEditorStore((s) => s.displayMode)
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -396,6 +397,11 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.setPaused(cameraMode === "plan2d")
     if (cameraMode !== "plan2d") e.setCameraMode(cameraMode)
   }, [cameraMode, ready])
+
+  // кнопка «Арендаторы»: подсветка помещений по статусу в 3D
+  useEffect(() => {
+    engineRef.current?.setShowTenants(showTenants)
+  }, [showTenants, ready])
 
   // Помещения этого здания: статусы для окраски полов и карточки для панели.
   useEffect(() => {

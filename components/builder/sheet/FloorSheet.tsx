@@ -42,6 +42,7 @@ export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id:
 }
 import { floorAtStage, hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
 import { buildingIndicators, type BuildingIndicators } from "@/lib/builder/drawing/indicators"
+import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
 export const STAGE_TITLE: Record<Exclude<PlanStage, "plan" | "edit">, string> = {
@@ -114,7 +115,9 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const [section, setSection] = useState<SheetSection>(initialSection)
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const stage: PlanStage = view.startsWith("replan:") ? (view.slice(7) as PlanStage) : "plan"
-  const isPlanView = view === "plan" || view.startsWith("replan:")
+  const isPlanView = view === "plan" || view.startsWith("replan:") || view === "evac"
+  // план эвакуации: тот же план этажа + пути, знаки и легенда
+  const evac = useMemo(() => (floor && view === "evac" ? buildEvacuation(floor) : null), [floor, view])
   const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null, stage) : null), [building, floors, floor, premiseNumbers, stage])
   const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
@@ -140,7 +143,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = elevation ? elevation.title : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   const activeSheet = elevationSheet ?? sheet
 
   function downloadDxf() {
@@ -186,6 +189,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium dark:border-slate-800 dark:bg-slate-900"
         >
           <option value="plan">План этажа</option>
+          <option value="evac">План эвакуации</option>
           {replan && (
             <optgroup label="Перепланировка этажа">
               <option value="replan:demolish">План демонтажа</option>
@@ -267,6 +271,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           elevation={elevation?.d ?? null}
           sectionMarks={view === "plan" ? ownSections : []}
           replan={replanTables ? replan : null}
+          evac={evac}
           stage={stage}
           ar={arTables && extras && floor ? { rooms: extras.rooms, schedule: extras.schedule, floorId: floor.id } : null}
           title={title}
@@ -303,8 +308,11 @@ export function SheetSvg({
   svgId = "floor-sheet",
   cover,
   indicators,
+  evac,
   ar,
 }: {
+  /** план эвакуации: пути, выходы и легенда поверх плана */
+  evac?: EvacuationPlan | null
   /** экспликация и ведомость проёмов справа от плана */
   ar?: { rooms: RoomRow[]; schedule: OpeningSchedule; floorId: string } | null
   svgId?: string
@@ -517,6 +525,7 @@ export function SheetSvg({
           </g>
         )
       })}
+      {evac && <EvacLayer evac={evac} X={X} Y={Y} sheet={sheet} />}
       {d.stairWells.map((q, i) => (
         <polygon key={`sw${i}`} points={q.map(P).join(" ")} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="4 1.2 1 1.2" />
       ))}
@@ -638,7 +647,7 @@ export function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
@@ -883,5 +892,73 @@ function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[
   const onFloor = schedule.rows.filter((r) => (r.perFloor[floorId] ?? 0) > 0)
   table("ops", "Ведомость заполнения проёмов", [{ w: 13, label: "Марка", align: "middle" }, { w: w - 41, label: "Наименование" }, { w: 14, label: "Этаж", align: "end" }, { w: 14, label: "Всего", align: "end" }],
     onFloor.map((r) => [r.mark, openingName(r), String(r.perFloor[floorId] ?? 0), String(r.total)]))
+  return <g>{out}</g>
+}
+
+/** Пути эвакуации, знаки выходов и легенда (ГОСТ Р 12.2.143). */
+function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number) => number; Y: (v: number) => number; sheet: Sheet }) {
+  const G = "#16a34a"
+  const out: React.ReactNode[] = []
+  evac.routes.forEach((route, i) => {
+    const pts = route.map((p) => `${X(p.x).toFixed(2)},${Y(p.y).toFixed(2)}`).join(" ")
+    out.push(<polyline key={`rt${i}`} points={pts} fill="none" stroke={G} strokeWidth={0.7} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />)
+    // стрелки направления через равные промежутки
+    for (let k = 1; k < route.length; k++) {
+      const a = { x: X(route[k - 1].x), y: Y(route[k - 1].y) }
+      const b = { x: X(route[k].x), y: Y(route[k].y) }
+      const L = Math.hypot(b.x - a.x, b.y - a.y)
+      if (L < 4) continue
+      const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+      const m = { x: a.x + u.x * (L / 2), y: a.y + u.y * (L / 2) }
+      out.push(<polygon key={`ar${i}-${k}`} points={`${m.x + u.x * 1.6},${m.y + u.y * 1.6} ${m.x - u.x * 1.2 - u.y * 1},${m.y - u.y * 1.2 + u.x * 1} ${m.x - u.x * 1.2 + u.y * 1},${m.y - u.y * 1.2 - u.x * 1}`} fill={G} />)
+    }
+  })
+  evac.extinguishers.forEach((p, i) => {
+    out.push(
+      <g key={`fe${i}`}>
+        <circle cx={X(p.x)} cy={Y(p.y)} r={2.4} fill="#dc2626" stroke="#fff" strokeWidth={0.3} />
+        <text x={X(p.x)} y={Y(p.y) + 1.1} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>ОП</text>
+      </g>,
+    )
+  })
+  evac.exits.forEach((ex, i) => {
+    const x = X(ex.at.x), y = Y(ex.at.y)
+    const dx = ex.dir.x, dy = -ex.dir.y
+    const tip = { x: x + dx * 8, y: y + dy * 8 }
+    out.push(
+      <g key={`ex${i}`}>
+        <line x1={x} y1={y} x2={tip.x} y2={tip.y} stroke={G} strokeWidth={0.9} />
+        <polygon points={`${tip.x},${tip.y} ${tip.x - dx * 3 - dy * 1.4},${tip.y - dy * 3 + dx * 1.4} ${tip.x - dx * 3 + dy * 1.4},${tip.y - dy * 3 - dx * 1.4}`} fill={G} />
+        <rect x={tip.x + dx * 2 - 6} y={tip.y + dy * 2 - 2} width={12} height={4} fill={G} rx={0.6} />
+        <text x={tip.x + dx * 2} y={tip.y + dy * 2 + 1.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>ВЫХОД</text>
+      </g>,
+    )
+  })
+  // легенда в свободном углу листа
+  const lx = 26, ly = sheet.h - 58
+  const items: Array<[string, "route" | "exit" | "stair" | "fire"]> = [
+    ["Путь эвакуации", "route"],
+    ["Эвакуационный выход", "exit"],
+    ["Лестница", "stair"],
+    ["Огнетушитель", "fire"],
+  ]
+  out.push(
+    <g key="legend">
+      <rect x={lx - 3} y={ly - 8} width={78} height={8 + items.length * 7} fill="#fff" stroke="#000" strokeWidth={0.3} />
+      <text x={lx} y={ly - 2.5} fontSize={3}>Условные обозначения</text>
+      {items.map(([label, kind], i) => {
+        const y = ly + 4 + i * 7
+        return (
+          <g key={label}>
+            {kind === "route" && <g><line x1={lx} y1={y} x2={lx + 12} y2={y} stroke={G} strokeWidth={0.7} /><polygon points={`${lx + 12},${y} ${lx + 9},${y - 1.2} ${lx + 9},${y + 1.2}`} fill={G} /></g>}
+            {kind === "exit" && <g><rect x={lx} y={y - 2} width={12} height={4} fill={G} rx={0.6} /><text x={lx + 6} y={y + 1.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>ВЫХОД</text></g>}
+            {kind === "stair" && <rect x={lx} y={y - 2} width={12} height={4} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="2 1" />}
+            {kind === "fire" && <g><circle cx={lx + 6} cy={y} r={2.2} fill="#dc2626" /><text x={lx + 6} y={y + 1.1} fontSize={2.4} fill="#fff" textAnchor="middle" fontWeight={700}>ОП</text></g>}
+            <text x={lx + 16} y={y + 1} fontSize={2.6}>{label}</text>
+          </g>
+        )
+      })}
+    </g>,
+  )
   return <g>{out}</g>
 }

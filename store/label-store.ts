@@ -14,9 +14,12 @@ export type ScreenLabel =
 interface LabelState {
   labels: ScreenLabel[]
   showDimensions: boolean
+  /** показывать арендаторов: подписи с именем арендатора и подсветку по статусу */
+  showTenants: boolean
   cursorMm: { x: number; y: number } | null
   setLabels: (labels: ScreenLabel[]) => void
   toggleDimensions: () => void
+  toggleTenants: () => void
   setCursor: (mm: { x: number; y: number } | null) => void
 }
 
@@ -25,8 +28,10 @@ export const useLabelStore = create<LabelState>((set) => ({
   // размеры всех стен по умолчанию выключены: в 3D они закрывали вид;
   // у выбранной стены размер виден всегда, остальные — кнопкой «Размеры» (L)
   showDimensions: false,
+  showTenants: true,
   cursorMm: null,
   setLabels: (labels) => set({ labels }),
   toggleDimensions: () => set((s) => ({ showDimensions: !s.showDimensions })),
+  toggleTenants: () => set((s) => ({ showTenants: !s.showTenants })),
   setCursor: (cursorMm) => set({ cursorMm }),
 }))
