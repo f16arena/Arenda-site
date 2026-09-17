@@ -273,6 +273,15 @@ export function IndoorMapApp({
               >
                 <Download className="h-3.5 w-3.5" /> PNG
               </button>
+              {active ? (
+                <Link
+                  href={`/admin/builder/${buildingId}/sheet?dbFloor=${active.id}`}
+                  title="Лист чертежа по ГОСТ: размеры, оси, штамп; PDF и DXF для AutoCAD"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  <PencilRuler className="h-3.5 w-3.5" /> Чертёж
+                </Link>
+              ) : null}
               <button
                 type="button"
                 onClick={() => window.print()}

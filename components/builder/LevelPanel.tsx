@@ -289,6 +289,18 @@ export function LevelPanel({
       >
         Дублировать этаж
       </button>
+      {buildingId && activeLevelId && activeLevelId !== "site" && (
+        <a
+          href={`/admin/builder/${buildingId}/sheet?floor=${activeLevelId}`}
+          target="_blank"
+          rel="noreferrer"
+          title="Лист плана этажа со размерами, осями и штампом: PDF и DXF для AutoCAD"
+          className="rounded-lg py-1.5 text-center text-[11px] font-medium"
+          style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}
+        >
+          Чертёж этажа (PDF, DXF)
+        </a>
+      )}
       {activeLevelId && activeLevelId !== "site" && (
         <div className="flex gap-1">
           {armed ? (
