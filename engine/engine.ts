@@ -2446,14 +2446,32 @@ export class BuilderEngine {
 
   // Вписать всю сцену в кадр (клавиша F): центрируем орбитальную камеру на габаритах.
   frameAll(): void {
-    if (!this.docRoot) return
-    const { min, max } = this.docRoot.getHierarchyBoundingVectors(true)
-    if (!isFinite(min.x) || !isFinite(max.x)) return
+    // Вписываем здания по их стенам, а не иерархию сцены: в неё попадают
+    // котлован и служебные меши, и «Вписать» показывало весь участок 200 м
+    // с крошечным зданием посередине.
+    const doc = this.getDoc()
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const b of doc?.buildings ?? []) {
+      for (const f of b.floors) {
+        for (const id in f.wallGraph.nodes) {
+          const n = f.wallGraph.nodes[id]
+          minX = Math.min(minX, (b.origin.x + n.x) * S); maxX = Math.max(maxX, (b.origin.x + n.x) * S)
+          minZ = Math.min(minZ, (b.origin.y + n.y) * S); maxZ = Math.max(maxZ, (b.origin.y + n.y) * S)
+        }
+        minY = Math.min(minY, f.elevation * S)
+        maxY = Math.max(maxY, (f.elevation + f.height) * S)
+      }
+    }
     const cam = this.bundle.camera
-    const cx = (min.x + max.x) / 2, cy = (min.y + max.y) / 2, cz = (min.z + max.z) / 2
-    const span = Math.max(max.x - min.x, max.y - min.y, max.z - min.z)
+    if (!isFinite(minX)) {
+      cam.setTarget(new Vector3(0, 3, 0))
+      cam.radius = 48
+      return
+    }
+    const cx = (minX + maxX) / 2, cy = (Math.max(0, minY) + maxY) / 2, cz = (minZ + maxZ) / 2
+    const span = Math.max(maxX - minX, maxZ - minZ, maxY - Math.max(0, minY))
     cam.setTarget(new Vector3(cx, cy, cz))
-    cam.radius = Math.max(8, Math.min(cam.upperRadiusLimit ?? 500, span * 1.4 + 6))
+    cam.radius = Math.max(8, Math.min(cam.upperRadiusLimit ?? 500, span * 1.5 + 4))
   }
 
   // Снимок сцены (PNG data-URL). preserveDrawingBuffer включён в createScene.
