@@ -66,7 +66,7 @@ const MOVE_PX = 4
 
 /** Поля «вписать» с учётом панелей конструктора: этажи слева, свойства справа, тулбар сверху. */
 function fitPad(w: number) {
-  return w < 900 ? 40 : { left: 290, right: 290, top: 150, bottom: 110 }
+  return w < 900 ? 40 : { left: 290, right: 290, top: 150, bottom: 150 }
 }
 
 export function PlanEditor() {
@@ -608,7 +608,8 @@ export function PlanEditor() {
           const premise = link ? resolvePremise(link) : undefined
           const fill = premise ? `${STATUS_COLOR[premise.status]}33` : "#ffffff"
           const selected = sel.type === "room" && sel.id === r.id
-          return <polygon key={r.id} points={pts(r.polygon)} fill={fill} stroke={selected ? TOKENS.accent : "none"} strokeWidth={selected ? 3 : 0} />
+          const ring = (list: Vec2[]) => list.map((q, i) => { const t = S(q); return `${i ? "L" : "M"}${t.x.toFixed(1)} ${t.y.toFixed(1)}` }).join(" ") + " Z"
+          return <path key={r.id} d={[r.polygon, ...(r.holes ?? [])].map(ring).join(" ")} fillRule="evenodd" fill={fill} stroke={selected ? TOKENS.accent : "none"} strokeWidth={selected ? 3 : 0} />
         })}
 
         {/* стены */}
@@ -684,14 +685,21 @@ export function PlanEditor() {
 
         {/* подписи помещений */}
         {rooms.map((r) => {
+          // точка подписи — внутри помещения (Г-образный коридор: не на стене)
+          const at = drawing.rooms.find((x) => x.roomId === r.id)?.at
           let cx = 0, cy = 0
           for (const q of r.polygon) { cx += q.x; cy += q.y }
-          const c = S({ x: cx / r.polygon.length, y: cy / r.polygon.length })
+          const c = S(at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length })
           const link = floor.premiseLinks[r.id]
           const premise = link ? resolvePremise(link) : undefined
           const name = floor.roomNames?.[r.id]
           const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
-          if (px(Math.sqrt(r.areaMm2)) < 40) return null
+          const side = px(Math.sqrt(r.areaMm2))
+          if (side < 22) return null
+          if (side < 48) {
+            // маленькое помещение (санузел, тамбур): только площадь мелко
+            return <text key={`lbl${r.id}`} x={c.x} y={c.y} fontSize={Math.max(8, fontPx - 3)} textAnchor="middle" dominantBaseline="middle" fill="#475569" style={{ pointerEvents: "none" }}>{(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")}</text>
+          }
           return (
             <g key={`lbl${r.id}`} style={{ pointerEvents: "none" }} fontSize={fontPx} textAnchor="middle">
               <text x={c.x} y={c.y - fontPx * 0.9} fontWeight={700} fill="#0f172a">{numbers.get(r.id) ? `№ ${numbers.get(r.id)}` : ""}{name ? ` · ${name}` : ""}</text>
@@ -820,7 +828,7 @@ export function PlanEditor() {
         {hint}
       </div>
       <div className="pointer-events-none absolute bottom-9 left-[13.5rem] rounded-md px-2 py-0.5 text-[11px] tabular-nums" style={{ background: "rgba(255,255,255,0.85)", color: "#334155" }}>
-        {cursor ? `X ${(cursor.plan.x / 1000).toFixed(2)}  Y ${(cursor.plan.y / 1000).toFixed(2)} м` : ""} · 1 м = {px(1000).toFixed(0)} px
+        {cursor ? `X ${(cursor.plan.x / 1000).toFixed(2)}  Y ${(cursor.plan.y / 1000).toFixed(2)} м · ` : ""}1 м = {px(1000).toFixed(0)} px
       </div>
     </div>
   )

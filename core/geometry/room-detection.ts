@@ -4,13 +4,16 @@
 // «усы» отбрасываются. id комнаты стабилен по набору узлов (для привязки premise).
 
 import type { WallGraph } from "./wall-graph"
-import { type Vec2, polygonArea, signedArea } from "./math"
+import { type Vec2, centroid, pointInPolygon, polygonArea, signedArea } from "./math"
 
 export interface Room {
   id: string
   nodeLoop: string[] // узлы контура по порядку
   polygon: Vec2[] // мм
+  /** площадь за вычетом вложенных помещений (островов стен внутри), мм² */
   areaMm2: number
+  /** контуры вложенных помещений — не входят в площадь (санузлы посреди коридора) */
+  holes?: Vec2[][]
   floorMaterialId?: string
   premiseId?: string
 }
@@ -92,5 +95,44 @@ export function detectRooms(graph: WallGraph): Room[] {
       rooms.push({ id: roomId(loop), nodeLoop: loop, polygon, areaMm2 })
     }
   }
-  return rooms
+  return subtractIslands(rooms)
+}
+
+/** Точка строго внутри многоугольника (центр тяжести или середина ребра, сдвинутая внутрь). */
+function interiorPoint(poly: Vec2[]): Vec2 {
+  const c = centroid(poly)
+  if (pointInPolygon(c, poly)) return c
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length]
+    const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+    // многоугольник CCW: внутрь — влево от ребра
+    const q = { x: m.x - ((b.y - a.y) / L) * 10, y: m.y + ((b.x - a.x) / L) * 10 }
+    if (pointInPolygon(q, poly)) return q
+  }
+  return c
+}
+
+/**
+ * Остров стен внутри помещения (блок санузлов посреди коридора) не связан с его
+ * контуром, и грань помещения его накрывает: площадь коридора включала санузлы.
+ * Помещение без общих узлов, лежащее внутри другого, вычитается из его площади
+ * (только прямые вложения — остров в острове не вычитается дважды).
+ */
+function subtractIslands(rooms: Room[]): Room[] {
+  if (rooms.length < 2) return rooms
+  const nodeSets = rooms.map((r) => new Set(r.nodeLoop))
+  const inside = (inner: number, outer: number) =>
+    inner !== outer &&
+    rooms[inner].areaMm2 < rooms[outer].areaMm2 &&
+    !rooms[inner].nodeLoop.some((n) => nodeSets[outer].has(n)) &&
+    pointInPolygon(interiorPoint(rooms[inner].polygon), rooms[outer].polygon)
+  return rooms.map((r, oi) => {
+    const kids = rooms.map((_, i) => i).filter((i) => inside(i, oi))
+    // прямые вложения: не лежат внутри другого вложения этого же помещения
+    const direct = kids.filter((i) => !kids.some((j) => j !== i && inside(i, j)))
+    if (!direct.length) return r
+    const holeArea = direct.reduce((sum, i) => sum + rooms[i].areaMm2, 0)
+    return { ...r, areaMm2: Math.max(0, r.areaMm2 - holeArea), holes: direct.map((i) => rooms[i].polygon) }
+  })
 }

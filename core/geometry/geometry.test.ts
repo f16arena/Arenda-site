@@ -118,3 +118,22 @@ describe("стена от дробного угла", () => {
     expect(Object.keys(g.nodes).length).toBe(nodesBefore + 1)
   })
 })
+
+describe("помещения с островами", async () => {
+  const { emptyGraph, insertWall } = await import("./wall-graph")
+  const { detectRooms } = await import("./room-detection")
+  it("блок санузлов посреди коридора вычитается из площади коридора", () => {
+    let g = emptyGraph()
+    const box = (x0: number, y0: number, x1: number, y1: number) => {
+      const p = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]
+      for (let i = 0; i < 4; i++) g = insertWall(g, { x: p[i][0], y: p[i][1] }, { x: p[i + 1][0], y: p[i + 1][1] }, { thickness: 100, height: 3000, kind: "partition" }).graph
+    }
+    box(0, 0, 10000, 10000) // 100 м²
+    box(4000, 4000, 6000, 6000) // остров 4 м²
+    const rooms = detectRooms(g)
+    const big = rooms.find((r) => r.areaMm2 > 50e6)!
+    expect(big.areaMm2 / 1e6).toBeCloseTo(96)
+    expect(big.holes).toHaveLength(1)
+    expect(rooms.find((r) => r.areaMm2 < 5e6)!.areaMm2 / 1e6).toBeCloseTo(4)
+  })
+})

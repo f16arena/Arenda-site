@@ -126,7 +126,9 @@ export function hitTest(floor: Floor, p: Vec2, tolMm: number, gripNodes: string[
     if (d <= e.thickness / 2 + tolMm && (!bestWall || d < bestWall.d)) bestWall = { id, d }
   }
   if (bestWall) return { kind: "wall", id: bestWall.id }
-  for (const r of detectRooms(g)) if (pointInPolygon(p, r.polygon)) return { kind: "room", id: r.id }
+  for (const r of detectRooms(g)) {
+    if (pointInPolygon(p, r.polygon) && !(r.holes ?? []).some((h) => pointInPolygon(p, h))) return { kind: "room", id: r.id }
+  }
   return null
 }
 

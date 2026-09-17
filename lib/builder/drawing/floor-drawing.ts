@@ -43,6 +43,7 @@ export interface AxisLine {
 }
 
 export interface RoomLabel {
+  roomId: string
   at: Pt
   number: string | null
   areaM2: number
@@ -113,22 +114,40 @@ function uniqSorted(values: number[]): number[] {
   return out
 }
 
-/** Точка внутри многоугольника для подписи: центр тяжести или ближайшая внутренняя. */
-function labelPoint(poly: Pt[]): Pt {
+/**
+ * Точка подписи помещения: самое просторное место внутри — максимум расстояния
+ * до стен (грубый «полюс недоступности» по сетке). В узком Г-образном коридоре
+ * центр тяжести лежит у стены или вовсе снаружи — подпись налезала на двери.
+ */
+export function labelPoint(poly: Pt[], holes: Pt[][] = []): Pt {
   const c = centroid(poly)
-  if (pointInPolygon(c, poly)) return c
   const xs = poly.map((p) => p.x), ys = poly.map((p) => p.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
+  const rings = [poly, ...holes]
+  const edgeDist = (p: Pt) => {
+    let d = Infinity
+    for (const ring of rings) for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length]
+      const dx = b.x - a.x, dy = b.y - a.y
+      const L2 = dx * dx + dy * dy || 1
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / L2))
+      d = Math.min(d, Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t)))
+    }
+    return d
+  }
   let best: Pt = c
-  let bestD = Infinity
-  const n = 12
-  for (let i = 1; i < n; i++) {
-    for (let j = 1; j < n; j++) {
+  const free = (p: Pt) => pointInPolygon(p, poly) && !holes.some((h) => pointInPolygon(p, h))
+  let bestScore = free(c) ? edgeDist(c) : -Infinity
+  const n = 24
+  const span = Math.max(maxX - minX, maxY - minY) || 1
+  for (let i = 0; i <= n; i++) {
+    for (let j = 0; j <= n; j++) {
       const p = { x: minX + ((maxX - minX) * i) / n, y: minY + ((maxY - minY) * j) / n }
-      if (!pointInPolygon(p, poly)) continue
-      const d = Math.hypot(p.x - c.x, p.y - c.y)
-      if (d < bestD) {
-        bestD = d
+      if (!free(p)) continue
+      // простор важнее близости к центру; при равенстве — ближе к центру
+      const score = edgeDist(p) - (Math.hypot(p.x - c.x, p.y - c.y) / span) * 50
+      if (score > bestScore) {
+        bestScore = score
         best = p
       }
     }
@@ -284,7 +303,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   // помещения
   const rooms: RoomLabel[] = detectRooms(g).map((r) => {
     const key = floor.premiseLinks[r.id]
-    return { at: labelPoint(r.polygon), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
+    return { roomId: r.id, at: labelPoint(r.polygon, r.holes), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
   })
 
   // размерные цепочки по четырём фасадам

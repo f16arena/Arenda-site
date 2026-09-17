@@ -27,7 +27,8 @@ export function buildFloors(
   for (const room of rooms) {
     const shape = room.polygon.map((p) => new Vector3(p.x * S, 0, p.y * S))
     // Вырезы (лестницы), чей центр лежит внутри комнаты.
-    const roomHoles = holes.filter((h) => h.length >= 3 && pointInPolygon(centroid(h), room.polygon))
+    // + вложенные помещения (остров санузлов в коридоре) — иначе полы накладываются
+    const roomHoles = [...holes.filter((h) => h.length >= 3 && pointInPolygon(centroid(h), room.polygon)), ...(room.holes ?? [])]
     const holeShapes = roomHoles.map((h) => h.map((p) => new Vector3(p.x * S, 0, p.y * S)))
     const slab = MeshBuilder.CreatePolygon(
       `floor_${floor.id}_${room.id}`,

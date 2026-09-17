@@ -87,3 +87,14 @@ describe("чертёж плана этажа", () => {
     expect(sheet.scale).toBeLessThanOrEqual(200)
   })
 })
+
+describe("точка подписи помещения", async () => {
+  const { labelPoint } = await import("./floor-drawing")
+  it("Г-образный коридор: подпись в широкой части, не у стены", () => {
+    // Г: вертикальная полоса 2 м × 20 м и горизонтальная 12 м × 2 м снизу
+    const poly = [{ x: 0, y: 0 }, { x: 12000, y: 0 }, { x: 12000, y: 2000 }, { x: 2000, y: 2000 }, { x: 2000, y: 20000 }, { x: 0, y: 20000 }]
+    const p = labelPoint(poly)
+    const nearest = Math.min(p.x, p.y, Math.abs(2000 - p.x) + (p.y < 2000 ? 99999 : 0), Math.abs(2000 - p.y) + (p.x < 2000 ? 99999 : 0))
+    expect(nearest).toBeGreaterThan(700)
+  })
+})
