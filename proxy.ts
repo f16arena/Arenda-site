@@ -48,7 +48,7 @@ const PUBLIC_ROOT_PREFIXES = [
   "/blog",
 ]
 
-const PUBLIC_ASSET_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|map|woff2?|ttf|otf)$/i
+const PUBLIC_ASSET_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|mjs|map|woff2?|ttf|otf)$/i
 
 function isPublicRootPath(path: string): boolean {
   if (PUBLIC_ASSET_FILE.test(path)) return true
@@ -206,6 +206,6 @@ export const config = {
     // /api/logout исключён, чтобы middleware (auth() wrapper) не рефрешил
     // session cookie в момент логаута — иначе наша очистка cookie конфликтует
     // с обновлённым cookie от middleware и пользователь "не выходит".
-    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json|robots.txt|sitemap.xml|.*\\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|map|woff2?|ttf|otf|html?)$).*)",
+    "/((?!api/auth|api/logout|api/telegram/webhook|api/email/track|api/cron|_next/static|_next/image|favicon.ico|icon.*|manifest.json|robots.txt|sitemap.xml|.*\\.(?:png|jpe?g|gif|webp|avif|svg|ico|txt|xml|json|webmanifest|css|js|mjs|map|woff2?|ttf|otf|html?)$).*)",
   ],
 }

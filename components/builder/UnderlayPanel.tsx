@@ -62,8 +62,18 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
 
   async function onFile(file: File) {
     setPendingFile(file)
+    setError(null)
     if (file.type === "application/pdf") {
-      const count = await countPdfPages(file)
+      // подсчёт страниц тоже может упасть (битый PDF, не загрузился воркер) —
+      // молча проглатывать нельзя, инженер должен видеть, почему ничего не произошло
+      let count: number
+      try {
+        count = await countPdfPages(file)
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Не удалось прочитать PDF")
+        setPendingFile(null)
+        return
+      }
       setPages(count)
       if (count > 1) return
     }
