@@ -8,11 +8,12 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { ArrowLeft, Printer } from "lucide-react"
-import type { Building, Floor } from "@/types/builder"
+import type { Building, BuilderDocument, Floor } from "@/types/builder"
 import { buildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildEvacuation } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes } from "@/lib/builder/drawing/finish"
 import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
+import { buildSitePlan } from "@/lib/builder/drawing/site-plan"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -24,13 +25,16 @@ type Entry = { key: string; title: string; sheet: Sheet; props: Omit<Parameters<
 
 const A3L: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
 
-export function SheetAlbum({ buildingId, buildingName, address, author, building, premiseNumbers }: {
+export function SheetAlbum({ buildingId, buildingName, address, author, building, premiseNumbers, site, allBuildings }: {
   buildingId: string
   buildingName: string
   address: string
   author: string
   building: Building
   premiseNumbers: Record<string, string>
+  /** участок проекта — лист генерального плана */
+  site?: BuilderDocument["site"]
+  allBuildings?: Building[]
 }) {
   const entries = useMemo<Entry[]>(() => {
     const floors: Floor[] = [...building.floors].filter((f) => Object.keys(f.wallGraph.edges).length > 0).sort((a, b) => a.level - b.level)
@@ -78,6 +82,19 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       for (const st of ["demolish", "install", "after"] as const) plan(f, st, "ar", `${floorTitle(f)}. ${STAGE_TITLE[st]}`)
     }
     for (const f of floors) for (const sec of sectionsWithContent(f)) plan(f, "plan", sec, `${floorTitle(f)}. ${sec} — ${SECTION_TITLE[sec].toLowerCase()}`)
+    // генеральный план — первым листом после общих данных
+    if (site) {
+      const sp = buildSitePlan({ site, buildings: allBuildings ?? [building] })
+      const base0 = floors[0]
+      if (sp && base0) {
+        const extras0 = planExtras(building.floors, base0, num)
+        const drawing0 = buildFloorDrawing(base0, num, "plan", extras0.options)
+        out.push({
+          key: "site-plan", title: "Генеральный план", sheet: A3L,
+          props: { drawing: drawing0, sheet: A3L, title: "Генеральный план", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", sitePlan: sp },
+        })
+      }
+    }
     // план кровли — один на здание, по верхнему этажу
     {
       const top = [...floors].sort((a, b) => b.elevation - a.elevation)[0]
@@ -106,7 +123,7 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       }
     }
     return out
-  }, [building, premiseNumbers])
+  }, [building, premiseNumbers, site, allBuildings])
 
   // Альбом живёт в собственном слое прямо в body: оболочка админки фиксирует
   // высоту экрана, и печать из неё обрезалась бы на первом листе
