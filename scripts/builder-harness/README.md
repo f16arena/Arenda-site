@@ -22,6 +22,7 @@ node scripts/builder-harness/run13.mjs     # перепланировка: де�
 node scripts/builder-harness/run14.mjs     # подложка из DXF в масштабе
 node scripts/builder-harness/run15.mjs     # группа стен: сдвиг, копия, поворот с проёмами
 node scripts/builder-harness/run16.mjs     # размеры и надписи инженера
+node scripts/builder-harness/run17.mjs     # щит: разбивка по группам, расчётная таблица
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

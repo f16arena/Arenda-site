@@ -9,6 +9,8 @@ import { roomWallsToDelete } from "@/lib/builder/room-delete"
 import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
+import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
+import { roomExplication } from "@/lib/builder/drawing/schedules"
 import { usePremiseStore } from "@/store/premise-store"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
@@ -339,6 +341,56 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             {(dev.power !== undefined || di?.power !== undefined || dev.kind === "panel") && field("Мощность, Вт", (
               <input id="mep-dev-power" type="number" step="10" min="0" defaultValue={dev.power ?? di?.power ?? 0} key={`dp${id}${dev.power}`} onBlur={(ev) => { const v = num(ev.target.value); if (Number.isFinite(v) && v !== dev.power) execute(new UpdateMepDeviceCommand(fid, id, { power: Math.max(0, Math.round(v)) })) }} className={inputCls} style={inputStyle} />
             ))}
+            {groupKindOf(dev) && f && (() => {
+              const panels = (f.mepDevices ?? []).filter((d) => d.kind === "panel")
+              return (
+                <div className="flex gap-1">
+                  {field("Щит", (
+                    <select id="mep-dev-panel" value={dev.panelId ?? ""} onChange={(ev) => execute(new UpdateMepDeviceCommand(fid, id, { panelId: ev.target.value || undefined }))} className={inputCls} style={inputStyle}>
+                      <option value="" style={{ color: "#0b1220" }}>—</option>
+                      {panels.map((pn) => <option key={pn.id} value={pn.id} style={{ color: "#0b1220" }}>{pn.label || "ЩР"}</option>)}
+                    </select>
+                  ))}
+                  {field("Группа", (
+                    <input id="mep-dev-group" type="number" min="1" max="99" defaultValue={dev.group ?? ""} key={`dg${id}${dev.group}`} onBlur={(ev) => { const v = parseInt(ev.target.value, 10); execute(new UpdateMepDeviceCommand(fid, id, { group: Number.isFinite(v) && v > 0 ? v : undefined })) }} className={inputCls} style={inputStyle} />
+                  ))}
+                </div>
+              )
+            })()}
+            {dev.kind === "panel" && f && (() => {
+              const numbers = new Map(roomExplication(f).map((r) => [r.roomId, r.number]))
+              const calc = calcPanels(f, (rid) => numbers.get(rid) ?? null).find((c) => c.panelId === id)
+              return (
+                <div className="flex flex-col gap-1">
+                  <button type="button" onClick={() => {
+                    const plan = autoAssignGroups(f).filter((a) => a.panelId === id)
+                    if (plan.length) execute(new CompositeCommand("разбивка по группам", plan.map((a) => new UpdateMepDeviceCommand(fid, a.deviceId, { panelId: a.panelId, group: a.group }))))
+                  }} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(56,189,248,0.16)", color: TOKENS.text }} title="Ближайшие приборы к этому щиту: свет и розетки — по помещениям (не больше 6 розеток), 380 В и оборудование — отдельными группами">
+                    Разбить по группам
+                  </button>
+                  {calc && calc.groups.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[10px]" style={{ fontVariantNumeric: "tabular-nums", color: TOKENS.text }}>
+                        <thead><tr style={{ color: TOKENS.muted }}><th className="text-left">Гр.</th><th className="text-right">Р, кВт</th><th className="text-right">I, А</th><th className="text-right">QF</th><th className="text-right">S, мм²</th><th className="text-right">ΔU%</th></tr></thead>
+                        <tbody>
+                          {calc.groups.map((g) => (
+                            <tr key={g.group} title={g.purpose}>
+                              <td>{g.group}</td>
+                              <td className="text-right">{(g.pInstW / 1000).toFixed(2)}</td>
+                              <td className="text-right">{g.currentA.toFixed(1)}</td>
+                              <td className="text-right">{g.breakerA}</td>
+                              <td className="text-right">{String(g.cableMm2).replace(".", ",")}</td>
+                              <td className="text-right" style={{ color: g.dropPct > 4 ? "#f87171" : undefined }}>{g.dropPct.toFixed(1)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="mt-1 text-[10px]" style={{ color: TOKENS.muted }}>Руст {(calc.pInstW / 1000).toFixed(2)} кВт · Рр {(calc.pCalcW / 1000).toFixed(2)} кВт · Iр {calc.currentA.toFixed(1)} А · вводной {calc.inputBreakerA} А</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             <div className="flex gap-1">
               <button type="button" onClick={() => execute(new UpdateMepDeviceCommand(fid, id, { rotation: (dev.rotation + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
               <button type="button" onClick={() => { execute(new DeleteMepDeviceCommand(fid, id)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>

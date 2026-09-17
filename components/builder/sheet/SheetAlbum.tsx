@@ -35,7 +35,8 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
     const plan = (f: Floor, stage: PlanStage, section: SheetSection, title: string) => {
       const extras = planExtras(building.floors, f, num)
       const drawing = buildFloorDrawing(f, num, stage, extras.options)
-      const mep = section !== "ar" ? buildMepDrawing(f, section) : null
+      const numbers = new Map(extras.rooms.map((r) => [r.roomId, r.number]))
+      const mep = section !== "ar" ? buildMepDrawing(f, section, (rid) => numbers.get(rid) ?? null) : null
       const replan = stage !== "plan" && hasReplan(f) ? replanSummary(f) : null
       const withAr = stage === "plan" && section === "ar"
       const reserve = (mep && (mep.legend.length || mep.spec.length)) || replan || withAr ? TABLES_W + 5 : 0

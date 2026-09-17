@@ -239,6 +239,38 @@ export function MepTables({ md, x, y, w, maxH }: { md: MepDrawing; x: number; y:
     out.push(<line key="v2" x1={cUnit} y1={top + 6} x2={cUnit} y2={cy} stroke="#000" strokeWidth={0.18} />)
     out.push(<rect key="sr" x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
     if (cut) out.push(<text key="cut" x={x} y={cy + 3.5} fontSize={2.2}>…ещё строк: {cut} — полностью в панели «Сети»</text>)
+    cy += 8
+  }
+
+  // расчётные таблицы щитов
+  for (const pn of md.panels) {
+    if (cy + 20 > limit) break
+    const top = cy
+    out.push(<text key={`pt${pn.panelId}`} x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Расчётная таблица {pn.label}</text>)
+    cy += 6
+    const cols = [
+      { w: 7, l: "Гр." }, { w: w - 7 - 11 - 9 - 9 - 23 - 9, l: "Назначение" }, { w: 11, l: "Руст, кВт" }, { w: 9, l: "Iр, А" }, { w: 9, l: "QF, А" }, { w: 23, l: "Кабель" }, { w: 9, l: "ΔU, %" },
+    ]
+    const xs: number[] = []
+    let acc = x
+    for (const c of cols) { xs.push(acc); acc += c.w }
+    out.push(<line key={`ph0${pn.panelId}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
+    cols.forEach((c, i) => out.push(<text key={`ph${pn.panelId}${i}`} x={xs[i] + 0.8} y={cy + 3.2} fontSize={1.9}>{c.l}</text>))
+    cy += 4.6
+    out.push(<line key={`ph1${pn.panelId}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
+    for (const g of pn.groups) {
+      if (cy + 4.2 > limit - 6) break
+      const maxChars = Math.floor((cols[1].w - 1.5) / 1.05)
+      const cells = [String(g.group), g.purpose.length > maxChars ? `${g.purpose.slice(0, maxChars - 1)}…` : g.purpose, (g.pInstW / 1000).toFixed(2).replace(".", ","), g.currentA.toFixed(1).replace(".", ","), String(g.breakerA), g.cableMark.replace("ВВГнг(А)-LS ", "ВВГнг ") + `, ${Math.round(g.lengthM)} м`, g.dropPct.toFixed(1).replace(".", ",")]
+      cells.forEach((c, i) => out.push(<text key={`pr${pn.panelId}${g.group}${i}`} x={xs[i] + 0.8} y={cy + 3} fontSize={1.9} fill={i === 6 && g.dropPct > 4 ? "#b91c1c" : "#000"}>{c}</text>))
+      cy += 4.2
+      out.push(<line key={`pl${pn.panelId}${g.group}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
+    }
+    out.push(<text key={`ptot${pn.panelId}`} x={x + 1} y={cy + 3.3} fontSize={2.1} fontWeight={700}>Руст {(pn.pInstW / 1000).toFixed(2).replace(".", ",")} кВт; Рр {(pn.pCalcW / 1000).toFixed(2).replace(".", ",")} кВт; Iр {pn.currentA.toFixed(1).replace(".", ",")} А; вводной QF {pn.inputBreakerA} А</text>)
+    cy += 5
+    xs.slice(1).forEach((xx, i) => out.push(<line key={`pv${pn.panelId}${i}`} x1={xx} y1={top + 6} x2={xx} y2={cy - 5} stroke="#000" strokeWidth={0.18} />))
+    out.push(<rect key={`pb${pn.panelId}`} x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
+    cy += 6
   }
   return <g>{out}</g>
 }

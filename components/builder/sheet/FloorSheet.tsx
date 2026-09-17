@@ -114,7 +114,11 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null) : null), [building, floors, floor, premiseNumbers])
   const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
-  const mep = useMemo(() => (floor && section !== "ar" && view === "plan" ? buildMepDrawing(floor, section) : null), [floor, section, view])
+  const mep = useMemo(() => {
+    if (!floor || section === "ar" || view !== "plan") return null
+    const numbers = new Map((extras?.rooms ?? []).map((r) => [r.roomId, r.number]))
+    return buildMepDrawing(floor, section, (rid) => numbers.get(rid) ?? null)
+  }, [floor, section, view, extras])
   const replanTables = stage !== "plan" && !!replan
   const arTables = view === "plan" && section === "ar" && !!extras && (extras.rooms.length > 0 || extras.schedule.rows.length > 0)
   const hasTables = (!!mep && (mep.legend.length > 0 || mep.spec.length > 0)) || replanTables || arTables

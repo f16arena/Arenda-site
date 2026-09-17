@@ -118,6 +118,8 @@ export const MepDeviceSchema = z.object({
   rotation: z.number().default(0), // градусы
   label: z.string().default(""),
   power: z.number().optional(), // Вт — для щитов и нагрузок
+  panelId: z.string().optional(), // щит, от которого питается прибор
+  group: z.number().optional(), // номер группы щита
 })
 export type MepDevice = z.infer<typeof MepDeviceSchema>
 

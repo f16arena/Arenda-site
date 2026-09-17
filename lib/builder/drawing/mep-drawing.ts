@@ -6,6 +6,7 @@ import type { Floor, MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, type MepSection, type MepSymbol } from "@/lib/builder/mep/catalog"
 import { mepSpec, type SystemSummary } from "@/lib/builder/mep/spec"
 import type { Pt } from "./floor-drawing"
+import { calcPanels, type PanelCalc } from "@/lib/builder/mep/panel-calc"
 
 /** Раздел листа: архитектура (обмерный план), один инженерный раздел или все сети. */
 export type SheetSection = "ar" | "mep" | MepSection
@@ -58,10 +59,12 @@ export interface MepDrawing {
   devices: MepDeviceShape[]
   legend: LegendRow[]
   spec: SystemSummary[]
+  /** расчётные таблицы щитов (разделы ЭМ, ЭО, все сети) */
+  panels: PanelCalc[]
   bounds: { minX: number; minY: number; maxX: number; maxY: number } | null
 }
 
-export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices">, section: SheetSection): MepDrawing {
+export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices"> & Partial<Floor>, section: SheetSection, roomNumber: (roomId: string) => string | null = () => null): MepDrawing {
   const systems = new Set(sectionSystems(section))
   const runs: MepRunShape[] = []
   const devices: MepDeviceShape[] = []
@@ -134,6 +137,7 @@ export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices">, se
     devices,
     legend,
     spec: mepSpec(filtered),
+    panels: (section === "ЭМ" || section === "ЭО" || section === "mep") && floor.wallGraph ? calcPanels(floor as Floor, roomNumber).filter((p) => p.groups.length > 0) : [],
     bounds: Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null,
   }
 }
