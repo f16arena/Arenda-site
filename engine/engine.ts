@@ -3126,7 +3126,8 @@ export class BuilderEngine {
   // ── Запрет наложения объектов ────────────────────────────────────────────────
   // Базовый габарит ассета (ширина X / глубина Z, мм) при scale=1, rotation=0.
   // Измеряется временным мешем один раз, кэшируется по assetId.
-  private baseSize(assetId: string): { w: number; d: number; h: number } {
+  /** Габарит ассета (Ш×Г×В, мм) при scale=1 — нужен и для плана, и для запрета наложения. */
+  baseSize(assetId: string): { w: number; d: number; h: number } {
     const cached = this.assetBaseSize.get(assetId)
     if (cached) return cached
     const probe = new TransformNode("probe", this.bundle.scene)

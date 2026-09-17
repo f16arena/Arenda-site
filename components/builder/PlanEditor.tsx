@@ -38,6 +38,7 @@ import {
   SetOpeningSizeCommand,
   SetStairCommand,
   setColumnSizeCommand,
+  MoveObjectCommand,
   type Command,
 } from "@/core/document/commands"
 import { MEP_DEVICE_BY_KIND, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
@@ -56,7 +57,7 @@ import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
-import { snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
+import { objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; view: View; moved: boolean }
@@ -64,6 +65,7 @@ type Drag =
   | { kind: "node"; id: string; moved: boolean; sx: number; sy: number }
   | { kind: "opening"; id: string; moved: boolean; sx: number; sy: number }
   | { kind: "stair"; id: string; from: Vec2; origin: Vec2; moved: boolean; sx: number; sy: number }
+  | { kind: "object"; id: string; from: Vec2; origin: Vec2; moved: boolean; sx: number; sy: number }
   | { kind: "room"; start: Vec2 }
   | { kind: "click"; hit: Hit | null; sx: number; sy: number; view: View; moved: boolean }
   | { kind: "box"; sx: number; sy: number; additive: boolean; moved: boolean }
@@ -116,6 +118,7 @@ export function PlanEditor() {
   const [look, setLook] = useState<"draft" | "rent">("draft")
   // размер у выделенного элемента, который сейчас правится с клавиатуры
   const [editing, setEditing] = useState<{ key: string; draft: string } | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   useEffect(() => {
     const el = hostRef.current
@@ -183,7 +186,7 @@ export function PlanEditor() {
     if (!floor) return
     const fid = floor.id
     if (!hit) return setSelection({ type: "none" })
-    const map: Record<Hit["kind"], Selection["type"]> = { node: "node", opening: "opening", stair: "stair", annotation: "annotation", "mep-device": "mep-device", wall: "wall", room: "room" }
+    const map: Record<Hit["kind"], Selection["type"]> = { node: "node", opening: "opening", stair: "stair", annotation: "annotation", "mep-device": "mep-device", wall: "wall", room: "room", object: "object" }
     setSelection({ type: map[hit.kind], id: hit.id, floorId: fid })
   }
 
@@ -285,6 +288,10 @@ export function PlanEditor() {
       if (hit?.kind === "node") { drag.current = { kind: "node", id: hit.id, moved: false, sx: at.s.x, sy: at.s.y }; return }
       if (hit && hit.id === selId && hit.kind === "wall") { drag.current = { kind: "wall", id: hit.id, from: at.p, moved: false, sx: at.s.x, sy: at.s.y }; return }
       if (hit && hit.id === selId && hit.kind === "opening") { drag.current = { kind: "opening", id: hit.id, moved: false, sx: at.s.x, sy: at.s.y }; return }
+      if (hit && hit.id === selId && hit.kind === "object") {
+        const ob = floor.objects.find((x) => x.id === hit.id)
+        if (ob && !ob.locked) { drag.current = { kind: "object", id: hit.id, from: at.p, origin: { x: ob.position.x, y: ob.position.z }, moved: false, sx: at.s.x, sy: at.s.y }; return }
+      }
       if (hit && hit.id === selId && hit.kind === "stair") {
         const st = floor.stairs.find((x) => x.id === hit.id)
         if (st) { drag.current = { kind: "stair", id: hit.id, from: at.p, origin: { ...st.position }, moved: false, sx: at.s.x, sy: at.s.y }; return }
@@ -374,6 +381,14 @@ export function PlanEditor() {
       setPreview(findFloor(new MoveOpeningCommand(floor.id, d.id, Math.round(off)).apply(doc), floor.id) ?? null)
       return
     }
+    if (d.kind === "object") {
+      if (!d.moved && !far) return
+      d.moved = true
+      let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
+      if (snapEnabled && !e.altKey) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
+      setPreview(findFloor(new MoveObjectCommand({ floorId: floor.id }, d.id, Math.round(x), Math.round(y)).apply(doc), floor.id) ?? null)
+      return
+    }
     if (d.kind === "stair") {
       if (!d.moved && !far) return
       d.moved = true
@@ -427,7 +442,7 @@ export function PlanEditor() {
       }
       return
     }
-    if (d.kind === "wall" || d.kind === "node" || d.kind === "opening" || d.kind === "stair") {
+    if (d.kind === "wall" || d.kind === "node" || d.kind === "opening" || d.kind === "stair" || d.kind === "object") {
       setPreview(null)
       if (!d.moved) return
       const edge = d.kind === "wall" ? floor.wallGraph.edges[d.id] : undefined
@@ -447,6 +462,10 @@ export function PlanEditor() {
           if (snapEnabled) off = Math.round(off / 50) * 50
           execute(new MoveOpeningCommand(floor.id, d.id, Math.round(Math.max(o.width / 2 + 50, Math.min(L - o.width / 2 - 50, off)))))
         }
+      } else if (d.kind === "object") {
+        let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
+        if (snapEnabled && !e.altKey) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
+        execute(new MoveObjectCommand({ floorId: floor.id }, d.id, Math.round(x), Math.round(y)))
       } else if (d.kind === "stair") {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
         if (floor.stairs.find((q) => q.id === d.id)?.shape === "column" && !e.altKey) ({ x, y } = snapColumn(floor, { x, y }, tolMm, d.id, snapEnabled ? 50 : 0).p)
@@ -782,6 +801,27 @@ export function PlanEditor() {
     if (clamped !== d.value) d.apply(clamped)
   }
 
+  // ── Линейки по краям: как в CAD, с шагом под текущий масштаб ──
+  // линейки стоят не по краю экрана, а по краю свободного поля: слева панель
+  // этажей, сверху — тулбар
+  const RULER = 18
+  const RX = 292
+  const RY = 152
+  const rulerStep = (() => {
+    for (const mm of [100, 250, 500, 1000, 2000, 5000, 10000, 20000, 50000]) if (px(mm) >= 55) return mm
+    return 100000
+  })()
+  const ruler = (() => {
+    if (!v) return { x: [] as Array<{ p: number; mm: number }>, y: [] as Array<{ p: number; mm: number }> }
+    const left = toPlan(v, { x: 0, y: 0 }), right = toPlan(v, { x: size.w, y: size.h })
+    const from = (a: number, b: number) => Math.ceil(Math.min(a, b) / rulerStep) * rulerStep
+    const xs: Array<{ p: number; mm: number }> = []
+    for (let mm = from(left.x, right.x); mm <= Math.max(left.x, right.x); mm += rulerStep) xs.push({ p: S({ x: mm, y: 0 }).x, mm })
+    const ys: Array<{ p: number; mm: number }> = []
+    for (let mm = from(left.y, right.y); mm <= Math.max(left.y, right.y); mm += rulerStep) ys.push({ p: S({ x: 0, y: mm }).y, mm })
+    return { x: xs, y: ys }
+  })()
+
   return (
     <div
       ref={hostRef}
@@ -890,6 +930,21 @@ export function PlanEditor() {
           })
           return <g style={{ pointerEvents: "none" }}>{items}</g>
         })()}
+
+        {/* мебель и оборудование: габарит по осям объекта, направление — «носом» вперёд */}
+        {(shown?.objects ?? []).map((ob) => {
+          const f = objectFootprint(ob)
+          const pts2 = objectCorners(ob).map(S)
+          const sel2 = sel.type === "object" && sel.id === ob.id
+          const c = S(f.c)
+          const nose = S({ x: f.c.x - Math.sin(f.rot) * (f.d / 2), y: f.c.y - Math.cos(f.rot) * (f.d / 2) })
+          return (
+            <g key={`ob${ob.id}`}>
+              <polygon points={pts2.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(" ")} fill={sel2 ? "rgba(56,189,248,0.22)" : "rgba(148,163,184,0.16)"} stroke={sel2 ? TOKENS.accent : "#64748b"} strokeWidth={sel2 ? 2.5 : 1.2} />
+              <line x1={c.x} y1={c.y} x2={nose.x} y2={nose.y} stroke={sel2 ? TOKENS.accent : "#94a3b8"} strokeWidth={1.2} />
+            </g>
+          )
+        })}
 
         {/* лестницы, лифты, выходы */}
         {drawing.stairWells.map((q, i) => (
@@ -1101,7 +1156,31 @@ export function PlanEditor() {
           </div>
         )
       })}
-      <div className="absolute right-3 top-[10.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
+      {/* линейки: сверху и слева, с меткой текущего положения курсора */}
+      <svg width={Math.max(0, size.w - RX)} height={RULER} className="pointer-events-none absolute z-[6]" style={{ display: "block", left: RX, top: RY }}>
+        <rect x={0} y={0} width={size.w} height={RULER} fill="rgba(248,250,252,0.92)" />
+        <line x1={0} y1={RULER - 0.5} x2={size.w} y2={RULER - 0.5} stroke="#cbd5e1" strokeWidth={1} />
+        {ruler.x.filter((t) => t.p > RX).map((t) => (
+          <g key={`rx${t.mm}`}>
+            <line x1={t.p - RX} y1={RULER - 6} x2={t.p - RX} y2={RULER} stroke="#94a3b8" strokeWidth={1} />
+            <text x={t.p - RX + 2} y={RULER - 7} fontSize={9} fill="#475569">{(t.mm / 1000).toFixed(rulerStep < 1000 ? 1 : 0)}</text>
+          </g>
+        ))}
+        {cursor && cursor.screen.x > RX && <line x1={cursor.screen.x - RX} y1={0} x2={cursor.screen.x - RX} y2={RULER} stroke="#0284c7" strokeWidth={1.5} />}
+      </svg>
+      <svg width={RULER} height={Math.max(0, size.h - RY)} className="pointer-events-none absolute z-[6]" style={{ display: "block", left: RX - RULER, top: RY }}>
+        <rect x={0} y={0} width={RULER} height={size.h} fill="rgba(248,250,252,0.92)" />
+        <line x1={RULER - 0.5} y1={0} x2={RULER - 0.5} y2={size.h} stroke="#cbd5e1" strokeWidth={1} />
+        {ruler.y.filter((t) => t.p > RY).map((t) => (
+          <g key={`ry${t.mm}`}>
+            <line x1={RULER - 6} y1={t.p - RY} x2={RULER} y2={t.p - RY} stroke="#94a3b8" strokeWidth={1} />
+            <text x={2} y={t.p - RY - 3} fontSize={9} fill="#475569" transform={`rotate(-90 12 ${t.p - RY - 3})`}>{(t.mm / 1000).toFixed(rulerStep < 1000 ? 1 : 0)}</text>
+          </g>
+        ))}
+        {cursor && cursor.screen.y > RY && <line x1={0} y1={cursor.screen.y - RY} x2={RULER} y2={cursor.screen.y - RY} stroke="#0284c7" strokeWidth={1.5} />}
+      </svg>
+
+      <div className="absolute right-3 bottom-[11.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
         {([["draft", "Чертёж"], ["rent", "Аренда"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
         ))}
@@ -1109,6 +1188,33 @@ export function PlanEditor() {
       <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
         {hint}
       </div>
+      <button
+        type="button"
+        onClick={() => setHelpOpen((x) => !x)}
+        title="Горячие клавиши"
+        className="absolute right-3 bottom-[14.5rem] z-10 h-7 w-7 rounded-lg text-[13px] font-bold shadow"
+        style={{ background: helpOpen ? TOKENS.accent : TOKENS.panel, color: helpOpen ? "#0b1220" : TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+      >
+        ?
+      </button>
+      {helpOpen && (
+        <div className="absolute right-3 bottom-[18rem] z-10 w-72 rounded-xl p-3 text-[11px] shadow-xl" style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
+          <div className="mb-1.5 text-xs font-semibold">Горячие клавиши</div>
+          {[
+            ["V", "выбор"], ["W", "стена"], ["R", "комната"], ["D", "дверь"], ["N", "окно"],
+            ["S", "лестница"], ["I", "измерить"], ["Del", "удалить выбранное"],
+            ["Ctrl+Z / Ctrl+Y", "отменить / вернуть"], ["Shift", "орто 90° при рисовании"],
+            ["Alt", "без привязок"], ["цифры + Enter", "длина стены в метрах"],
+            ["двойной клик", "конец цепочки стен"], ["колесо", "зум к курсору"],
+            ["ПКМ или пробел+мышь", "сдвиг плана"], ["Esc", "отменить действие"],
+          ].map(([k, t]) => (
+            <div key={k} className="flex justify-between gap-2 py-0.5">
+              <span className="font-mono" style={{ color: TOKENS.accent }}>{k}</span>
+              <span style={{ color: TOKENS.muted }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="pointer-events-none absolute bottom-9 left-[13.5rem] rounded-md px-2 py-0.5 text-[11px] tabular-nums" style={{ background: "rgba(255,255,255,0.85)", color: "#334155" }}>
         {cursor ? `X ${(cursor.plan.x / 1000).toFixed(2)}  Y ${(cursor.plan.y / 1000).toFixed(2)} м · ` : ""}1 м = {px(1000).toFixed(0)} px
       </div>

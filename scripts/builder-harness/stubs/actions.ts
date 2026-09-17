@@ -23,6 +23,8 @@ export async function listBuildingPremises() {
 }
 export async function rebuildModelFloor() { return null }
 export async function openBuildingModel() { return null }
-export async function createBuilderShare() { return { token: "x" } }
+export async function createBuilderShare() { return { token: "x", expiresAt: null } }
+export async function listBuilderShares() { return [] as Array<{ token: string; createdAt: string; expiresAt: string | null }> }
+export async function revokeBuilderShare() { return { revoked: 0 } }
 export async function submitBuilderLead() { return { ok: true } }
 export async function generateBuildingAI() { return null }

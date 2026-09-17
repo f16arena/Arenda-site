@@ -5,6 +5,7 @@ import type { Floor } from "@/types/builder"
 import { closestOnSegment, pointInPolygon, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { stairHoleWorld } from "./stair-hole"
+import { assetSize } from "./asset-sizes"
 import { dimGeometry } from "./annotations"
 
 /** Вид: пикселей на мм и положение начала координат плана на экране. Ось Y плана — вверх. */
@@ -101,6 +102,7 @@ export function snapPoint(floor: Pick<Floor, "wallGraph">, raw: Vec2, prev: Vec2
 
 export type Hit =
   | { kind: "node"; id: string }
+  | { kind: "object"; id: string }
   | { kind: "opening"; id: string }
   | { kind: "stair"; id: string }
   | { kind: "annotation"; id: string }
@@ -111,6 +113,7 @@ export type Hit =
 /** Что под курсором. Приоритет: ручки узлов выбранной стены, проёмы, лестницы и лифты, пометки, приборы, стены, помещения. */
 export function hitTest(floor: Floor, p: Vec2, tolMm: number, gripNodes: string[] = []): Hit | null {
   const g = floor.wallGraph
+  // мебель и оборудование ловятся раньше помещений, но позже ручек и проёмов
   for (const id of gripNodes) {
     const n = g.nodes[id]
     if (n && Math.hypot(n.x - p.x, n.y - p.y) <= tolMm * 1.5) return { kind: "node", id }
@@ -135,6 +138,10 @@ export function hitTest(floor: Floor, p: Vec2, tolMm: number, gripNodes: string[
   }
   for (const d of floor.mepDevices ?? []) {
     if (Math.hypot(d.at.x - p.x, d.at.y - p.y) <= tolMm * 1.5 + 150) return { kind: "mep-device", id: d.id }
+  }
+  // мебель и оборудование: ловим до стен, чтобы объект у стены выбирался кликом по нему
+  for (const ob of floor.objects ?? []) {
+    if (pointInObject(ob, p)) return { kind: "object", id: ob.id }
   }
   let bestWall: { id: string; d: number } | null = null
   for (const id in g.edges) {
@@ -235,4 +242,34 @@ export function columnRow(floor: Pick<Floor, "stairs">, id: string, axis: "x" | 
   return floor.stairs
     .filter((s) => s.shape === "column" && s.id !== id && Math.abs(s.position[axis] - base.position[axis]) <= tolMm && s.position[axis] !== base.position[axis])
     .map((s) => ({ id: s.id, x: axis === "x" ? base.position.x : s.position.x, y: axis === "y" ? base.position.y : s.position.y }))
+}
+
+/** Габарит объекта в плане (мм) с учётом масштаба и поворота — прямоугольник по осям объекта. */
+export function objectFootprint(o: { assetId: string; scale: number; scaleX?: number; scaleZ?: number; rotationY: number; position: { x: number; z: number } }): { c: Vec2; w: number; d: number; rot: number } {
+  const base = assetSize(o.assetId)
+  return {
+    c: { x: o.position.x, y: o.position.z },
+    w: base.w * o.scale * (o.scaleX ?? 1),
+    d: base.d * o.scale * (o.scaleZ ?? 1),
+    rot: o.rotationY,
+  }
+}
+
+/** Углы объекта в плане (мировые мм), по часовой от левого верхнего. */
+export function objectCorners(o: Parameters<typeof objectFootprint>[0]): Vec2[] {
+  const { c, w, d, rot } = objectFootprint(o)
+  const cos = Math.cos(rot), sin = Math.sin(rot)
+  return [
+    [-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2],
+  ].map(([lx, lz]) => ({ x: c.x + lx * cos + lz * sin, y: c.y - lx * sin + lz * cos }))
+}
+
+/** Точка внутри объекта? (в его собственных осях) */
+export function pointInObject(o: Parameters<typeof objectFootprint>[0], p: Vec2, tolMm = 0): boolean {
+  const { c, w, d, rot } = objectFootprint(o)
+  const dx = p.x - c.x, dy = p.y - c.y
+  const cos = Math.cos(rot), sin = Math.sin(rot)
+  const lx = dx * cos - dy * sin
+  const lz = dx * sin + dy * cos
+  return Math.abs(lx) <= w / 2 + tolMm && Math.abs(lz) <= d / 2 + tolMm
 }
