@@ -27,6 +27,14 @@ import { MepPlanLayer, MepTables } from "./MepSheetLayer"
 import { FACADE_TITLE, buildFacade, buildSection, type ElevationDrawing, type FacadeSide } from "@/lib/builder/drawing/elevation"
 import { elevationToDxf } from "@/lib/builder/drawing/dxf"
 import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
+import { hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
+import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
+
+const STAGE_TITLE: Record<Exclude<PlanStage, "plan">, string> = {
+  demolish: "План демонтажа",
+  install: "План монтажа",
+  after: "План после перепланировки",
+}
 
 const FACADES: FacadeSide[] = ["south", "north", "west", "east"]
 
@@ -91,9 +99,13 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const sections = ownSections.length ? ownSections : autoSections(building?.floors ?? floors)
   const [section, setSection] = useState<SheetSection>(initialSection)
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
-  const drawing = useMemo(() => (floor ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null) : null), [floor, premiseNumbers])
-  const mep = useMemo(() => (floor && section !== "ar" ? buildMepDrawing(floor, section) : null), [floor, section])
-  const hasTables = !!mep && (mep.legend.length > 0 || mep.spec.length > 0)
+  const stage: PlanStage = view.startsWith("replan:") ? (view.slice(7) as PlanStage) : "plan"
+  const isPlanView = view === "plan" || view.startsWith("replan:")
+  const drawing = useMemo(() => (floor ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage) : null), [floor, premiseNumbers, stage])
+  const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
+  const mep = useMemo(() => (floor && section !== "ar" && view === "plan" ? buildMepDrawing(floor, section) : null), [floor, section, view])
+  const replanTables = stage !== "plan" && !!replan
+  const hasTables = (!!mep && (mep.legend.length > 0 || mep.spec.length > 0)) || replanTables
   const sheet = useMemo(() => (drawing ? pickSheet(drawing, hasTables ? TABLES_W + 5 : 0) : null), [drawing, hasTables])
   const available = floor ? sectionsWithContent(floor) : []
   const sheetNo = floor ? Math.max(1, floors.indexOf(floor) + 1) : 1
@@ -108,7 +120,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : planTitle
+  const title = elevation ? elevation.title : stage !== "plan" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   const activeSheet = elevationSheet ?? sheet
 
   function downloadDxf() {
@@ -154,6 +166,13 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium dark:border-slate-800 dark:bg-slate-900"
         >
           <option value="plan">План этажа</option>
+          {replan && (
+            <optgroup label="Перепланировка этажа">
+              <option value="replan:demolish">План демонтажа</option>
+              <option value="replan:install">План монтажа</option>
+              <option value="replan:after">План после перепланировки</option>
+            </optgroup>
+          )}
           {building && (
             <optgroup label="Фасады">
               {FACADES.map((f) => <option key={f} value={`facade:${f}`}>{FACADE_TITLE[f]}</option>)}
@@ -165,7 +184,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
             </optgroup>
           )}
         </select>
-        {view === "plan" && <select
+        {isPlanView && <select
           id="sheet-floor"
           value={floor.id}
           onChange={(e) => setFloorId(e.target.value)}
@@ -220,6 +239,8 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           sheet={activeSheet}
           elevation={elevation?.d ?? null}
           sectionMarks={view === "plan" ? ownSections : []}
+          replan={replanTables ? replan : null}
+          stage={stage}
           title={title}
           buildingName={buildingName}
           address={address}
@@ -249,7 +270,11 @@ function SheetSvg({
   reserveRight,
   elevation,
   sectionMarks,
+  replan,
+  stage,
 }: {
+  replan: ReplanSummary | null
+  stage: PlanStage
   elevation: ElevationDrawing | null
   sectionMarks: SectionLineDoc[]
   drawing: FloorDrawing
@@ -293,6 +318,11 @@ function SheetSvg({
       className="mx-auto block bg-white shadow-lg print:shadow-none"
       style={{ maxWidth: "100%", height: "auto", fontFamily: "'GOST type A', 'ISOCPEUR', Arial, sans-serif" }}
     >
+      <defs>
+        <pattern id="hatch-new" patternUnits="userSpaceOnUse" width={1.6} height={1.6} patternTransform="rotate(45)">
+          <line x1={0} y1={0} x2={0} y2={1.6} stroke="#000" strokeWidth={0.25} />
+        </pattern>
+      </defs>
       <rect x={0} y={0} width={w} height={h} fill="#fff" />
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
@@ -333,9 +363,22 @@ function SheetSvg({
       })}
 
       {/* стены */}
-      {d.wallSolids.map((q, i) => (
-        <polygon key={`w${i}`} points={q.map(P).join(" ")} fill={wallFill} />
+      {d.wallSolids.map((q, i) => {
+        const st = d.wallStyles[i] ?? "solid"
+        if (st === "solid") return <polygon key={`w${i}`} points={q.map(P).join(" ")} fill={wallFill} />
+        if (st === "new") return <polygon key={`w${i}`} points={q.map(P).join(" ")} fill="url(#hatch-new)" stroke="#000" strokeWidth={0.3} />
+        return <polygon key={`w${i}`} points={q.map(P).join(" ")} fill="#fff" stroke="#000" strokeWidth={0.3} strokeDasharray="1.2 0.8" />
+      })}
+      {d.patches.map((p, i) => (
+        <g key={`p${i}`}>
+          <polygon points={p.q.map(P).join(" ")} fill={p.style === "new" ? "url(#hatch-new)" : "#fff"} stroke="#000" strokeWidth={0.3} strokeDasharray={p.style === "demolish" ? "1.2 0.8" : undefined} />
+          {p.style === "demolish" && <line x1={X(p.q[0].x)} y1={Y(p.q[0].y)} x2={X(p.q[2].x)} y2={Y(p.q[2].y)} stroke="#000" strokeWidth={0.2} />}
+          {p.style === "demolish" && <line x1={X(p.q[1].x)} y1={Y(p.q[1].y)} x2={X(p.q[3].x)} y2={Y(p.q[3].y)} stroke="#000" strokeWidth={0.2} />}
+        </g>
       ))}
+      {replan && reserveRight > 0 && (
+        <ReplanTables summary={replan} stage={stage} x={w - 5 - reserveRight + 3} y={12} w={reserveRight - 6} maxH={h - 5 - STAMP.h - 5 - 12} />
+      )}
       {/* окна, двери */}
       {d.thinLines.map(([a, b], i) => (
         <line key={`l${i}`} x1={X(a.x)} y1={Y(a.y)} x2={X(b.x)} y2={Y(b.y)} stroke={arch} strokeWidth={0.18} />
@@ -482,10 +525,81 @@ function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
     </svg>
   )
+}
+
+/** Условные обозначения перепланировки и экспликация «было — стало». */
+function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummary; stage: PlanStage; x: number; y: number; w: number; maxH: number }) {
+  const out: React.ReactNode[] = []
+  let cy = y
+  const fmt = (v: number | null) => (v === null ? "—" : v.toFixed(1).replace(".", ","))
+  out.push(<text key="lt" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Условные обозначения</text>)
+  cy += 7
+  const rows: Array<{ key: string; draw: (yy: number) => React.ReactNode; text: string }> = [
+    { key: "e", draw: (yy) => <rect x={x + 3} y={yy} width={12} height={3} fill="#1a1a1a" />, text: "Существующие стены" },
+  ]
+  if (stage === "demolish") rows.push({ key: "d", draw: (yy) => (
+    <g><rect x={x + 3} y={yy} width={12} height={3} fill="#fff" stroke="#000" strokeWidth={0.3} strokeDasharray="1.2 0.8" /><line x1={x + 3} y1={yy} x2={x + 15} y2={yy + 3} stroke="#000" strokeWidth={0.2} /><line x1={x + 3} y1={yy + 3} x2={x + 15} y2={yy} stroke="#000" strokeWidth={0.2} /></g>
+  ), text: "Демонтируемые конструкции, пробивка" })
+  if (stage === "install") rows.push({ key: "n", draw: (yy) => <rect x={x + 3} y={yy} width={12} height={3} fill="url(#hatch-new)" stroke="#000" strokeWidth={0.3} />, text: "Возводимые конструкции, закладка" })
+  for (const r of rows) {
+    out.push(<g key={r.key}>{r.draw(cy)}<text x={x + 19} y={cy + 2.6} fontSize={2.5}>{r.text}</text></g>)
+    cy += 6
+  }
+  cy += 3
+
+  const top = cy
+  out.push(<text key="et" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Экспликация помещений</text>)
+  cy += 6
+  const c1 = x + 10, c2 = x + w - 32, c3 = x + w - 16
+  out.push(<line key="h0" x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
+  out.push(<text key="h1" x={x + 5} y={cy + 3.4} fontSize={2.3} textAnchor="middle">№</text>)
+  out.push(<text key="h2" x={c1 + 2} y={cy + 3.4} fontSize={2.3}>Изменение</text>)
+  out.push(<text key="h3" x={c3 - 1} y={cy + 3.4} fontSize={2.3} textAnchor="end">Было, м²</text>)
+  out.push(<text key="h4" x={x + w - 1} y={cy + 3.4} fontSize={2.3} textAnchor="end">Стало</text>)
+  cy += 5
+  out.push(<line key="h5" x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
+  let cut = 0
+  // в таблицу — только изменённые помещения; неизменные учтены в итоге
+  const changed = summary.rooms.filter((r) => r.before === null || r.after === null || Math.abs(r.after - r.before) >= 0.05)
+  const unchanged = summary.rooms.length - changed.length
+  changed.forEach((r, i) => {
+    if (cy + 4.6 > y + maxH - 16) { cut++; return }
+    const change = r.before === null ? "новое" : r.after === null ? "упразднено" : Math.abs(r.after - r.before) < 0.05 ? "без изменений" : "изменено"
+    out.push(
+      <g key={`r${i}`}>
+        <text x={x + 5} y={cy + 3.3} fontSize={2.3} textAnchor="middle">{i + 1}</text>
+        <text x={c1 + 2} y={cy + 3.3} fontSize={2.3}>{change}</text>
+        <text x={c3 - 1} y={cy + 3.3} fontSize={2.3} textAnchor="end">{fmt(r.before)}</text>
+        <text x={x + w - 1} y={cy + 3.3} fontSize={2.3} textAnchor="end">{fmt(r.after)}</text>
+      </g>,
+    )
+    cy += 4.6
+    out.push(<line key={`rl${i}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
+  })
+  if (unchanged) {
+    out.push(<text key="unch" x={c1 + 2} y={cy + 3.3} fontSize={2.3}>без изменений: {unchanged}</text>)
+    cy += 4.6
+    out.push(<line key="unchl" x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
+  }
+  out.push(
+    <g key="tot">
+      <text x={c1 + 2} y={cy + 3.4} fontSize={2.4} fontWeight={700}>Итого</text>
+      <text x={c3 - 1} y={cy + 3.4} fontSize={2.4} fontWeight={700} textAnchor="end">{fmt(summary.areaBefore)}</text>
+      <text x={x + w - 1} y={cy + 3.4} fontSize={2.4} fontWeight={700} textAnchor="end">{fmt(summary.areaAfter)}</text>
+    </g>,
+  )
+  cy += 5
+  for (const [k, xx] of [["v1", c1], ["v2", c2], ["v3", c3]] as const) out.push(<line key={k} x1={xx} y1={top + 6} x2={xx} y2={cy} stroke="#000" strokeWidth={0.18} />)
+  out.push(<rect key="box" x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
+  cy += 4
+  out.push(<text key="s1" x={x} y={cy + 2} fontSize={2.3}>Демонтаж стен {summary.demolishWallM.toFixed(1).replace(".", ",")} м, новые стены {summary.newWallM.toFixed(1).replace(".", ",")} м</text>)
+  out.push(<text key="s2" x={x} y={cy + 6} fontSize={2.3}>Проёмы: пробиваются {summary.openingsNew}, закладываются {summary.openingsClosed}</text>)
+  if (cut) out.push(<text key="cut" x={x} y={cy + 10} fontSize={2.2}>…ещё помещений: {cut}</text>)
+  return <g>{out}</g>
 }

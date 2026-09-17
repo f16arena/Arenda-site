@@ -1176,3 +1176,85 @@ export function nextSectionName(doc: BuilderDocument, buildingId: string): strin
   const used = new Set((doc.buildings.find((b) => b.id === buildingId)?.sections ?? []).map((s) => s.name))
   for (let i = 1; ; i++) if (!used.has(`${i}-${i}`)) return `${i}-${i}`
 }
+
+// ── Перепланировка: метки демонтажа и новых элементов ────────────────────────
+export class SetWallPhaseCommand implements Command {
+  readonly kind = "set-wall-phase"
+  readonly label: string
+  private prev = new Map<string, "demolish" | "new" | undefined>()
+  constructor(private floorId: string, private edgeIds: string[], private phase: "demolish" | "new" | undefined) {
+    this.label = phase === "demolish" ? "демонтаж стены" : phase === "new" ? "новая стена" : "стена существующая"
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (!f) return doc
+    if (this.prev.size === 0) for (const id of this.edgeIds) if (f.wallGraph.edges[id]) this.prev.set(id, f.wallGraph.edges[id].phase)
+    return mapFloor(doc, this.floorId, (fl) => {
+      const edges = { ...fl.wallGraph.edges }
+      for (const id of this.edgeIds) {
+        if (!edges[id]) continue
+        const { phase: _old, ...rest } = edges[id]
+        edges[id] = this.phase ? { ...rest, phase: this.phase } : rest
+      }
+      return { ...fl, wallGraph: { ...fl.wallGraph, edges } }
+    })
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => {
+      const edges = { ...fl.wallGraph.edges }
+      for (const [id, ph] of this.prev) {
+        if (!edges[id]) continue
+        const { phase: _old, ...rest } = edges[id]
+        edges[id] = ph ? { ...rest, phase: ph } : rest
+      }
+      return { ...fl, wallGraph: { ...fl.wallGraph, edges } }
+    })
+  }
+}
+
+export class SetOpeningPhaseCommand implements Command {
+  readonly kind = "set-opening-phase"
+  readonly label = "проём: перепланировка"
+  private prev?: "demolish" | "new" | undefined
+  private captured = false
+  constructor(private floorId: string, private openingId: string, private phase: "demolish" | "new" | undefined) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const o = f?.openings.find((x) => x.id === this.openingId)
+    if (o && !this.captured) { this.prev = o.phase; this.captured = true }
+    return this.set(doc, this.phase)
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return this.set(doc, this.prev)
+  }
+  private set(doc: BuilderDocument, phase: "demolish" | "new" | undefined): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({
+      ...fl,
+      openings: fl.openings.map((o) => {
+        if (o.id !== this.openingId) return o
+        const { phase: _old, ...rest } = o
+        return phase ? { ...rest, phase } : rest
+      }),
+    }))
+  }
+}
+
+/**
+ * Удаление в режиме перепланировки: новое удаляется по-настоящему,
+ * существующее помечается под демонтаж, уже помеченное — не трогается.
+ */
+export function replanDeleteWall(doc: BuilderDocument, floorId: string, edgeId: string, replan: boolean): Command | null {
+  const e = findFloor(doc, floorId)?.wallGraph.edges[edgeId]
+  if (!e) return null
+  if (!replan || e.phase === "new") return new DeleteWallCommand(floorId, edgeId)
+  if (e.phase === "demolish") return null
+  return new SetWallPhaseCommand(floorId, [edgeId], "demolish")
+}
+
+export function replanDeleteOpening(doc: BuilderDocument, floorId: string, openingId: string, replan: boolean): Command | null {
+  const o = findFloor(doc, floorId)?.openings.find((x) => x.id === openingId)
+  if (!o) return null
+  if (!replan || o.phase === "new") return new DeleteOpeningCommand(floorId, openingId)
+  if (o.phase === "demolish") return null
+  return new SetOpeningPhaseCommand(floorId, openingId, "demolish")
+}

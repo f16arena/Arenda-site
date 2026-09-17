@@ -44,7 +44,8 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
     const angle = -Math.atan2(dir.y, dir.x)
     const H = e.height
     const t = e.thickness
-    const wallMat = reg.get(e.kind === "exterior" ? e.facadeMaterialId ?? "plaster_white" : e.interiorMaterialId ?? "block")
+    // перепланировка: демонтаж — красный полупрозрачный, новая — зелёная
+    const wallMat = e.phase === "demolish" ? reg.status("#ef4444") : e.phase === "new" ? reg.status("#22c55e") : reg.get(e.kind === "exterior" ? e.facadeMaterialId ?? "plaster_white" : e.interiorMaterialId ?? "block")
     const ops = floor.openings.filter((o) => o.wallId === id).sort((p, q) => p.offset - q.offset)
 
     const pointAt = (off: number): { x: number; y: number } => ({ x: a.x + dir.x * off, y: a.y + dir.y * off })
@@ -54,7 +55,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
       const box = makeBox({ cx: (a.x + b.x) / 2, cz: (a.y + b.y) / 2, yMid: H / 2, width: lenMm, height: H, depth: t, angle }, scene, `wall_${id}`)
       box.material = wallMat
       box.receiveShadows = true
-      box.metadata = { kind: "wall", floorId: floor.id, entityId: id }
+      box.metadata = { kind: "wall", floorId: floor.id, entityId: id, phase: e.phase }
       box.parent = parent
       meshes.push(box)
       continue
@@ -69,7 +70,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
       const box = makeBox({ cx: m.cx, cz: m.cz, yMid: H / 2, width: segLen, height: H, depth: t, angle }, scene, `wall_${id}_s${i}`)
       box.material = wallMat
       box.receiveShadows = true
-      box.metadata = { kind: "wall", floorId: floor.id, entityId: id }
+      box.metadata = { kind: "wall", floorId: floor.id, entityId: id, phase: e.phase }
       box.parent = parent
       meshes.push(box)
     })
@@ -82,7 +83,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         const below = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight / 2, width: o.width, height: o.sillHeight, depth: t, angle }, scene, `sill_${o.id}`)
         below.material = wallMat
         below.receiveShadows = true
-        below.metadata = { kind: "wall", floorId: floor.id, entityId: id }
+        below.metadata = { kind: "wall", floorId: floor.id, entityId: id, phase: e.phase }
         below.parent = parent
         meshes.push(below)
       }
@@ -90,7 +91,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         const above = makeBox({ cx: c.x, cz: c.y, yMid: (top + H) / 2, width: o.width, height: H - top, depth: t, angle }, scene, `lintel_${o.id}`)
         above.material = wallMat
         above.receiveShadows = true
-        above.metadata = { kind: "wall", floorId: floor.id, entityId: id }
+        above.metadata = { kind: "wall", floorId: floor.id, entityId: id, phase: e.phase }
         above.parent = parent
         meshes.push(above)
       }

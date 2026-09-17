@@ -60,6 +60,8 @@ import {
   DeleteMepDeviceCommand,
   AddSectionCommand,
   DeleteSectionCommand,
+  replanDeleteWall,
+  replanDeleteOpening,
   nextSectionName,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
@@ -200,6 +202,11 @@ export class BuilderEngine {
 
   tool: Tool = "select"
   mepSystem: MepSystem = "power"
+  /** перепланировка: новые стены/проёмы помечаются «новая», удаление — демонтаж */
+  replanMode = false
+  private wallDefaults(def: typeof DEFAULT_WALL = DEFAULT_WALL): typeof DEFAULT_WALL {
+    return this.replanMode ? { ...def, phase: "new" } : def
+  }
   mepDeviceKind = "socket"
   private mepPoints: Vec2[] = []
   private mepPreview: TransformNode | null = null
@@ -443,7 +450,10 @@ export class BuilderEngine {
     for (const m of this.docRoot.getChildMeshes()) {
       const kind = (m.metadata as MeshMeta | null)?.kind
       if (kind === "room") m.material = room
-      else if (kind === "wall") m.material = wall
+      else if (kind === "wall") {
+        const phase = (m.metadata as { phase?: string } | null)?.phase
+        m.material = phase === "demolish" ? this.reg.flat("#f87171") : phase === "new" ? this.reg.flat("#15803d") : wall
+      }
       else if (kind === "opening") {
         // как на чертеже — разрез на высоте ~1,2 м: проём виден разрывом в стене,
         // а не прячется под перемычкой
@@ -1472,7 +1482,7 @@ export class BuilderEngine {
         const x2 = snapToGrid(p.x * 1000, 100)
         const y2 = snapToGrid(p.z * 1000, 100)
         if (Math.abs(x2 - x1) >= 500 && Math.abs(y2 - y1) >= 500) {
-          this.onCommand(new AddRoomCommand(this.activeFloorId, x1, y1, x2, y2, { thickness: 150, height: 3500, kind: "interior" }))
+          this.onCommand(new AddRoomCommand(this.activeFloorId, x1, y1, x2, y2, this.wallDefaults({ thickness: 150, height: 3500, kind: "interior" })))
         }
       }
       this.roomStart = null
@@ -1729,7 +1739,7 @@ export class BuilderEngine {
     const a = { x: this.wallStart.x * 1000, y: this.wallStart.z * 1000 }
     const pts = arcPoints(a, this.arcEnd, { x: through.x * 1000, y: through.z * 1000 })
     const cmds = []
-    for (let i = 0; i < pts.length - 1; i++) cmds.push(new InsertWallCommand(this.activeFloorId, pts[i], pts[i + 1], DEFAULT_WALL))
+    for (let i = 0; i < pts.length - 1; i++) cmds.push(new InsertWallCommand(this.activeFloorId, pts[i], pts[i + 1], this.wallDefaults()))
     this.onCommand(new CompositeCommand("дуговая стена", cmds))
     this.cancelWallTool()
   }
@@ -1756,7 +1766,7 @@ export class BuilderEngine {
     const fromX = this.wallStart.x * 1000
     const fromY = this.wallStart.z * 1000
     if (Math.hypot(end.x - fromX, end.y - fromY) >= 100) {
-      this.onCommand(new InsertWallCommand(this.activeFloorId, { x: fromX, y: fromY }, end, DEFAULT_WALL))
+      this.onCommand(new InsertWallCommand(this.activeFloorId, { x: fromX, y: fromY }, end, this.wallDefaults()))
       // цепочка: продолжаем от конечной точки
       this.wallStart = new Vector3(end.x * S, this.activeFloorPlaneY() + 0.02, end.y * S)
       this.showStartMarker(this.wallStart)
@@ -1898,6 +1908,7 @@ export class BuilderEngine {
         height: spec.height,
         sillHeight: spec.sill,
         offset,
+        ...(this.replanMode ? { phase: "new" as const } : {}),
       }),
     )
   }
@@ -2272,8 +2283,15 @@ export class BuilderEngine {
   // ── Удаление ────────────────────────────────────────────────────────────────
   private handleDelete(meta: MeshMeta | null): void {
     if (!meta || !meta.entityId) return
-    if (meta.kind === "wall" && meta.floorId) this.onCommand(new DeleteWallCommand(meta.floorId, meta.entityId))
-    else if (meta.kind === "opening" && meta.floorId) this.onCommand(new DeleteOpeningCommand(meta.floorId, meta.entityId))
+    const doc = this.getDoc()
+    if (meta.kind === "wall" && meta.floorId) {
+      const cmd = doc ? replanDeleteWall(doc, meta.floorId, meta.entityId, this.replanMode) : null
+      if (cmd) this.onCommand(cmd)
+      else if (this.replanMode) this.onHud("Стена уже под демонтаж. Вернуть — в свойствах стены")
+    } else if (meta.kind === "opening" && meta.floorId) {
+      const cmd = doc ? replanDeleteOpening(doc, meta.floorId, meta.entityId, this.replanMode) : null
+      if (cmd) this.onCommand(cmd)
+    }
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "section" && meta.target) this.onCommand(new DeleteSectionCommand(meta.target, meta.entityId))
     else if (meta.kind === "mep-run" && meta.floorId) this.onCommand(new DeleteMepRunCommand(meta.floorId, meta.entityId))

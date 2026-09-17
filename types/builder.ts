@@ -21,6 +21,7 @@ export const WallEdgeSchema = z.object({
   kind: WallKindSchema,
   facadeMaterialId: z.string().optional(),
   interiorMaterialId: z.string().optional(),
+  phase: z.enum(["demolish", "new"]).optional(),
 })
 export const WallGraphSchema = z.object({
   nodes: z.record(z.string(), GraphNodeSchema),
@@ -35,7 +36,8 @@ export const OpeningSchema = z.object({
   width: z.number(),
   height: z.number(),
   sillHeight: z.number(),
-  offset: z.number(),
+  offset: z.number(), // центр проёма вдоль стены от узла a, мм
+  phase: z.enum(["demolish", "new"]).optional(),
 })
 
 export const StairSchema = z.object({

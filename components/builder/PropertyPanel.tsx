@@ -6,7 +6,7 @@
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { usePremiseStore } from "@/store/premise-store"
@@ -66,8 +66,10 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       const eid = selection.id
       const kinds: { k: WallKind; l: string }[] = [{ k: "exterior", l: "Наруж." }, { k: "interior", l: "Внутр." }, { k: "partition", l: "Перег." }]
       const thicks = [100, 150, 200, 300]
+      rows.push(<Row key="ph" label="Статус" value={e.phase === "demolish" ? "Демонтаж" : e.phase === "new" ? "Новая" : "Существующая"} accent={e.phase === "demolish" ? "#f87171" : e.phase === "new" ? "#4ade80" : undefined} />)
       controls = (
         <div className="mt-2 flex flex-col gap-1.5">
+          <PhaseButtons value={e.phase} noun="стена" onPick={(ph) => execute(new SetWallPhaseCommand(fid, [eid], ph))} />
           {a && b && (
             <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }} title="Второй конец стены сдвигается вдоль её направления; первый остаётся на месте">
               Длина, м
@@ -198,6 +200,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       )
       controls = (
         <div className="mt-2 flex flex-col gap-1.5">
+          <PhaseButtons value={op.phase} noun={op.phase === "demolish" ? "проём закладывается" : "проём"} onPick={(ph) => execute(new SetOpeningPhaseCommand(fid, oid, ph))} />
           {numInput("Ширина, м", op.width, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { width: mm })), 400, 6000)}
           {numInput("Высота, м", op.height, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { height: mm })), 400, 3000)}
           {numInput("От пола, м", op.sillHeight, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { sillHeight: mm })), 0, 2000)}
@@ -503,6 +506,28 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       {controls}
       <div className="mt-2 border-t pt-2 text-[10px]" style={{ borderColor: TOKENS.panelBorder, color: TOKENS.muted }}>
         Delete — удалить · Esc — снять выделение
+      </div>
+    </div>
+  )
+}
+
+const PHASES: { p: "demolish" | "new" | undefined; l: string; c: string }[] = [
+  { p: undefined, l: "Существ.", c: "rgba(148,163,184,0.25)" },
+  { p: "demolish", l: "Демонтаж", c: "#ef4444" },
+  { p: "new", l: "Новая", c: "#16a34a" },
+]
+
+function PhaseButtons({ value, onPick, noun }: { value: "demolish" | "new" | undefined; onPick: (p: "demolish" | "new" | undefined) => void; noun: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[11px]" style={{ color: TOKENS.muted }}>Перепланировка: {noun}</span>
+      <div className="flex gap-1">
+        {PHASES.map((ph) => {
+          const on = value === ph.p
+          return (
+            <button key={ph.l} type="button" onClick={() => onPick(ph.p)} className="flex-1 rounded-md py-1 text-[10px] font-medium" style={{ background: on ? ph.c : "rgba(148,163,184,0.1)", color: on ? "#fff" : TOKENS.text }}>{ph.l}</button>
+          )
+        })}
       </div>
     </div>
   )

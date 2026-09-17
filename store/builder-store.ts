@@ -180,6 +180,8 @@ export interface EditorState {
   mepSystem: MepSystem
   mepDeviceKind: string
   mepLayers: MepSystem[]
+  /** режим перепланировки: удаление = демонтаж, новое = «новая» */
+  replanMode: boolean
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -210,6 +212,7 @@ export interface EditorState {
   setMepDeviceKind: (k: string) => void
   toggleMepLayer: (s: MepSystem) => void
   setMepLayers: (s: MepSystem[]) => void
+  toggleReplan: () => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -251,6 +254,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   mepSystem: "power",
   mepDeviceKind: "socket",
   mepLayers: [...MEP_SYSTEMS],
+  replanMode: false,
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -295,6 +299,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setMepDeviceKind: (k) => set((st) => ({ mepDeviceKind: k, mepSystem: MEP_DEVICE_BY_KIND[k]?.system ?? st.mepSystem })),
   toggleMepLayer: (sys) => set((st) => ({ mepLayers: st.mepLayers.includes(sys) ? st.mepLayers.filter((x) => x !== sys) : [...st.mepLayers, sys] })),
   setMepLayers: (layers) => set({ mepLayers: layers }),
+  toggleReplan: () => set((st) => ({ replanMode: !st.replanMode })),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),

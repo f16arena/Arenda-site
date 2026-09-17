@@ -28,6 +28,8 @@ export interface WallEdge {
   kind: WallKind
   facadeMaterialId?: string
   interiorMaterialId?: string
+  /** перепланировка: демонтаж или новая; нет — существующая */
+  phase?: "demolish" | "new"
 }
 
 export interface WallGraph {
@@ -39,6 +41,7 @@ export interface WallDefaults {
   thickness: number
   height: number
   kind: WallKind
+  phase?: "demolish" | "new"
 }
 
 // Высота стены по умолчанию = высоте этажа (FLOOR_HEIGHT=3500), чтобы стены доходили
@@ -83,7 +86,7 @@ function splitEdgeAt(g: WallGraph, edgeId: string, p: Vec2, tol = 0.5): string {
   const nodeId = getOrCreateNodeAt(g, p, tol)
   if (nodeId === e.a || nodeId === e.b) return nodeId
   delete g.edges[edgeId]
-  const base = { thickness: e.thickness, height: e.height, kind: e.kind, facadeMaterialId: e.facadeMaterialId, interiorMaterialId: e.interiorMaterialId }
+  const base = { thickness: e.thickness, height: e.height, kind: e.kind, facadeMaterialId: e.facadeMaterialId, interiorMaterialId: e.interiorMaterialId, ...(e.phase ? { phase: e.phase } : {}) }
   const e1 = uid("w")
   const e2 = uid("w")
   g.edges[e1] = { id: e1, a: e.a, b: nodeId, ...base }
@@ -124,7 +127,7 @@ function edgeExists(g: WallGraph, a: string, b: string): boolean {
 function addEdge(g: WallGraph, a: string, b: string, def: WallDefaults): string | null {
   if (a === b || edgeExists(g, a, b)) return null
   const id = uid("w")
-  g.edges[id] = { id, a, b, thickness: def.thickness, height: def.height, kind: def.kind }
+  g.edges[id] = { id, a, b, thickness: def.thickness, height: def.height, kind: def.kind, ...(def.phase ? { phase: def.phase } : {}) }
   return id
 }
 

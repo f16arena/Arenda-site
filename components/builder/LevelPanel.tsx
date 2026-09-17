@@ -15,6 +15,7 @@ import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
+import { hasReplan, replanSummary } from "@/lib/builder/replan"
 
 const DISPLAY: { id: DisplayMode; label: string }[] = [
   { id: "all", label: "Всё" },
@@ -305,6 +306,7 @@ export function LevelPanel({
           Чертежи: план, фасады, разрезы
         </a>
       )}
+      {activeFloor && <ReplanBlock floor={activeFloor} buildingId={buildingId} />}
       {activeLevelId && activeLevelId !== "site" && (
         <div className="flex gap-1">
           {armed ? (
@@ -421,6 +423,41 @@ export function LevelPanel({
         Стены вниз {wallsDown ? "✓" : ""}
       </button>
       <UnderlayPanel pending={measure} onConsumed={onMeasureConsumed} />
+    </div>
+  )
+}
+
+function ReplanBlock({ floor, buildingId }: { floor: Floor; buildingId?: string }) {
+  const on = useEditorStore((s) => s.replanMode)
+  const toggle = useEditorStore((s) => s.toggleReplan)
+  const any = hasReplan(floor)
+  const sum = any ? replanSummary(floor) : null
+  const fmt = (x: number) => x.toFixed(1).replace(".", ",")
+  return (
+    <div className="flex flex-col gap-1 rounded-lg p-1.5" style={{ background: on ? "rgba(239,68,68,0.08)" : "transparent", border: `1px solid ${on ? "rgba(239,68,68,0.45)" : TOKENS.panelBorder}` }}>
+      <button
+        type="button"
+        onClick={toggle}
+        title="Удаление помечает существующие стены и проёмы под демонтаж, новые рисуются как «новые». Было и стало хранятся в одной модели."
+        className="rounded-md py-1.5 text-[11px] font-semibold"
+        style={{ background: on ? "#dc2626" : "rgba(148,163,184,0.12)", color: on ? "#fff" : TOKENS.text }}
+      >
+        {on ? "Перепланировка: включена" : "Перепланировка"}
+      </button>
+      {sum && (
+        <div className="grid grid-cols-2 gap-x-2 text-[10px]" style={{ color: TOKENS.muted, fontVariantNumeric: "tabular-nums" }}>
+          <span>Демонтаж стен</span><span className="text-right" style={{ color: "#f87171" }}>{fmt(sum.demolishWallM)} м</span>
+          <span>Новые стены</span><span className="text-right" style={{ color: "#4ade80" }}>{fmt(sum.newWallM)} м</span>
+          <span>Проёмы нов./закл.</span><span className="text-right" style={{ color: TOKENS.text }}>{sum.openingsNew} / {sum.openingsClosed}</span>
+          <span>Площадь было</span><span className="text-right" style={{ color: TOKENS.text }}>{fmt(sum.areaBefore)} м²</span>
+          <span>Площадь стало</span><span className="text-right" style={{ color: TOKENS.text }}>{fmt(sum.areaAfter)} м²</span>
+        </div>
+      )}
+      {sum && buildingId && (
+        <a href={`/admin/builder/${buildingId}/sheet?floor=${floor.id}&view=replan:demolish`} target="_blank" rel="noreferrer" className="rounded-md py-1 text-center text-[10px] font-medium" style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}>
+          Листы: демонтаж, монтаж, стало
+        </a>
+      )}
     </div>
   )
 }

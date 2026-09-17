@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, CompositeCommand, type Command } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -90,7 +90,8 @@ function groupDelete(ids: string[]): void {
     const t = objTarget(d, id)
     if (t) return [new DeleteObjectCommand(t.target, id)]
     const fid = wallFloor(d, id)
-    return fid ? [new DeleteWallCommand(fid, id)] : []
+    const cmd = fid ? replanDeleteWall(d, fid, id, useEditorStore.getState().replanMode) : null
+    return cmd ? [cmd] : []
   })
   if (commands.length) useDocumentStore.getState().execute(new CompositeCommand(`удаление: ${commands.length}`, commands))
   useEditorStore.getState().clearMulti()
@@ -122,12 +123,24 @@ function deleteSelection(): void {
   const sel = useEditorStore.getState().selection
   const exec = useDocumentStore.getState().execute
   const d = useDocumentStore.getState().doc
-  if (sel.type === "wall" && sel.floorId && sel.id) exec(new DeleteWallCommand(sel.floorId, sel.id))
+  const replan = useEditorStore.getState().replanMode
+  if (sel.type === "wall" && sel.floorId && sel.id) {
+    const cmd = replanDeleteWall(d, sel.floorId, sel.id, replan)
+    if (!cmd) return
+    exec(cmd)
+    // помеченная под демонтаж стена остаётся выделенной — видно, что произошло
+    if (replan) return
+  }
   else if (sel.type === "water" && sel.id) exec(new DeleteWaterCommand(sel.id))
   else if (sel.type === "path" && sel.id) exec(new DeletePathCommand(sel.id))
   else if (sel.type === "pavement" && sel.id) exec(new DeletePavementCommand(sel.id))
   else if (sel.type === "stair" && sel.floorId && sel.id) exec(new DeleteStairCommand(sel.floorId, sel.id))
-  else if (sel.type === "opening" && sel.floorId && sel.id) exec(new DeleteOpeningCommand(sel.floorId, sel.id))
+  else if (sel.type === "opening" && sel.floorId && sel.id) {
+    const cmd = replanDeleteOpening(d, sel.floorId, sel.id, replan)
+    if (!cmd) return
+    exec(cmd)
+    if (replan) return
+  }
   else if (sel.type === "section" && sel.buildingId && sel.id) exec(new DeleteSectionCommand(sel.buildingId, sel.id))
   else if (sel.type === "mep-run" && sel.floorId && sel.id) exec(new DeleteMepRunCommand(sel.floorId, sel.id))
   else if (sel.type === "mep-device" && sel.floorId && sel.id) exec(new DeleteMepDeviceCommand(sel.floorId, sel.id))
@@ -192,6 +205,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const mepSystem = useEditorStore((s) => s.mepSystem)
   const mepDeviceKind = useEditorStore((s) => s.mepDeviceKind)
   const mepLayers = useEditorStore((s) => s.mepLayers)
+  const replanMode = useEditorStore((s) => s.replanMode)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -306,6 +320,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.snapEnabled = snapEnabled
     e.wallArc = wallArc
     e.mepSystem = mepSystem
+    e.replanMode = replanMode
     e.mepDeviceKind = mepDeviceKind
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
@@ -318,7 +333,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "pave") e.cancelPave()
     if (activeTool !== "mep-run") e.cancelMep()
     if (activeTool !== "section") e.cancelSection()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, armedAsset, openingVariant, ready])
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, replanMode, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current

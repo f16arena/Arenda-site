@@ -29,6 +29,8 @@ const LAYERS = [
   { name: "A-DIMS", color: 1 }, // размеры
   { name: "A-TEXT", color: 7 }, // подписи помещений
   { name: "A-AXES", color: 8 }, // оси
+  { name: "A-DEMO", color: 1 }, // демонтаж
+  { name: "A-NEW", color: 3 }, // монтаж
 ]
 
 function enc(text: string): string {
@@ -112,7 +114,19 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string,
 
   w.pair(0, "SECTION"); w.pair(2, "ENTITIES")
 
-  for (const q of d.wallSolids) w.solid("A-WALL", q)
+  d.wallSolids.forEach((q, i) => {
+    const st = d.wallStyles[i] ?? "solid"
+    if (st === "solid") { w.solid("A-WALL", q); return }
+    const layer = st === "demolish" ? "A-DEMO" : "A-NEW"
+    for (let k = 0; k < 4; k++) w.line(layer, q[k], q[(k + 1) % 4])
+    if (st === "demolish") { w.line(layer, q[0], q[2]); w.line(layer, q[1], q[3]) }
+  })
+  for (const p of d.patches) {
+    const layer = p.style === "demolish" ? "A-DEMO" : "A-NEW"
+    for (let k = 0; k < 4; k++) w.line(layer, p.q[k], p.q[(k + 1) % 4])
+    w.line(layer, p.q[0], p.q[2])
+    if (p.style === "demolish") w.line(layer, p.q[1], p.q[3])
+  }
   for (const [a, b] of d.thinLines) w.line("A-OPEN", a, b)
   for (const a of d.arcs) w.arc("A-OPEN", a.c, a.r, a.start, a.end)
 

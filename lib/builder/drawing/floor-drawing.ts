@@ -13,6 +13,7 @@
 // - координационные оси по наружным и несущим стенам: цифры по горизонтали,
 //   буквы по вертикали
 
+import { floorAtStage } from "@/lib/builder/replan"
 import { stairPlanRects } from "@/core/geometry/stair-generator"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
@@ -46,10 +47,18 @@ export interface RoomLabel {
   areaM2: number
 }
 
+/** Стадия листа: обмерный план (было), демонтаж, монтаж, стало. */
+export type PlanStage = "plan" | "demolish" | "install" | "after"
+export type WallStyle = "solid" | "demolish" | "new"
+
 export interface FloorDrawing {
   bounds: { minX: number; minY: number; maxX: number; maxY: number }
   /** четырёхугольники стен (заливка) */
   wallSolids: Pt[][]
+  /** стиль каждой стены из wallSolids: демонтаж — пунктир с крестом, новая — штриховка */
+  wallStyles: WallStyle[]
+  /** пробиваемые (демонтаж) и закладываемые (монтаж) участки проёмов */
+  patches: Array<{ q: Pt[]; style: "demolish" | "new" }>
   /** тонкие линии: окна, полотна дверей */
   thinLines: Array<[Pt, Pt]>
   /** дуги открывания дверей: центр, радиус, углы в градусах против часовой */
@@ -114,7 +123,9 @@ function axisLabelsLetters(n: number): string[] {
   return Array.from({ length: n }, (_, i) => (i < letters.length ? letters[i] : `${letters[i % letters.length]}${Math.floor(i / letters.length)}`))
 }
 
-export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: string) => string | null = () => null): FloorDrawing {
+export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: string) => string | null = () => null, stage: PlanStage = "plan"): FloorDrawing {
+  // обмерный план и план демонтажа — «было», монтаж и итог — «стало»
+  const floor = floorAtStage(source, stage === "plan" || stage === "demolish" ? "before" : "after")
   const g = floor.wallGraph
   const degree = new Map<string, number>()
   for (const id in g.edges) {
@@ -124,6 +135,8 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
   }
 
   const wallSolids: Pt[][] = []
+  const wallStyles: WallStyle[] = []
+  const patches: FloorDrawing["patches"] = []
   const thinLines: Array<[Pt, Pt]> = []
   const arcs: FloorDrawing["arcs"] = []
   const openingsByWall = new Map<string, Floor["openings"]>()
@@ -153,10 +166,21 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
     // offset проёма — его центр вдоль стены (как в ядре и 3D)
     const gaps = ops.map((o) => [Math.max(0, o.offset - o.width / 2), Math.min(L, o.offset + o.width / 2)] as const)
     let s = -extA
+    const style: WallStyle = stage === "demolish" && e.phase === "demolish" ? "demolish" : stage === "install" && e.phase === "new" ? "new" : "solid"
     const pushSolid = (s0: number, s1: number) => {
       if (s1 - s0 < 1) return
       const p0 = add(a, mul(u, s0)), p1 = add(a, mul(u, s1))
       wallSolids.push([add(p0, mul(nrm, h)), add(p1, mul(nrm, h)), add(p1, mul(nrm, -h)), add(p0, mul(nrm, -h))])
+      wallStyles.push(style)
+    }
+    // проёмы, которых на этой стадии нет, но они меняются: пробивка (на демонтаже) и закладка (на монтаже)
+    for (const o of source.openings) {
+      if (o.wallId !== id) continue
+      const punch = stage === "demolish" && o.phase === "new"
+      const fill = stage === "install" && o.phase === "demolish"
+      if (!punch && !fill) continue
+      const p0 = add(a, mul(u, o.offset - o.width / 2)), p1 = add(a, mul(u, o.offset + o.width / 2))
+      patches.push({ q: [add(p0, mul(nrm, h)), add(p1, mul(nrm, h)), add(p1, mul(nrm, -h)), add(p0, mul(nrm, -h))], style: punch ? "demolish" : "new" })
     }
     for (const [g0, g1] of gaps) {
       pushSolid(s, g0)
@@ -303,7 +327,7 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
     ...hAxes.map((at, i) => ({ dir: "h" as const, at, label: letters[i] })),
   ]
 
-  return { bounds: { minX, minY, maxX, maxY }, wallSolids, thinLines, arcs, rooms, dims, axes }
+  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────
