@@ -160,6 +160,15 @@ function wallFace(f: ViewFrame, w: WallInfo): { depth: number; polys: EPoly[]; l
     const oz1 = Math.min(z1, oz0 + o.height)
     if (oz1 <= Math.max(oz0, 0) || ou1 - ou0 < 5) continue
     const bottom = Math.max(oz0, 0)
+    if (o.variant === "arch") {
+      // полукруглый верх
+      const r = (ou1 - ou0) / 2, cx = (ou0 + ou1) / 2, spring = Math.max(bottom, oz1 - r)
+      const pts: Pt[] = [{ x: ou0, y: bottom }, { x: ou1, y: bottom }, { x: ou1, y: spring }]
+      for (let i = 1; i < 16; i++) { const a = (Math.PI * i) / 16; pts.push({ x: cx + r * Math.cos(a), y: spring + Math.min(r, oz1 - spring) * Math.sin(a) }) }
+      pts.push({ x: ou0, y: spring })
+      polys.push({ pts, fill: "opening" })
+      continue
+    }
     polys.push({ pts: rect(ou0, bottom, ou1, oz1), fill: o.type === "window" ? "glass" : "opening" })
     if (o.type === "window") {
       // переплёт: импост посередине и горизонтальная фрамуга в верхней трети
@@ -186,7 +195,7 @@ function porchLayers(f: ViewFrame, floor: Floor, minDepth: number): Layer[] {
   for (const st of floor.stairs) {
     if (st.shape !== "porch") continue
     const rise = stairRise(st, floor.height)
-    const geo = generateStair(st.shape, rise, st.width, st.railing)
+    const geo = generateStair(st.shape, rise, st.width, st.railing, st.depth, st.tread)
     const rects = stairPlanRects(st, floor.height)
     geo.steps.forEach((b, i) => {
       const pr = rects[i].map((p) => project(f, p))

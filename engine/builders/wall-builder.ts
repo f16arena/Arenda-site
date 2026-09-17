@@ -139,6 +139,25 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
           push(leaf, reg.get("glass"))
           const rail = makeBox({ cx: c.x, cz: c.y, yMid: o.height - 20, width: o.width, height: 60, depth: leafD, angle }, scene, `dr_${o.id}`)
           push(rail, reg.get("concrete"))
+        } else if (o.variant === "arch") {
+          // арочный проём без полотна: полукруглый верх — стена заполняет углы над дугой
+          const r = o.width / 2
+          const spring = Math.max(o.height - r, 0)
+          const n = 14
+          for (let i = 0; i < n; i++) {
+            const x0 = -r + (2 * r * i) / n, x1 = -r + (2 * r * (i + 1)) / n
+            const xm = Math.max(Math.abs(x0), Math.abs(x1)) // внешний край полоски — чтобы дуга не «зубилась» внутрь
+            const arcY = spring + Math.sqrt(Math.max(0, r * r - xm * xm))
+            const hFill = o.height - arcY
+            if (hFill < 5) continue
+            const cc = at((x0 + x1) / 2)
+            const fill = makeBox({ cx: cc.x, cz: cc.y, yMid: arcY + hFill / 2, width: x1 - x0 + 2, height: hFill, depth: t, angle }, scene, `arch_${o.id}_${i}`)
+            fill.material = wallMat
+            fill.receiveShadows = true
+            fill.metadata = { kind: "wall", floorId: floor.id, entityId: id, phase: e.phase }
+            fill.parent = parent
+            meshes.push(fill)
+          }
         } else if (o.variant === "garage") {
           for (let s = 0; s < 5; s++) {
             const seg = makeBox({ cx: c.x, cz: c.y, yMid: 130 + s * ((o.height - 80) / 5), width: o.width - 40, height: (o.height - 80) / 5 - 20, depth: leafD, angle }, scene, `dg_${o.id}_${s}`)

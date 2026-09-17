@@ -25,6 +25,7 @@ node scripts/builder-harness/run16.mjs     # размеры и надписи и
 node scripts/builder-harness/run17.mjs     # щит: разбивка по группам, расчётная таблица
 node scripts/builder-harness/run18.mjs     # редактор плана: стены, сдвиг, дверь-выход, лифт, тот же проект в 3D
 node scripts/builder-harness/run19.mjs     # план: рамка, Shift+клик, копия группы, рулетка, разрез, сети
+node scripts/builder-harness/run20.mjs     # размеры у выделенного в плане, привязка по линии
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

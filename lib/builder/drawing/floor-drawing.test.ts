@@ -98,3 +98,18 @@ describe("точка подписи помещения", async () => {
     expect(nearest).toBeGreaterThan(700)
   })
 })
+
+describe("стыки стен на плане", async () => {
+  const { emptyGraph, insertWall } = await import("@/core/geometry/wall-graph")
+  const { buildFloorDrawing } = await import("./floor-drawing")
+  it("толстая стена, упёршаяся в тонкую, не торчит за неё", () => {
+    let g = emptyGraph()
+    g = insertWall(g, { x: 0, y: 0 }, { x: 6000, y: 0 }, { thickness: 120, height: 3000, kind: "partition" }).graph
+    g = insertWall(g, { x: 3000, y: 0 }, { x: 3000, y: -4000 }, { thickness: 250, height: 3000, kind: "interior" }).graph
+    const f = { id: "f", name: "1", level: 1, elevation: 0, height: 3000, visible: true, locked: false, opacity: 1, wallGraph: g, openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {}, mepRuns: [], mepDevices: [] }
+    const d = buildFloorDrawing(f as never)
+    const maxY = Math.max(...d.wallSolids.flat().map((p) => p.y))
+    // верх перегородки — +60; ножка 250 мм не выше этого
+    expect(maxY).toBeCloseTo(60)
+  })
+})

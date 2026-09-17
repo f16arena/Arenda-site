@@ -41,8 +41,12 @@ describe("редактор плана: привязки и попадание", 
     expect(snapPoint(f, { x: 60, y: -40 }, null, 100, true)).toEqual({ p: { x: 0, y: 0 }, kind: "node" })
     expect(snapPoint(f, { x: 3020, y: 70 }, null, 100, true)).toEqual({ p: { x: 3020, y: 0 }, kind: "edge" })
     const a = snapPoint(f, { x: 3000, y: 2520 }, { x: 1000, y: 2500 }, 100, true)
-    expect(a.kind).toBe("angle")
+    expect(a.kind).toBe("align") // по линии с предыдущей точкой
     expect(a.p.y).toBe(2500)
+    const al = snapPoint(f, { x: 7960, y: 7000 }, null, 100, true)
+    expect(al).toMatchObject({ p: { x: 8000, y: 7000 }, kind: "align" })
+    const ang = snapPoint(f, { x: 3000, y: 2800 }, { x: 1000, y: 2500 }, 100, true)
+    expect(ang.kind).toBe("angle")
     expect(snapPoint(f, { x: 3030, y: 2470 }, null, 100, true)).toEqual({ p: { x: 3000, y: 2500 }, kind: "grid" })
   })
 

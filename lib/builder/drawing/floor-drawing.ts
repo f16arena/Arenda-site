@@ -199,9 +199,26 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     const u = mul(d, 1 / L)
     const nrm = { x: -u.y, y: u.x }
     const h = e.thickness / 2
-    // стык: продлеваем на полтолщины, чтобы углы закрывались без щелей
-    const extA = (degree.get(e.a) ?? 0) > 1 ? h : 0
-    const extB = (degree.get(e.b) ?? 0) > 1 ? h : 0
+    // стык: продлеваем ровно до дальней грани стены, в которую упираемся (её
+    // полтолщины). Раньше — на свою полтолщины: толстая стена, упёршаяся в
+    // тонкую перегородку, торчала за неё. Продолжение по прямой — без продления.
+    const extAt = (nodeId: string) => {
+      let ext = 0
+      for (const oid in g.edges) {
+        if (oid === id) continue
+        const o = g.edges[oid]
+        if (o.a !== nodeId && o.b !== nodeId) continue
+        const oa = g.nodes[o.a], ob = g.nodes[o.b]
+        if (!oa || !ob) continue
+        const ol = Math.hypot(ob.x - oa.x, ob.y - oa.y) || 1
+        const cross = Math.abs(u.x * ((ob.y - oa.y) / ol) - u.y * ((ob.x - oa.x) / ol))
+        if (cross < 0.1) continue // та же линия
+        ext = Math.max(ext, o.thickness / 2)
+      }
+      return ext
+    }
+    const extA = (degree.get(e.a) ?? 0) > 1 ? extAt(e.a) : 0
+    const extB = (degree.get(e.b) ?? 0) > 1 ? extAt(e.b) : 0
     const ops = [...(openingsByWall.get(id) ?? [])].sort((p, q) => p.offset - q.offset)
     // offset проёма — его центр вдоль стены (как в ядре и 3D)
     const gaps = ops.map((o) => [Math.max(0, o.offset - o.width / 2), Math.min(L, o.offset + o.width / 2)] as const)
@@ -237,7 +254,11 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
       }
       const p0 = add(a, mul(u, o.offset - o.width / 2))
       const p1 = add(a, mul(u, o.offset + o.width / 2))
-      if (o.type === "window") {
+      if (o.type === "door" && o.variant === "arch") {
+        // арка: проём без полотна — поперечные линии по откосам
+        thinLines.push([add(p0, mul(nrm, h)), add(p0, mul(nrm, -h))])
+        thinLines.push([add(p1, mul(nrm, h)), add(p1, mul(nrm, -h))])
+      } else if (o.type === "window") {
         for (const k of [h, 0, -h]) thinLines.push([add(p0, mul(nrm, k)), add(p1, mul(nrm, k))])
         thinLines.push([add(p0, mul(nrm, h)), add(p0, mul(nrm, -h))])
         thinLines.push([add(p1, mul(nrm, h)), add(p1, mul(nrm, -h))])
@@ -308,7 +329,9 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   // помещения
   const rooms: RoomLabel[] = detectRooms(g).map((r) => {
     const key = floor.premiseLinks[r.id]
-    return { roomId: r.id, at: labelPoint(r.polygon, r.holes), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
+    // подпись обходит лестницы, лифты и колонны внутри помещения
+    const obstacles = floor.stairs.map((st) => stairHoleWorld(st, floor.height)).filter((h) => h.some((q) => pointInPolygon(q, r.polygon)))
+    return { roomId: r.id, at: labelPoint(r.polygon, [...(r.holes ?? []), ...obstacles]), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
   })
 
   // размерные цепочки по четырём фасадам

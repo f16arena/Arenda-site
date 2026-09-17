@@ -30,6 +30,9 @@ const VARIANT_RU: Record<string, string> = {
   standard: "",
   small: "",
   panoramic: "панорамное",
+  arch: "арочная",
+  garage: "гаражная",
+  wide: "широкое",
 }
 
 export function openingName(r: Pick<OpeningRow, "type" | "variant" | "width" | "height">): string {

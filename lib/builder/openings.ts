@@ -16,6 +16,7 @@ export const DOOR_PRESETS: OpeningPreset[] = [
   { variant: "double", label: "Двустворчатая", width: 1600, height: 2200, sill: 0 },
   { variant: "sliding", label: "Раздвижная", width: 1800, height: 2200, sill: 0 },
   { variant: "garage", label: "Гаражная", width: 3000, height: 2600, sill: 0 },
+  { variant: "arch", label: "Арка", width: 1200, height: 2500, sill: 0 },
 ]
 
 export const WINDOW_PRESETS: OpeningPreset[] = [

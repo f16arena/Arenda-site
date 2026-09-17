@@ -57,6 +57,8 @@ export const StairSchema = z.object({
   rise: z.number().optional(),
   // Колонна: размер сечения поперёк (width — вдоль X), мм.
   depth: z.number().optional(),
+  // Проступь ступени, мм (длина марша = проступь × число ступеней); по умолчанию 280.
+  tread: z.number().optional(),
 })
 
 export const BuilderObjectSchema = z.object({

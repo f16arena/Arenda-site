@@ -27,7 +27,8 @@ const STEP_T = 60
 /** Крыльцо: площадка у двери (верх = отметка пола) и ступени наружу вниз до земли. */
 export const PORCH_LANDING = 1400
 
-export function generatePorch(rise: number, width: number): StairGeometry {
+export function generatePorch(rise: number, width: number, tread = TREAD): StairGeometry {
+  const TREAD_P = tread
   const count = Math.max(1, Math.round(rise / RISER))
   const riser = rise / count
   const steps: StepBox[] = []
@@ -35,9 +36,9 @@ export function generatePorch(rise: number, width: number): StairGeometry {
   steps.push({ x: 0, y: -rise / 2, z: PORCH_LANDING / 2, w: width, h: rise, d: PORCH_LANDING })
   for (let j = 1; j < count; j++) {
     const h = rise - j * riser
-    steps.push({ x: 0, y: -rise + h / 2, z: PORCH_LANDING + (j - 1) * TREAD + TREAD / 2, w: width, h, d: TREAD })
+    steps.push({ x: 0, y: -rise + h / 2, z: PORCH_LANDING + (j - 1) * TREAD_P + TREAD_P / 2, w: width, h, d: TREAD_P })
   }
-  const depth = PORCH_LANDING + (count - 1) * TREAD
+  const depth = PORCH_LANDING + (count - 1) * TREAD_P
   return { steps, rails: [], hole: { minX: -width / 2, minZ: 0, maxX: width / 2, maxZ: depth } }
 }
 
@@ -72,10 +73,12 @@ export function generateColumn(height: number, width: number, depth: number): St
   return { steps: [{ x: 0, y: height / 2, z: 0, w: width, h: height, d: depth }], rails: [], hole: { minX: -width / 2, minZ: -depth / 2, maxX: width / 2, maxZ: depth / 2 } }
 }
 
-export function generateStair(shape: StairShape, totalRise: number, width: number, railing: boolean, depth?: number): StairGeometry {
+export function generateStair(shape: StairShape, totalRise: number, width: number, railing: boolean, depth?: number, tread?: number): StairGeometry {
   if (shape === "column") return generateColumn(totalRise, width, depth ?? width)
-  if (shape === "porch") return generatePorch(totalRise, width)
+  if (shape === "porch") return generatePorch(totalRise, width, tread ?? TREAD)
   if (shape === "elevator") return generateElevator(totalRise, width)
+  // проступь: по умолчанию 280 мм; задаётся длиной марша в редакторе
+  const T = tread && tread > 0 ? tread : TREAD
   const count = Math.max(2, Math.round(totalRise / RISER))
   const riser = totalRise / count
   const steps: StepBox[] = []
@@ -90,17 +93,17 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
       const idx = startStep + i
       const y = (idx + 1) * riser - STEP_T / 2
       if (axis === "z") {
-        const z = oz + dir * (i * TREAD + TREAD / 2)
-        steps.push({ x: ox, y, z, w: width, h: STEP_T, d: TREAD })
-        minZ = Math.min(minZ, z - TREAD / 2)
-        maxZ = Math.max(maxZ, z + TREAD / 2)
+        const z = oz + dir * (i * T + T / 2)
+        steps.push({ x: ox, y, z, w: width, h: STEP_T, d: T })
+        minZ = Math.min(minZ, z - T / 2)
+        maxZ = Math.max(maxZ, z + T / 2)
         minX = Math.min(minX, ox - width / 2)
         maxX = Math.max(maxX, ox + width / 2)
       } else {
-        const x = ox + dir * (i * TREAD + TREAD / 2)
-        steps.push({ x, y, z: oz, w: TREAD, h: STEP_T, d: width })
-        minX = Math.min(minX, x - TREAD / 2)
-        maxX = Math.max(maxX, x + TREAD / 2)
+        const x = ox + dir * (i * T + T / 2)
+        steps.push({ x, y, z: oz, w: T, h: STEP_T, d: width })
+        minX = Math.min(minX, x - T / 2)
+        maxX = Math.max(maxX, x + T / 2)
         minZ = Math.min(minZ, oz - width / 2)
         maxZ = Math.max(maxZ, oz + width / 2)
       }
@@ -113,14 +116,14 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
     const n1 = Math.ceil(count / 2)
     const n2 = count - n1
     addRun(n1, width / 2, 0, 1, "z", 0)
-    const landingZ = n1 * TREAD
+    const landingZ = n1 * T
     addRun(n2, width / 2, landingZ + width / 2, 1, "x", n1)
   } else {
     // u-shape: два марша в противоположных направлениях + площадка
     const n1 = Math.ceil(count / 2)
     const n2 = count - n1
     addRun(n1, width / 2, 0, 1, "z", 0)
-    const landingZ = n1 * TREAD
+    const landingZ = n1 * T
     addRun(n2, width / 2 + width + 100, landingZ, -1, "z", n1)
   }
 
@@ -141,11 +144,13 @@ export interface StairPlacement {
   mirror?: boolean
   rise?: number
   depth?: number
+  tread?: number
 }
 
 /** Высота подъёма: лестница — во весь этаж, крыльцо — своя (по умолчанию 450 мм). */
 export function stairRise(stair: StairPlacement, floorHeight: number): number {
-  return stair.shape === "porch" ? Math.max(150, stair.rise ?? 450) : floorHeight
+  // крыльцо — своя высота; лестница — высота этажа, если не задана своя
+  return stair.shape === "porch" ? Math.max(150, stair.rise ?? 450) : stair.rise && stair.rise > 0 && stair.shape !== "elevator" && stair.shape !== "column" ? stair.rise : floorHeight
 }
 
 /** Локальная точка лестницы (x, z) → мировые мм плоскости этажа. */
@@ -159,7 +164,7 @@ export function stairToWorld(stair: StairPlacement, x: number, z: number): { x: 
 
 /** Контуры ступеней/площадок в плане (мировые мм) — для чертежа. */
 export function stairPlanRects(stair: StairPlacement, floorHeight: number): { x: number; y: number }[][] {
-  const geo = generateStair(stair.shape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth)
+  const geo = generateStair(stair.shape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth, stair.tread)
   return geo.steps.map((b) => [
     stairToWorld(stair, b.x - b.w / 2, b.z - b.d / 2),
     stairToWorld(stair, b.x + b.w / 2, b.z - b.d / 2),

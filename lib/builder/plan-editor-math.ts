@@ -41,7 +41,9 @@ export function zoomAt(v: View, s: Vec2, factor: number): View {
 
 export interface Snap {
   p: Vec2
-  kind: "node" | "edge" | "angle" | "grid" | "free"
+  kind: "node" | "edge" | "align" | "angle" | "grid" | "free"
+  /** направляющие «по линии»: от узла, с которым выровнялись, до точки */
+  guides?: Array<{ from: Vec2; to: Vec2 }>
 }
 
 /**
@@ -66,6 +68,23 @@ export function snapPoint(floor: Pick<Floor, "wallGraph">, raw: Vec2, prev: Vec2
     if (c.dist <= tolMm && (!bestEdge || c.dist < bestEdge.d)) bestEdge = { p: c.point, d: c.dist }
   }
   if (bestEdge) return { p: { x: Math.round(bestEdge.p.x), y: Math.round(bestEdge.p.y) }, kind: "edge" }
+  // «по линии» (как отслеживание в AutoCAD): X или Y совпадает с узлом — стены встают в одну линию
+  let ax: { v: number; d: number; n: Vec2 } | null = null
+  let ay: { v: number; d: number; n: Vec2 } | null = null
+  const alignTargets: Vec2[] = [...Object.values(g.nodes), ...(prev ? [prev] : [])]
+  for (const n of alignTargets) {
+    const dx = Math.abs(n.x - raw.x), dy = Math.abs(n.y - raw.y)
+    if (dx <= tolMm && (!ax || dx < ax.d)) ax = { v: n.x, d: dx, n }
+    if (dy <= tolMm && (!ay || dy < ay.d)) ay = { v: n.y, d: dy, n }
+  }
+  if (ax || ay) {
+    // координату узла берём как есть (у обведённых по скану узлов она дробная) — иначе стык «почти» в линию
+    const p = { x: ax ? ax.v : Math.round(raw.x), y: ay ? ay.v : Math.round(raw.y) }
+    const guides: Array<{ from: Vec2; to: Vec2 }> = []
+    if (ax) guides.push({ from: { x: ax.n.x, y: ax.n.y }, to: p })
+    if (ay) guides.push({ from: { x: ay.n.x, y: ay.n.y }, to: p })
+    return { p, kind: "align", guides }
+  }
   if (!snap) return { p: { x: Math.round(raw.x), y: Math.round(raw.y) }, kind: "free" }
   if (prev) {
     const dx = raw.x - prev.x, dy = raw.y - prev.y
@@ -166,4 +185,19 @@ export function wallsInRect(floor: Pick<Floor, "wallGraph">, r: { minX: number; 
     if (ia || ib || corners.some((c, i) => segIntersects(a, b, c, corners[(i + 1) % 4]))) out.push(id)
   }
   return out
+}
+
+/** Ширина помещения по горизонтали через точку (мм): отрезок сечения, в котором лежит точка. */
+export function spanAt(poly: Vec2[], p: Vec2, holes: Vec2[][] = []): number {
+  const xs: number[] = []
+  for (const ring of [poly, ...holes]) {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length]
+      if ((a.y > p.y) === (b.y > p.y)) continue
+      xs.push(a.x + ((p.y - a.y) / (b.y - a.y)) * (b.x - a.x))
+    }
+  }
+  xs.sort((m, n) => m - n)
+  for (let i = 0; i + 1 < xs.length; i += 2) if (p.x >= xs[i] && p.x <= xs[i + 1]) return xs[i + 1] - xs[i]
+  return 0
 }

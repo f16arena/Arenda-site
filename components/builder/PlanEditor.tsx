@@ -33,6 +33,9 @@ import {
   AddMepDeviceCommand,
   AddSectionCommand,
   nextSectionName,
+  SetWallPropsCommand,
+  SetOpeningSizeCommand,
+  SetStairCommand,
   type Command,
 } from "@/core/document/commands"
 import { MEP_DEVICE_BY_KIND, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
@@ -50,7 +53,8 @@ import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
-import { fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
+import { stairRise } from "@/core/geometry/stair-generator"
+import { spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; view: View; moved: boolean }
@@ -107,6 +111,8 @@ export function PlanEditor() {
   const [measured, setMeasured] = useState<{ a: Vec2; b: Vec2 } | null>(null)
   // «Чертёж» — как лист АР (размеры, оси, марки, белый лист); «Аренда» — статусы и арендаторы
   const [look, setLook] = useState<"draft" | "rent">("draft")
+  // размер у выделенного элемента, который сейчас правится с клавиатуры
+  const [editing, setEditing] = useState<{ key: string; draft: string } | null>(null)
 
   useEffect(() => {
     const el = hostRef.current
@@ -140,7 +146,11 @@ export function PlanEditor() {
 
   // вид — для стенда проверок (вне прода), чтобы кликать в точные координаты плана
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") (window as unknown as { __planView?: View | null }).__planView = view
+    if (process.env.NODE_ENV !== "production") {
+      const w = window as unknown as { __planView?: View | null; __detectRooms?: typeof detectRooms }
+      w.__planView = view
+      w.__detectRooms = detectRooms
+    }
   }, [view])
 
   // смена инструмента сбрасывает незаконченный ввод
@@ -340,8 +350,9 @@ export function PlanEditor() {
       d.moved = true
       // привязка к другим узлам и стенам, кроме своих рёбер
       const others = { wallGraph: { nodes: Object.fromEntries(Object.entries(floor.wallGraph.nodes).filter(([id]) => id !== d.id)), edges: Object.fromEntries(Object.entries(floor.wallGraph.edges).filter(([, ed]) => ed.a !== d.id && ed.b !== d.id)) } }
-      const t = snapPoint(others, at.p, null, tolMm, snapEnabled).p
-      setPreview(findFloor(new MoveNodeCommand(floor.id, d.id, t).apply(doc), floor.id) ?? null)
+      const sn = snapPoint(others, at.p, null, tolMm, snapEnabled)
+      setCursor({ screen: at.s, plan: at.p, snap: sn })
+      setPreview(findFloor(new MoveNodeCommand(floor.id, d.id, sn.p).apply(doc), floor.id) ?? null)
       return
     }
     if (d.kind === "opening") {
@@ -569,7 +580,7 @@ export function PlanEditor() {
   const gridX: number[] = [], gridY: number[] = []
   for (let x = Math.floor(topLeft.x / gridStep) * gridStep; x <= bottomRight.x && gridX.length < 400; x += gridStep) gridX.push(x)
   for (let y = Math.floor(bottomRight.y / gridStep) * gridStep; y <= topLeft.y && gridY.length < 400; y += gridStep) gridY.push(y)
-  const fontPx = Math.max(9, Math.min(13, px(260)))
+  const fontPx = Math.max(9, Math.min(14, px(320)))
   const u = floor.underlay
   const sel = selection
   const selWall = sel.type === "wall" && sel.id ? floor.wallGraph.edges[sel.id] : undefined
@@ -589,6 +600,81 @@ export function PlanEditor() {
     : tool === "mep-run" ? `Трасса ${MEP_SYSTEM_INFO[mepSystem].name}: клики — точки${pts2.length ? `, ${(polylineLengthMm(pts2) / 1000).toFixed(2)} м` : ""}; клик в последней точке, правая кнопка или Enter — готово`
     : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
     : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
+
+  // ── Размеры выделенного элемента прямо на плане: клик — ввод числа ─────────
+  type EditDim = { key: string; at: Vec2; label: string; value: number; apply: (v: number) => void; min: number; max: number }
+  const editDims: EditDim[] = []
+  if (!drag.current && floor) {
+    const fid = floor.id
+    const outward = (p: Vec2, c: Vec2, px0: number) => {
+      const L = Math.hypot(p.x - c.x, p.y - c.y) || 1
+      return { x: p.x + ((p.x - c.x) / L) * px0, y: p.y + ((p.y - c.y) / L) * px0 }
+    }
+    if (sel.type === "wall" && selWall && sel.id) {
+      const a = floor.wallGraph.nodes[selWall.a], b = floor.wallGraph.nodes[selWall.b]
+      const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+      const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+      const n = { x: -u.y, y: u.x }
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+      const off = selWall.thickness / 2 + 26 / v.k
+      const wid = sel.id
+      editDims.push({ key: `wl${wid}`, at: S({ x: mid.x + n.x * off, y: mid.y + n.y * off }), label: "Длина", value: Math.round(L), min: 100, max: 200000,
+        apply: (val) => execute(new MoveNodeCommand(fid, selWall.b, { x: Math.round(a.x + u.x * val), y: Math.round(a.y + u.y * val) })) })
+      editDims.push({ key: `wt${wid}`, at: S({ x: mid.x - n.x * off, y: mid.y - n.y * off }), label: "Толщина", value: selWall.thickness, min: 50, max: 1500,
+        apply: (val) => execute(new SetWallPropsCommand(fid, wid, { thickness: val })) })
+    }
+    if (sel.type === "opening" && selOpening && sel.id) {
+      const e = floor.wallGraph.edges[selOpening.wallId]
+      const a = e && floor.wallGraph.nodes[e.a], b = e && floor.wallGraph.nodes[e.b]
+      if (e && a && b) {
+        const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+        const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+        const n = { x: -u.y, y: u.x }
+        const c = { x: a.x + u.x * selOpening.offset, y: a.y + u.y * selOpening.offset }
+        const off = e.thickness / 2 + 30 / v.k
+        const oid = sel.id
+        editDims.push({ key: `ow${oid}`, at: S({ x: c.x + n.x * off, y: c.y + n.y * off }), label: "Ширина", value: selOpening.width, min: 300, max: Math.max(300, Math.round(L - 100)), apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { width: val })) })
+        editDims.push({ key: `oh${oid}`, at: S({ x: c.x - n.x * off, y: c.y - n.y * off }), label: "Высота", value: selOpening.height, min: 300, max: 6000, apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { height: val })) })
+        if (selOpening.type === "window") editDims.push({ key: `os${oid}`, at: S({ x: c.x - n.x * off * 2.2, y: c.y - n.y * off * 2.2 }), label: "От пола", value: selOpening.sillHeight, min: 0, max: 3000, apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { sillHeight: val })) })
+      }
+    }
+    if (sel.type === "stair" && selStair && sel.id) {
+      const st = selStair
+      const sid = sel.id
+      const hole = stairHoleWorld(st, floor.height)
+      const c = { x: hole.reduce((acc, q) => acc + q.x, 0) / 4, y: hole.reduce((acc, q) => acc + q.y, 0) / 4 }
+      const e01 = S({ x: (hole[0].x + hole[1].x) / 2, y: (hole[0].y + hole[1].y) / 2 })
+      const e12 = S({ x: (hole[1].x + hole[2].x) / 2, y: (hole[1].y + hole[2].y) / 2 })
+      const cs = S(c)
+      const across = Math.round(Math.hypot(hole[1].x - hole[0].x, hole[1].y - hole[0].y))
+      const along = Math.round(Math.hypot(hole[2].x - hole[1].x, hole[2].y - hole[1].y))
+      if (st.shape === "column") {
+        editDims.push({ key: `cw${sid}`, at: outward(e01, cs, 22), label: "Ширина", value: st.width, min: 100, max: 3000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
+        editDims.push({ key: `cd${sid}`, at: outward(e12, cs, 22), label: "Глубина", value: st.depth ?? st.width, min: 100, max: 3000, apply: (val) => execute(new SetStairCommand(fid, sid, { depth: val })) })
+      } else if (st.shape === "elevator") {
+        editDims.push({ key: `ew${sid}`, at: outward(e01, cs, 22), label: "Шахта", value: st.width, min: 1200, max: 4000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
+      } else {
+        const rise = stairRise(st, floor.height)
+        const count = Math.max(st.shape === "porch" ? 1 : 2, Math.round(rise / 170))
+        const runs = st.shape === "straight" || st.shape === "spiral" ? count : st.shape === "porch" ? Math.max(1, count - 1) : Math.ceil(count / 2)
+        const clampT = (t: number) => Math.max(220, Math.min(450, Math.round(t)))
+        editDims.push({ key: `sw${sid}`, at: outward(e01, cs, 22), label: st.shape === "porch" ? "Ширина" : "Ширина марша", value: st.width, min: 700, max: 6000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
+        editDims.push({ key: `sl${sid}`, at: outward(e12, cs, 22), label: "Длина", value: along, min: 500, max: 20000,
+          apply: (val) => execute(new SetStairCommand(fid, sid, { tread: clampT(st.shape === "porch" ? (val - 1400) / runs : val / runs) })) })
+        editDims.push({ key: `sh${sid}`, at: { x: cs.x, y: cs.y + 16 }, label: "Высота", value: Math.round(rise), min: 150, max: 6000, apply: (val) => execute(new SetStairCommand(fid, sid, { rise: val })) })
+        void across
+      }
+    }
+  }
+
+  function commitEdit(d: EditDim) {
+    if (!editing) return
+    const val = Math.round(parseFloat(editing.draft.replace(",", ".").replace(/\s/g, "")))
+    setEditing(null)
+    if (!Number.isFinite(val)) return
+    const clamped = Math.max(d.min, Math.min(d.max, val))
+    if (clamped !== d.value) d.apply(clamped)
+  }
 
   return (
     <div
@@ -761,17 +847,37 @@ export function PlanEditor() {
           const premise = link ? resolvePremise(link) : undefined
           const name = floor.roomNames?.[r.id]
           const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
-          const side = px(Math.sqrt(r.areaMm2))
-          if (side < 22) return null
-          if (side < 48) {
-            // маленькое помещение (санузел, тамбур): только площадь мелко
-            return <text key={`lbl${r.id}`} x={c.x} y={c.y} fontSize={Math.max(8, fontPx - 3)} textAnchor="middle" dominantBaseline="middle" fill="#475569" style={{ pointerEvents: "none" }}>{(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")}</text>
+          // подпись не выходит за стены: ширина помещения на уровне подписи
+          const widthPx = px(spanAt(r.polygon, at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length }, r.holes)) - 10
+          const areaText = look === "draft" ? area.replace(" м²", "") : area
+          const fits = (t: string, f: number) => t.length * f * 0.56 <= widthPx
+          if (widthPx < 18) return null
+          // по строке: номер, наименование, арендатор (в «Аренде»), площадь — что не влезло, сокращаем или убираем
+          let f = fontPx
+          while (f > 8 && !fits(areaText, f)) f -= 1
+          if (!fits(areaText, f)) return null
+          const cut = (t: string) => {
+            if (fits(t, f)) return t
+            const k = Math.floor(widthPx / (f * 0.56)) - 1
+            return k >= 3 ? `${t.slice(0, k)}…` : ""
           }
+          const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
+          const num = numbers.get(r.id)
+          if (num) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
+          if (name) lines.push({ t: cut(name), color: "#334155" })
+          if (look === "rent" && premise?.tenantName) lines.push({ t: cut(shortTenantName(premise.tenantName)), color: "#334155" })
+          lines.push({ t: areaText, under: true, color: look === "draft" ? "#111" : "#475569" })
+          const shown = lines.filter((l) => l.t)
+          // высота помещения — не больше строк, чем влезает по вертикали
+          const hPx = px(Math.sqrt(r.areaMm2))
+          const maxLines = Math.max(1, Math.floor(hPx / (f * 1.25)))
+          const visible = shown.length > maxLines ? shown.slice(shown.length - maxLines) : shown
+          const top = c.y - ((visible.length - 1) * f * 1.2) / 2
           return (
-            <g key={`lbl${r.id}`} style={{ pointerEvents: "none" }} fontSize={fontPx} textAnchor="middle">
-              <text x={c.x} y={c.y - fontPx * 0.9} fontWeight={700} fill="#0f172a">{numbers.get(r.id) ? `№ ${numbers.get(r.id)}` : ""}{name ? ` · ${name}` : ""}</text>
-              {look === "rent" && premise?.tenantName && <text x={c.x} y={c.y + 2} fill="#334155">{shortTenantName(premise.tenantName)}</text>}
-              <text x={c.x} y={c.y + fontPx * (look === "rent" && premise?.tenantName ? 1.2 : 0.4)} fill={look === "draft" ? "#111" : "#475569"} textDecoration="underline">{look === "draft" ? area.replace(" м²", "") : area}</text>
+            <g key={`lbl${r.id}`} style={{ pointerEvents: "none" }} fontSize={f} textAnchor="middle">
+              {visible.map((l, i) => (
+                <text key={i} x={c.x} y={top + i * f * 1.2} dominantBaseline="middle" fontWeight={l.bold ? 700 : 400} fill={l.color} textDecoration={l.under ? "underline" : undefined}>{l.t}</text>
+              ))}
             </g>
           )
         })}
@@ -886,11 +992,45 @@ export function PlanEditor() {
           return <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#0284c7" strokeWidth={1.5} strokeDasharray="6 4" />
         })()}
         {roomRect && (() => { const a = S(roomRect.a), b = S(roomRect.b); return <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} fill="rgba(2,132,199,0.08)" stroke="#0284c7" strokeWidth={2} strokeDasharray="6 4" /> })()}
+        {cursor?.snap?.guides?.map((gd, i) => {
+          const a = S(gd.from), b = S(gd.to)
+          return <line key={`gd${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#16a34a" strokeWidth={1} strokeDasharray="4 4" style={{ pointerEvents: "none" }} />
+        })}
         {snapMark && (cursor?.snap?.kind === "node"
           ? <rect x={snapMark.x - 6} y={snapMark.y - 6} width={12} height={12} fill="none" stroke="#16a34a" strokeWidth={2} />
           : <polygon points={`${snapMark.x},${snapMark.y - 7} ${snapMark.x + 7},${snapMark.y} ${snapMark.x},${snapMark.y + 7} ${snapMark.x - 7},${snapMark.y}`} fill="none" stroke="#ea580c" strokeWidth={2} />)}
       </svg>
 
+      {editDims.map((d) => {
+        const on = editing?.key === d.key
+        return (
+          <div key={d.key} className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: d.at.x, top: d.at.y }} onPointerDown={(e) => e.stopPropagation()}>
+            {on ? (
+              <input
+                autoFocus
+                data-testid={`edit-${d.key}`}
+                value={editing?.draft ?? ""}
+                onChange={(e) => setEditing({ key: d.key, draft: e.target.value })}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEdit(d); if (e.key === "Escape") setEditing(null) }}
+                onBlur={() => commitEdit(d)}
+                className="w-20 rounded-md px-1.5 py-0.5 text-center text-[12px] font-bold tabular-nums shadow-lg outline-none"
+                style={{ background: "#fff", color: "#0369a1", border: "2px solid #0284c7" }}
+              />
+            ) : (
+              <button
+                type="button"
+                data-testid={`dim-${d.key}`}
+                title={`${d.label}, мм — клик, чтобы изменить`}
+                onClick={() => setEditing({ key: d.key, draft: String(d.value) })}
+                className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums shadow"
+                style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
+              >
+                {d.label === "Длина" || d.label === "Ширина" || d.label === "Ширина марша" || d.label === "Шахта" ? "" : `${d.label} `}{d.value}
+              </button>
+            )}
+          </div>
+        )
+      })}
       <div className="absolute right-3 top-[10.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
         {([["draft", "Чертёж"], ["rent", "Аренда"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
