@@ -11,6 +11,7 @@ import { ArrowLeft, Printer } from "lucide-react"
 import type { Building, Floor } from "@/types/builder"
 import { buildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildEvacuation } from "@/lib/builder/drawing/evacuation"
+import { finishSchedule, floorTypes } from "@/lib/builder/drawing/finish"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -58,6 +59,17 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       out.push({
         key: `${f.id}-evac`, title, sheet,
         props: { drawing, sheet, title, section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", evac: buildEvacuation(f) },
+      })
+    }
+    // ведомость отделки и экспликация полов — на каждый этаж
+    for (const f of floors) {
+      const extras = planExtras(building.floors, f, num)
+      const numbers = new Map(extras.rooms.map((r) => [r.roomId, r.number]))
+      const drawing = buildFloorDrawing(f, num, "plan", extras.options)
+      const title = `${floorTitle(f)}. Ведомость отделки помещений`
+      out.push({
+        key: `${f.id}-finish`, title, sheet: A3L,
+        props: { drawing, sheet: A3L, title, section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", finish: { rows: finishSchedule(f, numbers), types: floorTypes(f, numbers) } },
       })
     }
     for (const f of floors) {

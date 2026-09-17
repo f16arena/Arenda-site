@@ -42,6 +42,9 @@ export interface WallDefaults {
   height: number
   kind: WallKind
   phase?: "demolish" | "new"
+  /** отделка: фасад снаружи, материал изнутри — попадают в ведомость отделки */
+  facadeMaterialId?: string
+  interiorMaterialId?: string
 }
 
 // Высота стены по умолчанию = высоте этажа (FLOOR_HEIGHT=3500), чтобы стены доходили
@@ -127,7 +130,12 @@ function edgeExists(g: WallGraph, a: string, b: string): boolean {
 function addEdge(g: WallGraph, a: string, b: string, def: WallDefaults): string | null {
   if (a === b || edgeExists(g, a, b)) return null
   const id = uid("w")
-  g.edges[id] = { id, a, b, thickness: def.thickness, height: def.height, kind: def.kind, ...(def.phase ? { phase: def.phase } : {}) }
+  g.edges[id] = {
+    id, a, b, thickness: def.thickness, height: def.height, kind: def.kind,
+    ...(def.phase ? { phase: def.phase } : {}),
+    ...(def.facadeMaterialId ? { facadeMaterialId: def.facadeMaterialId } : {}),
+    ...(def.interiorMaterialId ? { interiorMaterialId: def.interiorMaterialId } : {}),
+  }
   return id
 }
 
