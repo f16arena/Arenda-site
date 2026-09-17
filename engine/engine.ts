@@ -1452,6 +1452,22 @@ export class BuilderEngine {
     this.startMarker = m
   }
 
+  /** Esc во время перетаскивания: вернуть как было, команду не слать. */
+  cancelDrag(): boolean {
+    const active = (this.dragWall?.moved || this.dragNode?.moved || this.dragOpening?.moved || this.dragStair?.moved) ?? false
+    if (!this.dragWall && !this.dragNode && !this.dragOpening && !this.dragStair) return false
+    this.endFloorDrag()
+    this.dragWall = null
+    this.dragNode = null
+    this.dragOpening = null
+    this.dragStair = null
+    this.lastDragEndAt = performance.now()
+    this.onHud(null)
+    const canvas = this.bundle.engine.getRenderingCanvas()
+    if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+    return active
+  }
+
   cancelWallTool(): void {
     this.wallStart = null
     this.lengthInput = ""

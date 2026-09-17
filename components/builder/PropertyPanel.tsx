@@ -5,7 +5,7 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand } from "@/core/document/commands"
 import { usePremiseStore } from "@/store/premise-store"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
@@ -56,7 +56,6 @@ export function PropertyPanel() {
       const b = f.wallGraph.nodes[e.b]
       const len = a && b ? distance(a, b) / 1000 : 0
       rows.push(<Row key="k" label="Тип" value={KIND_RU[e.kind] ?? e.kind} />)
-      rows.push(<Row key="l" label="Длина" value={`${len.toFixed(2)} м`} />)
       rows.push(<Row key="h" label="Высота" value={`${(e.height / 1000).toFixed(2)} м`} />)
       rows.push(<Row key="t" label="Толщина" value={`${e.thickness} мм`} />)
       rows.push(<Row key="fl" label="Этаж" value={f.name} />)
@@ -66,6 +65,21 @@ export function PropertyPanel() {
       const thicks = [100, 150, 200, 300]
       controls = (
         <div className="mt-2 flex flex-col gap-1.5">
+          {a && b && (
+            <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }} title="Второй конец стены сдвигается вдоль её направления; первый остаётся на месте">
+              Длина, м
+              <input id="builder-wall-length" type="number" step="0.01" min="0.1" defaultValue={len.toFixed(2)} key={`l${eid}${len.toFixed(3)}`}
+                onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur() }}
+                onBlur={(ev) => {
+                  const v = parseFloat(ev.target.value.replace(",", "."))
+                  const cur = distance(a, b)
+                  if (!Number.isFinite(v) || v < 0.1 || cur === 0 || Math.abs(v * 1000 - cur) < 0.5) return
+                  const k = (v * 1000) / cur
+                  execute(new MoveNodeCommand(fid, e.b, { x: Math.round(a.x + (b.x - a.x) * k), y: Math.round(a.y + (b.y - a.y) * k) }))
+                }}
+                className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-right text-xs tabular-nums" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+            </label>
+          )}
           <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
             Высота, м
             <input type="number" step="0.1" min="2" max="6" defaultValue={(e.height / 1000).toFixed(1)} key={`h${eid}${e.height}`}

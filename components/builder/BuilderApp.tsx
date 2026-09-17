@@ -448,6 +448,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         return
       }
       if (e.key === "Escape") {
+        // сначала — отменить перетаскивание, если оно идёт: выделение остаётся
+        if (engineRef.current?.cancelDrag()) return
         engineRef.current?.cancelWallTool()
         engineRef.current?.cancelWater()
         engineRef.current?.cancelPath()
