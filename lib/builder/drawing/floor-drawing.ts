@@ -150,7 +150,8 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
     const extA = (degree.get(e.a) ?? 0) > 1 ? h : 0
     const extB = (degree.get(e.b) ?? 0) > 1 ? h : 0
     const ops = [...(openingsByWall.get(id) ?? [])].sort((p, q) => p.offset - q.offset)
-    const gaps = ops.map((o) => [Math.max(0, o.offset), Math.min(L, o.offset + o.width)] as const)
+    // offset проёма — его центр вдоль стены (как в ядре и 3D)
+    const gaps = ops.map((o) => [Math.max(0, o.offset - o.width / 2), Math.min(L, o.offset + o.width / 2)] as const)
     let s = -extA
     const pushSolid = (s0: number, s1: number) => {
       if (s1 - s0 < 1) return
@@ -164,8 +165,8 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
     pushSolid(s, L + extB)
 
     for (const o of ops) {
-      const p0 = add(a, mul(u, o.offset))
-      const p1 = add(a, mul(u, o.offset + o.width))
+      const p0 = add(a, mul(u, o.offset - o.width / 2))
+      const p1 = add(a, mul(u, o.offset + o.width / 2))
       if (o.type === "window") {
         for (const k of [h, 0, -h]) thinLines.push([add(p0, mul(nrm, k)), add(p1, mul(nrm, k))])
         thinLines.push([add(p0, mul(nrm, h)), add(p0, mul(nrm, -h))])
@@ -254,7 +255,7 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
       const dirSign = (isH ? b.x - a.x : b.y - a.y) >= 0 ? 1 : -1
       const base = isH ? a.x : a.y
       for (const o of openingsByWall.get(l.id) ?? []) {
-        openStops.push(base + dirSign * o.offset, base + dirSign * (o.offset + o.width))
+        openStops.push(base + dirSign * (o.offset - o.width / 2), base + dirSign * (o.offset + o.width / 2))
       }
     }
     const n2 = uniqSorted(nodeStops)

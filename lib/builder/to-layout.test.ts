@@ -72,7 +72,7 @@ describe("модель → план этажа", () => {
     const layout = floorToLayout(roomFloor())
     const door = layout.elements.find((el) => el.type === "door")
     // узлы комнаты 0…6000 × 0…4000 → холст сдвинут на 1 м от угла, ось Y вниз
-    expect(door?.type === "door" ? door.x : null).toBeCloseTo(1 + 1.45, 2) // 1000 + 900/2
+    expect(door?.type === "door" ? door.x : null).toBeCloseTo(1 + 1.0, 2) // offset — центр двери
     expect(door?.type === "door" ? door.y : null).toBeCloseTo(1 + 4, 3) // нижняя стена модели — внизу карты
     expect(layout.elements.filter((el) => el.type === "wall")).toHaveLength(4)
   })

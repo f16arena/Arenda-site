@@ -15,7 +15,7 @@ function box(): Floor {
   const top = Object.values(g.edges).find((e) => g.nodes[e.a].y === 6000 && g.nodes[e.b].y === 6000 && Math.max(g.nodes[e.a].x, g.nodes[e.b].x) === 12000)!
   const part = Object.values(g.edges).find((e) => e.kind === "partition")!
   const a = g.nodes[top.a]
-  const offset = a.x === 5000 ? 2000 : 7000 - 2000 - 1500
+  const offset = (a.x === 5000 ? 2000 : 7000 - 2000 - 1500) + 750 // центр окна
   return {
     id: "f", name: "1 этаж", level: 1, elevation: 0, height: 3000, visible: true, locked: false, opacity: 1,
     wallGraph: g,

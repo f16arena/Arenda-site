@@ -18,8 +18,8 @@ function box(id: string, level: number, elevation: number, extra: Partial<Floor>
 
 const f1 = box("f1", 1, 0, {
   openings: [
-    { id: "o1", wallId: "s", type: "window", variant: "standard", width: 1500, height: 1500, sillHeight: 900, offset: 1000 },
-    { id: "o2", wallId: "s", type: "door", variant: "single", width: 1000, height: 2100, sillHeight: 0, offset: 5000 },
+    { id: "o1", wallId: "s", type: "window", variant: "standard", width: 1500, height: 1500, sillHeight: 900, offset: 1750 },
+    { id: "o2", wallId: "s", type: "door", variant: "single", width: 1000, height: 2100, sillHeight: 0, offset: 5500 },
   ],
 })
 const f2 = box("f2", 2, 3000, { roof: { type: "gable", pitchDeg: 30, overhang: 300, thickness: 200 } })

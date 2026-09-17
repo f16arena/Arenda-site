@@ -87,7 +87,8 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
     if (!a || !b) continue
     const length = Math.hypot(b.x - a.x, b.y - a.y)
     if (length === 0) continue
-    const t = Math.min(1, Math.max(0, (opening.offset + opening.width / 2) / length))
+    // offset проёма — центр вдоль стены
+    const t = Math.min(1, Math.max(0, opening.offset / length))
     const cx = a.x + (b.x - a.x) * t
     const cy = a.y + (b.y - a.y) * t
     const rotation = orthoRotation(b.x - a.x, flipY(b.y) - flipY(a.y))

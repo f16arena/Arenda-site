@@ -153,7 +153,7 @@ function wallFace(f: ViewFrame, w: WallInfo): { depth: number; polys: EPoly[]; l
   const L = Math.hypot(w.b.x - w.a.x, w.b.y - w.a.y)
   for (const o of w.floor.openings) {
     if (o.wallId !== w.id) continue
-    const t0 = o.offset / L, t1 = (o.offset + o.width) / L
+    const t0 = (o.offset - o.width / 2) / L, t1 = (o.offset + o.width / 2) / L // offset — центр проёма
     const ua = pa.u + (pb.u - pa.u) * t0, ub = pa.u + (pb.u - pa.u) * t1
     const ou0 = Math.min(ua, ub), ou1 = Math.max(ua, ub)
     const oz0 = w.floor.elevation + (o.type === "door" ? 0 : o.sillHeight)
@@ -417,7 +417,7 @@ export function buildSection(b: Building, s: SectionLine): ElevationDrawing {
         const z0 = floor.elevation, z1 = floor.elevation + w.height
         topZ = Math.max(topZ, z1)
         const along = t * WL
-        const hole = floor.openings.find((o) => o.wallId === w.id && along >= o.offset && along <= o.offset + o.width)
+        const hole = floor.openings.find((o) => o.wallId === w.id && along >= o.offset - o.width / 2 && along <= o.offset + o.width / 2)
         if (hole) {
           const hz0 = z0 + (hole.type === "door" ? 0 : hole.sillHeight)
           const hz1 = Math.min(z1, hz0 + hole.height)
