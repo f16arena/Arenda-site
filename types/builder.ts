@@ -44,7 +44,7 @@ export const OpeningSchema = z.object({
 
 export const StairSchema = z.object({
   id: z.string(),
-  shape: z.enum(["straight", "l", "u", "spiral", "porch", "elevator"]),
+  shape: z.enum(["straight", "l", "u", "spiral", "porch", "elevator", "column"]),
   fromFloorId: z.string(),
   toFloorId: z.string(),
   position: Vec2Schema,
@@ -55,6 +55,8 @@ export const StairSchema = z.object({
   mirror: z.boolean().optional(),
   // Крыльцо: высота от земли до площадки у двери, мм.
   rise: z.number().optional(),
+  // Колонна: размер сечения поперёк (width — вдоль X), мм.
+  depth: z.number().optional(),
 })
 
 export const BuilderObjectSchema = z.object({

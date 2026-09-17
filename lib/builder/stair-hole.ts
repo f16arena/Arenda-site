@@ -3,7 +3,7 @@
 import { generateStair, stairRise, stairToWorld, type StairPlacement } from "@/core/geometry/stair-generator"
 
 export function stairHoleWorld(stair: StairPlacement, floorHeight: number): { x: number; y: number }[] {
-  const geo = generateStair(stair.shape, stairRise(stair, floorHeight), stair.width, stair.railing)
+  const geo = generateStair(stair.shape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth)
   return [
     stairToWorld(stair, geo.hole.minX, geo.hole.minZ),
     stairToWorld(stair, geo.hole.maxX, geo.hole.minZ),

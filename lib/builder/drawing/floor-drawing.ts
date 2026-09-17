@@ -265,6 +265,11 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   const lifts: FloorDrawing["lifts"] = []
   for (const st of floor.stairs) {
     const rects = stairPlanRects(st, floor.height)
+    if (st.shape === "column") {
+      // колонна — сечение в разрезе, заливкой как стена
+      for (const q of rects) { wallSolids.push(q); wallStyles.push("solid") }
+      continue
+    }
     if (st.shape === "elevator") {
       const hole = stairHoleWorld(st, floor.height)
       const geo = generateStair("elevator", floor.height, st.width, false)

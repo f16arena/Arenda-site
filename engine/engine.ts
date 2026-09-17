@@ -526,7 +526,7 @@ export class BuilderEngine {
     const holes: Vec2[][] = []
     for (const other of b.floors) {
       for (const st of other.stairs) {
-        if (st.toFloorId === f.id && st.shape !== "porch") holes.push(stairHoleWorld(st, other.height))
+        if (st.toFloorId === f.id && st.shape !== "porch" && st.shape !== "column") holes.push(stairHoleWorld(st, other.height))
       }
     }
 
@@ -1956,6 +1956,13 @@ export class BuilderEngine {
     const building = doc.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
     if (this.stairShape === "porch") {
       this.placePorch(f)
+      return
+    }
+    if (this.stairShape === "column") {
+      const pc = this.projectToPlane()
+      if (!pc) return
+      const at = this.snapEnabled ? { x: snapToGrid(pc.x * 1000, 50), y: snapToGrid(pc.z * 1000, 50) } : { x: Math.round(pc.x * 1000), y: Math.round(pc.z * 1000) }
+      this.onCommand(new AddStairCommand(f.id, { id: uid("st"), shape: "column", fromFloorId: f.id, toFloorId: f.id, position: at, rotationDeg: 0, width: 500, depth: 500, railing: false }))
       return
     }
     // Ближайший этаж ВЫШЕ по отметке (надёжнее, чем level+1) — лестница соединит их,

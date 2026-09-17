@@ -10,7 +10,7 @@ import type { MaterialRegistry } from "../material-registry"
 const S = 0.001
 
 export function buildStair(stair: Stair, floorHeight: number, parent: TransformNode, scene: Scene, reg: MaterialRegistry): TransformNode {
-  const geo = generateStair(stair.shape as StairShape, stairRise(stair, floorHeight), stair.width, stair.railing)
+  const geo = generateStair(stair.shape as StairShape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth)
   const root = new TransformNode(`stair_${stair.id}`, scene)
   root.parent = parent
   root.position.set(stair.position.x * S, 0, stair.position.y * S)
@@ -43,7 +43,7 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
 
 /** Прямоугольник выреза в перекрытии выше — в мировых мм плоскости этажа. */
 export function stairHoleWorld(stair: Stair, floorHeight: number): { x: number; y: number }[] {
-  const geo = generateStair(stair.shape as StairShape, stairRise(stair, floorHeight), stair.width, stair.railing)
+  const geo = generateStair(stair.shape as StairShape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth)
   const corners = [
     { x: geo.hole.minX, z: geo.hole.minZ },
     { x: geo.hole.maxX, z: geo.hole.minZ },

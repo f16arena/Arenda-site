@@ -43,7 +43,7 @@ import { detectRooms } from "@/core/geometry/room-detection"
 import { uid } from "@/core/id"
 import type { Floor } from "@/types/builder"
 import { buildFloorDrawing } from "@/lib/builder/drawing/floor-drawing"
-import { roomExplication } from "@/lib/builder/drawing/schedules"
+import { openingSchedule, roomExplication } from "@/lib/builder/drawing/schedules"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
 import { findPreset } from "@/lib/builder/openings"
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
@@ -66,7 +66,8 @@ const MOVE_PX = 4
 
 /** Поля «вписать» с учётом панелей конструктора: этажи слева, свойства справа, тулбар сверху. */
 function fitPad(w: number) {
-  return w < 900 ? 40 : { left: 290, right: 290, top: 150, bottom: 150 }
+  // + место под три размерные цепочки и оси с кружками (~140 px) с каждой стороны
+  return w < 900 ? 40 : { left: 360, right: 360, top: 215, bottom: 175 }
 }
 
 export function PlanEditor() {
@@ -104,6 +105,8 @@ export function PlanEditor() {
   const [hover, setHover] = useState<Hit | null>(null)
   const [pts2, setPts2] = useState<Vec2[]>([]) // рулетка, разрез, трасса сети
   const [measured, setMeasured] = useState<{ a: Vec2; b: Vec2 } | null>(null)
+  // «Чертёж» — как лист АР (размеры, оси, марки, белый лист); «Аренда» — статусы и арендаторы
+  const [look, setLook] = useState<"draft" | "rent">("draft")
 
   useEffect(() => {
     const el = hostRef.current
@@ -120,7 +123,11 @@ export function PlanEditor() {
     if (!shown) return new Map<string, string>()
     return new Map(roomExplication(shown, (id) => resolvePremise(id)?.number ?? null).map((r) => [r.roomId, r.number]))
   }, [shown, resolvePremise])
-  const drawing = useMemo(() => (shown ? buildFloorDrawing(shown, (id) => resolvePremise(id)?.number ?? null, "edit", { roomNumbers: numbers }) : null), [shown, resolvePremise, numbers])
+  const marks = useMemo(() => {
+    const floors = (building?.floors ?? []).map((f) => (preview && f.id === preview.id ? preview : f))
+    return openingSchedule(floors).marks
+  }, [building, preview])
+  const drawing = useMemo(() => (shown ? buildFloorDrawing(shown, (id) => resolvePremise(id)?.number ?? null, "edit", { roomNumbers: numbers, openingMarks: marks }) : null), [shown, resolvePremise, numbers, marks])
 
   // вписать этаж при смене этажа и первом показе
   const fittedFor = useRef<string | null>(null)
@@ -219,6 +226,11 @@ export function PlanEditor() {
       const position = { x: Math.round(best.q.x + (best.n.x * best.th) / 2), y: Math.round(best.q.y + (best.n.y * best.th) / 2) }
       const rise = floor.elevation >= 150 && floor.elevation <= 2000 ? Math.round(floor.elevation) : 450
       execute(new AddStairCommand(floor.id, { id: uid("st"), shape: "porch", fromFloorId: floor.id, toFloorId: floor.id, position, rotationDeg: Math.round((Math.atan2(best.n.x, best.n.y) * 180) / Math.PI), width: 1800, railing: false, rise }))
+      return
+    }
+    if (stairShape === "column") {
+      const at = snapEnabled ? { x: Math.round(p.x / 50) * 50, y: Math.round(p.y / 50) * 50 } : { x: Math.round(p.x), y: Math.round(p.y) }
+      execute(new AddStairCommand(floor.id, { id: uid("st"), shape: "column", fromFloorId: floor.id, toFloorId: floor.id, position: at, rotationDeg: 0, width: 500, depth: 500, railing: false }))
       return
     }
     const width = stairShape === "elevator" ? 2000 : 1100
@@ -509,7 +521,7 @@ export function PlanEditor() {
   function onWheel(e: React.WheelEvent) {
     const at = planAt(e)
     if (!at || !v) return
-    setView(zoomAt(v, at.s, Math.exp(-e.deltaY * 0.0015)))
+    setView(zoomAt(v, at.s, Math.exp(-e.deltaY * 0.001)))
   }
 
   // клавиатура: Esc — прервать ввод, цифры + Enter — длина стены, F — вписать
@@ -582,7 +594,7 @@ export function PlanEditor() {
     <div
       ref={hostRef}
       className="absolute inset-0 z-[5] select-none"
-      style={{ background: "#eef1f5", cursor: tool === "select" ? "default" : "crosshair" }}
+      style={{ background: look === "draft" ? "#ffffff" : "#eef1f5", cursor: tool === "select" ? "default" : "crosshair" }}
       onContextMenu={(e) => e.preventDefault()}
       data-testid="plan-editor"
     >
@@ -592,8 +604,8 @@ export function PlanEditor() {
             <line x1={0} y1={0} x2={0} y2={6} stroke="#15803d" strokeWidth={1.2} />
           </pattern>
         </defs>
-        {gridX.map((x) => { const s = S({ x, y: 0 }); return <line key={`gx${x}`} x1={s.x} y1={0} x2={s.x} y2={size.h} stroke={x === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
-        {gridY.map((y) => { const s = S({ x: 0, y }); return <line key={`gy${y}`} x1={0} y1={s.y} x2={size.w} y2={s.y} stroke={y === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
+        {gridX.map((x) => { const s = S({ x, y: 0 }); return <line key={`gx${x}`} x1={s.x} y1={0} x2={s.x} y2={size.h} stroke={look === "draft" ? "#f1f5f9" : x === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
+        {gridY.map((y) => { const s = S({ x: 0, y }); return <line key={`gy${y}`} x1={0} y1={s.y} x2={size.w} y2={s.y} stroke={look === "draft" ? "#f1f5f9" : y === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
 
         {u && (() => {
           const h = u.widthMm / (u.aspect || 1)
@@ -606,7 +618,7 @@ export function PlanEditor() {
         {rooms.map((r) => {
           const link = floor.premiseLinks[r.id]
           const premise = link ? resolvePremise(link) : undefined
-          const fill = premise ? `${STATUS_COLOR[premise.status]}33` : "#ffffff"
+          const fill = look === "rent" && premise ? `${STATUS_COLOR[premise.status]}33` : "#ffffff"
           const selected = sel.type === "room" && sel.id === r.id
           const ring = (list: Vec2[]) => list.map((q, i) => { const t = S(q); return `${i ? "L" : "M"}${t.x.toFixed(1)} ${t.y.toFixed(1)}` }).join(" ") + " Z"
           return <path key={r.id} d={[r.polygon, ...(r.holes ?? [])].map(ring).join(" ")} fillRule="evenodd" fill={fill} stroke={selected ? TOKENS.accent : "none"} strokeWidth={selected ? 3 : 0} />
@@ -617,7 +629,7 @@ export function PlanEditor() {
           const st = drawing.wallStyles[i]
           if (st === "demolish") return <polygon key={`w${i}`} points={pts(q)} fill="#fee2e2" stroke="#dc2626" strokeWidth={1.2} strokeDasharray="5 3" />
           if (st === "new") return <polygon key={`w${i}`} points={pts(q)} fill="url(#pe-hatch)" stroke="#15803d" strokeWidth={1.2} />
-          return <polygon key={`w${i}`} points={pts(q)} fill="#1e293b" />
+          return <polygon key={`w${i}`} points={pts(q)} fill={look === "draft" ? "#111111" : "#1e293b"} />
         })}
         {drawing.thinLines.map(([a, b], i) => { const p = S(a), q = S(b); return <line key={`t${i}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke="#334155" strokeWidth={1} /> })}
         {drawing.arcs.map((a, i) => {
@@ -626,6 +638,61 @@ export function PlanEditor() {
           const s1 = S({ x: a.c.x + a.r * Math.cos((a.end * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.end * Math.PI) / 180) })
           return <path key={`a${i}`} d={`M ${s0.x} ${s0.y} A ${r} ${r} 0 0 0 ${s1.x} ${s1.y}`} fill="none" stroke="#64748b" strokeWidth={1} strokeDasharray="4 3" />
         })}
+
+        {/* размерные цепочки, оси, марки — как на листе АР */}
+        {look === "draft" && (() => {
+          const b = drawing.bounds
+          const BASE = 26, STEP = 22, REACH = BASE + STEP * 3 + 16, R = 11
+          const items: React.ReactNode[] = []
+          drawing.dims.forEach((dim, i) => {
+            const n = dim.side === "top" ? { x: 0, y: -1 } : dim.side === "bottom" ? { x: 0, y: 1 } : dim.side === "left" ? { x: -1, y: 0 } : { x: 1, y: 0 }
+            const off = BASE + STEP * (dim.level - 1)
+            const pa = S(dim.a), pb = S(dim.b)
+            const vertical = dim.side === "left" || dim.side === "right"
+            const edge = vertical ? S({ x: dim.edge, y: 0 }).x : S({ x: 0, y: dim.edge }).y
+            const a2 = vertical ? { x: edge + n.x * off, y: pa.y } : { x: pa.x, y: edge + n.y * off }
+            const b2 = vertical ? { x: edge + n.x * off, y: pb.y } : { x: pb.x, y: edge + n.y * off }
+            const len = Math.hypot(b2.x - a2.x, b2.y - a2.y)
+            const mx = (a2.x + b2.x) / 2, my = (a2.y + b2.y) / 2
+            items.push(
+              <g key={`dm${i}`} stroke="#111" strokeWidth={0.8}>
+                <line x1={a2.x} y1={a2.y} x2={b2.x} y2={b2.y} />
+                <line x1={pa.x + n.x * 6} y1={pa.y + n.y * 6} x2={a2.x + n.x * 5} y2={a2.y + n.y * 5} strokeWidth={0.6} />
+                <line x1={pb.x + n.x * 6} y1={pb.y + n.y * 6} x2={b2.x + n.x * 5} y2={b2.y + n.y * 5} strokeWidth={0.6} />
+                {[a2, b2].map((p, j) => <line key={j} x1={p.x - 3.5} y1={p.y + 3.5} x2={p.x + 3.5} y2={p.y - 3.5} strokeWidth={1.4} />)}
+                {len >= 26 && (
+                  <text x={vertical ? mx - 4 : mx} y={vertical ? my : my - 4} fontSize={10} textAnchor="middle" stroke="none" fill="#111" transform={vertical ? `rotate(-90 ${mx - 4} ${my})` : undefined}>{dim.text}</text>
+                )}
+              </g>,
+            )
+          })
+          drawing.axes.forEach((ax, i) => {
+            if (ax.dir === "v") {
+              const x = S({ x: ax.at, y: 0 }).x
+              const y0 = S({ x: 0, y: b.maxY }).y - REACH, y1 = S({ x: 0, y: b.minY }).y + REACH
+              items.push(
+                <g key={`ax${i}`}>
+                  <line x1={x} y1={y0} x2={x} y2={y1} stroke="#64748b" strokeWidth={0.7} strokeDasharray="18 4 3 4" />
+                  {[y0 - R, y1 + R].map((cy) => <g key={cy}><circle cx={x} cy={cy} r={R} fill="#fff" stroke="#111" strokeWidth={1} /><text x={x} y={cy + 4} fontSize={12} textAnchor="middle" fill="#111">{ax.label}</text></g>)}
+                </g>,
+              )
+            } else {
+              const y = S({ x: 0, y: ax.at }).y
+              const x0 = S({ x: b.minX, y: 0 }).x - REACH, x1 = S({ x: b.maxX, y: 0 }).x + REACH
+              items.push(
+                <g key={`ax${i}`}>
+                  <line x1={x0} y1={y} x2={x1} y2={y} stroke="#64748b" strokeWidth={0.7} strokeDasharray="18 4 3 4" />
+                  {[x0 - R, x1 + R].map((cx) => <g key={cx}><circle cx={cx} cy={y} r={R} fill="#fff" stroke="#111" strokeWidth={1} /><text x={cx} y={y + 4} fontSize={12} textAnchor="middle" fill="#111">{ax.label}</text></g>)}
+                </g>,
+              )
+            }
+          })
+          if (px(1000) >= 14) drawing.marks.forEach((m, i) => {
+            const c = S(m.at)
+            items.push(<text key={`mk${i}`} x={c.x} y={c.y} fontSize={9} textAnchor="middle" dominantBaseline="middle" fill="#111" style={{ pointerEvents: "none" }}>{m.text}</text>)
+          })
+          return <g style={{ pointerEvents: "none" }}>{items}</g>
+        })()}
 
         {/* лестницы, лифты, выходы */}
         {drawing.stairArrows.map((list, i) => {
@@ -703,8 +770,8 @@ export function PlanEditor() {
           return (
             <g key={`lbl${r.id}`} style={{ pointerEvents: "none" }} fontSize={fontPx} textAnchor="middle">
               <text x={c.x} y={c.y - fontPx * 0.9} fontWeight={700} fill="#0f172a">{numbers.get(r.id) ? `№ ${numbers.get(r.id)}` : ""}{name ? ` · ${name}` : ""}</text>
-              {premise?.tenantName && <text x={c.x} y={c.y + 2} fill="#334155">{shortTenantName(premise.tenantName)}</text>}
-              <text x={c.x} y={c.y + fontPx * (premise?.tenantName ? 1.2 : 0.4)} fill="#475569" textDecoration="underline">{area}</text>
+              {look === "rent" && premise?.tenantName && <text x={c.x} y={c.y + 2} fill="#334155">{shortTenantName(premise.tenantName)}</text>}
+              <text x={c.x} y={c.y + fontPx * (look === "rent" && premise?.tenantName ? 1.2 : 0.4)} fill={look === "draft" ? "#111" : "#475569"} textDecoration="underline">{look === "draft" ? area.replace(" м²", "") : area}</text>
             </g>
           )
         })}
@@ -824,6 +891,11 @@ export function PlanEditor() {
           : <polygon points={`${snapMark.x},${snapMark.y - 7} ${snapMark.x + 7},${snapMark.y} ${snapMark.x},${snapMark.y + 7} ${snapMark.x - 7},${snapMark.y}`} fill="none" stroke="#ea580c" strokeWidth={2} />)}
       </svg>
 
+      <div className="absolute right-3 top-[10.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
+        {([["draft", "Чертёж"], ["rent", "Аренда"]] as const).map(([k, l]) => (
+          <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
+        ))}
+      </div>
       <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
         {hint}
       </div>

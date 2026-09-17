@@ -3,7 +3,7 @@
 // локальные коробки ступеней (+ опц. перила) и прямоугольник выреза в перекрытии выше.
 // Координаты локальные [x,y,z] мм относительно position лестницы; поворот — в билдере.
 
-export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator"
+export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator" | "column"
 
 export interface StepBox {
   x: number
@@ -67,7 +67,13 @@ export function generateElevator(height: number, width: number): StairGeometry {
   return { steps, rails, hole: { minX: -width / 2, minZ: 0, maxX: width / 2, maxZ: depth } }
 }
 
-export function generateStair(shape: StairShape, totalRise: number, width: number, railing: boolean): StairGeometry {
+/** Конструктивная колонна: сечение width × depth, на всю высоту этажа, центр в position. */
+export function generateColumn(height: number, width: number, depth: number): StairGeometry {
+  return { steps: [{ x: 0, y: height / 2, z: 0, w: width, h: height, d: depth }], rails: [], hole: { minX: -width / 2, minZ: -depth / 2, maxX: width / 2, maxZ: depth / 2 } }
+}
+
+export function generateStair(shape: StairShape, totalRise: number, width: number, railing: boolean, depth?: number): StairGeometry {
+  if (shape === "column") return generateColumn(totalRise, width, depth ?? width)
   if (shape === "porch") return generatePorch(totalRise, width)
   if (shape === "elevator") return generateElevator(totalRise, width)
   const count = Math.max(2, Math.round(totalRise / RISER))
@@ -134,6 +140,7 @@ export interface StairPlacement {
   railing: boolean
   mirror?: boolean
   rise?: number
+  depth?: number
 }
 
 /** Высота подъёма: лестница — во весь этаж, крыльцо — своя (по умолчанию 450 мм). */
@@ -152,7 +159,7 @@ export function stairToWorld(stair: StairPlacement, x: number, z: number): { x: 
 
 /** Контуры ступеней/площадок в плане (мировые мм) — для чертежа. */
 export function stairPlanRects(stair: StairPlacement, floorHeight: number): { x: number; y: number }[][] {
-  const geo = generateStair(stair.shape, stairRise(stair, floorHeight), stair.width, stair.railing)
+  const geo = generateStair(stair.shape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth)
   return geo.steps.map((b) => [
     stairToWorld(stair, b.x - b.w / 2, b.z - b.d / 2),
     stairToWorld(stair, b.x + b.w / 2, b.z - b.d / 2),

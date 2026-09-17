@@ -413,8 +413,29 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   } else if (selection.type === "stair" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)
     const st = f?.stairs.find((s) => s.id === selection.id)
-    title = st?.shape === "porch" ? "Крыльцо" : st?.shape === "elevator" ? "Лифт" : "Лестница"
-    if (f && st && st.shape === "porch") {
+    title = st?.shape === "porch" ? "Крыльцо" : st?.shape === "elevator" ? "Лифт" : st?.shape === "column" ? "Колонна" : "Лестница"
+    if (f && st && st.shape === "column") {
+      const fid = selection.floorId
+      const sid = selection.id
+      const num = (v: string) => parseFloat(v.replace(",", "."))
+      const inputStyle = { color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }
+      rows.push(<Row key="sz" label="Сечение" value={`${st.width}×${st.depth ?? st.width} мм`} />)
+      rows.push(<Row key="xy" label="X · Y" value={`${(st.position.x / 1000).toFixed(2)} · ${(st.position.y / 1000).toFixed(2)} м`} />)
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {([["Ширина, мм", "width", st.width], ["Глубина, мм", "depth", st.depth ?? st.width]] as const).map(([label, key, value]) => (
+            <label key={key} className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+              {label}
+              <input id={`column-${key}`} type="number" step="10" min="100" max="3000" defaultValue={value} key={`c${key}${sid}${value}`}
+                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 100 && v !== value) execute(new SetStairCommand(fid, sid, { [key]: Math.min(3000, v) })) }}
+                className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
+            </label>
+          ))}
+          <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+          <button type="button" onClick={() => execute(new DeleteStairCommand(fid, sid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить колонну</button>
+        </div>
+      )
+    } else if (f && st && st.shape === "porch") {
       const fid = selection.floorId
       const sid = selection.id
       const rise = st.rise ?? 450

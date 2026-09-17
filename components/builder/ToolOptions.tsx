@@ -29,6 +29,7 @@ const STAIRS: { id: StairShape; label: string }[] = [
   { id: "u", label: "П-образная" },
   { id: "porch", label: "Крыльцо" },
   { id: "elevator", label: "Лифт" },
+  { id: "column", label: "Колонна" },
 ]
 const TERRAIN: { id: TerrainMode; label: string }[] = [
   { id: "raise", label: "Поднять" },
@@ -258,7 +259,7 @@ export function ToolOptions() {
             </button>
           )
         })}
-        <span className="shrink-0">{stairShape === "porch" ? "— клик снаружи у стены: крыльцо встанет к ней ступенями наружу" : "— клик на этаже ставит лестницу к верхнему"}</span>
+        <span className="shrink-0">{stairShape === "porch" ? "— клик снаружи у стены: крыльцо встанет к ней ступенями наружу" : stairShape === "column" ? "— клик ставит колонну 500×500 на всю высоту этажа; сечение — в свойствах" : stairShape === "elevator" ? "— клик ставит лифтовую шахту с вырезом в перекрытии выше" : "— клик на этаже ставит лестницу к верхнему"}</span>
       </Shell>
     )
   }

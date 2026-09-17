@@ -60,13 +60,15 @@ await page.waitForTimeout(900)
 
   // 1. рамка слева направо вокруг правой половины: только стены целиком внутри
   await page.evaluate(() => window.__stores.useEditorStore.getState().setTool("select"))
-  let a = S(midX + 500, maxY + 800), b = S(maxX + 800, minY - 800)
+  let a = S(midX + 500, maxY + 2500), b = S(maxX + 2500, minY - 2500)
   await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(300)
   const inside = await page.evaluate(() => window.__stores.useEditorStore.getState().multi)
   const expectInside = Object.values(f.wallGraph.edges).filter((e) => n[e.a].x >= midX + 500 && n[e.b].x >= midX + 500).length
   check("B1 рамка «окно» берёт стены внутри", inside.length === expectInside && inside.length > 0, `${inside.length} vs ${expectInside}`)
-  // справа налево — «секущая», задевает больше
-  a = S(maxX + 800, maxY + 800); b = S(midX + 500, minY - 800)
+  // справа налево — «секущая», задевает больше (сначала сбрасываем набор: панель группы закрывает верх плана)
+  await page.evaluate(() => window.__stores.useEditorStore.getState().clearMulti())
+  await page.waitForTimeout(200)
+  a = S(maxX + 2500, minY - 2500); b = S(midX + 500, maxY + 2500)
   await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(300)
   const crossing = await page.evaluate(() => window.__stores.useEditorStore.getState().multi)
   check("B2 рамка «секущая» берёт и задетые", crossing.length > inside.length, `${crossing.length} > ${inside.length}`)
