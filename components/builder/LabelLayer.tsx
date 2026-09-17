@@ -19,6 +19,31 @@ export function LabelLayer() {
   const selection = useEditorStore((s) => s.selection)
   const resolvePremise = usePremiseStore((s) => s.resolve)
 
+  // Подписи не должны лезть друг на друга: на маленькой комнате размеры стен
+  // закрывали площадь. Порядок важности: выбранная стена → помещения → размеры.
+  // Кто не влез — не рисуется; при зуме место появляется, и подпись возвращается.
+  const taken: Array<{ l: number; t: number; r: number; b: number }> = []
+  const fits = (x: number, y: number, w: number, h: number) => {
+    const box = { l: x - w / 2, t: y - h / 2, r: x + w / 2, b: y + h / 2 }
+    if (taken.some((o) => box.l < o.r && box.r > o.l && box.t < o.b && box.b > o.t)) return false
+    taken.push(box)
+    return true
+  }
+  const selectedWall = selection.type === "wall" ? selection.id : undefined
+  const ordered = [
+    ...labels.filter((l) => l.kind === "wall" && l.id === selectedWall),
+    ...labels.filter((l) => l.kind === "room"),
+    ...labels.filter((l) => l.kind === "wall" && l.id !== selectedWall && showDimensions),
+  ]
+  const placeable = ordered.filter((l) => {
+    if (l.kind === "wall") return fits(l.x, l.y, 38, 16)
+    const floor = findFloor(doc, l.floorId)
+    const key = floor?.premiseLinks[l.id]
+    const premise = key ? resolvePremise(key) : undefined
+    const text = premise ? `№ ${premise.number} · ${premise.tenantName ?? "свободно"}` : `${(l.areaMm2 / 1_000_000).toFixed(1)} м²`
+    return fits(l.x, l.y, Math.min(260, text.length * 6.2 + 14), 20)
+  })
+
   return (
     <>
       <button
@@ -36,11 +61,10 @@ export function LabelLayer() {
       </button>
 
       <div className="pointer-events-none absolute inset-0 z-10 select-none">
-        {labels.map((label) => {
+        {placeable.map((label) => {
           if (label.kind === "wall") {
             // размер на стене: всегда у выбранной, у остальных — по тумблеру
             const selected = selection.type === "wall" && selection.id === label.id
-            if (!showDimensions && !selected) return null
             return (
               <div
                 key={`w-${label.id}`}
