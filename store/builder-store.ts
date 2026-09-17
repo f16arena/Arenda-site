@@ -135,6 +135,17 @@ export type Tool =
 
 /** plan2d — редактор плана (SVG), plan — ортокамера 3D-движка сверху */
 export type CameraMode = "orbit" | "top" | "plan" | "plan2d" | "walk"
+
+const CAMERA_KEY = "builder:camera"
+function savedCameraMode(): CameraMode {
+  try {
+    if (typeof localStorage === "undefined") return "orbit"
+    const v = localStorage.getItem(CAMERA_KEY)
+    return v === "plan2d" ? "plan2d" : "orbit"
+  } catch {
+    return "orbit"
+  }
+}
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
 export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
@@ -248,7 +259,9 @@ export function isLowEndDevice(): boolean {
 export const useEditorStore = create<EditorState>((set) => ({
   activeTool: "select",
   mode: "build",
-  cameraMode: "orbit",
+  // последний режим камеры запоминается: кто работает в «Плане», тот и открывает
+  // конструктор в «Плане» — тяжёлый 3D-движок тогда не грузится вовсе
+  cameraMode: savedCameraMode(),
   displayMode: "all",
   wallsDown: false,
   activeLevelId: "",
@@ -288,7 +301,10 @@ export const useEditorStore = create<EditorState>((set) => ({
     selection: { type: "none" },
     armedAsset: MODE_DEFAULT_TOOL[m] === "object" ? s.armedAsset : null,
   })),
-  setCameraMode: (m) => set({ cameraMode: m }),
+  setCameraMode: (m) => {
+    try { if (typeof localStorage !== "undefined" && (m === "plan2d" || m === "orbit")) localStorage.setItem(CAMERA_KEY, m) } catch { /* приватный режим */ }
+    set({ cameraMode: m })
+  },
   setDisplayMode: (m) => set({ displayMode: m }),
   toggleWallsDown: () => set((s) => ({ wallsDown: !s.wallsDown })),
   setActiveLevel: (id) => set({ activeLevelId: id, selection: { type: "none" } }),

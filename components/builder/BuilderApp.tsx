@@ -233,6 +233,10 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   // обход от первого лица: панели убираются, остаётся прицел и подсказка
   const walking = cameraMode === "walk"
   const showTenants = useLabelStore((s) => s.showTenants)
+  // 3D-движок грузится только когда нужен: в «Плане» слабый компьютер не тратит
+  // на Babylon ни памяти, ни времени загрузки
+  const [need3D, setNeed3D] = useState(cameraMode !== "plan2d")
+  useEffect(() => { if (cameraMode !== "plan2d") setNeed3D(true) }, [cameraMode])
   const displayMode = useEditorStore((s) => s.displayMode)
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -626,8 +630,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   return (
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
-      <BuilderCanvas onReady={handleReady} />
-      {!readOnly && ready && cameraMode === "plan2d" && <PlanEditor />}
+      {need3D && <BuilderCanvas onReady={handleReady} />}
+      {!readOnly && cameraMode === "plan2d" && <PlanEditor />}
       {walking && <WalkHud />}
       {!readOnly && !walking && <ModeSwitcher />}
       {!readOnly && !walking && <BuilderToolbar />}
@@ -745,7 +749,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           {hud}
         </div>
       )}
-      {!ready && (
+      {!ready && need3D && (
         <div
           className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 transition-opacity duration-500"
           style={{ background: "radial-gradient(circle at 50% 40%, #0e1830, #070A12)" }}

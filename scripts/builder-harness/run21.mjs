@@ -86,6 +86,17 @@ const camPos = () => page.evaluate(() => {
   check("W4 помещения различаются по назначению", info.n > 0 && info.uses.every((u) => ["rent", "common", "tech"].includes(u)), JSON.stringify(info))
 }
 
+// ── W5. «План» открывается без загрузки 3D (слабые компьютеры) ──
+{
+  await page.evaluate(() => localStorage.setItem("builder:camera", "plan2d"))
+  await page.reload()
+  await page.waitForSelector("[data-testid=plan-editor]", { timeout: 30000 })
+  await page.waitForTimeout(800)
+  const state = await page.evaluate(() => ({ engine: !!window.__engine, text: document.body.innerText.includes("Загружаем 3D") }))
+  check("W5 «План» открывается без 3D-движка", !state.engine && !state.text, JSON.stringify(state))
+  await page.evaluate(() => localStorage.removeItem("builder:camera"))
+}
+
 console.log(results.join("\n"))
 console.log("errors:", errors.slice(0, 5))
 await browser.close()
