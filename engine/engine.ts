@@ -540,6 +540,9 @@ export class BuilderEngine {
       const tex = new Texture(u.url, scene, false, false)
       // картинка плана: верх картинки — «север» плана, без зеркала
       tex.vScale = -1
+      // DXF-подложка — прозрачная PNG: без этого пустота становится чёрной
+      tex.hasAlpha = true
+      mat.useAlphaFromDiffuseTexture = true
       mat.diffuseTexture = tex
       mat.emissiveTexture = tex
       mat.disableLighting = true

@@ -19,6 +19,7 @@ node scripts/builder-harness/run10.mjs     # дуговая стена, крыл
 node scripts/builder-harness/run11.mjs     # инженерные сети: трасса, приборы, выбор, спецификация
 node scripts/builder-harness/run12.mjs     # линия разреза: рисование, выбор, сторона, удаление
 node scripts/builder-harness/run13.mjs     # перепланировка: демонтаж, новые стены, сводка
+node scripts/builder-harness/run14.mjs     # подложка из DXF в масштабе
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

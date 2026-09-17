@@ -15,6 +15,8 @@ import { findFloor, SetUnderlayCommand } from "@/core/document/commands"
 import { TOKENS } from "@/lib/builder/materials"
 import { normalizeDeg, rotateUnderlay, scaleUnderlayAbout } from "@/lib/builder/underlay-math"
 import { compressDataUrl, countPdfPages, loadImageWithDimensions, renderPdfPage } from "@/lib/pdf-render"
+import { parseDxf } from "@/lib/builder/dxf-import"
+import { rasterizeDxf } from "@/lib/builder/dxf-raster"
 
 export type PendingMeasure = { lengthMm: number; from: { x: number; y: number } } | null
 
@@ -29,6 +31,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
   const [pages, setPages] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
   const [realLength, setRealLength] = useState("")
   const [angleDraft, setAngleDraft] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState(false)
@@ -67,7 +70,28 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
     }
   }
 
+  async function placeDxf(file: File) {
+    if (!floor) return
+    setBusy(true)
+    setError(null)
+    try {
+      const parsed = parseDxf(await file.text())
+      const r = rasterizeDxf(parsed)
+      // DXF в миллиметрах: подложка сразу в масштабе 1:1 и на своих координатах
+      execute(new SetUnderlayCommand(floor.id, { url: r.url, widthMm: r.widthMm, aspect: r.aspect, x: r.x, y: r.y, rotationDeg: 0, opacity: 0.8 }))
+      setInfo(`DXF: ${parsed.segments.length} линий, слоёв ${parsed.layers.length}, ${((parsed.bounds.maxX - parsed.bounds.minX) / 1000).toFixed(1)} × ${((parsed.bounds.maxY - parsed.bounds.minY) / 1000).toFixed(1)} м — масштаб из файла, калибровка не нужна`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось прочитать DXF")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function onFile(file: File) {
+    if (/\.dxf$/i.test(file.name)) {
+      await placeDxf(file)
+      return
+    }
     setPendingFile(file)
     setError(null)
     if (file.type === "application/pdf") {
@@ -142,7 +166,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       <input
         id="builder-underlay-file"
         type="file"
-        accept="application/pdf,image/*"
+        accept="application/pdf,image/*,.dxf"
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0]
@@ -156,7 +180,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
           className="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium"
           style={{ background: underlay ? "rgba(148,163,184,0.12)" : TOKENS.accent, color: underlay ? TOKENS.text : "#0b1220", opacity: busy ? 0.5 : 1 }}
         >
-          {busy ? "Загружаю…" : underlay ? "Заменить скан" : "Загрузить скан плана"}
+          {busy ? "Загружаю…" : underlay ? "Заменить подложку" : "Скан, PDF или DXF"}
         </label>
         {underlay && !confirmRemove && btn("Удалить скан", () => setConfirmRemove(true), { title: "Убрать загруженный скан с этого этажа. Стены остаются" })}
       </div>
@@ -281,6 +305,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
         </>
       )}
 
+      {info && !error && <p className="text-[11px]" style={{ color: TOKENS.muted }}>{info}</p>}
       {error && <p className="text-[11px]" style={{ color: "#fca5a5" }}>{error}</p>}
     </div>
   )
