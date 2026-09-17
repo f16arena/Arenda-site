@@ -13,6 +13,7 @@
 // - координационные оси по наружным и несущим стенам: цифры по горизонтали,
 //   буквы по вертикали
 
+import { roomDisplayName, roomUse, type RoomUse } from "@/lib/builder/room-use"
 import { floorRooms } from "@/lib/builder/rooms"
 import { floorAtStage } from "@/lib/builder/replan"
 import { generateStair, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
@@ -48,6 +49,11 @@ export interface RoomLabel {
   at: Pt
   number: string | null
   areaM2: number
+  /** МОП/техническое — без номера, с наименованием и штриховкой */
+  use: RoomUse
+  name: string
+  polygon: Pt[]
+  holes: Pt[][]
 }
 
 export interface DrawingOptions {
@@ -334,7 +340,9 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     // подпись обходит лестницы, лифты и колонны, стоящие в этом помещении (центр
     // внутри); лестница, заходящая краем из соседнего помещения, подпись не двигает
     const obstacles = floor.stairs.map((st) => stairHoleWorld(st, floor.height)).filter((h) => pointInPolygon({ x: (h[0].x + h[2].x) / 2, y: (h[0].y + h[2].y) / 2 }, r.polygon))
-    return { roomId: r.id, at: labelPoint(r.polygon, [...(r.holes ?? []), ...obstacles]), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
+    const use = roomUse(floor, r)
+    const number = use === "rent" ? (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null : null
+    return { roomId: r.id, at: labelPoint(r.polygon, [...(r.holes ?? []), ...obstacles]), number, areaM2: r.areaMm2 / 1_000_000, use, name: use === "rent" ? "" : roomDisplayName(floor, r), polygon: r.polygon, holes: r.holes ?? [] }
   })
 
   // размерные цепочки по четырём фасадам

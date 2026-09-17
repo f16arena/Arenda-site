@@ -4,6 +4,8 @@ import { buildProjectFromBuilding } from "@/lib/builder/from-building"
 import { parseDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
 import { useLabelStore } from "@/store/label-store"
+import { floorRooms } from "@/lib/builder/rooms"
+import { roomUse } from "@/lib/builder/room-use"
 
 const src = {
   id: "b1",
@@ -21,5 +23,7 @@ const src = {
 const { doc } = buildProjectFromBuilding(src)
 const w = window as unknown as Record<string, unknown>
 w.__doc = () => useDocumentStore.getState().doc
+w.__floorRooms = floorRooms
+w.__roomUse = roomUse
 w.__stores = { useDocumentStore, useEditorStore, useSyncStore, useLabelStore }
 createRoot(document.getElementById("root")!).render(<BuilderApp initialDoc={parseDocument(doc)} buildingId="b1" />)

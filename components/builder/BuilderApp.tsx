@@ -230,6 +230,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const rev = useDocumentStore((s) => s.rev)
   const activeTool = useEditorStore((s) => s.activeTool)
   const cameraMode = useEditorStore((s) => s.cameraMode)
+  // обход от первого лица: панели убираются, остаётся прицел и подсказка
+  const walking = cameraMode === "walk"
   const displayMode = useEditorStore((s) => s.displayMode)
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -589,6 +591,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         return
       }
       if (e.key === "Escape") {
+        // из обхода Escape возвращает к обычному виду
+        if (useEditorStore.getState().cameraMode === "walk") { useEditorStore.getState().setCameraMode("orbit"); return }
         // сначала — отменить перетаскивание, если оно идёт: выделение остаётся
         if (engineRef.current?.cancelDrag()) return
         engineRef.current?.cancelWallTool()
@@ -618,9 +622,10 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
       <BuilderCanvas onReady={handleReady} />
       {!readOnly && ready && cameraMode === "plan2d" && <PlanEditor />}
-      {!readOnly && <ModeSwitcher />}
-      {!readOnly && <BuilderToolbar />}
-      {!readOnly && <BuilderProjectBar onScreenshot={() => {
+      {walking && <WalkHud />}
+      {!readOnly && !walking && <ModeSwitcher />}
+      {!readOnly && !walking && <BuilderToolbar />}
+      {!readOnly && !walking && <BuilderProjectBar onScreenshot={() => {
         const url = engineRef.current?.captureDataUrl()
         if (!url) return
         const a = document.createElement("a")
@@ -630,20 +635,20 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         a.click()
         a.remove()
       }} />}
-      {!readOnly && <ToolOptions />}
-      {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
-      {!readOnly && ready && cameraMode !== "plan2d" && <LabelLayer />}
-      <PropertyPanel buildingId={buildingId} />
+      {!readOnly && !walking && <ToolOptions />}
+      {!readOnly && !walking && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
+      {!readOnly && ready && cameraMode !== "plan2d" && cameraMode !== "walk" && <LabelLayer />}
+      {!walking && <PropertyPanel buildingId={buildingId} />}
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
-      <ViewCube
+      {!walking && <ViewCube
         onView={(a, b) => {
           // из плана/вида сверху в ракурс: сначала режим камеры, потом поворот
           useEditorStore.getState().setCameraMode("orbit")
           window.requestAnimationFrame(() => engineRef.current?.orbitTo(a, b))
         }}
-      />
-      {!readOnly && (mode === "mep" ? <MepPanel buildingId={buildingId} /> : <AssetCatalog key={mode} />)}
-      {!readOnly && <MiniMap />}
+      />}
+      {!readOnly && !walking && (mode === "mep" ? <MepPanel buildingId={buildingId} /> : <AssetCatalog key={mode} />)}
+      {!readOnly && !walking && <MiniMap />}
       {!readOnly && ready && showPerf && <PerfHud getFps={() => engineRef.current?.getFps() ?? 0} />}
       {readOnly && selection.type === "room" && selection.floorId && (
         <div className="absolute bottom-3 right-3 z-30 w-72">
@@ -752,5 +757,28 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         </div>
       )}
     </div>
+  )
+}
+
+/** Экран обхода: прицел, подсказка управления и выход. */
+function WalkHud() {
+  return (
+    <>
+      <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2">
+        <div className="h-5 w-5 rounded-full" style={{ border: "1.5px solid rgba(255,255,255,0.75)", boxShadow: "0 0 0 1px rgba(0,0,0,0.35)" }} />
+      </div>
+      <div className="pointer-events-none absolute bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-xl px-4 py-2 text-xs shadow-xl backdrop-blur-xl"
+        style={{ background: "rgba(15,23,42,0.72)", border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
+        <b>W A S D</b> — идти · <b>мышь</b> — осмотреться · <b>Shift</b> — бежать · <b>клик по двери</b> — открыть · <b>Esc</b> — выйти
+      </div>
+      <button
+        type="button"
+        onClick={() => useEditorStore.getState().setCameraMode("orbit")}
+        className="absolute left-3 top-3 z-30 rounded-xl px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur-xl"
+        style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
+      >
+        ← Выйти из обхода
+      </button>
+    </>
   )
 }

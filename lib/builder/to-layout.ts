@@ -6,6 +6,7 @@
 // Чистая функция, без базы: этаж документа → FloorLayoutV2 в метрах.
 
 import { floorRooms } from "@/lib/builder/rooms"
+import { roomUse } from "@/lib/builder/room-use"
 import type { Floor as ModelFloor } from "@/types/builder"
 import type { FloorElement, FloorLayoutV2 } from "@/lib/floor-layout"
 
@@ -52,11 +53,12 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
   // Комната без привязки остаётся арендопригодной — так её видно на карте
   // как «без привязки», а не прячется в общую зону.
   for (const room of rooms) {
+    const rentable = roomUse(floor, room) === "rent"
     elements.push({
       type: "polygon",
       id: room.id,
-      spaceId: floor.premiseLinks[room.id] ?? null,
-      kind: "rentable",
+      spaceId: rentable ? floor.premiseLinks[room.id] ?? null : null,
+      kind: rentable ? "rentable" : "common",
       points: room.polygon.map((p) => ({ x: mx(p.x), y: my(p.y) })),
     })
   }

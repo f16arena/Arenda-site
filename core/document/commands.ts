@@ -1439,3 +1439,37 @@ export function setColumnSizeCommand(floor: Floor, stairId: string, patch: { wid
   const list = floor.stairs.filter((s) => s.shape === "column" && (all || s.id === stairId))
   return new CompositeCommand(all ? "размер всех колонн" : "размер колонны", list.map((s) => new SetStairCommand(floor.id, s.id, patch.width !== undefined && s.depth === undefined && patch.depth === undefined ? { ...patch, depth: s.width } : patch)))
 }
+
+/**
+ * Назначение помещения (аренда / МОП / техническое). undefined — снова автоматически.
+ * МОП и техническое — часть здания: привязка к карточке снимается (откат вернёт).
+ */
+export class SetRoomUseCommand implements Command {
+  readonly kind = "set-room-use"
+  readonly label = "назначение помещения"
+  private prev?: { use?: "rent" | "common" | "tech"; link?: string }
+  constructor(private floorId: string, private roomId: string, private use: "rent" | "common" | "tech" | undefined) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (f && !this.prev) this.prev = { use: f.roomUse?.[this.roomId], link: f.premiseLinks[this.roomId] }
+    return mapFloor(doc, this.floorId, (fl) => {
+      const roomUse = { ...(fl.roomUse ?? {}) }
+      if (this.use) roomUse[this.roomId] = this.use
+      else delete roomUse[this.roomId]
+      const premiseLinks = { ...fl.premiseLinks }
+      if (this.use === "common" || this.use === "tech") delete premiseLinks[this.roomId]
+      return { ...fl, roomUse, premiseLinks }
+    })
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => {
+      const roomUse = { ...(fl.roomUse ?? {}) }
+      if (prev?.use) roomUse[this.roomId] = prev.use
+      else delete roomUse[this.roomId]
+      const premiseLinks = { ...fl.premiseLinks }
+      if (prev?.link) premiseLinks[this.roomId] = prev.link
+      return { ...fl, roomUse, premiseLinks }
+    })
+  }
+}

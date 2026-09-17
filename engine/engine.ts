@@ -74,6 +74,8 @@ import { detectRooms } from "@/core/geometry/room-detection"
 import { findPreset } from "@/lib/builder/openings"
 import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builder/drag-math"
 import { arcPoints } from "@/lib/builder/arc"
+import { worldUVFor } from "./world-uv"
+import { labelPoint } from "@/lib/builder/drawing/floor-drawing"
 import { snapColumn } from "@/lib/builder/plan-editor-math"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
@@ -91,6 +93,9 @@ import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-s
 import type { ScreenLabel } from "@/store/label-store"
 
 const S = 0.001
+/** Рост человека в обходе (метры от пола до глаз) и шаг за кадр. */
+const EYE = 1.7
+const WALK_SPEED = 0.12
 const ACCENT = Color3.FromHexString("#38BDF8")
 const HOVER = Color3.FromHexString("#A78BFA")
 const SNAP_NODE_MM = 300
@@ -327,7 +332,11 @@ export class BuilderEngine {
     // когда что-то меняется (камера, мышь, клавиши, правка) и немного после.
     // Раньше рендер шёл 60 раз в секунду всегда и грузил видеокарту на 100 %.
     this.bundle.scene.onPointerObservable.add(() => this.invalidate(700))
-    const onKey = () => this.invalidate(1500)
+    const onKey = (e: KeyboardEvent) => {
+      // Shift — бег (как в играх), отпустили — снова шаг
+      if (this.walkCamera && (e.key === "Shift" || e.shiftKey !== undefined)) this.walkCamera.speed = e.type === "keydown" && e.shiftKey ? WALK_SPEED * 2.2 : WALK_SPEED
+      this.invalidate(1500)
+    }
     window.addEventListener("keydown", onKey)
     window.addEventListener("keyup", onKey)
     this.detachKeys = () => {
@@ -337,6 +346,8 @@ export class BuilderEngine {
     this.invalidate(2000)
     this.bundle.engine.runRenderLoop(() => {
       if (this.paused) return
+      // обход: камера падает и идёт сама — кадры нужны постоянно
+      if (this.walkCamera && this.bundle.scene.activeCamera === this.walkCamera) this.invalidate(200)
       const now = performance.now()
       if (now > this.renderUntil) return
       this.bundle.scene.render()
@@ -713,6 +724,9 @@ export class BuilderEngine {
     const mepMeshes = buildMep(f, fNode, scene, new Set(ctx.mepLayers ?? MEP_SYSTEMS), this.drafting)
     if (reg) for (const m of mepMeshes) this.registerMesh(m.metadata?.entityId, m)
 
+    // текстуры в реальном масштабе (объекты — со своей развёрткой)
+    const objectMeshes = new Set(f.objects.flatMap((o) => this.objectRootById.get(o.id)?.getChildMeshes() ?? []))
+    worldUVFor([...fNode.getChildMeshes().filter((m) => !objectMeshes.has(m)), ...(roof ? [roof] : [])])
     this.applyFloorVisibility(f, fNode, roof, ctx, active)
     if (ctx.mepFocus && active && f.id === active.id && fNode.isEnabled()) {
       const mepSet = new Set(mepMeshes)
@@ -819,24 +833,35 @@ export class BuilderEngine {
     const canvas = this.bundle.engine.getRenderingCanvas()
     if (mode === "walk") {
       if (!this.walkCamera) {
+        // человек, а не «нокли́п»: рост 1,7 м, сила тяжести, столкновения со
+        // стенами, полом, лестницами и мебелью. Взгляд вверх не поднимает — по
+        // полу идёт только горизонтальная составляющая шага.
         const wc = new UniversalCamera("walk", new Vector3(0, 1.7, -16), scene)
         wc.minZ = 0.05
-        wc.speed = 0.35
-        wc.keysUp = [87]
-        wc.keysDown = [83]
-        wc.keysLeft = [65]
-        wc.keysRight = [68]
+        wc.speed = WALK_SPEED
+        wc.angularSensibility = 2600
+        wc.inertia = 0.6
+        wc.keysUp = [87, 38]
+        wc.keysDown = [83, 40]
+        wc.keysLeft = [65, 37]
+        wc.keysRight = [68, 39]
+        wc.keysUpward = []
+        wc.keysDownward = []
         wc.checkCollisions = true
-        wc.applyGravity = false
-        wc.ellipsoid = new Vector3(0.4, 0.85, 0.4)
+        wc.applyGravity = true
+        wc.ellipsoid = new Vector3(0.32, EYE / 2, 0.32)
+        // центр эллипсоида — на полпути от глаз к полу: подошвы ровно на полу
+        wc.ellipsoidOffset = new Vector3(0, -EYE / 2, 0)
+        wc.onAfterCheckInputsObservable.add(() => { wc.cameraDirection.y = 0 })
         scene.collisionsEnabled = true
+        scene.gravity = new Vector3(0, -0.35, 0)
         this.walkCamera = wc
       }
       camera.detachControl()
       scene.activeCamera = this.walkCamera
       if (canvas) this.walkCamera.attachControl(canvas, true)
-      this.walkCamera.setTarget(new Vector3(0, 1.7, 0))
-      this.enableWallCollisions()
+      this.enableWalkCollisions()
+      this.walkSpawn()
       return
     }
     if (this.walkCamera) this.walkCamera.detachControl()
@@ -898,11 +923,42 @@ export class BuilderEngine {
     cam.radius = Math.max(4, Math.max(h / 0.62, w / aspect / 0.62) + 2)
   }
 
-  private enableWallCollisions(): void {
+  /** Всё, обо что можно удариться или на что встать: стены, полы, лестницы, крыши, объекты. */
+  private enableWalkCollisions(): void {
     if (!this.docRoot) return
+    const solid = new Set(["wall", "room", "stair", "roof", "object", "opening"])
     this.docRoot.getChildMeshes().forEach((m) => {
-      if (m instanceof Mesh && m.metadata?.kind === "wall") m.checkCollisions = true
+      const kind = (m.metadata as MeshMeta | null)?.kind
+      if (m instanceof Mesh && kind && solid.has(kind) && kind !== "status") m.checkCollisions = true
     })
+    this.bundle.ground.checkCollisions = true
+  }
+
+  /** Встать в самое большое помещение активного этажа лицом вдоль него. */
+  private walkSpawn(): void {
+    const wc = this.walkCamera
+    const doc = this.getDoc()
+    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    if (!wc || !f) return
+    const b = doc?.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
+    const ox = (b?.origin.x ?? 0) * S, oz = (b?.origin.y ?? 0) * S
+    const rooms = floorRooms(f)
+    const best = rooms.sort((p, q) => q.areaMm2 - p.areaMm2)[0]
+    const y = f.elevation * S + 0.08
+    if (!best) {
+      wc.position.set(ox, y + EYE, oz - 14)
+      wc.setTarget(new Vector3(ox, y + EYE, oz))
+      return
+    }
+    // точка внутри помещения, подальше от стен (та же, что для подписи)
+    const c = labelPoint(best.polygon, best.holes ?? [])
+    wc.position.set(ox + c.x * S, y + EYE, oz + c.y * S)
+    // смотреть вдоль длинной стороны помещения
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const p of best.polygon) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y) }
+    const along = maxX - minX >= maxY - minY ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1)
+    wc.setTarget(wc.position.add(along.scale(4)))
+    this.invalidate(1500)
   }
 
   // Поворот орбитальной камеры к заданному ракурсу (ViewCube). Возврат к перспективе.
@@ -1325,7 +1381,9 @@ export class BuilderEngine {
 
   private labelsEmpty = false
   private projectLabels(): void {
-    if (this.labelAnchors.length === 0) {
+    // в обходе подписи не нужны — они закрывают вид от первого лица
+    const walking = !!this.walkCamera && this.bundle.scene.activeCamera === this.walkCamera
+    if (this.labelAnchors.length === 0 || walking) {
       // этаж очистили — старые подписи должны исчезнуть, а не висеть в воздухе
       if (!this.labelsEmpty) {
         this.labelsEmpty = true

@@ -2,6 +2,7 @@
 // зданию) и экспликация помещений этажа. Один расчёт — для плана, листа и DXF.
 
 import { floorRooms } from "@/lib/builder/rooms"
+import { roomDisplayName, roomUse, type RoomUse } from "@/lib/builder/room-use"
 import type { Floor, Opening } from "@/types/builder"
 
 export interface OpeningRow {
@@ -78,6 +79,8 @@ export interface RoomRow {
   number: string
   name: string
   areaM2: number
+  /** аренда / МОП / техническое */
+  use: RoomUse
 }
 
 /**
@@ -95,14 +98,17 @@ export function roomExplication(floor: Floor, premiseNumber: (premiseId: string)
     .sort((a, b) => (Math.abs(a.cy - b.cy) > 1500 ? b.cy - a.cy : a.cx - b.cx))
   const prefix = floor.level < 0 ? "Ц" : String(Math.max(0, floor.level))
   let seq = 0
+  // МОП и технические помещения — без номера арендатора и не сдвигают нумерацию
   return rooms.map(({ r }) => {
-    const link = floor.premiseLinks[r.id]
+    const use = roomUse(floor, r)
+    const link = use === "rent" ? floor.premiseLinks[r.id] : undefined
     const fromCard = link ? premiseNumber(link) : null
-    seq += 1
+    if (use === "rent" && !fromCard) seq += 1
     return {
       roomId: r.id,
-      number: fromCard ?? `${prefix}${String(seq).padStart(2, "0")}`,
-      name: floor.roomNames?.[r.id] ?? "",
+      use,
+      number: use !== "rent" ? "" : fromCard ?? `${prefix}${String(seq).padStart(2, "0")}`,
+      name: roomDisplayName(floor, r),
       areaM2: Math.round((r.areaMm2 / 1e6) * 10) / 10,
     }
   })

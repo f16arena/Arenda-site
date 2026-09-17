@@ -9,6 +9,7 @@ import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon, type Vec2 } from "@/core/geometry/math"
 import { STATUS_COLOR, type PremiseStatus } from "@/lib/builder/materials"
 import type { MaterialRegistry } from "../material-registry"
+import { roomDisplayName, roomUse } from "@/lib/builder/room-use"
 
 const S = 0.001
 
@@ -39,7 +40,7 @@ export function buildFloors(
     slab.position.y = 0.02
     slab.parent = parent
     slab.receiveShadows = true
-    slab.material = reg.get(floor.roomMaterials[room.id] ?? floor.floorMaterialId ?? "laminate")
+    slab.material = reg.get(floor.roomMaterials[room.id] ?? defaultFloorMaterial(floor, room) ?? floor.floorMaterialId ?? "laminate")
     slab.metadata = { kind: "room", floorId: floor.id, entityId: room.id, areaMm2: room.areaMm2 }
     meshes.push(slab)
 
@@ -63,4 +64,12 @@ export function buildFloors(
     }
   }
   return meshes
+}
+
+/** Пол по назначению, пока не выбран вручную: МОП — керамогранит, санузлы — плитка, техн. — наливной. */
+function defaultFloorMaterial(floor: Floor, room: { id: string; polygon: Vec2[] }): string | undefined {
+  const use = roomUse(floor, room)
+  if (use === "rent") return undefined
+  if (use === "tech") return "epoxy"
+  return /санузел|с\/у|туалет|уборн|wc/i.test(roomDisplayName(floor, room)) ? "tile_white" : "granite_beige"
 }

@@ -140,6 +140,20 @@ export class MaterialRegistry {
   }
 }
 
+/**
+ * Размер одного повтора текстуры в метрах — для развёртки по реальным размерам
+ * (engine/world-uv): кирпич, плитка и доски одного масштаба на стене любой длины.
+ * null — у материала нет рисунка или его не нужно раскладывать (стекло).
+ */
+export function textureTiling(materialId: string): { scale: number; tileM: number } | null {
+  const def = MATERIALS[materialId]
+  if (!def) return null
+  const pattern = patternFor(def)
+  const tileM: Partial<Record<Pattern, number>> = { brick: 0.7, tile: 1.2, checker: 1.2, marble: 2.4, wood: 0.9, speckle: 1.6, carpet: 1, metalRoof: 1.4, shingle: 1.4, panel: 3.6, paving: 1.2, asphalt: 2, grass: 3 }
+  const t = tileM[pattern]
+  return t ? { scale: scaleFor(pattern), tileM: t } : null
+}
+
 // ── Эвристика выбора паттерна ────────────────────────────────────────────────
 
 function patternFor(def: MaterialDef): Pattern {

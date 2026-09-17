@@ -7,7 +7,7 @@
 import { floorRooms } from "@/lib/builder/rooms"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand, SetRoomUseCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
@@ -19,6 +19,7 @@ import { presetsFor } from "@/lib/builder/openings"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
+import { autoRoomUse, ROOM_USE_LABEL, roomUse as roomUseOf, type RoomUse } from "@/lib/builder/room-use"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
 
 function Row({ label, value, accent }: { label: string; value: string; accent?: string }) {
@@ -116,9 +117,13 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       const room = floorRooms(f).find((r) => r.id === selection.id)
       title = "Помещение"
       const drawnM2 = room ? room.areaMm2 / 1_000_000 : null
-      const linkKey = f.premiseLinks[selection.id]
+      const use: RoomUse = room ? roomUseOf(f, room) : "rent"
+      const linkKey = use === "rent" ? f.premiseLinks[selection.id] : undefined
       const premise = linkKey ? resolvePremise(linkKey) : undefined
-      if (premise) {
+      if (use !== "rent") {
+        rows.push(<Row key="u" label="Назначение" value={use === "common" ? "Место общего пользования" : "Техническое"} />)
+        if (drawnM2 != null) rows.push(<Row key="a" label="Площадь" value={`${drawnM2.toFixed(1)} м²`} />)
+      } else if (premise) {
         rows.push(<Row key="n" label="Карточка" value={`№ ${premise.number}`} />)
         rows.push(<Row key="t" label="Арендатор" value={premise.tenantName ?? "свободно"} />)
         rows.push(<Row key="s" label="Статус" value={STATUS_LABEL[premise.status]} accent={STATUS_COLOR[premise.status]} />)
@@ -138,22 +143,33 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       const fid = selection.floorId
       const rid = selection.id
       const options = Array.from(premisesById.values())
+      const auto = room ? autoRoomUse(f, room) : { use: "rent" as RoomUse, name: null }
+      const explicit = f.roomUse?.[rid]
       controls = (
         <div className="mt-2">
+          <p className="pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Назначение</p>
+          <div className="mb-1 flex gap-1">
+            {(["rent", "common", "tech"] as const).map((u) => (
+              <button key={u} type="button" onClick={() => execute(new SetRoomUseCommand(fid, rid, u === auto.use ? undefined : u))}
+                title={u === "rent" ? "Сдаётся в аренду: номер и карточка помещения" : u === "common" ? "Лестничная клетка, коридор, холл, санузел — часть здания, не сдаётся" : "Электрощитовая, венткамера, ИТП — часть здания, не сдаётся"}
+                className="flex-1 rounded-md py-1 text-[11px] font-medium" style={{ background: use === u ? TOKENS.accent : "rgba(148,163,184,0.12)", color: use === u ? "#0b1220" : TOKENS.text }}>{ROOM_USE_LABEL[u]}</button>
+            ))}
+          </div>
+          <p className="mb-2 text-[10px]" style={{ color: TOKENS.muted }}>{explicit ? "задано вручную" : `определено автоматически${auto.name ? ` (${auto.name.toLowerCase()})` : ""}`}</p>
           <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
             Наименование (экспликация)
             <input
               id="room-name"
               defaultValue={f.roomNames?.[rid] ?? ""}
               key={`rn${rid}${f.roomNames?.[rid] ?? ""}`}
-              placeholder="Офис, Коридор, Санузел…"
+              placeholder={auto.name ?? "Офис, Коридор, Санузел…"}
               onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur() }}
               onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== (f.roomNames?.[rid] ?? "")) execute(new SetRoomNameCommand(fid, rid, v)) }}
               className="w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
               style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
             />
           </label>
-          {options.length > 0 && (
+          {options.length > 0 && use === "rent" && (
             <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
               Карточка помещения
               <select

@@ -626,9 +626,11 @@ export function PlanEditor() {
     for (const q of r.polygon) { cx += q.x; cy += q.y }
     const anchor = at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length }
     const c = S(anchor)
-    const link = floor.premiseLinks[r.id]
+    const lbl = drawing.rooms.find((x) => x.roomId === r.id)
+    const common = !!lbl && lbl.use !== "rent"
+    const link = common ? undefined : floor.premiseLinks[r.id]
     const premise = link ? resolvePremise(link) : undefined
-    const name = floor.roomNames?.[r.id]
+    const name = common ? lbl.name : floor.roomNames?.[r.id]
     const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
     const widthPx = px(spanAt(r.polygon, anchor, r.holes)) - 10
     const areaText = look === "draft" ? area.replace(" м²", "") : area
@@ -644,8 +646,8 @@ export function PlanEditor() {
     }
     const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
     const num = numbers.get(r.id)
-    if (num) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
-    if (name) lines.push({ t: cut(name), color: "#334155" })
+    if (num && !common) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
+    if (name) lines.push({ t: cut(name), color: common ? "#475569" : "#334155" })
     if (look === "rent" && premise?.tenantName) lines.push({ t: cut(shortTenantName(premise.tenantName)), color: "#334155" })
     lines.push({ t: areaText, under: true, color: look === "draft" ? "#111" : "#475569" })
     const shownLines = lines.filter((l) => l.t)
@@ -793,6 +795,10 @@ export function PlanEditor() {
           <pattern id="pe-hatch" patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
             <line x1={0} y1={0} x2={0} y2={6} stroke="#15803d" strokeWidth={1.2} />
           </pattern>
+          <pattern id="pe-mop" patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(45)">
+            <rect width={10} height={10} fill="#f8fafc" />
+            <line x1={0} y1={0} x2={0} y2={10} stroke="#cbd5e1" strokeWidth={1} />
+          </pattern>
         </defs>
         {gridX.map((x) => { const s = S({ x, y: 0 }); return <line key={`gx${x}`} x1={s.x} y1={0} x2={s.x} y2={size.h} stroke={look === "draft" ? "#f1f5f9" : x === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
         {gridY.map((y) => { const s = S({ x: 0, y }); return <line key={`gy${y}`} x1={0} y1={s.y} x2={size.w} y2={s.y} stroke={look === "draft" ? "#f1f5f9" : y === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
@@ -806,9 +812,11 @@ export function PlanEditor() {
 
         {/* помещения: заливка по статусу аренды */}
         {rooms.map((r) => {
-          const link = floor.premiseLinks[r.id]
+          const common = drawing.rooms.find((x) => x.roomId === r.id)?.use !== "rent"
+          const link = common ? undefined : floor.premiseLinks[r.id]
           const premise = link ? resolvePremise(link) : undefined
-          const fill = look === "rent" && premise ? `${STATUS_COLOR[premise.status]}33` : "#ffffff"
+          // МОП и технические — штриховка: часть здания, не аренда
+          const fill = common ? "url(#pe-mop)" : look === "rent" && premise ? `${STATUS_COLOR[premise.status]}33` : "#ffffff"
           const selected = sel.type === "room" && sel.id === r.id
           const ring = (list: Vec2[]) => list.map((q, i) => { const t = S(q); return `${i ? "L" : "M"}${t.x.toFixed(1)} ${t.y.toFixed(1)}` }).join(" ") + " Z"
           return <path key={r.id} d={[r.polygon, ...(r.holes ?? [])].map(ring).join(" ")} fillRule="evenodd" fill={fill} stroke={selected ? TOKENS.accent : "none"} strokeWidth={selected ? 3 : 0} />

@@ -354,6 +354,9 @@ export function SheetSvg({
         <pattern id="hatch-new" patternUnits="userSpaceOnUse" width={1.6} height={1.6} patternTransform="rotate(45)">
           <line x1={0} y1={0} x2={0} y2={1.6} stroke="#000" strokeWidth={0.25} />
         </pattern>
+        <pattern id="sheet-mop" patternUnits="userSpaceOnUse" width={2.4} height={2.4} patternTransform="rotate(45)">
+          <line x1={0} y1={0} x2={0} y2={2.4} stroke="#9ca3af" strokeWidth={0.12} />
+        </pattern>
       </defs>
       <rect x={0} y={0} width={w} height={h} fill="#fff" />
       {/* рамка */}
@@ -424,18 +427,25 @@ export function SheetSvg({
       })}
 
       {/* помещения */}
-      {d.rooms.map((r, i) => (
-        <g key={`r${i}`}>
-          {r.number && (
-            <text x={X(r.at.x)} y={Y(r.at.y) - 0.6} fontSize={2.5} textAnchor="middle">
-              № {r.number}
-            </text>
-          )}
-          <text x={X(r.at.x)} y={Y(r.at.y) + (r.number ? 2.6 : 0.9)} fontSize={2.5} textAnchor="middle" textDecoration="underline">
-            {areaText(r.areaM2)}
-          </text>
-        </g>
+      {/* МОП и технические — лёгкая штриховка: часть здания, не аренда */}
+      {d.rooms.filter((r) => r.use !== "rent").map((r, i) => (
+        <path key={`mop${i}`} d={[r.polygon, ...r.holes].map((ring) => ring.map((q, k) => `${k ? "L" : "M"}${X(q.x).toFixed(2)} ${Y(q.y).toFixed(2)}`).join(" ") + " Z").join(" ")} fillRule="evenodd" fill="url(#sheet-mop)" stroke="none" />
       ))}
+      {d.rooms.map((r, i) => {
+        const top = r.number ?? (r.name || null)
+        return (
+          <g key={`r${i}`}>
+            {top && (
+              <text x={X(r.at.x)} y={Y(r.at.y) - 0.6} fontSize={r.number ? 2.5 : 2.2} textAnchor="middle" fontStyle={r.number ? undefined : "italic"}>
+                {r.number ? `№ ${r.number}` : r.name}
+              </text>
+            )}
+            <text x={X(r.at.x)} y={Y(r.at.y) + (top ? 2.6 : 0.9)} fontSize={2.5} textAnchor="middle" textDecoration="underline">
+              {areaText(r.areaM2)}
+            </text>
+          </g>
+        )
+      })}
 
       {/* сети */}
       {mep && <MepPlanLayer md={mep} X={X} Y={Y} scale={scale} />}
@@ -768,8 +778,15 @@ function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[
     cy += 6
   }
   const total = rooms.reduce((sum, r) => sum + r.areaM2, 0)
+  const rent = rooms.filter((r) => r.use === "rent").reduce((sum, r) => sum + r.areaM2, 0)
+  // сначала арендопригодные, затем МОП и технические — с подытогами
+  const ordered = [...rooms.filter((r) => r.use === "rent"), ...rooms.filter((r) => r.use !== "rent")]
   table("rooms", "Экспликация помещений", [{ w: 14, label: "№", align: "middle" }, { w: w - 34, label: "Наименование" }, { w: 20, label: "Площадь, м²", align: "end" }],
-    rooms.map((r) => [r.number, r.name || "Помещение", fmt(r.areaM2)]), ["", "Итого", fmt(total)])
+    [
+      ...ordered.map((r) => [r.number || (r.use === "tech" ? "Т" : "МОП"), r.name || "Помещение", fmt(r.areaM2)]),
+      ["", "в т.ч. арендопригодная", fmt(rent)],
+      ["", "в т.ч. МОП и технические", fmt(total - rent)],
+    ], ["", "Итого", fmt(total)])
   const onFloor = schedule.rows.filter((r) => (r.perFloor[floorId] ?? 0) > 0)
   table("ops", "Ведомость заполнения проёмов", [{ w: 13, label: "Марка", align: "middle" }, { w: w - 41, label: "Наименование" }, { w: 14, label: "Этаж", align: "end" }, { w: 14, label: "Всего", align: "end" }],
     onFloor.map((r) => [r.mark, openingName(r), String(r.perFloor[floorId] ?? 0), String(r.total)]))
