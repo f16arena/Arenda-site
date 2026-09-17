@@ -331,8 +331,9 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   // помещения
   const rooms: RoomLabel[] = floorRooms({ wallGraph: g, stairs: floor.stairs, height: floor.height }).map((r) => {
     const key = floor.premiseLinks[r.id]
-    // подпись обходит лестницы, лифты и колонны внутри помещения
-    const obstacles = floor.stairs.map((st) => stairHoleWorld(st, floor.height)).filter((h) => h.some((q) => pointInPolygon(q, r.polygon)))
+    // подпись обходит лестницы, лифты и колонны, стоящие в этом помещении (центр
+    // внутри); лестница, заходящая краем из соседнего помещения, подпись не двигает
+    const obstacles = floor.stairs.map((st) => stairHoleWorld(st, floor.height)).filter((h) => pointInPolygon({ x: (h[0].x + h[2].x) / 2, y: (h[0].y + h[2].y) / 2 }, r.polygon))
     return { roomId: r.id, at: labelPoint(r.polygon, [...(r.holes ?? []), ...obstacles]), number: (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null, areaM2: r.areaMm2 / 1_000_000 }
   })
 

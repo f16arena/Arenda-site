@@ -473,7 +473,8 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       const fid = selection.floorId
       const sid = selection.id
       const shapes: { s: "straight" | "l" | "u"; l: string }[] = [{ s: "straight", l: "Прямая" }, { s: "l", l: "Г" }, { s: "u", l: "П" }]
-      rows.push(<Row key="sh" label="Форма" value={st.shape} />)
+      const SHAPE_RU: Record<string, string> = { straight: "Прямая", l: "Г-образная", u: "П-образная", spiral: "Винтовая" }
+      rows.push(<Row key="sh" label="Форма" value={SHAPE_RU[st.shape] ?? st.shape} />)
       rows.push(<Row key="w" label="Ширина" value={`${(st.width / 1000).toFixed(2)} м`} />)
       rows.push(<Row key="r" label="Поворот" value={`${Math.round(st.rotationDeg)}°`} />)
       controls = (

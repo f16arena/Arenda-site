@@ -26,11 +26,12 @@ import {
   Plug,
   Slice,
   Ruler,
+  RectangleVertical,
 } from "lucide-react"
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
 
-type Item = { id: Tool; label: string; key: string; Icon: typeof Move; phase1: boolean }
+type Item = { id: Tool; label: string; key: string; Icon: typeof Move; phase1: boolean; shape?: "column" }
 
 const TOOLS: Item[] = [
   { id: "select", label: "Выбор", key: "V", Icon: Move, phase1: true },
@@ -40,6 +41,8 @@ const TOOLS: Item[] = [
   { id: "door", label: "Дверь", key: "D", Icon: Box, phase1: true },
   { id: "window", label: "Окно", key: "N", Icon: Eye, phase1: true },
   { id: "stair", label: "Лестница", key: "S", Icon: ArrowUpFromLine, phase1: true },
+  // колонна — та же «лестница» формы column: вычитается из площади помещения
+  { id: "stair", label: "Колонна", key: "", Icon: RectangleVertical, phase1: true, shape: "column" },
   { id: "roof", label: "Крыша", key: "T", Icon: Building2, phase1: false },
   { id: "terrain", label: "Рельеф", key: "", Icon: Trees, phase1: true },
   { id: "water", label: "Вода", key: "", Icon: Waves, phase1: true },
@@ -68,6 +71,8 @@ export function BuilderToolbar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setTool = useEditorStore((s) => s.setTool)
   const mode = useEditorStore((s) => s.mode)
+  const stairShape = useEditorStore((s) => s.stairShape)
+  const setStairShape = useEditorStore((s) => s.setStairShape)
   const undo = useDocumentStore((s) => s.undo)
   const redo = useDocumentStore((s) => s.redo)
   const canUndo = useDocumentStore((s) => s.canUndo)
@@ -82,12 +87,17 @@ export function BuilderToolbar() {
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       {(mode === "mep" ? MEP_TOOLS : TOOLS).map((t) => {
-        const active = activeTool === t.id
+        const isColumn = activeTool === "stair" && stairShape === "column"
+        const active = activeTool === t.id && (t.id !== "stair" || (t.shape === "column") === isColumn)
         return (
           <button
-            key={t.id}
+            key={t.shape ?? t.id}
             type="button"
-            onClick={() => setTool(t.id)}
+            onClick={() => {
+              setTool(t.id)
+              if (t.shape) setStairShape(t.shape)
+              else if (t.id === "stair" && stairShape === "column") setStairShape("u")
+            }}
             title={`${t.label}${t.key ? ` (${t.key})` : ""}${t.phase1 ? "" : " · Фаза 2+"}`}
             className="group flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-[10px] font-medium transition-all"
             style={{

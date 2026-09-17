@@ -744,6 +744,24 @@ export function PlanEditor() {
     }
   }
 
+  // размер у выделенного не накрывает подписи помещений: отодвигаем от элемента, пока не свободно
+  if (editDims.length) {
+    const centre = editDims.reduce((acc, d) => ({ x: acc.x + d.at.x / editDims.length, y: acc.y + d.at.y / editDims.length }), { x: 0, y: 0 })
+    const placed: Box[] = []
+    for (const d of editDims) {
+      const text = `${d.label} ${d.value}`
+      const w = text.length * 6.6 + 12, h = 20
+      const boxAt = (p: Vec2): Box => ({ l: p.x - w / 2, t: p.y - h / 2, r: p.x + w / 2, b: p.y + h / 2 })
+      const hit = (bx: Box) => [...taken, ...placed].some((o) => bx.l < o.r && bx.r > o.l && bx.t < o.b && bx.b > o.t)
+      let at = d.at
+      const L = Math.hypot(d.at.x - centre.x, d.at.y - centre.y)
+      const dir = L > 1 ? { x: (d.at.x - centre.x) / L, y: (d.at.y - centre.y) / L } : { x: 0, y: -1 }
+      for (let step = 1; step <= 6 && hit(boxAt(at)); step++) at = { x: d.at.x + dir.x * 16 * step, y: d.at.y + dir.y * 16 * step }
+      d.at = at
+      placed.push(boxAt(at))
+    }
+  }
+
   function commitEdit(d: EditDim) {
     if (!editing) return
     const val = Math.round(parseFloat(editing.draft.replace(",", ".").replace(/\s/g, "")))
