@@ -26,3 +26,19 @@ describe("дуговая стена", () => {
     expect(arcPoints({ x: 0, y: 0 }, { x: 6000, y: 0 }, { x: 3000, y: 5 })).toHaveLength(2)
   })
 })
+
+describe("участки дуги", () => {
+  it("распознаются, а прямой угол комнаты — нет", async () => {
+    const { arcSegmentIds } = await import("./arc")
+    const pts = arcPoints({ x: -5000, y: 0 }, { x: 5000, y: 0 }, { x: 0, y: 5000 })
+    const nodes: Record<string, { x: number; y: number }> = {}
+    const edges: Record<string, { a: string; b: string }> = {}
+    pts.forEach((p, i) => { nodes[`n${i}`] = p })
+    for (let i = 0; i + 1 < pts.length; i++) edges[`e${i}`] = { a: `n${i}`, b: `n${i + 1}` }
+    nodes.c1 = { x: -5600, y: 0 }
+    edges.short = { a: "n0", b: "c1" } // короткая стена под прямым углом
+    const ids = arcSegmentIds({ nodes, edges })
+    expect(ids.size).toBe(pts.length - 1)
+    expect(ids.has("short")).toBe(false)
+  })
+})

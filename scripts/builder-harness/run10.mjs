@@ -71,6 +71,36 @@ await page.waitForTimeout(1000)
   await shot("ARC-done")
 }
 
+
+// ── PORCH. крыльцо к наружной стене ──
+{
+  await page.locator("#builder-floor-elevation").fill("0.45").catch(() => {})
+  await page.locator("#builder-floor-elevation").press("Enter").catch(() => {})
+  await page.waitForTimeout(600)
+  const f = await floor()
+  const ext = Object.values(f.wallGraph.edges).filter((e) => e.kind === "exterior")
+  const nodes = f.wallGraph.nodes
+  // нижняя по Y горизонтальная наружная стена
+  const horiz = ext.filter((e) => Math.abs(nodes[e.a].y - nodes[e.b].y) < 5).sort((a, b) => nodes[a.a].y - nodes[b.a].y)[0]
+  const a = nodes[horiz.a], b = nodes[horiz.b]
+  const mid = { x: (a.x + b.x) / 2, y: a.y }
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setTool("stair"); s.setStairShape("porch") })
+  await page.waitForTimeout(200)
+  const P = await toScreen(mid.x + 300, mid.y - 1200)
+  await page.mouse.move(P.x, P.y, { steps: 4 }); await page.mouse.click(P.x, P.y); await page.waitForTimeout(700)
+  const f2 = await floor()
+  const porch = f2.stairs.find((s) => s.shape === "porch")
+  check("PORCH1 крыльцо добавлено", !!porch)
+  if (porch) {
+    check("PORCH2 прижато к стене снаружи", Math.abs(porch.position.y - (a.y - horiz.thickness / 2)) < 2 && Math.abs(porch.position.x - (mid.x + 300)) < 5, JSON.stringify(porch.position))
+    check("PORCH3 ступени от здания", Math.abs(Math.abs(porch.rotationDeg) - 180) < 1, String(porch.rotationDeg))
+    check("PORCH4 подъём = отметка пола", porch.rise === 450, String(porch.rise))
+  }
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setTool("select"); s.setCameraMode("orbit") })
+  await page.waitForTimeout(1200)
+  await shot("PORCH-3d")
+}
+
 console.log(results.join("\n"))
 console.log("errors:", errors.slice(0, 5))
 await browser.close()

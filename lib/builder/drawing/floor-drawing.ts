@@ -13,6 +13,7 @@
 // - координационные оси по наружным и несущим стенам: цифры по горизонтали,
 //   буквы по вертикали
 
+import { stairPlanRects } from "@/core/geometry/stair-generator"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon } from "@/core/geometry/math"
@@ -186,6 +187,18 @@ export function buildFloorDrawing(floor: Floor, premiseNumber: (premiseId: strin
     for (const p of [a, b]) {
       minX = Math.min(minX, p.x - h); maxX = Math.max(maxX, p.x + h)
       minY = Math.min(minY, p.y - h); maxY = Math.max(maxY, p.y + h)
+    }
+  }
+  // лестницы и крыльца: контуры ступеней тонкими линиями
+  for (const st of floor.stairs) {
+    for (const q of stairPlanRects(st, floor.height)) {
+      for (let i = 0; i < 4; i++) thinLines.push([q[i], q[(i + 1) % 4]])
+      if (Number.isFinite(minX)) {
+        for (const c of q) {
+          minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x)
+          minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y)
+        }
+      }
     }
   }
   if (!Number.isFinite(minX)) {

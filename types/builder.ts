@@ -40,7 +40,7 @@ export const OpeningSchema = z.object({
 
 export const StairSchema = z.object({
   id: z.string(),
-  shape: z.enum(["straight", "l", "u", "spiral"]),
+  shape: z.enum(["straight", "l", "u", "spiral", "porch"]),
   fromFloorId: z.string(),
   toFloorId: z.string(),
   position: Vec2Schema,
@@ -49,6 +49,8 @@ export const StairSchema = z.object({
   railing: z.boolean(),
   // Зеркальное отражение по локальной оси X (меняет сторону поворота Г/П и перил).
   mirror: z.boolean().optional(),
+  // Крыльцо: высота от земли до площадки у двери, мм.
+  rise: z.number().optional(),
 })
 
 export const BuilderObjectSchema = z.object({

@@ -211,8 +211,37 @@ export function PropertyPanel() {
   } else if (selection.type === "stair" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)
     const st = f?.stairs.find((s) => s.id === selection.id)
-    title = "Лестница"
-    if (f && st) {
+    title = st?.shape === "porch" ? "Крыльцо" : "Лестница"
+    if (f && st && st.shape === "porch") {
+      const fid = selection.floorId
+      const sid = selection.id
+      const rise = st.rise ?? 450
+      const n = Math.max(1, Math.round(rise / 170))
+      rows.push(<Row key="w" label="Ширина" value={`${(st.width / 1000).toFixed(2)} м`} />)
+      rows.push(<Row key="h" label="Подъём" value={`${(rise / 1000).toFixed(2)} м`} />)
+      rows.push(<Row key="n" label="Подступенков" value={String(n)} />)
+      const inputCls = "w-16 rounded-md bg-white/5 px-1.5 py-1 text-xs"
+      const inputStyle = { color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }
+      const num = (v: string) => parseFloat(v.replace(",", "."))
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Ширина, м
+            <input type="number" step="0.1" min="0.9" max="12" defaultValue={(st.width / 1000).toFixed(2)} key={`pw${sid}${st.width}`}
+              onBlur={(ev) => { const v = num(ev.target.value); if (Number.isFinite(v)) execute(new SetStairCommand(fid, sid, { width: Math.max(900, Math.min(12000, Math.round(v * 1000))) })) }}
+              className={inputCls} style={inputStyle} />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Подъём, м
+            <input type="number" step="0.05" min="0.15" max="2" defaultValue={(rise / 1000).toFixed(2)} key={`pr${sid}${rise}`}
+              onBlur={(ev) => { const v = num(ev.target.value); if (Number.isFinite(v)) execute(new SetStairCommand(fid, sid, { rise: Math.max(150, Math.min(2000, Math.round(v * 1000))) })) }}
+              className={inputCls} style={inputStyle} />
+          </label>
+          <button type="button" onClick={() => execute(new SetStairCommand(fid, sid, { rotationDeg: (st.rotationDeg + 90) % 360 }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+          <button type="button" onClick={() => execute(new DeleteStairCommand(fid, sid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить крыльцо</button>
+        </div>
+      )
+    } else if (f && st) {
       const fid = selection.floorId
       const sid = selection.id
       const shapes: { s: "straight" | "l" | "u"; l: string }[] = [{ s: "straight", l: "Прямая" }, { s: "l", l: "Г" }, { s: "u", l: "П" }]

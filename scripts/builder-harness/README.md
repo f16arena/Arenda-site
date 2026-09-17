@@ -15,7 +15,7 @@ node scripts/builder-harness/run6.mjs      # очередь сохранений
 node scripts/builder-harness/run7.mjs      # рамка, Shift+клик, групповое удаление
 node scripts/builder-harness/run8.mjs      # удаление помещения и скана
 node scripts/builder-harness/run9.mjs      # цоколь и отметки этажей
-node scripts/builder-harness/run10.mjs     # дуговая стена
+node scripts/builder-harness/run10.mjs     # дуговая стена, крыльцо
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

@@ -25,6 +25,7 @@ const STAIRS: { id: StairShape; label: string }[] = [
   { id: "straight", label: "Прямая" },
   { id: "l", label: "Г-образная" },
   { id: "u", label: "П-образная" },
+  { id: "porch", label: "Крыльцо" },
 ]
 const TERRAIN: { id: TerrainMode; label: string }[] = [
   { id: "raise", label: "Поднять" },
@@ -248,7 +249,7 @@ export function ToolOptions() {
             </button>
           )
         })}
-        <span className="shrink-0">— клик на этаже ставит лестницу к верхнему</span>
+        <span className="shrink-0">{stairShape === "porch" ? "— клик снаружи у стены: крыльцо встанет к ней ступенями наружу" : "— клик на этаже ставит лестницу к верхнему"}</span>
       </Shell>
     )
   }

@@ -3,6 +3,7 @@
 // перетаскивание узла (стены следуют); инструменты проёмов (реальные вырезы), лестниц
 // (вырез в перекрытии), ведра материалов; ховер-outline. Один Engine, корректный dispose.
 
+import { arcSegmentIds } from "@/lib/builder/arc"
 import {
   Camera,
   Color3,
@@ -483,7 +484,7 @@ export class BuilderEngine {
     const holes: Vec2[][] = []
     for (const other of b.floors) {
       for (const st of other.stairs) {
-        if (st.toFloorId === f.id) holes.push(stairHoleWorld(st, other.height))
+        if (st.toFloorId === f.id && st.shape !== "porch") holes.push(stairHoleWorld(st, other.height))
       }
     }
 
@@ -560,11 +561,14 @@ export class BuilderEngine {
       const ox = b.origin.x * S
       const oz = b.origin.y * S
       const y = f.elevation * S + 0.3
+      const arcParts = arcSegmentIds(f.wallGraph)
       for (const eid in f.wallGraph.edges) {
         const e = f.wallGraph.edges[eid]
         const a = f.wallGraph.nodes[e.a]
         const c = f.wallGraph.nodes[e.b]
         if (!a || !c) continue
+        // участки дуги не подписываем по отдельности — иначе дуга в «0.60»
+        if (arcParts.has(eid)) continue
         anchors.push({
           kind: "wall",
           id: eid,
@@ -1834,6 +1838,10 @@ export class BuilderEngine {
     const f = doc ? findFloor(doc, this.activeFloorId) : undefined
     if (!f || !doc) return
     const building = doc.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
+    if (this.stairShape === "porch") {
+      this.placePorch(f)
+      return
+    }
     // Ближайший этаж ВЫШЕ по отметке (надёжнее, чем level+1) — лестница соединит их,
     // в его перекрытии появится вырез (floor-builder по toFloorId).
     const upper = building?.floors
@@ -1869,6 +1877,43 @@ export class BuilderEngine {
 
     this.onCommand(
       new AddStairCommand(f.id, { id: uid("st"), shape, fromFloorId: f.id, toFloorId, position: pos, rotationDeg: 0, width, railing: true }),
+    )
+  }
+
+  /** Крыльцо прижимается площадкой к ближайшей стене снаружи, ступени — от здания. */
+  private placePorch(f: Floor): void {
+    const p = this.projectToPlane()
+    if (!p) return
+    const click: Vec2 = { x: p.x * 1000, y: p.z * 1000 }
+    let best: { d: number; proj: Vec2; nx: number; ny: number; th: number } | null = null
+    for (const e of Object.values(f.wallGraph.edges)) {
+      const a = f.wallGraph.nodes[e.a], b = f.wallGraph.nodes[e.b]
+      if (!a || !b) continue
+      const dx = b.x - a.x, dy = b.y - a.y
+      const L2 = dx * dx + dy * dy
+      if (L2 < 1) continue
+      const t = Math.max(0, Math.min(1, ((click.x - a.x) * dx + (click.y - a.y) * dy) / L2))
+      const proj = { x: a.x + dx * t, y: a.y + dy * t }
+      const d = Math.hypot(click.x - proj.x, click.y - proj.y)
+      if (best && d >= best.d) continue
+      const L = Math.sqrt(L2)
+      let nx = -dy / L, ny = dx / L
+      if ((click.x - proj.x) * nx + (click.y - proj.y) * ny < 0) { nx = -nx; ny = -ny }
+      best = { d, proj, nx, ny, th: e.thickness }
+    }
+    const rise = f.elevation >= 150 && f.elevation <= 2000 ? Math.round(f.elevation) : 450
+    const width = 1800
+    let position: Vec2 = { x: Math.round(click.x), y: Math.round(click.y) }
+    let rotationDeg = 0
+    if (best && best.d < 4000) {
+      position = { x: Math.round(best.proj.x + (best.nx * best.th) / 2), y: Math.round(best.proj.y + (best.ny * best.th) / 2) }
+      rotationDeg = Math.round((Math.atan2(best.nx, best.ny) * 180) / Math.PI)
+    }
+    this.onCommand(new AddStairCommand(f.id, { id: uid("st"), shape: "porch", fromFloorId: f.id, toFloorId: f.id, position, rotationDeg, width, railing: false, rise }))
+    this.onHud(
+      f.elevation < 150
+        ? "Крыльцо поставлено. Пол этажа на отметке 0 — ступени ниже земли не видны: поднимите «Отметку пола» до +0,45"
+        : `Крыльцо: подъём ${(rise / 1000).toFixed(2)} м, ${Math.max(1, Math.round(rise / 170))} ступ.`,
     )
   }
 

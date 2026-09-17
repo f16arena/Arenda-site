@@ -882,14 +882,14 @@ export class SetOpeningSizeCommand implements Command {
 export class SetStairCommand implements Command {
   readonly kind = "set-stair"
   readonly label = "лестница"
-  private prev?: { shape: "straight" | "l" | "u" | "spiral"; width: number; rotationDeg: number; mirror: boolean }
+  private prev?: { shape: Stair["shape"]; width: number; rotationDeg: number; mirror: boolean; rise?: number }
   private captured = false
-  constructor(private floorId: string, private stairId: string, private props: { shape?: "straight" | "l" | "u" | "spiral"; width?: number; rotationDeg?: number; mirror?: boolean }) {}
+  constructor(private floorId: string, private stairId: string, private props: { shape?: Stair["shape"]; width?: number; rotationDeg?: number; mirror?: boolean; rise?: number }) {}
   apply(doc: BuilderDocument): BuilderDocument {
     const f = findFloor(doc, this.floorId)
     const s = f?.stairs.find((st) => st.id === this.stairId)
     if (s && !this.captured) {
-      this.prev = { shape: s.shape, width: s.width, rotationDeg: s.rotationDeg, mirror: s.mirror ?? false }
+      this.prev = { shape: s.shape, width: s.width, rotationDeg: s.rotationDeg, mirror: s.mirror ?? false, rise: s.rise }
       this.captured = true
     }
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: fl.stairs.map((st) => (st.id === this.stairId ? { ...st, ...this.props } : st)) }))

@@ -50,3 +50,40 @@ export function arcPoints(a: Vec2, b: Vec2, through: Vec2, segment = 600): Vec2[
   out.push(b)
   return out
 }
+
+/**
+ * Участки, из которых нарисована дуга: короткое ребро (до 1,5 м), у которого
+ * хотя бы в одном узле ровно два ребра с плавным изломом 1–35°.
+ */
+export function arcSegmentIds(g: { nodes: Record<string, Vec2>; edges: Record<string, { a: string; b: string }> }): Set<string> {
+  const byNode = new Map<string, string[]>()
+  for (const id in g.edges) {
+    const e = g.edges[id]
+    for (const n of [e.a, e.b]) byNode.set(n, [...(byNode.get(n) ?? []), id])
+  }
+  const dirFrom = (nodeId: string, edgeId: string): Vec2 | null => {
+    const e = g.edges[edgeId]
+    const p = g.nodes[nodeId], q = g.nodes[e.a === nodeId ? e.b : e.a]
+    if (!p || !q) return null
+    const L = Math.hypot(q.x - p.x, q.y - p.y)
+    return L > 0 ? { x: (q.x - p.x) / L, y: (q.y - p.y) / L } : null
+  }
+  const out = new Set<string>()
+  for (const id in g.edges) {
+    const e = g.edges[id]
+    const a = g.nodes[e.a], b = g.nodes[e.b]
+    if (!a || !b || Math.hypot(b.x - a.x, b.y - a.y) > 1500) continue
+    for (const n of [e.a, e.b]) {
+      const list = byNode.get(n) ?? []
+      if (list.length !== 2) continue
+      const u = dirFrom(n, list[0]), v = dirFrom(n, list[1])
+      if (!u || !v) continue
+      const turn = 180 - (Math.acos(Math.max(-1, Math.min(1, u.x * v.x + u.y * v.y))) * 180) / Math.PI
+      if (turn >= 1 && turn <= 35) {
+        out.add(id)
+        break
+      }
+    }
+  }
+  return out
+}
