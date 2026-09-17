@@ -306,6 +306,12 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       setMeasure({ lengthMm, from })
     }
     engine.onLabels = (labels) => useLabelStore.getState().setLabels(labels)
+    engine.onLowFps = () => {
+      if (useEditorStore.getState().turbo) return
+      useEditorStore.getState().setTurbo(true)
+      setHud("Кадров мало — включён лёгкий режим 3D (без теней и свечения)")
+      window.setTimeout(() => setHud(null), 4000)
+    }
     engine.onCursor = (mm) => useLabelStore.getState().setCursor(mm)
     if (initialDoc) {
       useDocumentStore.getState().loadDocument(initialDoc)
@@ -383,8 +389,10 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   useEffect(() => {
     const e = engineRef.current
-    // редактор плана рисует сам — 3D-сцена ждёт под ним в прежнем виде
-    if (e && ready && cameraMode !== "plan2d") e.setCameraMode(cameraMode)
+    // редактор плана рисует сам — 3D-сцена ждёт под ним на паузе и не грузит видеокарту
+    if (!e || !ready) return
+    e.setPaused(cameraMode === "plan2d")
+    if (cameraMode !== "plan2d") e.setCameraMode(cameraMode)
   }, [cameraMode, ready])
 
   // Помещения этого здания: статусы для окраски полов и карточки для панели.

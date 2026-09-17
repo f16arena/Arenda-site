@@ -203,6 +203,38 @@ export class BuilderEngine {
   // конец перетаскивания — чтобы следом пришедший tap не сменил выделение
   private lastDragEndAt = 0
 
+  private renderUntil = 0
+  private paused = false
+  private lastView: number[] | null = null
+  private detachKeys: (() => void) | null = null
+  private fpsLowSince = 0
+  private fpsWarned = false
+  /** движок сам заметил, что кадров мало, — BuilderApp включает лёгкий режим */
+  onLowFps: () => void = () => {}
+
+  /** Нарисовать ближайшие ms миллисекунд (что-то изменилось). */
+  invalidate(ms = 500): void {
+    this.renderUntil = Math.max(this.renderUntil, performance.now() + ms)
+  }
+
+  /** Пауза рендера — когда 3D скрыт (открыт редактор плана). */
+  setPaused(p: boolean): void {
+    this.paused = p
+    if (!p) this.invalidate(1500)
+  }
+
+  private watchFps(now: number): void {
+    // автотесты идут в браузере без видеокарты — там кадров всегда мало
+    if (this.fpsWarned || (typeof navigator !== "undefined" && navigator.webdriver)) return
+    const fps = this.bundle.engine.getFps()
+    if (fps >= 24 || !Number.isFinite(fps)) { this.fpsLowSince = 0; return }
+    if (!this.fpsLowSince) this.fpsLowSince = now
+    else if (now - this.fpsLowSince > 3000) {
+      this.fpsWarned = true
+      this.onLowFps()
+    }
+  }
+
   tool: Tool = "select"
   mepSystem: MepSystem = "power"
   /** перепланировка: новые стены/проёмы помечаются «новая», удаление — демонтаж */
@@ -289,7 +321,37 @@ export class BuilderEngine {
     }
     this.setupPointer()
     this.bundle.scene.onBeforeRenderObservable.add(() => this.syncCamera())
-    this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
+    // Перф для слабых ПК: сцена статична между действиями — кадр рисуется только
+    // когда что-то меняется (камера, мышь, клавиши, правка) и немного после.
+    // Раньше рендер шёл 60 раз в секунду всегда и грузил видеокарту на 100 %.
+    this.bundle.scene.onPointerObservable.add(() => this.invalidate(700))
+    const onKey = () => this.invalidate(1500)
+    window.addEventListener("keydown", onKey)
+    window.addEventListener("keyup", onKey)
+    this.detachKeys = () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("keyup", onKey)
+    }
+    this.invalidate(2000)
+    this.bundle.engine.runRenderLoop(() => {
+      if (this.paused) return
+      const now = performance.now()
+      if (now > this.renderUntil) return
+      this.bundle.scene.render()
+      // камера ещё движется (инерция, анимация) — продлеваем
+      const cam = this.bundle.scene.activeCamera
+      if (cam) {
+        const m = cam.getViewMatrix().asArray()
+        const last = this.lastView
+        let moved = !last
+        if (last) for (let i = 0; i < 16; i++) if (Math.abs(m[i] - last[i]) > 1e-6) { moved = true; break }
+        if (moved) {
+          this.lastView = m.slice()
+          this.invalidate(300)
+        }
+      }
+      this.watchFps(now)
+    })
     // Подписи проецируем после кадра: камера уже на месте, дёшево даже на сотнях якорей
     this.bundle.scene.onAfterRenderObservable.add(() => this.projectLabels())
   }
@@ -301,9 +363,13 @@ export class BuilderEngine {
   // Турбо-режим (§24): рендер в пониженном разрешении (меньше пикселей — выше FPS) и
   // более лёгкие тени. Геометрия и интерактив не меняются.
   setTurbo(on: boolean): void {
-    this.bundle.engine.setHardwareScalingLevel(on ? 1.4 : 1)
+    // лёгкий режим: меньше пикселей, без теней, свечения и тумана — геометрия та же
+    this.bundle.engine.setHardwareScalingLevel(on ? 1.5 : 1)
     this.bundle.shadow.useBlurExponentialShadowMap = !on
+    this.bundle.sun.shadowEnabled = !on
+    this.bundle.glow.isEnabled = !on
     this.bundle.scene.fogEnabled = !on
+    this.invalidate(800)
   }
 
   setGizmoMode(mode: GizmoMode): void {
@@ -326,6 +392,9 @@ export class BuilderEngine {
   // ── Пересборка сцены ───────────────────────────────────────────────────────
   rebuild(doc: BuilderDocument, ctx: RebuildContext): void {
     const scene = this.bundle.scene
+    this.invalidate(1500)
+    // текстуры (подложка, материалы) догружаются — кадр после готовности
+    scene.executeWhenReady(() => this.invalidate(600))
     this.lastCtx = ctx
     this.lastDoc = doc
     if (this.docRoot) this.docRoot.dispose()
@@ -699,6 +768,7 @@ export class BuilderEngine {
 
   // ── Выделение / ховер ───────────────────────────────────────────────────────
   setMulti(ids: string[]): void {
+    this.invalidate(600)
     this.currentMulti = ids
     this.applyHighlight()
   }
@@ -715,6 +785,7 @@ export class BuilderEngine {
   }
 
   setSelection(sel: Selection): void {
+    this.invalidate(600)
     this.currentSel = sel
     this.applyHighlight()
     this.updateGrips()
@@ -741,6 +812,7 @@ export class BuilderEngine {
 
   // ── Камера ───────────────────────────────────────────────────────────────────
   setCameraMode(mode: CameraMode): void {
+    this.invalidate(1500)
     const { scene, camera } = this.bundle
     const canvas = this.bundle.engine.getRenderingCanvas()
     if (mode === "walk") {
@@ -1180,7 +1252,9 @@ export class BuilderEngine {
     if (!f) return []
     const { scene, engine, camera } = this.bundle
     const transform = scene.getTransformMatrix()
-    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight())
+    // рамка в CSS-пикселях — и проекция узлов в CSS-пикселях (при пониженном разрешении они не совпадают с пикселями рендера)
+    const canvas = engine.getRenderingCanvas()
+    const viewport = camera.viewport.toGlobal(canvas?.clientWidth || engine.getRenderWidth(), canvas?.clientHeight || engine.getRenderHeight())
     const y = f.elevation * S
     const minX = Math.min(x1, x2), maxX = Math.max(x1, x2), minY = Math.min(y1, y2), maxY = Math.max(y1, y2)
     const crossing = x2 < x1
@@ -1321,8 +1395,8 @@ export class BuilderEngine {
         if (!passedDragThreshold(b.sx, b.sy, scene.pointerX, scene.pointerY)) return
         b.moved = true
       }
-      const k = this.cssScale()
-      this.onBox({ x1: b.sx * k, y1: b.sy * k, x2: scene.pointerX * k, y2: scene.pointerY * k })
+      // pointerX уже в CSS-пикселях холста — масштаб рендера (лёгкий режим) не при чём
+      this.onBox({ x1: b.sx, y1: b.sy, x2: scene.pointerX, y2: scene.pointerY })
       return
     }
     if (this.dragWall) {
@@ -3052,6 +3126,7 @@ export class BuilderEngine {
   }
 
   resize(): void {
+    this.invalidate(800)
     this.bundle.engine.resize()
   }
 
@@ -3094,6 +3169,7 @@ export class BuilderEngine {
   }
 
   dispose(): void {
+    this.detachKeys?.()
     this.cancelWallTool()
     this.cancelPlacer()
     this.cancelWater()

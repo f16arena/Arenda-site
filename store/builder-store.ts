@@ -234,6 +234,14 @@ const MODE_DEFAULT_TOOL: Record<BuildMode, Tool> = {
   mep: "mep-run",
 }
 
+/** Слабый компьютер: мало ядер или памяти — сразу лёгкий режим 3D. */
+export function isLowEndDevice(): boolean {
+  if (typeof navigator === "undefined" || navigator.webdriver) return false
+  const cores = navigator.hardwareConcurrency ?? 8
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8
+  return cores <= 4 || mem <= 4
+}
+
 export const useEditorStore = create<EditorState>((set) => ({
   activeTool: "select",
   mode: "build",
@@ -264,7 +272,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   annotateKind: "dim",
   armedAsset: null,
   gizmoMode: "move",
-  turbo: false,
+  turbo: isLowEndDevice(),
   setTool: (t) => set((s) => ({
     activeTool: t,
     selection: { type: "none" },
