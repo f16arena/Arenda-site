@@ -253,8 +253,53 @@ async function main() {
       expect(migrationRls[0].policy_count > 0, "_prisma_migrations has RLS enabled but no policy")
     }
 
+    // ── Конструктор: проект и публичная ссылка-витрина ──
+    const projectA = await db.builderProject.create({
+      data: { organizationId: orgA.id, name: "E2E Builder A", buildingId: ids.buildingA1 ?? null, doc: {}, revision: 0 },
+    })
+    const projectB = await db.builderProject.create({
+      data: { organizationId: orgB.id, name: "E2E Builder B", buildingId: ids.buildingB1 ?? null, doc: {}, revision: 0 },
+    })
+    ids.projectA = projectA.id
+    ids.projectB = projectB.id
+
+    const orgAProjects = visibleIds(await db.builderProject.findMany({ where: { organizationId: orgA.id }, select: { id: true } }))
+    expect(orgAProjects.has(projectA.id), "builder project list does not include own project")
+    expect(!orgAProjects.has(projectB.id), "builder project list leaks another organization project")
+
+    const foreignRead = await db.builderProject.findFirst({ where: { id: projectB.id, organizationId: orgA.id }, select: { id: true } })
+    expect(foreignRead === null, "builder project of Org B is readable with Org A scope")
+
+    const foreignWrite = await db.builderProject.updateMany({
+      where: { id: projectB.id, organizationId: orgA.id },
+      data: { name: "hacked" },
+    })
+    expect(foreignWrite.count === 0, "builder project of Org B is writable with Org A scope")
+
+    // ссылка-витрина: действует, пока не отозвана и не истёк срок
+    const liveToken = `e2elive${stamp}`
+    const deadToken = `e2edead${stamp}`
+    const oldToken = `e2eold${stamp}`
+    await db.builderShare.createMany({
+      data: [
+        { token: liveToken, projectId: projectA.id, expiresAt: new Date(Date.now() + 86400_000) },
+        { token: deadToken, projectId: projectA.id, revokedAt: new Date() },
+        { token: oldToken, projectId: projectA.id, expiresAt: new Date(Date.now() - 1000) },
+      ],
+    })
+    ids.shareTokens = [liveToken, deadToken, oldToken].join(",")
+    const openable = async (token: string) => {
+      const sh = await db.builderShare.findUnique({ where: { token }, select: { revokedAt: true, expiresAt: true } })
+      return !!sh && !sh.revokedAt && !(sh.expiresAt && sh.expiresAt.getTime() < Date.now())
+    }
+    expect(await openable(liveToken), "valid share link does not open the showcase")
+    expect(!(await openable(deadToken)), "revoked share link still opens the showcase")
+    expect(!(await openable(oldToken)), "expired share link still opens the showcase")
+
     console.log("[e2e-isolation] passed")
   } finally {
+    await db.builderShare.deleteMany({ where: { token: { in: (ids.shareTokens ?? "").split(",").filter(Boolean) } } })
+    await db.builderProject.deleteMany({ where: { id: { in: [ids.projectA, ids.projectB].filter(Boolean) as string[] } } })
     await db.tenant.deleteMany({ where: { id: { in: [ids.tenantA, ids.tenantB].filter(Boolean) as string[] } } })
     await db.space.deleteMany({ where: { id: { in: [ids.spaceA1, ids.spaceA2, ids.spaceB1].filter(Boolean) as string[] } } })
     await db.floor.deleteMany({ where: { id: { in: [ids.floorA1, ids.floorA2, ids.floorB1].filter(Boolean) as string[] } } })

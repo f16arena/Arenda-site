@@ -17,6 +17,7 @@
 // и возвращаем {ok:true} (мягкий приём, без выдуманных миграций).
 
 import { db } from "@/lib/db"
+import { shareLinkValid } from "@/lib/builder/share-link"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingAccess } from "@/lib/building-access"
 import type { BuildingPremise } from "@/store/premise-store"
@@ -204,10 +205,10 @@ export async function submitBuilderLead(input: {
     try {
       const share = await db.builderShare.findUnique({
         where: { token },
-        select: { projectId: true },
+        select: { projectId: true, revokedAt: true, expiresAt: true },
       })
       let buildingId: string | null = null
-      if (share) {
+      if (shareLinkValid(share)) {
         const project = await db.builderProject.findUnique({
           where: { id: share.projectId },
           select: { buildingId: true },

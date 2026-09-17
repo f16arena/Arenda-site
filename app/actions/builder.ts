@@ -181,11 +181,43 @@ export async function duplicateBuilderProject(id: string): Promise<{ id: string 
   return created
 }
 
-export async function createBuilderShare(projectId: string): Promise<{ token: string }> {
+/**
+ * Публичная ссылка-витрина. По умолчанию живёт 30 дней: вечная ссылка —
+ * это утечка планировки здания, если её переслали дальше. Отзывается вручную.
+ */
+export async function createBuilderShare(projectId: string, days = 30): Promise<{ token: string; expiresAt: string | null }> {
+  const orgId = await requireBuilderAccess()
+  const { userId } = await requireOrgAccess()
+  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
+  if (!p) throw new Error("Проект не найден")
+  const token = `${uid("sh")}${uid("k")}${uid("t")}`.replace(/[^a-z0-9]/gi, "").slice(0, 40)
+  const expiresAt = days > 0 ? new Date(Date.now() + Math.min(days, 365) * 86400_000) : null
+  await db.builderShare.create({ data: { token, projectId, expiresAt, createdById: userId } })
+  return { token, expiresAt: expiresAt ? expiresAt.toISOString() : null }
+}
+
+/** Действующие ссылки проекта (для панели «Поделиться»). */
+export async function listBuilderShares(projectId: string): Promise<Array<{ token: string; createdAt: string; expiresAt: string | null }>> {
+  const orgId = await requireBuilderAccess()
+  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
+  if (!p) return []
+  const rows = await db.builderShare.findMany({
+    where: { projectId, revokedAt: null },
+    select: { token: true, createdAt: true, expiresAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  })
+  return rows.map((r) => ({ token: r.token, createdAt: r.createdAt.toISOString(), expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null }))
+}
+
+/** Отозвать ссылку (одну или все у проекта): витрина сразу перестаёт открываться. */
+export async function revokeBuilderShare(projectId: string, token?: string): Promise<{ revoked: number }> {
   const orgId = await requireBuilderAccess()
   const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
   if (!p) throw new Error("Проект не найден")
-  const token = `${uid("sh")}${uid("k")}`.replace(/[^a-z0-9]/gi, "").slice(0, 32)
-  await db.builderShare.create({ data: { token, projectId } })
-  return { token }
+  const res = await db.builderShare.updateMany({
+    where: { projectId, revokedAt: null, ...(token ? { token } : {}) },
+    data: { revokedAt: new Date() },
+  })
+  return { revoked: res.count }
 }

@@ -87,6 +87,26 @@ const checks = [
     message: "deploy baseline must harden Prisma migration metadata after bootstrap",
   },
   {
+    file: "app/actions/builder.ts",
+    tokens: ["organizationId: orgId", "assertProjectAccess", "revokeBuilderShare", "expiresAt"],
+    message: "builder projects must be org-scoped and share links must expire and be revocable",
+  },
+  {
+    file: "app/showcase/[token]/page.tsx",
+    tokens: ["revokedAt", "expiresAt", "notFound()"],
+    message: "public showcase must reject revoked and expired share links",
+  },
+  {
+    file: "app/actions/builder-premise.ts",
+    tokens: ["revokedAt", "expiresAt"],
+    message: "showcase lead capture must honour revoked and expired share links",
+  },
+  {
+    file: "app/actions/floor-layout.ts",
+    tokens: ["assertBuildingInOrg", "requireOrgAccess"],
+    message: "floor layout writes must verify the building belongs to the organization",
+  },
+  {
     file: "scripts/e2e-isolation.ts",
     tokens: ["RUN_E2E_ISOLATION", "getAccessibleBuildingsForUser", "tenantScope(orgA.id)", "_prisma_migrations"],
     message: "SaaS isolation E2E must cover building access, tenant scope and RLS metadata",

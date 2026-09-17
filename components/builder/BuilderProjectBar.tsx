@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react"
 import { Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
-import { createBuilderProject, saveBuilderProject, createBuilderShare, loadBuilderProject } from "@/app/actions/builder"
+import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 
@@ -119,24 +119,40 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
     }
   }
 
-  const share = async () => {
+  // Публичные ссылки-витрины: живут 30 дней и отзываются — планировка здания
+  // не должна ходить по рукам вечно.
+  const [shares, setShares] = useState<Array<{ token: string; createdAt: string; expiresAt: string | null }>>([])
+  const [sharesOpen, setSharesOpen] = useState(false)
+  const shareUrl = (token: string) => `https://commrent.kz/showcase/${token}`
+  const refreshShares = async (id: string) => {
+    try { setShares(await listBuilderShares(id)) } catch { setShares([]) }
+  }
+  const openShares = async () => {
     if (!useSyncStore.getState().projectId) await doSave()
     const id = useSyncStore.getState().projectId
-    if (!id) {
-      alert("Сначала сохраните проект")
-      return
-    }
+    if (!id) { alert("Сначала сохраните проект"); return }
+    await refreshShares(id)
+    setSharesOpen((v) => !v)
+  }
+  const share = async () => {
+    const id = useSyncStore.getState().projectId
+    if (!id) { alert("Сначала сохраните проект"); return }
     try {
       const { token } = await createBuilderShare(id)
-      const url = `https://commrent.kz/showcase/${token}`
-      try {
-        await navigator.clipboard?.writeText(url)
-      } catch {
-        /* clipboard может быть недоступен */
-      }
-      alert(`Ссылка-витрина скопирована:\n${url}`)
+      try { await navigator.clipboard?.writeText(shareUrl(token)) } catch { /* clipboard может быть недоступен */ }
+      await refreshShares(id)
     } catch {
       alert("Не удалось создать ссылку")
+    }
+  }
+  const revoke = async (token?: string) => {
+    const id = useSyncStore.getState().projectId
+    if (!id) return
+    try {
+      await revokeBuilderShare(id, token)
+      await refreshShares(id)
+    } catch {
+      alert("Не удалось отозвать ссылку")
     }
   }
 
@@ -194,7 +210,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
         <button type="button" onClick={() => setAiOpen((v) => !v)} title="Сгенерировать здание из текста" className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(167,139,250,0.18)", color: TOKENS.accent2 }}>
           <Sparkles className="h-3.5 w-3.5" /> AI
         </button>
-        <button type="button" onClick={() => void share()} title="Публичная ссылка-витрина" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
+        <button type="button" onClick={() => void openShares()} title="Публичные ссылки-витрины: создать, скопировать, отозвать" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: sharesOpen ? TOKENS.accent : "rgba(148,163,184,0.12)", color: sharesOpen ? "#0b1220" : TOKENS.text }}>
           <Share2 className="h-3.5 w-3.5" />
         </button>
         {onScreenshot && (
@@ -206,6 +222,26 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+      {sharesOpen && (
+        <div className="flex flex-col gap-1.5 rounded-lg p-2 text-[11px]" style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.text }}>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold">Ссылки-витрины</span>
+            <button type="button" onClick={() => void share()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: TOKENS.accent, color: "#0b1220" }}>+ Создать на 30 дней</button>
+          </div>
+          {shares.length === 0 && <span style={{ color: TOKENS.muted }}>Активных ссылок нет. Проект виден только вашей организации.</span>}
+          {shares.map((sh) => (
+            <div key={sh.token} className="flex items-center gap-1">
+              <span className="flex-1 truncate" title={shareUrl(sh.token)}>…{sh.token.slice(-8)}</span>
+              <span style={{ color: TOKENS.muted }}>{sh.expiresAt ? `до ${new Date(sh.expiresAt).toLocaleDateString("ru-RU")}` : "бессрочно"}</span>
+              <button type="button" onClick={() => void navigator.clipboard?.writeText(shareUrl(sh.token))} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(148,163,184,0.16)" }}>Копировать</button>
+              <button type="button" onClick={() => void revoke(sh.token)} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}>Отозвать</button>
+            </div>
+          ))}
+          {shares.length > 1 && (
+            <button type="button" onClick={() => void revoke()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: "rgba(239,68,68,0.16)", color: "#fca5a5" }}>Отозвать все</button>
+          )}
+        </div>
+      )}
       <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: TOKENS.muted }}>
         <span className="h-2 w-2 rounded-full" style={{ background: dot }} /> {STATUS_LABEL[status]}
         {projectId && status !== "conflict" && <span className="opacity-60">· сохраняется автоматически</span>}

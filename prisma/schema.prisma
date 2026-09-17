@@ -1709,10 +1709,15 @@ model ListingDraft {
 
 // Read-only витрина по токену: token → проект (Showcase, публичный домен).
 model BuilderShare {
-  token     String   @id
-  projectId String   @map("project_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  token       String    @id
+  projectId   String    @map("project_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  // срок действия ссылки и отзыв: публичная витрина не должна жить вечно
+  expiresAt   DateTime? @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdById String?   @map("created_by_id")
 
   @@index([projectId])
+  @@index([projectId, revokedAt])
   @@map("builder_shares")
 }
