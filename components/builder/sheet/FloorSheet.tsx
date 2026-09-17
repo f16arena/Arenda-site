@@ -44,6 +44,7 @@ import { floorAtStage, hasReplan, replanSummary, type ReplanSummary } from "@/li
 import { buildingIndicators, type BuildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
+import { buildRoofPlan, type RoofPlan } from "@/lib/builder/drawing/roof-plan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
 export const STAGE_TITLE: Record<Exclude<PlanStage, "plan" | "edit">, string> = {
@@ -116,9 +117,16 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const [section, setSection] = useState<SheetSection>(initialSection)
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const stage: PlanStage = view.startsWith("replan:") ? (view.slice(7) as PlanStage) : "plan"
-  const isPlanView = view === "plan" || view.startsWith("replan:") || view === "evac"
+  const isPlanView = view === "plan" || view.startsWith("replan:") || view === "evac" || view === "roof"
   // план эвакуации: тот же план этажа + пути, знаки и легенда
   const evac = useMemo(() => (floor && view === "evac" ? buildEvacuation(floor) : null), [floor, view])
+  // план кровли строится по верхнему этажу здания
+  const roofPlan = useMemo(() => {
+    if (view !== "roof") return null
+    const all = (building?.floors ?? floors).filter((f) => Object.keys(f.wallGraph.edges).length > 0)
+    const top = [...all].sort((a, b) => b.elevation - a.elevation)[0]
+    return top ? buildRoofPlan(top) : null
+  }, [view, building, floors])
   const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null, stage) : null), [building, floors, floor, premiseNumbers, stage])
   const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
   // ведомость отделки и экспликация полов — отдельный лист-таблица
@@ -152,7 +160,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : view === "finish" && floor ? `${floorTitle(floor)}. Ведомость отделки помещений` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = elevation ? elevation.title : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомость отделки помещений` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   // лист-таблица не зависит от размеров плана: всегда A3 альбомный
   const TABLE_SHEET: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
   const activeSheet = view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
@@ -201,6 +209,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
         >
           <option value="plan">План этажа</option>
           <option value="evac">План эвакуации</option>
+          <option value="roof">План кровли</option>
           <option value="finish">Ведомость отделки и полы</option>
           {replan && (
             <optgroup label="Перепланировка этажа">
@@ -284,6 +293,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           sectionMarks={view === "plan" ? ownSections : []}
           replan={replanTables ? replan : null}
           evac={evac}
+          roofPlan={roofPlan}
           finish={finish}
           stage={stage}
           ar={arTables && extras && floor ? { rooms: extras.rooms, schedule: extras.schedule, floorId: floor.id } : null}
@@ -322,9 +332,12 @@ export function SheetSvg({
   cover,
   indicators,
   evac,
+  roofPlan,
   finish,
   ar,
 }: {
+  /** план кровли: контур, парапет, уклоны и воронки */
+  roofPlan?: RoofPlan | null
   /** лист-таблица: ведомость отделки помещений и экспликация полов */
   finish?: { rows: FinishRow[]; types: FloorTypeRow[] } | null
   /** план эвакуации: пути, выходы и легенда поверх плана */
@@ -429,7 +442,7 @@ export function SheetSvg({
       })}
 
       {/* стены */}
-      {d.wallSolids.map((q, i) => {
+      {!roofPlan && d.wallSolids.map((q, i) => {
         const st = d.wallStyles[i] ?? "solid"
         if (st === "solid") return <polygon key={`w${i}`} points={q.map(P).join(" ")} fill={wallFill} />
         if (st === "new") return <polygon key={`w${i}`} points={q.map(P).join(" ")} fill="url(#hatch-new)" stroke="#000" strokeWidth={0.3} />
@@ -446,10 +459,10 @@ export function SheetSvg({
         <ReplanTables summary={replan} stage={stage} x={w - 5 - reserveRight + 3} y={12} w={reserveRight - 6} maxH={h - 5 - STAMP.h - 5 - 12} />
       )}
       {/* окна, двери */}
-      {d.thinLines.map(([a, b], i) => (
+      {!roofPlan && d.thinLines.map(([a, b], i) => (
         <line key={`l${i}`} x1={X(a.x)} y1={Y(a.y)} x2={X(b.x)} y2={Y(b.y)} stroke={arch} strokeWidth={0.18} />
       ))}
-      {d.arcs.map((a, i) => {
+      {!roofPlan && d.arcs.map((a, i) => {
         const r = a.r / scale
         const s = { x: a.c.x + a.r * Math.cos((a.start * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.start * Math.PI) / 180) }
         const e = { x: a.c.x + a.r * Math.cos((a.end * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.end * Math.PI) / 180) }
@@ -459,10 +472,10 @@ export function SheetSvg({
 
       {/* помещения */}
       {/* МОП и технические — лёгкая штриховка: часть здания, не аренда */}
-      {d.rooms.filter((r) => r.use !== "rent").map((r, i) => (
+      {!roofPlan && d.rooms.filter((r) => r.use !== "rent").map((r, i) => (
         <path key={`mop${i}`} d={[r.polygon, ...r.holes].map((ring) => ring.map((q, k) => `${k ? "L" : "M"}${X(q.x).toFixed(2)} ${Y(q.y).toFixed(2)}`).join(" ") + " Z").join(" ")} fillRule="evenodd" fill="url(#sheet-mop)" stroke="none" />
       ))}
-      {d.rooms.map((r, i) => {
+      {!roofPlan && d.rooms.map((r, i) => {
         const top = r.number ?? (r.name || null)
         return (
           <g key={`r${i}`}>
@@ -542,10 +555,11 @@ export function SheetSvg({
         )
       })}
       {evac && <EvacLayer evac={evac} X={X} Y={Y} sheet={sheet} />}
-      {d.stairWells.map((q, i) => (
+      {roofPlan && <RoofPlanLayer plan={roofPlan} X={X} Y={Y} />}
+      {!roofPlan && d.stairWells.map((q, i) => (
         <polygon key={`sw${i}`} points={q.map(P).join(" ")} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="4 1.2 1 1.2" />
       ))}
-      {d.stairArrows.map((pts, i) => {
+      {!roofPlan && d.stairArrows.map((pts, i) => {
         const sp = pts.map((p) => ({ x: X(p.x), y: Y(p.y) }))
         const e = sp[sp.length - 1], b = sp[sp.length - 2]
         const L = Math.hypot(e.x - b.x, e.y - b.y) || 1
@@ -558,7 +572,7 @@ export function SheetSvg({
           </g>
         )
       })}
-      {d.lifts.map((lf, i) => (
+      {!roofPlan && d.lifts.map((lf, i) => (
         <g key={`lf${i}`} stroke="#000" fill="none">
           <polygon points={lf.shaft.map(P).join(" ")} strokeWidth={0.5} />
           <polygon points={lf.cabin.map(P).join(" ")} strokeWidth={0.25} />
@@ -566,7 +580,7 @@ export function SheetSvg({
           <line x1={X(lf.cabin[1].x)} y1={Y(lf.cabin[1].y)} x2={X(lf.cabin[3].x)} y2={Y(lf.cabin[3].y)} strokeWidth={0.18} />
         </g>
       ))}
-      {d.exits.map((ex, i) => {
+      {!roofPlan && d.exits.map((ex, i) => {
         const x = X(ex.at.x), y = Y(ex.at.y)
         const dx = ex.dir.x, dy = -ex.dir.y
         const tip = { x: x + dx * 6, y: y + dy * 6 }
@@ -578,7 +592,7 @@ export function SheetSvg({
           </g>
         )
       })}
-      {d.marks.map((m, i) => (
+      {!roofPlan && d.marks.map((m, i) => (
         <text key={`mk${i}`} x={X(m.at.x)} y={Y(m.at.y)} fontSize={2.2} textAnchor="middle" dominantBaseline="middle">{m.text}</text>
       ))}
       {ar && reserveRight > 0 && (
@@ -663,7 +677,7 @@ export function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : finish ? "Отделка и полы" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : roofPlan ? "Кровля" : finish ? "Отделка и полы" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
@@ -1042,4 +1056,43 @@ function FinishBody({ rows, types, w, h }: { rows: FinishRow[]; types: FloorType
     y, half,
   )
   return <g>{out}</g>
+}
+
+/** План кровли: контур, парапет, уклоны к воронкам и сами воронки. */
+function RoofPlanLayer({ plan, X, Y }: { plan: RoofPlan; X: (v: number) => number; Y: (v: number) => number }) {
+  const path = (pts: Array<{ x: number; y: number }>) => pts.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(2)} ${Y(p.y).toFixed(2)}`).join(" ") + " Z"
+  return (
+    <g>
+      <path d={path(plan.outline)} fill="#fff" stroke="#000" strokeWidth={0.6} />
+      <path d={path(plan.parapet)} fill="none" stroke="#000" strokeWidth={0.3} />
+      {plan.ridge && <line x1={X(plan.ridge.a.x)} y1={Y(plan.ridge.a.y)} x2={X(plan.ridge.b.x)} y2={Y(plan.ridge.b.y)} stroke="#000" strokeWidth={0.5} strokeDasharray="6 2 1 2" />}
+      {plan.slopes.map((sl, i) => {
+        const a = { x: X(sl.from.x), y: Y(sl.from.y) }
+        const b = { x: X(sl.to.x), y: Y(sl.to.y) }
+        const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+        const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+        const tip = { x: b.x - u.x * 4, y: b.y - u.y * 4 }
+        const mid = { x: (a.x + tip.x) / 2, y: (a.y + tip.y) / 2 }
+        return (
+          <g key={`sl${i}`}>
+            <line x1={a.x} y1={a.y} x2={tip.x} y2={tip.y} stroke="#000" strokeWidth={0.3} />
+            <polygon points={`${tip.x},${tip.y} ${tip.x - u.x * 3 - u.y * 1.2},${tip.y - u.y * 3 + u.x * 1.2} ${tip.x - u.x * 3 + u.y * 1.2},${tip.y - u.y * 3 - u.x * 1.2}`} fill="#000" />
+            <text x={mid.x} y={mid.y - 1.2} fontSize={2.4} textAnchor="middle">i={String(plan.slopePercent).replace(".", ",")}%</text>
+          </g>
+        )
+      })}
+      {plan.drains.map((d, i) => (
+        <g key={`dr${i}`}>
+          <circle cx={X(d.x)} cy={Y(d.y)} r={2.2} fill="none" stroke="#000" strokeWidth={0.4} />
+          <circle cx={X(d.x)} cy={Y(d.y)} r={0.9} fill="#000" />
+          <text x={X(d.x) + 3.4} y={Y(d.y) + 1} fontSize={2.4}>Вр-{i + 1}</text>
+        </g>
+      ))}
+      <text x={X(plan.bounds.minX)} y={Y(plan.bounds.minY) + 7} fontSize={2.6}>
+        {plan.flat
+          ? `Кровля плоская, рулонная по уклонообразующему слою; парапет по контуру; уклон к воронкам i=${String(plan.slopePercent).replace(".", ",")}%`
+          : "Кровля скатная; конёк показан штрихпунктиром; водоотвод организованный по свесам"}
+      </text>
+    </g>
+  )
 }

@@ -30,6 +30,33 @@ export interface BuildingIndicators {
  * Контур застройки: замкнутая цепочка наружных стен по осям. Площадь берётся по
  * внешней грани — к площади по осям добавляется периметр × полтолщины стены.
  */
+export function buildingOutline(g: WallGraph): Array<{ x: number; y: number }> {
+  const ext = Object.values(g.edges).filter((e) => e.kind === "exterior")
+  if (ext.length < 3) return []
+  const adj = new Map<string, string[]>()
+  for (const e of ext) {
+    adj.set(e.a, [...(adj.get(e.a) ?? []), e.b])
+    adj.set(e.b, [...(adj.get(e.b) ?? []), e.a])
+  }
+  let start = ext[0].a
+  for (const id of adj.keys()) {
+    const n = g.nodes[id], s0 = g.nodes[start]
+    if (!n || !s0) continue
+    if (n.x < s0.x || (n.x === s0.x && n.y < s0.y)) start = id
+  }
+  const loop: string[] = [start]
+  const seen = new Set<string>([start])
+  let cur = start
+  for (let guard = 0; guard < ext.length * 2 + 4; guard++) {
+    const next = (adj.get(cur) ?? []).find((id) => !seen.has(id))
+    if (!next) break
+    loop.push(next)
+    seen.add(next)
+    cur = next
+  }
+  return loop.map((id) => g.nodes[id]).filter(Boolean).map((n) => ({ x: n.x, y: n.y }))
+}
+
 export function footprintArea(g: WallGraph): number {
   const ext = Object.values(g.edges).filter((e) => e.kind === "exterior")
   if (ext.length < 3) return 0

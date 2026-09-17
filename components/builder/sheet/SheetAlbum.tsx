@@ -12,6 +12,7 @@ import type { Building, Floor } from "@/types/builder"
 import { buildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildEvacuation } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes } from "@/lib/builder/drawing/finish"
+import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -77,6 +78,20 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       for (const st of ["demolish", "install", "after"] as const) plan(f, st, "ar", `${floorTitle(f)}. ${STAGE_TITLE[st]}`)
     }
     for (const f of floors) for (const sec of sectionsWithContent(f)) plan(f, "plan", sec, `${floorTitle(f)}. ${sec} — ${SECTION_TITLE[sec].toLowerCase()}`)
+    // план кровли — один на здание, по верхнему этажу
+    {
+      const top = [...floors].sort((a, b) => b.elevation - a.elevation)[0]
+      const rp = top ? buildRoofPlan(top) : null
+      if (top && rp) {
+        const extras = planExtras(building.floors, top, num)
+        const drawing = buildFloorDrawing(top, num, "plan", extras.options)
+        const sheet = pickSheet(drawing, 0)
+        out.push({
+          key: "roof-plan", title: "План кровли", sheet,
+          props: { drawing, sheet, title: "План кровли", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", roofPlan: rp },
+        })
+      }
+    }
     const base = floors[0]
     if (base) {
       const drawing = buildFloorDrawing(base, num)
