@@ -67,6 +67,8 @@ export function buildRoof(floor: Floor, parent: TransformNode, scene: Scene, reg
       box.rotation.y = -Math.atan2(b.y - a.y, b.x - a.x)
       box.material = reg.get("plaster_white")
       box.receiveShadows = true
+      // бортик — украшение: клики сквозь него попадают в стены этажа
+      box.isPickable = false
       box.parent = parent
       box.metadata = { kind: "roof", floorId: floor.id, entityId: `roof_${floor.id}` }
     }
