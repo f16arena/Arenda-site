@@ -81,6 +81,15 @@ describe("модель → план этажа", () => {
     })
     expect(layout.underlay?.widthMeters).toBeCloseTo(36.55, 3)
     expect(layout.underlay?.x).toBe(-1)
-    expect(layout.underlay?.y).toBe(-2)
+    // верх картинки в модели — на y + высота (ось вверх), на карте ось вниз
+    expect(layout.underlay?.y).toBeCloseTo(-(-2 + 36.55 / 1.5), 2)
+  })
+
+  it("карта не переворачивает этаж: верх плана в модели — верх на карте", () => {
+    const floor = roomFloor()
+    const layout = floorToLayout(floor)
+    const wall = layout.elements.find((el) => el.type === "wall" && el.y1 === el.y2 && el.y1 < -1)
+    // стена на y = 4000 мм модели (верх комнаты) на карте оказывается выше (меньше y), чем стена на 0
+    expect(wall).toBeDefined()
   })
 })

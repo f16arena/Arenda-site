@@ -142,7 +142,8 @@ function planFromLayout(layout: FloorLayoutV2): PlannedFloor {
   // в миллиметрах от центра. Переносим начало координат в центр холста.
   const cx = layout.width / 2
   const cy = layout.height / 2
-  const toMm = (x: number, y: number): Vec2 => ({ x: (x - cx) * 1000, y: (y - cy) * 1000 })
+  // на карте ось Y вниз, в модели — вверх: разворачиваем, чтобы этаж не перевернулся
+  const toMm = (x: number, y: number): Vec2 => ({ x: (x - cx) * 1000, y: -(y - cy) * 1000 })
 
   const rooms: PlannedRoom[] = []
   const walls: PlannedFloor["walls"] = []

@@ -10,6 +10,9 @@ import type { FloorElement, FloorLayoutV2 } from "@/lib/floor-layout"
 import { detectRooms } from "@/core/geometry/room-detection"
 
 const MM = 1 / 1000
+// В модели ось Y плана смотрит вверх (как в CAD и в «Плане» конструктора),
+// на карте (SVG) — вниз. Без разворота карта показывала этаж вверх ногами.
+const flipY = (y: number) => -y
 
 function round(value: number): number {
   return Math.round(value * 1000) / 1000
@@ -35,7 +38,7 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
       id: room.id,
       spaceId: floor.premiseLinks[room.id] ?? null,
       kind: "rentable",
-      points: room.polygon.map((p) => ({ x: round(p.x * MM), y: round(p.y * MM) })),
+      points: room.polygon.map((p) => ({ x: round(p.x * MM), y: round(flipY(p.y) * MM) })),
     })
   }
 
@@ -49,9 +52,9 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
       type: "wall",
       id,
       x1: round(a.x * MM),
-      y1: round(a.y * MM),
+      y1: round(flipY(a.y) * MM),
       x2: round(b.x * MM),
-      y2: round(b.y * MM),
+      y2: round(flipY(b.y) * MM),
       thickness: round(edge.thickness * MM),
     })
   }
@@ -68,13 +71,13 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
     const t = Math.min(1, Math.max(0, (opening.offset + opening.width / 2) / length))
     const cx = a.x + (b.x - a.x) * t
     const cy = a.y + (b.y - a.y) * t
-    const rotation = orthoRotation(b.x - a.x, b.y - a.y)
+    const rotation = orthoRotation(b.x - a.x, flipY(b.y) - flipY(a.y))
     if (opening.type === "door") {
       elements.push({
         type: "door",
         id: opening.id,
         x: round(cx * MM),
-        y: round(cy * MM),
+        y: round(flipY(cy) * MM),
         width: round(opening.width * MM),
         rotation,
         swing: "left",
@@ -84,7 +87,7 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
         type: "window",
         id: opening.id,
         x: round(cx * MM),
-        y: round(cy * MM),
+        y: round(flipY(cy) * MM),
         width: round(opening.width * MM),
         rotation,
       })
@@ -99,9 +102,9 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
   for (const id in floor.wallGraph.nodes) {
     const n = floor.wallGraph.nodes[id]
     minX = Math.min(minX, n.x)
-    minY = Math.min(minY, n.y)
+    minY = Math.min(minY, flipY(n.y))
     maxX = Math.max(maxX, n.x)
-    maxY = Math.max(maxY, n.y)
+    maxY = Math.max(maxY, flipY(n.y))
   }
   const hasNodes = Number.isFinite(minX)
   const width = hasNodes ? round((maxX - Math.min(minX, 0)) * MM + 2) : 30
@@ -120,7 +123,8 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
           widthMeters: round(underlay.widthMm * MM),
           aspect: underlay.aspect,
           x: round(underlay.x * MM),
-          y: round(underlay.y * MM),
+          // верхний левый угол картинки: в модели y — нижняя граница по оси вверх
+          y: round(flipY(underlay.y + underlay.widthMm / (underlay.aspect || 1)) * MM),
           opacity: underlay.opacity,
         }
       : null,
