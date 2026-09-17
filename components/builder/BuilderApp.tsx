@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, CompositeCommand, type Command } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, TransformWallsCommand, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -95,6 +95,46 @@ function groupDelete(ids: string[]): void {
   })
   if (commands.length) useDocumentStore.getState().execute(new CompositeCommand(`удаление: ${commands.length}`, commands))
   useEditorStore.getState().clearMulti()
+}
+
+/** Сдвиг/копия/поворот/зеркало выделенных стен одного этажа; выделение переходит на результат. */
+function groupWalls(xf: import("@/lib/builder/wall-transform").WallXf, copy: boolean): void {
+  const d = useDocumentStore.getState().doc
+  const ids = useEditorStore.getState().multi
+  const byFloor = new Map<string, string[]>()
+  for (const id of ids) {
+    const fid = wallFloor(d, id)
+    if (fid) byFloor.set(fid, [...(byFloor.get(fid) ?? []), id])
+  }
+  const [fid, walls] = [...byFloor.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? []
+  if (!fid || !walls?.length) return
+  const cmd = new TransformWallsCommand(fid, walls, xf, copy)
+  useDocumentStore.getState().execute(cmd)
+  if (cmd.createdIds.length) useEditorStore.getState().setMulti(cmd.createdIds)
+}
+
+function WallGroupBar() {
+  const [dx, setDx] = useState("0")
+  const [dy, setDy] = useState("0")
+  const m = (v: string) => Math.round((parseFloat(v.replace(",", ".")) || 0) * 1000)
+  const btn = "rounded-md px-2 py-1 text-xs"
+  const style = { background: TOKENS.panelBorder, color: TOKENS.text }
+  const input = "w-14 rounded-md bg-white/5 px-1.5 py-1 text-xs"
+  return (
+    <div className="flex items-center gap-1.5" title="Как MOVE/COPY/ROTATE/MIRROR в AutoCAD: смещение в метрах по осям плана">
+      <label className="flex items-center gap-1 text-[11px] font-normal" style={{ color: TOKENS.muted }}>
+        ΔX<input id="group-dx" value={dx} onChange={(e) => setDx(e.target.value)} className={input} style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+      </label>
+      <label className="flex items-center gap-1 text-[11px] font-normal" style={{ color: TOKENS.muted }}>
+        ΔY<input id="group-dy" value={dy} onChange={(e) => setDy(e.target.value)} className={input} style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+      </label>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "move", dx: m(dx), dy: m(dy) }, false)}>Сдвинуть</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "move", dx: m(dx), dy: m(dy) }, true)}>Копия</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "rotate", deg: 90 }, false)} title="Поворот на 90° против часовой вокруг центра выделения">⟲ 90°</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "mirror", axis: "vertical" }, false)} title="Зеркально слева направо">⇋</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "mirror", axis: "horizontal" }, false)} title="Зеркально сверху вниз">⇅</button>
+    </div>
+  )
 }
 
 function groupDuplicate(ids: string[]): void {
@@ -609,10 +649,11 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       )}
       {!readOnly && multi.length > 0 && (
         <div
-          className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
+          className="absolute left-1/2 top-[9.75rem] z-30 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.accent}`, color: TOKENS.text }}
         >
           <span style={{ color: TOKENS.accent }}>Выбрано: {multi.length}</span>
+          {multi.some((id) => wallFloor(doc, id)) && <WallGroupBar />}
           {multi.length >= 2 && multi.every((id) => objTarget(doc, id)) && (
             <>
               <button

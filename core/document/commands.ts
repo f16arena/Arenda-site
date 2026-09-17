@@ -16,6 +16,7 @@ import { centroid, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { uid } from "@/core/id"
 import type { RoomPreset } from "@/lib/builder/room-presets"
+import { remapOpenings, transformWalls, type WallXf } from "@/lib/builder/wall-transform"
 
 export interface Command {
   readonly kind: string
@@ -198,18 +199,22 @@ export class InsertWallCommand implements Command {
   readonly kind = "insert-wall"
   readonly label = "стена"
   private prev?: WallGraph
+  private prevOpenings?: Opening[]
   constructor(private floorId: string, private p1: Vec2, private p2: Vec2, private def: WallDefaults) {}
   apply(doc: BuilderDocument): BuilderDocument {
     const f = findFloor(doc, this.floorId)
     if (!f) return doc
-    if (!this.prev) this.prev = f.wallGraph
+    if (!this.prev) { this.prev = f.wallGraph; this.prevOpenings = f.openings }
     const { graph } = insertWall(f.wallGraph, this.p1, this.p2, this.def)
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: graph }))
+    // примыкание делит стену: дверь или окно на ней переезжают на нужную часть
+    const openings = remapOpenings(f.wallGraph, graph, f.openings)
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: graph, openings }))
   }
   revert(doc: BuilderDocument): BuilderDocument {
     if (!this.prev) return doc
     const prev = this.prev
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev }))
+    const ops = this.prevOpenings
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev, openings: ops ?? fl.openings }))
   }
 }
 
@@ -218,12 +223,14 @@ export class AddRoomCommand implements Command {
   readonly kind = "add-room"
   readonly label = "комната"
   private prev?: WallGraph
+  private prevOpenings?: Opening[]
   constructor(private floorId: string, private x1: number, private y1: number, private x2: number, private y2: number, private def: WallDefaults) {}
   apply(doc: BuilderDocument): BuilderDocument {
     const f = findFloor(doc, this.floorId)
     if (!f) return doc
-    if (!this.prev) this.prev = f.wallGraph
+    if (!this.prev) { this.prev = f.wallGraph; this.prevOpenings = f.openings }
     let g = f.wallGraph
+    let openings = f.openings
     const corners: Array<[number, number]> = [
       [this.x1, this.y1],
       [this.x2, this.y1],
@@ -233,14 +240,17 @@ export class AddRoomCommand implements Command {
     for (let i = 0; i < 4; i++) {
       const a = corners[i]
       const b = corners[(i + 1) % 4]
+      const before = g
       g = insertWall(g, { x: a[0], y: a[1] }, { x: b[0], y: b[1] }, this.def).graph
+      openings = remapOpenings(before, g, openings)
     }
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: g }))
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: g, openings }))
   }
   revert(doc: BuilderDocument): BuilderDocument {
     if (!this.prev) return doc
     const prev = this.prev
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev }))
+    const ops = this.prevOpenings
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev, openings: ops ?? fl.openings }))
   }
 }
 
@@ -327,17 +337,20 @@ export class DeleteWallCommand implements Command {
   readonly kind = "delete-wall"
   readonly label = "удаление стены"
   private prev?: WallGraph
+  private prevOpenings?: Opening[]
   constructor(private floorId: string, private edgeId: string) {}
   apply(doc: BuilderDocument): BuilderDocument {
     const f = findFloor(doc, this.floorId)
     if (!f) return doc
-    if (!this.prev) this.prev = f.wallGraph
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: removeEdge(fl.wallGraph, this.edgeId) }))
+    if (!this.prev) { this.prev = f.wallGraph; this.prevOpenings = f.openings }
+    // проёмы удалённой стены уходят вместе с ней, а не висят невидимыми
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: removeEdge(fl.wallGraph, this.edgeId), openings: fl.openings.filter((o) => o.wallId !== this.edgeId) }))
   }
   revert(doc: BuilderDocument): BuilderDocument {
     if (!this.prev) return doc
     const prev = this.prev
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev }))
+    const ops = this.prevOpenings
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev, openings: ops ?? fl.openings }))
   }
 }
 
@@ -1257,4 +1270,34 @@ export function replanDeleteOpening(doc: BuilderDocument, floorId: string, openi
   if (!replan || o.phase === "new") return new DeleteOpeningCommand(floorId, openingId)
   if (o.phase === "demolish") return null
   return new SetOpeningPhaseCommand(floorId, openingId, "demolish")
+}
+
+// ── Групповые операции со стенами: сдвиг, копия, поворот, зеркало ─────────────
+export class TransformWallsCommand implements Command {
+  readonly kind = "transform-walls"
+  readonly label: string
+  private prev?: { wallGraph: WallGraph; openings: Opening[] }
+  private result?: { wallGraph: WallGraph; openings: Opening[] }
+  /** рёбра после операции — для нового выделения */
+  createdIds: string[] = []
+  constructor(private floorId: string, private edgeIds: string[], private xf: WallXf, private copy: boolean) {
+    this.label = copy ? "копия стен" : xf.kind === "move" ? "сдвиг стен" : xf.kind === "rotate" ? "поворот стен" : "зеркало стен"
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (!f) return doc
+    if (!this.result) {
+      this.prev = { wallGraph: f.wallGraph, openings: f.openings }
+      const r = transformWalls(f, this.edgeIds, this.xf, this.copy)
+      this.result = { wallGraph: r.wallGraph, openings: r.openings }
+      this.createdIds = r.edgeIds
+    }
+    const res = this.result
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: res.wallGraph, openings: res.openings }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const prev = this.prev
+    if (!prev) return doc
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev.wallGraph, openings: prev.openings }))
+  }
 }

@@ -194,6 +194,7 @@ export interface EditorState {
   setSelection: (s: Selection) => void
   toggleMulti: (id: string) => void
   clearMulti: () => void
+  setMulti: (ids: string[]) => void
   setHover: (id: string | null) => void
   setPaintMaterial: (id: string) => void
   setOpeningType: (t: OpeningType) => void
@@ -277,6 +278,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setSelection: (s) => set({ selection: s, multi: [] }),
   toggleMulti: (id) => set((st) => ({ multi: st.multi.includes(id) ? st.multi.filter((m) => m !== id) : [...st.multi, id], selection: { type: "none" } })),
   clearMulti: () => set({ multi: [] }),
+  setMulti: (ids) => set({ multi: ids, selection: { type: "none" } }),
   setHover: (id) => set({ hoverId: id }),
   setPaintMaterial: (id) => set({ paintMaterialId: id }),
   setOpeningType: (t) => set({ openingType: t }),

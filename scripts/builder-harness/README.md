@@ -20,6 +20,7 @@ node scripts/builder-harness/run11.mjs     # инженерные сети: тр
 node scripts/builder-harness/run12.mjs     # линия разреза: рисование, выбор, сторона, удаление
 node scripts/builder-harness/run13.mjs     # перепланировка: демонтаж, новые стены, сводка
 node scripts/builder-harness/run14.mjs     # подложка из DXF в масштабе
+node scripts/builder-harness/run15.mjs     # группа стен: сдвиг, копия, поворот с проёмами
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.
