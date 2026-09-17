@@ -704,10 +704,13 @@ export class BuilderEngine {
       const sy = this.wallStart.z * 1000
       const vx = mmX - sx
       const vy = mmY - sy
-      const dist = Math.max(100, snapToGrid(Math.hypot(vx, vy), 100))
-      // Shift — орто-лок (90°), иначе шаг 15°.
-      const step = this.shiftDown ? Math.PI / 2 : Math.PI / 12
-      const ang = Math.round(Math.atan2(vy, vx) / step) * step
+      // Привязка включена: длина шагом 10 см, угол шагом 15°. Выключена —
+      // обводка по скану: 1 см и свободный угол. Shift — орто-лок (90°) всегда.
+      const distStep = this.snapEnabled ? 100 : 10
+      const dist = Math.max(distStep, snapToGrid(Math.hypot(vx, vy), distStep))
+      const raw = Math.atan2(vy, vx)
+      const step = this.shiftDown ? Math.PI / 2 : this.snapEnabled ? Math.PI / 12 : 0
+      const ang = step ? Math.round(raw / step) * step : raw
       mmX = sx + Math.cos(ang) * dist
       mmY = sy + Math.sin(ang) * dist
     } else {
@@ -1232,7 +1235,10 @@ export class BuilderEngine {
       return
     }
     if (key === "Backspace") this.lengthInput = this.lengthInput.slice(0, -1)
-    else if (/^[0-9]$/.test(key) || key === ",") this.lengthInput += key
+    // и запятая, и точка: 36,55 и 36.55 — одна длина
+    else if (/^[0-9]$/.test(key)) this.lengthInput += key
+    else if ((key === "," || key === ".") && !/[.,]/.test(this.lengthInput)) this.lengthInput += ","
+
     this.onHud(this.lengthInput ? `${this.lengthInput} м` : null)
   }
 

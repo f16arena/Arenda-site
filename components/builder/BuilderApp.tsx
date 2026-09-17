@@ -377,7 +377,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       }
       // Ввод длины стены имеет приоритет над хоткеями (цифры = пресеты камеры).
       const eng = engineRef.current
-      if (eng && eng.isDrawingWall() && (/^[0-9]$/.test(e.key) || e.key === "Backspace" || e.key === "Enter" || e.key === ",")) {
+      if (eng && eng.isDrawingWall() && (/^[0-9]$/.test(e.key) || e.key === "Backspace" || e.key === "Enter" || e.key === "," || e.key === ".")) {
         e.preventDefault()
         eng.handleLengthKey(e.key)
         return
