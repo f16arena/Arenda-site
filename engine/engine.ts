@@ -612,7 +612,12 @@ export class BuilderEngine {
       }
     }
 
-    const walls = buildWalls(f, fNode, scene, this.reg)
+    // цоколь у нижнего этажа, карниз у верхнего — здание перестаёт быть «коробкой»
+    const elevations = b.floors.map((fl) => fl.elevation)
+    const walls = buildWalls(f, fNode, scene, this.reg, {
+      plinth: f.elevation === Math.min(...elevations),
+      cornice: f.elevation === Math.max(...elevations),
+    })
     const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
     // Скан плана на полу — чуть выше пола, чтобы не мерцал с перекрытием.
     // Не пикается: клики сквозь него попадают в пол/стены.
@@ -889,8 +894,14 @@ export class BuilderEngine {
   // ничего не делало), скорость панорамы — за расстоянием до цели.
   private syncCamera(): void {
     const camera = this.bundle.camera
-    camera.panningSensibility = Math.max(8, 4000 / Math.max(1, camera.radius))
-    if (camera.mode !== Camera.ORTHOGRAPHIC_CAMERA) return
+    // Панорама (ПКМ) должна идти ровно за курсором: сколько метров в пикселе на
+    // текущем расстоянии, столько и сдвигаем. Раньше коэффициент был «на глаз» и
+    // при приближении панорама почти останавливалась.
+    const h = Math.max(1, this.bundle.engine.getRenderHeight())
+    const ortho = camera.mode === Camera.ORTHOGRAPHIC_CAMERA
+    const metersPerPx = ortho ? camera.radius / h : (2 * Math.max(0.5, camera.radius) * Math.tan(camera.fov / 2)) / h
+    camera.panningSensibility = Math.min(4000, Math.max(4, 1 / metersPerPx))
+    if (!ortho) return
     const half = camera.radius * 0.5
     const aspect = this.bundle.engine.getAspectRatio(camera)
     camera.orthoTop = half

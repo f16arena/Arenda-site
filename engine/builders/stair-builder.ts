@@ -20,8 +20,13 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
   const meta = { kind: "stair", floorId: stair.fromFloorId, entityId: stair.id }
   // Зеркало по локальной X: переносим позиции (геометрия/нормали целы, без отрицательного scale).
   const mx = stair.mirror ? -1 : 1
-  const place = (b: { x: number; y: number; z: number; w: number; h: number; d: number }, m: Mesh) => {
+  const place = (b: { x: number; y: number; z: number; w: number; h: number; d: number; tilt?: number; tiltAxis?: "x" | "z" }, m: Mesh) => {
     m.position.set(b.x * mx * S, b.y * S, b.z * S)
+    if (b.tilt) {
+      const t = b.tiltAxis === "z" ? b.tilt * mx : b.tilt
+      if (b.tiltAxis === "z") m.rotation.z = t
+      else m.rotation.x = t
+    }
     m.parent = root
     m.receiveShadows = true
     m.metadata = meta

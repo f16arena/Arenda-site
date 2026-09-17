@@ -9,6 +9,7 @@ import {
   DirectionalLight,
   DynamicTexture,
   Engine,
+  FxaaPostProcess,
   GlowLayer,
   HemisphericLight,
   HighlightLayer,
@@ -93,6 +94,14 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   scene.fogColor = new Color3(0.84, 0.9, 0.97)
   scene.fogDensity = 0.0011
 
+  // Тон и контраст как у фотографии (ACES) — без этого бетон и штукатурка
+  // выглядят плоско-серыми, а солнце «выжигает» стены.
+  const ip = scene.imageProcessingConfiguration
+  ip.toneMappingEnabled = true
+  ip.toneMappingType = 1 // ACES
+  ip.contrast = 1.2
+  ip.exposure = 1.05
+
   buildSkyGradient(scene)
 
   const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene)
@@ -104,7 +113,7 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   sun.position = new Vector3(40, 70, 30)
   sun.intensity = 2.1
   sun.diffuse = new Color3(1, 0.97, 0.9)
-  const shadow = new ShadowGenerator(1024, sun)
+  const shadow = new ShadowGenerator(2048, sun)
   shadow.useBlurExponentialShadowMap = true
   shadow.blurKernel = 32
   shadow.darkness = 0.38
@@ -134,10 +143,16 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   // зум колесом пропорционально расстоянию и к точке под курсором — как в CAD:
   // одинаково удобно и на весь квартал, и на дверной проём
   camera.wheelDeltaPercentage = 0.04
+  // вращение (ЛКМ) спокойнее: с заводским 1000 модель «улетала» от лёгкого движения
+  camera.angularSensibilityX = 1800
+  camera.angularSensibilityY = 1800
   camera.zoomToMouseLocation = true
   camera.panningSensibility = 80
   camera.minZ = 0.1
   camera.maxZ = 2200
+
+  // Сглаживание краёв: без него грани стен «лесенкой» на любом мониторе.
+  new FxaaPostProcess("fxaa", 1, camera)
 
   const glow = new GlowLayer("glow", scene)
   glow.intensity = 0.6

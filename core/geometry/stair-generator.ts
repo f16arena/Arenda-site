@@ -12,6 +12,10 @@ export interface StepBox {
   w: number
   h: number
   d: number
+  /** наклон (рад) — для поручня вдоль марша */
+  tilt?: number
+  /** ось наклона: марш вдоль Z наклоняет поручень вокруг X и наоборот */
+  tiltAxis?: "x" | "z"
 }
 
 export interface StairGeometry {
@@ -88,13 +92,45 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
   let maxX = width
   let maxZ = 0
 
+  // Подступёнок под проступью — марш выглядит как настоящая лестница, а не как
+  // висящие в воздухе плиты, и в разрезе читается правильно.
+  const addRiser = (idx: number, cx: number, cz: number, dir: 1 | -1, axis: "z" | "x") => {
+    const h = Math.max(20, riser - STEP_T)
+    const y = idx * riser + h / 2
+    if (axis === "z") steps.push({ x: cx, y, z: cz - dir * (T / 2 - 30), w: width, h, d: 60 })
+    else steps.push({ x: cx - dir * (T / 2 - 30), y, z: cz, w: 60, h, d: width })
+  }
+  // Перила марша: стойки через ступень и наклонный поручень.
+  const addRail = (n: number, ox: number, oz: number, dir: 1 | -1, axis: "z" | "x", startStep: number) => {
+    if (!railing || n < 1) return
+    const RAIL_H = 900
+    const edge = axis === "z" ? ox - width / 2 + 40 : oz - width / 2 + 40
+    for (let i = 0; i < n; i += 2) {
+      const idx = startStep + i
+      const top = (idx + 1) * riser
+      const alongC = dir * (i * T + T / 2)
+      if (axis === "z") rails.push({ x: edge, y: top + RAIL_H / 2, z: oz + alongC, w: 45, h: RAIL_H, d: 45 })
+      else rails.push({ x: ox + alongC, y: top + RAIL_H / 2, z: edge, w: 45, h: RAIL_H, d: 45 })
+    }
+    const run = n * T
+    const rise = n * riser
+    const L = Math.hypot(run, rise)
+    const tilt = Math.atan2(rise, run)
+    const midAlong = dir * (run / 2)
+    const midY = startStep * riser + rise / 2 + RAIL_H
+    if (axis === "z") rails.push({ x: edge, y: midY, z: oz + midAlong, w: 60, h: 60, d: L, tilt: -dir * tilt, tiltAxis: "x" })
+    else rails.push({ x: ox + midAlong, y: midY, z: edge, w: L, h: 60, d: 60, tilt: dir * tilt, tiltAxis: "z" })
+  }
+
   const addRun = (n: number, ox: number, oz: number, dir: 1 | -1, axis: "z" | "x", startStep: number) => {
+    addRail(n, ox, oz, dir, axis, startStep)
     for (let i = 0; i < n; i++) {
       const idx = startStep + i
       const y = (idx + 1) * riser - STEP_T / 2
       if (axis === "z") {
         const z = oz + dir * (i * T + T / 2)
         steps.push({ x: ox, y, z, w: width, h: STEP_T, d: T })
+        addRiser(idx, ox, z, dir, axis)
         minZ = Math.min(minZ, z - T / 2)
         maxZ = Math.max(maxZ, z + T / 2)
         minX = Math.min(minX, ox - width / 2)
@@ -102,6 +138,7 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
       } else {
         const x = ox + dir * (i * T + T / 2)
         steps.push({ x, y, z: oz, w: T, h: STEP_T, d: width })
+        addRiser(idx, x, oz, dir, axis)
         minX = Math.min(minX, x - T / 2)
         maxX = Math.max(maxX, x + T / 2)
         minZ = Math.min(minZ, oz - width / 2)
@@ -117,6 +154,10 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
     const n2 = count - n1
     addRun(n1, width / 2, 0, 1, "z", 0)
     const landingZ = n1 * T
+    // промежуточная площадка: без неё между маршами оставалась дыра
+    steps.push({ x: width / 2, y: n1 * riser - STEP_T / 2, z: landingZ + width / 2, w: width, h: STEP_T, d: width })
+    minZ = Math.min(minZ, landingZ)
+    maxZ = Math.max(maxZ, landingZ + width)
     addRun(n2, width / 2, landingZ + width / 2, 1, "x", n1)
   } else {
     // u-shape: два марша в противоположных направлениях + площадка
@@ -124,12 +165,12 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
     const n2 = count - n1
     addRun(n1, width / 2, 0, 1, "z", 0)
     const landingZ = n1 * T
+    steps.push({ x: width + 50, y: n1 * riser - STEP_T / 2, z: landingZ + width / 2, w: 2 * width + 100, h: STEP_T, d: width })
+    minZ = Math.min(minZ, landingZ)
+    maxZ = Math.max(maxZ, landingZ + width)
+    minX = Math.min(minX, 0)
+    maxX = Math.max(maxX, 2 * width + 100)
     addRun(n2, width / 2 + width + 100, landingZ, -1, "z", n1)
-  }
-
-  if (railing) {
-    const railH = 900
-    rails.push({ x: minX + 30, y: totalRise / 2 + railH / 2, z: (minZ + maxZ) / 2, w: 40, h: railH, d: maxZ - minZ })
   }
 
   return { steps, rails, hole: { minX, minZ, maxX, maxZ } }

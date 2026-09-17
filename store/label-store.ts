@@ -22,7 +22,9 @@ interface LabelState {
 
 export const useLabelStore = create<LabelState>((set) => ({
   labels: [],
-  showDimensions: true,
+  // размеры всех стен по умолчанию выключены: в 3D они закрывали вид;
+  // у выбранной стены размер виден всегда, остальные — кнопкой «Размеры» (L)
+  showDimensions: false,
   cursorMm: null,
   setLabels: (labels) => set({ labels }),
   toggleDimensions: () => set((s) => ({ showDimensions: !s.showDimensions })),
