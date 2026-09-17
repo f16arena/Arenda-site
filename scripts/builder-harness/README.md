@@ -12,6 +12,7 @@ node scripts/builder-harness/run3.mjs      # 3D-перспектива: этаж
 node scripts/builder-harness/run4.mjs      # привязки инструмента стены
 node scripts/builder-harness/run5.mjs      # путь по скану (нужен .tmp-harness/bti.pdf)
 node scripts/builder-harness/run6.mjs      # очередь сохранений при медленном сервере
+node scripts/builder-harness/run7.mjs      # рамка, Shift+клик, групповое удаление
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

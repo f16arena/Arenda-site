@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -74,13 +74,21 @@ function objTarget(doc: BuilderDocument, id: string): { target: { site: true } |
   return null
 }
 
+function wallFloor(doc: BuilderDocument, edgeId: string): string | null {
+  for (const b of doc.buildings) for (const f of b.floors) if (f.wallGraph.edges[edgeId]) return f.id
+  return null
+}
+
+// Групповое удаление объектов и стен — одним шагом истории: Ctrl+Z возвращает всё сразу.
 function groupDelete(ids: string[]): void {
-  const exec = useDocumentStore.getState().execute
   const d = useDocumentStore.getState().doc
-  for (const id of ids) {
+  const commands = ids.flatMap((id): Command[] => {
     const t = objTarget(d, id)
-    if (t) exec(new DeleteObjectCommand(t.target, id))
-  }
+    if (t) return [new DeleteObjectCommand(t.target, id)]
+    const fid = wallFloor(d, id)
+    return fid ? [new DeleteWallCommand(fid, id)] : []
+  })
+  if (commands.length) useDocumentStore.getState().execute(new CompositeCommand(`удаление: ${commands.length}`, commands))
   useEditorStore.getState().clearMulti()
 }
 
@@ -148,6 +156,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   )
 
   const [hud, setHud] = useState<string | null>(null)
+  const [box, setBox] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   // счётчик FPS мешает инженеру и перекрывал «Размеры»; для отладки — ?perf
   const [showPerf] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("perf"))
   // Последний отрезок рулетки — панель подложки спросит его настоящую длину
@@ -184,7 +193,22 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engine.getDoc = () => useDocumentStore.getState().doc
     engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
     engine.onPick = (meta) => applyPick(meta)
-    engine.onMultiToggle = (id) => useEditorStore.getState().toggleMulti(id)
+    engine.onMultiToggle = (id) => {
+      const ed = useEditorStore.getState()
+      // Shift+клик ко второй стене: первая, выбранная обычным кликом, остаётся в наборе
+      if (ed.multi.length === 0 && ed.selection.id && ed.selection.id !== id && (ed.selection.type === "wall" || ed.selection.type === "object")) {
+        useEditorStore.setState({ multi: [ed.selection.id], selection: { type: "none" } })
+      }
+      useEditorStore.getState().toggleMulti(id)
+    }
+    engine.onBox = (rect) => setBox(rect)
+    engine.onBoxSelect = (ids, additive) => {
+      const ed = useEditorStore.getState()
+      const base = additive ? ed.multi : []
+      const next = [...new Set([...base, ...ids])]
+      if (next.length === 1) ed.setSelection({ type: "wall", id: next[0], floorId: ed.activeLevelId ?? undefined })
+      else useEditorStore.setState({ multi: next, selection: { type: "none" } })
+    }
     engine.onObjectBaseSizes = (sizes) => useEditorStore.getState().setAssetBaseSizes(sizes)
     // Инструмент «Помещение» просто выбирает комнату — карточка выбирается
     // в панели свойств из списка помещений этого здания, а не вводится номером.
@@ -512,13 +536,27 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           <ShowcaseLead token={shareToken} premiseNumber={doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)?.premiseLinks[selection.id ?? ""]} onClose={() => useEditorStore.getState().setSelection({ type: "none" })} />
         </div>
       )}
+      {box && (
+        // рамка выделения: синяя сплошная — «целиком внутри», зелёная пунктирная — «задетые»
+        <div
+          className="pointer-events-none absolute z-30"
+          style={{
+            left: Math.min(box.x1, box.x2),
+            top: Math.min(box.y1, box.y2),
+            width: Math.abs(box.x2 - box.x1),
+            height: Math.abs(box.y2 - box.y1),
+            border: box.x2 < box.x1 ? "1.5px dashed #22c55e" : "1.5px solid #38bdf8",
+            background: box.x2 < box.x1 ? "rgba(34,197,94,0.08)" : "rgba(56,189,248,0.08)",
+          }}
+        />
+      )}
       {!readOnly && multi.length > 0 && (
         <div
           className="absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.accent}`, color: TOKENS.text }}
         >
           <span style={{ color: TOKENS.accent }}>Выбрано: {multi.length}</span>
-          {multi.length >= 2 && (
+          {multi.length >= 2 && multi.every((id) => objTarget(doc, id)) && (
             <>
               <button
                 type="button"
@@ -538,14 +576,14 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
               </button>
             </>
           )}
-          <button
+          {multi.every((id) => objTarget(doc, id)) && <button
             type="button"
             onClick={() => groupDuplicate(useEditorStore.getState().multi)}
             className="rounded-md px-2 py-1 text-xs"
             style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
           >
             Дублировать (Ctrl+D)
-          </button>
+          </button>}
           <button
             type="button"
             onClick={() => groupDelete(useEditorStore.getState().multi)}

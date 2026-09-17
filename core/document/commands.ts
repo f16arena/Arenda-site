@@ -309,6 +309,18 @@ export class DeleteWallCommand implements Command {
   }
 }
 
+// ── Composite: несколько правок — один шаг истории (групповое удаление) ─────────
+export class CompositeCommand implements Command {
+  readonly kind = "composite"
+  constructor(readonly label: string, private commands: Command[]) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return this.commands.reduce((d, c) => c.apply(d), doc)
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return [...this.commands].reverse().reduce((d, c) => c.revert(d), doc)
+  }
+}
+
 // ── MoveNode (с merge для drag) ─────────────────────────────────────────────
 export class MoveNodeCommand implements Command {
   readonly kind = "move-node"

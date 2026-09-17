@@ -169,6 +169,8 @@ export class BuilderEngine {
   private shiftDown = false
   // нажатие левой кнопкой — для распознавания клика
   private press: { x: number; y: number } | null = null
+  // рамка выделения в плане (экранные пиксели движка)
+  private box: { sx: number; sy: number; moved: boolean; additive: boolean } | null = null
   // ручки-узлы: только у выделенной стены (как grips в AutoCAD)
   private grips: Mesh[] = []
   // конец перетаскивания — чтобы следом пришедший tap не сменил выделение
@@ -189,6 +191,10 @@ export class BuilderEngine {
   snapEnabled = true // привязка к сетке (стены 100мм, объекты 50мм); тумблер G
   onPick: (meta: MeshMeta | null) => void = () => {}
   onMultiToggle: (objectId: string) => void = () => {}
+  /** рамка выделения в CSS-пикселях (null — скрыть) */
+  onBox: (rect: { x1: number; y1: number; x2: number; y2: number } | null) => void = () => {}
+  /** стены, попавшие в рамку; additive — добавить к выделению (Shift) */
+  onBoxSelect: (ids: string[], additive: boolean) => void = () => {}
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
@@ -1043,6 +1049,13 @@ export class BuilderEngine {
           scene.activeCamera?.detachControl()
         }
       } else if (!selected) {
+        // В плане протяжка по пустому месту или по помещению — рамка выделения
+        // (вращать план всё равно нельзя). Клик без протяжки выберет помещение.
+        const ortho = scene.activeCamera?.mode === Camera.ORTHOGRAPHIC_CAMERA
+        if (ortho && (!meta || meta.kind === "room" || meta.kind === "ground" || meta.kind === "status")) {
+          this.box = { sx, sy, moved: false, additive: this.shiftDown }
+          scene.activeCamera?.detachControl()
+        }
         return
       } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
         this.dragOpening = { floorId: meta.floorId, openingId: meta.entityId, sx, sy, moved: false }
@@ -1067,6 +1080,43 @@ export class BuilderEngine {
         scene.activeCamera?.detachControl()
       }
     }
+  }
+
+  private cssScale(): number {
+    const canvas = this.bundle.engine.getRenderingCanvas()
+    const w = this.bundle.engine.getRenderWidth()
+    return canvas && canvas.clientWidth > 0 && w > 0 ? canvas.clientWidth / w : 1
+  }
+
+  // Рамка как в AutoCAD: слева направо — стены целиком внутри рамки,
+  // справа налево — все, которые рамка задела.
+  private wallsInBox(x1: number, y1: number, x2: number, y2: number): string[] {
+    const doc = this.getDoc()
+    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f) return []
+    const { scene, engine, camera } = this.bundle
+    const transform = scene.getTransformMatrix()
+    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight())
+    const y = f.elevation * S
+    const minX = Math.min(x1, x2), maxX = Math.max(x1, x2), minY = Math.min(y1, y2), maxY = Math.max(y1, y2)
+    const crossing = x2 < x1
+    const inside = (p: { x: number; y: number }) => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY
+    const screen = (n: { x: number; y: number }) => {
+      const v = Vector3.Project(new Vector3(n.x * S, y, n.y * S), Matrix.Identity(), transform, viewport)
+      return { x: v.x, y: v.y }
+    }
+    const out: string[] = []
+    for (const id in f.wallGraph.edges) {
+      const e = f.wallGraph.edges[id]
+      const na = f.wallGraph.nodes[e.a]
+      const nb = f.wallGraph.nodes[e.b]
+      if (!na || !nb) continue
+      const a = screen(na)
+      const b = screen(nb)
+      const hit = crossing ? inside(a) || inside(b) || segmentHitsRect(a, b, minX, minY, maxX, maxY) : inside(a) && inside(b)
+      if (hit) out.push(id)
+    }
+    return out
   }
 
   private wallDelta(w: NonNullable<BuilderEngine["dragWall"]>, p: Vector3): { dx: number; dy: number; offset: number } {
@@ -1176,6 +1226,17 @@ export class BuilderEngine {
     }
     if (this.roomStart) {
       this.updateRoomPreview()
+      return
+    }
+    if (this.box) {
+      const b = this.box
+      const { scene } = this.bundle
+      if (!b.moved) {
+        if (!passedDragThreshold(b.sx, b.sy, scene.pointerX, scene.pointerY)) return
+        b.moved = true
+      }
+      const k = this.cssScale()
+      this.onBox({ x1: b.sx * k, y1: b.sy * k, x2: scene.pointerX * k, y2: scene.pointerY * k })
       return
     }
     if (this.dragWall) {
@@ -1341,6 +1402,18 @@ export class BuilderEngine {
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
     }
+    if (this.box) {
+      const b = this.box
+      this.box = null
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      if (b.moved) {
+        this.onBox(null)
+        this.lastDragEndAt = performance.now()
+        const { scene } = this.bundle
+        this.onBoxSelect(this.wallsInBox(b.sx, b.sy, scene.pointerX, scene.pointerY), b.additive)
+      }
+      return
+    }
     if (this.dragWall) {
       const w = this.dragWall
       const p = this.projectToPlane()
@@ -1502,8 +1575,8 @@ export class BuilderEngine {
       // клик по ручке не снимает выделение стены
       return
     }
-    // Shift+клик по объекту — добавить/убрать в мультивыбор.
-    if (this.shiftDown && meta?.kind === "object" && meta.entityId) {
+    // Shift+клик по объекту или стене — добавить/убрать в мультивыбор.
+    if (this.shiftDown && (meta?.kind === "object" || meta?.kind === "wall") && meta.entityId) {
       this.onMultiToggle(meta.entityId)
       return
     }
@@ -2391,4 +2464,25 @@ export class BuilderEngine {
     this.bundle.scene.dispose()
     this.bundle.engine.dispose()
   }
+}
+
+/** Отрезок пересекает прямоугольник (Лианг — Барски). */
+function segmentHitsRect(a: { x: number; y: number }, b: { x: number; y: number }, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  let t0 = 0
+  let t1 = 1
+  const clip = (p: number, q: number) => {
+    if (p === 0) return q >= 0
+    const r = q / p
+    if (p < 0) {
+      if (r > t1) return false
+      if (r > t0) t0 = r
+    } else {
+      if (r < t0) return false
+      if (r < t1) t1 = r
+    }
+    return true
+  }
+  return clip(-dx, a.x - minX) && clip(dx, maxX - a.x) && clip(-dy, a.y - minY) && clip(dy, maxY - a.y)
 }
