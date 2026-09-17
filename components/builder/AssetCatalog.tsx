@@ -164,6 +164,11 @@ export function AssetCatalog() {
   const mode = useEditorStore((s) => s.mode)
   // Категория по умолчанию для режима (AssetCatalog ремаунтится по key={mode}).
   const [cat, setCat] = useState(() => MODE_CATEGORY[mode] ?? "Все")
+  const activeTool = useEditorStore((s) => s.activeTool)
+  // В режиме «Строить» каталог мебели съедал низ экрана, где инженер обводит
+  // план. Свёрнут, пока его не открыли или не взяли инструмент «Объект».
+  const [expanded, setExpanded] = useState(() => mode !== "build")
+  const open = expanded || activeTool === "object"
 
   const items = cat === "Все" ? ASSETS : ASSETS.filter((a) => a.category === cat)
 
@@ -172,12 +177,39 @@ export function AssetCatalog() {
     armAsset(id)
   }
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="absolute bottom-9 left-1/2 z-20 -translate-x-1/2 rounded-xl px-3 py-1.5 text-[11px] font-medium shadow-xl backdrop-blur-xl"
+        style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
+      >
+        Каталог объектов ▴
+      </button>
+    )
+  }
+
   return (
     <div
       className="absolute bottom-9 left-1/2 z-20 flex max-w-[80vw] -translate-x-1/2 flex-col gap-2 rounded-2xl p-2.5 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="flex items-center gap-1.5">
+        {mode === "build" && (
+          <button
+            type="button"
+            onClick={() => {
+              setExpanded(false)
+              if (activeTool === "object") setTool("select")
+            }}
+            title="Свернуть каталог"
+            className="rounded-lg px-2 py-1 text-[11px] font-medium"
+            style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.muted }}
+          >
+            ▾
+          </button>
+        )}
         {CATEGORIES.map((c) => (
           <button
             key={c}

@@ -25,7 +25,7 @@ export function LabelLayer() {
         type="button"
         onClick={toggleDimensions}
         title="Размеры стен (L)"
-        className="absolute right-3 top-[4.25rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
+        className="absolute right-3 top-[7.75rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
         style={{
           background: showDimensions ? TOKENS.accent : TOKENS.panel,
           color: showDimensions ? "#0b1220" : TOKENS.text,

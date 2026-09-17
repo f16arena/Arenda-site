@@ -58,8 +58,11 @@ export function BuilderToolbar() {
   const canRedo = useDocumentStore((s) => s.canRedo)
 
   return (
+    // Полоса начинается справа от панели проекта (w-64 + отступы): раньше тулбар
+    // центрировался по экрану и первая кнопка — «Выбор» — уходила под панель.
+    <div className="pointer-events-none absolute left-[17.5rem] right-3 top-16 z-30 flex justify-center">
     <div
-      className="absolute left-1/2 top-16 z-30 flex max-w-[92vw] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl px-2 py-1.5 shadow-2xl backdrop-blur-xl"
+      className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl px-2 py-1.5 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       {TOOLS.map((t) => {
@@ -105,6 +108,7 @@ export function BuilderToolbar() {
         <Redo2 className="h-4 w-4" />
         Повтор
       </button>
+    </div>
     </div>
   )
 }

@@ -144,6 +144,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   )
 
   const [hud, setHud] = useState<string | null>(null)
+  // счётчик FPS мешает инженеру и перекрывал «Размеры»; для отладки — ?perf
+  const [showPerf] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("perf"))
   // Последний отрезок рулетки — панель подложки спросит его настоящую длину
   const [measure, setMeasure] = useState<{ lengthMm: number; from: { x: number; y: number } } | null>(null)
   const doc = useDocumentStore((s) => s.doc)
@@ -172,6 +174,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   const handleReady = useCallback((engine: BuilderEngine) => {
     engineRef.current = engine
+    // локальный стенд и отладка: движок доступен из консоли, в проде — нет
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __engine?: BuilderEngine }).__engine = engine
     engine.statusResolver = resolveStatus
     engine.getDoc = () => useDocumentStore.getState().doc
     engine.onCommand = readOnly ? () => {} : (cmd) => useDocumentStore.getState().execute(cmd)
@@ -484,10 +488,16 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {!readOnly && ready && <LabelLayer />}
       <PropertyPanel />
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
-      <ViewCube onView={(a, b) => engineRef.current?.orbitTo(a, b)} />
+      <ViewCube
+        onView={(a, b) => {
+          // из плана/вида сверху в ракурс: сначала режим камеры, потом поворот
+          useEditorStore.getState().setCameraMode("orbit")
+          window.requestAnimationFrame(() => engineRef.current?.orbitTo(a, b))
+        }}
+      />
       {!readOnly && <AssetCatalog key={mode} />}
       {!readOnly && <MiniMap />}
-      {!readOnly && ready && <PerfHud getFps={() => engineRef.current?.getFps() ?? 0} />}
+      {!readOnly && ready && showPerf && <PerfHud getFps={() => engineRef.current?.getFps() ?? 0} />}
       {readOnly && selection.type === "room" && selection.floorId && (
         <div className="absolute bottom-3 right-3 z-30 w-72">
           <ShowcaseLead token={shareToken} premiseNumber={doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)?.premiseLinks[selection.id ?? ""]} onClose={() => useEditorStore.getState().setSelection({ type: "none" })} />

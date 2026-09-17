@@ -127,11 +127,14 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
 
   const camera = new ArcRotateCamera("cam", -Math.PI / 4, Math.PI / 3.2, 48, new Vector3(0, 3, 0), scene)
   camera.attachControl(canvas, true)
-  camera.lowerRadiusLimit = 6
+  camera.lowerRadiusLimit = 1.5
   camera.upperRadiusLimit = 520
   camera.lowerBetaLimit = 0.15
   camera.upperBetaLimit = Math.PI / 2.05
-  camera.wheelPrecision = 3
+  // зум колесом пропорционально расстоянию и к точке под курсором — как в CAD:
+  // одинаково удобно и на весь квартал, и на дверной проём
+  camera.wheelDeltaPercentage = 0.04
+  camera.zoomToMouseLocation = true
   camera.panningSensibility = 80
   camera.minZ = 0.1
   camera.maxZ = 2200

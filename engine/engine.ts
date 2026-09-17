@@ -233,6 +233,7 @@ export class BuilderEngine {
       this.onCommand(new MoveObjectCommand(target, sel.id, cx, cz))
     }
     this.setupPointer()
+    this.bundle.scene.onBeforeRenderObservable.add(() => this.syncCamera())
     this.bundle.engine.runRenderLoop(() => this.bundle.scene.render())
     // Подписи проецируем после кадра: камера уже на месте, дёшево даже на сотнях якорей
     this.bundle.scene.onAfterRenderObservable.add(() => this.projectLabels())
@@ -630,16 +631,58 @@ export class BuilderEngine {
     scene.activeCamera = camera
     if (canvas) camera.attachControl(canvas, true)
     camera.mode = mode === "plan" ? Camera.ORTHOGRAPHIC_CAMERA : Camera.PERSPECTIVE_CAMERA
-    camera.alpha = mode === "top" || mode === "plan" ? -Math.PI / 2 : -Math.PI / 4
-    camera.beta = mode === "top" || mode === "plan" ? 0.02 : Math.PI / 3.2
-    if (mode === "plan") {
-      const r = camera.radius
-      const aspect = this.bundle.engine.getAspectRatio(camera)
-      camera.orthoTop = r * 0.5
-      camera.orthoBottom = -r * 0.5
-      camera.orthoLeft = -r * 0.5 * aspect
-      camera.orthoRight = r * 0.5 * aspect
+    const flat = mode === "top" || mode === "plan"
+    // План — строго сверху и без поворота: чертёж не должен заваливаться от
+    // случайного движения мыши. Раньше предел наклона 0.15 рад не давал камере
+    // встать вертикально, и «план» был перспективой с видимыми боками стен.
+    // не ровно 0: при beta = 0 взгляд параллелен «верху» камеры и вид вырождается
+    const TOP = 0.0001
+    camera.lowerBetaLimit = flat ? TOP : 0.15
+    camera.upperBetaLimit = mode === "plan" ? TOP : Math.PI / 2.05
+    camera.lowerAlphaLimit = mode === "plan" ? -Math.PI / 2 : null
+    camera.upperAlphaLimit = mode === "plan" ? -Math.PI / 2 : null
+    camera.alpha = flat ? -Math.PI / 2 : -Math.PI / 4
+    camera.beta = flat ? TOP : Math.PI / 3.2
+    if (flat) this.frameActiveFloor()
+    this.syncCamera()
+  }
+
+  // Каждый кадр: ортогональные границы следуют за зумом (иначе колесо в плане
+  // ничего не делало), скорость панорамы — за расстоянием до цели.
+  private syncCamera(): void {
+    const camera = this.bundle.camera
+    camera.panningSensibility = Math.max(8, 4000 / Math.max(1, camera.radius))
+    if (camera.mode !== Camera.ORTHOGRAPHIC_CAMERA) return
+    const half = camera.radius * 0.5
+    const aspect = this.bundle.engine.getAspectRatio(camera)
+    camera.orthoTop = half
+    camera.orthoBottom = -half
+    camera.orthoLeft = -half * aspect
+    camera.orthoRight = half * aspect
+  }
+
+  /** Навести камеру на активный этаж: по его стенам, а если стен нет — на всё. */
+  frameActiveFloor(): void {
+    const doc = this.getDoc()
+    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    const nodes = f ? Object.values(f.wallGraph.nodes) : []
+    if (!f || nodes.length === 0) {
+      this.frameAll()
+      return
     }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const n of nodes) {
+      minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x)
+      minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y)
+    }
+    const cam = this.bundle.camera
+    const aspect = this.bundle.engine.getAspectRatio(cam) || 1
+    const w = (maxX - minX) * S
+    const h = (maxY - minY) * S
+    cam.setTarget(new Vector3(((minX + maxX) / 2) * S, this.activeFloorPlaneY(), ((minY + maxY) / 2) * S))
+    // Панели закрывают края: сверху полоса инструментов, слева этажи, справа
+    // свойства. Этаж должен целиком влезть в оставшуюся середину экрана.
+    cam.radius = Math.max(4, Math.max(h / 0.62, w / aspect / 0.62) + 2)
   }
 
   private enableWallCollisions(): void {
@@ -657,6 +700,10 @@ export class BuilderEngine {
     scene.activeCamera = camera
     if (canvas) camera.attachControl(canvas, true)
     camera.mode = Camera.PERSPECTIVE_CAMERA
+    camera.lowerBetaLimit = 0.0001
+    camera.upperBetaLimit = Math.PI / 2.05
+    camera.lowerAlphaLimit = null
+    camera.upperAlphaLimit = null
     camera.alpha = alpha
     camera.beta = beta
   }
