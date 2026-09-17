@@ -32,11 +32,13 @@ export function LabelLayer() {
   const selectedWall = selection.type === "wall" ? selection.id : undefined
   const ordered = [
     ...labels.filter((l) => l.kind === "wall" && l.id === selectedWall),
+    ...labels.filter((l) => l.kind === "note"),
     ...labels.filter((l) => l.kind === "room"),
     ...labels.filter((l) => l.kind === "wall" && l.id !== selectedWall && showDimensions),
   ]
   const placeable = ordered.filter((l) => {
     if (l.kind === "wall") return fits(l.x, l.y, 38, 16)
+    if (l.kind === "note") return true // пометки ставит инженер — не прячем
     const floor = findFloor(doc, l.floorId)
     const key = floor?.premiseLinks[l.id]
     const premise = key ? resolvePremise(key) : undefined
@@ -77,6 +79,25 @@ export function LabelLayer() {
                 }}
               >
                 {(label.lengthMm / 1000).toFixed(2)}
+              </div>
+            )
+          }
+          if (label.kind === "note") {
+            const selected = selection.type === "annotation" && selection.id === label.id
+            return (
+              <div
+                key={`n-${label.id}`}
+                className="absolute whitespace-nowrap rounded px-1 text-[11px] font-semibold tabular-nums"
+                style={{
+                  left: label.x,
+                  top: label.y,
+                  transform: `translate(-50%, -50%) rotate(${-label.angleDeg}deg) translateY(${label.dim ? "-9px" : "0"})`,
+                  background: selected ? TOKENS.accent : label.dim ? "rgba(224,242,254,0.95)" : "rgba(255,255,255,0.95)",
+                  color: selected ? "#0b1220" : label.dim ? "#0369a1" : "#0f172a",
+                  border: label.dim ? "none" : "1px solid #94a3b8",
+                }}
+              >
+                {label.text}
               </div>
             )
           }

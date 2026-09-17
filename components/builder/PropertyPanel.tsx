@@ -6,7 +6,7 @@
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { usePremiseStore } from "@/store/premise-store"
@@ -210,6 +210,35 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             ))}
           </div>
           <button type="button" onClick={() => execute(new DeleteOpeningCommand(fid, oid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить проём</button>
+        </div>
+      )
+    }
+  } else if (selection.type === "annotation" && selection.floorId && selection.id) {
+    const fid = selection.floorId
+    const aid = selection.id
+    const an = findFloor(doc, fid)?.annotations?.find((x) => x.id === aid)
+    title = an?.kind === "text" ? "Надпись" : "Размер"
+    const inputStyle = { color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }
+    if (an?.kind === "dim") {
+      rows.push(<Row key="l" label="Длина" value={`${Math.round(Math.hypot(an.b.x - an.a.x, an.b.y - an.a.y))} мм`} />)
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Вынос, м
+            <input id="annotation-offset" type="number" step="0.1" defaultValue={(an.offset / 1000).toFixed(2)} key={`ao${aid}${an.offset}`} onBlur={(ev) => { const v = parseFloat(ev.target.value.replace(",", ".")); if (Number.isFinite(v)) execute(new UpdateAnnotationCommand(fid, aid, { offset: Math.round(v * 1000) })) }} className="w-16 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
+          </label>
+          <button type="button" onClick={() => execute(new UpdateAnnotationCommand(fid, aid, { offset: -an.offset }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⇅ На другую сторону</button>
+          <button type="button" onClick={() => { execute(new DeleteAnnotationCommand(fid, aid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить размер</button>
+        </div>
+      )
+    } else if (an?.kind === "text") {
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex flex-col gap-0.5 text-[11px]" style={{ color: TOKENS.muted }}>
+            Текст
+            <textarea id="annotation-text" rows={2} defaultValue={an.text} key={`at${aid}${an.text}`} onBlur={(ev) => { const v = ev.target.value.trim(); if (v && v !== an.text) execute(new UpdateAnnotationCommand(fid, aid, { text: v.slice(0, 200) })) }} className="w-full rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
+          </label>
+          <button type="button" onClick={() => { execute(new DeleteAnnotationCommand(fid, aid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить надпись</button>
         </div>
       )
     }

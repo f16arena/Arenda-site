@@ -121,6 +121,25 @@ export const MepDeviceSchema = z.object({
 })
 export type MepDevice = z.infer<typeof MepDeviceSchema>
 
+/** Пометки на плане: размер между двумя точками и текстовая надпись. */
+export const AnnotationSchema = z.discriminatedUnion("kind", [
+  z.object({
+    id: z.string(),
+    kind: z.literal("dim"),
+    a: Vec2Schema,
+    b: Vec2Schema,
+    /** вынос размерной линии от отрезка a→b, мм (со знаком: влево от a→b — плюс) */
+    offset: z.number().default(600),
+  }),
+  z.object({
+    id: z.string(),
+    kind: z.literal("text"),
+    at: Vec2Schema,
+    text: z.string(),
+  }),
+])
+export type Annotation = z.infer<typeof AnnotationSchema>
+
 export const FloorSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -143,6 +162,7 @@ export const FloorSchema = z.object({
   sourceFloorId: z.string().optional(),
   mepRuns: z.array(MepRunSchema).default([]),
   mepDevices: z.array(MepDeviceSchema).default([]),
+  annotations: z.array(AnnotationSchema).optional(),
 })
 
 /** Секущая линия разреза в плане (мм): смотрим влево от a→b (look = 1) или вправо (−1). */

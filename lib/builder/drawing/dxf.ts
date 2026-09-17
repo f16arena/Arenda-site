@@ -8,6 +8,7 @@
 import { BUBBLE_R, DIM_BASE, DIM_STEP, AXIS_GAP, areaText, type FloorDrawing, type Pt, type Side } from "./floor-drawing"
 import type { MepDrawing } from "./mep-drawing"
 import type { ElevationDrawing } from "./elevation"
+import { dimGeometry } from "@/lib/builder/annotations"
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import type { MepSystem } from "@/types/builder"
 
@@ -174,6 +175,17 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string,
       }
     }
   }
+
+  // размеры и надписи инженера
+  for (const ud of d.userDims) {
+    const g = dimGeometry(ud.a, ud.b, ud.offset, 1.5 * k)
+    w.line("A-DIMS", g.p1, g.p2)
+    for (const [p, q] of g.ext) w.line("A-DIMS", p, q)
+    const u = { x: (ud.b.x - ud.a.x) / (g.lengthMm || 1), y: (ud.b.y - ud.a.y) / (g.lengthMm || 1) }
+    for (const p of [g.p1, g.p2]) w.line("A-DIMS", { x: p.x - (u.x + g.n.x) * tick * 0.7, y: p.y - (u.y + g.n.y) * tick * 0.7 }, { x: p.x + (u.x + g.n.x) * tick * 0.7, y: p.y + (u.y + g.n.y) * tick * 0.7 })
+    w.text("A-DIMS", { x: g.mid.x + g.n.x * 1.5 * k * Math.sign(ud.offset || 1), y: g.mid.y + g.n.y * 1.5 * k * Math.sign(ud.offset || 1) }, th, String(Math.round(g.lengthMm)), g.angleDeg)
+  }
+  for (const t of d.texts) w.text("A-TEXT", t.at, th, t.text)
 
   // сети: трассы линиями, марка у трассы, прибор — окружность с подписью вида
   if (mep) {

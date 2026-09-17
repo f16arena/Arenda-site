@@ -27,6 +27,7 @@ import { MepPlanLayer, MepTables } from "./MepSheetLayer"
 import { FACADE_TITLE, buildFacade, buildSection, type ElevationDrawing, type FacadeSide } from "@/lib/builder/drawing/elevation"
 import { elevationToDxf } from "@/lib/builder/drawing/dxf"
 import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
+import { dimGeometry } from "@/lib/builder/annotations"
 import { hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
@@ -461,6 +462,28 @@ export function SheetSvg({
       <text x={(areaX0 + areaX1) / 2} y={Math.max(12, Y(d.bounds.maxY) - reach - BUBBLE_R * 2 - 4)} fontSize={5} textAnchor="middle">
         {title}  <tspan fontSize={3.5}>М 1:{scale}</tspan>
       </text>
+
+      {/* размеры и надписи инженера */}
+      {d.userDims.map((ud, i) => {
+        // в мм листа: вынос и засечки считаем в координатах листа (ось Y вниз)
+        const a = { x: X(ud.a.x), y: Y(ud.a.y) }, b = { x: X(ud.b.x), y: Y(ud.b.y) }
+        const g = dimGeometry(a, b, -ud.offset / scale, 1.5)
+        const L = g.lengthMm || 1
+        const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+        const s = Math.sign(-ud.offset || 1)
+        const tx = g.mid.x + g.n.x * 1.4 * s, ty = g.mid.y + g.n.y * 1.4 * s
+        return (
+          <g key={`ud${i}`} stroke="#000" strokeWidth={0.13}>
+            <line x1={g.p1.x} y1={g.p1.y} x2={g.p2.x} y2={g.p2.y} />
+            {g.ext.map(([p, q], j) => <line key={j} x1={p.x} y1={p.y} x2={q.x} y2={q.y} />)}
+            {[g.p1, g.p2].map((p, j) => <line key={`t${j}`} x1={p.x - (u.x + g.n.x) * 0.8} y1={p.y - (u.y + g.n.y) * 0.8} x2={p.x + (u.x + g.n.x) * 0.8} y2={p.y + (u.y + g.n.y) * 0.8} strokeWidth={0.35} />)}
+            <text x={tx} y={ty} fontSize={2.5} textAnchor="middle" dominantBaseline="middle" stroke="none" transform={`rotate(${g.angleDeg} ${tx} ${ty})`}>{Math.round(Math.hypot(ud.b.x - ud.a.x, ud.b.y - ud.a.y))}</text>
+          </g>
+        )
+      })}
+      {d.texts.map((t, i) => (
+        <text key={`tx${i}`} x={X(t.at.x)} y={Y(t.at.y)} fontSize={3} textAnchor="middle" dominantBaseline="middle">{t.text}</text>
+      ))}
 
       {/* марки разрезов: утолщённые концы, стрелки взгляда, обозначение */}
       {sectionMarks.map((sec) => {

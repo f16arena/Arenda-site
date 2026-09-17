@@ -32,6 +32,7 @@ const TOOL_RU: Record<Tool, string> = {
   "mep-run": "Трасса сети",
   "mep-device": "Прибор сети",
   section: "Разрез",
+  annotate: "Размер / надпись",
 }
 
 export function StatusBar() {

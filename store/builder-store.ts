@@ -131,11 +131,12 @@ export type Tool =
   | "mep-run"
   | "mep-device"
   | "section"
+  | "annotate"
 
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -182,6 +183,8 @@ export interface EditorState {
   mepLayers: MepSystem[]
   /** режим перепланировки: удаление = демонтаж, новое = «новая» */
   replanMode: boolean
+  /** инструмент «Пометка»: размер или надпись */
+  annotateKind: "dim" | "text"
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -214,6 +217,7 @@ export interface EditorState {
   toggleMepLayer: (s: MepSystem) => void
   setMepLayers: (s: MepSystem[]) => void
   toggleReplan: () => void
+  setAnnotateKind: (k: "dim" | "text") => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -256,6 +260,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   mepDeviceKind: "socket",
   mepLayers: [...MEP_SYSTEMS],
   replanMode: false,
+  annotateKind: "dim",
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -302,6 +307,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   toggleMepLayer: (sys) => set((st) => ({ mepLayers: st.mepLayers.includes(sys) ? st.mepLayers.filter((x) => x !== sys) : [...st.mepLayers, sys] })),
   setMepLayers: (layers) => set({ mepLayers: layers }),
   toggleReplan: () => set((st) => ({ replanMode: !st.replanMode })),
+  setAnnotateKind: (k) => set({ annotateKind: k }),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),

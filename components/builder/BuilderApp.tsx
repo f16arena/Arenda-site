@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, TransformWallsCommand, CompositeCommand, type Command } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, TransformWallsCommand, DeleteAnnotationCommand, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -59,6 +59,7 @@ function applyPick(meta: MeshMeta | null): void {
   else if (meta.kind === "water") setSelection({ type: "water", id: meta.entityId })
   else if (meta.kind === "path") setSelection({ type: "path", id: meta.entityId })
   else if (meta.kind === "pavement") setSelection({ type: "pavement", id: meta.entityId })
+  else if (meta.kind === "annotation") setSelection({ type: "annotation", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "section") setSelection({ type: "section", id: meta.entityId, buildingId: meta.target })
   else if (meta.kind === "mep-run") setSelection({ type: "mep-run", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "mep-device") setSelection({ type: "mep-device", id: meta.entityId, floorId: meta.floorId })
@@ -182,6 +183,7 @@ function deleteSelection(): void {
     if (replan) return
   }
   else if (sel.type === "section" && sel.buildingId && sel.id) exec(new DeleteSectionCommand(sel.buildingId, sel.id))
+  else if (sel.type === "annotation" && sel.floorId && sel.id) exec(new DeleteAnnotationCommand(sel.floorId, sel.id))
   else if (sel.type === "mep-run" && sel.floorId && sel.id) exec(new DeleteMepRunCommand(sel.floorId, sel.id))
   else if (sel.type === "mep-device" && sel.floorId && sel.id) exec(new DeleteMepDeviceCommand(sel.floorId, sel.id))
   else if (sel.type === "object" && sel.id) {
@@ -246,6 +248,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const mepDeviceKind = useEditorStore((s) => s.mepDeviceKind)
   const mepLayers = useEditorStore((s) => s.mepLayers)
   const replanMode = useEditorStore((s) => s.replanMode)
+  const annotateKind = useEditorStore((s) => s.annotateKind)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -373,7 +376,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "pave") e.cancelPave()
     if (activeTool !== "mep-run") e.cancelMep()
     if (activeTool !== "section") e.cancelSection()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, replanMode, armedAsset, openingVariant, ready])
+    if (activeTool !== "annotate") e.cancelAnnotate()
+    e.annotateKind = annotateKind
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, replanMode, annotateKind, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -582,6 +587,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         engineRef.current?.cancelPave()
         engineRef.current?.cancelMep()
         engineRef.current?.cancelSection()
+        engineRef.current?.cancelAnnotate()
         ed.armAsset(null)
         ed.setSelection({ type: "none" })
         return

@@ -59,6 +59,9 @@ export interface FloorDrawing {
   wallStyles: WallStyle[]
   /** пробиваемые (демонтаж) и закладываемые (монтаж) участки проёмов */
   patches: Array<{ q: Pt[]; style: "demolish" | "new" }>
+  /** размеры и надписи, поставленные инженером */
+  userDims: Array<{ a: Pt; b: Pt; offset: number }>
+  texts: Array<{ at: Pt; text: string }>
   /** тонкие линии: окна, полотна дверей */
   thinLines: Array<[Pt, Pt]>
   /** дуги открывания дверей: центр, радиус, углы в градусах против часовой */
@@ -327,7 +330,9 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     ...hAxes.map((at, i) => ({ dir: "h" as const, at, label: letters[i] })),
   ]
 
-  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, thinLines, arcs, rooms, dims, axes }
+  const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
+  const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
+  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────

@@ -154,7 +154,7 @@ export function LevelPanel({
     useDocumentStore.getState().execute(
       new ReplaceFloorCommand(
         building.id,
-        { ...current, wallGraph: emptyGraph(), openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {}, mepRuns: [], mepDevices: [] },
+        { ...current, wallGraph: emptyGraph(), openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {}, mepRuns: [], mepDevices: [], annotations: [] },
         current,
       ),
     )

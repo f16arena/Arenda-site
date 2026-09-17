@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement, MepRun, MepDevice, SectionLineDoc } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement, MepRun, MepDevice, SectionLineDoc, Annotation } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -1299,5 +1299,66 @@ export class TransformWallsCommand implements Command {
     const prev = this.prev
     if (!prev) return doc
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, wallGraph: prev.wallGraph, openings: prev.openings }))
+  }
+}
+
+// ── Пометки на плане: размеры и надписи ──────────────────────────────────────
+export class AddAnnotationCommand implements Command {
+  readonly kind = "add-annotation"
+  readonly label: string
+  constructor(private floorId: string, private item: Annotation) {
+    this.label = item.kind === "dim" ? "размер" : "надпись"
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, annotations: [...(fl.annotations ?? []), this.item] }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, annotations: (fl.annotations ?? []).filter((x) => x.id !== this.item.id) }))
+  }
+}
+
+export class DeleteAnnotationCommand implements Command {
+  readonly kind = "delete-annotation"
+  readonly label = "удаление пометки"
+  private removed?: { item: Annotation; index: number }
+  constructor(private floorId: string, private id: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const list = findFloor(doc, this.floorId)?.annotations ?? []
+    const index = list.findIndex((x) => x.id === this.id)
+    if (index >= 0) this.removed = { item: list[index], index }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, annotations: (fl.annotations ?? []).filter((x) => x.id !== this.id) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const r = this.removed
+    if (!r) return doc
+    return mapFloor(doc, this.floorId, (fl) => {
+      const list = [...(fl.annotations ?? [])]
+      list.splice(Math.min(r.index, list.length), 0, r.item)
+      return { ...fl, annotations: list }
+    })
+  }
+}
+
+export class UpdateAnnotationCommand implements Command {
+  readonly kind = "update-annotation"
+  readonly label = "пометка"
+  private prev?: Annotation
+  constructor(private floorId: string, private id: string, private props: { text?: string; offset?: number; at?: Vec2 }) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const cur = findFloor(doc, this.floorId)?.annotations?.find((x) => x.id === this.id)
+    if (cur && !this.prev) this.prev = cur
+    return mapFloor(doc, this.floorId, (fl) => ({
+      ...fl,
+      annotations: (fl.annotations ?? []).map((x) => {
+        if (x.id !== this.id) return x
+        if (x.kind === "dim") return { ...x, ...(this.props.offset !== undefined ? { offset: this.props.offset } : {}) }
+        return { ...x, ...(this.props.text !== undefined ? { text: this.props.text } : {}), ...(this.props.at ? { at: this.props.at } : {}) }
+      }),
+    }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const prev = this.prev
+    if (!prev) return doc
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, annotations: (fl.annotations ?? []).map((x) => (x.id === this.id ? prev : x)) }))
   }
 }

@@ -96,6 +96,9 @@ export function ToolOptions() {
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
 
+  if (tool === "annotate") {
+    return <AnnotateOptions />
+  }
   if (tool === "mep-run" || tool === "mep-device") {
     return <MepToolOptions tool={tool} />
   }
@@ -372,5 +375,18 @@ function MepToolOptions({ tool }: { tool: "mep-run" | "mep-device" }) {
         </div>
       )}
     </div>
+  )
+}
+
+function AnnotateOptions() {
+  const kind = useEditorStore((s) => s.annotateKind)
+  const setKind = useEditorStore((s) => s.setAnnotateKind)
+  return (
+    <Shell>
+      {([["dim", "Размер"], ["text", "Надпись"]] as const).map(([k, l]) => (
+        <button key={k} type="button" onClick={() => setKind(k)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: kind === k ? TOKENS.accent : "rgba(148,163,184,0.1)", color: kind === k ? "#0b1220" : TOKENS.text }}>{l}</button>
+      ))}
+      <span className="shrink-0">{kind === "dim" ? "— точка, точка (привязка к стенам), клик — вынос размерной линии. Размер попадает на лист и в DXF" : "— клик ставит надпись, текст — в свойствах справа"}</span>
+    </Shell>
   )
 }

@@ -9,6 +9,7 @@ import { create } from "zustand"
 export type ScreenLabel =
   | { kind: "wall"; id: string; x: number; y: number; lengthMm: number; angleDeg: number }
   | { kind: "room"; id: string; floorId: string; x: number; y: number; areaMm2: number }
+  | { kind: "note"; id: string; x: number; y: number; text: string; dim: boolean; angleDeg: number }
 
 interface LabelState {
   labels: ScreenLabel[]

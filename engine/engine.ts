@@ -26,6 +26,7 @@ import { MEP_SYSTEMS } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
 import { buildMep } from "./builders/mep-builder"
+import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
 import {
   findFloor,
   type Command,
@@ -62,6 +63,8 @@ import {
   DeleteSectionCommand,
   replanDeleteWall,
   replanDeleteOpening,
+  AddAnnotationCommand,
+  DeleteAnnotationCommand,
   nextSectionName,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
@@ -211,6 +214,10 @@ export class BuilderEngine {
   private mepPoints: Vec2[] = []
   private mepPreview: TransformNode | null = null
   private sectionStart: Vec2 | null = null
+  annotateKind: "dim" | "text" = "dim"
+  private dimA: Vec2 | null = null
+  private dimB: Vec2 | null = null
+  private dimPreview: TransformNode | null = null
   private sectionPreview: TransformNode | null = null
   activeFloorId = ""
   paintMaterialId = "brick"
@@ -240,6 +247,7 @@ export class BuilderEngine {
   private labelAnchors: Array<
     | { kind: "wall"; id: string; floorId: string; world: Vector3; lengthMm: number; angleDeg: number }
     | { kind: "room"; id: string; floorId: string; world: Vector3; areaMm2: number }
+    | { kind: "note"; id: string; floorId: string; world: Vector3; text: string; dim: boolean; angleDeg: number }
   > = []
   // подписи, закрытые чужой геометрией (этажом выше, соседним корпусом)
   private occludedLabels = new Set<string>()
@@ -619,9 +627,18 @@ export class BuilderEngine {
         const c = centroid(room.polygon)
         anchors.push({ kind: "room", id: room.id, floorId: f.id, world: new Vector3(ox + c.x * S, y, oz + c.y * S), areaMm2: room.areaMm2 })
       }
+      for (const an of f.annotations ?? []) {
+        if (an.kind === "dim") {
+          const g = dimGeometry(an.a, an.b, an.offset)
+          anchors.push({ kind: "note", id: an.id, floorId: f.id, world: new Vector3(ox + g.mid.x * S, y, oz + g.mid.y * S), text: String(Math.round(g.lengthMm)), dim: true, angleDeg: g.angleDeg })
+        } else {
+          anchors.push({ kind: "note", id: an.id, floorId: f.id, world: new Vector3(ox + an.at.x * S, y, oz + an.at.y * S), text: an.text, dim: false, angleDeg: 0 })
+        }
+      }
       this.labelAnchors = anchors
     }
 
+    if (active && f.id === active.id) this.drawAnnotations(f, fNode)
     const mepMeshes = buildMep(f, fNode, scene, new Set(ctx.mepLayers ?? MEP_SYSTEMS), this.drafting)
     if (reg) for (const m of mepMeshes) this.registerMesh(m.metadata?.entityId, m)
 
@@ -873,6 +890,8 @@ export class BuilderEngine {
     if ((this.tool === "select" || this.tool === "delete") && (!meta || meta.kind === "room" || meta.kind === "floor" || meta.kind === "wall")) {
       const sec = this.nearestSectionAtPointer(8)
       if (sec) return { meta: sec, point: pick?.pickedPoint ?? null }
+      const note = this.nearestAnnotationAtPointer(10)
+      if (note) return { meta: note, point: pick?.pickedPoint ?? null }
       const mep = this.nearestMepAtPointer(8)
       if (mep) return { meta: mep, point: pick?.pickedPoint ?? null }
     }
@@ -1262,6 +1281,7 @@ export class BuilderEngine {
       const x = p.x * k
       const y = p.y * k
       if (a.kind === "wall") out.push({ kind: "wall", id: a.id, x, y, lengthMm: a.lengthMm, angleDeg: a.angleDeg })
+      else if (a.kind === "note") out.push({ kind: "note", id: a.id, x, y, text: a.text, dim: a.dim, angleDeg: a.angleDeg })
       else out.push({ kind: "room", id: a.id, floorId: a.floorId, x, y, areaMm2: a.areaMm2 })
     }
     this.onLabels(out)
@@ -1386,6 +1406,14 @@ export class BuilderEngine {
     }
     if (this.tool === "object" && this.armedAsset) {
       this.updatePlacerGhost()
+      return
+    }
+    if (this.tool === "annotate") {
+      const p = this.projectToPlane()
+      if (!p) return
+      const r = this.resolveWallPoint(p)
+      this.showSnapMarker(this.dimB ? null : r.world)
+      if (this.dimA) this.updateDimPreview(r.mm)
       return
     }
     if (this.tool === "section") {
@@ -1624,6 +1652,10 @@ export class BuilderEngine {
     }
     if (this.tool === "section") {
       this.handleSectionTap()
+      return
+    }
+    if (this.tool === "annotate") {
+      this.handleAnnotateTap()
       return
     }
     if (this.tool === "mep-run") {
@@ -1964,6 +1996,111 @@ export class BuilderEngine {
     )
   }
 
+  // ── Пометки: размеры и надписи ──────────────────────────────────────────────
+  // Размер: точка, точка (привязка к узлам и стенам), третий клик — вынос линии.
+  // Надпись: клик ставит текст «Надпись», править — в свойствах.
+  private handleAnnotateTap(): void {
+    const p = this.projectToPlane()
+    if (!p || !this.activeFloorId) return
+    const r = this.resolveWallPoint(p)
+    if (this.annotateKind === "text") {
+      const id = uid("an")
+      this.onCommand(new AddAnnotationCommand(this.activeFloorId, { id, kind: "text", at: { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }, text: "Надпись" }))
+      this.onPick({ kind: "annotation", floorId: this.activeFloorId, entityId: id })
+      this.onHud("Надпись поставлена — текст меняется в свойствах справа")
+      return
+    }
+    if (!this.dimA) {
+      this.dimA = { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }
+      this.onHud("Размер: вторая точка")
+      return
+    }
+    if (!this.dimB) {
+      const b = { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }
+      if (Math.hypot(b.x - this.dimA.x, b.y - this.dimA.y) < 10) return
+      this.dimB = b
+      this.onHud("Размер: отведите размерную линию и кликните")
+      return
+    }
+    const offset = Math.round(signedOffset(this.dimA, this.dimB, { x: p.x * 1000, y: p.z * 1000 }))
+    this.onCommand(new AddAnnotationCommand(this.activeFloorId, { id: uid("an"), kind: "dim", a: this.dimA, b: this.dimB, offset: Math.abs(offset) < 50 ? 600 : offset }))
+    this.cancelAnnotate()
+  }
+
+  isDrawingAnnotation(): boolean {
+    return this.tool === "annotate" && this.dimA !== null
+  }
+
+  cancelAnnotate(): void {
+    const had = this.dimA !== null
+    this.dimA = null
+    this.dimB = null
+    this.dimPreview?.dispose()
+    this.dimPreview = null
+    if (had) this.onHud(null)
+  }
+
+  private dimLines(a: Vec2, b: Vec2, offset: number): Vector3[][] {
+    const g = dimGeometry(a, b, offset)
+    const y = this.activeFloorPlaneY() + 0.1
+    const V = (q: Vec2) => new Vector3(q.x * S, y, q.y * S)
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+    const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+    const t = 120 // засечка 45°, мм
+    const tick = (q: Vec2) => [V({ x: q.x - (u.x + g.n.x) * t, y: q.y - (u.y + g.n.y) * t }), V({ x: q.x + (u.x + g.n.x) * t, y: q.y + (u.y + g.n.y) * t })]
+    return [[V(g.p1), V(g.p2)], ...g.ext.map(([p, q]) => [V(p), V(q)]), tick(g.p1), tick(g.p2)]
+  }
+
+  private updateDimPreview(cursor: Vec2): void {
+    if (!this.dimA) return
+    this.dimPreview?.dispose()
+    const b = this.dimB ?? cursor
+    const offset = this.dimB ? signedOffset(this.dimA, this.dimB, cursor) : 600
+    const root = new TransformNode("dimPreview", this.bundle.scene)
+    const sys = MeshBuilder.CreateLineSystem("dimPreviewLines", { lines: this.dimLines(this.dimA, b, offset) }, this.bundle.scene)
+    sys.color = Color3.FromHexString("#0ea5e9")
+    sys.isPickable = false
+    sys.renderingGroupId = 1
+    sys.parent = root
+    this.dimPreview = root
+    this.onHud(`Размер ${Math.round(Math.hypot(b.x - this.dimA.x, b.y - this.dimA.y))} мм${this.dimB ? " · клик — поставить" : ""}`)
+  }
+
+  private drawAnnotations(f: Floor, parent: TransformNode): void {
+    const lines: Vector3[][] = []
+    for (const an of f.annotations ?? []) {
+      if (an.kind === "dim") lines.push(...this.dimLines(an.a, an.b, an.offset).map((seg) => seg.map((v) => new Vector3(v.x, (f.elevation * S) + 0.1, v.z))))
+    }
+    if (!lines.length) return
+    const sys = MeshBuilder.CreateLineSystem(`dims_${f.id}`, { lines }, this.bundle.scene)
+    sys.color = Color3.FromHexString("#0284c7")
+    sys.isPickable = false
+    sys.renderingGroupId = 1
+    sys.parent = parent
+    sys.position.y = -f.elevation * S // линии уже в мировой высоте этажа, а родитель поднят на отметку
+  }
+
+  private nearestAnnotationAtPointer(tolPx: number): MeshMeta | null {
+    const doc = this.getDoc()
+    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f?.annotations?.length) return null
+    const { scene } = this.bundle
+    const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
+    if (!p) return null
+    const pm = { x: p.x * 1000, y: p.z * 1000 }
+    const tol = this.mepTolMm(tolPx)
+    let best: { meta: MeshMeta; d: number } | null = null
+    for (const an of f.annotations) {
+      let d: number
+      if (an.kind === "dim") {
+        const g = dimGeometry(an.a, an.b, an.offset)
+        d = closestOnSegment(pm, g.p1, g.p2).dist
+      } else d = Math.max(0, Math.hypot(an.at.x - pm.x, an.at.y - pm.y) - 300)
+      if (d <= tol && (!best || d < best.d)) best = { meta: { kind: "annotation", floorId: f.id, entityId: an.id }, d }
+    }
+    return best?.meta ?? null
+  }
+
   // ── Разрезы ─────────────────────────────────────────────────────────────────
   // Два клика — секущая линия. С привязкой (G) линия держится горизонтально или
   // вертикально в пределах 10°. Смотрим влево от направления рисования; сторону
@@ -2297,6 +2434,7 @@ export class BuilderEngine {
     }
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "section" && meta.target) this.onCommand(new DeleteSectionCommand(meta.target, meta.entityId))
+    else if (meta.kind === "annotation" && meta.floorId) this.onCommand(new DeleteAnnotationCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "mep-run" && meta.floorId) this.onCommand(new DeleteMepRunCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "mep-device" && meta.floorId) this.onCommand(new DeleteMepDeviceCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "object") {
