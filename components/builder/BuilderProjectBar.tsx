@@ -7,11 +7,56 @@
 import { useEffect, useState } from "react"
 import { Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
-import { createBuilderProject, saveBuilderProject, createBuilderShare } from "@/app/actions/builder"
+import { createBuilderProject, saveBuilderProject, createBuilderShare, loadBuilderProject } from "@/app/actions/builder"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 
+// Сохранения строго по очереди. Автосейв через 4 с после правки мог стартовать,
+// пока предыдущее сохранение модели со сканами ещё шло, — с той же ревизией, и
+// сервер отвечал конфликтом одному-единственному пользователю.
+let inFlight: Promise<void> | null = null
+let saveAgain = false
+
 async function doSave(): Promise<void> {
+  if (inFlight) {
+    saveAgain = true
+    return inFlight
+  }
+  inFlight = saveOnce()
+  try {
+    await inFlight
+  } finally {
+    inFlight = null
+  }
+  if (saveAgain) {
+    saveAgain = false
+    const sync = useSyncStore.getState()
+    if (sync.status !== "conflict" && useDocumentStore.getState().rev !== sync.lastSavedRev) await doSave()
+  }
+}
+
+/** Конфликт: взять версию с сервера (свои несохранённые правки теряются). */
+async function takeServerVersion(): Promise<void> {
+  const id = useSyncStore.getState().projectId
+  if (!id) return
+  const p = await loadBuilderProject(id)
+  if (!p) return
+  useDocumentStore.getState().loadDocument(p.doc)
+  useSyncStore.getState().setProject(p.id, p.name, p.revision)
+  useSyncStore.setState({ lastSavedRev: useDocumentStore.getState().rev })
+}
+
+/** Конфликт: сохранить свою модель поверх серверной. */
+async function overwriteServerVersion(): Promise<void> {
+  const id = useSyncStore.getState().projectId
+  if (!id) return
+  const p = await loadBuilderProject(id)
+  if (!p) return
+  useSyncStore.setState({ revision: p.revision, status: "idle" })
+  await doSave()
+}
+
+async function saveOnce(): Promise<void> {
   const sync = useSyncStore.getState()
   const doc = useDocumentStore.getState().doc
   const curRev = useDocumentStore.getState().rev
@@ -33,7 +78,7 @@ async function doSave(): Promise<void> {
   }
 }
 
-const STATUS_LABEL: Record<string, string> = { idle: "Не сохранено", saving: "Сохранение…", saved: "Сохранено", conflict: "Конфликт — обновите", error: "Ошибка" }
+const STATUS_LABEL: Record<string, string> = { idle: "Не сохранено", saving: "Сохранение…", saved: "Сохранено", conflict: "Конфликт версий", error: "Не сохранилось — повторю при следующей правке" }
 
 export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void }) {
   const name = useSyncStore((s) => s.name)
@@ -163,8 +208,21 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       </div>
       <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: TOKENS.muted }}>
         <span className="h-2 w-2 rounded-full" style={{ background: dot }} /> {STATUS_LABEL[status]}
-        {projectId && <span className="opacity-60">· сохраняется автоматически</span>}
+        {projectId && status !== "conflict" && <span className="opacity-60">· сохраняется автоматически</span>}
       </div>
+      {status === "conflict" && (
+        <div className="flex flex-col gap-1 rounded-lg p-1.5 text-[10px]" style={{ background: "rgba(239,68,68,0.1)", color: TOKENS.text }}>
+          Модель изменили в другой вкладке или на другом устройстве.
+          <div className="flex gap-1">
+            <button type="button" onClick={() => void takeServerVersion()} title="Загрузить сохранённую версию; ваши несохранённые правки пропадут" className="flex-1 rounded-md px-1.5 py-1 font-medium" style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}>
+              Взять с сервера
+            </button>
+            <button type="button" onClick={() => void overwriteServerVersion()} title="Сохранить вашу модель поверх той, что на сервере" className="flex-1 rounded-md px-1.5 py-1 font-medium" style={{ background: "rgba(239,68,68,0.2)", color: "#fecaca" }}>
+              Сохранить мою
+            </button>
+          </div>
+        </div>
+      )}
       {aiOpen && (
         <div className="flex flex-col gap-1.5 border-t pt-1.5" style={{ borderColor: TOKENS.panelBorder }}>
           <textarea

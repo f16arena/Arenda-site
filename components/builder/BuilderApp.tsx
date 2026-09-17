@@ -308,6 +308,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         if (cancelled || !p) return
         useDocumentStore.getState().loadDocument(p.doc)
         useSyncStore.getState().setProject(p.id, p.name, p.revision)
+        // только что загруженное — уже сохранено: без этого автосейв сразу
+        // отправлял неизменённую модель (с тяжёлыми сканами) обратно на сервер
+        useSyncStore.setState({ lastSavedRev: useDocumentStore.getState().rev })
         const first = p.doc.buildings[0]?.floors?.[0]
         if (first) useEditorStore.getState().setActiveLevel(first.id)
       })

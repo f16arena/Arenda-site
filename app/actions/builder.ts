@@ -91,7 +91,7 @@ async function syncLayoutsFromDocument(projectId: string, doc: BuilderDocument):
   if (!project?.buildingId) return
   const dbFloors = await db.floor.findMany({
     where: { buildingId: project.buildingId },
-    select: { id: true, number: true },
+    select: { id: true, number: true, layoutJson: true },
   })
   const byId = new Map(dbFloors.map((f) => [f.id, f]))
   const byNumber = new Map(dbFloors.map((f) => [f.number, f]))
@@ -102,7 +102,10 @@ async function syncLayoutsFromDocument(projectId: string, doc: BuilderDocument):
     const layout = floorToLayout(floor)
     const hasRooms = layout.elements.some((el) => el.type === "polygon")
     if (!hasRooms) continue
-    await db.floor.update({ where: { id: target.id }, data: { layoutJson: JSON.stringify(layout) } })
+    const json = JSON.stringify(layout)
+    // этаж не менялся — не перезаписываем (план со сканом весит сотни килобайт)
+    if (target.layoutJson === json) continue
+    await db.floor.update({ where: { id: target.id }, data: { layoutJson: json } })
   }
   revalidateTag(floorsForBuildingTag(project.buildingId), { expire: 0 })
   revalidatePath(`/admin/buildings/${project.buildingId}/map`)
