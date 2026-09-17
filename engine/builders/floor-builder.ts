@@ -44,6 +44,36 @@ export function buildFloors(
     slab.metadata = { kind: "room", floorId: floor.id, entityId: room.id, areaMm2: room.areaMm2 }
     meshes.push(slab)
 
+    // потолок для этажа снизу: низ перекрытия белый, а не «паркет на потолке»
+    const ceil = MeshBuilder.CreatePolygon(
+      `ceil_${floor.id}_${room.id}`,
+      { shape, holes: holeShapes.length ? holeShapes : undefined, sideOrientation: Mesh.DOUBLESIDE },
+      scene,
+      earcut,
+    )
+    ceil.position.y = -0.04
+    ceil.parent = parent
+    ceil.isPickable = false
+    ceil.material = reg.get("paint_white")
+    ceil.metadata = { kind: "room", floorId: floor.id, entityId: room.id, areaMm2: room.areaMm2 }
+    meshes.push(ceil)
+
+    // плинтус по периметру: комната перестаёт выглядеть картонной коробкой
+    const ring = room.polygon
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length]
+      const len = Math.hypot(b.x - a.x, b.y - a.y)
+      if (len < 300) continue
+      const skirt = MeshBuilder.CreateBox(`skirt_${floor.id}_${room.id}_${i}`, { width: len * S, height: 0.08, depth: 0.02 }, scene)
+      skirt.position.set(((a.x + b.x) / 2) * S, 0.06, ((a.y + b.y) / 2) * S)
+      skirt.rotation.y = -Math.atan2(b.y - a.y, b.x - a.x)
+      skirt.material = reg.get("paint_white")
+      skirt.isPickable = false
+      skirt.parent = parent
+      skirt.metadata = { kind: "room", floorId: floor.id, entityId: room.id, areaMm2: room.areaMm2 }
+      meshes.push(skirt)
+    }
+
     const premiseId = floor.premiseLinks[room.id]
     if (premiseId) {
       const status = statusResolver(premiseId)

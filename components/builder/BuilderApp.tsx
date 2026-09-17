@@ -313,6 +313,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       setMeasure({ lengthMm, from })
     }
     engine.onLabels = (labels) => useLabelStore.getState().setLabels(labels)
+    // в обходе нужен потолок над головой — показываем здание целиком
+    engine.onWalkEnter = () => useEditorStore.getState().setDisplayMode("all")
     engine.onLowFps = () => {
       if (useEditorStore.getState().turbo) return
       useEditorStore.getState().setTurbo(true)

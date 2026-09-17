@@ -877,6 +877,8 @@ export class BuilderEngine {
       camera.detachControl()
       scene.activeCamera = this.walkCamera
       if (canvas) this.walkCamera.attachControl(canvas, true)
+      // внутри здания должен быть потолок: в обходе показываем все этажи
+      this.onWalkEnter()
       this.enableWalkCollisions()
       this.walkSpawn()
       return
@@ -945,6 +947,9 @@ export class BuilderEngine {
     // свойства. Этаж должен целиком влезть в оставшуюся середину экрана.
     cam.radius = Math.max(4, Math.max(h / 0.62, w / aspect / 0.62) + 2)
   }
+
+  /** Вход в обход: этажи выше должны быть видимы, иначе над головой небо. */
+  onWalkEnter: () => void = () => {}
 
   /** Всё, обо что можно удариться или на что встать: стены, полы, лестницы, крыши, объекты. */
   private enableWalkCollisions(): void {
