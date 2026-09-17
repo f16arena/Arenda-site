@@ -46,6 +46,10 @@ function applyPick(meta: MeshMeta | null): void {
     setSelection({ type: "none" })
     return
   }
+  // Клик по стене/комнате/проёму другого этажа делает этот этаж активным: иначе
+  // правка шла бы по плоскости чужого этажа, а ручки и размеры — не те.
+  const ed = useEditorStore.getState()
+  if (meta.floorId && meta.kind !== "object" && ed.activeLevelId !== meta.floorId) ed.setActiveLevel(meta.floorId)
   if (meta.kind === "wall") setSelection({ type: "wall", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "room") setSelection({ type: "room", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "opening") setSelection({ type: "opening", id: meta.entityId, floorId: meta.floorId })

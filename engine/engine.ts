@@ -11,6 +11,7 @@ import {
   MeshBuilder,
   PointLight,
   PointerEventTypes,
+  Ray,
   StandardMaterial,
   Texture,
   TransformNode,
@@ -194,9 +195,12 @@ export class BuilderEngine {
   /** координаты курсора на плоскости этажа, мм */
   onCursor: (mm: Vec2 | null) => void = () => {}
   private labelAnchors: Array<
-    | { kind: "wall"; id: string; world: Vector3; lengthMm: number; angleDeg: number }
+    | { kind: "wall"; id: string; floorId: string; world: Vector3; lengthMm: number; angleDeg: number }
     | { kind: "room"; id: string; floorId: string; world: Vector3; areaMm2: number }
   > = []
+  // подписи, закрытые чужой геометрией (этажом выше, соседним корпусом)
+  private occludedLabels = new Set<string>()
+  private lastOcclusionAt = 0
   private lastCursorAt = 0
   /** рулетка: отрезок задан, длина в мм плана */
   onMeasure: (lengthMm: number, from: Vec2, to: Vec2) => void = () => {}
@@ -496,6 +500,7 @@ export class BuilderEngine {
         anchors.push({
           kind: "wall",
           id: eid,
+          floorId: f.id,
           world: new Vector3(ox + ((a.x + c.x) / 2) * S, y, oz + ((a.y + c.y) / 2) * S),
           lengthMm: Math.hypot(c.x - a.x, c.y - a.y),
           angleDeg: (Math.atan2(c.y - a.y, c.x - a.x) * 180) / Math.PI,
@@ -980,6 +985,39 @@ export class BuilderEngine {
     return { x: Math.round(t.x), y: Math.round(t.y) }
   }
 
+  // Подпись этажа не рисуется, если между камерой и ней стоит геометрия другого
+  // этажа: иначе размеры 1 этажа висели на крыше 2-го. Лучи — раз в 250 мс.
+  private updateLabelOcclusion(): void {
+    const { scene } = this.bundle
+    const cam = scene.activeCamera
+    this.occludedLabels.clear()
+    if (!cam) return
+    const ortho = cam.mode === Camera.ORTHOGRAPHIC_CAMERA
+    const forward = cam.getDirection(Vector3.Forward())
+    for (const a of this.labelAnchors) {
+      let origin: Vector3
+      let dir: Vector3
+      let len: number
+      if (ortho) {
+        origin = a.world.subtract(forward.scale(400))
+        dir = forward
+        len = 400
+      } else {
+        origin = cam.globalPosition
+        const d = a.world.subtract(origin)
+        len = d.length()
+        if (len < 0.01) continue
+        dir = d.scale(1 / len)
+      }
+      const hit = scene.pickWithRay(new Ray(origin, dir, len - 0.4), (m) => {
+        if (!m.isPickable || !m.isEnabled() || m.visibility < 0.5) return false
+        const meta = m.metadata as MeshMeta | null
+        return !!meta?.floorId && meta.floorId !== a.floorId
+      })
+      if (hit?.hit) this.occludedLabels.add(a.id)
+    }
+  }
+
   private projectLabels(): void {
     if (this.labelAnchors.length === 0) {
       return
@@ -989,13 +1027,25 @@ export class BuilderEngine {
     const h = engine.getRenderHeight()
     const transform = scene.getTransformMatrix()
     const viewport = camera.viewport.toGlobal(w, h)
+    // Babylon рисует в пикселях устройства (adaptToDeviceRatio), подписи — в CSS-пикселях.
+    // Без этого на экране с масштабом 110–150 % подписи уезжали от стен.
+    const canvas = engine.getRenderingCanvas()
+    const k = canvas && canvas.clientWidth > 0 ? canvas.clientWidth / w : 1
+    const now = performance.now()
+    if (now - this.lastOcclusionAt > 250) {
+      this.lastOcclusionAt = now
+      this.updateLabelOcclusion()
+    }
     const out: ScreenLabel[] = []
     for (const a of this.labelAnchors) {
+      if (this.occludedLabels.has(a.id)) continue
       const p = Vector3.Project(a.world, Matrix.Identity(), transform, viewport)
       if (p.z < 0 || p.z > 1) continue // за камерой
       if (p.x < -40 || p.y < -40 || p.x > w + 40 || p.y > h + 40) continue
-      if (a.kind === "wall") out.push({ kind: "wall", id: a.id, x: p.x, y: p.y, lengthMm: a.lengthMm, angleDeg: a.angleDeg })
-      else out.push({ kind: "room", id: a.id, floorId: a.floorId, x: p.x, y: p.y, areaMm2: a.areaMm2 })
+      const x = p.x * k
+      const y = p.y * k
+      if (a.kind === "wall") out.push({ kind: "wall", id: a.id, x, y, lengthMm: a.lengthMm, angleDeg: a.angleDeg })
+      else out.push({ kind: "room", id: a.id, floorId: a.floorId, x, y, areaMm2: a.areaMm2 })
     }
     this.onLabels(out)
   }
