@@ -30,16 +30,16 @@ import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
 import { hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
-const STAGE_TITLE: Record<Exclude<PlanStage, "plan">, string> = {
+export const STAGE_TITLE: Record<Exclude<PlanStage, "plan">, string> = {
   demolish: "План демонтажа",
   install: "План монтажа",
   after: "План после перепланировки",
 }
 
-const FACADES: FacadeSide[] = ["south", "north", "west", "east"]
+export const FACADES: FacadeSide[] = ["south", "north", "west", "east"]
 
 /** Автоматические разрезы через середину здания — пока своих не нарисовали. */
-function autoSections(floors: Floor[]): SectionLineDoc[] {
+export function autoSections(floors: Floor[]): SectionLineDoc[] {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const f of floors) for (const id in f.wallGraph.nodes) {
     const n = f.wallGraph.nodes[id]
@@ -55,7 +55,7 @@ function autoSections(floors: Floor[]): SectionLineDoc[] {
 }
 
 /** ширина колонки таблиц сетей справа от плана, мм листа */
-const TABLES_W = 105
+export const TABLES_W = 105
 
 type Props = {
   buildingId: string
@@ -86,7 +86,7 @@ function wrapWords(text: string, width: number, lines: number): string[] {
   return out.slice(0, lines)
 }
 
-function floorTitle(f: Floor): string {
+export function floorTitle(f: Floor): string {
   if (f.level < 0) return `План подвала (${f.name})`
   if (f.level === 0) return "План цокольного этажа"
   return `План ${f.level}-го этажа`
@@ -150,7 +150,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
 
   return (
     <div className="flex flex-col gap-3 p-4 print:p-0">
-      <style>{`@media print { @page { size: ${activeSheet.format} ${activeSheet.orientation}; margin: 0 } body * { visibility: hidden } #floor-sheet, #floor-sheet * { visibility: visible } #floor-sheet { position: fixed; inset: 0 } }`}</style>
+      <style>{`@media print { @page { size: ${activeSheet.w}mm ${activeSheet.h}mm; margin: 0 } body * { visibility: hidden } #floor-sheet, #floor-sheet * { visibility: visible } #floor-sheet { position: fixed; inset: 0 } }`}</style>
 
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Link
@@ -214,6 +214,13 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           {activeSheet.format}, {activeSheet.orientation === "portrait" ? "книжный" : "альбомный"}, М 1:{activeSheet.scale}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <Link
+            href={`/admin/builder/${buildingId}/sheet?album=1`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200"
+            title="Все листы проекта подряд: ведомость, планы, перепланировка, сети, фасады, разрезы — одним PDF"
+          >
+            Альбом
+          </Link>
           <button
             type="button"
             onClick={downloadDxf}
@@ -256,7 +263,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   )
 }
 
-function SheetSvg({
+export function SheetSvg({
   drawing: d,
   sheet,
   title,
@@ -272,7 +279,12 @@ function SheetSvg({
   sectionMarks,
   replan,
   stage,
+  svgId = "floor-sheet",
+  cover,
 }: {
+  svgId?: string
+  /** титульный лист альбома: ведомость листов вместо чертежа */
+  cover?: Array<{ no: number; title: string; note: string }>
   replan: ReplanSummary | null
   stage: PlanStage
   elevation: ElevationDrawing | null
@@ -310,7 +322,7 @@ function SheetSvg({
 
   return (
     <svg
-      id="floor-sheet"
+      id={svgId}
       xmlns="http://www.w3.org/2000/svg"
       viewBox={`0 0 ${w} ${h}`}
       width={`${w}mm`}
@@ -327,7 +339,7 @@ function SheetSvg({
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
 
-      {elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
+      {cover ? <CoverBody rows={cover} w={w} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
       {/* оси */}
       {d.axes.map((ax, i) => {
         if (ax.dir === "v") {
@@ -525,7 +537,7 @@ function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
@@ -602,4 +614,33 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
   out.push(<text key="s2" x={x} y={cy + 6} fontSize={2.3}>Проёмы: пробиваются {summary.openingsNew}, закладываются {summary.openingsClosed}</text>)
   if (cut) out.push(<text key="cut" x={x} y={cy + 10} fontSize={2.2}>…ещё помещений: {cut}</text>)
   return <g>{out}</g>
+}
+
+/** Ведомость листов (ГОСТ 21.101, форма 1 в сокращённом виде). */
+function CoverBody({ rows, w }: { rows: Array<{ no: number; title: string; note: string }>; w: number }) {
+  const x = 40, tw = Math.min(260, w - 70), y0 = 30, rh = 8
+  const c1 = x + 15, c2 = x + tw - 60
+  return (
+    <g>
+      <text x={x + tw / 2} y={y0 - 6} fontSize={5} textAnchor="middle">Ведомость листов</text>
+      <rect x={x} y={y0} width={tw} height={rh * (rows.length + 1)} fill="none" stroke="#000" strokeWidth={0.5} />
+      <line x1={c1} y1={y0} x2={c1} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />
+      <line x1={c2} y1={y0} x2={c2} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />
+      <line x1={x} y1={y0 + rh} x2={x + tw} y2={y0 + rh} stroke="#000" strokeWidth={0.5} />
+      <text x={x + 7.5} y={y0 + 5.3} fontSize={3} textAnchor="middle">Лист</text>
+      <text x={(c1 + c2) / 2} y={y0 + 5.3} fontSize={3} textAnchor="middle">Наименование</text>
+      <text x={(c2 + x + tw) / 2} y={y0 + 5.3} fontSize={3} textAnchor="middle">Примечание</text>
+      {rows.map((r, i) => {
+        const y = y0 + rh * (i + 1)
+        return (
+          <g key={r.no}>
+            <line x1={x} y1={y + rh} x2={x + tw} y2={y + rh} stroke="#000" strokeWidth={0.18} />
+            <text x={x + 7.5} y={y + 5.3} fontSize={3} textAnchor="middle">{r.no}</text>
+            <text x={c1 + 3} y={y + 5.3} fontSize={3}>{r.title}</text>
+            <text x={c2 + 3} y={y + 5.3} fontSize={2.8}>{r.note}</text>
+          </g>
+        )
+      })}
+    </g>
+  )
 }

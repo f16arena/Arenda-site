@@ -9,6 +9,7 @@ import { openBuildingModel } from "@/app/actions/building-model"
 import { loadBuilderProject } from "@/app/actions/builder"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { FloorSheet } from "@/components/builder/sheet/FloorSheet"
+import { SheetAlbum } from "@/components/builder/sheet/SheetAlbum"
 import type { SheetSection } from "@/lib/builder/drawing/mep-drawing"
 
 /**
@@ -20,12 +21,12 @@ export default async function BuildingSheetPage({
   searchParams,
 }: {
   params: Promise<{ buildingId: string }>
-  searchParams: Promise<{ floor?: string; dbFloor?: string; section?: string; view?: string }>
+  searchParams: Promise<{ floor?: string; dbFloor?: string; section?: string; view?: string; album?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { buildingId } = await params
-  const { floor, dbFloor, section, view } = await searchParams
+  const { floor, dbFloor, section, view, album } = await searchParams
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
 
@@ -49,6 +50,20 @@ export default async function BuildingSheetPage({
     floors.find((f) => dbFloor && f.sourceFloorId === dbFloor) ??
     floors.find((f) => f.level === 1) ??
     floors[0]
+
+  const albumBuilding = project.doc.buildings.find((b) => b.floors.some((f) => f.id === initial?.id)) ?? project.doc.buildings[0]
+  if (album && albumBuilding) {
+    return (
+      <SheetAlbum
+        buildingId={buildingId}
+        buildingName={building?.name ?? model.buildingName}
+        address={building?.documentAddress || building?.address || ""}
+        author={session.user.name ?? ""}
+        building={albumBuilding}
+        premiseNumbers={Object.fromEntries(premises.map((p) => [p.id, p.number]))}
+      />
+    )
+  }
 
   return (
     <FloorSheet
