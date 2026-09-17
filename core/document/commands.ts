@@ -1412,3 +1412,21 @@ export class SetOpeningExitCommand implements Command {
     }))
   }
 }
+
+export class ToggleExitReverseCommand implements Command {
+  readonly kind = "toggle-exit-reverse"
+  readonly label = "стрелка выхода"
+  constructor(private floorId: string, private openingId: string) {}
+  private flip(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({
+      ...fl,
+      openings: fl.openings.map((o) => {
+        if (o.id !== this.openingId) return o
+        const { exitReverse, ...rest } = o
+        return exitReverse ? rest : { ...rest, exitReverse: true }
+      }),
+    }))
+  }
+  apply(doc: BuilderDocument): BuilderDocument { return this.flip(doc) }
+  revert(doc: BuilderDocument): BuilderDocument { return this.flip(doc) }
+}

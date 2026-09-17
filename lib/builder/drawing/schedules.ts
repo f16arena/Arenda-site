@@ -1,8 +1,8 @@
 // Ведомости рабочих чертежей АР: заполнение проёмов (марки ОК-1, Д-1 по всему
 // зданию) и экспликация помещений этажа. Один расчёт — для плана, листа и DXF.
 
+import { floorRooms } from "@/lib/builder/rooms"
 import type { Floor, Opening } from "@/types/builder"
-import { detectRooms } from "@/core/geometry/room-detection"
 
 export interface OpeningRow {
   mark: string
@@ -86,7 +86,7 @@ export interface RoomRow {
  * сверху вниз, слева направо по плану.
  */
 export function roomExplication(floor: Floor, premiseNumber: (premiseId: string) => string | null = () => null): RoomRow[] {
-  const rooms = detectRooms(floor.wallGraph)
+  const rooms = floorRooms(floor)
     .map((r) => {
       let cx = 0, cy = 0
       for (const p of r.polygon) { cx += p.x; cy += p.y }

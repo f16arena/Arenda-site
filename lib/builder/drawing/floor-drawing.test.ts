@@ -113,3 +113,29 @@ describe("стыки стен на плане", async () => {
     expect(maxY).toBeCloseTo(60)
   })
 })
+
+describe("стрелки выходов по пути эвакуации", async () => {
+  const { emptyGraph, insertWall } = await import("@/core/geometry/wall-graph")
+  const { exitArrows } = await import("./floor-drawing")
+  it("дверь из кабинета в коридор смотрит в коридор, наружная — на улицу", () => {
+    let g = emptyGraph()
+    const W = (a: number[], b: number[], t = 300, kind: "exterior" | "partition" = "exterior") => { g = insertWall(g, { x: a[0], y: a[1] }, { x: b[0], y: b[1] }, { thickness: t, height: 3000, kind }).graph }
+    W([0, 0], [10000, 0]); W([10000, 0], [10000, 6000]); W([10000, 6000], [0, 6000]); W([0, 6000], [0, 0])
+    W([0, 3000], [10000, 3000], 120, "partition") // кабинет сверху (y>3000), коридор снизу
+    const edgeAt = (y: number, x: number) => Object.values(g.edges).find((e) => { const a = g.nodes[e.a], b = g.nodes[e.b]; return Math.abs(a.y - y) < 1 && Math.abs(b.y - y) < 1 && Math.min(a.x, b.x) <= x && Math.max(a.x, b.x) >= x })!
+    const inner = edgeAt(3000, 5000), outer = edgeAt(0, 5000)
+    const off = (e: typeof inner, x: number) => Math.abs(x - g.nodes[e.a].x)
+    const floor = { wallGraph: g, openings: [
+      { id: "in", wallId: inner.id, type: "door" as const, variant: "single", width: 900, height: 2100, sillHeight: 0, offset: off(inner, 5000), exit: "emergency" as const },
+      { id: "out", wallId: outer.id, type: "door" as const, variant: "single", width: 1200, height: 2100, sillHeight: 0, offset: off(outer, 5000), exit: "emergency" as const },
+    ] }
+    const ex = exitArrows(floor)
+    expect(ex).toHaveLength(2)
+    // внутренняя дверь: вниз, в коридор (у коридора наружная дверь)
+    expect(ex[0].dir.y).toBeCloseTo(-1)
+    // наружная: на улицу (вниз)
+    expect(ex[1].dir.y).toBeCloseTo(-1)
+    const rev = exitArrows({ ...floor, openings: [{ ...floor.openings[0], exitReverse: true }, floor.openings[1]] })
+    expect(rev[0].dir.y).toBeCloseTo(1)
+  })
+})

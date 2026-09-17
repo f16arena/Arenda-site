@@ -13,6 +13,7 @@
 // - координационные оси по наружным и несущим стенам: цифры по горизонтали,
 //   буквы по вертикали
 
+import { floorRooms } from "@/lib/builder/rooms"
 import { floorAtStage } from "@/lib/builder/replan"
 import { generateStair, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
@@ -72,7 +73,7 @@ export interface FloorDrawing {
   userDims: Array<{ a: Pt; b: Pt; offset: number }>
   texts: Array<{ at: Pt; text: string }>
   /** марки проёмов у стены: снаружи окна, со стороны открывания двери */
-  marks: Array<{ at: Pt; text: string }>
+  marks: Array<{ at: Pt; text: string; base: Pt; n: Pt; half: number }>
   /** стрелки хода лестниц (ломаная через центры ступеней, стрелка вверх) */
   stairArrows: Pt[][]
   /** лифты: контур шахты, кабина с крестом */
@@ -250,7 +251,8 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
       if (mark) {
         const c = add(a, mul(u, o.offset))
         // окно — марка по левой стороне стены, дверь — со стороны полотна
-        marks.push({ at: add(c, mul(nrm, (h + 450) * (o.type === "window" ? -1 : 1))), text: mark })
+        const side = o.type === "window" ? -1 : 1
+        marks.push({ at: add(c, mul(nrm, (h + 450) * side)), text: mark, base: c, n: mul(nrm, side), half: h })
       }
       const p0 = add(a, mul(u, o.offset - o.width / 2))
       const p1 = add(a, mul(u, o.offset + o.width / 2))
@@ -327,7 +329,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   }
 
   // помещения
-  const rooms: RoomLabel[] = detectRooms(g).map((r) => {
+  const rooms: RoomLabel[] = floorRooms({ wallGraph: g, stairs: floor.stairs, height: floor.height }).map((r) => {
     const key = floor.premiseLinks[r.id]
     // подпись обходит лестницы, лифты и колонны внутри помещения
     const obstacles = floor.stairs.map((st) => stairHoleWorld(st, floor.height)).filter((h) => h.some((q) => pointInPolygon(q, r.polygon)))
@@ -425,24 +427,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     ...hAxes.map((at, i) => ({ dir: "h" as const, at, label: letters[i] })),
   ]
 
-  // выходы: стрелка наружу от двери (наружу — сторона, не попавшая в помещение)
-  const exits: FloorDrawing["exits"] = []
-  const detected = detectRooms(g)
-  for (const o of floor.openings) {
-    if (o.type !== "door" || !o.exit) continue
-    const e = g.edges[o.wallId]
-    const a = e && g.nodes[e.a], b = e && g.nodes[e.b]
-    if (!e || !a || !b) continue
-    const L = Math.hypot(b.x - a.x, b.y - a.y)
-    if (L < 1) continue
-    const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
-    const n = { x: -u.y, y: u.x }
-    const c = { x: a.x + u.x * o.offset, y: a.y + u.y * o.offset }
-    const probe = e.thickness / 2 + 300
-    const leftIn = detected.some((r) => pointInPolygon({ x: c.x + n.x * probe, y: c.y + n.y * probe }, r.polygon))
-    const dir = leftIn ? { x: -n.x, y: -n.y } : n
-    exits.push({ at: { x: c.x + dir.x * (e.thickness / 2 + 200), y: c.y + dir.y * (e.thickness / 2 + 200) }, dir, kind: o.exit })
-  }
+  const exits = exitArrows(floor)
 
   const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
   const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
@@ -489,4 +474,67 @@ export function pickSheet(drawing: FloorDrawing, reserveRight = 0): Sheet {
   for (const scale of SCALES) if (fits(drawing, options[1].w, options[1].h, scale, reserveRight)) return { ...options[1], scale }
   for (const scale of SCALES) if (fits(drawing, options[0].w, options[0].h, scale, reserveRight)) return { ...options[0], scale }
   return { ...options[1], scale: SCALES[SCALES.length - 1] }
+}
+
+/**
+ * Стрелки выходов по пути эвакуации. Дверь в наружной стене — наружу. Дверь
+ * между помещениями — в сторону помещения, откуда меньше дверей до выхода из
+ * здания (поиск в ширину по дверям); без наружных дверей — в большее помещение.
+ * exitReverse у проёма разворачивает стрелку вручную.
+ */
+export function exitArrows(floor: Pick<Floor, "wallGraph" | "openings">): FloorDrawing["exits"] {
+  const g = floor.wallGraph
+  const rooms = detectRooms(g)
+  const roomAt = (p: Pt) => rooms.find((r) => pointInPolygon(p, r.polygon) && !(r.holes ?? []).some((h) => pointInPolygon(p, h)))
+  type Door = { o: Floor["openings"][number]; c: Pt; n: Pt; half: number; left?: string; right?: string; exterior: boolean }
+  const doors: Door[] = []
+  for (const o of floor.openings) {
+    if (o.type !== "door") continue
+    const e = g.edges[o.wallId]
+    const a = e && g.nodes[e.a], b = e && g.nodes[e.b]
+    if (!e || !a || !b) continue
+    const L = Math.hypot(b.x - a.x, b.y - a.y)
+    if (L < 1) continue
+    const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+    const n = { x: -u.y, y: u.x }
+    const c = { x: a.x + u.x * o.offset, y: a.y + u.y * o.offset }
+    const probe = e.thickness / 2 + 300
+    const left = roomAt({ x: c.x + n.x * probe, y: c.y + n.y * probe })?.id
+    const right = roomAt({ x: c.x - n.x * probe, y: c.y - n.y * probe })?.id
+    doors.push({ o, c, n, half: e.thickness / 2, left, right, exterior: !left || !right })
+  }
+  // расстояние в дверях до выхода наружу
+  const hops = new Map<string, number>()
+  const queue: string[] = []
+  for (const d of doors) {
+    if (!d.exterior || d.o.phase === "demolish") continue
+    const inner = d.left ?? d.right
+    if (inner && !hops.has(inner)) { hops.set(inner, 0); queue.push(inner) }
+  }
+  while (queue.length) {
+    const r = queue.shift() as string
+    const h = hops.get(r) as number
+    for (const d of doors) {
+      if (d.exterior || d.o.phase === "demolish") continue
+      const other = d.left === r ? d.right : d.right === r ? d.left : undefined
+      if (other && !hops.has(other)) { hops.set(other, h + 1); queue.push(other) }
+    }
+  }
+  const areaOf = (id?: string) => rooms.find((r) => r.id === id)?.areaMm2 ?? 0
+  const out: FloorDrawing["exits"] = []
+  for (const d of doors) {
+    if (!d.o.exit) continue
+    let toLeft: boolean
+    if (!d.left && d.right) toLeft = true // слева улица
+    else if (d.left && !d.right) toLeft = false
+    else {
+      const hl = d.left ? hops.get(d.left) : undefined, hr = d.right ? hops.get(d.right) : undefined
+      if (hl !== undefined || hr !== undefined) toLeft = (hl ?? Infinity) <= (hr ?? Infinity)
+      else toLeft = areaOf(d.left) >= areaOf(d.right)
+    }
+    if (d.o.exitReverse) toLeft = !toLeft
+    const dir = toLeft ? d.n : { x: -d.n.x, y: -d.n.y }
+    out.push({ at: { x: d.c.x + dir.x * (d.half + 200), y: d.c.y + dir.y * (d.half + 200) }, dir, kind: d.o.exit })
+  }
+  return out
 }

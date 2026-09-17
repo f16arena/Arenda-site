@@ -40,6 +40,8 @@ export const OpeningSchema = z.object({
   phase: z.enum(["demolish", "new"]).optional(),
   /** дверь — главный вход или эвакуационный выход (знаки в 3D и на плане) */
   exit: z.enum(["main", "emergency"]).optional(),
+  /** стрелка выхода развёрнута вручную */
+  exitReverse: z.boolean().optional(),
 })
 
 export const StairSchema = z.object({

@@ -3,6 +3,7 @@
 // перетаскивание узла (стены следуют); инструменты проёмов (реальные вырезы), лестниц
 // (вырез в перекрытии), ведра материалов; ховер-outline. Один Engine, корректный dispose.
 
+import { floorRooms } from "@/lib/builder/rooms"
 import { arcSegmentIds } from "@/lib/builder/arc"
 import {
   Camera,
@@ -692,7 +693,7 @@ export class BuilderEngine {
           angleDeg: (Math.atan2(c.y - a.y, c.x - a.x) * 180) / Math.PI,
         })
       }
-      for (const room of detectRooms(f.wallGraph)) {
+      for (const room of floorRooms(f)) {
         const c = centroid(room.polygon)
         anchors.push({ kind: "room", id: room.id, floorId: f.id, world: new Vector3(ox + c.x * S, y, oz + c.y * S), areaMm2: room.areaMm2 })
       }

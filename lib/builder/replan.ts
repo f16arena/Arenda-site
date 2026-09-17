@@ -3,9 +3,9 @@
 // "new" — возводится. Из этого выводятся обмерный план, план демонтажа,
 // план монтажа, итоговый план и сравнение площадей.
 
+import { floorRooms } from "@/lib/builder/rooms"
 import type { Floor, Opening } from "@/types/builder"
 import type { WallGraph } from "@/core/geometry/wall-graph"
-import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon } from "@/core/geometry/math"
 
 export type Phase = "demolish" | "new"
@@ -78,9 +78,9 @@ const r1 = (x: number) => Math.round(x * 10) / 10
  * (центр тяжести нового помещения попал в старое). Несопоставленные старые —
  * исчезнувшие (объединены или снесены).
  */
-export function replanSummary(floor: Pick<Floor, "wallGraph" | "openings">): ReplanSummary {
-  const before = detectRooms(phaseGraph(floor.wallGraph, "before"))
-  const after = detectRooms(phaseGraph(floor.wallGraph, "after"))
+export function replanSummary(floor: Pick<Floor, "wallGraph" | "openings"> & Partial<Pick<Floor, "stairs" | "height">>): ReplanSummary {
+  const before = floorRooms({ wallGraph: phaseGraph(floor.wallGraph, "before"), stairs: floor.stairs ?? [], height: floor.height ?? 3000 })
+  const after = floorRooms({ wallGraph: phaseGraph(floor.wallGraph, "after"), stairs: floor.stairs ?? [], height: floor.height ?? 3000 })
   const matched = new Set<string>()
   const rooms: RoomChange[] = after.map((r) => {
     const c = centroid(r.polygon)

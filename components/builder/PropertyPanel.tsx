@@ -4,9 +4,10 @@
 // комната (площадь + привязка premise + статус), объект (ассет). Фаза 1 — чтение реальных
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
+import { floorRooms } from "@/lib/builder/rooms"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
@@ -16,7 +17,6 @@ import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
-import { detectRooms } from "@/core/geometry/room-detection"
 import { distance } from "@/core/geometry/math"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
 
@@ -110,7 +110,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   } else if (selection.type === "room" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)
     if (f) {
-      const room = detectRooms(f.wallGraph).find((r) => r.id === selection.id)
+      const room = floorRooms(f).find((r) => r.id === selection.id)
       title = "Помещение"
       const drawnM2 = room ? room.areaMm2 / 1_000_000 : null
       const linkKey = f.premiseLinks[selection.id]
@@ -224,6 +224,11 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
                   <button key={l} type="button" onClick={() => execute(new SetOpeningExitCommand(fid, oid, v))} className="flex-1 rounded-md py-1 text-[10px] font-medium" style={{ background: op.exit === v ? c : "rgba(148,163,184,0.1)", color: op.exit === v ? "#fff" : TOKENS.text }}>{l}</button>
                 ))}
               </div>
+              {op.exit && (
+                <button type="button" onClick={() => execute(new ToggleExitReverseCommand(fid, oid))} className="rounded-md py-1 text-[10px] font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }} title="Стрелка ставится по пути к выходу из здания; если направление другое — разверните">
+                  ⇄ Развернуть стрелку
+                </button>
+              )}
             </div>
           )}
           {numInput("Ширина, м", op.width, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { width: mm })), 400, 6000)}

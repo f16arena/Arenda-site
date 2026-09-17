@@ -5,9 +5,9 @@
 //
 // Чистая функция, без базы: этаж документа → FloorLayoutV2 в метрах.
 
+import { floorRooms } from "@/lib/builder/rooms"
 import type { Floor as ModelFloor } from "@/types/builder"
 import type { FloorElement, FloorLayoutV2 } from "@/lib/floor-layout"
-import { detectRooms } from "@/core/geometry/room-detection"
 
 const MM = 1 / 1000
 // В модели ось Y плана смотрит вверх (как в CAD и в «Плане» конструктора),
@@ -46,7 +46,7 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
   const oy = hasNodes ? minY : 0
   const mx = (x: number) => round((x - ox) * MM + 1)
   const my = (y: number) => round((flipY(y) - oy) * MM + 1)
-  const rooms = detectRooms(floor.wallGraph)
+  const rooms = floorRooms(floor)
 
   // Помещения: контур в метрах, привязка к карточке из premiseLinks.
   // Комната без привязки остаётся арендопригодной — так её видно на карте

@@ -10,6 +10,7 @@
 // Перетаскивание — предпросмотр без записи в историю, команда одна на жест:
 // Ctrl+Z отменяет весь сдвиг целиком.
 
+import { floorRooms } from "@/lib/builder/rooms"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDocumentStore, useEditorStore, type Selection } from "@/store/builder-store"
 import { usePremiseStore } from "@/store/premise-store"
@@ -124,7 +125,7 @@ export function PlanEditor() {
   }, [])
 
   const shown = preview ?? floor ?? null
-  const rooms = useMemo(() => (shown ? detectRooms(shown.wallGraph) : []), [shown])
+  const rooms = useMemo(() => (shown ? floorRooms(shown) : []), [shown])
   const numbers = useMemo(() => {
     if (!shown) return new Map<string, string>()
     return new Map(roomExplication(shown, (id) => resolvePremise(id)?.number ?? null).map((r) => [r.roomId, r.number]))
@@ -601,6 +602,82 @@ export function PlanEditor() {
     : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
     : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
 
+  // ── Раскладка подписей: помещения (приоритет), затем марки и надписи выходов без наложений ──
+  type Box = { l: number; t: number; r: number; b: number }
+  const taken: Box[] = []
+  const overlaps = (bx: Box) => taken.some((o) => bx.l < o.r && bx.r > o.l && bx.t < o.b && bx.b > o.t)
+  const textBox = (x: number, y: number, text: string, f: number): Box => {
+    const w = text.length * f * 0.6 + 4, h = f * 1.25
+    return { l: x - w / 2, t: y - h / 2, r: x + w / 2, b: y + h / 2 }
+  }
+  const roomLabels: Array<{ id: string; x: number; top: number; f: number; lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> }> = []
+  for (const r of rooms) {
+    const at = drawing.rooms.find((x) => x.roomId === r.id)?.at
+    let cx = 0, cy = 0
+    for (const q of r.polygon) { cx += q.x; cy += q.y }
+    const anchor = at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length }
+    const c = S(anchor)
+    const link = floor.premiseLinks[r.id]
+    const premise = link ? resolvePremise(link) : undefined
+    const name = floor.roomNames?.[r.id]
+    const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
+    const widthPx = px(spanAt(r.polygon, anchor, r.holes)) - 10
+    const areaText = look === "draft" ? area.replace(" м²", "") : area
+    const fits = (t: string, f: number) => t.length * f * 0.56 <= widthPx
+    if (widthPx < 18) continue
+    let f = fontPx
+    while (f > 8 && !fits(areaText, f)) f -= 1
+    if (!fits(areaText, f)) continue
+    const cut = (t: string) => {
+      if (fits(t, f)) return t
+      const k = Math.floor(widthPx / (f * 0.56)) - 1
+      return k >= 3 ? `${t.slice(0, k)}…` : ""
+    }
+    const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
+    const num = numbers.get(r.id)
+    if (num) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
+    if (name) lines.push({ t: cut(name), color: "#334155" })
+    if (look === "rent" && premise?.tenantName) lines.push({ t: cut(shortTenantName(premise.tenantName)), color: "#334155" })
+    lines.push({ t: areaText, under: true, color: look === "draft" ? "#111" : "#475569" })
+    const shownLines = lines.filter((l) => l.t)
+    const maxLines = Math.max(1, Math.floor(px(Math.sqrt(r.areaMm2)) / (f * 1.25)))
+    const visible = shownLines.length > maxLines ? shownLines.slice(shownLines.length - maxLines) : shownLines
+    const top = c.y - ((visible.length - 1) * f * 1.2) / 2
+    const longest = visible.reduce((m, l) => Math.max(m, l.t.length), 0)
+    taken.push({ l: c.x - (longest * f * 0.6) / 2, t: top - f * 0.7, r: c.x + (longest * f * 0.6) / 2, b: top + (visible.length - 1) * f * 1.2 + f * 0.7 })
+    roomLabels.push({ id: r.id, x: c.x, top, f, lines: visible })
+  }
+  // надписи выходов
+  const exitLabels = drawing.exits.map((ex) => {
+    const a = S(ex.at)
+    const dir = { x: ex.dir.x, y: -ex.dir.y }
+    const L = Math.max(22, px(1200))
+    const tip = { x: a.x + dir.x * L, y: a.y + dir.y * L }
+    const text = ex.kind === "emergency" ? "ВЫХОД" : "ВХОД"
+    // текст за стрелкой; если занято — сбоку от стрелки
+    const cands = [{ x: tip.x + dir.x * 18, y: tip.y + dir.y * 18 }, { x: tip.x - dir.y * 30, y: tip.y + dir.x * 30 }, { x: tip.x + dir.y * 30, y: tip.y - dir.x * 30 }]
+    let pos: { x: number; y: number } | null = null
+    for (const cnd of cands) {
+      const bx = textBox(cnd.x, cnd.y, text, fontPx)
+      if (!overlaps(bx)) { taken.push(bx); pos = cnd; break }
+    }
+    return { a, tip, dir, text, pos, color: ex.kind === "emergency" ? "#16a34a" : "#2563eb" }
+  })
+  // марки проёмов: от грани стены на 9 px, без наложений
+  const markLabels: Array<{ x: number; y: number; t: string }> = []
+  if (px(1000) >= 10) {
+    for (const m of drawing.marks) {
+      const b = S(m.base)
+      const ns = { x: m.n.x, y: -m.n.y }
+      const d = px(m.half) + 10
+      const x = b.x + ns.x * d, y = b.y + ns.y * d
+      const bx = textBox(x, y, m.text, 9)
+      if (overlaps(bx)) continue
+      taken.push(bx)
+      markLabels.push({ x, y, t: m.text })
+    }
+  }
+
   // ── Размеры выделенного элемента прямо на плане: клик — ввод числа ─────────
   type EditDim = { key: string; at: Vec2; label: string; value: number; apply: (v: number) => void; min: number; max: number }
   const editDims: EditDim[] = []
@@ -773,9 +850,8 @@ export function PlanEditor() {
               )
             }
           })
-          if (px(1000) >= 14) drawing.marks.forEach((m, i) => {
-            const c = S(m.at)
-            items.push(<text key={`mk${i}`} x={c.x} y={c.y} fontSize={9} textAnchor="middle" dominantBaseline="middle" fill="#111" style={{ pointerEvents: "none" }}>{m.text}</text>)
+          markLabels.forEach((m, i) => {
+            items.push(<text key={`mk${i}`} x={m.x} y={m.y} fontSize={9} textAnchor="middle" dominantBaseline="middle" fill="#111" style={{ pointerEvents: "none" }}>{m.t}</text>)
           })
           return <g style={{ pointerEvents: "none" }}>{items}</g>
         })()}
@@ -802,20 +878,13 @@ export function PlanEditor() {
             {(() => { const c = S({ x: (lf.shaft[0].x + lf.shaft[2].x) / 2, y: (lf.shaft[0].y + lf.shaft[2].y) / 2 }); return <text x={c.x} y={c.y} fontSize={fontPx} textAnchor="middle" dominantBaseline="middle" fontWeight={700} fill="#0f172a" style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3 }}>ЛИФТ</text> })()}
           </g>
         ))}
-        {drawing.exits.map((ex, i) => {
-          const a = S(ex.at)
-          const dir = { x: ex.dir.x, y: -ex.dir.y }
-          const L = Math.max(22, px(1200))
-          const tip = { x: a.x + dir.x * L, y: a.y + dir.y * L }
-          const color = ex.kind === "emergency" ? "#16a34a" : "#2563eb"
-          return (
-            <g key={`ex${i}`} stroke={color} fill={color}>
-              <line x1={a.x} y1={a.y} x2={tip.x} y2={tip.y} strokeWidth={3} />
-              <polygon points={`${tip.x},${tip.y} ${tip.x - dir.x * 11 - dir.y * 6},${tip.y - dir.y * 11 + dir.x * 6} ${tip.x - dir.x * 11 + dir.y * 6},${tip.y - dir.y * 11 - dir.x * 6}`} stroke="none" />
-              <text x={tip.x + dir.x * 18} y={tip.y + dir.y * 18} fontSize={fontPx} textAnchor="middle" dominantBaseline="middle" stroke="none" fontWeight={700}>{ex.kind === "emergency" ? "ВЫХОД" : "ВХОД"}</text>
-            </g>
-          )
-        })}
+        {exitLabels.map((ex, i) => (
+          <g key={`ex${i}`} stroke={ex.color} fill={ex.color} style={{ pointerEvents: "none" }}>
+            <line x1={ex.a.x} y1={ex.a.y} x2={ex.tip.x} y2={ex.tip.y} strokeWidth={3} />
+            <polygon points={`${ex.tip.x},${ex.tip.y} ${ex.tip.x - ex.dir.x * 11 - ex.dir.y * 6},${ex.tip.y - ex.dir.y * 11 + ex.dir.x * 6} ${ex.tip.x - ex.dir.x * 11 + ex.dir.y * 6},${ex.tip.y - ex.dir.y * 11 - ex.dir.x * 6}`} stroke="none" />
+            {ex.pos && <text x={ex.pos.x} y={ex.pos.y} fontSize={fontPx} textAnchor="middle" dominantBaseline="middle" stroke="none" fontWeight={700} style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 3 }}>{ex.text}</text>}
+          </g>
+        ))}
 
         {/* сети: трассы и приборы тонко, чтобы видеть при перепланировке */}
         {(shown?.mepRuns ?? []).map((r) => <polyline key={r.id} points={pts(r.points)} fill="none" stroke={MEP_SYSTEM_INFO[r.system].color} strokeWidth={1.5} opacity={0.7} />)}
@@ -837,50 +906,13 @@ export function PlanEditor() {
         })}
 
         {/* подписи помещений */}
-        {rooms.map((r) => {
-          // точка подписи — внутри помещения (Г-образный коридор: не на стене)
-          const at = drawing.rooms.find((x) => x.roomId === r.id)?.at
-          let cx = 0, cy = 0
-          for (const q of r.polygon) { cx += q.x; cy += q.y }
-          const c = S(at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length })
-          const link = floor.premiseLinks[r.id]
-          const premise = link ? resolvePremise(link) : undefined
-          const name = floor.roomNames?.[r.id]
-          const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
-          // подпись не выходит за стены: ширина помещения на уровне подписи
-          const widthPx = px(spanAt(r.polygon, at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length }, r.holes)) - 10
-          const areaText = look === "draft" ? area.replace(" м²", "") : area
-          const fits = (t: string, f: number) => t.length * f * 0.56 <= widthPx
-          if (widthPx < 18) return null
-          // по строке: номер, наименование, арендатор (в «Аренде»), площадь — что не влезло, сокращаем или убираем
-          let f = fontPx
-          while (f > 8 && !fits(areaText, f)) f -= 1
-          if (!fits(areaText, f)) return null
-          const cut = (t: string) => {
-            if (fits(t, f)) return t
-            const k = Math.floor(widthPx / (f * 0.56)) - 1
-            return k >= 3 ? `${t.slice(0, k)}…` : ""
-          }
-          const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
-          const num = numbers.get(r.id)
-          if (num) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
-          if (name) lines.push({ t: cut(name), color: "#334155" })
-          if (look === "rent" && premise?.tenantName) lines.push({ t: cut(shortTenantName(premise.tenantName)), color: "#334155" })
-          lines.push({ t: areaText, under: true, color: look === "draft" ? "#111" : "#475569" })
-          const shown = lines.filter((l) => l.t)
-          // высота помещения — не больше строк, чем влезает по вертикали
-          const hPx = px(Math.sqrt(r.areaMm2))
-          const maxLines = Math.max(1, Math.floor(hPx / (f * 1.25)))
-          const visible = shown.length > maxLines ? shown.slice(shown.length - maxLines) : shown
-          const top = c.y - ((visible.length - 1) * f * 1.2) / 2
-          return (
-            <g key={`lbl${r.id}`} style={{ pointerEvents: "none" }} fontSize={f} textAnchor="middle">
-              {visible.map((l, i) => (
-                <text key={i} x={c.x} y={top + i * f * 1.2} dominantBaseline="middle" fontWeight={l.bold ? 700 : 400} fill={l.color} textDecoration={l.under ? "underline" : undefined}>{l.t}</text>
-              ))}
-            </g>
-          )
-        })}
+        {roomLabels.map((lb) => (
+          <g key={`lbl${lb.id}`} style={{ pointerEvents: "none" }} fontSize={lb.f} textAnchor="middle">
+            {lb.lines.map((l, k) => (
+              <text key={k} x={lb.x} y={lb.top + k * lb.f * 1.2} dominantBaseline="middle" fontWeight={l.bold ? 700 : 400} fill={l.color} textDecoration={l.under ? "underline" : undefined}>{l.t}</text>
+            ))}
+          </g>
+        ))}
 
         {/* выделение */}
         {selWall && (() => {
