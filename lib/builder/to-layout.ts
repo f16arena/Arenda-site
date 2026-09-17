@@ -27,6 +27,25 @@ function orthoRotation(dx: number, dy: number): number {
 
 export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
   const elements: FloorElement[] = []
+  // Холст карты начинается в (0; 0), а у модели координаты от центра и бывают
+  // отрицательными (пристройки, тамбур). Сдвигаем этаж так, чтобы крайний узел
+  // лёг в 1 м от угла холста — иначе карта обрезала бы часть здания.
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const id in floor.wallGraph.nodes) {
+    const n = floor.wallGraph.nodes[id]
+    minX = Math.min(minX, n.x)
+    minY = Math.min(minY, flipY(n.y))
+    maxX = Math.max(maxX, n.x)
+    maxY = Math.max(maxY, flipY(n.y))
+  }
+  const hasNodes = Number.isFinite(minX)
+  const ox = hasNodes ? minX : 0
+  const oy = hasNodes ? minY : 0
+  const mx = (x: number) => round((x - ox) * MM + 1)
+  const my = (y: number) => round((flipY(y) - oy) * MM + 1)
   const rooms = detectRooms(floor.wallGraph)
 
   // Помещения: контур в метрах, привязка к карточке из premiseLinks.
@@ -38,7 +57,7 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
       id: room.id,
       spaceId: floor.premiseLinks[room.id] ?? null,
       kind: "rentable",
-      points: room.polygon.map((p) => ({ x: round(p.x * MM), y: round(flipY(p.y) * MM) })),
+      points: room.polygon.map((p) => ({ x: mx(p.x), y: my(p.y) })),
     })
   }
 
@@ -51,10 +70,10 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
     elements.push({
       type: "wall",
       id,
-      x1: round(a.x * MM),
-      y1: round(flipY(a.y) * MM),
-      x2: round(b.x * MM),
-      y2: round(flipY(b.y) * MM),
+      x1: mx(a.x),
+      y1: my(a.y),
+      x2: mx(b.x),
+      y2: my(b.y),
       thickness: round(edge.thickness * MM),
     })
   }
@@ -76,8 +95,8 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
       elements.push({
         type: "door",
         id: opening.id,
-        x: round(cx * MM),
-        y: round(flipY(cy) * MM),
+        x: mx(cx),
+        y: my(cy),
         width: round(opening.width * MM),
         rotation,
         swing: "left",
@@ -86,29 +105,16 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
       elements.push({
         type: "window",
         id: opening.id,
-        x: round(cx * MM),
-        y: round(flipY(cy) * MM),
+        x: mx(cx),
+        y: my(cy),
         width: round(opening.width * MM),
         rotation,
       })
     }
   }
 
-  // Габариты холста — по стенам с запасом; пустой этаж получает разумный холст
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  for (const id in floor.wallGraph.nodes) {
-    const n = floor.wallGraph.nodes[id]
-    minX = Math.min(minX, n.x)
-    minY = Math.min(minY, flipY(n.y))
-    maxX = Math.max(maxX, n.x)
-    maxY = Math.max(maxY, flipY(n.y))
-  }
-  const hasNodes = Number.isFinite(minX)
-  const width = hasNodes ? round((maxX - Math.min(minX, 0)) * MM + 2) : 30
-  const height = hasNodes ? round((maxY - Math.min(minY, 0)) * MM + 2) : 20
+  const width = hasNodes ? round((maxX - minX) * MM + 2) : 30
+  const height = hasNodes ? round((maxY - minY) * MM + 2) : 20
 
   const underlay = floor.underlay
   return {
@@ -122,9 +128,9 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
           url: underlay.url,
           widthMeters: round(underlay.widthMm * MM),
           aspect: underlay.aspect,
-          x: round(underlay.x * MM),
+          x: mx(underlay.x),
           // верхний левый угол картинки: в модели y — нижняя граница по оси вверх
-          y: round(flipY(underlay.y + underlay.widthMm / (underlay.aspect || 1)) * MM),
+          y: my(underlay.y + underlay.widthMm / (underlay.aspect || 1)),
           opacity: underlay.opacity,
         }
       : null,

@@ -69,8 +69,9 @@ describe("модель → план этажа", () => {
   it("дверь встаёт по смещению вдоль стены, стены становятся линиями", () => {
     const layout = floorToLayout(roomFloor())
     const door = layout.elements.find((el) => el.type === "door")
-    expect(door?.type === "door" ? door.x : null).toBeCloseTo(1.45, 2) // 1000 + 900/2
-    expect(door?.type === "door" ? door.y : null).toBeCloseTo(0, 3)
+    // узлы комнаты 0…6000 × 0…4000 → холст сдвинут на 1 м от угла, ось Y вниз
+    expect(door?.type === "door" ? door.x : null).toBeCloseTo(1 + 1.45, 2) // 1000 + 900/2
+    expect(door?.type === "door" ? door.y : null).toBeCloseTo(1 + 4, 3) // нижняя стена модели — внизу карты
     expect(layout.elements.filter((el) => el.type === "wall")).toHaveLength(4)
   })
 
@@ -80,15 +81,16 @@ describe("модель → план этажа", () => {
       underlay: { url: "data:x", widthMm: 36550, aspect: 1.5, x: -1000, y: -2000, rotationDeg: 0, opacity: 0.6 },
     })
     expect(layout.underlay?.widthMeters).toBeCloseTo(36.55, 3)
-    expect(layout.underlay?.x).toBe(-1)
-    // верх картинки в модели — на y + высота (ось вверх), на карте ось вниз
-    expect(layout.underlay?.y).toBeCloseTo(-(-2 + 36.55 / 1.5), 2)
+    expect(layout.underlay?.x).toBe(0) // −1 м от левого узла 0 → 1 − 1
+    // верх картинки в модели — y + высота (ось вверх); на карте ось вниз от верхнего узла (4 м)
+    expect(layout.underlay?.y).toBeCloseTo(4 - (-2 + 36.55 / 1.5) + 1, 2)
   })
 
   it("карта не переворачивает этаж: верх плана в модели — верх на карте", () => {
     const floor = roomFloor()
     const layout = floorToLayout(floor)
-    const wall = layout.elements.find((el) => el.type === "wall" && el.y1 === el.y2 && el.y1 < -1)
+    // верхняя стена модели (y = 4000) на карте — у верхнего края холста (y = 1)
+    const wall = layout.elements.find((el) => el.type === "wall" && el.y1 === el.y2 && el.y1 === 1)
     // стена на y = 4000 мм модели (верх комнаты) на карте оказывается выше (меньше y), чем стена на 0
     expect(wall).toBeDefined()
   })
