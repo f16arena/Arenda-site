@@ -5,7 +5,8 @@
 // значений из документа/ядра; инлайн-редактирование полей — Фаза 2.
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { roomWallsToDelete } from "@/lib/builder/room-delete"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand } from "@/core/document/commands"
 import { usePremiseStore } from "@/store/premise-store"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
@@ -155,6 +156,23 @@ export function PropertyPanel() {
               <button key={pr.id} type="button" onClick={() => execute(new ApplyRoomPresetCommand(fid, rid, pr))} className="rounded-md px-2 py-1 text-[11px] font-medium" style={{ background: "rgba(167,139,250,0.16)", color: TOKENS.accent2 }}>{pr.label}</button>
             ))}
           </div>
+          <button
+            type="button"
+            title="Снести стены этого помещения. Стены, общие с соседними помещениями, остаются. Откат — Ctrl+Z"
+            onClick={() => {
+              const ids = roomWallsToDelete(f.wallGraph, rid)
+              const commands = [
+                ...(linkKey ? [new LinkPremiseCommand(fid, rid, null)] : []),
+                ...ids.map((id) => new DeleteWallCommand(fid, id)),
+              ]
+              if (commands.length) execute(new CompositeCommand("удаление помещения", commands))
+              useEditorStore.getState().setSelection({ type: "none" })
+            }}
+            className="mt-2 w-full rounded-md py-1.5 text-xs font-medium"
+            style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}
+          >
+            Удалить помещение
+          </button>
         </div>
       )
     }

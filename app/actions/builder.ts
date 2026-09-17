@@ -101,10 +101,20 @@ async function syncLayoutsFromDocument(projectId: string, doc: BuilderDocument):
     if (!target) continue
     const layout = floorToLayout(floor)
     const hasRooms = layout.elements.some((el) => el.type === "polygon")
-    if (!hasRooms) continue
-    const json = JSON.stringify(layout)
+    // Пустой этаж модели (очистили, чтобы обвести по скану) не затирает план,
+    // пришедший не из модели (схема, нарисованное вручную). Но свой прежний
+    // вывод из модели он обязан убрать — иначе на карте висит удалённое.
+    const previousFromModel = (() => {
+      try {
+        return target.layoutJson ? (JSON.parse(target.layoutJson) as { source?: string }).source === "model" : false
+      } catch {
+        return false
+      }
+    })()
+    if (!hasRooms && !previousFromModel) continue
+    const json = hasRooms || layout.underlay ? JSON.stringify(layout) : null
     // этаж не менялся — не перезаписываем (план со сканом весит сотни килобайт)
-    if (target.layoutJson === json) continue
+    if ((target.layoutJson ?? null) === json) continue
     await db.floor.update({ where: { id: target.id }, data: { layoutJson: json } })
   }
   revalidateTag(floorsForBuildingTag(project.buildingId), { expire: 0 })

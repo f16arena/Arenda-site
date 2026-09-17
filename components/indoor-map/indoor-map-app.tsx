@@ -16,11 +16,12 @@ import {
   Printer,
   Search,
   SquarePlus,
+  Trash2,
   TriangleAlert,
   Undo2,
   X,
 } from "lucide-react"
-import { saveFloorLayout } from "@/app/actions/floor-layout"
+import { deleteFloorPlan, saveFloorLayout } from "@/app/actions/floor-layout"
 import { EditPanel } from "./edit-panel"
 import { UnderlayPanel } from "./underlay-panel"
 import { useFloorEditor } from "./use-floor-editor"
@@ -65,6 +66,9 @@ export function IndoorMapApp({
   const [pending, startTransition] = useTransition()
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [confirmReplace, setConfirmReplace] = useState(false)
+  // удаление с этажа: «scan» — только скан-подложку, «plan» — весь план
+  const [confirmDelete, setConfirmDelete] = useState<"plan" | "scan" | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   function buildAllSchemas() {
     setSchemaError(null)
@@ -97,6 +101,30 @@ export function IndoorMapApp({
 
   const active = floors.find((floor) => floor.id === activeId) ?? floors[0] ?? null
   const layout = active ? parseLayout(active.layoutJson) : null
+  // скан может лежать и на этаже без помещений — смотрим сырой JSON
+  const hasScan = (() => {
+    if (!active?.layoutJson) return false
+    try {
+      const raw = JSON.parse(active.layoutJson) as { underlay?: unknown; underlayUrl?: unknown }
+      return !!raw.underlay || !!raw.underlayUrl
+    } catch {
+      return false
+    }
+  })()
+
+  async function removeFromFloor(what: "plan" | "scan") {
+    if (!active) return
+    setDeleting(true)
+    try {
+      await deleteFloorPlan(active.id, what)
+      setEditing(false)
+      setSelected(null)
+      router.refresh()
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(null)
+    }
+  }
   const editor = useFloorEditor(layout)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -255,6 +283,30 @@ export function IndoorMapApp({
               </button>
             </>
           ) : null}
+          {canEdit && !editing && (hasScan || layout) ? (
+            <div className="flex items-center gap-1">
+              {hasScan ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete("scan")}
+                  title="Убрать загруженный скан с этого этажа — и на карте, и в 3D-конструкторе"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:text-red-600 dark:border-slate-800 dark:text-slate-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Скан
+                </button>
+              ) : null}
+              {layout ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete("plan")}
+                  title="Удалить план этажа — и на карте, и в 3D-конструкторе. Помещения и площади останутся"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:text-red-600 dark:border-slate-800 dark:text-slate-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> План
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {canEdit && shownLayout ? (
             <button
               type="button"
@@ -287,6 +339,32 @@ export function IndoorMapApp({
             className="ml-auto rounded-md border border-amber-300 px-2 py-1 font-medium hover:bg-amber-100 disabled:opacity-60 dark:border-amber-500/40 dark:hover:bg-amber-500/20"
           >
             {pending ? "Собираю…" : "Пересобрать схемы здания"}
+          </button>
+        </div>
+      ) : null}
+
+      {confirmDelete && active ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {confirmDelete === "scan"
+              ? `Удалить скан с этажа «${active.name}»? Стены и помещения останутся.`
+              : `Удалить план этажа «${active.name}»? Уйдут стены, скан и привязки в 3D-модели этого этажа. Карточки помещений, площади и договоры не меняются.`}
+          </span>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => void removeFromFloor(confirmDelete)}
+            className="ml-auto rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+          >
+            {deleting ? "Удаляю…" : "Да, удалить"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(null)}
+            className="rounded-md border border-red-300 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
+          >
+            Отмена
           </button>
         </div>
       ) : null}

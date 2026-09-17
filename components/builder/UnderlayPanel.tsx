@@ -31,6 +31,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
   const [error, setError] = useState<string | null>(null)
   const [realLength, setRealLength] = useState("")
   const [angleDraft, setAngleDraft] = useState<string | null>(null)
+  const [confirmRemove, setConfirmRemove] = useState(false)
 
   const floor = activeLevelId && activeLevelId !== "site" ? findFloor(doc, activeLevelId) : undefined
   if (!floor) return null
@@ -157,8 +158,25 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
         >
           {busy ? "Загружаю…" : underlay ? "Заменить скан" : "Загрузить скан плана"}
         </label>
-        {underlay && btn("Убрать", () => execute(new SetUnderlayCommand(floor.id, null)))}
+        {underlay && !confirmRemove && btn("Удалить скан", () => setConfirmRemove(true), { title: "Убрать загруженный скан с этого этажа. Стены остаются" })}
       </div>
+      {underlay && confirmRemove && (
+        <div className="flex flex-wrap items-center gap-1 rounded-md p-1.5 text-[11px]" style={{ background: "rgba(239,68,68,0.12)", color: TOKENS.text }}>
+          <span className="mr-auto">Удалить скан с этажа?</span>
+          <button
+            type="button"
+            onClick={() => {
+              execute(new SetUnderlayCommand(floor.id, null))
+              setConfirmRemove(false)
+            }}
+            className="rounded-md px-2 py-1 font-semibold"
+            style={{ background: "#ef4444", color: "#fff" }}
+          >
+            Да, удалить
+          </button>
+          {btn("Нет", () => setConfirmRemove(false))}
+        </div>
+      )}
 
       {pages && pages > 1 && pendingFile && (
         <div className="flex items-center gap-1 text-[11px]" style={{ color: TOKENS.muted }}>

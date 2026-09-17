@@ -9,6 +9,7 @@ import { assertBuildingAccess } from "@/lib/building-access"
 import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
+import { parseDocument } from "@/types/builder"
 
 export type SaveFloorLayoutResult = {
   success: true
@@ -72,34 +73,65 @@ export async function saveFloorLayout(
 }
 
 /**
- * Очистить нарисованный план этажа: layoutJson = null, totalArea = null.
- * Помещения (Space) НЕ затрагиваются — это только визуальный слой.
- * Используется как «начать рисовать с нуля».
+ * Удалить с этажа план или только скан-подложку.
+ *
+ * План этажа и 3D-модель — одна геометрия: план выводится из модели при каждом
+ * сохранении конструктора. Поэтому удаляем в обоих местах, иначе следующее
+ * сохранение модели вернуло бы удалённое. Площади и помещения (Space) не
+ * трогаем — это данные договоров, а не рисунок. Ревизия модели растёт: открытая
+ * вкладка конструктора получит «Конфликт версий» и не затрёт удаление молча.
  */
-export async function clearFloorPlan(floorId: string) {
+export async function deleteFloorPlan(floorId: string, what: "plan" | "scan") {
   await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
-
   const floor = await db.floor.findUnique({
     where: { id: floorId },
-    select: { buildingId: true },
+    select: { buildingId: true, number: true, layoutJson: true },
   })
+  if (!floor) throw new Error("Этаж не найден")
+  await assertBuildingAccess(floor.buildingId, orgId)
 
-  await db.floor.update({
-    where: { id: floorId },
-    data: { layoutJson: null, totalArea: null },
-  })
-
-  if (floor) await recomputeBuildingArea(floor.buildingId)
-
-  revalidatePath("/admin/spaces")
-  revalidatePath("/admin/buildings")
-  revalidatePath(`/admin/floors/${floorId}`)
-  if (floor) {
-    revalidateTag(floorsForBuildingTag(floor.buildingId), { expire: 0 })
-    revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
+  let layoutJson: string | null = null
+  if (what === "scan" && floor.layoutJson) {
+    try {
+      const parsed = JSON.parse(floor.layoutJson) as Record<string, unknown>
+      delete parsed.underlay
+      delete parsed.underlayUrl
+      layoutJson = JSON.stringify(parsed)
+    } catch {
+      layoutJson = floor.layoutJson
+    }
   }
+  await db.floor.update({ where: { id: floorId }, data: { layoutJson } })
+
+  const project = await db.builderProject.findFirst({
+    where: { organizationId: orgId, buildingId: floor.buildingId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, doc: true, revision: true },
+  })
+  if (project) {
+    const doc = parseDocument(project.doc)
+    let changed = false
+    for (const building of doc.buildings) {
+      building.floors = building.floors.map((f) => {
+        const same = f.sourceFloorId ? f.sourceFloorId === floorId : f.level === floor.number
+        if (!same) return f
+        changed = true
+        if (what === "scan") return { ...f, underlay: undefined }
+        return { ...f, underlay: undefined, wallGraph: { nodes: {}, edges: {} }, openings: [], stairs: [], objects: [], premiseLinks: {}, roomMaterials: {} }
+      })
+    }
+    if (changed) {
+      await db.builderProject.update({
+        where: { id: project.id },
+        data: { doc: parseDocument(doc), revision: project.revision + 1 },
+      })
+    }
+  }
+
+  revalidatePath(`/admin/buildings/${floor.buildingId}/map`)
+  revalidateTag(floorsForBuildingTag(floor.buildingId), { expire: 0 })
   return { success: true }
 }
 
