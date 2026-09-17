@@ -24,6 +24,7 @@ node scripts/builder-harness/run15.mjs     # группа стен: сдвиг, 
 node scripts/builder-harness/run16.mjs     # размеры и надписи инженера
 node scripts/builder-harness/run17.mjs     # щит: разбивка по группам, расчётная таблица
 node scripts/builder-harness/run18.mjs     # редактор плана: стены, сдвиг, дверь-выход, лифт, тот же проект в 3D
+node scripts/builder-harness/run19.mjs     # план: рамка, Shift+клик, копия группы, рулетка, разрез, сети
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

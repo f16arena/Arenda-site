@@ -138,3 +138,30 @@ export function perpendicularDelta(a: Vec2, b: Vec2, from: Vec2, to: Vec2, step:
   if (step > 0) d = Math.round(d / step) * step
   return { dx: Math.round(n.x * d) + 0, dy: Math.round(n.y * d) + 0 }
 }
+
+function segIntersects(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
+  const cross = (p: Vec2, q: Vec2, r: Vec2) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  const d1 = cross(c, d, a), d2 = cross(c, d, b), d3 = cross(a, b, c), d4 = cross(a, b, d)
+  return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0))
+}
+
+/**
+ * Рамка как в AutoCAD: слева направо (window) — стены целиком внутри,
+ * справа налево (crossing) — все задетые.
+ */
+export function wallsInRect(floor: Pick<Floor, "wallGraph">, r: { minX: number; minY: number; maxX: number; maxY: number }, crossing: boolean): string[] {
+  const g = floor.wallGraph
+  const inside = (p: Vec2) => p.x >= r.minX && p.x <= r.maxX && p.y >= r.minY && p.y <= r.maxY
+  const corners = [{ x: r.minX, y: r.minY }, { x: r.maxX, y: r.minY }, { x: r.maxX, y: r.maxY }, { x: r.minX, y: r.maxY }]
+  const out: string[] = []
+  for (const id in g.edges) {
+    const e = g.edges[id]
+    const a = g.nodes[e.a], b = g.nodes[e.b]
+    if (!a || !b) continue
+    const ia = inside(a), ib = inside(b)
+    if (ia && ib) { out.push(id); continue }
+    if (!crossing) continue
+    if (ia || ib || corners.some((c, i) => segIntersects(a, b, c, corners[(i + 1) % 4]))) out.push(id)
+  }
+  return out
+}

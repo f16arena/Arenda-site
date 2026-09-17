@@ -29,8 +29,14 @@ import {
   MoveWallCommand,
   replanDeleteOpening,
   replanDeleteWall,
+  AddMepRunCommand,
+  AddMepDeviceCommand,
+  AddSectionCommand,
+  nextSectionName,
   type Command,
 } from "@/core/document/commands"
+import { MEP_DEVICE_BY_KIND, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
+import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { closestOnSegment, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
@@ -44,7 +50,7 @@ import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
-import { fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
+import { fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; view: View; moved: boolean }
@@ -54,6 +60,7 @@ type Drag =
   | { kind: "stair"; id: string; from: Vec2; origin: Vec2; moved: boolean; sx: number; sy: number }
   | { kind: "room"; start: Vec2 }
   | { kind: "click"; hit: Hit | null; sx: number; sy: number; view: View; moved: boolean }
+  | { kind: "box"; sx: number; sy: number; additive: boolean; moved: boolean }
 
 const MOVE_PX = 4
 
@@ -75,6 +82,9 @@ export function PlanEditor() {
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const stairShape = useEditorStore((s) => s.stairShape)
   const annotateKind = useEditorStore((s) => s.annotateKind)
+  const multi = useEditorStore((s) => s.multi)
+  const mepSystem = useEditorStore((s) => s.mepSystem)
+  const mepDeviceKind = useEditorStore((s) => s.mepDeviceKind)
   const resolvePremise = usePremiseStore((s) => s.resolve)
 
   const floor = activeLevelId && activeLevelId !== "site" ? findFloor(doc, activeLevelId) : doc.buildings[0]?.floors[0]
@@ -90,6 +100,10 @@ export function PlanEditor() {
   const [lengthInput, setLengthInput] = useState("")
   const drag = useRef<Drag | null>(null)
   const [roomRect, setRoomRect] = useState<{ a: Vec2; b: Vec2 } | null>(null)
+  const [boxRect, setBoxRect] = useState<{ a: Vec2; b: Vec2 } | null>(null) // экранные px
+  const [hover, setHover] = useState<Hit | null>(null)
+  const [pts2, setPts2] = useState<Vec2[]>([]) // рулетка, разрез, трасса сети
+  const [measured, setMeasured] = useState<{ a: Vec2; b: Vec2 } | null>(null)
 
   useEffect(() => {
     const el = hostRef.current
@@ -128,6 +142,9 @@ export function PlanEditor() {
     setDimPts([])
     setLengthInput("")
     setRoomRect(null)
+    setPts2([])
+    setMeasured(null)
+    setHover(null)
   }, [tool, activeLevelId])
 
   const v = view
@@ -247,20 +264,46 @@ export function PlanEditor() {
         if (st) { drag.current = { kind: "stair", id: hit.id, from: at.p, origin: { ...st.position }, moved: false, sx: at.s.x, sy: at.s.y }; return }
       }
     }
-    drag.current = { kind: "click", hit: tool === "select" || tool === "delete" ? hitTest(floor, at.p, tolMm, gripNodes) : null, sx: at.s.x, sy: at.s.y, view: v, moved: false }
+    const hit0 = tool === "select" || tool === "delete" ? hitTest(floor, at.p, tolMm, gripNodes) : null
+    if (tool === "select" && e.shiftKey && hit0?.kind === "wall") {
+      // Shift+клик — добавить стену к набору (или убрать)
+      const st = useEditorStore.getState()
+      if (st.selection.type === "wall" && st.selection.id && !st.multi.includes(st.selection.id)) st.setMulti([st.selection.id])
+      useEditorStore.getState().toggleMulti(hit0.id)
+      drag.current = null
+      return
+    }
+    if (tool === "select" && (!hit0 || hit0.kind === "room")) {
+      // пустое место или помещение: протяжка — рамка, клик — выбор помещения/снятие выделения
+      drag.current = { kind: "box", sx: at.s.x, sy: at.s.y, additive: e.shiftKey, moved: false }
+      pendingHit.current = hit0
+      return
+    }
+    drag.current = { kind: "click", hit: hit0, sx: at.s.x, sy: at.s.y, view: v, moved: false }
   }
+  const pendingHit = useRef<Hit | null>(null)
 
   function onPointerMove(e: React.PointerEvent) {
     const at = planAt(e)
     if (!at || !v || !floor) return
     const d = drag.current
-    const drawing = tool === "wall" || tool === "annotate" || tool === "room"
-    const prev = tool === "wall" ? chain : tool === "annotate" && dimPts.length === 1 ? dimPts[0] : null
+    const drawing = tool === "wall" || tool === "annotate" || tool === "room" || tool === "measure"
+    const prev = tool === "wall" ? chain : tool === "annotate" && dimPts.length === 1 ? dimPts[0] : tool === "measure" ? pts2[0] ?? null : null
     const snap = drawing ? snapPoint(floor, at.p, prev, tolMm, snapEnabled && !e.altKey) : null
     setCursor({ screen: at.s, plan: at.p, snap })
+    if (!d && (tool === "select" || tool === "delete" || tool === "door" || tool === "window")) {
+      const h = hitTest(floor, at.p, tolMm, gripNodes)
+      setHover((old) => (old?.id === h?.id && old?.kind === h?.kind ? old : h))
+    }
     if (!d) return
+    if (d.kind === "box") {
+      if (!d.moved && Math.hypot(at.s.x - d.sx, at.s.y - d.sy) <= MOVE_PX) return
+      d.moved = true
+      setBoxRect({ a: { x: d.sx, y: d.sy }, b: at.s })
+      return
+    }
     const far = Math.hypot(at.s.x - ("sx" in d ? d.sx : 0), at.s.y - ("sy" in d ? d.sy : 0)) > MOVE_PX
-    if (d.kind === "pan" || (d.kind === "click" && (d.moved || far) && tool === "select" && !d.hit)) {
+    if (d.kind === "pan") {
       const base = d.view
       const sx = d.sx, sy = d.sy
       d.moved = true
@@ -319,11 +362,28 @@ export function PlanEditor() {
     const d = drag.current
     drag.current = null
     if (!at || !v || !floor || !d) return
+    if (d.kind === "box") {
+      setBoxRect(null)
+      if (!d.moved) {
+        selectHit(pendingHit.current)
+        if (!e.shiftKey) useEditorStore.getState().clearMulti()
+        return
+      }
+      const pa = toPlan(v, { x: d.sx, y: d.sy }), pb = at.p
+      const rect = { minX: Math.min(pa.x, pb.x), minY: Math.min(pa.y, pb.y), maxX: Math.max(pa.x, pb.x), maxY: Math.max(pa.y, pb.y) }
+      // слева направо — целиком внутри, справа налево — задетые
+      const ids = wallsInRect(floor, rect, at.s.x < d.sx)
+      const st = useEditorStore.getState()
+      st.setMulti(d.additive ? [...new Set([...st.multi, ...ids])] : ids)
+      return
+    }
     if (d.kind === "pan") {
       if (!d.moved && e.button === 2) {
-        // правый клик без протяжки — закончить цепочку стен / размер
+        // правый клик без протяжки — закончить цепочку стен, размер, трассу
         setChain(null)
         setDimPts([])
+        if (tool === "mep-run") finishRun()
+        else setPts2([])
       }
       return
     }
@@ -381,6 +441,44 @@ export function PlanEditor() {
       case "window":
         placeOpening(at.p)
         break
+      case "measure": {
+        const pt = snapPoint(floor, at.p, pts2[0] ?? null, tolMm, snapEnabled && !e.altKey).p
+        if (pts2.length === 0) { setPts2([pt]); setMeasured(null) }
+        else { setMeasured({ a: pts2[0], b: pt }); setPts2([]) }
+        break
+      }
+      case "section": {
+        let pt = { x: Math.round(at.p.x), y: Math.round(at.p.y) }
+        if (pts2.length === 0) { setPts2([snapEnabled ? { x: Math.round(pt.x / 100) * 100, y: Math.round(pt.y / 100) * 100 } : pt]); break }
+        const a0 = pts2[0]
+        if (snapEnabled) {
+          const ang = Math.abs((Math.atan2(pt.y - a0.y, pt.x - a0.x) * 180) / Math.PI)
+          if (ang < 10 || ang > 170) pt = { x: pt.x, y: a0.y }
+          else if (Math.abs(ang - 90) < 10) pt = { x: a0.x, y: pt.y }
+        }
+        if (Math.hypot(pt.x - a0.x, pt.y - a0.y) < 500 || !building) break
+        execute(new AddSectionCommand(building.id, { id: uid("sec"), name: nextSectionName(doc, building.id), a: a0, b: pt, look: 1 }))
+        setPts2([])
+        break
+      }
+      case "mep-run": {
+        const targets: Vec2[] = [...(floor.mepDevices ?? []).filter((x) => x.system === mepSystem).map((x) => x.at), ...(floor.mepRuns ?? []).filter((r) => r.system === mepSystem).flatMap((r) => r.points)]
+        const last = pts2[pts2.length - 1] ?? null
+        if (last && pts2.length >= 2 && Math.hypot(at.p.x - last.x, at.p.y - last.y) <= tolMm) { finishRun(); break }
+        const sp = snapMepPoint(at.p, last, { targets, tolMm, snap: snapEnabled && !e.altKey }).at
+        setPts2([...pts2, sp])
+        break
+      }
+      case "mep-device": {
+        const info = MEP_DEVICE_BY_KIND[mepDeviceKind]
+        if (!info) break
+        const m = info.wall ? wallMount(at.p, floor.wallGraph, info.box.d) : null
+        const where = m ?? { at: snapEnabled ? { x: Math.round(at.p.x / 50) * 50, y: Math.round(at.p.y / 50) * 50 } : { x: Math.round(at.p.x), y: Math.round(at.p.y) }, rotation: 0 }
+        const same = (floor.mepDevices ?? []).filter((x) => x.kind === info.kind).length
+        const label = info.riser ? `Ст ${MEP_SYSTEM_INFO[info.system].mark}-${same + 1}` : info.kind === "panel" ? `ЩР-${same + 1}` : ""
+        execute(new AddMepDeviceCommand(floor.id, { id: uid("md"), system: info.system, kind: info.kind, at: where.at, height: deviceHeight(info, floor.height), rotation: where.rotation, label, power: info.power }))
+        break
+      }
       case "stair":
         placeStair(at.p)
         break
@@ -401,6 +499,13 @@ export function PlanEditor() {
     }
   }
 
+  function finishRun() {
+    if (!floor || pts2.length < 2) { setPts2([]); return }
+    const info = MEP_SYSTEM_INFO[mepSystem]
+    execute(new AddMepRunCommand(floor.id, { id: uid("mr"), system: mepSystem, points: pts2, height: Math.min(info.runHeight, floor.height - 100), size: info.size, label: "" }))
+    setPts2([])
+  }
+
   function onWheel(e: React.WheelEvent) {
     const at = planAt(e)
     if (!at || !v) return
@@ -413,9 +518,10 @@ export function PlanEditor() {
       const target = ev.target as HTMLElement | null
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")) return
       if (ev.key === "Escape") {
-        setChain(null); setDimPts([]); setLengthInput(""); setRoomRect(null); setPreview(null); drag.current = null
+        setChain(null); setDimPts([]); setLengthInput(""); setRoomRect(null); setPreview(null); setPts2([]); setMeasured(null); setBoxRect(null); drag.current = null
         return
       }
+      if (ev.key === "Enter" && tool === "mep-run" && pts2.length >= 2) { ev.preventDefault(); finishRun(); return }
       if ((ev.key === "f" || ev.key === "F") && drawing) {
         setView(fitView(drawing.bounds, size.w, size.h, fitPad(size.w)))
         return
@@ -465,7 +571,11 @@ export function PlanEditor() {
     : tool === "stair" ? `${stairShape === "elevator" ? "Лифт" : stairShape === "porch" ? "Крыльцо: клик снаружи у стены" : "Лестница"}: клик на плане`
     : tool === "annotate" ? (annotateKind === "text" ? "Надпись: клик" : dimPts.length === 0 ? "Размер: первая точка" : dimPts.length === 1 ? "Размер: вторая точка" : "Размер: клик — вынос размерной линии")
     : tool === "delete" ? "Удалить: клик по элементу (в перепланировке существующее помечается демонтажем)"
-    : tool === "select" ? "Выбор: клик — выделить, тянуть выделенное — сдвинуть, пустое место — панорама. Колесо — зум, F — вписать"
+    : tool === "select" ? "Клик — выделить, тянуть выделенное — сдвинуть · рамка → внутри, ← задетые · Shift — добавить · ПКМ — панорама · F — вписать"
+    : tool === "measure" ? (measured ? `Рулетка: ${Math.round(Math.hypot(measured.b.x - measured.a.x, measured.b.y - measured.a.y))} мм · клик — новый замер` : pts2.length ? "Рулетка: вторая точка" : "Рулетка: первая точка (привязка к узлам и стенам)")
+    : tool === "section" ? (pts2.length ? "Разрез: вторая точка линии" : "Разрез: первая точка линии")
+    : tool === "mep-run" ? `Трасса ${MEP_SYSTEM_INFO[mepSystem].name}: клики — точки${pts2.length ? `, ${(polylineLengthMm(pts2) / 1000).toFixed(2)} м` : ""}; клик в последней точке, правая кнопка или Enter — готово`
+    : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
     : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
 
   return (
@@ -616,6 +726,71 @@ export function PlanEditor() {
           return <line x1={p0.x} y1={p0.y} x2={p1.x} y2={p1.y} stroke={TOKENS.accent} strokeWidth={Math.max(6, px(e.thickness) + 4)} strokeOpacity={0.6} />
         })()}
         {selStair && <polygon points={pts(stairHoleWorld(selStair, floor.height))} fill="none" stroke={TOKENS.accent} strokeWidth={3} />}
+
+        {/* набор стен (рамка, Shift+клик) */}
+        {multi.map((id) => {
+          const e = floor.wallGraph.edges[id]
+          const a = e && floor.wallGraph.nodes[e.a], b = e && floor.wallGraph.nodes[e.b]
+          if (!e || !a || !b) return null
+          const pa = S(a), pb = S(b)
+          return <line key={`m${id}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#f59e0b" strokeWidth={Math.max(4, px(e.thickness))} strokeOpacity={0.5} strokeLinecap="round" />
+        })}
+        {/* под курсором */}
+        {hover && !drag.current && (() => {
+          if (hover.kind === "wall" && hover.id !== sel.id) {
+            const e = floor.wallGraph.edges[hover.id]
+            const a = e && floor.wallGraph.nodes[e.a], b = e && floor.wallGraph.nodes[e.b]
+            if (!e || !a || !b) return null
+            const pa = S(a), pb = S(b)
+            return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke={tool === "delete" ? "#ef4444" : "#38bdf8"} strokeWidth={Math.max(3, px(e.thickness))} strokeOpacity={0.35} strokeLinecap="round" />
+          }
+          if (hover.kind === "room" && tool !== "door" && tool !== "window") {
+            const r = rooms.find((x) => x.id === hover.id)
+            return r ? <polygon points={pts(r.polygon)} fill="rgba(56,189,248,0.07)" stroke="#38bdf8" strokeWidth={1} strokeDasharray="4 3" style={{ pointerEvents: "none" }} /> : null
+          }
+          return null
+        })()}
+        {/* линии разрезов здания */}
+        {(building?.sections ?? []).map((sec) => {
+          const a = S(sec.a), b = S(sec.b)
+          const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+          const tx = (b.x - a.x) / L, ty = (b.y - a.y) / L
+          // взгляд в экранных координатах: нормаль к линии со стороны look (ось Y экрана вниз)
+          const dx = ty * sec.look, dy = -tx * sec.look
+          return (
+            <g key={sec.id} stroke="#dc2626" fill="#dc2626">
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={1.2} strokeDasharray="14 4 2 4" />
+              {[a, b].map((p, i) => (
+                <g key={i}>
+                  <line x1={p.x} y1={p.y} x2={p.x + dx * 18} y2={p.y + dy * 18} strokeWidth={2} />
+                  <polygon points={`${p.x + dx * 24},${p.y + dy * 24} ${p.x + dx * 14 + tx * 5},${p.y + dy * 14 + ty * 5} ${p.x + dx * 14 - tx * 5},${p.y + dy * 14 - ty * 5}`} stroke="none" />
+                  <text x={p.x + dx * 34} y={p.y + dy * 34} fontSize={13} fontWeight={700} textAnchor="middle" dominantBaseline="middle" stroke="none">{sec.name.split("-")[0]}</text>
+                </g>
+              ))}
+            </g>
+          )
+        })}
+        {/* рулетка */}
+        {(measured || (tool === "measure" && pts2.length === 1 && cursor)) && (() => {
+          const a0 = measured ? measured.a : pts2[0]
+          const b0 = measured ? measured.b : cursor?.snap?.p ?? cursor!.plan
+          const a = S(a0), b = S(b0)
+          return (
+            <g>
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#7c3aed" strokeWidth={2} />
+              {[a, b].map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={4} fill="#7c3aed" />)}
+              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 12} fontSize={13} fontWeight={700} textAnchor="middle" fill="#6d28d9" style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 4 }}>{Math.round(Math.hypot(b0.x - a0.x, b0.y - a0.y))} мм</text>
+            </g>
+          )
+        })()}
+        {/* разрез и трасса сети — ввод */}
+        {(tool === "section" || tool === "mep-run") && pts2.length > 0 && cursor && (
+          <polyline points={pts([...pts2, cursor.plan])} fill="none" stroke={tool === "section" ? "#dc2626" : MEP_SYSTEM_INFO[mepSystem].color} strokeWidth={2} strokeDasharray={tool === "section" ? "14 4 2 4" : undefined} />
+        )}
+        {boxRect && (
+          <rect x={Math.min(boxRect.a.x, boxRect.b.x)} y={Math.min(boxRect.a.y, boxRect.b.y)} width={Math.abs(boxRect.b.x - boxRect.a.x)} height={Math.abs(boxRect.b.y - boxRect.a.y)}
+            fill={boxRect.b.x < boxRect.a.x ? "rgba(34,197,94,0.08)" : "rgba(56,189,248,0.08)"} stroke={boxRect.b.x < boxRect.a.x ? "#22c55e" : "#38bdf8"} strokeWidth={1.5} strokeDasharray={boxRect.b.x < boxRect.a.x ? "6 4" : undefined} />
+        )}
 
         {/* ввод */}
         {tool === "wall" && chain && cursor?.snap && (() => {

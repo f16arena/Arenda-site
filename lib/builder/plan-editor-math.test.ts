@@ -63,3 +63,13 @@ describe("редактор плана: привязки и попадание", 
     expect(perpendicularDelta({ x: 0, y: 0 }, { x: 5000, y: 0 }, { x: 100, y: 0 }, { x: 900, y: 437 }, 50)).toEqual({ dx: 0, dy: 450 })
   })
 })
+
+describe("редактор плана: рамка", async () => {
+  const { wallsInRect } = await import("./plan-editor-math")
+  it("окно берёт стены целиком внутри, секущая — задетые", () => {
+    const f = floor()
+    const rect = { minX: -500, minY: -500, maxX: 8500, maxY: 2000 }
+    expect(wallsInRect(f, rect, false)).toHaveLength(1) // только нижняя стена целиком
+    expect(wallsInRect(f, rect, true).length).toBe(3) // нижняя + две боковые задеты
+  })
+})
