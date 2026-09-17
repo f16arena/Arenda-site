@@ -1968,9 +1968,10 @@ export class BuilderEngine {
     }
     const p = this.projectToPlane()
     if (!p) return
-    const shape = this.stairShape as "straight" | "l" | "u" | "spiral"
+    const shape = this.stairShape as "straight" | "l" | "u" | "spiral" | "elevator"
     const toFloorId = upper?.id ?? f.id
-    const width = 1100
+    // лифтовая шахта 2000×2200 (кабина на 8 человек), марш — 1100
+    const width = shape === "elevator" ? 2000 : 1100
     let pos: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
 
     // Лестница не должна торчать сквозь стены: ставим ТОЛЬКО внутри помещения и
@@ -1992,7 +1993,7 @@ export class BuilderEngine {
     }
 
     this.onCommand(
-      new AddStairCommand(f.id, { id: uid("st"), shape, fromFloorId: f.id, toFloorId, position: pos, rotationDeg: 0, width, railing: true }),
+      new AddStairCommand(f.id, { id: uid("st"), shape, fromFloorId: f.id, toFloorId, position: pos, rotationDeg: 0, width, railing: shape !== "elevator" }),
     )
   }
 

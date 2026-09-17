@@ -28,6 +28,7 @@ const STAIRS: { id: StairShape; label: string }[] = [
   { id: "l", label: "Г-образная" },
   { id: "u", label: "П-образная" },
   { id: "porch", label: "Крыльцо" },
+  { id: "elevator", label: "Лифт" },
 ]
 const TERRAIN: { id: TerrainMode; label: string }[] = [
   { id: "raise", label: "Поднять" },

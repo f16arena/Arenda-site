@@ -96,6 +96,14 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         meshes.push(above)
       }
       const opMeta = { kind: "opening", floorId: floor.id, entityId: o.id }
+      if (o.type === "door" && o.exit) {
+        // знак над дверью с обеих сторон: зелёный «Выход» (эвакуационный), синий — главный вход
+        const sign = makeBox({ cx: c.x, cz: c.y, yMid: Math.min(H - 120, o.height + 220), width: Math.min(600, o.width), height: 200, depth: t + 60, angle }, scene, `exit_${o.id}`)
+        sign.material = reg.status(o.exit === "emergency" ? "#16a34a" : "#2563eb")
+        sign.metadata = { kind: "opening", floorId: floor.id, entityId: o.id }
+        sign.parent = parent
+        meshes.push(sign)
+      }
       const at = (lateral: number) => pointAt(o.offset + lateral)
       const push = (m: Mesh, mat: ReturnType<MaterialRegistry["get"]>) => {
         m.material = mat

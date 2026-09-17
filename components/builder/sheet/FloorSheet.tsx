@@ -40,7 +40,7 @@ export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id:
 import { hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
 
-export const STAGE_TITLE: Record<Exclude<PlanStage, "plan">, string> = {
+export const STAGE_TITLE: Record<Exclude<PlanStage, "plan" | "edit">, string> = {
   demolish: "План демонтажа",
   install: "План монтажа",
   after: "План после перепланировки",
@@ -136,7 +136,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : stage !== "plan" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = elevation ? elevation.title : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   const activeSheet = elevationSheet ?? sheet
 
   function downloadDxf() {
@@ -497,6 +497,39 @@ export function SheetSvg({
             {g.ext.map(([p, q], j) => <line key={j} x1={p.x} y1={p.y} x2={q.x} y2={q.y} />)}
             {[g.p1, g.p2].map((p, j) => <line key={`t${j}`} x1={p.x - (u.x + g.n.x) * 0.8} y1={p.y - (u.y + g.n.y) * 0.8} x2={p.x + (u.x + g.n.x) * 0.8} y2={p.y + (u.y + g.n.y) * 0.8} strokeWidth={0.35} />)}
             <text x={tx} y={ty} fontSize={2.5} textAnchor="middle" dominantBaseline="middle" stroke="none" transform={`rotate(${g.angleDeg} ${tx} ${ty})`}>{Math.round(Math.hypot(ud.b.x - ud.a.x, ud.b.y - ud.a.y))}</text>
+          </g>
+        )
+      })}
+      {d.stairArrows.map((pts, i) => {
+        const sp = pts.map((p) => ({ x: X(p.x), y: Y(p.y) }))
+        const e = sp[sp.length - 1], b = sp[sp.length - 2]
+        const L = Math.hypot(e.x - b.x, e.y - b.y) || 1
+        const ux = (e.x - b.x) / L, uy = (e.y - b.y) / L
+        return (
+          <g key={`sa${i}`} stroke="#000" strokeWidth={0.18} fill="none">
+            <circle cx={sp[0].x} cy={sp[0].y} r={0.6} fill="#000" />
+            <polyline points={sp.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")} />
+            <polygon points={`${e.x},${e.y} ${e.x - ux * 2 - uy * 0.8},${e.y - uy * 2 + ux * 0.8} ${e.x - ux * 2 + uy * 0.8},${e.y - uy * 2 - ux * 0.8}`} fill="#000" />
+          </g>
+        )
+      })}
+      {d.lifts.map((lf, i) => (
+        <g key={`lf${i}`} stroke="#000" fill="none">
+          <polygon points={lf.shaft.map(P).join(" ")} strokeWidth={0.5} />
+          <polygon points={lf.cabin.map(P).join(" ")} strokeWidth={0.25} />
+          <line x1={X(lf.cabin[0].x)} y1={Y(lf.cabin[0].y)} x2={X(lf.cabin[2].x)} y2={Y(lf.cabin[2].y)} strokeWidth={0.18} />
+          <line x1={X(lf.cabin[1].x)} y1={Y(lf.cabin[1].y)} x2={X(lf.cabin[3].x)} y2={Y(lf.cabin[3].y)} strokeWidth={0.18} />
+        </g>
+      ))}
+      {d.exits.map((ex, i) => {
+        const x = X(ex.at.x), y = Y(ex.at.y)
+        const dx = ex.dir.x, dy = -ex.dir.y
+        const tip = { x: x + dx * 6, y: y + dy * 6 }
+        return (
+          <g key={`ex${i}`} stroke="#000" strokeWidth={0.35} fill="none">
+            <line x1={x} y1={y} x2={tip.x} y2={tip.y} />
+            <polygon points={`${tip.x},${tip.y} ${tip.x - dx * 2 - dy * 1},${tip.y - dy * 2 + dx * 1} ${tip.x - dx * 2 + dy * 1},${tip.y - dy * 2 - dx * 1}`} fill="#000" />
+            <text x={tip.x + dx * 4} y={tip.y + dy * 4} fontSize={2.3} textAnchor="middle" dominantBaseline="middle" stroke="none" fill="#000">{ex.kind === "emergency" ? "Выход" : "Вход"}</text>
           </g>
         )
       })}

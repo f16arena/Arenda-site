@@ -32,6 +32,7 @@ import { LevelPanel } from "./LevelPanel"
 import { PropertyPanel } from "./PropertyPanel"
 import { AssetCatalog } from "./AssetCatalog"
 import { MepPanel } from "./MepPanel"
+import { PlanEditor } from "./PlanEditor"
 import { CameraControls } from "./CameraControls"
 import { ViewCube } from "./ViewCube"
 import { MiniMap } from "./MiniMap"
@@ -205,7 +206,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   o: "object",
   m: "material",
 }
-const CAM_KEYS: Record<string, CameraMode> = { "1": "orbit", "2": "top", "3": "plan", "4": "walk" }
+const CAM_KEYS: Record<string, CameraMode> = { "1": "orbit", "2": "top", "3": "plan2d", "4": "walk" }
 
 export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName, shareToken, buildingId }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string; shareToken?: string; buildingId?: string }) {
   const engineRef = useRef<BuilderEngine | null>(null)
@@ -382,7 +383,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
   useEffect(() => {
     const e = engineRef.current
-    if (e && ready) e.setCameraMode(cameraMode)
+    // редактор плана рисует сам — 3D-сцена ждёт под ним в прежнем виде
+    if (e && ready && cameraMode !== "plan2d") e.setCameraMode(cameraMode)
   }, [cameraMode, ready])
 
   // Помещения этого здания: статусы для окраски полов и карточки для панели.
@@ -607,6 +609,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   return (
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
       <BuilderCanvas onReady={handleReady} />
+      {!readOnly && ready && cameraMode === "plan2d" && <PlanEditor />}
       {!readOnly && <ModeSwitcher />}
       {!readOnly && <BuilderToolbar />}
       {!readOnly && <BuilderProjectBar onScreenshot={() => {
@@ -621,7 +624,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       }} />}
       {!readOnly && <ToolOptions />}
       {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
-      {!readOnly && ready && <LabelLayer />}
+      {!readOnly && ready && cameraMode !== "plan2d" && <LabelLayer />}
       <PropertyPanel buildingId={buildingId} />
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
       <ViewCube

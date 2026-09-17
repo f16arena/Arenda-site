@@ -14,7 +14,8 @@
 //   буквы по вертикали
 
 import { floorAtStage } from "@/lib/builder/replan"
-import { stairPlanRects } from "@/core/geometry/stair-generator"
+import { generateStair, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
+import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon } from "@/core/geometry/math"
@@ -55,7 +56,7 @@ export interface DrawingOptions {
 }
 
 /** Стадия листа: обмерный план (было), демонтаж, монтаж, стало. */
-export type PlanStage = "plan" | "demolish" | "install" | "after"
+export type PlanStage = "plan" | "demolish" | "install" | "after" | "edit"
 export type WallStyle = "solid" | "demolish" | "new"
 
 export interface FloorDrawing {
@@ -71,6 +72,12 @@ export interface FloorDrawing {
   texts: Array<{ at: Pt; text: string }>
   /** марки проёмов у стены: снаружи окна, со стороны открывания двери */
   marks: Array<{ at: Pt; text: string }>
+  /** стрелки хода лестниц (ломаная через центры ступеней, стрелка вверх) */
+  stairArrows: Pt[][]
+  /** лифты: контур шахты, кабина с крестом */
+  lifts: Array<{ shaft: Pt[]; cabin: Pt[]; label: string }>
+  /** выходы: точка у двери снаружи, направление наружу, вид */
+  exits: Array<{ at: Pt; dir: Pt; kind: "main" | "emergency" }>
   /** тонкие линии: окна, полотна дверей */
   thinLines: Array<[Pt, Pt]>
   /** дуги открывания дверей: центр, радиус, углы в градусах против часовой */
@@ -137,7 +144,8 @@ function axisLabelsLetters(n: number): string[] {
 
 export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: string) => string | null = () => null, stage: PlanStage = "plan", options: DrawingOptions = {}): FloorDrawing {
   // обмерный план и план демонтажа — «было», монтаж и итог — «стало»
-  const floor = floorAtStage(source, stage === "plan" || stage === "demolish" ? "before" : "after")
+  // редактор плана («edit») показывает модель целиком: и сносимое, и новое
+  const floor = stage === "edit" ? source : floorAtStage(source, stage === "plan" || stage === "demolish" ? "before" : "after")
   const g = floor.wallGraph
   const degree = new Map<string, number>()
   for (const id in g.edges) {
@@ -179,7 +187,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     // offset проёма — его центр вдоль стены (как в ядре и 3D)
     const gaps = ops.map((o) => [Math.max(0, o.offset - o.width / 2), Math.min(L, o.offset + o.width / 2)] as const)
     let s = -extA
-    const style: WallStyle = stage === "demolish" && e.phase === "demolish" ? "demolish" : stage === "install" && e.phase === "new" ? "new" : "solid"
+    const style: WallStyle = (stage === "demolish" || stage === "edit") && e.phase === "demolish" ? "demolish" : (stage === "install" || stage === "edit") && e.phase === "new" ? "new" : "solid"
     const pushSolid = (s0: number, s1: number) => {
       if (s1 - s0 < 1) return
       const p0 = add(a, mul(u, s0)), p1 = add(a, mul(u, s1))
@@ -233,9 +241,33 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
       minY = Math.min(minY, p.y - h); maxY = Math.max(maxY, p.y + h)
     }
   }
-  // лестницы и крыльца: контуры ступеней тонкими линиями
+  // лестницы и крыльца: контуры ступеней тонкими линиями; лифты — шахта и кабина
+  const stairArrows: FloorDrawing["stairArrows"] = []
+  const lifts: FloorDrawing["lifts"] = []
   for (const st of floor.stairs) {
-    for (const q of stairPlanRects(st, floor.height)) {
+    const rects = stairPlanRects(st, floor.height)
+    if (st.shape === "elevator") {
+      const hole = stairHoleWorld(st, floor.height)
+      const geo = generateStair("elevator", floor.height, st.width, false)
+      const cab = geo.rails[0]
+      lifts.push({
+        shaft: hole,
+        cabin: [
+          stairToWorld(st, cab.x - cab.w / 2, cab.z - cab.d / 2), stairToWorld(st, cab.x + cab.w / 2, cab.z - cab.d / 2),
+          stairToWorld(st, cab.x + cab.w / 2, cab.z + cab.d / 2), stairToWorld(st, cab.x - cab.w / 2, cab.z + cab.d / 2),
+        ],
+        label: "Лифт",
+      })
+      for (const c of hole) {
+        minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x)
+        minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y)
+      }
+      continue
+    }
+    if (st.shape !== "porch" && rects.length >= 2) {
+      stairArrows.push(rects.map((q) => ({ x: (q[0].x + q[2].x) / 2, y: (q[0].y + q[2].y) / 2 })))
+    }
+    for (const q of rects) {
       for (let i = 0; i < 4; i++) thinLines.push([q[i], q[(i + 1) % 4]])
       if (Number.isFinite(minX)) {
         for (const c of q) {
@@ -346,9 +378,28 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     ...hAxes.map((at, i) => ({ dir: "h" as const, at, label: letters[i] })),
   ]
 
+  // выходы: стрелка наружу от двери (наружу — сторона, не попавшая в помещение)
+  const exits: FloorDrawing["exits"] = []
+  const detected = detectRooms(g)
+  for (const o of floor.openings) {
+    if (o.type !== "door" || !o.exit) continue
+    const e = g.edges[o.wallId]
+    const a = e && g.nodes[e.a], b = e && g.nodes[e.b]
+    if (!e || !a || !b) continue
+    const L = Math.hypot(b.x - a.x, b.y - a.y)
+    if (L < 1) continue
+    const u = { x: (b.x - a.x) / L, y: (b.y - a.y) / L }
+    const n = { x: -u.y, y: u.x }
+    const c = { x: a.x + u.x * o.offset, y: a.y + u.y * o.offset }
+    const probe = e.thickness / 2 + 300
+    const leftIn = detected.some((r) => pointInPolygon({ x: c.x + n.x * probe, y: c.y + n.y * probe }, r.polygon))
+    const dir = leftIn ? { x: -n.x, y: -n.y } : n
+    exits.push({ at: { x: c.x + dir.x * (e.thickness / 2 + 200), y: c.y + dir.y * (e.thickness / 2 + 200) }, dir, kind: o.exit })
+  }
+
   const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
   const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
-  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, thinLines, arcs, rooms, dims, axes }
+  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, lifts, exits, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────

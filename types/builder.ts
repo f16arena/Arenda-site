@@ -38,11 +38,13 @@ export const OpeningSchema = z.object({
   sillHeight: z.number(),
   offset: z.number(), // центр проёма вдоль стены от узла a, мм
   phase: z.enum(["demolish", "new"]).optional(),
+  /** дверь — главный вход или эвакуационный выход (знаки в 3D и на плане) */
+  exit: z.enum(["main", "emergency"]).optional(),
 })
 
 export const StairSchema = z.object({
   id: z.string(),
-  shape: z.enum(["straight", "l", "u", "spiral", "porch"]),
+  shape: z.enum(["straight", "l", "u", "spiral", "porch", "elevator"]),
   fromFloorId: z.string(),
   toFloorId: z.string(),
   position: Vec2Schema,

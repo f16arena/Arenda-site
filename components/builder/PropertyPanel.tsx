@@ -6,7 +6,7 @@
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
@@ -216,6 +216,16 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       controls = (
         <div className="mt-2 flex flex-col gap-1.5">
           <PhaseButtons value={op.phase} noun={op.phase === "demolish" ? "проём закладывается" : "проём"} onPick={(ph) => execute(new SetOpeningPhaseCommand(fid, oid, ph))} />
+          {op.type === "door" && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px]" style={{ color: TOKENS.muted }}>Назначение двери</span>
+              <div className="flex gap-1">
+                {([[undefined, "Обычная", "rgba(148,163,184,0.25)"], ["main", "Главный вход", "#2563eb"], ["emergency", "Эвак. выход", "#16a34a"]] as const).map(([v, l, c]) => (
+                  <button key={l} type="button" onClick={() => execute(new SetOpeningExitCommand(fid, oid, v))} className="flex-1 rounded-md py-1 text-[10px] font-medium" style={{ background: op.exit === v ? c : "rgba(148,163,184,0.1)", color: op.exit === v ? "#fff" : TOKENS.text }}>{l}</button>
+                ))}
+              </div>
+            </div>
+          )}
           {numInput("Ширина, м", op.width, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { width: mm })), 400, 6000)}
           {numInput("Высота, м", op.height, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { height: mm })), 400, 3000)}
           {numInput("От пола, м", op.sillHeight, (mm) => execute(new SetOpeningSizeCommand(fid, oid, { sillHeight: mm })), 0, 2000)}
@@ -403,7 +413,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   } else if (selection.type === "stair" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)
     const st = f?.stairs.find((s) => s.id === selection.id)
-    title = st?.shape === "porch" ? "Крыльцо" : "Лестница"
+    title = st?.shape === "porch" ? "Крыльцо" : st?.shape === "elevator" ? "Лифт" : "Лестница"
     if (f && st && st.shape === "porch") {
       const fid = selection.floorId
       const sid = selection.id

@@ -10,7 +10,7 @@ import { TOKENS } from "@/lib/builder/materials"
 const MODES: { id: CameraMode; label: string; key: string; Icon: typeof Box }[] = [
   { id: "orbit", label: "3D", key: "1", Icon: Box },
   { id: "top", label: "Сверху", key: "2", Icon: Eye },
-  { id: "plan", label: "План", key: "3", Icon: Map },
+  { id: "plan2d", label: "План", key: "3", Icon: Map },
   { id: "walk", label: "Walk", key: "4", Icon: Footprints },
 ]
 

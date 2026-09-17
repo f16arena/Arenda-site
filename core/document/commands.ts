@@ -1386,3 +1386,29 @@ export class SetRoomNameCommand implements Command {
     })
   }
 }
+
+export class SetOpeningExitCommand implements Command {
+  readonly kind = "set-opening-exit"
+  readonly label = "назначение двери"
+  private prev?: "main" | "emergency"
+  private captured = false
+  constructor(private floorId: string, private openingId: string, private exit: "main" | "emergency" | undefined) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const o = findFloor(doc, this.floorId)?.openings.find((x) => x.id === this.openingId)
+    if (o && !this.captured) { this.prev = o.exit; this.captured = true }
+    return this.set(doc, this.exit)
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return this.set(doc, this.prev)
+  }
+  private set(doc: BuilderDocument, exit: "main" | "emergency" | undefined): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({
+      ...fl,
+      openings: fl.openings.map((o) => {
+        if (o.id !== this.openingId) return o
+        const { exit: _old, ...rest } = o
+        return exit ? { ...rest, exit } : rest
+      }),
+    }))
+  }
+}

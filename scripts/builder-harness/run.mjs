@@ -38,7 +38,7 @@ await page.evaluate(() => { const b=[...document.querySelectorAll("button")].fin
 await page.waitForTimeout(300)
 await page.evaluate(() => { window.__stores.useEditorStore.getState().setDisplayMode?.("active") })
 await page.mouse.move(800, 450)
-await page.keyboard.press("3")
+await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("plan"))
 await page.waitForTimeout(1200)
 await shot("01-plan")
 
@@ -77,7 +77,7 @@ check("панорама правой кнопкой со стены не дви�
 await shot("02-after-pan")
 
 // вернуть камеру
-await page.keyboard.press("3")
+await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("plan"))
 await page.waitForTimeout(1200)
 walls = await labels()
 const w1 = walls.find((l) => l.id === w0.id)

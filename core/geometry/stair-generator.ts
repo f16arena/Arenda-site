@@ -3,7 +3,7 @@
 // локальные коробки ступеней (+ опц. перила) и прямоугольник выреза в перекрытии выше.
 // Координаты локальные [x,y,z] мм относительно position лестницы; поворот — в билдере.
 
-export type StairShape = "straight" | "l" | "u" | "spiral" | "porch"
+export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator"
 
 export interface StepBox {
   x: number
@@ -41,8 +41,35 @@ export function generatePorch(rise: number, width: number): StairGeometry {
   return { steps, rails: [], hole: { minX: -width / 2, minZ: 0, maxX: width / 2, maxZ: depth } }
 }
 
+/** Лифтовая шахта: стены 150 мм, дверной проём 1000 мм спереди (z = 0), кабина внутри. */
+export const SHAFT_WALL = 150
+export const LIFT_DOOR = 1000
+
+export function generateElevator(height: number, width: number): StairGeometry {
+  const depth = Math.round(width * 1.1)
+  const t = SHAFT_WALL
+  const steps: StepBox[] = []
+  const y = height / 2
+  // боковые и задняя стены
+  steps.push({ x: -width / 2 + t / 2, y, z: depth / 2, w: t, h: height, d: depth })
+  steps.push({ x: width / 2 - t / 2, y, z: depth / 2, w: t, h: height, d: depth })
+  steps.push({ x: 0, y, z: depth - t / 2, w: width, h: height, d: t })
+  // передняя стена с проёмом по центру
+  const side = (width - LIFT_DOOR) / 2
+  if (side > 1) {
+    steps.push({ x: -width / 2 + side / 2, y, z: t / 2, w: side, h: height, d: t })
+    steps.push({ x: width / 2 - side / 2, y, z: t / 2, w: side, h: height, d: t })
+  }
+  steps.push({ x: 0, y: 2100 + (height - 2100) / 2, z: t / 2, w: LIFT_DOOR, h: height - 2100, d: t })
+  // кабина — металлом
+  const cw = width - 2 * t - 200, cd = depth - 2 * t - 200
+  const rails: StepBox[] = [{ x: 0, y: 1200, z: depth / 2, w: cw, h: 2300, d: cd }]
+  return { steps, rails, hole: { minX: -width / 2, minZ: 0, maxX: width / 2, maxZ: depth } }
+}
+
 export function generateStair(shape: StairShape, totalRise: number, width: number, railing: boolean): StairGeometry {
   if (shape === "porch") return generatePorch(totalRise, width)
+  if (shape === "elevator") return generateElevator(totalRise, width)
   const count = Math.max(2, Math.round(totalRise / RISER))
   const riser = totalRise / count
   const steps: StepBox[] = []

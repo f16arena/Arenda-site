@@ -133,7 +133,8 @@ export type Tool =
   | "section"
   | "annotate"
 
-export type CameraMode = "orbit" | "top" | "plan" | "walk"
+/** plan2d — редактор плана (SVG), plan — ортокамера 3D-движка сверху */
+export type CameraMode = "orbit" | "top" | "plan" | "plan2d" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
 export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
@@ -146,7 +147,7 @@ export interface Selection {
 }
 
 export type OpeningType = "door" | "window"
-export type StairShape = "straight" | "l" | "u" | "spiral" | "porch"
+export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth" | "terrace"
 export type PathKind = "road" | "path"
 export type FenceStyle = "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood"
