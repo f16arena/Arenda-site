@@ -409,12 +409,17 @@ export class BuilderEngine {
     if (!this.docRoot) return
     const room = this.reg.flat("#ffffff")
     const wall = this.reg.flat("#1f2937")
-    const opening = this.reg.flat("#94a3b8")
+    const opening = this.reg.flat("#bae6fd")
     for (const m of this.docRoot.getChildMeshes()) {
       const kind = (m.metadata as MeshMeta | null)?.kind
       if (kind === "room") m.material = room
       else if (kind === "wall") m.material = wall
-      else if (kind === "opening") m.material = opening
+      else if (kind === "opening") {
+        // как на чертеже — разрез на высоте ~1,2 м: проём виден разрывом в стене,
+        // а не прячется под перемычкой
+        m.material = opening
+        m.renderingGroupId = 1
+      }
       m.receiveShadows = false
     }
     // крыши закрывают план сверху
