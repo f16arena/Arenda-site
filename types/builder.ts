@@ -143,11 +143,22 @@ export const FloorSchema = z.object({
   mepDevices: z.array(MepDeviceSchema).default([]),
 })
 
+/** Секущая линия разреза в плане (мм): смотрим влево от a→b (look = 1) или вправо (−1). */
+export const SectionLineSchema = z.object({
+  id: z.string(),
+  name: z.string(), // «1-1»
+  a: Vec2Schema,
+  b: Vec2Schema,
+  look: z.union([z.literal(1), z.literal(-1)]).default(1),
+})
+export type SectionLineDoc = z.infer<typeof SectionLineSchema>
+
 export const BuildingSchema = z.object({
   id: z.string(),
   name: z.string(),
   origin: Vec2Schema.default({ x: 0, y: 0 }),
   floors: z.array(FloorSchema).default([]),
+  sections: z.array(SectionLineSchema).default([]),
 })
 
 export const SiteObjectSchema = BuilderObjectSchema

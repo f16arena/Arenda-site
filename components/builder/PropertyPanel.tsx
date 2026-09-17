@@ -6,7 +6,7 @@
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand } from "@/core/document/commands"
 import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { usePremiseStore } from "@/store/premise-store"
@@ -29,7 +29,7 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
 
 const KIND_RU: Record<string, string> = { exterior: "Наружная", interior: "Внутренняя", partition: "Перегородка" }
 
-export function PropertyPanel() {
+export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const selection = useEditorStore((s) => s.selection)
@@ -207,6 +207,29 @@ export function PropertyPanel() {
             ))}
           </div>
           <button type="button" onClick={() => execute(new DeleteOpeningCommand(fid, oid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить проём</button>
+        </div>
+      )
+    }
+  } else if (selection.type === "section" && selection.buildingId && selection.id) {
+    const bid = selection.buildingId
+    const sid = selection.id
+    const sec = doc.buildings.find((b) => b.id === bid)?.sections?.find((x) => x.id === sid)
+    title = sec ? `Разрез ${sec.name}` : "Разрез"
+    if (sec) {
+      const L = Math.hypot(sec.b.x - sec.a.x, sec.b.y - sec.a.y) / 1000
+      rows.push(<Row key="l" label="Длина линии" value={`${L.toFixed(2)} м`} />)
+      rows.push(<Row key="v" label="Взгляд" value={sec.look === 1 ? "влево от линии" : "вправо от линии"} />)
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex flex-col gap-0.5 text-[11px]" style={{ color: TOKENS.muted }}>
+            Обозначение
+            <input id="section-name" defaultValue={sec.name} key={`sn${sid}${sec.name}`} onBlur={(ev) => { const v = ev.target.value.trim(); if (v && v !== sec.name) execute(new UpdateSectionCommand(bid, sid, { name: v.slice(0, 12) })) }} className="w-full rounded-md bg-white/5 px-1.5 py-1 text-xs" style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
+          </label>
+          <button type="button" onClick={() => execute(new UpdateSectionCommand(bid, sid, { look: sec.look === 1 ? -1 : 1 }))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⇅ Смотреть в другую сторону</button>
+          {buildingId && (
+            <a href={`/admin/builder/${buildingId}/sheet?view=section:${sid}`} target="_blank" rel="noreferrer" className="rounded-md py-1.5 text-center text-xs font-medium" style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}>Лист разреза (PDF, DXF)</a>
+          )}
+          <button type="button" onClick={() => { execute(new DeleteSectionCommand(bid, sid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить разрез</button>
         </div>
       )
     }

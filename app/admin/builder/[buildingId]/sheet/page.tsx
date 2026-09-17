@@ -20,12 +20,12 @@ export default async function BuildingSheetPage({
   searchParams,
 }: {
   params: Promise<{ buildingId: string }>
-  searchParams: Promise<{ floor?: string; dbFloor?: string; section?: string }>
+  searchParams: Promise<{ floor?: string; dbFloor?: string; section?: string; view?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { buildingId } = await params
-  const { floor, dbFloor, section } = await searchParams
+  const { floor, dbFloor, section, view } = await searchParams
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
 
@@ -59,6 +59,8 @@ export default async function BuildingSheetPage({
       floors={floors}
       initialFloorId={initial?.id ?? null}
       premiseNumbers={Object.fromEntries(premises.map((p) => [p.id, p.number]))}
+      building={project.doc.buildings.find((b) => b.floors.some((f) => f.id === initial?.id)) ?? project.doc.buildings[0]}
+      initialView={view && /^(plan|facade:(south|north|west|east)|section:[\w-]+)$/.test(view) ? view : "plan"}
       initialSection={section && ["ar", "mep", "ЭМ", "ЭО", "СС", "ВК", "ОВ"].includes(section) ? (section as SheetSection) : "ar"}
     />
   )

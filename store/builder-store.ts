@@ -130,15 +130,18 @@ export type Tool =
   | "measure"
   | "mep-run"
   | "mep-device"
+  | "section"
 
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section"
 export interface Selection {
   type: SelectionType
   id?: string
   floorId?: string
+  /** для разреза — здание */
+  buildingId?: string
 }
 
 export type OpeningType = "door" | "window"

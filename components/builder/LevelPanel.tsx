@@ -302,7 +302,7 @@ export function LevelPanel({
           className="rounded-lg py-1.5 text-center text-[11px] font-medium"
           style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}
         >
-          Чертёж этажа (PDF, DXF)
+          Чертежи: план, фасады, разрезы
         </a>
       )}
       {activeLevelId && activeLevelId !== "site" && (

@@ -24,6 +24,7 @@ import {
   Grid3x3,
   Cable,
   Plug,
+  Slice,
 } from "lucide-react"
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
@@ -47,6 +48,7 @@ const TOOLS: Item[] = [
   { id: "object", label: "Объект", key: "O", Icon: Box, phase1: true },
   { id: "material", label: "Ведро", key: "M", Icon: Scissors, phase1: true },
   { id: "link", label: "Помещение", key: "", Icon: Copy, phase1: true },
+  { id: "section", label: "Разрез", key: "", Icon: Slice, phase1: true },
   { id: "delete", label: "Удалить", key: "Del", Icon: Trash2, phase1: true },
   { id: "measure", label: "Измерить", key: "I", Icon: PencilRuler, phase1: true },
 ]

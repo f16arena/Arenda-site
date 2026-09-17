@@ -93,7 +93,7 @@ function floorObject(
 // Пустой проект «с нуля»: одно здание + один пустой этаж (цоколь) без стен/объектов.
 // Для кнопки «Очистить всё» — чистый холст, на котором сразу можно строить.
 export function buildEmptyProject(): BuilderDocument {
-  const building: Building = { id: uid("b"), name: "Новый проект", origin: { x: 0, y: 0 }, floors: [] }
+  const building: Building = { id: uid("b"), name: "Новый проект", origin: { x: 0, y: 0 }, floors: [], sections: [] }
   let doc: BuilderDocument = {
     id: uid("proj"),
     schemaVersion: 1,
@@ -107,7 +107,7 @@ export function buildEmptyProject(): BuilderDocument {
 }
 
 export function buildDemoProject(): BuilderDocument {
-  const building: Building = { id: uid("b"), name: "Demo Commercial", origin: { x: 0, y: 0 }, floors: [] }
+  const building: Building = { id: uid("b"), name: "Demo Commercial", origin: { x: 0, y: 0 }, floors: [], sections: [] }
   let doc: BuilderDocument = {
     id: uid("proj"),
     schemaVersion: 1,

@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement, MepRun, MepDevice } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement, MepRun, MepDevice, SectionLineDoc } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -1117,4 +1117,62 @@ export class UpdateMepRunCommand extends UpdateMepCommand<"mepRuns"> {
 }
 export class UpdateMepDeviceCommand extends UpdateMepCommand<"mepDevices"> {
   constructor(floorId: string, id: string, props: Partial<MepDevice>, mergeKey?: string) { super("прибор сети", floorId, "mepDevices", id, props, mergeKey) }
+}
+
+// ── Линии разрезов здания ────────────────────────────────────────────────────
+function mapSections(doc: BuilderDocument, buildingId: string, fn: (list: SectionLineDoc[]) => SectionLineDoc[]): BuilderDocument {
+  return { ...doc, buildings: doc.buildings.map((b) => (b.id === buildingId ? { ...b, sections: fn(b.sections ?? []) } : b)) }
+}
+
+export class AddSectionCommand implements Command {
+  readonly kind = "add-section"
+  readonly label = "разрез"
+  constructor(private buildingId: string, private section: SectionLineDoc) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapSections(doc, this.buildingId, (l) => [...l, this.section])
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapSections(doc, this.buildingId, (l) => l.filter((s) => s.id !== this.section.id))
+  }
+}
+
+export class DeleteSectionCommand implements Command {
+  readonly kind = "delete-section"
+  readonly label = "удаление разреза"
+  private removed?: { s: SectionLineDoc; i: number }
+  constructor(private buildingId: string, private id: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const list = doc.buildings.find((b) => b.id === this.buildingId)?.sections ?? []
+    const i = list.findIndex((s) => s.id === this.id)
+    if (i >= 0) this.removed = { s: list[i], i }
+    return mapSections(doc, this.buildingId, (l) => l.filter((s) => s.id !== this.id))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const r = this.removed
+    if (!r) return doc
+    return mapSections(doc, this.buildingId, (l) => { const n = [...l]; n.splice(Math.min(r.i, n.length), 0, r.s); return n })
+  }
+}
+
+export class UpdateSectionCommand implements Command {
+  readonly kind = "update-section"
+  readonly label = "разрез"
+  private prev?: SectionLineDoc
+  constructor(private buildingId: string, private id: string, private props: Partial<SectionLineDoc>) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const cur = doc.buildings.find((b) => b.id === this.buildingId)?.sections?.find((s) => s.id === this.id)
+    if (cur && !this.prev) this.prev = cur
+    return mapSections(doc, this.buildingId, (l) => l.map((s) => (s.id === this.id ? { ...s, ...this.props } : s)))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const prev = this.prev
+    if (!prev) return doc
+    return mapSections(doc, this.buildingId, (l) => l.map((s) => (s.id === this.id ? prev : s)))
+  }
+}
+
+/** Следующее свободное имя разреза: 1-1, 2-2, … */
+export function nextSectionName(doc: BuilderDocument, buildingId: string): string {
+  const used = new Set((doc.buildings.find((b) => b.id === buildingId)?.sections ?? []).map((s) => s.name))
+  for (let i = 1; ; i++) if (!used.has(`${i}-${i}`)) return `${i}-${i}`
 }

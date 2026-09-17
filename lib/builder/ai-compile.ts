@@ -98,7 +98,7 @@ export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
   const EXT: WallDefaults = { thickness: 300, height: FLOOR_HEIGHT, kind: "exterior" }
   const INT: WallDefaults = { thickness: 150, height: FLOOR_HEIGHT, kind: "interior" }
 
-  const building: Building = { id: uid("b"), name: spec.name.slice(0, 80) || "Здание", origin: { x: 0, y: 0 }, floors: [] }
+  const building: Building = { id: uid("b"), name: spec.name.slice(0, 80) || "Здание", origin: { x: 0, y: 0 }, floors: [], sections: [] }
   let doc: BuilderDocument = {
     id: uid("proj"),
     schemaVersion: 1,

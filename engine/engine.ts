@@ -58,6 +58,9 @@ import {
   AddMepDeviceCommand,
   DeleteMepRunCommand,
   DeleteMepDeviceCommand,
+  AddSectionCommand,
+  DeleteSectionCommand,
+  nextSectionName,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { centroid, closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
@@ -200,6 +203,8 @@ export class BuilderEngine {
   mepDeviceKind = "socket"
   private mepPoints: Vec2[] = []
   private mepPreview: TransformNode | null = null
+  private sectionStart: Vec2 | null = null
+  private sectionPreview: TransformNode | null = null
   activeFloorId = ""
   paintMaterialId = "brick"
   openingType: "door" | "window" = "door"
@@ -376,6 +381,8 @@ export class BuilderEngine {
       for (const f of b.floors) {
         this.buildFloorMeshes(doc, b, bRoot, f, ctx, active, { register: true, lightSpecs })
       }
+      const planeY = active ? active.elevation * S : 0
+      for (const sec of b.sections ?? []) this.drawSectionLine(bRoot, sec, planeY, false)
     }
 
     // Источники света — лимит maxLights (приоритет: первые в документе), чтобы не
@@ -851,6 +858,8 @@ export class BuilderEngine {
     // комната или пусто.
     const lineTools = this.tool === "select" || this.tool === "delete" || this.tool === "door" || this.tool === "window"
     if ((this.tool === "select" || this.tool === "delete") && (!meta || meta.kind === "room" || meta.kind === "floor" || meta.kind === "wall")) {
+      const sec = this.nearestSectionAtPointer(8)
+      if (sec) return { meta: sec, point: pick?.pickedPoint ?? null }
       const mep = this.nearestMepAtPointer(8)
       if (mep) return { meta: mep, point: pick?.pickedPoint ?? null }
     }
@@ -1366,6 +1375,16 @@ export class BuilderEngine {
       this.updatePlacerGhost()
       return
     }
+    if (this.tool === "section") {
+      const p = this.projectToPlane()
+      if (p && this.sectionStart) {
+        const end = this.sectionEnd({ x: p.x * 1000, y: p.z * 1000 })
+        this.sectionPreview?.dispose()
+        this.sectionPreview = this.drawSectionLine(this.docRoot, { id: "preview", name: "", a: this.sectionStart, b: end, look: 1 }, this.activeFloorPlaneY(), true)
+        this.onHud(`Разрез: ${(Math.hypot(end.x - this.sectionStart.x, end.y - this.sectionStart.y) / 1000).toFixed(2)} м · стрелки — куда смотрим · клик — готово, Esc — отмена`)
+      }
+      return
+    }
     if (this.tool === "mep-run") {
       const c = this.mepCursor()
       if (c && this.mepPoints.length) this.updateMepPreview(c.at, c.kind)
@@ -1588,6 +1607,10 @@ export class BuilderEngine {
     }
     if (this.tool === "object" && this.armedAsset) {
       this.handlePlaceObject()
+      return
+    }
+    if (this.tool === "section") {
+      this.handleSectionTap()
       return
     }
     if (this.tool === "mep-run") {
@@ -1927,6 +1950,121 @@ export class BuilderEngine {
     )
   }
 
+  // ── Разрезы ─────────────────────────────────────────────────────────────────
+  // Два клика — секущая линия. С привязкой (G) линия держится горизонтально или
+  // вертикально в пределах 10°. Смотрим влево от направления рисования; сторону
+  // меняют в свойствах разреза.
+  private sectionEnd(raw: Vec2): Vec2 {
+    const a = this.sectionStart
+    if (!a) return raw
+    let b = { x: Math.round(raw.x), y: Math.round(raw.y) }
+    if (this.snapEnabled) {
+      const dx = b.x - a.x, dy = b.y - a.y
+      const ang = Math.abs((Math.atan2(dy, dx) * 180) / Math.PI)
+      if (ang < 10 || ang > 170) b = { x: snapToGrid(b.x, 100), y: a.y }
+      else if (Math.abs(ang - 90) < 10) b = { x: a.x, y: snapToGrid(b.y, 100) }
+    }
+    return b
+  }
+
+  private handleSectionTap(): void {
+    const p = this.projectToPlane()
+    const doc = this.getDoc()
+    if (!p || !doc) return
+    const raw = { x: p.x * 1000, y: p.z * 1000 }
+    if (!this.sectionStart) {
+      this.sectionStart = this.snapEnabled ? { x: snapToGrid(raw.x, 100), y: snapToGrid(raw.y, 100) } : { x: Math.round(raw.x), y: Math.round(raw.y) }
+      this.showStartMarker(new Vector3(this.sectionStart.x * S, this.activeFloorPlaneY() + 0.02, this.sectionStart.y * S))
+      this.onHud("Разрез: вторая точка линии")
+      return
+    }
+    const a = this.sectionStart
+    const b = this.sectionEnd(raw)
+    if (Math.hypot(b.x - a.x, b.y - a.y) < 500) return
+    const building = doc.buildings.find((bd) => bd.floors.some((f) => f.id === this.activeFloorId)) ?? doc.buildings[0]
+    if (!building) return
+    const name = nextSectionName(doc, building.id)
+    this.onCommand(new AddSectionCommand(building.id, { id: uid("sec"), name, a, b, look: 1 }))
+    this.cancelSection()
+    this.onHud(`Разрез ${name} добавлен — лист разреза: «Чертёж этажа» → вид «Разрез ${name}»`)
+  }
+
+  isDrawingSection(): boolean {
+    return this.tool === "section" && this.sectionStart !== null
+  }
+
+  cancelSection(): void {
+    this.sectionStart = null
+    this.sectionPreview?.dispose()
+    this.sectionPreview = null
+    this.preview?.dispose()
+    this.preview = null
+    this.startMarker?.dispose()
+    this.startMarker = null
+  }
+
+  /** Линия разреза: штрихпунктир, утолщённые концы и стрелки направления взгляда. */
+  private drawSectionLine(parent: TransformNode | null, sec: { id: string; name: string; a: Vec2; b: Vec2; look: 1 | -1 }, planeY: number, preview: boolean): TransformNode {
+    const scene = this.bundle.scene
+    const root = new TransformNode(`section_${sec.id}`, scene)
+    if (parent) root.parent = parent
+    const y = planeY + 0.09
+    const color = Color3.FromHexString("#DC2626")
+    const L = Math.hypot(sec.b.x - sec.a.x, sec.b.y - sec.a.y)
+    if (L < 1) return root
+    const t = { x: (sec.b.x - sec.a.x) / L, y: (sec.b.y - sec.a.y) / L }
+    const d = { x: -t.y * sec.look, y: t.x * sec.look }
+    const V = (p: Vec2) => new Vector3(p.x * S, y, p.y * S)
+    const dashed = MeshBuilder.CreateDashedLines(`secline_${sec.id}`, { points: [V(sec.a), V(sec.b)], dashSize: 3, gapSize: 1, dashNb: Math.max(8, Math.round(L / 600)) }, scene)
+    dashed.color = color
+    dashed.isPickable = false
+    dashed.renderingGroupId = 1
+    dashed.parent = root
+    const lines: Vector3[][] = []
+    const arrow = 900, head = 250
+    for (const end of [sec.a, sec.b]) {
+      const tip = { x: end.x + d.x * arrow, y: end.y + d.y * arrow }
+      lines.push([V(end), V(tip)])
+      lines.push([V(tip), V({ x: tip.x - d.x * head + t.x * head * 0.6, y: tip.y - d.y * head + t.y * head * 0.6 })])
+      lines.push([V(tip), V({ x: tip.x - d.x * head - t.x * head * 0.6, y: tip.y - d.y * head - t.y * head * 0.6 })])
+    }
+    const sys = MeshBuilder.CreateLineSystem(`secarrows_${sec.id}`, { lines }, scene)
+    sys.color = color
+    sys.isPickable = false
+    sys.renderingGroupId = 1
+    sys.parent = root
+    // утолщённые концы: короткие плоские полосы — линии в WebGL всегда в 1 px
+    for (const [i, end] of [sec.a, sec.b].entries()) {
+      const into = i === 0 ? t : { x: -t.x, y: -t.y }
+      const len = Math.min(1200, L / 3)
+      const bar = MeshBuilder.CreateBox(`secend_${sec.id}_${i}`, { width: len * S, height: 0.02, depth: 0.12 }, scene)
+      bar.position.set((end.x + into.x * len / 2) * S, y, (end.y + into.y * len / 2) * S)
+      bar.rotation.y = -Math.atan2(into.y, into.x)
+      bar.material = this.reg.flat("#DC2626")
+      bar.isPickable = false
+      bar.renderingGroupId = 1
+      bar.parent = root
+    }
+    if (!preview && sec.name) root.metadata = { kind: "section", entityId: sec.id }
+    return root
+  }
+
+  private nearestSectionAtPointer(tolPx: number): MeshMeta | null {
+    const doc = this.getDoc()
+    if (!doc) return null
+    const { scene } = this.bundle
+    const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
+    if (!p) return null
+    const pm = { x: p.x * 1000, y: p.z * 1000 }
+    const tol = this.mepTolMm(tolPx)
+    let best: { meta: MeshMeta; d: number } | null = null
+    for (const b of doc.buildings) for (const sec of b.sections ?? []) {
+      const { dist } = closestOnSegment(pm, sec.a, sec.b)
+      if (dist <= tol && (!best || dist < best.d)) best = { meta: { kind: "section", entityId: sec.id, target: b.id }, d: dist }
+    }
+    return best?.meta ?? null
+  }
+
   // ── Инженерные сети ─────────────────────────────────────────────────────────
   // Трасса: клики ставят точки (привязка к приборам и вершинам своей системы,
   // угол 45°), клик в последней точке или Enter — готово, Esc — отмена.
@@ -2137,6 +2275,7 @@ export class BuilderEngine {
     if (meta.kind === "wall" && meta.floorId) this.onCommand(new DeleteWallCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "opening" && meta.floorId) this.onCommand(new DeleteOpeningCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "section" && meta.target) this.onCommand(new DeleteSectionCommand(meta.target, meta.entityId))
     else if (meta.kind === "mep-run" && meta.floorId) this.onCommand(new DeleteMepRunCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "mep-device" && meta.floorId) this.onCommand(new DeleteMepDeviceCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "object") {

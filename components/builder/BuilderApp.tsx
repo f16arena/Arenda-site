@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, CompositeCommand, type Command } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -59,6 +59,7 @@ function applyPick(meta: MeshMeta | null): void {
   else if (meta.kind === "water") setSelection({ type: "water", id: meta.entityId })
   else if (meta.kind === "path") setSelection({ type: "path", id: meta.entityId })
   else if (meta.kind === "pavement") setSelection({ type: "pavement", id: meta.entityId })
+  else if (meta.kind === "section") setSelection({ type: "section", id: meta.entityId, buildingId: meta.target })
   else if (meta.kind === "mep-run") setSelection({ type: "mep-run", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "mep-device") setSelection({ type: "mep-device", id: meta.entityId, floorId: meta.floorId })
   else setSelection({ type: "none" })
@@ -127,6 +128,7 @@ function deleteSelection(): void {
   else if (sel.type === "pavement" && sel.id) exec(new DeletePavementCommand(sel.id))
   else if (sel.type === "stair" && sel.floorId && sel.id) exec(new DeleteStairCommand(sel.floorId, sel.id))
   else if (sel.type === "opening" && sel.floorId && sel.id) exec(new DeleteOpeningCommand(sel.floorId, sel.id))
+  else if (sel.type === "section" && sel.buildingId && sel.id) exec(new DeleteSectionCommand(sel.buildingId, sel.id))
   else if (sel.type === "mep-run" && sel.floorId && sel.id) exec(new DeleteMepRunCommand(sel.floorId, sel.id))
   else if (sel.type === "mep-device" && sel.floorId && sel.id) exec(new DeleteMepDeviceCommand(sel.floorId, sel.id))
   else if (sel.type === "object" && sel.id) {
@@ -315,6 +317,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()
     if (activeTool !== "pave") e.cancelPave()
     if (activeTool !== "mep-run") e.cancelMep()
+    if (activeTool !== "section") e.cancelSection()
   }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, armedAsset, openingVariant, ready])
 
   useEffect(() => {
@@ -523,6 +526,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         engineRef.current?.cancelPath()
         engineRef.current?.cancelPave()
         engineRef.current?.cancelMep()
+        engineRef.current?.cancelSection()
         ed.armAsset(null)
         ed.setSelection({ type: "none" })
         return
@@ -557,7 +561,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {!readOnly && <ToolOptions />}
       {!readOnly && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
       {!readOnly && ready && <LabelLayer />}
-      <PropertyPanel />
+      <PropertyPanel buildingId={buildingId} />
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
       <ViewCube
         onView={(a, b) => {

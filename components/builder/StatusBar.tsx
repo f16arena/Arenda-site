@@ -31,6 +31,7 @@ const TOOL_RU: Record<Tool, string> = {
   measure: "Рулетка",
   "mep-run": "Трасса сети",
   "mep-device": "Прибор сети",
+  section: "Разрез",
 }
 
 export function StatusBar() {

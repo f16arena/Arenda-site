@@ -7,6 +7,7 @@
 
 import { BUBBLE_R, DIM_BASE, DIM_STEP, AXIS_GAP, areaText, type FloorDrawing, type Pt, type Side } from "./floor-drawing"
 import type { MepDrawing } from "./mep-drawing"
+import type { ElevationDrawing } from "./elevation"
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import type { MepSystem } from "@/types/builder"
 
@@ -178,6 +179,65 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string,
   // заголовок под планом
   w.text("A-TEXT", { x: (d.bounds.minX + d.bounds.maxX) / 2, y: d.bounds.minY - reach - R * 2 - 8 * k }, 5 * k, `${title}  М 1:${scale}`)
 
+  w.pair(0, "ENDSEC")
+  w.pair(0, "EOF")
+  return w.toString()
+}
+
+/** DXF фасада/разреза: u → X, отметка → Y, мм 1:1. Сечения — заливкой SOLID. */
+export function elevationToDxf(d: ElevationDrawing, scale: number, title: string): string {
+  const w = new Writer()
+  const k = scale
+  const layers = [
+    { name: "A-ELEV", color: 7 },
+    { name: "A-CUT", color: 7 },
+    { name: "A-GLAZ", color: 4 },
+    { name: "A-DIMS", color: 1 },
+    { name: "A-TEXT", color: 7 },
+  ]
+  w.pair(0, "SECTION"); w.pair(2, "HEADER")
+  w.pair(9, "$ACADVER"); w.pair(1, "AC1009")
+  w.pair(9, "$INSUNITS"); w.pair(70, 4)
+  w.pair(0, "ENDSEC")
+  w.pair(0, "SECTION"); w.pair(2, "TABLES")
+  w.pair(0, "TABLE"); w.pair(2, "LTYPE"); w.pair(70, 1)
+  w.pair(0, "LTYPE"); w.pair(2, "CONTINUOUS"); w.pair(70, 0); w.pair(3, "Solid line"); w.pair(72, 65); w.pair(73, 0); w.pair(40, 0)
+  w.pair(0, "ENDTAB")
+  w.pair(0, "TABLE"); w.pair(2, "LAYER"); w.pair(70, layers.length)
+  for (const l of layers) { w.pair(0, "LAYER"); w.pair(2, l.name); w.pair(70, 0); w.pair(62, l.color); w.pair(6, "CONTINUOUS") }
+  w.pair(0, "ENDTAB")
+  w.pair(0, "ENDSEC")
+  w.pair(0, "SECTION"); w.pair(2, "ENTITIES")
+  for (const it of d.items) {
+    if (it.t === "line") { w.line(it.weight === "thick" ? "A-CUT" : "A-ELEV", it.a, it.b); continue }
+    if (it.fill === "cut" || it.fill === "slab") {
+      if (it.pts.length === 4) w.solid("A-CUT", it.pts)
+      continue
+    }
+    if (it.fill === "roof" || it.fill === "face") continue // контуры крыши и граней идут линиями
+    const layer = it.fill === "glass" ? "A-GLAZ" : "A-ELEV"
+    for (let i = 0; i < it.pts.length; i++) w.line(layer, it.pts[i], it.pts[(i + 1) % it.pts.length])
+  }
+  const th = 2.5 * k
+  const right = d.bounds.maxU + 6 * k
+  for (const m of d.marks) {
+    w.line("A-DIMS", { x: d.bounds.maxU + k, y: m.z }, { x: right, y: m.z })
+    w.line("A-DIMS", { x: right - 1.5 * k, y: m.z + 1.5 * k }, { x: right, y: m.z })
+    w.line("A-DIMS", { x: right + 1.5 * k, y: m.z + 1.5 * k }, { x: right, y: m.z })
+    w.line("A-DIMS", { x: right, y: m.z }, { x: right, y: m.z + 4 * k })
+    w.line("A-DIMS", { x: right, y: m.z + 4 * k }, { x: right + 17 * k, y: m.z + 4 * k })
+    w.text("A-DIMS", { x: right + 8 * k, y: m.z + 5.5 * k }, th, m.text)
+  }
+  const left = d.bounds.minU - 12 * k
+  for (const dim of d.dims) {
+    w.line("A-DIMS", { x: left, y: dim.z0 }, { x: left, y: dim.z1 })
+    for (const z of [dim.z0, dim.z1]) {
+      w.line("A-DIMS", { x: left - 2 * k, y: z }, { x: d.bounds.minU - k, y: z })
+      w.line("A-DIMS", { x: left - k, y: z - k }, { x: left + k, y: z + k })
+    }
+    w.text("A-DIMS", { x: left - 1.5 * k, y: (dim.z0 + dim.z1) / 2 }, th, dim.text, 90)
+  }
+  w.text("A-TEXT", { x: (d.bounds.minU + d.bounds.maxU) / 2, y: d.bounds.maxZ + 10 * k }, 5 * k, `${title}  М 1:${scale}`)
   w.pair(0, "ENDSEC")
   w.pair(0, "EOF")
   return w.toString()

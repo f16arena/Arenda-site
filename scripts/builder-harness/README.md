@@ -17,6 +17,7 @@ node scripts/builder-harness/run8.mjs      # удаление помещения
 node scripts/builder-harness/run9.mjs      # цоколь и отметки этажей
 node scripts/builder-harness/run10.mjs     # дуговая стена, крыльцо
 node scripts/builder-harness/run11.mjs     # инженерные сети: трасса, приборы, выбор, спецификация
+node scripts/builder-harness/run12.mjs     # линия разреза: рисование, выбор, сторона, удаление
 ```
 
 Скриншоты — в `.tmp-harness/shots`. Строка `FAIL` в выводе — регрессия.

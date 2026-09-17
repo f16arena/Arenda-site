@@ -499,7 +499,7 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
     mismatches: [],
   }
 
-  const building: Building = { id: uid("b"), name: src.name, origin: { x: 0, y: 0 }, floors: [] }
+  const building: Building = { id: uid("b"), name: src.name, origin: { x: 0, y: 0 }, floors: [], sections: [] }
   let doc: BuilderDocument = {
     id: uid("proj"),
     schemaVersion: 1,

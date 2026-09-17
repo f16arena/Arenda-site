@@ -7,7 +7,7 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { ArrowLeft, Download, Printer } from "lucide-react"
-import type { Floor } from "@/types/builder"
+import type { Building, Floor, SectionLineDoc } from "@/types/builder"
 import {
   AXIS_GAP,
   BUBBLE_R,
@@ -24,6 +24,27 @@ import {
 import { floorDrawingToDxf } from "@/lib/builder/drawing/dxf"
 import { SECTION_TITLE, buildMepDrawing, sectionsWithContent, type MepDrawing, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { MepPlanLayer, MepTables } from "./MepSheetLayer"
+import { FACADE_TITLE, buildFacade, buildSection, type ElevationDrawing, type FacadeSide } from "@/lib/builder/drawing/elevation"
+import { elevationToDxf } from "@/lib/builder/drawing/dxf"
+import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
+
+const FACADES: FacadeSide[] = ["south", "north", "west", "east"]
+
+/** Автоматические разрезы через середину здания — пока своих не нарисовали. */
+function autoSections(floors: Floor[]): SectionLineDoc[] {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const f of floors) for (const id in f.wallGraph.nodes) {
+    const n = f.wallGraph.nodes[id]
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x)
+    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y)
+  }
+  if (!Number.isFinite(minX)) return []
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+  return [
+    { id: "auto-1", name: "1-1", a: { x: minX - 2000, y: cy }, b: { x: maxX + 2000, y: cy }, look: 1 },
+    { id: "auto-2", name: "2-2", a: { x: cx, y: maxY + 2000 }, b: { x: cx, y: minY - 2000 }, look: 1 },
+  ]
+}
 
 /** ширина колонки таблиц сетей справа от плана, мм листа */
 const TABLES_W = 105
@@ -37,6 +58,10 @@ type Props = {
   initialFloorId: string | null
   premiseNumbers: Record<string, string>
   initialSection?: SheetSection
+  /** здание целиком — для фасадов и разрезов */
+  building?: Building
+  /** "plan" | "facade:south" | "section:<id>" */
+  initialView?: string
 }
 
 /** Перенос по словам в пределах `width` символов, не больше `lines` строк. */
@@ -59,8 +84,11 @@ function floorTitle(f: Floor): string {
   return `План ${f.level}-го этажа`
 }
 
-export function FloorSheet({ buildingId, buildingName, address, author, floors, initialFloorId, premiseNumbers, initialSection = "ar" }: Props) {
+export function FloorSheet({ buildingId, buildingName, address, author, floors, initialFloorId, premiseNumbers, initialSection = "ar", building, initialView = "plan" }: Props) {
   const [floorId, setFloorId] = useState(initialFloorId)
+  const [view, setView] = useState(initialView)
+  const ownSections = building?.sections ?? []
+  const sections = ownSections.length ? ownSections : autoSections(building?.floors ?? floors)
   const [section, setSection] = useState<SheetSection>(initialSection)
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const drawing = useMemo(() => (floor ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null) : null), [floor, premiseNumbers])
@@ -69,9 +97,31 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const sheet = useMemo(() => (drawing ? pickSheet(drawing, hasTables ? TABLES_W + 5 : 0) : null), [drawing, hasTables])
   const available = floor ? sectionsWithContent(floor) : []
   const sheetNo = floor ? Math.max(1, floors.indexOf(floor) + 1) : 1
-  const title = floor ? `${floorTitle(floor)}${section === "ar" ? "" : section === "mep" ? ". Сети" : `. ${section}`}` : ""
+  const planTitle = floor ? `${floorTitle(floor)}${section === "ar" ? "" : section === "mep" ? ". Сети" : `. ${section}`}` : ""
+  const elevation = useMemo<{ d: ElevationDrawing; title: string } | null>(() => {
+    if (!building || view === "plan") return null
+    if (view.startsWith("facade:")) {
+      const side = view.slice(7) as FacadeSide
+      return FACADES.includes(side) ? { d: buildFacade(building, side), title: FACADE_TITLE[side] } : null
+    }
+    const sec = sections.find((x) => `section:${x.id}` === view)
+    return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
+  }, [building, view, sections])
+  const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
+  const title = elevation ? elevation.title : planTitle
+  const activeSheet = elevationSheet ?? sheet
 
   function downloadDxf() {
+    if (elevation && elevationSheet) {
+      const text = elevationToDxf(elevation.d, elevationSheet.scale, elevation.title)
+      const blob = new Blob([text], { type: "application/dxf" })
+      const a = document.createElement("a")
+      a.href = URL.createObjectURL(blob)
+      a.download = `${buildingName} — ${elevation.title}.dxf`.replace(/[\\/:*?"<>|]/g, "-")
+      a.click()
+      URL.revokeObjectURL(a.href)
+      return
+    }
     if (!drawing || !sheet || !floor) return
     const text = floorDrawingToDxf(drawing, sheet.scale, `${title}`, mep)
     const blob = new Blob([text], { type: "application/dxf" })
@@ -82,13 +132,13 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     URL.revokeObjectURL(a.href)
   }
 
-  if (!floor || !drawing || !sheet) {
+  if (!floor || !drawing || !sheet || !activeSheet) {
     return <div className="p-6 text-sm text-slate-500">В модели здания нет этажей — чертить нечего.</div>
   }
 
   return (
     <div className="flex flex-col gap-3 p-4 print:p-0">
-      <style>{`@media print { @page { size: ${sheet.format} ${sheet.orientation}; margin: 0 } body * { visibility: hidden } #floor-sheet, #floor-sheet * { visibility: visible } #floor-sheet { position: fixed; inset: 0 } }`}</style>
+      <style>{`@media print { @page { size: ${activeSheet.format} ${activeSheet.orientation}; margin: 0 } body * { visibility: hidden } #floor-sheet, #floor-sheet * { visibility: visible } #floor-sheet { position: fixed; inset: 0 } }`}</style>
 
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Link
@@ -98,6 +148,24 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           <ArrowLeft className="h-3.5 w-3.5" /> Конструктор
         </Link>
         <select
+          id="sheet-view"
+          value={view}
+          onChange={(e) => setView(e.target.value)}
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium dark:border-slate-800 dark:bg-slate-900"
+        >
+          <option value="plan">План этажа</option>
+          {building && (
+            <optgroup label="Фасады">
+              {FACADES.map((f) => <option key={f} value={`facade:${f}`}>{FACADE_TITLE[f]}</option>)}
+            </optgroup>
+          )}
+          {building && (
+            <optgroup label={ownSections.length ? "Разрезы" : "Разрезы (авто, свои — инструментом «Разрез»)"}>
+              {sections.map((x) => <option key={x.id} value={`section:${x.id}`}>Разрез {x.name}</option>)}
+            </optgroup>
+          )}
+        </select>
+        {view === "plan" && <select
           id="sheet-floor"
           value={floor.id}
           onChange={(e) => setFloorId(e.target.value)}
@@ -108,8 +176,8 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
               {floorTitle(f)}
             </option>
           ))}
-        </select>
-        <select
+        </select>}
+        {view === "plan" && <select
           id="sheet-section"
           value={section}
           onChange={(e) => setSection(e.target.value as SheetSection)}
@@ -122,9 +190,9 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
               {s} — {SECTION_TITLE[s].toLowerCase()}{available.includes(s) ? "" : " (пусто)"}
             </option>
           ))}
-        </select>
+        </select>}
         <span className="text-xs text-slate-500">
-          {sheet.format}, {sheet.orientation === "portrait" ? "книжный" : "альбомный"}, М 1:{sheet.scale}
+          {activeSheet.format}, {activeSheet.orientation === "portrait" ? "книжный" : "альбомный"}, М 1:{activeSheet.scale}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <button
@@ -149,7 +217,9 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
       <div className="overflow-auto rounded-xl border border-slate-200 bg-slate-100 p-4 dark:border-slate-800 dark:bg-slate-900 print:border-0 print:bg-white print:p-0">
         <SheetSvg
           drawing={drawing}
-          sheet={sheet}
+          sheet={activeSheet}
+          elevation={elevation?.d ?? null}
+          sectionMarks={view === "plan" ? ownSections : []}
           title={title}
           buildingName={buildingName}
           address={address}
@@ -177,7 +247,11 @@ function SheetSvg({
   section,
   mep,
   reserveRight,
+  elevation,
+  sectionMarks,
 }: {
+  elevation: ElevationDrawing | null
+  sectionMarks: SectionLineDoc[]
   drawing: FloorDrawing
   sheet: Sheet
   title: string
@@ -223,6 +297,7 @@ function SheetSvg({
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
 
+      {elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
       {/* оси */}
       {d.axes.map((ax, i) => {
         if (ax.dir === "v") {
@@ -332,6 +407,36 @@ function SheetSvg({
         {title}  <tspan fontSize={3.5}>М 1:{scale}</tspan>
       </text>
 
+      {/* марки разрезов: утолщённые концы, стрелки взгляда, обозначение */}
+      {sectionMarks.map((sec) => {
+        const L = Math.hypot(sec.b.x - sec.a.x, sec.b.y - sec.a.y)
+        if (L < 1) return null
+        const t = { x: (sec.b.x - sec.a.x) / L, y: (sec.b.y - sec.a.y) / L }
+        // на листе ось Y вниз: направление взгляда в листовых координатах
+        const dm = { x: -t.y * sec.look, y: t.x * sec.look }
+        const ds = { x: dm.x, y: -dm.y }
+        const ts = { x: t.x, y: -t.y }
+        const label = sec.name.split("-")[0]
+        return (
+          <g key={sec.id} stroke="#000" fill="none">
+            {[{ p: sec.a, into: ts }, { p: sec.b, into: { x: -ts.x, y: -ts.y } }].map(({ p, into }, k) => {
+              const x = X(p.x), y = Y(p.y)
+              const tip = { x: x + ds.x * 6, y: y + ds.y * 6 }
+              return (
+                <g key={k}>
+                  <line x1={x} y1={y} x2={x + into.x * 8} y2={y + into.y * 8} strokeWidth={0.8} />
+                  <line x1={x} y1={y} x2={tip.x} y2={tip.y} strokeWidth={0.3} />
+                  <polygon points={`${tip.x},${tip.y} ${tip.x - ds.x * 2.2 + into.x * 0.9},${tip.y - ds.y * 2.2 + into.y * 0.9} ${tip.x - ds.x * 2.2 - into.x * 0.9},${tip.y - ds.y * 2.2 - into.y * 0.9}`} fill="#000" strokeWidth={0} />
+                  <text x={tip.x + ds.x * 3 - into.x * 2} y={tip.y + ds.y * 3 + 1.4} fontSize={4} textAnchor="middle" fill="#000" stroke="none">{label}</text>
+                </g>
+              )
+            })}
+            <line x1={X(sec.a.x)} y1={Y(sec.a.y)} x2={X(sec.b.x)} y2={Y(sec.b.y)} strokeWidth={0.18} strokeDasharray="6 1.5 1 1.5" />
+          </g>
+        )
+      })}
+      </>}
+
       {/* основная надпись (ГОСТ 21.101, форма 3, сокращённо) */}
       <g transform={`translate(${stampX} ${stampY})`} stroke="#000" fill="none" fontSize={2.5}>
         <rect x={0} y={0} width={STAMP.w} height={STAMP.h} strokeWidth={0.7} />
@@ -377,7 +482,7 @@ function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
