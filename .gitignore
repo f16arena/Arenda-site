@@ -70,3 +70,6 @@ prisma/*-dump.json
 
 # копируется из pdfjs-dist на postinstall
 public/pdf.worker.min.mjs
+
+# локальный стенд конструктора (scripts/builder-harness)
+.tmp-harness/

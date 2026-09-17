@@ -52,6 +52,7 @@ import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { centroid, closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { findPreset } from "@/lib/builder/openings"
+import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builder/drag-math"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
 import { buildWalls } from "./builders/wall-builder"
@@ -124,7 +125,7 @@ export class BuilderEngine {
   // перетаскивание узла / объекта
   // moved — узел реально потянули (> 4 px). Клик по узлу без движения не
   // должен ни двигать его на сетку, ни класть запись в историю.
-  private dragNode: { floorId: string; nodeId: string; sx: number; sy: number; moved: boolean } | null = null
+  private dragNode: { floorId: string; nodeId: string; sx: number; sy: number; moved: boolean; orig: Vec2; startMm: Vec2; neighbors: Vec2[] } | null = null
   private dragObject: { target: { site: true } | { floorId: string }; objectId: string; planeY: number } | null = null
   private lastMoveAt = 0
   private hovered: Mesh | null = null
@@ -159,10 +160,16 @@ export class BuilderEngine {
   // комната-прямоугольник / перемещение стены / орто-лок
   private roomStart: Vector3 | null = null
   private roomPreview: Mesh | null = null
-  private dragWall: { floorId: string; edgeId: string; startMm: Vec2 } | null = null
-  private dragOpening: { floorId: string; openingId: string } | null = null
-  private dragStair: { floorId: string; stairId: string } | null = null
+  // Перетаскивания. sx/sy — экранная точка нажатия, moved — порог пройден.
+  // Пока порог не пройден, это клик: геометрия не двигается, история не пишется.
+  private dragWall: { floorId: string; edgeId: string; startMm: Vec2; a: Vec2; b: Vec2; sx: number; sy: number; moved: boolean } | null = null
+  private dragOpening: { floorId: string; openingId: string; sx: number; sy: number; moved: boolean } | null = null
+  private dragStair: { floorId: string; stairId: string; sx: number; sy: number; moved: boolean } | null = null
   private shiftDown = false
+  // ручки-узлы: только у выделенной стены (как grips в AutoCAD)
+  private grips: Mesh[] = []
+  // конец перетаскивания — чтобы следом пришедший tap не сменил выделение
+  private lastDragEndAt = 0
 
   tool: Tool = "select"
   activeFloorId = ""
@@ -350,6 +357,36 @@ export class BuilderEngine {
     this.freezeStatics()
     this.refreshShadows()
     this.emitBaseSizes(doc)
+    this.updateGrips()
+  }
+
+  // Ручки-узлы у выделенной стены. Узлы по всему этажу хватались случайно и
+  // утаскивали углы здания; теперь угол двигается, только если сначала выбрать
+  // стену и взять её ручку.
+  private updateGrips(): void {
+    for (const g of this.grips) g.dispose()
+    this.grips = []
+    const sel = this.currentSel
+    const doc = this.getDoc()
+    if (!doc || !sel?.id || !sel.floorId || (sel.type !== "wall" && sel.type !== "node")) return
+    const f = findFloor(doc, sel.floorId)
+    const root = this.floorRootById.get(sel.floorId)
+    if (!f || !root) return
+    const ids = sel.type === "node" ? [sel.id] : (() => {
+      const e = f.wallGraph.edges[sel.id as string]
+      return e ? [e.a, e.b] : []
+    })()
+    for (const nid of ids) {
+      const n = f.wallGraph.nodes[nid]
+      if (!n) continue
+      const grip = MeshBuilder.CreateSphere(`grip_${nid}`, { diameter: 0.55, segments: 8 }, this.bundle.scene)
+      grip.parent = root
+      grip.position.set(n.x * S, 0.15, n.y * S)
+      grip.material = this.reg.status("#38BDF8")
+      grip.renderingGroupId = 1
+      grip.metadata = { kind: "node", floorId: f.id, entityId: nid }
+      this.grips.push(grip)
+    }
   }
 
   // Строит меши одного этажа в свой TransformNode (под bRoot). register:true — полная
@@ -470,20 +507,6 @@ export class BuilderEngine {
       this.labelAnchors = anchors
     }
 
-    // ручки узлов активного этажа (для перетаскивания)
-    if (active && f.id === active.id) {
-      for (const nid in f.wallGraph.nodes) {
-        const n = f.wallGraph.nodes[nid]
-        const handle = MeshBuilder.CreateSphere(`node_${nid}`, { diameter: 0.45, segments: 6 }, scene)
-        handle.position.set(n.x * S, 0.12, n.y * S)
-        handle.parent = fNode
-        handle.material = this.reg.status("#38BDF8")
-        handle.metadata = { kind: "node", floorId: f.id, entityId: nid }
-        handle.isPickable = reg
-        if (reg) this.registerMesh(nid, handle)
-      }
-    }
-
     this.applyFloorVisibility(f, fNode, roof, ctx, active)
     if (reg) {
       this.floorRootById.set(f.id, fNode)
@@ -555,6 +578,7 @@ export class BuilderEngine {
   setSelection(sel: Selection): void {
     this.currentSel = sel
     this.applyHighlight()
+    this.updateGrips()
     // Gizmo перемещения/поворота — только для объектов.
     if (sel.type === "object" && sel.id && this.objectRootById.has(sel.id)) {
       this.gizmo.attach(this.objectRootById.get(sel.id) ?? null)
@@ -641,19 +665,72 @@ export class BuilderEngine {
   private setupPointer(): void {
     const scene = this.bundle.scene
     scene.onPointerObservable.add((pi) => {
-      const ev = pi.event as { shiftKey?: boolean }
+      const ev = pi.event as { shiftKey?: boolean; button?: number }
       this.shiftDown = !!ev?.shiftKey
-      if (pi.type === PointerEventTypes.POINTERDOWN) this.handleDown()
-      else if (pi.type === PointerEventTypes.POINTERMOVE) this.handleMove()
+      // Правая и средняя кнопки — только камера (вращение/панорама). Раньше
+      // панорама, начатая со стены, двигала стену.
+      const primary = (ev?.button ?? 0) === 0
+      if (pi.type === PointerEventTypes.POINTERDOWN) {
+        if (primary) this.handleDown()
+      } else if (pi.type === PointerEventTypes.POINTERMOVE) this.handleMove()
       else if (pi.type === PointerEventTypes.POINTERUP) this.handleUp()
-      else if (pi.type === PointerEventTypes.POINTERTAP) this.handleTap()
+      else if (pi.type === PointerEventTypes.POINTERTAP) {
+        if (primary) this.handleTap()
+      }
     })
   }
 
   private pickMeta(): { meta: MeshMeta | null; point: Vector3 | null } {
     const { scene } = this.bundle
+    // ручка рисуется поверх стен — и хватается сквозь них
+    if (this.grips.length) {
+      const g = scene.pick(scene.pointerX, scene.pointerY, (m) => (m.metadata as MeshMeta | null)?.kind === "node")
+      if (g?.hit && g.pickedMesh) return { meta: g.pickedMesh.metadata as MeshMeta, point: g.pickedPoint ?? null }
+    }
     const pick = scene.pick(scene.pointerX, scene.pointerY)
-    return { meta: (pick?.pickedMesh?.metadata ?? null) as MeshMeta | null, point: pick?.pickedPoint ?? null }
+    const meta = (pick?.pickedMesh?.metadata ?? null) as MeshMeta | null
+    // Стена в плане — линия в пару пикселей: в неё не попасть. Как в CAD, берём
+    // ближайшую стену активного этажа в допуске 8 px, если под курсором пол,
+    // комната или пусто.
+    const lineTools = this.tool === "select" || this.tool === "delete" || this.tool === "door" || this.tool === "window"
+    if (lineTools && (!meta || meta.kind === "room" || meta.kind === "floor")) {
+      const near = this.nearestWallAtPointer(8)
+      if (near) return { meta: { kind: "wall", floorId: near.floorId, entityId: near.edgeId } as MeshMeta, point: near.point }
+    }
+    return { meta, point: pick?.pickedPoint ?? null }
+  }
+
+  private planeAtScreen(x: number, y: number): Vector3 | null {
+    const { scene, camera } = this.bundle
+    const cam = scene.activeCamera ?? camera
+    const ray = scene.createPickingRay(x, y, Matrix.Identity(), cam)
+    const planeY = this.activeFloorPlaneY()
+    if (Math.abs(ray.direction.y) < 1e-6) return null
+    const t = (planeY - ray.origin.y) / ray.direction.y
+    return t < 0 ? null : ray.origin.add(ray.direction.scale(t))
+  }
+
+  private nearestWallAtPointer(tolPx: number): { floorId: string; edgeId: string; point: Vector3 } | null {
+    const doc = this.getDoc()
+    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f) return null
+    const { scene } = this.bundle
+    const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
+    const q = this.planeAtScreen(scene.pointerX + tolPx, scene.pointerY)
+    if (!p || !q) return null
+    const pm = { x: p.x * 1000, y: p.z * 1000 }
+    const tolMm = Math.hypot(q.x - p.x, q.z - p.z) * 1000
+    let best: { edgeId: string; dist: number } | null = null
+    for (const id in f.wallGraph.edges) {
+      const e = f.wallGraph.edges[id]
+      const a = f.wallGraph.nodes[e.a]
+      const b = f.wallGraph.nodes[e.b]
+      if (!a || !b) continue
+      const { dist } = closestOnSegment(pm, a, b)
+      const limit = tolMm + e.thickness / 2
+      if (dist <= limit && (!best || dist < best.dist)) best = { edgeId: id, dist }
+    }
+    return best ? { floorId: f.id, edgeId: best.edgeId, point: p } : null
   }
 
   private activeFloorPlaneY(): number {
@@ -797,32 +874,63 @@ export class BuilderEngine {
     }
     if (this.tool === "select") {
       const { meta } = this.pickMeta()
-      if (meta?.kind === "node" && meta.floorId && meta.entityId) {
-        this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId, sx: this.bundle.scene.pointerX, sy: this.bundle.scene.pointerY, moved: false }
-        this.beginFloorDrag(meta.floorId)
-        this.bundle.scene.activeCamera?.detachControl()
-      } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
-        this.dragOpening = { floorId: meta.floorId, openingId: meta.entityId }
-        this.beginFloorDrag(meta.floorId)
-        this.bundle.scene.activeCamera?.detachControl()
-      } else if (meta?.kind === "stair" && meta.floorId && meta.entityId) {
-        this.dragStair = { floorId: meta.floorId, stairId: meta.entityId }
-        this.beginFloorDrag(meta.floorId)
-        this.bundle.scene.activeCamera?.detachControl()
-      } else if (meta?.kind === "wall" && meta.floorId && meta.entityId) {
+      const { scene } = this.bundle
+      const sx = scene.pointerX
+      const sy = scene.pointerY
+      const doc = this.getDoc()
+      // Двигать можно только то, что уже выделено (ручки — только у выделенного).
+      // Нажатие на невыделенное — это клик-выбор или вращение камеры, не сдвиг.
+      const selected = !!meta?.entityId && this.currentSel?.id === meta.entityId
+      if (meta?.kind === "node" && meta.floorId && meta.entityId && doc) {
+        const f = findFloor(doc, meta.floorId)
+        const n = f?.wallGraph.nodes[meta.entityId]
         const p = this.projectToPlane()
-        if (p) {
-          this.dragWall = { floorId: meta.floorId, edgeId: meta.entityId, startMm: { x: snapToGrid(p.x * 1000, 50), y: snapToGrid(p.z * 1000, 50) } }
-          this.beginFloorDrag(meta.floorId)
-          this.bundle.scene.activeCamera?.detachControl()
+        if (f && n && p) {
+          const neighbors: Vec2[] = []
+          for (const eid in f.wallGraph.edges) {
+            const e = f.wallGraph.edges[eid]
+            const other = e.a === meta.entityId ? e.b : e.b === meta.entityId ? e.a : null
+            const on = other ? f.wallGraph.nodes[other] : undefined
+            if (on) neighbors.push({ x: on.x, y: on.y })
+          }
+          this.dragNode = { floorId: meta.floorId, nodeId: meta.entityId, sx, sy, moved: false, orig: { x: n.x, y: n.y }, startMm: { x: p.x * 1000, y: p.z * 1000 }, neighbors }
+          scene.activeCamera?.detachControl()
+        }
+      } else if (!selected) {
+        return
+      } else if (meta?.kind === "opening" && meta.floorId && meta.entityId) {
+        this.dragOpening = { floorId: meta.floorId, openingId: meta.entityId, sx, sy, moved: false }
+        scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "stair" && meta.floorId && meta.entityId) {
+        this.dragStair = { floorId: meta.floorId, stairId: meta.entityId, sx, sy, moved: false }
+        scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "wall" && meta.floorId && meta.entityId && doc) {
+        const f = findFloor(doc, meta.floorId)
+        const e = f?.wallGraph.edges[meta.entityId]
+        const a = e ? f?.wallGraph.nodes[e.a] : undefined
+        const b = e ? f?.wallGraph.nodes[e.b] : undefined
+        const p = this.projectToPlane()
+        if (a && b && p) {
+          this.dragWall = { floorId: meta.floorId, edgeId: meta.entityId, startMm: { x: p.x * 1000, y: p.z * 1000 }, a: { x: a.x, y: a.y }, b: { x: b.x, y: b.y }, sx, sy, moved: false }
+          scene.activeCamera?.detachControl()
         }
       } else if (meta?.kind === "object" && meta.entityId) {
         const target = meta.target === "site" || !meta.target ? ({ site: true } as const) : ({ floorId: meta.target } as const)
-        const planeY = "site" in target ? 0 : (findFloor(this.getDoc() ?? ({} as BuilderDocument), target.floorId)?.elevation ?? 0) * S
+        const planeY = "site" in target ? 0 : (findFloor(doc ?? ({} as BuilderDocument), target.floorId)?.elevation ?? 0) * S
         this.dragObject = { target, objectId: meta.entityId, planeY }
-        this.bundle.scene.activeCamera?.detachControl()
+        scene.activeCamera?.detachControl()
       }
     }
+  }
+
+  private wallDelta(w: NonNullable<BuilderEngine["dragWall"]>, p: Vector3): { dx: number; dy: number; offset: number } {
+    const d = wallPushDelta(w.a, w.b, w.startMm, { x: p.x * 1000, y: p.z * 1000 }, this.snapEnabled ? 50 : 10)
+    return { dx: Math.round(d.dx), dy: Math.round(d.dy), offset: d.offset }
+  }
+
+  private nodeTarget(dn: NonNullable<BuilderEngine["dragNode"]>, p: Vector3): Vec2 {
+    const t = nodeDragTarget(dn.orig, dn.startMm, { x: p.x * 1000, y: p.z * 1000 }, dn.neighbors, this.snapEnabled ? 100 : 10, this.snapEnabled ? 150 : 0)
+    return { x: Math.round(t.x), y: Math.round(t.y) }
   }
 
   private projectLabels(): void {
@@ -873,18 +981,29 @@ export class BuilderEngine {
       return
     }
     if (this.dragWall) {
+      const w = this.dragWall
+      if (!w.moved) {
+        if (!passedDragThreshold(w.sx, w.sy, this.bundle.scene.pointerX, this.bundle.scene.pointerY)) return
+        w.moved = true
+        this.beginFloorDrag(w.floorId)
+      }
       const p = this.projectToPlane()
       if (!p) return
-      const dx = snapToGrid(p.x * 1000, 50) - this.dragWall.startMm.x
-      const dy = snapToGrid(p.z * 1000, 50) - this.dragWall.startMm.y
+      const d = this.wallDelta(w, p)
       const now = performance.now()
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.previewFloorDrag(this.dragWall.floorId, new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
+        this.previewFloorDrag(w.floorId, new MoveWallCommand(w.floorId, w.edgeId, d.dx, d.dy))
+        this.onHud(`Сдвиг стены ${(d.offset / 1000).toFixed(2)} м`)
       }
       return
     }
     if (this.dragOpening) {
+      if (!this.dragOpening.moved) {
+        if (!passedDragThreshold(this.dragOpening.sx, this.dragOpening.sy, this.bundle.scene.pointerX, this.bundle.scene.pointerY)) return
+        this.dragOpening.moved = true
+        this.beginFloorDrag(this.dragOpening.floorId)
+      }
       const off = this.openingOffset(this.dragOpening.floorId, this.dragOpening.openingId)
       const now = performance.now()
       if (off != null && now - this.lastMoveAt > 33) {
@@ -894,6 +1013,11 @@ export class BuilderEngine {
       return
     }
     if (this.dragStair) {
+      if (!this.dragStair.moved) {
+        if (!passedDragThreshold(this.dragStair.sx, this.dragStair.sy, this.bundle.scene.pointerX, this.bundle.scene.pointerY)) return
+        this.dragStair.moved = true
+        this.beginFloorDrag(this.dragStair.floorId)
+      }
       const p = this.projectToPlane()
       if (!p) return
       const now = performance.now()
@@ -904,20 +1028,20 @@ export class BuilderEngine {
       return
     }
     if (this.dragNode) {
-      if (!this.dragNode.moved) {
-        const dx = this.bundle.scene.pointerX - this.dragNode.sx
-        const dy = this.bundle.scene.pointerY - this.dragNode.sy
-        if (Math.hypot(dx, dy) < 4) return
-        this.dragNode.moved = true
+      const dn = this.dragNode
+      if (!dn.moved) {
+        if (!passedDragThreshold(dn.sx, dn.sy, this.bundle.scene.pointerX, this.bundle.scene.pointerY)) return
+        dn.moved = true
+        this.beginFloorDrag(dn.floorId)
       }
       const p = this.projectToPlane()
       if (!p) return
-      const mmX = snapToGrid(p.x * 1000, 100)
-      const mmY = snapToGrid(p.z * 1000, 100)
+      const target = this.nodeTarget(dn, p)
       const now = performance.now()
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
-        this.previewFloorDrag(this.dragNode.floorId, new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
+        this.previewFloorDrag(dn.floorId, new MoveNodeCommand(dn.floorId, dn.nodeId, target))
+        this.onHud(`Узел X ${(target.x / 1000).toFixed(2)} · Y ${(target.y / 1000).toFixed(2)} м`)
       }
       return
     }
@@ -1011,12 +1135,14 @@ export class BuilderEngine {
       return
     }
     if (this.dragWall) {
+      const w = this.dragWall
       const p = this.projectToPlane()
       this.endFloorDrag()
-      if (p) {
-        const dx = snapToGrid(p.x * 1000, 50) - this.dragWall.startMm.x
-        const dy = snapToGrid(p.z * 1000, 50) - this.dragWall.startMm.y
-        this.onCommand(new MoveWallCommand(this.dragWall.floorId, this.dragWall.edgeId, dx, dy))
+      if (w.moved) {
+        this.lastDragEndAt = performance.now()
+        this.onHud(null)
+        const d = p ? this.wallDelta(w, p) : null
+        if (d && d.offset !== 0) this.onCommand(new MoveWallCommand(w.floorId, w.edgeId, d.dx, d.dy))
       }
       this.dragWall = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
@@ -1025,7 +1151,8 @@ export class BuilderEngine {
     if (this.dragOpening) {
       const off = this.openingOffset(this.dragOpening.floorId, this.dragOpening.openingId)
       this.endFloorDrag()
-      if (off != null) this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
+      if (this.dragOpening.moved) this.lastDragEndAt = performance.now()
+      if (off != null && this.dragOpening.moved) this.onCommand(new MoveOpeningCommand(this.dragOpening.floorId, this.dragOpening.openingId, off))
       this.dragOpening = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
@@ -1033,18 +1160,23 @@ export class BuilderEngine {
     if (this.dragStair) {
       const p = this.projectToPlane()
       this.endFloorDrag()
-      if (p) this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
+      if (this.dragStair.moved) this.lastDragEndAt = performance.now()
+      if (p && this.dragStair.moved) this.onCommand(new MoveStairCommand(this.dragStair.floorId, this.dragStair.stairId, snapToGrid(p.x * 1000, 100), snapToGrid(p.z * 1000, 100)))
       this.dragStair = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
     }
     if (this.dragNode) {
+      const dn = this.dragNode
       const p = this.projectToPlane()
       this.endFloorDrag()
-      if (p && this.dragNode.moved) {
-        const mmX = snapToGrid(p.x * 1000, 100)
-        const mmY = snapToGrid(p.z * 1000, 100)
-        this.onCommand(new MoveNodeCommand(this.dragNode.floorId, this.dragNode.nodeId, { x: mmX, y: mmY }))
+      if (dn.moved) {
+        this.lastDragEndAt = performance.now()
+        this.onHud(null)
+        if (p) {
+          const target = this.nodeTarget(dn, p)
+          if (target.x !== dn.orig.x || target.y !== dn.orig.y) this.onCommand(new MoveNodeCommand(dn.floorId, dn.nodeId, target))
+        }
       }
       this.dragNode = null
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
@@ -1107,6 +1239,8 @@ export class BuilderEngine {
     // После рисования протягиванием POINTERTAP не должен добавлять точку.
     if (this.suppressTap) { this.suppressTap = false; return }
     if (this.dragNode || this.dragObject) return
+    // tap сразу после перетаскивания — хвост того же жеста, не новый клик
+    if (performance.now() - this.lastDragEndAt < 250) return
     // Walk-режим: клик по двери открывает/закрывает её, без редактирования.
     if (this.walkCamera && this.bundle.scene.activeCamera === this.walkCamera) {
       this.handleWalkTap()
@@ -1158,7 +1292,7 @@ export class BuilderEngine {
       return
     }
     if (meta?.kind === "node") {
-      this.onPick(null)
+      // клик по ручке не снимает выделение стены
       return
     }
     // Shift+клик по объекту — добавить/убрать в мультивыбор.
