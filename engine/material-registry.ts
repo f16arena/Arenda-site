@@ -170,7 +170,9 @@ function patternFor(def: MaterialDef): Pattern {
   // ── Кровля ──
   // Скатная черепица (red/brown/green) — «чешуя» рядами со смещением.
   if (has("roof_red", "roof_brown", "roof_green")) return "shingle"
-  // Металлочерепица/профлист/мембрана — горизонтальные волны со швами.
+  // Мембрана плоской кровли — ровная, без волн (волны бывают у профлиста).
+  if (has("membrane")) return "speckle"
+  // Металлочерепица/профлист — горизонтальные волны со швами.
   if (id === "metal_roof" || has("roof_") || def.category === "roof") return "metalRoof"
 
   // ── Стекло / витраж ── (лёгкая сетка переплёта поверх полупрозрачного фона)

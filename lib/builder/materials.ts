@@ -62,7 +62,7 @@ export const MATERIALS: Record<string, MaterialDef> = {
   roof_red: { id: "roof_red", name: "Черепица красн.", category: "roof", color: "#9C2E2E", roughness: 0.6, metallic: 0.2 },
   roof_brown: { id: "roof_brown", name: "Черепица кор.", category: "roof", color: "#5A3A28", roughness: 0.6, metallic: 0.2 },
   roof_green: { id: "roof_green", name: "Кровля зел.", category: "roof", color: "#2F5E3F", roughness: 0.6, metallic: 0.2 },
-  roof_membrane: { id: "roof_membrane", name: "Мембрана", category: "roof", color: "#3F3F46", roughness: 0.8, metallic: 0 },
+  roof_membrane: { id: "roof_membrane", name: "Мембрана", category: "roof", color: "#5B5F66", roughness: 0.85, metallic: 0 },
 
   // ── Полы (расширение) ──
   laminate_light: { id: "laminate_light", name: "Ламинат светл.", category: "floor", color: "#D8C49A", roughness: 0.6, metallic: 0 },

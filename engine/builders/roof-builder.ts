@@ -35,8 +35,16 @@ export function buildRoof(floor: Floor, parent: TransformNode, scene: Scene, reg
   const footprint = footprintRect(floor.wallGraph)
   if (footprint.length < 3) return null
   const yBase = floor.elevation + floor.height // верх стен этажа, мм
-  const roof = generateRoof(footprint, yBase, floor.roof)
-  if (roof.positions.length === 0) return null
+  // старые проекты могли сохраниться без части полей — подставляем разумные
+  // значения, иначе геометрия уходила в NaN и крыша просто не появлялась
+  const cfg = {
+    ...floor.roof,
+    pitchDeg: Number.isFinite(floor.roof.pitchDeg) ? floor.roof.pitchDeg : 20,
+    overhang: Number.isFinite(floor.roof.overhang) ? floor.roof.overhang : 300,
+    thickness: Number.isFinite(floor.roof.thickness) ? floor.roof.thickness : 200,
+  }
+  const roof = generateRoof(footprint, yBase, cfg)
+  if (roof.positions.length === 0 || roof.positions.some((v) => !Number.isFinite(v))) return null
 
   const mesh = new Mesh(`roof_${floor.id}`, scene)
   const positions = new Array<number>(roof.positions.length)
@@ -48,7 +56,8 @@ export function buildRoof(floor: Floor, parent: TransformNode, scene: Scene, reg
   VertexData.ComputeNormals(positions, roof.indices, normals)
   vd.normals = normals
   vd.applyToMesh(mesh)
-  mesh.material = reg.get(floor.roof.materialId ?? "metal_roof")
+  // плоская кровля по умолчанию — мембрана (ровная), скатная — металлочерепица
+  mesh.material = reg.get(floor.roof.materialId ?? (cfg.type === "flat" ? "roof_membrane" : "metal_roof"))
   mesh.parent = parent
   mesh.receiveShadows = true
   mesh.metadata = { kind: "roof", floorId: floor.id, entityId: `roof_${floor.id}` }
@@ -57,7 +66,7 @@ export function buildRoof(floor: Floor, parent: TransformNode, scene: Scene, reg
   // 600 мм по контуру, как на настоящем здании.
   if (floor.roof.type === "flat") {
     const H = 600, T = 250
-    const top = yBase + (floor.roof.thickness ?? 200)
+    const top = yBase + cfg.thickness
     for (let i = 0; i < footprint.length; i++) {
       const a = footprint[i], b = footprint[(i + 1) % footprint.length]
       const len = Math.hypot(b.x - a.x, b.y - a.y)
