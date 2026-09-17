@@ -3,6 +3,8 @@
 // ADR: Контекстные опции активного инструмента (под тулбаром): палитра материалов для
 // «ведра», форма лестницы, подсказки для стены/проёмов. Управляет editorStore.
 
+import { MEP_SYSTEMS } from "@/types/builder"
+import { MEP_SYSTEM_INFO, devicesOf } from "@/lib/builder/mep/catalog"
 import { useEditorStore, type StairShape, type TerrainMode, type FenceStyle } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
@@ -94,6 +96,9 @@ export function ToolOptions() {
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const setOpeningVariant = useEditorStore((s) => s.setOpeningVariant)
 
+  if (tool === "mep-run" || tool === "mep-device") {
+    return <MepToolOptions tool={tool} />
+  }
   if (tool === "terrain") {
     return (
       <Shell>
@@ -310,4 +315,62 @@ export function ToolOptions() {
     return <Shell><span>Клик — выбрать (справа свойства). Тяни узел/стену/объект. Высоту/толщину/тип стены — в панели. Delete — удалить.</span></Shell>
   }
   return null
+}
+
+function MepToolOptions({ tool }: { tool: "mep-run" | "mep-device" }) {
+  const system = useEditorStore((s) => s.mepSystem)
+  const setSystem = useEditorStore((s) => s.setMepSystem)
+  const kind = useEditorStore((s) => s.mepDeviceKind)
+  const setKind = useEditorStore((s) => s.setMepDeviceKind)
+  const info = MEP_SYSTEM_INFO[system]
+  return (
+    <div
+      className="absolute left-1/2 top-[7rem] z-20 flex max-w-[92vw] -translate-x-1/2 flex-col gap-1.5 rounded-xl px-2.5 py-1.5 text-xs shadow-xl backdrop-blur-xl"
+      style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.muted }}
+    >
+      <div className="flex items-center gap-1.5 overflow-x-auto">
+        <span className="shrink-0">Система:</span>
+        {MEP_SYSTEMS.map((s) => {
+          const it = MEP_SYSTEM_INFO[s]
+          const active = s === system
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSystem(s)}
+              title={`${it.section} · ${it.name}`}
+              className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-medium"
+              style={{ background: active ? it.color : "rgba(148,163,184,0.1)", color: active ? "#fff" : TOKENS.text }}
+            >
+              {!active && <span className="h-2 w-2 rounded-sm" style={{ background: it.color }} />}
+              {it.name}
+            </button>
+          )
+        })}
+      </div>
+      {tool === "mep-device" ? (
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <span className="shrink-0">Прибор:</span>
+          {devicesOf(system).map((d) => {
+            const active = d.kind === kind
+            return (
+              <button
+                key={d.kind}
+                type="button"
+                onClick={() => setKind(d.kind)}
+                className="shrink-0 rounded-lg px-2 py-1 font-medium"
+                style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
+              >
+                {d.name}
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="shrink-0">
+          {info.runNoun} {info.size} на высоте {(info.runHeight / 1000).toFixed(2).replace(".", ",")} м · клик — точка, привязка к приборам и 45° (G — выкл), клик в последней точке или Enter — готово
+        </div>
+      )}
+    </div>
+  )
 }

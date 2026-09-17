@@ -319,9 +319,9 @@ export const BUBBLE_R = 4
 export type Sheet = { w: number; h: number; scale: number; format: "A3" | "A2"; orientation: "landscape" | "portrait" }
 
 /** Рабочее поле листа: рамка 20/5/5/5 мм, над штампом, с полями под размеры и оси. */
-function fits(drawing: FloorDrawing, w: number, h: number, scale: number): boolean {
+function fits(drawing: FloorDrawing, w: number, h: number, scale: number, reserveRight = 0): boolean {
   const margin = DIM_BASE + DIM_STEP * 3 + AXIS_GAP + BUBBLE_R * 2 + 2
-  const areaW = w - 20 - 5 - 10
+  const areaW = w - 20 - 5 - 10 - reserveRight
   const areaH = h - 5 - 5 - STAMP.h - 5
   const dw = drawing.bounds.maxX - drawing.bounds.minX
   const dh = drawing.bounds.maxY - drawing.bounds.minY
@@ -333,15 +333,16 @@ function fits(drawing: FloorDrawing, w: number, h: number, scale: number): boole
  * размерами и осями помещается. Сначала А3 в ориентации по форме плана
  * (вытянутый этаж — книжная), потом А2.
  */
-export function pickSheet(drawing: FloorDrawing): Sheet {
-  const tall = drawing.bounds.maxY - drawing.bounds.minY > drawing.bounds.maxX - drawing.bounds.minX
+export function pickSheet(drawing: FloorDrawing, reserveRight = 0): Sheet {
+  // колонка таблиц справа (сети) делает лист «шире» — ориентацию выбираем с её учётом
+  const tall = drawing.bounds.maxY - drawing.bounds.minY > drawing.bounds.maxX - drawing.bounds.minX + reserveRight * 100
   const options: Array<Omit<Sheet, "scale">> = [
     tall ? { w: 297, h: 420, format: "A3", orientation: "portrait" } : { w: 420, h: 297, format: "A3", orientation: "landscape" },
     tall ? { w: 420, h: 594, format: "A2", orientation: "portrait" } : { w: 594, h: 420, format: "A2", orientation: "landscape" },
   ]
   // А3 в масштабе до 1:200 — привычный рабочий лист; если не влезает — А2, потом мельче
-  for (const scale of SCALES.filter((x) => x <= 200)) if (fits(drawing, options[0].w, options[0].h, scale)) return { ...options[0], scale }
-  for (const scale of SCALES) if (fits(drawing, options[1].w, options[1].h, scale)) return { ...options[1], scale }
-  for (const scale of SCALES) if (fits(drawing, options[0].w, options[0].h, scale)) return { ...options[0], scale }
+  for (const scale of SCALES.filter((x) => x <= 200)) if (fits(drawing, options[0].w, options[0].h, scale, reserveRight)) return { ...options[0], scale }
+  for (const scale of SCALES) if (fits(drawing, options[1].w, options[1].h, scale, reserveRight)) return { ...options[1], scale }
+  for (const scale of SCALES) if (fits(drawing, options[0].w, options[0].h, scale, reserveRight)) return { ...options[0], scale }
   return { ...options[1], scale: SCALES[SCALES.length - 1] }
 }

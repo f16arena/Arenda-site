@@ -22,6 +22,8 @@ import {
   Undo2,
   Waves,
   Grid3x3,
+  Cable,
+  Plug,
 } from "lucide-react"
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
@@ -49,9 +51,19 @@ const TOOLS: Item[] = [
   { id: "measure", label: "Измерить", key: "I", Icon: PencilRuler, phase1: true },
 ]
 
+// В режиме «Сети» — только то, чем работает инженер: архитектура не трогается случайно.
+const MEP_TOOLS: Item[] = [
+  { id: "select", label: "Выбор", key: "V", Icon: Move, phase1: true },
+  { id: "mep-run", label: "Трасса", key: "", Icon: Cable, phase1: true },
+  { id: "mep-device", label: "Прибор", key: "", Icon: Plug, phase1: true },
+  { id: "delete", label: "Удалить", key: "Del", Icon: Trash2, phase1: true },
+  { id: "measure", label: "Измерить", key: "I", Icon: PencilRuler, phase1: true },
+]
+
 export function BuilderToolbar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setTool = useEditorStore((s) => s.setTool)
+  const mode = useEditorStore((s) => s.mode)
   const undo = useDocumentStore((s) => s.undo)
   const redo = useDocumentStore((s) => s.redo)
   const canUndo = useDocumentStore((s) => s.canUndo)
@@ -65,7 +77,7 @@ export function BuilderToolbar() {
       className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl px-2 py-1.5 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
-      {TOOLS.map((t) => {
+      {(mode === "mep" ? MEP_TOOLS : TOOLS).map((t) => {
         const active = activeTool === t.id
         return (
           <button

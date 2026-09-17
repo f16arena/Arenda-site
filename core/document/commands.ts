@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement, MepRun, MepDevice } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -1027,4 +1027,94 @@ export class CommandStack {
     this.undoStack = []
     this.redoStack = []
   }
+}
+
+// ── Инженерные сети ──────────────────────────────────────────────────────────
+type MepKey = "mepRuns" | "mepDevices"
+type MepItem<K extends MepKey> = K extends "mepRuns" ? MepRun : MepDevice
+
+function mepList<K extends MepKey>(f: Floor, key: K): MepItem<K>[] {
+  return ((f[key] as MepItem<K>[] | undefined) ?? [])
+}
+
+class AddMepCommand<K extends MepKey> implements Command {
+  readonly kind: string
+  constructor(readonly label: string, private floorId: string, private key: K, private item: MepItem<K>) {
+    this.kind = `add-${key}`
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, [this.key]: [...mepList(fl, this.key), this.item] }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, [this.key]: mepList(fl, this.key).filter((x) => x.id !== this.item.id) }))
+  }
+}
+
+class DeleteMepCommand<K extends MepKey> implements Command {
+  readonly kind: string
+  private removed?: { item: MepItem<K>; index: number }
+  constructor(readonly label: string, private floorId: string, private key: K, private id: string) {
+    this.kind = `delete-${key}`
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const list = f ? mepList(f, this.key) : []
+    const index = list.findIndex((x) => x.id === this.id)
+    if (index >= 0) this.removed = { item: list[index], index }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, [this.key]: mepList(fl, this.key).filter((x) => x.id !== this.id) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const r = this.removed
+    if (!r) return doc
+    return mapFloor(doc, this.floorId, (fl) => {
+      const list = [...mepList(fl, this.key)]
+      list.splice(Math.min(r.index, list.length), 0, r.item)
+      return { ...fl, [this.key]: list }
+    })
+  }
+}
+
+class UpdateMepCommand<K extends MepKey> implements Command {
+  readonly kind: string
+  private prev?: MepItem<K>
+  constructor(readonly label: string, private floorId: string, private key: K, private id: string, private props: Partial<MepItem<K>>, private mergeKey?: string) {
+    this.kind = `update-${key}`
+  }
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const cur = f ? mepList(f, this.key).find((x) => x.id === this.id) : undefined
+    if (cur && !this.prev) this.prev = cur
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, [this.key]: mepList(fl, this.key).map((x) => (x.id === this.id ? { ...x, ...this.props } : x)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const prev = this.prev
+    if (!prev) return doc
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, [this.key]: mepList(fl, this.key).map((x) => (x.id === this.id ? prev : x)) }))
+  }
+  merge(next: Command): boolean {
+    if (next instanceof UpdateMepCommand && this.mergeKey && next.mergeKey === this.mergeKey && next.id === this.id && next.floorId === this.floorId) {
+      this.props = { ...this.props, ...next.props }
+      return true
+    }
+    return false
+  }
+}
+
+export class AddMepRunCommand extends AddMepCommand<"mepRuns"> {
+  constructor(floorId: string, run: MepRun) { super("трасса сети", floorId, "mepRuns", run) }
+}
+export class AddMepDeviceCommand extends AddMepCommand<"mepDevices"> {
+  constructor(floorId: string, device: MepDevice) { super("прибор сети", floorId, "mepDevices", device) }
+}
+export class DeleteMepRunCommand extends DeleteMepCommand<"mepRuns"> {
+  constructor(floorId: string, id: string) { super("удаление трассы", floorId, "mepRuns", id) }
+}
+export class DeleteMepDeviceCommand extends DeleteMepCommand<"mepDevices"> {
+  constructor(floorId: string, id: string) { super("удаление прибора", floorId, "mepDevices", id) }
+}
+export class UpdateMepRunCommand extends UpdateMepCommand<"mepRuns"> {
+  constructor(floorId: string, id: string, props: Partial<MepRun>, mergeKey?: string) { super("трасса сети", floorId, "mepRuns", id, props, mergeKey) }
+}
+export class UpdateMepDeviceCommand extends UpdateMepCommand<"mepDevices"> {
+  constructor(floorId: string, id: string, props: Partial<MepDevice>, mergeKey?: string) { super("прибор сети", floorId, "mepDevices", id, props, mergeKey) }
 }

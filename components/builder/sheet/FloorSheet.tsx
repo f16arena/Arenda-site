@@ -22,6 +22,11 @@ import {
   type Sheet,
 } from "@/lib/builder/drawing/floor-drawing"
 import { floorDrawingToDxf } from "@/lib/builder/drawing/dxf"
+import { SECTION_TITLE, buildMepDrawing, sectionsWithContent, type MepDrawing, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
+import { MepPlanLayer, MepTables } from "./MepSheetLayer"
+
+/** ширина колонки таблиц сетей справа от плана, мм листа */
+const TABLES_W = 105
 
 type Props = {
   buildingId: string
@@ -31,6 +36,7 @@ type Props = {
   floors: Floor[]
   initialFloorId: string | null
   premiseNumbers: Record<string, string>
+  initialSection?: SheetSection
 }
 
 /** Перенос по словам в пределах `width` символов, не больше `lines` строк. */
@@ -53,17 +59,21 @@ function floorTitle(f: Floor): string {
   return `План ${f.level}-го этажа`
 }
 
-export function FloorSheet({ buildingId, buildingName, address, author, floors, initialFloorId, premiseNumbers }: Props) {
+export function FloorSheet({ buildingId, buildingName, address, author, floors, initialFloorId, premiseNumbers, initialSection = "ar" }: Props) {
   const [floorId, setFloorId] = useState(initialFloorId)
+  const [section, setSection] = useState<SheetSection>(initialSection)
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const drawing = useMemo(() => (floor ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null) : null), [floor, premiseNumbers])
-  const sheet = useMemo(() => (drawing ? pickSheet(drawing) : null), [drawing])
+  const mep = useMemo(() => (floor && section !== "ar" ? buildMepDrawing(floor, section) : null), [floor, section])
+  const hasTables = !!mep && (mep.legend.length > 0 || mep.spec.length > 0)
+  const sheet = useMemo(() => (drawing ? pickSheet(drawing, hasTables ? TABLES_W + 5 : 0) : null), [drawing, hasTables])
+  const available = floor ? sectionsWithContent(floor) : []
   const sheetNo = floor ? Math.max(1, floors.indexOf(floor) + 1) : 1
-  const title = floor ? floorTitle(floor) : ""
+  const title = floor ? `${floorTitle(floor)}${section === "ar" ? "" : section === "mep" ? ". Сети" : `. ${section}`}` : ""
 
   function downloadDxf() {
     if (!drawing || !sheet || !floor) return
-    const text = floorDrawingToDxf(drawing, sheet.scale, `${title}`)
+    const text = floorDrawingToDxf(drawing, sheet.scale, `${title}`, mep)
     const blob = new Blob([text], { type: "application/dxf" })
     const a = document.createElement("a")
     a.href = URL.createObjectURL(blob)
@@ -96,6 +106,20 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           {floors.map((f) => (
             <option key={f.id} value={f.id}>
               {floorTitle(f)}
+            </option>
+          ))}
+        </select>
+        <select
+          id="sheet-section"
+          value={section}
+          onChange={(e) => setSection(e.target.value as SheetSection)}
+          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-slate-800 dark:bg-slate-900"
+        >
+          <option value="ar">АР — обмерный план</option>
+          {available.length > 1 && <option value="mep">Все сети на одном листе</option>}
+          {(["ЭМ", "ЭО", "СС", "ВК", "ОВ"] as const).map((s) => (
+            <option key={s} value={s} disabled={!available.includes(s)}>
+              {s} — {SECTION_TITLE[s].toLowerCase()}{available.includes(s) ? "" : " (пусто)"}
             </option>
           ))}
         </select>
@@ -132,6 +156,9 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           author={author}
           sheetNo={sheetNo}
           sheetCount={floors.length}
+          section={section}
+          mep={mep}
+          reserveRight={hasTables ? TABLES_W + 5 : 0}
         />
       </div>
     </div>
@@ -147,6 +174,9 @@ function SheetSvg({
   author,
   sheetNo,
   sheetCount,
+  section,
+  mep,
+  reserveRight,
 }: {
   drawing: FloorDrawing
   sheet: Sheet
@@ -156,12 +186,18 @@ function SheetSvg({
   author: string
   sheetNo: number
   sheetCount: number
+  section: SheetSection
+  mep: MepDrawing | null
+  reserveRight: number
 }) {
   const { w, h, scale } = sheet
   const dw = (d.bounds.maxX - d.bounds.minX) / scale
   const dh = (d.bounds.maxY - d.bounds.minY) / scale
   // рабочее поле: рамка 20/5/5/5, над штампом
-  const areaX0 = 20, areaX1 = w - 5, areaY0 = 5 + 10, areaY1 = h - 5 - STAMP.h
+  const areaX0 = 20, areaX1 = w - 5 - reserveRight, areaY0 = 5 + 10, areaY1 = h - 5 - STAMP.h
+  // на листе сетей архитектура — подложкой: серым, чтобы трассы читались
+  const arch = section === "ar" ? "#000" : "#8a8f98"
+  const wallFill = section === "ar" ? "#1a1a1a" : "#b9bec6"
   const ox = areaX0 + (areaX1 - areaX0 - dw) / 2
   const oy = areaY0 + (areaY1 - areaY0 - dh) / 2
   const X = (x: number) => ox + (x - d.bounds.minX) / scale
@@ -223,18 +259,18 @@ function SheetSvg({
 
       {/* стены */}
       {d.wallSolids.map((q, i) => (
-        <polygon key={`w${i}`} points={q.map(P).join(" ")} fill="#1a1a1a" />
+        <polygon key={`w${i}`} points={q.map(P).join(" ")} fill={wallFill} />
       ))}
       {/* окна, двери */}
       {d.thinLines.map(([a, b], i) => (
-        <line key={`l${i}`} x1={X(a.x)} y1={Y(a.y)} x2={X(b.x)} y2={Y(b.y)} stroke="#000" strokeWidth={0.18} />
+        <line key={`l${i}`} x1={X(a.x)} y1={Y(a.y)} x2={X(b.x)} y2={Y(b.y)} stroke={arch} strokeWidth={0.18} />
       ))}
       {d.arcs.map((a, i) => {
         const r = a.r / scale
         const s = { x: a.c.x + a.r * Math.cos((a.start * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.start * Math.PI) / 180) }
         const e = { x: a.c.x + a.r * Math.cos((a.end * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.end * Math.PI) / 180) }
         // ось Y листа вниз: дуга против часовой в модели — по часовой на листе
-        return <path key={`a${i}`} d={`M ${P(s)} A ${r} ${r} 0 0 0 ${P(e)}`} fill="none" stroke="#000" strokeWidth={0.13} />
+        return <path key={`a${i}`} d={`M ${P(s)} A ${r} ${r} 0 0 0 ${P(e)}`} fill="none" stroke={arch} strokeWidth={0.13} />
       })}
 
       {/* помещения */}
@@ -250,6 +286,12 @@ function SheetSvg({
           </text>
         </g>
       ))}
+
+      {/* сети */}
+      {mep && <MepPlanLayer md={mep} X={X} Y={Y} scale={scale} />}
+      {mep && reserveRight > 0 && (
+        <MepTables md={mep} x={w - 5 - reserveRight + 3} y={12} w={reserveRight - 6} maxH={h - 5 - STAMP.h - 5 - 12} />
+      )}
 
       {/* размеры */}
       {d.dims.map((dim, i) => {
@@ -335,7 +377,7 @@ function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">Обмерный план</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>

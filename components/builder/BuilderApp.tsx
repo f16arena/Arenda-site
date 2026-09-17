@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, CompositeCommand, type Command } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -31,6 +31,7 @@ import { BuilderProjectBar } from "./BuilderProjectBar"
 import { LevelPanel } from "./LevelPanel"
 import { PropertyPanel } from "./PropertyPanel"
 import { AssetCatalog } from "./AssetCatalog"
+import { MepPanel } from "./MepPanel"
 import { CameraControls } from "./CameraControls"
 import { ViewCube } from "./ViewCube"
 import { MiniMap } from "./MiniMap"
@@ -58,6 +59,8 @@ function applyPick(meta: MeshMeta | null): void {
   else if (meta.kind === "water") setSelection({ type: "water", id: meta.entityId })
   else if (meta.kind === "path") setSelection({ type: "path", id: meta.entityId })
   else if (meta.kind === "pavement") setSelection({ type: "pavement", id: meta.entityId })
+  else if (meta.kind === "mep-run") setSelection({ type: "mep-run", id: meta.entityId, floorId: meta.floorId })
+  else if (meta.kind === "mep-device") setSelection({ type: "mep-device", id: meta.entityId, floorId: meta.floorId })
   else setSelection({ type: "none" })
 }
 
@@ -122,6 +125,10 @@ function deleteSelection(): void {
   else if (sel.type === "water" && sel.id) exec(new DeleteWaterCommand(sel.id))
   else if (sel.type === "path" && sel.id) exec(new DeletePathCommand(sel.id))
   else if (sel.type === "pavement" && sel.id) exec(new DeletePavementCommand(sel.id))
+  else if (sel.type === "stair" && sel.floorId && sel.id) exec(new DeleteStairCommand(sel.floorId, sel.id))
+  else if (sel.type === "opening" && sel.floorId && sel.id) exec(new DeleteOpeningCommand(sel.floorId, sel.id))
+  else if (sel.type === "mep-run" && sel.floorId && sel.id) exec(new DeleteMepRunCommand(sel.floorId, sel.id))
+  else if (sel.type === "mep-device" && sel.floorId && sel.id) exec(new DeleteMepDeviceCommand(sel.floorId, sel.id))
   else if (sel.type === "object" && sel.id) {
     const inSite = d.site.objects.some((o) => o.id === sel.id)
     exec(new DeleteObjectCommand(inSite ? { site: true } : { floorId: sel.floorId ?? "" }, sel.id))
@@ -180,6 +187,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const paveMaterial = useEditorStore((s) => s.paveMaterial)
   const snapEnabled = useEditorStore((s) => s.snapEnabled)
   const wallArc = useEditorStore((s) => s.wallArc)
+  const mepSystem = useEditorStore((s) => s.mepSystem)
+  const mepDeviceKind = useEditorStore((s) => s.mepDeviceKind)
+  const mepLayers = useEditorStore((s) => s.mepLayers)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const mode = useEditorStore((s) => s.mode)
@@ -255,9 +265,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (!e || !ready) return
     e.activeFloorId = activeLevelId
     e.statusResolver = resolveStatus
-    e.rebuild(doc, { activeLevelId, displayMode, wallsDown })
+    e.rebuild(doc, { activeLevelId, displayMode, wallsDown, mepLayers, mepFocus: mode === "mep" })
     e.setSelection(useEditorStore.getState().selection)
-  }, [ready, rev, activeLevelId, displayMode, wallsDown, doc, premiseReady, resolveStatus])
+  }, [ready, rev, activeLevelId, displayMode, wallsDown, doc, premiseReady, resolveStatus, mepLayers, mode])
 
   useEffect(() => {
     const e = engineRef.current
@@ -293,6 +303,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.paveMaterial = paveMaterial
     e.snapEnabled = snapEnabled
     e.wallArc = wallArc
+    e.mepSystem = mepSystem
+    e.mepDeviceKind = mepDeviceKind
     e.openingType = activeTool === "window" ? "window" : "door"
     e.openingVariant = openingVariant
     e.setArmedAsset(activeTool === "object" ? armedAsset : null)
@@ -302,7 +314,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "water") e.cancelWater()
     if (activeTool !== "road" && activeTool !== "fence") e.cancelPath()
     if (activeTool !== "pave") e.cancelPave()
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, armedAsset, openingVariant, ready])
+    if (activeTool !== "mep-run") e.cancelMep()
+  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -431,6 +444,12 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         eng.finalizePath()
         return
       }
+      // Enter — завершить трассу сети.
+      if (eng && eng.isDrawingMep() && e.key === "Enter") {
+        e.preventDefault()
+        eng.finalizeMep()
+        return
+      }
       // Enter — залить площадку.
       if (eng && eng.isDrawingPave() && e.key === "Enter") {
         e.preventDefault()
@@ -440,6 +459,22 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       // R — поворот объекта в режиме размещения
       if ((e.key === "r" || e.key === "R") && ed.activeTool === "object" && ed.armedAsset) {
         engineRef.current?.rotatePlacer(45)
+        return
+      }
+      // Стрелки — сдвиг выбранного прибора сети (Shift — 10 мм).
+      if (e.key.startsWith("Arrow") && ed.selection.type === "mep-device" && ed.selection.id && ed.selection.floorId) {
+        e.preventDefault()
+        const fl = findFloor(docState.doc, ed.selection.floorId)
+        const dev = fl?.mepDevices.find((d) => d.id === ed.selection.id)
+        if (dev) {
+          const step = e.shiftKey ? 10 : 100
+          const at = { ...dev.at }
+          if (e.key === "ArrowUp") at.y -= step
+          else if (e.key === "ArrowDown") at.y += step
+          else if (e.key === "ArrowLeft") at.x -= step
+          else at.x += step
+          docState.execute(new UpdateMepDeviceCommand(ed.selection.floorId, dev.id, { at }, `move-${dev.id}`))
+        }
         return
       }
       // Стрелки — точное смещение выбранного объекта (Shift — мелкий шаг).
@@ -487,6 +522,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         engineRef.current?.cancelWater()
         engineRef.current?.cancelPath()
         engineRef.current?.cancelPave()
+        engineRef.current?.cancelMep()
         ed.armAsset(null)
         ed.setSelection({ type: "none" })
         return
@@ -530,7 +566,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           window.requestAnimationFrame(() => engineRef.current?.orbitTo(a, b))
         }}
       />
-      {!readOnly && <AssetCatalog key={mode} />}
+      {!readOnly && (mode === "mep" ? <MepPanel buildingId={buildingId} /> : <AssetCatalog key={mode} />)}
       {!readOnly && <MiniMap />}
       {!readOnly && ready && showPerf && <PerfHud getFps={() => engineRef.current?.getFps() ?? 0} />}
       {readOnly && selection.type === "room" && selection.floorId && (

@@ -6,7 +6,9 @@
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand } from "@/core/document/commands"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand } from "@/core/document/commands"
+import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
+import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { usePremiseStore } from "@/store/premise-store"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
@@ -207,6 +209,76 @@ export function PropertyPanel() {
           <button type="button" onClick={() => execute(new DeleteOpeningCommand(fid, oid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить проём</button>
         </div>
       )
+    }
+  } else if ((selection.type === "mep-run" || selection.type === "mep-device") && selection.floorId && selection.id) {
+    const f = findFloor(doc, selection.floorId)
+    const fid = selection.floorId
+    const id = selection.id
+    const inputCls = "w-full rounded-md bg-white/5 px-1.5 py-1 text-xs"
+    const inputStyle = { color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }
+    const num = (v: string) => parseFloat(v.replace(",", "."))
+    const field = (label: string, input: React.ReactNode) => (
+      <label className="flex flex-col gap-0.5 text-[11px]" style={{ color: TOKENS.muted }}>
+        {label}
+        {input}
+      </label>
+    )
+    if (selection.type === "mep-run") {
+      const run = f?.mepRuns.find((r) => r.id === id)
+      title = "Трасса сети"
+      if (run) {
+        const info = MEP_SYSTEM_INFO[run.system]
+        rows.push(<Row key="s" label="Система" value={`${info.section} · ${info.name}`} accent={info.color} />)
+        rows.push(<Row key="l" label="Длина" value={`${(polylineLengthMm(run.points) / 1000).toFixed(2)} м`} />)
+        rows.push(<Row key="p" label="Участков" value={String(run.points.length - 1)} />)
+        controls = (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {field("Система", (
+              <select id="mep-run-system" value={run.system} onChange={(ev) => execute(new UpdateMepRunCommand(fid, id, { system: ev.target.value as MepSystem, size: MEP_SYSTEM_INFO[ev.target.value as MepSystem].size }))} className={inputCls} style={inputStyle}>
+                {MEP_SYSTEMS.map((sys) => <option key={sys} value={sys} style={{ color: "#0b1220" }}>{MEP_SYSTEM_INFO[sys].section} · {MEP_SYSTEM_INFO[sys].name}</option>)}
+              </select>
+            ))}
+            {field(info.shape === "duct" ? "Сечение, мм" : info.shape === "pipe" ? "Труба (материал, диаметр)" : "Марка кабеля", (
+              <input id="mep-run-size" defaultValue={run.size} key={`rs${id}${run.size}`} onBlur={(ev) => { if (ev.target.value !== run.size) execute(new UpdateMepRunCommand(fid, id, { size: ev.target.value.trim() })) }} className={inputCls} style={inputStyle} />
+            ))}
+            {field("Высота от пола, м", (
+              <input id="mep-run-height" type="number" step="0.05" min="0" max="20" defaultValue={(run.height / 1000).toFixed(2)} key={`rh${id}${run.height}`} onBlur={(ev) => { const v = num(ev.target.value); if (Number.isFinite(v) && Math.round(v * 1000) !== run.height) execute(new UpdateMepRunCommand(fid, id, { height: Math.max(0, Math.round(v * 1000)) })) }} className={inputCls} style={inputStyle} />
+            ))}
+            {field("Обозначение (группа, участок)", (
+              <input id="mep-run-label" defaultValue={run.label} key={`rl${id}${run.label}`} placeholder="гр. 1" onBlur={(ev) => { if (ev.target.value !== run.label) execute(new UpdateMepRunCommand(fid, id, { label: ev.target.value.trim() })) }} className={inputCls} style={inputStyle} />
+            ))}
+            <button type="button" onClick={() => { execute(new DeleteMepRunCommand(fid, id)); useEditorStore.getState().setSelection({ type: "none" }) }} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить трассу</button>
+          </div>
+        )
+      }
+    } else {
+      const dev = f?.mepDevices.find((d) => d.id === id)
+      title = "Прибор сети"
+      if (dev) {
+        const info = MEP_SYSTEM_INFO[dev.system]
+        const di = MEP_DEVICE_BY_KIND[dev.kind]
+        rows.push(<Row key="s" label="Система" value={`${info.section} · ${info.name}`} accent={info.color} />)
+        rows.push(<Row key="k" label="Прибор" value={di?.name ?? dev.kind} />)
+        rows.push(<Row key="xy" label="X · Y" value={`${(dev.at.x / 1000).toFixed(2)} · ${(dev.at.y / 1000).toFixed(2)} м`} />)
+        controls = (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {field("Обозначение", (
+              <input id="mep-dev-label" defaultValue={dev.label} key={`dl${id}${dev.label}`} placeholder={di?.riser ? "Ст В1-1" : "ЩР-1, гр. 2"} onBlur={(ev) => { if (ev.target.value !== dev.label) execute(new UpdateMepDeviceCommand(fid, id, { label: ev.target.value.trim() })) }} className={inputCls} style={inputStyle} />
+            ))}
+            {!di?.riser && field("Высота установки, м", (
+              <input id="mep-dev-height" type="number" step="0.05" min="0" max="20" defaultValue={(dev.height / 1000).toFixed(2)} key={`dh${id}${dev.height}`} onBlur={(ev) => { const v = num(ev.target.value); if (Number.isFinite(v) && Math.round(v * 1000) !== dev.height) execute(new UpdateMepDeviceCommand(fid, id, { height: Math.max(0, Math.round(v * 1000)) })) }} className={inputCls} style={inputStyle} />
+            ))}
+            {(dev.power !== undefined || di?.power !== undefined || dev.kind === "panel") && field("Мощность, Вт", (
+              <input id="mep-dev-power" type="number" step="10" min="0" defaultValue={dev.power ?? di?.power ?? 0} key={`dp${id}${dev.power}`} onBlur={(ev) => { const v = num(ev.target.value); if (Number.isFinite(v) && v !== dev.power) execute(new UpdateMepDeviceCommand(fid, id, { power: Math.max(0, Math.round(v)) })) }} className={inputCls} style={inputStyle} />
+            ))}
+            <div className="flex gap-1">
+              <button type="button" onClick={() => execute(new UpdateMepDeviceCommand(fid, id, { rotation: (dev.rotation + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+              <button type="button" onClick={() => { execute(new DeleteMepDeviceCommand(fid, id)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>
+            </div>
+            <p className="text-[10px]" style={{ color: TOKENS.muted }}>Стрелки — сдвиг на 100 мм, Shift — на 10 мм.</p>
+          </div>
+        )
+      }
     }
   } else if (selection.type === "stair" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)

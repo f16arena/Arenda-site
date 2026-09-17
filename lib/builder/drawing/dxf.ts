@@ -6,6 +6,21 @@
 // «кракозябры» при разных кодовых страницах.
 
 import { BUBBLE_R, DIM_BASE, DIM_STEP, AXIS_GAP, areaText, type FloorDrawing, type Pt, type Side } from "./floor-drawing"
+import type { MepDrawing } from "./mep-drawing"
+import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
+import type { MepSystem } from "@/types/builder"
+
+// слои сетей: цвет AutoCAD (ACI) близкий к цвету системы в конструкторе
+const MEP_LAYERS: Record<MepSystem, { name: string; color: number }> = {
+  power: { name: "E-POWER", color: 1 },
+  lighting: { name: "E-LIGHT", color: 2 },
+  lowcurrent: { name: "E-LOWV", color: 6 },
+  water: { name: "P-WATER-B1", color: 5 },
+  hotwater: { name: "P-HOTW-T3", color: 30 },
+  sewer: { name: "P-SEWER-K1", color: 34 },
+  heating: { name: "M-HEAT-T1", color: 221 },
+  ventilation: { name: "M-VENT", color: 3 },
+}
 
 const LAYERS = [
   { name: "A-WALL", color: 7 }, // стены
@@ -70,9 +85,11 @@ function normalFor(side: Side): Pt {
 }
 
 /** Файл DXF. scale — масштаб листа (1:N): размеры текста и отступов даны в мм листа. */
-export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string): string {
+export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string, mep: MepDrawing | null = null): string {
   const w = new Writer()
   const k = scale // мм листа → мм модели
+  const mepSystems = mep ? [...new Set([...mep.runs.map((r) => r.system), ...mep.devices.map((x) => x.system)])] : []
+  const layers = [...LAYERS, ...mepSystems.map((s) => MEP_LAYERS[s])]
 
   w.pair(0, "SECTION"); w.pair(2, "HEADER")
   w.pair(9, "$ACADVER"); w.pair(1, "AC1009")
@@ -85,8 +102,8 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string)
   w.pair(0, "TABLE"); w.pair(2, "LTYPE"); w.pair(70, 1)
   w.pair(0, "LTYPE"); w.pair(2, "CONTINUOUS"); w.pair(70, 0); w.pair(3, "Solid line"); w.pair(72, 65); w.pair(73, 0); w.pair(40, 0)
   w.pair(0, "ENDTAB")
-  w.pair(0, "TABLE"); w.pair(2, "LAYER"); w.pair(70, LAYERS.length)
-  for (const l of LAYERS) {
+  w.pair(0, "TABLE"); w.pair(2, "LAYER"); w.pair(70, layers.length)
+  for (const l of layers) {
     w.pair(0, "LAYER"); w.pair(2, l.name); w.pair(70, 0); w.pair(62, l.color); w.pair(6, "CONTINUOUS")
   }
   w.pair(0, "ENDTAB")
@@ -140,6 +157,21 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string)
         w.circle("A-AXES", c, R)
         w.text("A-AXES", c, th * 1.2, ax.label)
       }
+    }
+  }
+
+  // сети: трассы линиями, марка у трассы, прибор — окружность с подписью вида
+  if (mep) {
+    for (const r of mep.runs) {
+      const layer = MEP_LAYERS[r.system].name
+      for (let i = 1; i < r.points.length; i++) w.line(layer, r.points[i - 1], r.points[i])
+      w.text(layer, { x: r.tagAt.x, y: r.tagAt.y + th * 0.9 }, th, r.tag, r.tagAngle)
+    }
+    for (const dev of mep.devices) {
+      const layer = MEP_LAYERS[dev.system].name
+      w.circle(layer, dev.at, 1.6 * k)
+      const tag = dev.label || MEP_SYSTEM_INFO[dev.system].mark
+      w.text(layer, { x: dev.at.x + 3.5 * k, y: dev.at.y + 2.5 * k }, th * 0.9, tag)
     }
   }
 

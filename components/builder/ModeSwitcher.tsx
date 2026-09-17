@@ -3,7 +3,7 @@
 // ADR: Верхний переключатель режимов (§20). Меняет mode в editorStore (он же ставит
 // инструмент по умолчанию). Каталог и тулбар подстраиваются под режим.
 
-import { Hammer, Sofa, PaintBucket, Mountain, Waves, Trees } from "lucide-react"
+import { Hammer, Sofa, PaintBucket, Mountain, Waves, Trees, Cable } from "lucide-react"
 import { useEditorStore, type BuildMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
 
@@ -14,6 +14,7 @@ const MODES: { id: BuildMode; label: string; Icon: typeof Hammer }[] = [
   { id: "terrain", label: "Рельеф", Icon: Mountain },
   { id: "water", label: "Вода", Icon: Waves },
   { id: "landscape", label: "Ландшафт", Icon: Trees },
+  { id: "mep", label: "Сети", Icon: Cable },
 ]
 
 export function ModeSwitcher() {

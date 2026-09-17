@@ -9,6 +9,7 @@ import { openBuildingModel } from "@/app/actions/building-model"
 import { loadBuilderProject } from "@/app/actions/builder"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { FloorSheet } from "@/components/builder/sheet/FloorSheet"
+import type { SheetSection } from "@/lib/builder/drawing/mep-drawing"
 
 /**
  * Лист чертежа плана этажа из модели здания: размеры, оси, помещения, штамп.
@@ -19,12 +20,12 @@ export default async function BuildingSheetPage({
   searchParams,
 }: {
   params: Promise<{ buildingId: string }>
-  searchParams: Promise<{ floor?: string; dbFloor?: string }>
+  searchParams: Promise<{ floor?: string; dbFloor?: string; section?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { buildingId } = await params
-  const { floor, dbFloor } = await searchParams
+  const { floor, dbFloor, section } = await searchParams
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
 
@@ -58,6 +59,7 @@ export default async function BuildingSheetPage({
       floors={floors}
       initialFloorId={initial?.id ?? null}
       premiseNumbers={Object.fromEntries(premises.map((p) => [p.id, p.number]))}
+      initialSection={section && ["ar", "mep", "ЭМ", "ЭО", "СС", "ВК", "ОВ"].includes(section) ? (section as SheetSection) : "ar"}
     />
   )
 }

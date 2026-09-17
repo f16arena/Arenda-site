@@ -3,6 +3,8 @@
 // выбор, активный уровень, режим камеры/отображения). `rev` инкрементится при каждой
 // мутации документа — движок подписан на него и инкрементально перестраивает сцену.
 
+import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
+import { MEP_DEVICES, MEP_DEVICE_BY_KIND } from "@/lib/builder/mep/catalog"
 import { create } from "zustand"
 import type { BuilderDocument } from "@/types/builder"
 import { type Command, CommandStack } from "@/core/document/commands"
@@ -126,11 +128,13 @@ export type Tool =
   | "pave"
   | "delete"
   | "measure"
+  | "mep-run"
+  | "mep-device"
 
 export type CameraMode = "orbit" | "top" | "plan" | "walk"
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -142,7 +146,7 @@ export type StairShape = "straight" | "l" | "u" | "spiral" | "porch"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth" | "terrace"
 export type PathKind = "road" | "path"
 export type FenceStyle = "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood"
-export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape"
+export type BuildMode = "build" | "buy" | "material" | "terrain" | "water" | "landscape" | "mep"
 export type GizmoMode = "none" | "move" | "rotate"
 
 export interface EditorState {
@@ -169,6 +173,10 @@ export interface EditorState {
   snapEnabled: boolean
   /** инструмент «Стена» рисует дугу: начало, конец, точка на дуге */
   wallArc: boolean
+  /** сети: активная система, вид прибора, видимые слои */
+  mepSystem: MepSystem
+  mepDeviceKind: string
+  mepLayers: MepSystem[]
   armedAsset: string | null
   gizmoMode: GizmoMode
   turbo: boolean
@@ -195,6 +203,10 @@ export interface EditorState {
   setAssetBaseSizes: (r: Record<string, { w: number; d: number; h: number }>) => void
   toggleSnap: () => void
   toggleWallArc: () => void
+  setMepSystem: (s: MepSystem) => void
+  setMepDeviceKind: (k: string) => void
+  toggleMepLayer: (s: MepSystem) => void
+  setMepLayers: (s: MepSystem[]) => void
   armAsset: (id: string | null) => void
   setGizmoMode: (m: GizmoMode) => void
   setTurbo: (on: boolean) => void
@@ -207,6 +219,7 @@ const MODE_DEFAULT_TOOL: Record<BuildMode, Tool> = {
   terrain: "terrain",
   water: "water",
   landscape: "object",
+  mep: "mep-run",
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -232,6 +245,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   assetBaseSizes: {},
   snapEnabled: true,
   wallArc: false,
+  mepSystem: "power",
+  mepDeviceKind: "socket",
+  mepLayers: [...MEP_SYSTEMS],
   armedAsset: null,
   gizmoMode: "move",
   turbo: false,
@@ -267,6 +283,15 @@ export const useEditorStore = create<EditorState>((set) => ({
   setPaveMaterial: (id) => set({ paveMaterial: id }),
   setAssetBaseSizes: (r) => set({ assetBaseSizes: r }),
   toggleWallArc: () => set((st) => ({ wallArc: !st.wallArc })),
+  setMepSystem: (sys) => set((st) => ({
+    mepSystem: sys,
+    // вид прибора — из этой же системы; включаем слой, чтобы нарисованное было видно
+    mepDeviceKind: MEP_DEVICE_BY_KIND[st.mepDeviceKind]?.system === sys ? st.mepDeviceKind : (MEP_DEVICES.find((d) => d.system === sys)?.kind ?? st.mepDeviceKind),
+    mepLayers: st.mepLayers.includes(sys) ? st.mepLayers : [...st.mepLayers, sys],
+  })),
+  setMepDeviceKind: (k) => set((st) => ({ mepDeviceKind: k, mepSystem: MEP_DEVICE_BY_KIND[k]?.system ?? st.mepSystem })),
+  toggleMepLayer: (sys) => set((st) => ({ mepLayers: st.mepLayers.includes(sys) ? st.mepLayers.filter((x) => x !== sys) : [...st.mepLayers, sys] })),
+  setMepLayers: (layers) => set({ mepLayers: layers }),
   toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   armAsset: (id) => set({ armedAsset: id }),
   setGizmoMode: (m) => set({ gizmoMode: m }),

@@ -29,6 +29,8 @@ const TOOL_RU: Record<Tool, string> = {
   pave: "Площадка",
   delete: "Удалить",
   measure: "Рулетка",
+  "mep-run": "Трасса сети",
+  "mep-device": "Прибор сети",
 }
 
 export function StatusBar() {

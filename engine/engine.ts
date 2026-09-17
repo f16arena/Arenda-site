@@ -21,7 +21,11 @@ import {
   VertexBuffer,
 } from "@babylonjs/core"
 import { uid } from "@/core/id"
-import type { BuilderDocument, Floor, Building, Stair } from "@/types/builder"
+import type { BuilderDocument, Floor, Building, Stair, MepSystem } from "@/types/builder"
+import { MEP_SYSTEMS } from "@/types/builder"
+import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
+import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
+import { buildMep } from "./builders/mep-builder"
 import {
   findFloor,
   type Command,
@@ -50,6 +54,10 @@ import {
   DeletePathCommand,
   AddPavementCommand,
   DeletePavementCommand,
+  AddMepRunCommand,
+  AddMepDeviceCommand,
+  DeleteMepRunCommand,
+  DeleteMepDeviceCommand,
 } from "@/core/document/commands"
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { centroid, closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
@@ -89,6 +97,10 @@ export interface RebuildContext {
   activeLevelId: string
   displayMode: DisplayMode
   wallsDown: boolean
+  /** видимые системы сетей; по умолчанию — все */
+  mepLayers?: MepSystem[]
+  /** режим «Сети»: архитектура активного этажа полупрозрачная */
+  mepFocus?: boolean
 }
 
 export class BuilderEngine {
@@ -184,6 +196,10 @@ export class BuilderEngine {
   private lastDragEndAt = 0
 
   tool: Tool = "select"
+  mepSystem: MepSystem = "power"
+  mepDeviceKind = "socket"
+  private mepPoints: Vec2[] = []
+  private mepPreview: TransformNode | null = null
   activeFloorId = ""
   paintMaterialId = "brick"
   openingType: "door" | "window" = "door"
@@ -427,6 +443,7 @@ export class BuilderEngine {
         m.material = opening
         m.renderingGroupId = 1
       }
+      else if (kind === "mep-run" || kind === "mep-device") m.renderingGroupId = 1
       m.receiveShadows = false
     }
     // крыши закрывают план сверху
@@ -585,7 +602,14 @@ export class BuilderEngine {
       this.labelAnchors = anchors
     }
 
+    const mepMeshes = buildMep(f, fNode, scene, new Set(ctx.mepLayers ?? MEP_SYSTEMS), this.drafting)
+    if (reg) for (const m of mepMeshes) this.registerMesh(m.metadata?.entityId, m)
+
     this.applyFloorVisibility(f, fNode, roof, ctx, active)
+    if (ctx.mepFocus && active && f.id === active.id && fNode.isEnabled()) {
+      const mepSet = new Set(mepMeshes)
+      for (const m of fNode.getChildMeshes()) if (!mepSet.has(m as Mesh)) m.visibility = Math.min(m.visibility, 0.28)
+    }
     if (reg) {
       this.floorRootById.set(f.id, fNode)
       if (roof) this.roofByFloorId.set(f.id, roof)
@@ -826,6 +850,10 @@ export class BuilderEngine {
     // ближайшую стену активного этажа в допуске 8 px, если под курсором пол,
     // комната или пусто.
     const lineTools = this.tool === "select" || this.tool === "delete" || this.tool === "door" || this.tool === "window"
+    if ((this.tool === "select" || this.tool === "delete") && (!meta || meta.kind === "room" || meta.kind === "floor" || meta.kind === "wall")) {
+      const mep = this.nearestMepAtPointer(8)
+      if (mep) return { meta: mep, point: pick?.pickedPoint ?? null }
+    }
     if (lineTools && (!meta || meta.kind === "room" || meta.kind === "floor")) {
       const near = this.nearestWallAtPointer(8)
       if (near) return { meta: { kind: "wall", floorId: near.floorId, entityId: near.edgeId } as MeshMeta, point: near.point }
@@ -1338,6 +1366,17 @@ export class BuilderEngine {
       this.updatePlacerGhost()
       return
     }
+    if (this.tool === "mep-run") {
+      const c = this.mepCursor()
+      if (c && this.mepPoints.length) this.updateMepPreview(c.at, c.kind)
+      this.showSnapMarker(c && c.kind === "target" ? new Vector3(c.at.x * S, this.activeFloorPlaneY() + 0.02, c.at.y * S) : null)
+      return
+    }
+    if (this.tool === "mep-device") {
+      const c = this.mepDevicePlacement()
+      this.showSnapMarker(c ? new Vector3(c.at.x * S, this.activeFloorPlaneY() + 0.02, c.at.y * S) : null)
+      return
+    }
     if (this.tool === "wall" && this.wallStart && this.wallArc && this.arcEnd) {
       const p = this.projectToPlane()
       if (p) this.updateArcPreview(p)
@@ -1549,6 +1588,14 @@ export class BuilderEngine {
     }
     if (this.tool === "object" && this.armedAsset) {
       this.handlePlaceObject()
+      return
+    }
+    if (this.tool === "mep-run") {
+      this.handleMepRunTap()
+      return
+    }
+    if (this.tool === "mep-device") {
+      this.handleMepDeviceTap()
       return
     }
     if (this.tool === "wall") {
@@ -1880,6 +1927,166 @@ export class BuilderEngine {
     )
   }
 
+  // ── Инженерные сети ─────────────────────────────────────────────────────────
+  // Трасса: клики ставят точки (привязка к приборам и вершинам своей системы,
+  // угол 45°), клик в последней точке или Enter — готово, Esc — отмена.
+  // Прибор: клик ставит; настенные прижимаются к ближайшей стене лицом в комнату.
+  private mepTolMm(px = 12): number {
+    const { scene } = this.bundle
+    const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
+    const q = this.planeAtScreen(scene.pointerX + px, scene.pointerY)
+    return p && q ? Math.max(20, Math.hypot(q.x - p.x, q.z - p.z) * 1000) : 150
+  }
+
+  private mepCursor(): { at: Vec2; kind: string; raw: Vec2 } | null {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const p = this.projectToPlane()
+    if (!f || !p) return null
+    const raw = { x: p.x * 1000, y: p.z * 1000 }
+    const targets: Vec2[] = []
+    for (const d of f.mepDevices ?? []) if (d.system === this.mepSystem) targets.push(d.at)
+    for (const r of f.mepRuns ?? []) if (r.system === this.mepSystem) targets.push(...r.points)
+    targets.push(...this.mepPoints.slice(0, -1))
+    const prev = this.mepPoints[this.mepPoints.length - 1] ?? null
+    const res = snapMepPoint(raw, prev, { targets, tolMm: this.mepTolMm(), snap: this.snapEnabled })
+    return { ...res, raw }
+  }
+
+  private mepDevicePlacement(): { at: Vec2; rotation: number } | null {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const p = this.projectToPlane()
+    const info = MEP_DEVICE_BY_KIND[this.mepDeviceKind]
+    if (!f || !p || !info) return null
+    const raw = { x: p.x * 1000, y: p.z * 1000 }
+    if (info.wall) {
+      const m = wallMount(raw, f.wallGraph, info.box.d)
+      if (m) return m
+    }
+    if (info.riser || info.kind === "drain") {
+      // стояк и трап цепляются к вершинам трасс своей системы
+      let best: { p: Vec2; d: number } | null = null
+      const tol = this.mepTolMm()
+      for (const r of f.mepRuns ?? []) if (r.system === info.system) for (const q of r.points) {
+        const d = Math.hypot(q.x - raw.x, q.y - raw.y)
+        if (d <= tol && (!best || d < best.d)) best = { p: q, d }
+      }
+      if (best) return { at: { ...best.p }, rotation: 0 }
+    }
+    const at = this.snapEnabled ? { x: snapToGrid(raw.x, 50), y: snapToGrid(raw.y, 50) } : { x: Math.round(raw.x), y: Math.round(raw.y) }
+    return { at, rotation: 0 }
+  }
+
+  private handleMepRunTap(): void {
+    const c = this.mepCursor()
+    if (!c) return
+    const last = this.mepPoints[this.mepPoints.length - 1]
+    if (last && Math.hypot(c.raw.x - last.x, c.raw.y - last.y) <= this.mepTolMm()) {
+      if (this.mepPoints.length >= 2) this.finalizeMep()
+      return
+    }
+    this.mepPoints.push(c.at)
+    this.updateMepPreview(c.at, c.kind)
+  }
+
+  private handleMepDeviceTap(): void {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const info = MEP_DEVICE_BY_KIND[this.mepDeviceKind]
+    const place = this.mepDevicePlacement()
+    if (!f || !info || !place) return
+    if (info.wall && !wallMount(place.at, f.wallGraph, info.box.d, 50)) {
+      this.onHud(`${info.name} ставится на стену — кликните ближе к стене`)
+    }
+    const same = (f.mepDevices ?? []).filter((d) => d.kind === info.kind).length
+    const label = info.riser ? `Ст ${MEP_SYSTEM_INFO[info.system].mark}-${same + 1}` : info.kind === "panel" ? `ЩР-${same + 1}` : ""
+    const height = deviceHeight(info, f.height)
+    this.onCommand(new AddMepDeviceCommand(f.id, { id: uid("md"), system: info.system, kind: info.kind, at: place.at, height, rotation: place.rotation, label, power: info.power }))
+    this.onHud(`${info.name}${label ? ` ${label}` : ""} · ${info.riser ? "во всю высоту этажа" : `${(height / 1000).toFixed(2)} м от пола`}`)
+  }
+
+  private updateMepPreview(cursor: Vec2, kind: string): void {
+    this.mepPreview?.dispose()
+    const info = MEP_SYSTEM_INFO[this.mepSystem]
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const h = Math.min(info.runHeight, (f?.height ?? 3000) - 100)
+    const y = this.activeFloorPlaneY() + h * S
+    const root = new TransformNode("mepPreview", this.bundle.scene)
+    const pts = [...this.mepPoints, cursor]
+    const line = MeshBuilder.CreateLines("mepPreviewLine", { points: pts.map((p) => new Vector3(p.x * S, y, p.y * S)) }, this.bundle.scene)
+    line.color = Color3.FromHexString(info.color)
+    line.isPickable = false
+    line.renderingGroupId = 1
+    line.parent = root
+    // проекция на пол — видно, где трасса в плане при взгляде в 3D
+    const floorLine = MeshBuilder.CreateLines("mepPreviewFloor", { points: pts.map((p) => new Vector3(p.x * S, this.activeFloorPlaneY() + 0.03, p.y * S)) }, this.bundle.scene)
+    floorLine.color = Color3.FromHexString(info.color).scale(0.6)
+    floorLine.isPickable = false
+    floorLine.parent = root
+    this.mepPreview = root
+    const total = polylineLengthMm(pts) / 1000
+    const seg = this.mepPoints.length ? Math.hypot(cursor.x - this.mepPoints[this.mepPoints.length - 1].x, cursor.y - this.mepPoints[this.mepPoints.length - 1].y) / 1000 : 0
+    const hint = kind === "target" ? " · привязка к прибору" : ""
+    this.onHud(`${info.name} ${info.mark}: участок ${seg.toFixed(2)} м, всего ${total.toFixed(2)} м${hint} · клик в последней точке или Enter — готово, Esc — отмена`)
+  }
+
+  isDrawingMep(): boolean {
+    return this.tool === "mep-run" && this.mepPoints.length > 0
+  }
+
+  finalizeMep(): void {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f || this.mepPoints.length < 2) {
+      this.cancelMep()
+      return
+    }
+    const info = MEP_SYSTEM_INFO[this.mepSystem]
+    const points = this.mepPoints.map((p) => ({ ...p }))
+    const height = Math.min(info.runHeight, f.height - 100)
+    this.onCommand(new AddMepRunCommand(f.id, { id: uid("mr"), system: this.mepSystem, points, height, size: info.size, label: "" }))
+    this.cancelMep()
+    this.onHud(null)
+  }
+
+  cancelMep(): void {
+    const had = this.mepPoints.length > 0
+    this.mepPoints = []
+    this.mepPreview?.dispose()
+    this.mepPreview = null
+    if (had) this.onHud(null)
+  }
+
+  private nearestMepAtPointer(tolPx: number): MeshMeta | null {
+    const doc = this.getDoc()
+    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f) return null
+    const layers = new Set(this.lastCtx?.mepLayers ?? MEP_SYSTEMS)
+    const { scene } = this.bundle
+    const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
+    if (!p) return null
+    const pm = { x: p.x * 1000, y: p.z * 1000 }
+    const tol = this.mepTolMm(tolPx)
+    let best: { meta: MeshMeta; d: number } | null = null
+    for (const dev of f.mepDevices ?? []) {
+      if (!layers.has(dev.system)) continue
+      const info = MEP_DEVICE_BY_KIND[dev.kind]
+      const r = Math.max(60, (info?.box.w ?? 200) / 2)
+      const d = Math.max(0, Math.hypot(dev.at.x - pm.x, dev.at.y - pm.y) - r)
+      if (d <= tol && (!best || d < best.d)) best = { meta: { kind: "mep-device", floorId: f.id, entityId: dev.id }, d: d - 1 }
+    }
+    for (const run of f.mepRuns ?? []) {
+      if (!layers.has(run.system)) continue
+      for (let i = 1; i < run.points.length; i++) {
+        const { dist } = closestOnSegment(pm, run.points[i - 1], run.points[i])
+        if (dist <= tol && (!best || dist < best.d)) best = { meta: { kind: "mep-run", floorId: f.id, entityId: run.id }, d: dist }
+      }
+    }
+    return best?.meta ?? null
+  }
+
   /** Крыльцо прижимается площадкой к ближайшей стене снаружи, ступени — от здания. */
   private placePorch(f: Floor): void {
     const p = this.projectToPlane()
@@ -1930,6 +2137,8 @@ export class BuilderEngine {
     if (meta.kind === "wall" && meta.floorId) this.onCommand(new DeleteWallCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "opening" && meta.floorId) this.onCommand(new DeleteOpeningCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "mep-run" && meta.floorId) this.onCommand(new DeleteMepRunCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "mep-device" && meta.floorId) this.onCommand(new DeleteMepDeviceCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "object") {
       const target = meta.target === "site" ? ({ site: true } as const) : ({ floorId: meta.target ?? "" } as const)
       this.onCommand(new DeleteObjectCommand(target, meta.entityId))
