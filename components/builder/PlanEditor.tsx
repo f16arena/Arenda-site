@@ -39,6 +39,7 @@ import {
   SetStairCommand,
   setColumnSizeCommand,
   MoveObjectCommand,
+  AddObjectCommand,
   type Command,
 } from "@/core/document/commands"
 import { MEP_DEVICE_BY_KIND, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
@@ -57,7 +58,7 @@ import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
-import { objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
+import { pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; view: View; moved: boolean }
@@ -90,6 +91,7 @@ export function PlanEditor() {
   const openingType = useEditorStore((s) => s.openingType)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const stairShape = useEditorStore((s) => s.stairShape)
+  const armedAsset = useEditorStore((s) => s.armedAsset)
   const columnSizeAll = useEditorStore((s) => s.columnSizeAll)
   const annotateKind = useEditorStore((s) => s.annotateKind)
   const multi = useEditorStore((s) => s.multi)
@@ -534,6 +536,16 @@ export function PlanEditor() {
       case "stair":
         placeStair(at.p)
         break
+      case "object": {
+        // мебель ставится и из плана: не нужно уходить в 3D
+        if (!armedAsset) break
+        const g = snapEnabled ? 50 : 1
+        const at2 = { x: Math.round(at.p.x / g) * g, y: Math.round(at.p.y / g) * g }
+        const taken = (floor.objects ?? []).some((ob) => pointInObject(ob, at2, 100))
+        if (taken) break
+        execute(new AddObjectCommand({ floorId: floor.id }, { id: uid("o"), assetId: armedAsset, position: { x: at2.x, y: 0, z: at2.y }, rotationY: 0, scale: 1, attachTo: "floor", locked: false }))
+        break
+      }
       case "annotate":
         if (annotateKind === "text") {
           const id = uid("an")
@@ -628,6 +640,7 @@ export function PlanEditor() {
     : tool === "section" ? (pts2.length ? "Разрез: вторая точка линии" : "Разрез: первая точка линии")
     : tool === "mep-run" ? `Трасса ${MEP_SYSTEM_INFO[mepSystem].name}: клики — точки${pts2.length ? `, ${(polylineLengthMm(pts2) / 1000).toFixed(2)} м` : ""}; клик в последней точке, правая кнопка или Enter — готово`
     : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
+    : tool === "object" ? (armedAsset ? "Объект: клик — поставить. Поворот и размер — в панели справа" : "Объект: выберите его в каталоге снизу")
     : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
 
   // ── Раскладка подписей: помещения (приоритет), затем марки и надписи выходов без наложений ──
