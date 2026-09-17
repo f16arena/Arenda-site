@@ -537,6 +537,15 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
     down -= planHeight(f)
     elevations.set(f.id, down)
   }
+  // Этаж 0 под надземными — цокольный: по нормам его пол ниже земли, но не
+  // больше чем на половину высоты. Ставим типичный случай — наполовину в
+  // земле; вся стопка опускается вместе с ним, 1 этаж поднят на полэтажа.
+  // Точную отметку задают в панели этажа.
+  const plinth = floors.find((f) => f.number === 0)
+  if (plinth && floors.some((f) => f.number >= 1)) {
+    const offset = -Math.round(planHeight(plinth) / 2)
+    for (const [id, value] of elevations) elevations.set(id, value + offset)
+  }
 
   const footprint = buildingFootprint(floors)
 

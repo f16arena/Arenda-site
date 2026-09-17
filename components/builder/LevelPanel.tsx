@@ -9,7 +9,7 @@ import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
 import { rebuildModelFloor } from "@/app/actions/building-model"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
-import { AddFloorCommand, DeleteFloorCommand, ReplaceFloorCommand, SetRoofCommand, SetFloorNameCommand } from "@/core/document/commands"
+import { AddFloorCommand, DeleteFloorCommand, ReplaceFloorCommand, SetRoofCommand, SetFloorNameCommand, SetFloorElevationCommand } from "@/core/document/commands"
 import { UnderlayPanel, type PendingMeasure } from "./UnderlayPanel"
 import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
@@ -348,6 +348,42 @@ export function LevelPanel({
       </button>
       {activeFloor && (
         <div className="mt-1 rounded-xl p-1.5" style={{ background: "rgba(148,163,184,0.08)" }}>
+          <label
+            className="flex items-center justify-between gap-2 px-0.5 pb-1 text-[11px]"
+            style={{ color: TOKENS.muted }}
+            title="Отметка пола относительно земли. Минус — ниже земли. Этажи выше сдвигаются вместе с этим"
+          >
+            Отметка пола, м
+            <input
+              id="builder-floor-elevation"
+              type="number"
+              step="0.05"
+              key={`el${activeFloor.id}${activeFloor.elevation}`}
+              defaultValue={(activeFloor.elevation / 1000).toFixed(2)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") (ev.target as HTMLInputElement).blur()
+              }}
+              onBlur={(ev) => {
+                const v = Number(ev.target.value.replace(",", "."))
+                if (!Number.isFinite(v)) return
+                const mm = Math.round(v * 1000)
+                if (mm !== activeFloor.elevation) useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, mm))
+              }}
+              className="w-16 rounded-md bg-white/5 px-1.5 py-0.5 text-right text-[11px] tabular-nums"
+              style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+            />
+          </label>
+          {activeFloor.level === 0 && building.floors.some((f) => f.level >= 1) && activeFloor.elevation !== -Math.round(activeFloor.height / 2) && (
+            <button
+              type="button"
+              onClick={() => useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, -Math.round(activeFloor.height / 2)))}
+              title="Цокольный этаж: пол ниже земли на половину высоты этажа; этажи выше опустятся вместе с ним"
+              className="mb-1.5 w-full rounded-md py-1 text-[11px] font-medium"
+              style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}
+            >
+              Цоколь: наполовину в земле
+            </button>
+          )}
           <p className="px-0.5 pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Крыша · {activeFloor.name}</p>
           <div className="grid grid-cols-3 gap-1">
             {ROOFS.map((r) => {

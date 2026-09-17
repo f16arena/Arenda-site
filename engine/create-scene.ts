@@ -141,6 +141,14 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
 
   const glow = new GlowLayer("glow", scene)
   glow.intensity = 0.6
+  // Светятся только лампы и экраны (материалы glow_*). Иначе слой подхватывал
+  // любой материал с собственным свечением — стекло, статусы помещений, ручки —
+  // и обводил здание мутным жёлто-голубым ореолом.
+  glow.customEmissiveColorSelector = (_mesh, _subMesh, material, result) => {
+    const own = material as unknown as { name?: string; emissiveColor?: Color3 }
+    if (own?.name?.startsWith("glow_") && own.emissiveColor) result.set(own.emissiveColor.r, own.emissiveColor.g, own.emissiveColor.b, 1)
+    else result.set(0, 0, 0, 0)
+  }
   const highlight = new HighlightLayer("hl", scene)
 
   return { engine, scene, camera, sun, shadow, glow, highlight, ground }

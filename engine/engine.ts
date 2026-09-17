@@ -1156,7 +1156,8 @@ export class BuilderEngine {
       const hit = scene.pickWithRay(new Ray(origin, dir, len - 0.4), (m) => {
         if (!m.isPickable || !m.isEnabled() || m.visibility < 0.5) return false
         const meta = m.metadata as MeshMeta | null
-        return !!meta?.floorId && meta.floorId !== a.floorId
+        // заслоняет геометрия других этажей и крыша (в т. ч. своего этажа)
+        return !!meta?.floorId && (meta.floorId !== a.floorId || meta.kind === "roof")
       })
       if (hit?.hit) this.occludedLabels.add(a.id)
     }
@@ -1901,7 +1902,10 @@ export class BuilderEngine {
 
   // Котлован под цоколь/подвал: опускаем газон в пятне здания до отметки нижнего
   // подземного этажа + фундаментные стены по периметру (видно «вырытую яму»).
+  // прямоугольники котлованов под цоколем/подвалом (мировые метры) — для раскраски
+  private pits: Array<{ x0: number; x1: number; z0: number; z1: number }> = []
   private excavateBasements(doc: BuilderDocument): void {
+    this.pits = []
     const ground = this.bundle.ground
     const positions = ground.getVerticesData(VertexBuffer.PositionKind)
     if (!positions || !this.docRoot) return
@@ -1929,6 +1933,7 @@ export class BuilderEngine {
       const wz0 = (b.origin.y + minY - m) * S
       const wz1 = (b.origin.y + maxY + m) * S
       const pitWorldY = pitY * S
+      this.pits.push({ x0: wx0, x1: wx1, z0: wz0, z1: wz1 })
       for (let i = 0; i < positions.length / 3; i++) {
         const x = positions[i * 3]
         const z = positions[i * 3 + 2]
@@ -2015,10 +2020,15 @@ export class BuilderEngine {
     const GRASS: [number, number, number] = [0.36, 0.55, 0.27]
     const DRY: [number, number, number] = [0.55, 0.56, 0.36]
     const ROCK: [number, number, number] = [0.5, 0.5, 0.52]
+    const CONCRETE: [number, number, number] = [0.58, 0.58, 0.56]
     for (let i = 0; i < vCount; i++) {
       const y = positions[i * 3 + 1]
+      const x = positions[i * 3]
+      const z = positions[i * 3 + 2]
       let c = GRASS
-      if (y < -0.1) c = SAND
+      // котлован под цоколем — бетон, а не песок водоёма (песок давал жёлтую кайму вокруг здания)
+      if (this.pits.some((p) => x >= p.x0 && x <= p.x1 && z >= p.z0 && z <= p.z1)) c = CONCRETE
+      else if (y < -0.1) c = SAND
       else if (y > 4) c = ROCK
       else if (y > 1.6) c = DRY
       colors[i * 4] = c[0]

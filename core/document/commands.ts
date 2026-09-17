@@ -140,6 +140,38 @@ export class DeleteFloorCommand implements Command {
 }
 
 // ── SetFloorName (переименование уровня: «1 этаж», «Цоколь», «Подвал» — на выбор) ─
+/**
+ * Отметка пола этажа. С shiftAbove этажи выше сдвигаются на ту же величину —
+ * стопка не расходится и не входит сама в себя.
+ */
+export class SetFloorElevationCommand implements Command {
+  readonly kind = "set-floor-elevation"
+  readonly label = "отметка этажа"
+  private moved: string[] | null = null
+  private delta = 0
+  constructor(private floorId: string, private elevation: number, private shiftAbove = true) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    if (!this.moved) {
+      const b = doc.buildings.find((bb) => bb.floors.some((f) => f.id === this.floorId))
+      const f = b?.floors.find((fl) => fl.id === this.floorId)
+      if (!b || !f) return doc
+      this.delta = this.elevation - f.elevation
+      this.moved = b.floors.filter((fl) => fl.id === f.id || (this.shiftAbove && fl.level > f.level)).map((fl) => fl.id)
+    }
+    return this.shift(doc, this.delta)
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return this.moved ? this.shift(doc, -this.delta) : doc
+  }
+  private shift(doc: BuilderDocument, d: number): BuilderDocument {
+    const ids = new Set(this.moved ?? [])
+    return {
+      ...doc,
+      buildings: doc.buildings.map((b) => ({ ...b, floors: b.floors.map((f) => (ids.has(f.id) ? { ...f, elevation: f.elevation + d } : f)) })),
+    }
+  }
+}
+
 export class SetFloorNameCommand implements Command {
   readonly kind = "set-floor-name"
   readonly label = "имя этажа"
