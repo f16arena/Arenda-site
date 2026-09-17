@@ -278,6 +278,7 @@ export class BuilderEngine {
   rebuild(doc: BuilderDocument, ctx: RebuildContext): void {
     const scene = this.bundle.scene
     this.lastCtx = ctx
+    this.lastDoc = doc
     if (this.docRoot) this.docRoot.dispose()
     this.dragOverlay = null // оверлей жил под docRoot — уже освобождён вместе с ним
     this.dragFloorId = null
@@ -366,7 +367,52 @@ export class BuilderEngine {
     this.freezeStatics()
     this.refreshShadows()
     this.emitBaseSizes(doc)
+    if (this.drafting) this.applyDraftLook()
     this.updateGrips()
+  }
+
+  // ── Чертёжный вид для «Плана» ────────────────────────────────────────────────
+  // Сверху текстуры пола, тени и трава мешают читать план: стены — тёмные
+  // полосы, помещения — белые, статус аренды — цветом поверх, участок — светлый.
+  private drafting = false
+  private lastDoc: BuilderDocument | null = null
+  private groundMaterialBackup: import("@babylonjs/core").Material | null = null
+
+  private setDrafting(on: boolean): void {
+    if (this.drafting === on) return
+    this.drafting = on
+    // свечение раздувало белую заливку чертежа в сплошной засвет
+    this.bundle.glow.isEnabled = !on
+    const ground = this.bundle.ground
+    // цвет участка идёт из вершинных цветов (трава/песок) — в чертеже их гасим
+    ground.useVertexColors = !on
+    // сетка участка лежит выше пола помещений и штриховала весь план
+    this.bundle.scene.getMeshByName("gridPlane")?.setEnabled(!on)
+    if (on) {
+      this.groundMaterialBackup = ground.material
+      ground.material = this.reg.flat("#e9edf2")
+    } else if (this.groundMaterialBackup) {
+      ground.material = this.groundMaterialBackup
+      this.groundMaterialBackup = null
+    }
+    // вернуть или заменить материалы геометрии — пересборкой с теми же данными
+    if (this.lastDoc && this.lastCtx) this.rebuild(this.lastDoc, this.lastCtx)
+  }
+
+  private applyDraftLook(): void {
+    if (!this.docRoot) return
+    const room = this.reg.flat("#ffffff")
+    const wall = this.reg.flat("#1f2937")
+    const opening = this.reg.flat("#94a3b8")
+    for (const m of this.docRoot.getChildMeshes()) {
+      const kind = (m.metadata as MeshMeta | null)?.kind
+      if (kind === "room") m.material = room
+      else if (kind === "wall") m.material = wall
+      else if (kind === "opening") m.material = opening
+      m.receiveShadows = false
+    }
+    // крыши закрывают план сверху
+    for (const roof of this.roofByFloorId.values()) roof.setEnabled(false)
   }
 
   // Ручки-узлы у выделенной стены. Узлы по всему этажу хватались случайно и
@@ -641,6 +687,7 @@ export class BuilderEngine {
     scene.activeCamera = camera
     if (canvas) camera.attachControl(canvas, true)
     camera.mode = mode === "plan" ? Camera.ORTHOGRAPHIC_CAMERA : Camera.PERSPECTIVE_CAMERA
+    this.setDrafting(mode === "plan")
     const flat = mode === "top" || mode === "plan"
     // План — строго сверху и без поворота: чертёж не должен заваливаться от
     // случайного движения мыши. Раньше предел наклона 0.15 рад не давал камере

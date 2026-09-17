@@ -7,7 +7,7 @@
 // ground (брусчатка/асфальт/газон). Текстуры тоже кэшируются по id и освобождаются в
 // dispose() явно (материал диспозит свои привязки, но кэш — наш).
 
-import { Color3, DynamicTexture, PBRMaterial, Texture, type Scene } from "@babylonjs/core"
+import { Color3, DynamicTexture, PBRMaterial, StandardMaterial, Texture, type Scene } from "@babylonjs/core"
 import { MATERIALS, type MaterialDef } from "@/lib/builder/materials"
 
 type Pattern =
@@ -59,6 +59,23 @@ export class MaterialRegistry {
 
     m.freeze() // материал неизменяем после создания → меньше пересчётов на кадр (§24)
     this.cache.set(key, m)
+    return m
+  }
+
+  /** Плоский непрозрачный цвет без освещения — для чертёжного вида «План». */
+  private flatCache = new Map<string, StandardMaterial>()
+  flat(hex: string): StandardMaterial {
+    const existing = this.flatCache.get(hex)
+    if (existing) return existing
+    const m = new StandardMaterial(`flat_${hex}`, this.scene)
+    const c = Color3.FromHexString(hex)
+    m.diffuseColor = c
+    m.emissiveColor = c
+    m.specularColor = Color3.Black()
+    m.disableLighting = true
+    m.backFaceCulling = false
+    m.freeze()
+    this.flatCache.set(hex, m)
     return m
   }
 

@@ -53,7 +53,7 @@ describe("модель → план этажа", () => {
       expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(6, 3)
       expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(4, 3)
     }
-    expect(layout.source).toBe("drawn")
+    expect(layout.source).toBe("model")
     expect(layout.ceilingHeight).toBe(3.5)
   })
 

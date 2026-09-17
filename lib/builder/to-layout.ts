@@ -113,7 +113,7 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
     width: Math.max(width, 5),
     height: Math.max(height, 5),
     ceilingHeight: round(floor.height * MM),
-    source: "drawn",
+    source: "model",
     underlay: underlay
       ? {
           url: underlay.url,

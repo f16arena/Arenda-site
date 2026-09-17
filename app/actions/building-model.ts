@@ -53,9 +53,26 @@ export async function rebuildModelFloor(buildingId: string, level: number): Prom
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
   const building = await loadSourceBuilding(buildingId, orgId)
-  const { doc } = buildProjectFromBuilding(building)
+  // Сброс собирает этаж из помещений, а не из сохранённого плана: план этажа
+  // пишется из модели при каждом сохранении, и сборка по нему возвращала тот же
+  // испорченный контур. Высота этажа из плана сохраняется.
+  const fromSpaces = {
+    ...building,
+    floors: building.floors.map((f) => ({ ...f, layoutJson: keepHeightOnly(f.layoutJson) })),
+  }
+  const { doc } = buildProjectFromBuilding(fromSpaces)
   const validated = parseDocument(doc)
   return validated.buildings.flatMap((b) => b.floors).find((f) => f.level === level) ?? null
+}
+
+function keepHeightOnly(raw: string | null): string | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as { ceilingHeight?: number | null }
+    return JSON.stringify({ version: 2, width: 1, height: 1, ceilingHeight: parsed.ceilingHeight ?? null, elements: [] })
+  } catch {
+    return null
+  }
 }
 
 export type BuildingModel = {
