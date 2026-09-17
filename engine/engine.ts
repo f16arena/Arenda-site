@@ -803,12 +803,12 @@ export class BuilderEngine {
     return ray.origin.add(ray.direction.scale(t))
   }
 
-  private nearestNodeMm(mmX: number, mmY: number): Vec2 | null {
+  private nearestNodeMm(mmX: number, mmY: number, radius = SNAP_NODE_MM): Vec2 | null {
     const doc = this.getDoc()
     const f = doc ? findFloor(doc, this.activeFloorId) : undefined
     if (!f) return null
     let best: Vec2 | null = null
-    let bestD = SNAP_NODE_MM
+    let bestD = radius
     for (const id in f.wallGraph.nodes) {
       const n = f.wallGraph.nodes[id]
       const d = Math.hypot(n.x - mmX, n.y - mmY)
@@ -820,14 +820,48 @@ export class BuilderEngine {
     return best
   }
 
-  // точка стены: snap к узлу, иначе угол 15° от старта + сетка 100мм
+  /** Сколько миллиметров плана в `px` пикселях экрана у курсора. */
+  private pxToMm(px: number): number {
+    const { scene } = this.bundle
+    const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
+    const q = this.planeAtScreen(scene.pointerX + px, scene.pointerY)
+    return p && q ? Math.hypot(q.x - p.x, q.z - p.z) * 1000 : SNAP_NODE_MM
+  }
+
+  /** Ближайшая точка на стене активного этажа в радиусе (для Т-примыкания). */
+  private nearestOnWallMm(mmX: number, mmY: number, radius: number): Vec2 | null {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    if (!f) return null
+    let best: { p: Vec2; d: number } | null = null
+    for (const id in f.wallGraph.edges) {
+      const e = f.wallGraph.edges[id]
+      const a = f.wallGraph.nodes[e.a]
+      const b = f.wallGraph.nodes[e.b]
+      if (!a || !b) continue
+      const c = closestOnSegment({ x: mmX, y: mmY }, a, b)
+      if (c.dist <= radius && (!best || c.dist < best.d)) best = { p: c.point, d: c.dist }
+    }
+    return best ? { x: Math.round(best.p.x), y: Math.round(best.p.y) } : null
+  }
+
+  // Точка стены. Объектные привязки важнее полярных, как в AutoCAD: узел →
+  // точка на стене (Т-примыкание) → от начала: длина шагом и угол 15°/90° →
+  // сетка. Радиус привязки — 12 px экрана, одинаково удобно на любом зуме.
+  private snapKind: "node" | "edge" | null = null
   private resolveWallPoint(world: Vector3): { mm: Vec2; world: Vector3 } {
     let mmX = world.x * 1000
     let mmY = world.z * 1000
-    const node = this.nearestNodeMm(mmX, mmY)
+    const radius = Math.max(40, this.pxToMm(12))
+    const node = this.nearestNodeMm(mmX, mmY, radius)
+    const onWall = node ? null : this.nearestOnWallMm(mmX, mmY, radius)
+    this.snapKind = node ? "node" : onWall ? "edge" : null
     if (node) {
       mmX = node.x
       mmY = node.y
+    } else if (onWall) {
+      mmX = onWall.x
+      mmY = onWall.y
     } else if (this.wallStart) {
       const sx = this.wallStart.x * 1000
       const sy = this.wallStart.z * 1000
@@ -1162,7 +1196,16 @@ export class BuilderEngine {
     }
     if (this.tool === "wall" && this.wallStart) {
       const p = this.projectToPlane()
-      if (p) this.updateWallPreview(this.resolveWallPoint(p))
+      if (p) {
+        const r = this.resolveWallPoint(p)
+        this.updateWallPreview(r)
+        this.showSnapMarker(r.world)
+      }
+      return
+    }
+    if (this.tool === "wall" || this.tool === "measure") {
+      const p = this.projectToPlane()
+      this.showSnapMarker(p ? this.resolveWallPoint(p).world : null)
       return
     }
     if (this.tool === "select" || this.tool === "material" || this.tool === "delete" || this.tool === "door" || this.tool === "window") {
@@ -1440,8 +1483,10 @@ export class BuilderEngine {
 
   private commitWall(end: Vec2): void {
     if (!this.wallStart) return
-    const fromX = snapToGrid(this.wallStart.x * 1000, 1)
-    const fromY = snapToGrid(this.wallStart.z * 1000, 1)
+    // без округления: начало, привязанное к дробному углу из данных, должно
+    // совпасть с ним, а не лечь в полмиллиметре рядом
+    const fromX = this.wallStart.x * 1000
+    const fromY = this.wallStart.z * 1000
     if (Math.hypot(end.x - fromX, end.y - fromY) >= 100) {
       this.onCommand(new InsertWallCommand(this.activeFloorId, { x: fromX, y: fromY }, end, DEFAULT_WALL))
       // цепочка: продолжаем от конечной точки
@@ -1493,6 +1538,30 @@ export class BuilderEngine {
     if (!this.lengthInput) this.onHud(`${len.toFixed(2)} м`)
   }
 
+  // Маркер привязки: квадрат — узел, ромб — точка на стене. Виден и до первого
+  // клика, чтобы было ясно, куда встанет начало стены.
+  private snapMarker: Mesh | null = null
+  private snapMarkerKind: "node" | "edge" | null = null
+  private showSnapMarker(world: Vector3 | null): void {
+    const kind = world ? this.snapKind : null
+    if (!kind) {
+      this.snapMarker?.setEnabled(false)
+      return
+    }
+    if (!this.snapMarker || this.snapMarkerKind !== kind) {
+      this.snapMarker?.dispose()
+      const m = MeshBuilder.CreateBox("snapMarker", { width: 0.32, height: 0.05, depth: 0.32 }, this.bundle.scene)
+      m.rotation.y = kind === "edge" ? Math.PI / 4 : 0
+      m.material = this.reg.status(kind === "node" ? "#22c55e" : "#f59e0b")
+      m.isPickable = false
+      m.renderingGroupId = 1
+      this.snapMarker = m
+      this.snapMarkerKind = kind
+    }
+    this.snapMarker.setEnabled(true)
+    this.snapMarker.position.copyFrom(world as Vector3)
+  }
+
   private showStartMarker(world: Vector3): void {
     this.startMarker?.dispose()
     const m = MeshBuilder.CreateSphere("wallStart", { diameter: 0.35 }, this.bundle.scene)
@@ -1519,6 +1588,7 @@ export class BuilderEngine {
   }
 
   cancelWallTool(): void {
+    this.snapMarker?.setEnabled(false)
     this.wallStart = null
     this.lengthInput = ""
     this.preview?.dispose()

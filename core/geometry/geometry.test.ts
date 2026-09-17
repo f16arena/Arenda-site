@@ -101,3 +101,20 @@ describe("roof-generator", () => {
     expect(r.positions.length).toBeGreaterThan(0)
   })
 })
+
+describe("стена от дробного угла", () => {
+  it("не рождает второй узел в долях миллиметра рядом с углом", () => {
+    // угол как у схемы из данных здания: дробные координаты
+    const c = { x: -5163.977794943223, y: 9682.458365518542 }
+    let g = emptyGraph()
+    g = insertWall(g, c, { x: 8262.364471909157, y: c.y }).graph
+    g = insertWall(g, c, { x: c.x, y: -9682.458365518542 }).graph
+    const nodesBefore = Object.keys(g.nodes).length
+    // новая стена из угла по диагонали, начало округлено до мм, как было в движке
+    g = insertWall(g, { x: Math.round(c.x), y: Math.round(c.y) }, { x: 1660, y: -9682.458365518542 }).graph
+    const near = Object.values(g.nodes).filter((n) => Math.hypot(n.x - c.x, n.y - c.y) < 5)
+    expect(near).toHaveLength(1)
+    // добавился только узел на нижней стене
+    expect(Object.keys(g.nodes).length).toBe(nodesBefore + 1)
+  })
+})

@@ -78,9 +78,9 @@ function getOrCreateNodeAt(g: WallGraph, p: Vec2, tol: number): string {
 }
 
 /** Разбить ребро в точке: удалить, добавить узел и два ребра с теми же свойствами. */
-function splitEdgeAt(g: WallGraph, edgeId: string, p: Vec2): string {
+function splitEdgeAt(g: WallGraph, edgeId: string, p: Vec2, tol = 0.5): string {
   const e = g.edges[edgeId]
-  const nodeId = getOrCreateNodeAt(g, p, 0.5)
+  const nodeId = getOrCreateNodeAt(g, p, tol)
   if (nodeId === e.a || nodeId === e.b) return nodeId
   delete g.edges[edgeId]
   const base = { thickness: e.thickness, height: e.height, kind: e.kind, facadeMaterialId: e.facadeMaterialId, interiorMaterialId: e.interiorMaterialId }
@@ -109,7 +109,7 @@ function resolvePoint(g: WallGraph, p: Vec2, tol: number): string {
       bestPoint = c.point
     }
   }
-  if (bestEdge) return splitEdgeAt(g, bestEdge, bestPoint)
+  if (bestEdge) return splitEdgeAt(g, bestEdge, bestPoint, tol)
   return getOrCreateNodeAt(g, p, 0)
 }
 
@@ -158,7 +158,11 @@ export function insertWall(
   const sequence: string[] = [startId]
   for (const h of hits) {
     if (!g.edges[h.edgeId]) continue // ребро уже разбито совпавшей точкой
-    const nid = splitEdgeAt(g, h.edgeId, h.point)
+    // Пересечение у самого начала или конца новой стены — это та же точка
+    // примыкания, а не новое. Иначе у дробных координат (углы из данных здания)
+    // рядом с углом рождался второй узел в долях миллиметра и контур рвался.
+    if (distance(h.point, g.nodes[startId]) <= tol || distance(h.point, g.nodes[endId]) <= tol) continue
+    const nid = splitEdgeAt(g, h.edgeId, h.point, tol)
     if (sequence[sequence.length - 1] !== nid) sequence.push(nid)
   }
   if (sequence[sequence.length - 1] !== endId) sequence.push(endId)
