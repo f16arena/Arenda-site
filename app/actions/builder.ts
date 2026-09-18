@@ -196,8 +196,10 @@ export async function createBuilderShare(projectId: string, days = 30): Promise<
   return { token, expiresAt: expiresAt ? expiresAt.toISOString() : null }
 }
 
-/** Действующие ссылки проекта (для панели «Поделиться»). */
-export async function listBuilderShares(projectId: string): Promise<Array<{ token: string; createdAt: string; expiresAt: string | null }>> {
+/** Действующие ссылки проекта (для панели «Поделиться») вместе с числом открытий. */
+export async function listBuilderShares(
+  projectId: string,
+): Promise<Array<{ token: string; createdAt: string; expiresAt: string | null; views: number; lastViewAt: string | null }>> {
   const orgId = await requireBuilderAccess()
   const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
   if (!p) return []
@@ -207,7 +209,38 @@ export async function listBuilderShares(projectId: string): Promise<Array<{ toke
     orderBy: { createdAt: "desc" },
     take: 20,
   })
-  return rows.map((r) => ({ token: r.token, createdAt: r.createdAt.toISOString(), expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null }))
+  const tokens = rows.map((r) => r.token)
+  const counts = tokens.length
+    ? await db.builderShareView.groupBy({ by: ["token"], where: { token: { in: tokens } }, _count: { _all: true }, _max: { openedAt: true } })
+    : []
+  const byToken = new Map(counts.map((c) => [c.token, { views: c._count._all, last: c._max.openedAt }]))
+  return rows.map((r) => {
+    const v = byToken.get(r.token)
+    return {
+      token: r.token,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
+      views: v?.views ?? 0,
+      lastViewAt: v?.last ? v.last.toISOString() : null,
+    }
+  })
+}
+
+/** Журнал открытий витрины: последние заходы по всем ссылкам проекта. */
+export async function listBuilderShareViews(
+  projectId: string,
+  take = 50,
+): Promise<Array<{ token: string; openedAt: string; visitor: string | null; userAgent: string | null }>> {
+  const orgId = await requireBuilderAccess()
+  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
+  if (!p) return []
+  const rows = await db.builderShareView.findMany({
+    where: { projectId },
+    select: { token: true, openedAt: true, visitor: true, userAgent: true },
+    orderBy: { openedAt: "desc" },
+    take: Math.min(200, Math.max(1, take)),
+  })
+  return rows.map((r) => ({ token: r.token, openedAt: r.openedAt.toISOString(), visitor: r.visitor, userAgent: r.userAgent }))
 }
 
 /** Отозвать ссылку (одну или все у проекта): витрина сразу перестаёт открываться. */

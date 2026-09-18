@@ -1721,3 +1721,19 @@ model BuilderShare {
   @@index([projectId, revokedAt])
   @@map("builder_shares")
 }
+
+/// Журнал открытий витрины: кто и когда открывал публичную ссылку.
+/// IP не храним — только необратимый хеш (visitor), чтобы отличать повторные
+/// заходы одного посетителя, но не следить за человеком.
+model BuilderShareView {
+  id        String   @id @default(cuid())
+  token     String
+  projectId String   @map("project_id")
+  openedAt  DateTime @default(now()) @map("opened_at")
+  visitor   String?
+  userAgent String?  @map("user_agent")
+
+  @@index([token, openedAt])
+  @@index([projectId, openedAt])
+  @@map("builder_share_views")
+}

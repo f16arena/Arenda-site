@@ -7,7 +7,8 @@
 import { useEffect, useState } from "react"
 import { Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
-import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
+import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, listBuilderShareViews, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
+import { viewsSummary } from "@/lib/builder/share-log"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
 
@@ -121,7 +122,10 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
 
   // Публичные ссылки-витрины: живут 30 дней и отзываются — планировка здания
   // не должна ходить по рукам вечно.
-  const [shares, setShares] = useState<Array<{ token: string; createdAt: string; expiresAt: string | null }>>([])
+  const [shares, setShares] = useState<Array<{ token: string; createdAt: string; expiresAt: string | null; views: number; lastViewAt: string | null }>>([])
+  // журнал открытий витрины: кто и когда заходил по ссылке
+  const [viewsOpen, setViewsOpen] = useState(false)
+  const [views, setViews] = useState<Array<{ token: string; openedAt: string; visitor: string | null; userAgent: string | null }>>([])
   const [sharesOpen, setSharesOpen] = useState(false)
   const shareUrl = (token: string) => `https://commrent.kz/showcase/${token}`
   const refreshShares = async (id: string) => {
@@ -233,12 +237,41 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
             <div key={sh.token} className="flex items-center gap-1">
               <span className="flex-1 truncate" title={shareUrl(sh.token)}>…{sh.token.slice(-8)}</span>
               <span style={{ color: TOKENS.muted }}>{sh.expiresAt ? `до ${new Date(sh.expiresAt).toLocaleDateString("ru-RU")}` : "бессрочно"}</span>
+              <span title="Сколько раз открывали эту ссылку" style={{ color: sh.views ? TOKENS.accent : TOKENS.muted }}>{viewsSummary(sh.views, sh.lastViewAt)}</span>
               <button type="button" onClick={() => void navigator.clipboard?.writeText(shareUrl(sh.token))} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(148,163,184,0.16)" }}>Копировать</button>
               <button type="button" onClick={() => void revoke(sh.token)} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}>Отозвать</button>
             </div>
           ))}
           {shares.length > 1 && (
             <button type="button" onClick={() => void revoke()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: "rgba(239,68,68,0.16)", color: "#fca5a5" }}>Отозвать все</button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setViewsOpen((v) => !v)
+              if (!viewsOpen && projectId) void listBuilderShareViews(projectId).then(setViews).catch(() => setViews([]))
+            }}
+            className="self-start rounded-md px-2 py-1 text-[10px] font-medium"
+            style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}
+          >
+            {viewsOpen ? "Скрыть журнал открытий" : "Журнал открытий"}
+          </button>
+          {viewsOpen && (
+            <div className="flex max-h-40 flex-col gap-0.5 overflow-auto rounded-md p-1.5 text-[10px]" style={{ background: "rgba(15,23,42,0.35)" }}>
+              {views.length === 0 && <span style={{ color: TOKENS.muted }}>Витрину ещё не открывали.</span>}
+              {views.map((v, i) => (
+                <div key={`${v.openedAt}-${i}`} className="flex items-center gap-1.5">
+                  <span className="tabular-nums" style={{ color: TOKENS.text }}>
+                    {new Date(v.openedAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className="flex-1 truncate" style={{ color: TOKENS.muted }}>{v.userAgent ?? "браузер неизвестен"}</span>
+                  <span title="Отпечаток посетителя: одинаковый — значит, заходил тот же человек. Адрес не хранится" style={{ color: TOKENS.muted }}>
+                    {v.visitor ? v.visitor.slice(0, 6) : "—"}
+                  </span>
+                  <span style={{ color: TOKENS.muted }}>…{v.token.slice(-6)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

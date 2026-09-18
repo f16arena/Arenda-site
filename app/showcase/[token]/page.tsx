@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic"
 
+import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { parseDocument } from "@/types/builder"
 import { shareLinkValid } from "@/lib/builder/share-link"
+import { clientIp, shortAgent, visitorHash } from "@/lib/builder/share-log"
 import { BuilderApp } from "@/components/builder/BuilderApp"
 
 /**
@@ -26,5 +28,20 @@ export default async function ShowcasePage({ params }: { params: Promise<{ token
     }
   })()
   if (!parsed) notFound()
+  // журнал открытий: владелец должен видеть, что ссылку открывали. Ошибка записи
+  // не должна ломать показ витрины — она второстепенна.
+  try {
+    const h = await headers()
+    await db.builderShareView.create({
+      data: {
+        token,
+        projectId: share.projectId,
+        visitor: visitorHash(clientIp(h), token),
+        userAgent: shortAgent(h.get("user-agent")),
+      },
+    })
+  } catch {
+    /* журнал не критичен */
+  }
   return <BuilderApp readOnly initialDoc={parsed} showcaseName={project.name} shareToken={token} />
 }
