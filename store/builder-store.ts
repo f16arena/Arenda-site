@@ -198,6 +198,11 @@ export interface EditorState {
   /** инструмент «Пометка»: размер или надпись */
   annotateKind: "dim" | "text"
   armedAsset: string | null
+  /**
+   * Режим «Участок»: видно всё здание, и правка идёт по этажу выбранного
+   * элемента — этаж не нужно выбирать отдельно.
+   */
+  siteFloorId: string
   gizmoMode: GizmoMode
   turbo: boolean
   setTool: (t: Tool) => void
@@ -206,6 +211,8 @@ export interface EditorState {
   setDisplayMode: (m: DisplayMode) => void
   toggleWallsDown: () => void
   setActiveLevel: (id: string) => void
+  /** этаж, по которому идёт правка в режиме «Участок» (по последнему выбранному элементу) */
+  setSiteFloor: (id: string) => void
   setSelection: (s: Selection) => void
   toggleMulti: (id: string) => void
   clearMulti: () => void
@@ -287,6 +294,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   replanMode: false,
   annotateKind: "dim",
   armedAsset: null,
+  siteFloorId: "",
   gizmoMode: "move",
   turbo: isLowEndDevice(),
   setTool: (t) => set((s) => ({
@@ -308,6 +316,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setDisplayMode: (m) => set({ displayMode: m }),
   toggleWallsDown: () => set((s) => ({ wallsDown: !s.wallsDown })),
   setActiveLevel: (id) => set({ activeLevelId: id, selection: { type: "none" } }),
+  setSiteFloor: (id) => set({ siteFloorId: id }),
   setSelection: (s) => set({ selection: s, multi: [] }),
   toggleMulti: (id) => set((st) => ({ multi: st.multi.includes(id) ? st.multi.filter((m) => m !== id) : [...st.multi, id], selection: { type: "none" } })),
   clearMulti: () => set({ multi: [] }),

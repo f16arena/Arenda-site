@@ -282,6 +282,17 @@ export class BuilderEngine {
   private dimPreview: TransformNode | null = null
   private sectionPreview: TransformNode | null = null
   activeFloorId = ""
+
+  /**
+   * Режим «Участок»: этаж выбранного элемента. Здание видно целиком, а править
+   * можно окно третьего этажа, не переключая уровень.
+   */
+  siteFloorId = ""
+
+  /** Этаж, с которым работают инструменты: активный, а на участке — выбранный. */
+  private get toolFloorId(): string {
+    return this.activeFloorId || this.siteFloorId
+  }
   paintMaterialId = "brick"
   openingType: "door" | "window" = "door"
   openingVariant = "interior"
@@ -1114,7 +1125,7 @@ export class BuilderEngine {
   private walkSpawn(): void {
     const wc = this.walkCamera
     const doc = this.getDoc()
-    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc && this.toolFloorId ? findFloor(doc, this.toolFloorId) : undefined
     if (!wc || !f) return
     const b = doc?.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
     const ox = (b?.origin.x ?? 0) * S, oz = (b?.origin.y ?? 0) * S
@@ -1226,7 +1237,7 @@ export class BuilderEngine {
 
   private nearestWallAtPointer(tolPx: number): { floorId: string; edgeId: string; point: Vector3 } | null {
     const doc = this.getDoc()
-    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc && this.toolFloorId ? findFloor(doc, this.toolFloorId) : undefined
     if (!f) return null
     const { scene } = this.bundle
     const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
@@ -1250,7 +1261,7 @@ export class BuilderEngine {
   private activeFloorPlaneY(): number {
     const doc = this.getDoc()
     if (!doc) return 0
-    const f = findFloor(doc, this.activeFloorId)
+    const f = findFloor(doc, this.toolFloorId)
     return f ? f.elevation * S : 0
   }
 
@@ -1267,7 +1278,7 @@ export class BuilderEngine {
 
   private nearestNodeMm(mmX: number, mmY: number, radius = SNAP_NODE_MM): Vec2 | null {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     if (!f) return null
     let best: Vec2 | null = null
     let bestD = radius
@@ -1293,7 +1304,7 @@ export class BuilderEngine {
   /** Ближайшая точка на стене активного этажа в радиусе (для Т-примыкания). */
   private nearestOnWallMm(mmX: number, mmY: number, radius: number): Vec2 | null {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     if (!f) return null
     let best: { p: Vec2; d: number } | null = null
     for (const id in f.wallGraph.edges) {
@@ -1402,7 +1413,7 @@ export class BuilderEngine {
     }
     if (this.tool === "room") {
       const p = this.projectToPlane()
-      if (p && this.activeFloorId) {
+      if (p && this.toolFloorId) {
         this.roomStart = new Vector3(snapToGrid(p.x * 1000, 100) * S, this.activeFloorPlaneY(), snapToGrid(p.z * 1000, 100) * S)
         this.bundle.scene.activeCamera?.detachControl()
       }
@@ -1488,7 +1499,7 @@ export class BuilderEngine {
   // справа налево — все, которые рамка задела.
   private wallsInBox(x1: number, y1: number, x2: number, y2: number): string[] {
     const doc = this.getDoc()
-    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc && this.toolFloorId ? findFloor(doc, this.toolFloorId) : undefined
     if (!f) return []
     const { scene, engine, camera } = this.bundle
     const transform = scene.getTransformMatrix()
@@ -1827,13 +1838,13 @@ export class BuilderEngine {
     }
     if (this.roomStart) {
       const p = this.projectToPlane()
-      if (p && this.activeFloorId) {
+      if (p && this.toolFloorId) {
         const x1 = Math.round(this.roomStart.x * 1000)
         const y1 = Math.round(this.roomStart.z * 1000)
         const x2 = snapToGrid(p.x * 1000, 100)
         const y2 = snapToGrid(p.z * 1000, 100)
         if (Math.abs(x2 - x1) >= 500 && Math.abs(y2 - y1) >= 500) {
-          this.onCommand(new AddRoomCommand(this.activeFloorId, x1, y1, x2, y2, this.wallDefaults({ thickness: 150, height: 3500, kind: "interior" })))
+          this.onCommand(new AddRoomCommand(this.toolFloorId, x1, y1, x2, y2, this.wallDefaults({ thickness: 150, height: 3500, kind: "interior" })))
         }
       }
       this.roomStart = null
@@ -2068,7 +2079,7 @@ export class BuilderEngine {
   }
 
   private handleWallTap(): void {
-    if (!this.activeFloorId) return
+    if (!this.toolFloorId) return
     const p = this.projectToPlane()
     if (!p) return
     const r = this.resolveWallPoint(p)
@@ -2093,11 +2104,11 @@ export class BuilderEngine {
 
   /** Дуга: начало → конец → точка на дуге (без привязки — радиус свободный). */
   private commitArc(through: Vector3): void {
-    if (!this.wallStart || !this.arcEnd || !this.activeFloorId) return
+    if (!this.wallStart || !this.arcEnd || !this.toolFloorId) return
     const a = { x: this.wallStart.x * 1000, y: this.wallStart.z * 1000 }
     const pts = arcPoints(a, this.arcEnd, { x: through.x * 1000, y: through.z * 1000 })
     const cmds = []
-    for (let i = 0; i < pts.length - 1; i++) cmds.push(new InsertWallCommand(this.activeFloorId, pts[i], pts[i + 1], this.wallDefaults()))
+    for (let i = 0; i < pts.length - 1; i++) cmds.push(new InsertWallCommand(this.toolFloorId, pts[i], pts[i + 1], this.wallDefaults()))
     this.onCommand(new CompositeCommand("дуговая стена", cmds))
     this.cancelWallTool()
   }
@@ -2124,7 +2135,7 @@ export class BuilderEngine {
     const fromX = this.wallStart.x * 1000
     const fromY = this.wallStart.z * 1000
     if (Math.hypot(end.x - fromX, end.y - fromY) >= 100) {
-      this.onCommand(new InsertWallCommand(this.activeFloorId, { x: fromX, y: fromY }, end, this.wallDefaults()))
+      this.onCommand(new InsertWallCommand(this.toolFloorId, { x: fromX, y: fromY }, end, this.wallDefaults()))
       // цепочка: продолжаем от конечной точки
       this.wallStart = new Vector3(end.x * S, this.activeFloorPlaneY() + 0.02, end.y * S)
       this.showStartMarker(this.wallStart)
@@ -2308,7 +2319,7 @@ export class BuilderEngine {
   // ── Лестница ──────────────────────────────────────────────────────────────────
   private handleStairTap(): void {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     if (!f || !doc) return
     const building = doc.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
     if (this.stairShape === "porch") {
@@ -2367,12 +2378,12 @@ export class BuilderEngine {
   // Надпись: клик ставит текст «Надпись», править — в свойствах.
   private handleAnnotateTap(): void {
     const p = this.projectToPlane()
-    if (!p || !this.activeFloorId) return
+    if (!p || !this.toolFloorId) return
     const r = this.resolveWallPoint(p)
     if (this.annotateKind === "text") {
       const id = uid("an")
-      this.onCommand(new AddAnnotationCommand(this.activeFloorId, { id, kind: "text", at: { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }, text: "Надпись" }))
-      this.onPick({ kind: "annotation", floorId: this.activeFloorId, entityId: id })
+      this.onCommand(new AddAnnotationCommand(this.toolFloorId, { id, kind: "text", at: { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }, text: "Надпись" }))
+      this.onPick({ kind: "annotation", floorId: this.toolFloorId, entityId: id })
       this.onHud("Надпись поставлена — текст меняется в свойствах справа")
       return
     }
@@ -2389,7 +2400,7 @@ export class BuilderEngine {
       return
     }
     const offset = Math.round(signedOffset(this.dimA, this.dimB, { x: p.x * 1000, y: p.z * 1000 }))
-    this.onCommand(new AddAnnotationCommand(this.activeFloorId, { id: uid("an"), kind: "dim", a: this.dimA, b: this.dimB, offset: Math.abs(offset) < 50 ? 600 : offset }))
+    this.onCommand(new AddAnnotationCommand(this.toolFloorId, { id: uid("an"), kind: "dim", a: this.dimA, b: this.dimB, offset: Math.abs(offset) < 50 ? 600 : offset }))
     this.cancelAnnotate()
   }
 
@@ -2448,7 +2459,7 @@ export class BuilderEngine {
 
   private nearestAnnotationAtPointer(tolPx: number): MeshMeta | null {
     const doc = this.getDoc()
-    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc && this.toolFloorId ? findFloor(doc, this.toolFloorId) : undefined
     if (!f?.annotations?.length) return null
     const { scene } = this.bundle
     const p = this.planeAtScreen(scene.pointerX, scene.pointerY)
@@ -2498,7 +2509,7 @@ export class BuilderEngine {
     const a = this.sectionStart
     const b = this.sectionEnd(raw)
     if (Math.hypot(b.x - a.x, b.y - a.y) < 500) return
-    const building = doc.buildings.find((bd) => bd.floors.some((f) => f.id === this.activeFloorId)) ?? doc.buildings[0]
+    const building = doc.buildings.find((bd) => bd.floors.some((f) => f.id === this.toolFloorId)) ?? doc.buildings[0]
     if (!building) return
     const name = nextSectionName(doc, building.id)
     this.onCommand(new AddSectionCommand(building.id, { id: uid("sec"), name, a, b, look: 1 }))
@@ -2595,7 +2606,7 @@ export class BuilderEngine {
 
   private mepCursor(): { at: Vec2; kind: string; raw: Vec2 } | null {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     const p = this.projectToPlane()
     if (!f || !p) return null
     const raw = { x: p.x * 1000, y: p.z * 1000 }
@@ -2610,7 +2621,7 @@ export class BuilderEngine {
 
   private mepDevicePlacement(): { at: Vec2; rotation: number } | null {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     const p = this.projectToPlane()
     const info = MEP_DEVICE_BY_KIND[this.mepDeviceKind]
     if (!f || !p || !info) return null
@@ -2647,7 +2658,7 @@ export class BuilderEngine {
 
   private handleMepDeviceTap(): void {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     const info = MEP_DEVICE_BY_KIND[this.mepDeviceKind]
     const place = this.mepDevicePlacement()
     if (!f || !info || !place) return
@@ -2665,7 +2676,7 @@ export class BuilderEngine {
     this.mepPreview?.dispose()
     const info = MEP_SYSTEM_INFO[this.mepSystem]
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     const h = Math.min(info.runHeight, (f?.height ?? 3000) - 100)
     const y = this.activeFloorPlaneY() + h * S
     const root = new TransformNode("mepPreview", this.bundle.scene)
@@ -2693,7 +2704,7 @@ export class BuilderEngine {
 
   finalizeMep(): void {
     const doc = this.getDoc()
-    const f = doc ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     if (!f || this.mepPoints.length < 2) {
       this.cancelMep()
       return
@@ -2716,7 +2727,7 @@ export class BuilderEngine {
 
   private nearestMepAtPointer(tolPx: number): MeshMeta | null {
     const doc = this.getDoc()
-    const f = doc && this.activeFloorId ? findFloor(doc, this.activeFloorId) : undefined
+    const f = doc && this.toolFloorId ? findFloor(doc, this.toolFloorId) : undefined
     if (!f) return null
     const layers = new Set(this.lastCtx?.mepLayers ?? MEP_SYSTEMS)
     const { scene } = this.bundle
@@ -3391,6 +3402,7 @@ export class BuilderEngine {
     const p = this.projectToPlane()
     if (!p) return
     const doc = this.getDoc()
+    // мебель и деревья кладём туда, где стоит уровень: на участке — на участок
     const onFloor = doc ? findFloor(doc, this.activeFloorId) : undefined
     const target = onFloor ? ({ floorId: this.activeFloorId } as const) : ({ site: true } as const)
     const targetKey = onFloor ? this.activeFloorId : "site"

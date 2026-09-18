@@ -50,8 +50,11 @@ function applyPick(meta: MeshMeta | null): void {
   }
   // Клик по стене/комнате/проёму другого этажа делает этот этаж активным: иначе
   // правка шла бы по плоскости чужого этажа, а ручки и размеры — не те.
+  // Исключение — режим «Участок»: там здание видно целиком, и переключать уровень
+  // не надо; правка идёт по этажу выбранного элемента (siteFloorId).
   const ed = useEditorStore.getState()
-  if (meta.floorId && meta.kind !== "object" && ed.activeLevelId !== meta.floorId) ed.setActiveLevel(meta.floorId)
+  if (meta.floorId && ed.activeLevelId === "site") ed.setSiteFloor(meta.floorId)
+  else if (meta.floorId && meta.kind !== "object" && ed.activeLevelId !== meta.floorId) ed.setActiveLevel(meta.floorId)
   if (meta.kind === "wall") setSelection({ type: "wall", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "room") setSelection({ type: "room", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "opening") setSelection({ type: "opening", id: meta.entityId, floorId: meta.floorId })
@@ -240,6 +243,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const displayMode = useEditorStore((s) => s.displayMode)
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
+  const siteFloorId = useEditorStore((s) => s.siteFloorId)
   const selection = useEditorStore((s) => s.selection)
   const multi = useEditorStore((s) => s.multi)
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
@@ -338,11 +342,17 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   useEffect(() => {
     const e = engineRef.current
     if (!e || !ready) return
-    e.activeFloorId = activeLevelId
+    e.activeFloorId = activeLevelId === "site" ? "" : (activeLevelId ?? "")
     e.statusResolver = resolveStatus
     e.rebuild(doc, { activeLevelId, displayMode, wallsDown, mepLayers, mepFocus: mode === "mep" })
     e.setSelection(useEditorStore.getState().selection)
   }, [ready, rev, activeLevelId, displayMode, wallsDown, doc, premiseReady, resolveStatus, mepLayers, mode])
+
+  // Режим «Участок»: этаж правки меняется кликом по элементу — сцену не пересобираем.
+  useEffect(() => {
+    const e = engineRef.current
+    if (e) e.siteFloorId = siteFloorId
+  }, [ready, siteFloorId])
 
   useEffect(() => {
     const e = engineRef.current

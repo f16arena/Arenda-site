@@ -84,6 +84,7 @@ export function PlanEditor() {
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
+  const siteFloorId = useEditorStore((s) => s.siteFloorId)
   const tool = useEditorStore((s) => s.activeTool)
   const selection = useEditorStore((s) => s.selection)
   const setSelection = useEditorStore((s) => s.setSelection)
@@ -100,7 +101,12 @@ export function PlanEditor() {
   const mepDeviceKind = useEditorStore((s) => s.mepDeviceKind)
   const resolvePremise = usePremiseStore((s) => s.resolve)
 
-  const floor = activeLevelId && activeLevelId !== "site" ? findFloor(doc, activeLevelId) : doc.buildings[0]?.floors[0]
+  // на участке план показывает этаж выбранного элемента: окно третьего этажа
+  // правится без переключения уровня
+  const floor =
+    activeLevelId && activeLevelId !== "site"
+      ? findFloor(doc, activeLevelId)
+      : (siteFloorId ? findFloor(doc, siteFloorId) : undefined) ?? doc.buildings[0]?.floors[0]
   const building = doc.buildings.find((b) => b.floors.some((f) => f.id === floor?.id))
 
   const hostRef = useRef<HTMLDivElement>(null)

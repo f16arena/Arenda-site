@@ -72,6 +72,7 @@ export function LevelPanel({
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
+  const siteFloorId = useEditorStore((s) => s.siteFloorId)
   const setActiveLevel = useEditorStore((s) => s.setActiveLevel)
   const displayMode = useEditorStore((s) => s.displayMode)
   const setDisplayMode = useEditorStore((s) => s.setDisplayMode)
@@ -81,6 +82,8 @@ export function LevelPanel({
   const building = doc.buildings[0]
   const floors = building ? [...building.floors].sort((a, b) => b.level - a.level) : []
   const activeFloor = building?.floors.find((f) => f.id === activeLevelId)
+  // этаж, по которому идёт правка в режиме «Участок»
+  const siteFloor = building?.floors.find((f) => f.id === siteFloorId)
   const ROOFS: { t: RoofConfig["type"] | "none"; l: string }[] = [
     { t: "flat", l: "Плоск." },
     { t: "gable", l: "Двускат" },
@@ -277,7 +280,20 @@ export function LevelPanel({
           onDelete={floors.length > 1 ? () => deleteFloor(f) : undefined}
         />
       ))}
-      <LevelRow name="Участок" Icon={Trees} active={activeLevelId === "site"} onClick={() => setActiveLevel("site")} />
+      <LevelRow
+        name="Участок"
+        sub={activeLevelId === "site" ? (siteFloor ? `правка: ${siteFloor.name}` : "выберите элемент") : undefined}
+        Icon={Trees}
+        active={activeLevelId === "site"}
+        onClick={() => setActiveLevel("site")}
+      />
+      {activeLevelId === "site" && (
+        // на участке здание видно целиком: кликнул по окну третьего этажа — правишь его,
+        // переключать уровень не нужно
+        <p className="px-1 text-[10px] leading-snug" style={{ color: TOKENS.muted }}>
+          Видно всё здание. Клик по любому элементу — правка идёт по его этажу.
+        </p>
+      )}
       <button
         type="button"
         onClick={addFloor}

@@ -38,9 +38,14 @@ const TOOL_RU: Record<Tool, string> = {
 export function StatusBar() {
   const doc = useDocumentStore((s) => s.doc)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
+  const siteFloorId = useEditorStore((s) => s.siteFloorId)
   const activeTool = useEditorStore((s) => s.activeTool)
   const cursor = useLabelStore((s) => s.cursorMm)
-  const level = activeLevelId === "site" ? "Участок" : findFloor(doc, activeLevelId)?.name ?? "—"
+  const siteFloor = siteFloorId ? findFloor(doc, siteFloorId) : undefined
+  const level =
+    activeLevelId === "site"
+      ? siteFloor ? `Участок · правка: ${siteFloor.name}` : "Участок"
+      : findFloor(doc, activeLevelId)?.name ?? "—"
 
   return (
     <div
