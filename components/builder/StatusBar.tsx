@@ -16,6 +16,7 @@ const TOOL_RU: Record<Tool, string> = {
   door: "Дверь",
   window: "Окно",
   stair: "Лестница",
+  island: "Островок",
   roof: "Крыша",
   terrain: "Рельеф",
   road: "Дорога",

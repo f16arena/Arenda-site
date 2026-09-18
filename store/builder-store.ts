@@ -3,7 +3,7 @@
 // выбор, активный уровень, режим камеры/отображения). `rev` инкрементится при каждой
 // мутации документа — движок подписан на него и инкрементально перестраивает сцену.
 
-import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
+import { MEP_SYSTEMS, type IslandKind, type MepSystem } from "@/types/builder"
 import { MEP_DEVICES, MEP_DEVICE_BY_KIND } from "@/lib/builder/mep/catalog"
 import { create } from "zustand"
 import type { BuilderDocument } from "@/types/builder"
@@ -115,6 +115,7 @@ export type Tool =
   | "door"
   | "window"
   | "stair"
+  | "island"
   | "roof"
   | "terrain"
   | "road"
@@ -148,7 +149,7 @@ function savedCameraMode(): CameraMode {
 }
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "island" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
 export interface Selection {
   type: SelectionType
   id?: string
@@ -179,6 +180,8 @@ export interface EditorState {
   openingType: OpeningType
   openingVariant: string
   stairShape: StairShape
+  /** вид островка, который ставит инструмент «Островок» */
+  islandKind: IslandKind
   terrainMode: TerrainMode
   waterDepth: number
   pathKind: PathKind
@@ -222,6 +225,7 @@ export interface EditorState {
   setOpeningType: (t: OpeningType) => void
   setOpeningVariant: (v: string) => void
   setStairShape: (s: StairShape) => void
+  setIslandKind: (k: IslandKind) => void
   /** размер колонны меняется у всех колонн этажа */
   columnSizeAll: boolean
   setColumnSizeAll: (v: boolean) => void
@@ -279,6 +283,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   openingType: "door",
   openingVariant: "interior",
   stairShape: "u",
+  islandKind: "vending",
   terrainMode: "raise",
   waterDepth: 800,
   pathKind: "road",
@@ -326,6 +331,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   setOpeningType: (t) => set({ openingType: t }),
   setOpeningVariant: (v) => set({ openingVariant: v }),
   setStairShape: (s) => set({ stairShape: s }),
+  setIslandKind: (k) => set({ islandKind: k }),
   columnSizeAll: true,
   setColumnSizeAll: (v) => set({ columnSizeAll: v }),
   setTerrainMode: (m) => set({ terrainMode: m }),

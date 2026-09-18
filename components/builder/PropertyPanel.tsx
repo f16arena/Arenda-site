@@ -7,8 +7,8 @@
 import { floorRooms } from "@/lib/builder/rooms"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand, SetRoomUseCommand } from "@/core/document/commands"
-import { MEP_SYSTEMS, type MepSystem } from "@/types/builder"
+import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, SetIslandCommand, DeleteIslandCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand, SetRoomUseCommand } from "@/core/document/commands"
+import { ISLAND_KINDS, MEP_SYSTEMS, type IslandKind, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
 import { roomExplication } from "@/lib/builder/drawing/schedules"
@@ -16,6 +16,7 @@ import { usePremiseStore } from "@/store/premise-store"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
+import { ISLAND_PRESETS, islandArea, islandLabel } from "@/lib/builder/islands"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
@@ -463,6 +464,68 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
           </div>
         )
       }
+    }
+  } else if (selection.type === "island" && selection.floorId && selection.id) {
+    const f = findFloor(doc, selection.floorId)
+    const isl = (f?.islands ?? []).find((x) => x.id === selection.id)
+    title = "Арендное место"
+    if (f && isl) {
+      const fid = selection.floorId
+      const iid = selection.id
+      const num = (v: string) => parseFloat(v.replace(",", "."))
+      const inputStyle = { color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }
+      rows.push(<Row key="n" label="Наименование" value={islandLabel(isl)} />)
+      rows.push(<Row key="s" label="Габарит" value={`${isl.width}×${isl.depth} мм`} />)
+      rows.push(<Row key="a" label="Площадь" value={`${islandArea(isl).toFixed(2)} м²`} />)
+      rows.push(<Row key="xy" label="X · Y" value={`${(isl.position.x / 1000).toFixed(2)} · ${(isl.position.y / 1000).toFixed(2)} м`} />)
+      if (isl.tenant) rows.push(<Row key="t" label="Арендатор" value={isl.tenant} />)
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Вид
+            <select
+              id="island-kind"
+              value={isl.kind}
+              onChange={(ev) => {
+                const kind = ev.target.value as IslandKind
+                const pr = ISLAND_PRESETS[kind]
+                // вид меняет и габарит — но только если размеры остались типовыми
+                const typical = isl.width === ISLAND_PRESETS[isl.kind].width && isl.depth === ISLAND_PRESETS[isl.kind].depth
+                execute(new SetIslandCommand(fid, iid, typical ? { kind, width: pr.width, depth: pr.depth, height: pr.height } : { kind }))
+              }}
+              className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs"
+              style={inputStyle}
+            >
+              {ISLAND_KINDS.map((k) => <option key={k} value={k} style={{ color: "#0f172a" }}>{ISLAND_PRESETS[k].label}</option>)}
+            </select>
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Название
+            <input id="island-name" type="text" defaultValue={isl.name} key={`nm${iid}${isl.name}`} placeholder={ISLAND_PRESETS[isl.kind].label}
+              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== isl.name) execute(new SetIslandCommand(fid, iid, { name: v })) }}
+              className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+            Арендатор
+            <input id="island-tenant" type="text" defaultValue={isl.tenant} key={`tn${iid}${isl.tenant}`} placeholder="ИП / компания"
+              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== isl.tenant) execute(new SetIslandCommand(fid, iid, { tenant: v })) }}
+              className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
+          </label>
+          {([["Ширина, мм", "width", isl.width], ["Глубина, мм", "depth", isl.depth], ["Высота, мм", "height", isl.height]] as const).map(([label, key, value]) => (
+            <label key={key} className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
+              {label}
+              <input id={`island-${key}`} type="number" step="50" min="200" max="12000" defaultValue={value} key={`i${key}${iid}${value}`}
+                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 200 && v !== value) execute(new SetIslandCommand(fid, iid, { [key]: Math.min(12000, v) })) }}
+                className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
+            </label>
+          ))}
+          <div className="flex gap-1">
+            <button type="button" onClick={() => execute(new SetIslandCommand(fid, iid, { rotationDeg: (isl.rotationDeg + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+            <button type="button" onClick={() => { execute(new DeleteIslandCommand(fid, iid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>
+          </div>
+          <p className="text-[10px]" style={{ color: TOKENS.muted }}>Место стоит в общей зоне и в площадь помещения не входит — оно идёт отдельной строкой в ведомости арендных мест.</p>
+        </div>
+      )
     }
   } else if (selection.type === "stair" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)

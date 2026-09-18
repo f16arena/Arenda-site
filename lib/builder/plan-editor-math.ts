@@ -7,6 +7,7 @@ import { detectRooms } from "@/core/geometry/room-detection"
 import { stairHoleWorld } from "./stair-hole"
 import { assetSize } from "./asset-sizes"
 import { dimGeometry } from "./annotations"
+import { islandAt } from "./islands"
 
 /** Вид: пикселей на мм и положение начала координат плана на экране. Ось Y плана — вверх. */
 export interface View {
@@ -122,6 +123,7 @@ export type Hit =
   | { kind: "object"; id: string }
   | { kind: "opening"; id: string }
   | { kind: "stair"; id: string }
+  | { kind: "island"; id: string }
   | { kind: "annotation"; id: string }
   | { kind: "mep-device"; id: string }
   | { kind: "wall"; id: string }
@@ -147,6 +149,9 @@ export function hitTest(floor: Floor, p: Vec2, tolMm: number, gripNodes: string[
   for (const st of floor.stairs) {
     if (pointInPolygon(p, stairHoleWorld(st, floor.height))) return { kind: "stair", id: st.id }
   }
+  // островки (вендинг, киоск) стоят посреди коридора: ловим до стен и помещений
+  const isl = islandAt(floor, p)
+  if (isl) return { kind: "island", id: isl.id }
   for (const an of floor.annotations ?? []) {
     if (an.kind === "dim") {
       const gm = dimGeometry(an.a, an.b, an.offset)

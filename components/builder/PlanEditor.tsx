@@ -23,6 +23,9 @@ import {
   DeleteAnnotationCommand,
   DeleteMepDeviceCommand,
   DeleteStairCommand,
+  AddIslandCommand,
+  DeleteIslandCommand,
+  MoveIslandCommand,
   InsertWallCommand,
   MoveNodeCommand,
   MoveOpeningCommand,
@@ -57,6 +60,7 @@ import { curtainSize, findPreset, isCurtain, sameWallOnFloor } from "@/lib/build
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
+import { ISLAND_PRESETS, islandLabel, islandPolygon, islandArea } from "@/lib/builder/islands"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
 import { insideBuilding, pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
@@ -67,6 +71,7 @@ type Drag =
   | { kind: "node"; id: string; moved: boolean; sx: number; sy: number }
   | { kind: "opening"; id: string; moved: boolean; sx: number; sy: number }
   | { kind: "stair"; id: string; from: Vec2; origin: Vec2; moved: boolean; sx: number; sy: number }
+  | { kind: "island"; id: string; from: Vec2; origin: Vec2; moved: boolean; sx: number; sy: number }
   | { kind: "object"; id: string; from: Vec2; origin: Vec2; moved: boolean; sx: number; sy: number }
   | { kind: "room"; start: Vec2 }
   | { kind: "click"; hit: Hit | null; sx: number; sy: number; view: View; moved: boolean }
@@ -93,6 +98,7 @@ export function PlanEditor() {
   const openingType = useEditorStore((s) => s.openingType)
   const openingVariant = useEditorStore((s) => s.openingVariant)
   const stairShape = useEditorStore((s) => s.stairShape)
+  const islandKind = useEditorStore((s) => s.islandKind)
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const columnSizeAll = useEditorStore((s) => s.columnSizeAll)
   const annotateKind = useEditorStore((s) => s.annotateKind)
@@ -216,7 +222,7 @@ export function PlanEditor() {
     if (!floor) return
     const fid = floor.id
     if (!hit) return setSelection({ type: "none" })
-    const map: Record<Hit["kind"], Selection["type"]> = { node: "node", opening: "opening", stair: "stair", annotation: "annotation", "mep-device": "mep-device", wall: "wall", room: "room", object: "object" }
+    const map: Record<Hit["kind"], Selection["type"]> = { node: "node", opening: "opening", stair: "stair", island: "island", annotation: "annotation", "mep-device": "mep-device", wall: "wall", room: "room", object: "object" }
     setSelection({ type: map[hit.kind], id: hit.id, floorId: fid })
   }
 
@@ -328,6 +334,7 @@ export function PlanEditor() {
     if (hit.kind === "wall") cmd = replanDeleteWall(doc, floor.id, hit.id, replanMode)
     else if (hit.kind === "opening") cmd = replanDeleteOpening(doc, floor.id, hit.id, replanMode)
     else if (hit.kind === "stair") cmd = new DeleteStairCommand(floor.id, hit.id)
+    else if (hit.kind === "island") cmd = new DeleteIslandCommand(floor.id, hit.id)
     else if (hit.kind === "annotation") cmd = new DeleteAnnotationCommand(floor.id, hit.id)
     else if (hit.kind === "mep-device") cmd = new DeleteMepDeviceCommand(floor.id, hit.id)
     if (cmd) execute(cmd)
@@ -359,6 +366,10 @@ export function PlanEditor() {
       if (hit && hit.id === selId && hit.kind === "object") {
         const ob = floor.objects.find((x) => x.id === hit.id)
         if (ob && !ob.locked) { drag.current = { kind: "object", id: hit.id, from: at.p, origin: { x: ob.position.x, y: ob.position.z }, moved: false, sx: at.s.x, sy: at.s.y }; return }
+      }
+      if (hit && hit.id === selId && hit.kind === "island") {
+        const isl = (floor.islands ?? []).find((x) => x.id === hit.id)
+        if (isl) { drag.current = { kind: "island", id: hit.id, from: at.p, origin: { ...isl.position }, moved: false, sx: at.s.x, sy: at.s.y }; return }
       }
       if (hit && hit.id === selId && hit.kind === "stair") {
         const st = floor.stairs.find((x) => x.id === hit.id)
@@ -511,7 +522,7 @@ export function PlanEditor() {
       }
       return
     }
-    if (d.kind === "wall" || d.kind === "node" || d.kind === "opening" || d.kind === "stair" || d.kind === "object") {
+    if (d.kind === "wall" || d.kind === "node" || d.kind === "opening" || d.kind === "stair" || d.kind === "island" || d.kind === "object") {
       setPreview(null)
       if (!d.moved) return
       const edge = d.kind === "wall" ? floor.wallGraph.edges[d.id] : undefined
@@ -535,6 +546,10 @@ export function PlanEditor() {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
         if (snapEnabled && !e.altKey) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
         execute(new MoveObjectCommand({ floorId: floor.id }, d.id, Math.round(x), Math.round(y)))
+      } else if (d.kind === "island") {
+        let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
+        if (snapEnabled && !e.altKey) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
+        execute(new MoveIslandCommand(floor.id, d.id, Math.round(x), Math.round(y)))
       } else if (d.kind === "stair") {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
         if (floor.stairs.find((q) => q.id === d.id)?.shape === "column" && !e.altKey) ({ x, y } = snapColumn(floor, { x, y }, tolMm, d.id, snapEnabled ? 50 : 0).p)
@@ -603,6 +618,25 @@ export function PlanEditor() {
       case "stair":
         placeStair(at.p)
         break
+      case "island": {
+        // Арендное место ставится по центру габарита; шаг 50 мм, как у мебели.
+        const preset = ISLAND_PRESETS[islandKind]
+        const g = snapEnabled && !e.altKey ? 50 : 1
+        const id = uid("isl")
+        execute(new AddIslandCommand(floor.id, {
+          id,
+          kind: islandKind,
+          name: "",
+          tenant: "",
+          position: { x: Math.round(at.p.x / g) * g, y: Math.round(at.p.y / g) * g },
+          width: preset.width,
+          depth: preset.depth,
+          height: preset.height,
+          rotationDeg: 0,
+        }))
+        setSelection({ type: "island", id, floorId: floor.id })
+        break
+      }
       case "object": {
         // мебель ставится и из плана: не нужно уходить в 3D
         if (!armedAsset) break
@@ -1215,6 +1249,27 @@ const PlanLayers = memo(function PlanLayers({
             {ex.pos && <text x={ex.pos.x} y={ex.pos.y} fontSize={fontPx} textAnchor="middle" dominantBaseline="middle" stroke="none" fontWeight={700} style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 3 }}>{ex.text}</text>}
           </g>
         ))}
+
+        {/* островки: арендные места в общих зонах (вендинг, киоск, банкомат) */}
+        {(shown?.islands ?? []).map((isl) => {
+          const on = sel.type === "island" && sel.id === isl.id
+          const poly = islandPolygon(isl)
+          const c = S(isl.position)
+          const area = islandArea(isl)
+          const wide = px(Math.min(isl.width, isl.depth)) > 34
+          return (
+            <g key={isl.id}>
+              <polygon points={pts(poly)} fill={isl.tenant ? "rgba(14,165,233,0.16)" : "rgba(148,163,184,0.16)"} stroke={on ? TOKENS.accent : "#0369a1"} strokeWidth={on ? 2.4 : 1.4} />
+              {(() => { const a = S(poly[0]), b = S(poly[2]), d = S(poly[1]), e2 = S(poly[3]); return <g stroke={on ? TOKENS.accent : "#7dd3fc"} strokeWidth={0.8}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line x1={d.x} y1={d.y} x2={e2.x} y2={e2.y} /></g> })()}
+              {wide && (
+                <text x={c.x} y={c.y} fontSize={Math.max(8, fontPx - 2)} textAnchor="middle" dominantBaseline="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>
+                  {islandLabel(isl)}
+                  <tspan x={c.x} dy={fontPx}>{area.toFixed(2)} м²</tspan>
+                </text>
+              )}
+            </g>
+          )
+        })}
 
         {/* сети: трассы и приборы тонко, чтобы видеть при перепланировке */}
         {(shown?.mepRuns ?? []).map((r) => <polyline key={r.id} points={pts(r.points)} fill="none" stroke={MEP_SYSTEM_INFO[r.system].color} strokeWidth={1.5} opacity={0.7} />)}

@@ -3,11 +3,12 @@
 // ADR: Контекстные опции активного инструмента (под тулбаром): палитра материалов для
 // «ведра», форма лестницы, подсказки для стены/проёмов. Управляет editorStore.
 
-import { MEP_SYSTEMS } from "@/types/builder"
+import { ISLAND_KINDS, MEP_SYSTEMS } from "@/types/builder"
 import { MEP_SYSTEM_INFO, devicesOf } from "@/lib/builder/mep/catalog"
 import { useEditorStore, type StairShape, type TerrainMode, type FenceStyle } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
+import { ISLAND_PRESETS } from "@/lib/builder/islands"
 
 const PAINT_IDS = [
   // стены/фасад
@@ -83,6 +84,8 @@ export function ToolOptions() {
   const setPaintMaterial = useEditorStore((s) => s.setPaintMaterial)
   const stairShape = useEditorStore((s) => s.stairShape)
   const setStairShape = useEditorStore((s) => s.setStairShape)
+  const islandKind = useEditorStore((s) => s.islandKind)
+  const setIslandKind = useEditorStore((s) => s.setIslandKind)
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const setTerrainMode = useEditorStore((s) => s.setTerrainMode)
   const waterDepth = useEditorStore((s) => s.waterDepth)
@@ -239,6 +242,29 @@ export function ToolOptions() {
             </button>
           )
         })}
+      </Shell>
+    )
+  }
+  if (tool === "island") {
+    return (
+      <Shell>
+        <span className="shrink-0">Арендное место:</span>
+        {ISLAND_KINDS.map((k) => {
+          const active = islandKind === k
+          const pr = ISLAND_PRESETS[k]
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setIslandKind(k)}
+              className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
+              style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
+            >
+              {pr.label}
+            </button>
+          )
+        })}
+        <span className="shrink-0">— клик в коридоре или холле ставит место {ISLAND_PRESETS[islandKind].width}×{ISLAND_PRESETS[islandKind].depth} мм; размеры и арендатор — в свойствах</span>
       </Shell>
     )
   }

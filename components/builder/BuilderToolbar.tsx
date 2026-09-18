@@ -27,6 +27,7 @@ import {
   Slice,
   Ruler,
   RectangleVertical,
+  Store,
 } from "lucide-react"
 import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
@@ -43,6 +44,8 @@ const TOOLS: Item[] = [
   { id: "stair", label: "Лестница", key: "S", Icon: ArrowUpFromLine, phase1: true },
   // колонна — та же «лестница» формы column: вычитается из площади помещения
   { id: "stair", label: "Колонна", key: "", Icon: RectangleVertical, phase1: true, shape: "column" },
+  // арендное место в общей зоне: вендинг, киоск, банкомат — стенами не огорожено
+  { id: "island", label: "Островок", key: "K", Icon: Store, phase1: true },
   { id: "roof", label: "Крыша", key: "T", Icon: Building2, phase1: false },
   { id: "terrain", label: "Рельеф", key: "", Icon: Trees, phase1: true },
   { id: "water", label: "Вода", key: "", Icon: Waves, phase1: true },

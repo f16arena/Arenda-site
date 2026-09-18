@@ -47,6 +47,7 @@ import {
   MoveOpeningCommand,
   AddStairCommand,
   DeleteStairCommand,
+  DeleteIslandCommand,
   MoveStairCommand,
   SetWallMaterialCommand,
   SetRoomMaterialCommand,
@@ -92,6 +93,7 @@ import { furnishFloor } from "@/lib/builder/furnish"
 import { ASSET_SIZES } from "@/lib/builder/asset-sizes"
 import { clampHour, daylight } from "@/lib/builder/daylight"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
+import { buildIsland } from "./builders/island-builder"
 import { buildWater } from "./builders/water-builder"
 import { buildPath } from "./builders/path-builder"
 import { buildPavement } from "./builders/pavement-builder"
@@ -110,7 +112,7 @@ const WALK_SPEED = 0.22
 const RUN_FACTOR = 2.2
 /** Во что упирается человек в обходе. Ставится при сборке — иначе после любой
  *  перестройки сцены столкновения терялись и он проходил сквозь стены. */
-const SOLID_KINDS = new Set(["wall", "room", "stair", "roof", "object", "opening"])
+const SOLID_KINDS = new Set(["wall", "room", "stair", "island", "roof", "object", "opening"])
 const ACCENT = Color3.FromHexString("#38BDF8")
 const HOVER = Color3.FromHexString("#A78BFA")
 const SNAP_NODE_MM = 300
@@ -844,6 +846,19 @@ export class BuilderEngine {
         this.bundle.shadow.addShadowCaster(m)
       }
       for (const m of floorMeshes) this.registerMesh(m.metadata?.entityId, m)
+    }
+
+    for (const isl of f.islands ?? []) {
+      const node = buildIsland(isl, fNode, scene, this.reg, lite)
+      node.getChildMeshes().forEach((m) => {
+        if (m instanceof Mesh) {
+          m.metadata = { ...(m.metadata as object), floorId: f.id }
+          if (reg) {
+            this.registerMesh(isl.id, m)
+            this.bundle.shadow.addShadowCaster(m)
+          }
+        }
+      })
     }
 
     for (const st of f.stairs) {
@@ -2958,6 +2973,7 @@ export class BuilderEngine {
       if (cmd) this.onCommand(cmd)
     }
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "island" && meta.floorId) this.onCommand(new DeleteIslandCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "section" && meta.target) this.onCommand(new DeleteSectionCommand(meta.target, meta.entityId))
     else if (meta.kind === "annotation" && meta.floorId) this.onCommand(new DeleteAnnotationCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "mep-run" && meta.floorId) this.onCommand(new DeleteMepRunCommand(meta.floorId, meta.entityId))

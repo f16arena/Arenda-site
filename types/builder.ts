@@ -78,6 +78,31 @@ export const BuilderObjectSchema = z.object({
   locked: z.boolean().default(false),
 })
 
+/**
+ * Островок — арендное место в общей зоне: вендинговый автомат, киоск, банкомат,
+ * стойка выдачи, кофе-точка. Стенами не огорожен, поэтому помещением его не
+ * распознать: место задаётся прямоугольником с поворотом прямо в коридоре или
+ * в холле. Площадь считается по габариту и идёт в ведомость арендных мест.
+ */
+export const ISLAND_KINDS = ["vending", "kiosk", "atm", "counter", "coffee", "rack", "other"] as const
+export const IslandKindSchema = z.enum(ISLAND_KINDS)
+export type IslandKind = z.infer<typeof IslandKindSchema>
+
+export const IslandSchema = z.object({
+  id: z.string(),
+  kind: IslandKindSchema.default("vending"),
+  /** наименование места: «Автомат с игрушками», «Кофе-точка у входа» */
+  name: z.string().default(""),
+  /** арендатор для подписи на плане (для справки; договор живёт в базе) */
+  tenant: z.string().default(""),
+  position: Vec2Schema,
+  width: z.number().default(1000), // вдоль локальной оси X, мм
+  depth: z.number().default(800),
+  height: z.number().default(1900),
+  rotationDeg: z.number().default(0),
+})
+export type Island = z.infer<typeof IslandSchema>
+
 export const RoofConfigSchema = z.object({
   type: z.enum(["flat", "gable", "hip", "fourslope", "mansard", "shed"]),
   pitchDeg: z.number(),
@@ -162,6 +187,7 @@ export const FloorSchema = z.object({
   wallGraph: WallGraphSchema,
   openings: z.array(OpeningSchema).default([]),
   stairs: z.array(StairSchema).default([]),
+  islands: z.array(IslandSchema).optional(),
   objects: z.array(BuilderObjectSchema).default([]),
   roof: RoofConfigSchema.optional(),
   premiseLinks: z.record(z.string(), z.string()).default({}), // roomId → premiseId

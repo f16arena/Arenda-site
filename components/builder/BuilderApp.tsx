@@ -61,6 +61,7 @@ function applyPick(meta: MeshMeta | null): void {
   else if (meta.kind === "room") setSelection({ type: "room", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "opening") setSelection({ type: "opening", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "stair") setSelection({ type: "stair", id: meta.entityId, floorId: meta.floorId })
+  else if (meta.kind === "island") setSelection({ type: "island", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "object") setSelection({ type: "object", id: meta.entityId, floorId: meta.target !== "site" ? meta.target : undefined })
   else if (meta.kind === "water") setSelection({ type: "water", id: meta.entityId })
   else if (meta.kind === "path") setSelection({ type: "path", id: meta.entityId })

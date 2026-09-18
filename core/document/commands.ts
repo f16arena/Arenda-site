@@ -3,7 +3,7 @@
 // срез), для перемещения узла — прежние координаты, и т.д. Стек undo/redo ≥200, drag
 // схлопывается в одну команду через merge. Команды — транспорт для AI Mode (Фаза 5).
 
-import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, WaterBody, PathFeature, Pavement, MepRun, MepDevice, SectionLineDoc, Annotation } from "@/types/builder"
+import type { BuilderDocument, Floor, BuilderObject, RoofConfig, Building, Opening, Stair, Island, WaterBody, PathFeature, Pavement, MepRun, MepDevice, SectionLineDoc, Annotation } from "@/types/builder"
 import {
   type WallGraph,
   type WallDefaults,
@@ -865,6 +865,86 @@ export class DeleteStairCommand implements Command {
     if (!this.removed) return doc
     const st = this.removed
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, stairs: [...fl.stairs, st] }))
+  }
+}
+
+// ── Островки (арендные места в общих зонах) ───────────────────────────────────
+export class AddIslandCommand implements Command {
+  readonly kind = "add-island"
+  readonly label = "островок"
+  constructor(private floorId: string, private island: Island) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: [...(fl.islands ?? []), this.island] }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).filter((i) => i.id !== this.island.id) }))
+  }
+}
+
+export class DeleteIslandCommand implements Command {
+  readonly kind = "delete-island"
+  readonly label = "удаление островка"
+  private removed?: Island
+  constructor(private floorId: string, private islandId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    this.removed = (f?.islands ?? []).find((i) => i.id === this.islandId) ?? this.removed
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).filter((i) => i.id !== this.islandId) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.removed) return doc
+    const isl = this.removed
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: [...(fl.islands ?? []), isl] }))
+  }
+}
+
+type IslandProps = Partial<Pick<Island, "kind" | "name" | "tenant" | "width" | "depth" | "height" | "rotationDeg">>
+
+export class SetIslandCommand implements Command {
+  readonly kind = "set-island"
+  readonly label = "островок"
+  private prev?: IslandProps
+  private captured = false
+  constructor(private floorId: string, private islandId: string, private props: IslandProps) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const i = (f?.islands ?? []).find((x) => x.id === this.islandId)
+    if (i && !this.captured) {
+      this.prev = { kind: i.kind, name: i.name, tenant: i.tenant, width: i.width, depth: i.depth, height: i.height, rotationDeg: i.rotationDeg }
+      this.captured = true
+    }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, ...this.props } : x)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, ...prev } : x)) }))
+  }
+}
+
+export class MoveIslandCommand implements Command {
+  readonly kind = "move-island"
+  readonly label = "перемещение островка"
+  private prev?: { x: number; y: number }
+  constructor(private floorId: string, private islandId: string, private x: number, private y: number) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    const i = (f?.islands ?? []).find((x) => x.id === this.islandId)
+    if (i && !this.prev) this.prev = { x: i.position.x, y: i.position.y }
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, position: { x: this.x, y: this.y } } : x)) }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    if (!this.prev) return doc
+    const prev = this.prev
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, position: prev } : x)) }))
+  }
+  merge(next: Command): boolean {
+    if (next instanceof MoveIslandCommand && next.floorId === this.floorId && next.islandId === this.islandId) {
+      this.x = next.x
+      this.y = next.y
+      return true
+    }
+    return false
   }
 }
 
