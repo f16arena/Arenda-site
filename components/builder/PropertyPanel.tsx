@@ -19,6 +19,7 @@ import { presetsFor } from "@/lib/builder/openings"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
+import { suggestRoomName } from "@/lib/builder/room-naming"
 import { autoRoomUse, ROOM_USE_LABEL, roomUse as roomUseOf, type RoomUse } from "@/lib/builder/room-use"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
 
@@ -169,6 +170,21 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
               style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
             />
           </label>
+          {room && !f.roomNames?.[rid] && (() => {
+            // подсказка по геометрии — то же правило, что у кнопки «Подставить наименования»
+            const hint = suggestRoomName(f, room)
+            if (!hint) return null
+            return (
+              <button
+                type="button"
+                onClick={() => execute(new SetRoomNameCommand(fid, rid, hint))}
+                className="mb-2 w-full rounded-md py-1 text-[11px] font-medium"
+                style={{ background: "rgba(56,189,248,0.16)", color: TOKENS.accent }}
+              >
+                Подставить: {hint}
+              </button>
+            )
+          })()}
           {options.length > 0 && use === "rent" && (
             <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
               Карточка помещения
