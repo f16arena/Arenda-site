@@ -1023,51 +1023,47 @@ export class BuilderEngine {
   }
 
   /**
-   * Отмостка: бетонная полоса метровой ширины по контуру здания. Без неё дом
-   * «воткнут» в газон, как деталь конструктора.
+   * Отмостка: бетонная полоса метровой ширины вдоль каждой наружной стены.
+   * Раньше строилась единым контуром — на сложной форме здания (пристройки,
+   * тамбуры) контур мог вывернуться и «выстрелить» полосой в сторону.
    */
   private buildApron(b: Building, bRoot: TransformNode, scene: import("@babylonjs/core").Scene): void {
+    const APRON = 1000
     // берём этаж с самым полным наружным контуром: у подвала он часто обрезан
-    const ground = [...b.floors]
-      .filter((f) => Object.values(f.wallGraph.edges).some((e) => e.kind === "exterior"))
-      .sort((p, q) => buildingOutline(q.wallGraph).length - buildingOutline(p.wallGraph).length)[0]
-    if (!ground) return
-    const outline = buildingOutline(ground.wallGraph)
-    if (outline.length < 3) return
-    const half = Object.values(ground.wallGraph.edges).filter((e) => e.kind === "exterior").reduce((sum, e, _i, arr) => sum + e.thickness / arr.length, 0) / 2
-    const grow = (d: number) => {
-      let a2 = 0
-      for (let i = 0; i < outline.length; i++) {
-        const p = outline[i], q = outline[(i + 1) % outline.length]
-        a2 += p.x * q.y - q.x * p.y
+    const floors = [...b.floors].sort(
+      (p, q) =>
+        Object.values(q.wallGraph.edges).filter((e) => e.kind === "exterior").length -
+        Object.values(p.wallGraph.edges).filter((e) => e.kind === "exterior").length,
+    )
+    for (const f of floors) {
+      const ext = Object.values(f.wallGraph.edges).filter((e) => e.kind === "exterior")
+      if (!ext.length) continue
+      // наружу — сторона, противоположная центру этажа
+      let cx = 0, cy = 0, n = 0
+      for (const id in f.wallGraph.nodes) { cx += f.wallGraph.nodes[id].x; cy += f.wallGraph.nodes[id].y; n++ }
+      if (!n) continue
+      cx /= n; cy /= n
+      for (const e of ext) {
+        const a = f.wallGraph.nodes[e.a], c = f.wallGraph.nodes[e.b]
+        if (!a || !c) continue
+        const len = Math.hypot(c.x - a.x, c.y - a.y)
+        if (len < 200) continue
+        const u = { x: (c.x - a.x) / len, y: (c.y - a.y) / len }
+        let nr = { x: -u.y, y: u.x }
+        const mid = { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 }
+        if ((mid.x - cx) * nr.x + (mid.y - cy) * nr.y < 0) nr = { x: -nr.x, y: -nr.y }
+        const d = e.thickness / 2 + APRON / 2
+        const strip = MeshBuilder.CreateBox(`apron_${f.id}_${e.id}`, { width: (len + e.thickness) * S, height: 0.06, depth: APRON * S }, scene)
+        strip.position.set((mid.x + nr.x * d) * S, 0.0, (mid.y + nr.y * d) * S)
+        strip.rotation.y = -Math.atan2(u.y, u.x)
+        strip.material = this.reg.get("concrete")
+        strip.receiveShadows = true
+        strip.isPickable = false
+        strip.parent = bRoot
+        strip.metadata = { kind: "site" }
       }
-      const sign = a2 > 0 ? 1 : -1
-      return outline.map((p, i) => {
-        const prev = outline[(i - 1 + outline.length) % outline.length]
-        const next = outline[(i + 1) % outline.length]
-        const n = (u: { x: number; y: number }, v: { x: number; y: number }) => {
-          const dx = v.x - u.x, dy = v.y - u.y
-          const L = Math.hypot(dx, dy) || 1
-          return { x: (-dy / L) * sign, y: (dx / L) * sign }
-        }
-        const n1 = n(prev, p), n2 = n(p, next)
-        const dot = n1.x * n2.x + n1.y * n2.y
-        // на почти развёрнутом угле биссектриса уходит в бесконечность — там
-        // сдвигаем по одной нормали, иначе из здания торчал «шип» на метры
-        if (1 + dot < 0.5) return new Vector3((p.x + n2.x * d) * S, 0, (p.y + n2.y * d) * S)
-        const k = d / (1 + dot)
-        return new Vector3((p.x + (n1.x + n2.x) * k) * S, 0, (p.y + (n1.y + n2.y) * k) * S)
-      })
+      break // достаточно контура одного этажа — нижнего с наружными стенами
     }
-    const outer = grow(half + 1000)
-    const inner = grow(half)
-    const apron = MeshBuilder.CreatePolygon(`apron_${b.id}`, { shape: outer, holes: [inner], sideOrientation: Mesh.DOUBLESIDE }, scene, earcut)
-    apron.position.y = 0.03
-    apron.parent = bRoot
-    apron.receiveShadows = true
-    apron.isPickable = false
-    apron.material = this.reg.get("concrete")
-    apron.metadata = { kind: "site" }
   }
 
   /** Пересобрать затенение под активную камеру (после смены камеры). */
