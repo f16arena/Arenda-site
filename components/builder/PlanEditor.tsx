@@ -1015,6 +1015,22 @@ export function PlanEditor() {
               <span style={{ color: TOKENS.muted }}>{t}</span>
             </div>
           ))}
+          {/* короткая шпаргалка по недавним возможностям: иначе их просто не находят */}
+          <div className="mt-2 border-t pt-1.5" style={{ borderColor: TOKENS.panelBorder }}>
+            <div className="mb-1 text-xs font-semibold">Где искать</div>
+            {[
+              ["Проверка модели", "панель этажей слева: ошибки и замечания, клик ведёт к месту"],
+              ["Наименования", "там же кнопка «Подставить наименования» на всё здание"],
+              ["Пандус", "инструмент «Лестница» → «Пандус», клик снаружи у стены"],
+              ["Солнце и мебель", "в 3D справа сверху"],
+              ["Узлы и фрагменты", "«Чертежи» → список листов"],
+            ].map(([k, t]) => (
+              <div key={k} className="py-0.5">
+                <span style={{ color: TOKENS.accent }}>{k}</span>
+                <span style={{ color: TOKENS.muted }}> — {t}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       <div className="pointer-events-none absolute bottom-9 left-[13.5rem] rounded-md px-2 py-0.5 text-[11px] tabular-nums" style={{ background: "rgba(255,255,255,0.85)", color: "#334155" }}>
