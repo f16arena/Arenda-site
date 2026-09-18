@@ -86,6 +86,7 @@ import { buildWalls } from "./builders/wall-builder"
 import { buildFloors, type StatusResolver } from "./builders/floor-builder"
 import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
+import { buildFurnish } from "./builders/furnish-builder"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import { buildWater } from "./builders/water-builder"
 import { buildPath } from "./builders/path-builder"
@@ -246,6 +247,18 @@ export class BuilderEngine {
     this.invalidate(600)
   }
   private showTenants = true
+
+  /**
+   * Автомебель: столы, диваны и светильники по назначению помещений. Только вид —
+   * в документ ничего не пишется, на планах и в БТИ этой мебели нет.
+   */
+  setShowFurniture(on: boolean): void {
+    if (on === this.showFurniture) return
+    this.showFurniture = on
+    if (this.lastDoc && this.lastCtx) this.rebuild(this.lastDoc, this.lastCtx)
+  }
+
+  private showFurniture = true
 
   /** Пауза рендера — когда 3D скрыт (открыт редактор плана). */
   setPaused(p: boolean): void {
@@ -744,6 +757,14 @@ export class BuilderEngine {
             this.bundle.shadow.addShadowCaster(m)
           }
         })
+      }
+    }
+
+    // автомебель по назначению помещений — только в полном режиме
+    if (this.showFurniture && !lite) {
+      for (const m of buildFurnish(f, floorRooms(f), fNode, scene)) {
+        m.receiveShadows = true
+        this.bundle.shadow.addShadowCaster(m)
       }
     }
 

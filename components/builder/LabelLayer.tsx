@@ -16,6 +16,8 @@ export function LabelLayer() {
   const showDimensions = useLabelStore((s) => s.showDimensions)
   const toggleDimensions = useLabelStore((s) => s.toggleDimensions)
   const showTenants = useLabelStore((s) => s.showTenants)
+  const showFurniture = useLabelStore((s) => s.showFurniture)
+  const toggleFurniture = useLabelStore((s) => s.toggleFurniture)
   const toggleTenants = useLabelStore((s) => s.toggleTenants)
   const doc = useDocumentStore((s) => s.doc)
   const selection = useEditorStore((s) => s.selection)
@@ -75,6 +77,19 @@ export function LabelLayer() {
         }}
       >
         Арендаторы
+      </button>
+      <button
+        type="button"
+        onClick={toggleFurniture}
+        title="Мебель и светильники: расставляются автоматически по назначению помещений (только вид, в документ не пишутся)"
+        className="absolute right-3 top-[12.25rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
+        style={{
+          background: showFurniture ? TOKENS.accent : TOKENS.panel,
+          color: showFurniture ? "#0b1220" : TOKENS.text,
+          border: `1px solid ${TOKENS.panelBorder}`,
+        }}
+      >
+        Мебель
       </button>
 
       <div className="pointer-events-none absolute inset-0 z-10 select-none">
