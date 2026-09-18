@@ -16,6 +16,7 @@ import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCom
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
+import { hourLabel } from "@/lib/builder/daylight"
 import { useLabelStore } from "@/store/label-store"
 import { useUnderlayIntent } from "@/store/underlay-intent"
 import { moveUnderlay } from "@/lib/builder/underlay-math"
@@ -765,6 +766,34 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
         >
           <span style={{ color: TOKENS.accent }}>●</span> {showcaseName ?? "Витрина"} · Commrent
+        </div>
+      )}
+      {readOnly && !walking && ready && (
+        // Витрина для арендатора: солнце и мебель. По теням видно, как освещено
+        // помещение утром и вечером — первый вопрос при показе.
+        <div
+          className="absolute right-3 top-16 z-30 flex flex-col gap-1.5 rounded-xl px-3 py-2 shadow-xl backdrop-blur-xl"
+          style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
+        >
+          <span className="text-[11px] font-semibold tabular-nums">Солнце · {hourLabel(hourOfDay)}</span>
+          <input
+            type="range"
+            min={5}
+            max={21}
+            step={0.5}
+            value={hourOfDay}
+            onChange={(e) => useLabelStore.getState().setHourOfDay(Number(e.target.value))}
+            className="h-1 w-32 cursor-pointer accent-sky-400"
+            aria-label="Время суток"
+          />
+          <button
+            type="button"
+            onClick={() => useLabelStore.getState().toggleFurniture()}
+            className="rounded-md px-2 py-1 text-[11px] font-semibold"
+            style={{ background: showFurniture ? TOKENS.accent : "rgba(148,163,184,0.16)", color: showFurniture ? "#0b1220" : TOKENS.text }}
+          >
+            Мебель
+          </button>
         </div>
       )}
       {hud && (
