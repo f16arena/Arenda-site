@@ -676,7 +676,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {need3D && <BuilderCanvas onReady={handleReady} />}
       {!readOnly && cameraMode === "plan2d" && <PlanEditor />}
       {walking && <WalkHud />}
-      {walking && <WalkRoomBadge engine={engineRef.current} />}
+      {walking && <WalkRoomBadge getEngine={() => engineRef.current} />}
       {!readOnly && !walking && <ModeSwitcher />}
       {!readOnly && !walking && <BuilderToolbar />}
       {!readOnly && !walking && <BuilderProjectBar onScreenshot={() => {

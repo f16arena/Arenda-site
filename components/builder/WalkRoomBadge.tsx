@@ -19,15 +19,14 @@ interface Spot {
   tenant?: string
 }
 
-export function WalkRoomBadge({ engine }: { engine: BuilderEngine | null }) {
+export function WalkRoomBadge({ getEngine }: { getEngine: () => BuilderEngine | null }) {
   const [spot, setSpot] = useState<Spot | null>(null)
   const doc = useDocumentStore((s) => s.doc)
 
   useEffect(() => {
-    if (!engine) return
     // раз в полсекунды: чаще не нужно, а расчёт помещений не бесплатный
     const timer = setInterval(() => {
-      const at = engine.getWalkSpot()
+      const at = getEngine()?.getWalkSpot()
       if (!at) {
         setSpot(null)
         return
@@ -54,7 +53,7 @@ export function WalkRoomBadge({ engine }: { engine: BuilderEngine | null }) {
       })
     }, 500)
     return () => clearInterval(timer)
-  }, [engine, doc])
+  }, [getEngine, doc])
 
   if (!spot) return null
   return (
