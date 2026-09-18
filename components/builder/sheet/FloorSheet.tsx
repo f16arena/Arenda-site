@@ -793,9 +793,13 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
  * показатели, общие указания и условные обозначения.
  */
 function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: string; note: string }>; w: number; indicators: BuildingIndicators | null }) {
-  const x = 30, tw = Math.min(200, w - 210), y0 = 30, rh = 7
+  // правая колонка не должна вылезать за рамку листа (рамка: 20 слева, 5 справа)
+  const RIGHT = w - 25
+  const x = 30, y0 = 30, rh = 7
+  const tw = Math.min(200, Math.max(120, (RIGHT - x) * 0.5))
   const c1 = x + 13, c2 = x + tw - 48
-  const rx = x + tw + 16, rw = Math.min(190, w - tw - 50)
+  const rx = x + tw + 16
+  const rw = Math.max(110, RIGHT - rx)
   const fmt = (v: number) => v.toLocaleString("ru-RU", { maximumFractionDigits: 1 })
   const tep: Array<[string, string]> = indicators
     ? [
