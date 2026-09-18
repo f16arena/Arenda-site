@@ -1273,6 +1273,8 @@ const PlanLayers = memo(function PlanLayers({
                 <text x={c.x} y={c.y} fontSize={Math.max(8, fontPx - 2)} textAnchor="middle" dominantBaseline="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>
                   {islandLabel(isl)}
                   <tspan x={c.x} dy={fontPx}>{area.toFixed(2)} м²</tspan>
+                  {/* арендатор: из карточки, если место привязано, иначе из подписи */}
+                  {(prem?.tenantName || isl.tenant) && <tspan x={c.x} dy={fontPx} fontWeight={500}>{prem?.tenantName || isl.tenant}</tspan>}
                 </text>
               ) : (
                 <text x={c.x} y={c.y - Math.max(8, px(isl.depth) / 2 + 5)} fontSize={Math.max(8, fontPx - 3)} textAnchor="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>

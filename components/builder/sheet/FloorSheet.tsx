@@ -46,7 +46,7 @@ import { buildDetails, type Detail } from "@/lib/builder/drawing/details"
 import { DetailsBody } from "./DetailsBody"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
-import { islandSchedule, islandsTotal, type IslandRow } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, WALL_MOUNTED, islandSchedule, islandsTotal, type IslandRow } from "@/lib/builder/islands"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomDisplayName } from "@/lib/builder/room-use"
 import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
@@ -1115,10 +1115,12 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
   const RH = 6
   const y0 = 30
   const total = islandsTotal(rows)
-  const rest = tw - (14 + 26 + 22 + 20)
+  const ads = rows.filter((r) => WALL_MOUNTED.has(r.kind)).length
+  const rest = tw - (14 + 26 + 22 + 20 + 26)
   const cols: Array<{ w: number; label: string; align?: "end" | "middle" }> = [
     { w: 14, label: "Марка", align: "middle" },
     { w: rest * 0.3, label: "Наименование" },
+    { w: 26, label: "Вид" },
     { w: 26, label: "Этаж" },
     { w: rest * 0.28, label: "Размещение" },
     { w: rest * 0.42, label: "Арендатор" },
@@ -1145,7 +1147,7 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
       {cols.map((c, i) => <text key={`h${i}`} x={cellX(i)} y={y0 + 4.2} fontSize={2.6} textAnchor={c.align ?? "start"}>{c.label}</text>)}
       {shown.map((r, ri) => {
         const y = y0 + RH * (ri + 1)
-        const cells = [r.mark, r.name, r.floorName, r.place || "—", r.tenant || "свободно", r.size, r.area.toFixed(2).replace(".", ",")]
+        const cells = [r.mark, r.name, ISLAND_PRESETS[r.kind].label, r.floorName, r.place || "—", r.tenant || "свободно", r.size, r.area.toFixed(2).replace(".", ",")]
         return (
           <g key={r.id}>
             <line x1={x} y1={y + RH} x2={x + tw} y2={y + RH} stroke="#000" strokeWidth={0.18} />
@@ -1157,8 +1159,8 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
         const y = y0 + RH * (shown.length + 1)
         return (
           <g>
-            <text x={cellX(1)} y={y + 4.2} fontSize={2.6} fontWeight={700}>Итого мест: {total.count}, сдано: {total.leased}</text>
-            <text x={cellX(6)} y={y + 4.2} fontSize={2.6} textAnchor="end" fontWeight={700}>{total.area.toFixed(2).replace(".", ",")}</text>
+            <text x={cellX(1)} y={y + 4.2} fontSize={2.6} fontWeight={700}>Итого мест: {total.count}, сдано: {total.leased}{ads ? `, из них реклама: ${ads}` : ""}</text>
+            <text x={cellX(7)} y={y + 4.2} fontSize={2.6} textAnchor="end" fontWeight={700}>{total.area.toFixed(2).replace(".", ",")}</text>
           </g>
         )
       })()}
