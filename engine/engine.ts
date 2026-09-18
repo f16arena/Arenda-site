@@ -1027,7 +1027,10 @@ export class BuilderEngine {
    * «воткнут» в газон, как деталь конструктора.
    */
   private buildApron(b: Building, bRoot: TransformNode, scene: import("@babylonjs/core").Scene): void {
-    const ground = [...b.floors].sort((p, q) => p.elevation - q.elevation).find((f) => Object.keys(f.wallGraph.edges).length > 0)
+    // берём этаж с самым полным наружным контуром: у подвала он часто обрезан
+    const ground = [...b.floors]
+      .filter((f) => Object.values(f.wallGraph.edges).some((e) => e.kind === "exterior"))
+      .sort((p, q) => buildingOutline(q.wallGraph).length - buildingOutline(p.wallGraph).length)[0]
     if (!ground) return
     const outline = buildingOutline(ground.wallGraph)
     if (outline.length < 3) return
@@ -1049,7 +1052,10 @@ export class BuilderEngine {
         }
         const n1 = n(prev, p), n2 = n(p, next)
         const dot = n1.x * n2.x + n1.y * n2.y
-        const k = d / Math.max(0.2, 1 + dot)
+        // на почти развёрнутом угле биссектриса уходит в бесконечность — там
+        // сдвигаем по одной нормали, иначе из здания торчал «шип» на метры
+        if (1 + dot < 0.5) return new Vector3((p.x + n2.x * d) * S, 0, (p.y + n2.y * d) * S)
+        const k = d / (1 + dot)
         return new Vector3((p.x + (n1.x + n2.x) * k) * S, 0, (p.y + (n1.y + n2.y) * k) * S)
       })
     }

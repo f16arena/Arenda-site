@@ -41,7 +41,9 @@ function expand(poly: Vec2[], d: number): Vec2[] {
     const n2 = norm(p, next, sign)
     // смещение по биссектрисе: p + (n1+n2)·d/(1+n1·n2) — грань отходит ровно на d
     const dot = n1.x * n2.x + n1.y * n2.y
-    const k = d / Math.max(0.2, 1 + dot)
+    // почти развёрнутый угол: биссектриса уходит в бесконечность — сдвигаем по нормали
+    if (1 + dot < 0.5) return { x: p.x + n2.x * d, y: p.y + n2.y * d }
+    const k = d / (1 + dot)
     return { x: p.x + (n1.x + n2.x) * k, y: p.y + (n1.y + n2.y) * k }
   })
 }
