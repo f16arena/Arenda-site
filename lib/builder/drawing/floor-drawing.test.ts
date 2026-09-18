@@ -77,6 +77,21 @@ describe("чертёж плана этажа", () => {
     expect(dxf).not.toMatch(/[А-Яа-я]/)
   })
 
+  it("арендные места попадают в чертёж и в DXF отдельным слоем", () => {
+    const f = box()
+    f.islands = [{ id: "i1", kind: "vending", name: "Автомат", tenant: "ИП Forbs", position: { x: 3000, y: 2000 }, width: 900, depth: 800, height: 1830, rotationDeg: 0 }]
+    const d = buildFloorDrawing(f)
+    expect(d.islands).toHaveLength(1)
+    expect(d.islands[0].mark).toBe("М1")
+    expect(d.islands[0].poly).toHaveLength(4)
+    const dxf = floorDrawingToDxf(d, pickSheet(d).scale, "План")
+    expect(dxf).toContain("A-RENT")
+  })
+
+  it("без мест слой аренды в чертеже пустой", () => {
+    expect(buildFloorDrawing(box()).islands).toHaveLength(0)
+  })
+
   it("вытянутый этаж ложится на книжный А3", () => {
     const path = ".tmp-harness/f16-floor1.json"
     if (!existsSync(path)) return

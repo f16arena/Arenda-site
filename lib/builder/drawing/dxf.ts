@@ -33,6 +33,7 @@ const LAYERS = [
   { name: "A-AXES", color: 8 }, // оси
   { name: "A-DEMO", color: 1 }, // демонтаж
   { name: "A-NEW", color: 3 }, // монтаж
+  { name: "A-RENT", color: 5 }, // арендные места в общих зонах (островки)
 ]
 
 function enc(text: string): string {
@@ -132,7 +133,15 @@ export function floorDrawingToDxf(d: FloorDrawing, scale: number, title: string,
   for (const [a, b] of d.thinLines) w.line("A-OPEN", a, b)
   for (const a of d.arcs) w.arc("A-OPEN", a.c, a.r, a.start, a.end)
 
+  // арендные места: габарит, перекрестие и марка
+  for (const isl of d.islands) {
+    for (let i = 0; i < 4; i++) w.line("A-RENT", isl.poly[i], isl.poly[(i + 1) % 4])
+    w.line("A-RENT", isl.poly[0], isl.poly[2])
+    w.line("A-RENT", isl.poly[1], isl.poly[3])
+  }
+
   const th = 2.5 * k // высота текста 2,5 мм на листе
+  for (const isl of d.islands) w.text("A-RENT", { x: isl.at.x, y: isl.at.y }, th, isl.mark)
   for (const r of d.rooms) {
     if (r.number) w.text("A-TEXT", { x: r.at.x, y: r.at.y + th * 0.8 }, th, `№ ${r.number}`)
     w.text("A-TEXT", { x: r.at.x, y: r.at.y - th * 0.8 }, th, areaText(r.areaM2))
