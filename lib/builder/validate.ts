@@ -103,6 +103,16 @@ export function validateFloor(
         at: openingCenter(floor, o) ?? undefined,
       })
     }
+    if (o.type === "window" && e.kind === "interior" && o.variant !== "curtain") {
+      out.push({
+        id: `op-inner-window-${o.id}`,
+        level: "warn",
+        text: "Окно во внутренней стене — выходит в соседнее помещение",
+        floorId: floor.id,
+        target: { type: "opening", id: o.id },
+        at: openingCenter(floor, o) ?? undefined,
+      })
+    }
     if (o.type === "door" && o.exit && o.width < EXIT_DOOR_MIN) {
       out.push({
         id: `op-narrow-${o.id}`,
@@ -128,6 +138,16 @@ export function validateFloor(
     }
     if (use === "rent" && room.areaMm2 > 8e6 && windows.length === 0) {
       out.push({ id: `room-nowin-${room.id}`, level: "warn", text: `Помещение${name ? ` «${name}»` : ""} без окон — нет естественного освещения`, floorId: floor.id, target: { type: "room", id: room.id }, at })
+    }
+    if (use === "rent" && room.areaMm2 > 10e6 && !floor.premiseLinks?.[room.id]) {
+      out.push({
+        id: `room-nolink-${room.id}`,
+        level: "warn",
+        text: `Помещение${name ? ` «${name}»` : ""} не связано с помещением из базы — арендатор и статус не покажутся`,
+        floorId: floor.id,
+        target: { type: "room", id: room.id },
+        at,
+      })
     }
     if (use === "rent" && !name) {
       out.push({ id: `room-noname-${room.id}`, level: "warn", text: "Помещение без наименования — в экспликации будет пусто", floorId: floor.id, target: { type: "room", id: room.id }, at })

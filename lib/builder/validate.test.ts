@@ -65,6 +65,20 @@ describe("validateFloor", () => {
     expect(issues.some((i) => i.text.includes("Эвакуационная дверь уже"))).toBe(true)
   })
 
+  it("окно во внутренней стене — предупреждение", () => {
+    const f = boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>)
+    f.wallGraph.edges.w2.kind = "interior" as never
+    expect(validateFloor(f, solo).some((i) => i.text.includes("во внутренней стене"))).toBe(true)
+  })
+
+  it("крупное арендное помещение без привязки к базе — предупреждение", () => {
+    const f = boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>)
+    expect(validateFloor(f, solo).some((i) => i.text.includes("не связано с помещением из базы"))).toBe(true)
+    const linked = boxFloor({ openings: [door(), window_()], premiseLinks: { } } as unknown as Partial<Floor>)
+    const rooms = validateFloor(linked, solo).filter((i) => i.id.startsWith("room-nolink-"))
+    expect(rooms.length).toBe(1)
+  })
+
   it("этаж без лестницы в многоэтажном здании — ошибка", () => {
     const issues = validateFloor(boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>), { lowest: true, multiFloor: true })
     expect(issues.some((i) => i.level === "error" && i.text.includes("нет лестницы"))).toBe(true)
