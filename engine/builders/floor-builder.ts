@@ -23,6 +23,7 @@ export function buildFloors(
   reg: MaterialRegistry,
   statusResolver: StatusResolver,
   holes: Vec2[][] = [],
+  lite = false,
 ): Mesh[] {
   const meshes: Mesh[] = []
   // отделка и плинтусы: сотни одинаковых коробок — сливаем в один меш на материал,
@@ -67,6 +68,7 @@ export function buildFloors(
     // изнутри добавляем слой отделки. Проёмы вырезаются: иначе панель закрывала
     // бы двери и окна.
     const finish = reg.get(wallFinishMaterial(floor, room))
+    if (lite) { /* лёгкий режим: без отделки и плинтусов */ } else {
     const ringFinish = offsetLoop(floor.wallGraph, room.nodeLoop, room.polygon, 1)
     for (let i = 0; i < ringFinish.length; i++) {
       const p0 = ringFinish[i], p1 = ringFinish[(i + 1) % ringFinish.length]
@@ -119,9 +121,10 @@ export function buildFloors(
       }
       piece(cur, t1, 60, H, `${i}_end`)
     }
+    }
 
     // плинтус по периметру: комната перестаёт выглядеть картонной коробкой
-    const ring = offsetLoop(floor.wallGraph, room.nodeLoop, room.polygon, 1)
+    const ring = lite ? [] : offsetLoop(floor.wallGraph, room.nodeLoop, room.polygon, 1)
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], b = ring[(i + 1) % ring.length]
       const len = Math.hypot(b.x - a.x, b.y - a.y)

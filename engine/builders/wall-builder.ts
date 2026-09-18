@@ -29,6 +29,8 @@ function makeBox(spec: BoxSpec, scene: Scene, name: string): Mesh {
 }
 
 export interface WallExtras {
+  /** лёгкий режим: без откосов, подоконников, переплётов и ручек */
+  lite?: boolean
   /** нижний этаж здания — у наружных стен цоколь */
   plinth?: boolean
   /** верхний этаж — карниз/парапет по наружным стенам */
@@ -168,7 +170,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         meshes.push(m)
       }
       // откосы/наличник по краю проёма — проём читается, а не «дыра в коробке»
-      if (o.variant !== "arch") {
+      if (o.variant !== "arch" && !extras.lite) {
         const jambMat = reg.get(o.type === "window" ? "plaster_white" : "paint_white")
         const top = o.sillHeight + o.height
         for (const side of [-1, 1]) {
@@ -181,7 +183,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
       }
       if (o.type === "window") {
         // подоконник внутри и отлив снаружи
-        for (const s2 of [-1, 1]) {
+        for (const s2 of extras.lite ? [] : [-1, 1]) {
           const cc = { x: c.x + nrm.x * s2 * (t / 2 + 60), y: c.y + nrm.y * s2 * (t / 2 + 60) }
           const sill = makeBox({ cx: cc.x, cz: cc.y, yMid: o.sillHeight - 25, width: o.width + 160, height: 50, depth: 180, angle }, scene, `sillb_${o.id}_${s2}`)
           push(sill, reg.get(s2 > 0 ? "marble" : "concrete"))
@@ -191,7 +193,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         const inset = { x: c.x - nrm.x * t * 0.18, y: c.y - nrm.y * t * 0.18 }
         const glass = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: o.height - 60, depth: t * 0.12, angle }, scene, `glass_${o.id}`)
         push(glass, reg.get("glass"))
-        if (o.variant !== "panoramic") {
+        if (o.variant !== "panoramic" && !extras.lite) {
           const mull = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2, width: 70, height: o.height - 60, depth: t * 0.2, angle }, scene, `mv_${o.id}`)
           push(mull, reg.get("plaster_white"))
           const mh = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: 70, depth: t * 0.2, angle }, scene, `mh_${o.id}`)
@@ -248,7 +250,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
           const leaf = makeBox({ cx: c.x, cz: c.y, yMid: o.height / 2, width: o.width - 60, height: o.height - 40, depth: leafD, angle }, scene, `dl_${o.id}`)
           push(leaf, doorMat)
           // ручка с двух сторон — по ней видно, что это дверь, а не щит
-          for (const s2 of [-1, 1]) {
+          for (const s2 of extras.lite ? [] : [-1, 1]) {
             const hc = at(o.width / 2 - 120)
             const knob = makeBox({ cx: hc.x + nrm.x * s2 * (leafD / 2 + 25), cz: hc.y + nrm.y * s2 * (leafD / 2 + 25), yMid: 1050, width: 120, height: 34, depth: 50, angle }, scene, `dk_${o.id}_${s2}`)
             push(knob, reg.get("metal_roof"))

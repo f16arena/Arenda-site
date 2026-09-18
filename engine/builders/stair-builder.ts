@@ -9,7 +9,7 @@ import type { MaterialRegistry } from "../material-registry"
 
 const S = 0.001
 
-export function buildStair(stair: Stair, floorHeight: number, parent: TransformNode, scene: Scene, reg: MaterialRegistry): TransformNode {
+export function buildStair(stair: Stair, floorHeight: number, parent: TransformNode, scene: Scene, reg: MaterialRegistry, lite = false): TransformNode {
   const geo = generateStair(stair.shape as StairShape, stairRise(stair, floorHeight), stair.width, stair.railing, stair.depth, stair.tread)
   const root = new TransformNode(`stair_${stair.id}`, scene)
   root.parent = parent
@@ -47,6 +47,7 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
     box.checkCollisions = true
     place(b, box)
 
+    if (lite) continue
     const slab = MeshBuilder.CreateBox(`soffit_${stair.id}_${i}`, { width: b.w * S, height: 0.16, depth: b.d * S }, scene)
     slab.material = mat
     slab.receiveShadows = true

@@ -126,6 +126,8 @@ export interface RebuildContext {
   mepLayers?: MepSystem[]
   /** режим «Сети»: архитектура активного этажа полупрозрачная */
   mepFocus?: boolean
+  /** лёгкий режим: декор (отделка, плинтусы, откосы, отмостка) не строится */
+  lite?: boolean
 }
 
 export class BuilderEngine {
@@ -397,7 +399,15 @@ export class BuilderEngine {
 
   // Турбо-режим (§24): рендер в пониженном разрешении (меньше пикселей — выше FPS) и
   // более лёгкие тени. Геометрия и интерактив не меняются.
+  private liteMode = false
+
   setTurbo(on: boolean): void {
+    // в лёгком режиме декоративная геометрия не строится — это главная экономия
+    // на слабых видеокартах; переключение требует пересборки сцены
+    if (on !== this.liteMode) {
+      this.liteMode = on
+      if (this.lastDoc && this.lastCtx) this.rebuild(this.lastDoc, { ...this.lastCtx, lite: on })
+    }
     // лёгкий режим: меньше пикселей, без теней, свечения, тумана и затенения углов
     this.bundle.engine.setHardwareScalingLevel(on ? 1.5 : 1)
     this.bundle.shadow.useBlurExponentialShadowMap = !on
@@ -534,7 +544,7 @@ export class BuilderEngine {
       for (const f of b.floors) {
         this.buildFloorMeshes(doc, b, bRoot, f, ctx, active, { register: true, lightSpecs })
       }
-      this.buildApron(b, bRoot, scene)
+      if (!(ctx.lite ?? this.liteMode)) this.buildApron(b, bRoot, scene)
       const planeY = active ? active.elevation * S : 0
       for (const sec of b.sections ?? []) this.drawSectionLine(bRoot, sec, planeY, false)
     }
@@ -673,11 +683,13 @@ export class BuilderEngine {
     // Без них здание выглядит голой коробкой.
     const elevations = b.floors.map((fl) => fl.elevation)
     const plinthAt = Math.min(...elevations)
+    const lite = ctx.lite ?? this.liteMode
     const walls = buildWalls(f, fNode, scene, this.reg, {
-      plinth: f.elevation === plinthAt,
-      cornice: f.elevation === Math.max(...elevations),
+      plinth: !lite && f.elevation === plinthAt,
+      cornice: !lite && f.elevation === Math.max(...elevations),
+      lite,
     })
-    const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
+    const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes, lite)
     // Скан плана на полу — чуть выше пола, чтобы не мерцал с перекрытием.
     // Не пикается: клики сквозь него попадают в пол/стены.
     if (f.underlay) {
@@ -713,7 +725,7 @@ export class BuilderEngine {
     }
 
     for (const st of f.stairs) {
-      const node = buildStair(st, f.height, fNode, scene, this.reg)
+      const node = buildStair(st, f.height, fNode, scene, this.reg, lite)
       if (reg) {
         node.getChildMeshes().forEach((m) => {
           if (m instanceof Mesh) {
