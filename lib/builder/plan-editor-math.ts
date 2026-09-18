@@ -51,7 +51,12 @@ export interface Snap {
  * Точка стены/размера: узел в допуске → точка на стене → угол кратный 15° от
  * предыдущей точки с шагом длины → сетка. snap=false — только узлы и стены.
  */
-export function snapPoint(floor: Pick<Floor, "wallGraph">, raw: Vec2, prev: Vec2 | null, tolMm: number, snap: boolean): Snap {
+/**
+ * Привязка точки. `track` — точки текущей цепочки (начало ломаной и предыдущая
+ * точка): по ним «отслеживание» идёт в первую очередь, иначе прямоугольник
+ * закрывается трапецией — последняя точка цеплялась за случайный узел рядом.
+ */
+export function snapPoint(floor: Pick<Floor, "wallGraph">, raw: Vec2, prev: Vec2 | null, tolMm: number, snap: boolean, track: Vec2[] = []): Snap {
   const g = floor.wallGraph
   let bestNode: { p: Vec2; d: number } | null = null
   for (const id in g.nodes) {
@@ -70,17 +75,29 @@ export function snapPoint(floor: Pick<Floor, "wallGraph">, raw: Vec2, prev: Vec2
   }
   if (bestEdge) return { p: { x: Math.round(bestEdge.p.x), y: Math.round(bestEdge.p.y) }, kind: "edge" }
   // «по линии» (как отслеживание в AutoCAD): X или Y совпадает с узлом — стены встают в одну линию
-  let ax: { v: number; d: number; n: Vec2 } | null = null
-  let ay: { v: number; d: number; n: Vec2 } | null = null
-  const alignTargets: Vec2[] = [...Object.values(g.nodes), ...(prev ? [prev] : [])]
-  for (const n of alignTargets) {
-    const dx = Math.abs(n.x - raw.x), dy = Math.abs(n.y - raw.y)
-    if (dx <= tolMm && (!ax || dx < ax.d)) ax = { v: n.x, d: dx, n }
-    if (dy <= tolMm && (!ay || dy < ay.d)) ay = { v: n.y, d: dy, n }
+  type Align = { v: number; d: number; n: Vec2 } | null
+  const chain: Vec2[] = [...track, ...(prev ? [prev] : [])]
+  const best = (targets: Vec2[], axis: "x" | "y"): Align => {
+    let b: Align = null
+    for (const n of targets) {
+      const d = Math.abs(n[axis] - raw[axis])
+      if (d <= tolMm && (!b || d < b.d)) b = { v: n[axis], d, n }
+    }
+    return b
   }
+  // сначала своя цепочка; по осям, где она не подошла, — ближайший узел этажа
+  const nodes = Object.values(g.nodes)
+  const ax: Align = best(chain, "x") ?? best(nodes, "x")
+  const ay: Align = best(chain, "y") ?? best(nodes, "y")
   if (ax || ay) {
-    // координату узла берём как есть (у обведённых по скану узлов она дробная) — иначе стык «почти» в линию
-    const p = { x: ax ? ax.v : Math.round(raw.x), y: ay ? ay.v : Math.round(raw.y) }
+    // Координату узла берём как есть (у обведённых по скану она дробная) — иначе
+    // стык встанет «почти» в линию. Свободную координату при включённой привязке
+    // отмеряем от предыдущей точки шагом 50 мм: так стена от дробного угла выходит
+    // ровно 3,00 м, а не 2,982 м. Без предыдущей точки — обычная сетка 100 мм.
+    const grid = (v: number) => (snap ? Math.round(v / 100) * 100 : Math.round(v))
+    const rel = (v: number, from: number) => from + Math.round((v - from) / 50) * 50
+    const free = (v: number, from: number | undefined) => (snap && from !== undefined ? rel(v, from) : grid(v))
+    const p = { x: ax ? ax.v : free(raw.x, prev?.x), y: ay ? ay.v : free(raw.y, prev?.y) }
     const guides: Array<{ from: Vec2; to: Vec2 }> = []
     if (ax) guides.push({ from: { x: ax.n.x, y: ax.n.y }, to: p })
     if (ay) guides.push({ from: { x: ay.n.x, y: ay.n.y }, to: p })

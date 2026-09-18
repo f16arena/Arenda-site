@@ -95,3 +95,48 @@ describe("колонны в одну линию", () => {
     expect(columnRow(floor, "a", "y")).toEqual([])
   })
 })
+
+describe("привязка «в линию» и сетка", () => {
+  const floor = {
+    wallGraph: {
+      nodes: { n1: { id: "n1", x: 1000, y: 2000 }, n2: { id: "n2", x: 1000, y: 9000 } },
+      edges: { w1: { id: "w1", a: "n1", b: "n2", thickness: 200, height: 3000, kind: "interior" as const } },
+    },
+  }
+
+  it("свободная координата ложится на сетку 100 мм", () => {
+    // X подхватывается «в линию» к узлам (1000), Y должен округлиться до сотен
+    const s = snapPoint(floor, { x: 1180, y: 14063 }, null, 300, true)
+    expect(s.kind).toBe("align")
+    expect(s.p.x).toBe(1000)
+    expect(s.p.y).toBe(14100)
+  })
+
+  it("без привязки координата остаётся точной", () => {
+    const s = snapPoint(floor, { x: 1180, y: 14063 }, null, 300, false)
+    expect(s.p.y).toBe(14063)
+  })
+
+  it("от дробного угла стена выходит round: длина отмеряется от предыдущей точки", () => {
+    const scanned = {
+      wallGraph: { nodes: { a: { id: "a", x: 24500, y: -9682.4583 } }, edges: {} },
+    }
+    const prev = { x: 24500, y: -9682.4583 }
+    // клик на 3 м выше по экрану: Y свободен, X подхватывается «в линию»
+    const s = snapPoint(scanned, { x: 24492, y: -6682 }, prev, 300, true)
+    expect(s.p.x).toBe(24500)
+    expect(Math.abs(s.p.y - prev.y)).toBeCloseTo(3000, 6)
+  })
+
+  it("дробная координата узла сохраняется — стык встаёт ровно в линию", () => {
+    const scanned = {
+      wallGraph: {
+        nodes: { a: { id: "a", x: -5163.9778, y: 0 } },
+        edges: {},
+      },
+    }
+    const s = snapPoint(scanned, { x: -5100, y: 4020 }, null, 300, true)
+    expect(s.p.x).toBeCloseTo(-5163.9778, 3)
+    expect(s.p.y).toBe(4000)
+  })
+})

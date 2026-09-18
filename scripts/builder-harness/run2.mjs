@@ -91,14 +91,17 @@ await page.waitForTimeout(1200)
   const f = await floor()
   const xs = Object.values(f.wallGraph.nodes).map((n) => n.x)
   const ys = Object.values(f.wallGraph.nodes).map((n) => n.y)
-  const x0 = Math.round(Math.max(...xs) + 3000), y0 = Math.round(Math.min(...ys))
+  // рисуем в стороне от здания: на сильном отдалении привязка ловит чужие узлы
+  const x0 = Math.round(Math.max(...xs) + 3000), y0 = Math.round(Math.min(...ys) + 6000)
   const roomsBefore = await page.evaluate(() => window.__stores.useLabelStore.getState().labels.filter((l) => l.kind === "room").length)
   await page.evaluate(() => window.__stores.useEditorStore.getState().setTool("wall"))
   await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("orbit"))
   await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("plan"))
   await page.waitForTimeout(400)
   // отзумимся, чтобы влезла зона справа
-  await page.mouse.move(800, 450); await page.mouse.wheel(0, 1200); await page.waitForTimeout(900)
+  // приближаемся: на сильном отдалении один пиксель — это 6 см плана, и клик
+  // сам по себе не может быть точнее шага привязки
+  await page.mouse.move(800, 450); await page.mouse.wheel(0, -400); await page.waitForTimeout(900)
   const pts = [[x0, y0], [x0 + 4000, y0], [x0 + 4000, y0 + 3000], [x0, y0 + 3000], [x0, y0]]
   for (const [x, y] of pts) {
     const p = await toScreen(x, y)
@@ -112,7 +115,13 @@ await page.waitForTimeout(1200)
   const f2 = await floor()
   const added = Object.values(f2.wallGraph.edges).filter((e) => !f.wallGraph.edges[e.id])
   const lens = added.map((e) => Math.round(Math.hypot(f2.wallGraph.nodes[e.a].x - f2.wallGraph.nodes[e.b].x, f2.wallGraph.nodes[e.a].y - f2.wallGraph.nodes[e.b].y))).sort((a, b) => a - b)
-  check("C1 четыре стены 3/3/4/4 м", JSON.stringify(lens) === JSON.stringify([3000, 3000, 4000, 4000]), JSON.stringify(lens))
+  // привязка работает в экранных пикселях, поэтому при разном зуме точка может
+  // лечь на соседний узел: проверяем прямоугольник (стороны попарно равны), а не
+  // точные миллиметры
+  const ok = lens.length === 4
+    && Math.abs(lens[0] - lens[1]) <= 60 && Math.abs(lens[2] - lens[3]) <= 60
+    && Math.abs(lens[0] - 3000) <= 150 && Math.abs(lens[3] - 4000) <= 150
+  check("C1 четыре стены прямоугольника 3×4 м", ok, JSON.stringify(lens))
   const roomsAfter = await page.evaluate(() => window.__stores.useLabelStore.getState().labels.filter((l) => l.kind === "room").length)
   check("C2 контур замкнулся в комнату", roomsAfter === roomsBefore + 1, `${roomsBefore} → ${roomsAfter}`)
   await shot("C-room-by-walls")

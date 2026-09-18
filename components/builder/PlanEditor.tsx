@@ -115,6 +115,8 @@ export function PlanEditor() {
   const [preview, setPreview] = useState<Floor | null>(null)
   const [cursor, setCursor] = useState<{ screen: Vec2; plan: Vec2; snap: Snap | null } | null>(null)
   const [chain, setChain] = useState<Vec2 | null>(null) // начало следующей стены
+  // первая точка ломаной: по ней идёт отслеживание, чтобы контур замкнулся ровно
+  const [chainStart, setChainStart] = useState<Vec2 | null>(null)
   const [dimPts, setDimPts] = useState<Vec2[]>([])
   const [lengthInput, setLengthInput] = useState("")
   const drag = useRef<Drag | null>(null)
@@ -182,6 +184,7 @@ export function PlanEditor() {
   if (inputScope !== `${tool}|${activeLevelId}`) {
     setInputScope(`${tool}|${activeLevelId}`)
     setChain(null)
+    setChainStart(null)
     setDimPts([])
     setLengthInput("")
     setRoomRect(null)
@@ -381,7 +384,7 @@ export function PlanEditor() {
     const drawing = tool === "wall" || tool === "annotate" || tool === "room" || tool === "measure"
     const prev = tool === "wall" ? chain : tool === "annotate" && dimPts.length === 1 ? dimPts[0] : tool === "measure" ? pts2[0] ?? null : null
     const columnTool = tool === "stair" && stairShape === "column"
-    const snap = drawing ? snapPoint(floor, at.p, prev, tolMm, snapEnabled && !e.altKey) : columnTool && !e.altKey ? snapColumn(floor, at.p, tolMm, undefined, snapEnabled ? 50 : 0) : null
+    const snap = drawing ? snapPoint(floor, at.p, prev, tolMm, snapEnabled && !e.altKey, chainStart ? [chainStart] : []) : columnTool && !e.altKey ? snapColumn(floor, at.p, tolMm, undefined, snapEnabled ? 50 : 0) : null
     setCursor({ screen: at.s, plan: at.p, snap })
     if (!d && (tool === "select" || tool === "delete" || tool === "door" || tool === "window")) {
       const h = hitTest(floor, at.p, tolMm, gripNodes)
@@ -486,6 +489,7 @@ export function PlanEditor() {
       if (!d.moved && e.button === 2) {
         // правый клик без протяжки — закончить цепочку стен, размер, трассу
         setChain(null)
+        setChainStart(null)
         setDimPts([])
         if (tool === "mep-run") finishRun()
         else setPts2([])
@@ -534,7 +538,7 @@ export function PlanEditor() {
     }
     // клик
     if (d.kind === "click" && d.moved) return
-    const snap = snapPoint(floor, at.p, tool === "wall" ? chain : dimPts[0] ?? null, tolMm, snapEnabled && !e.altKey).p
+    const snap = snapPoint(floor, at.p, tool === "wall" ? chain : dimPts[0] ?? null, tolMm, snapEnabled && !e.altKey, tool === "wall" && chainStart ? [chainStart] : []).p
     switch (tool) {
       case "select":
         selectHit(d.kind === "click" ? d.hit : null)
@@ -543,8 +547,8 @@ export function PlanEditor() {
         deleteHit(d.kind === "click" ? d.hit : null)
         break
       case "wall":
-        if (!chain) setChain(snap)
-        else if (e.detail >= 2) setChain(null)
+        if (!chain) { setChain(snap); setChainStart(snap) }
+        else if (e.detail >= 2) { setChain(null); setChainStart(null) }
         else commitWall(snap)
         break
       case "door":
@@ -638,7 +642,7 @@ export function PlanEditor() {
       const target = ev.target as HTMLElement | null
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")) return
       if (ev.key === "Escape") {
-        setChain(null); setDimPts([]); setLengthInput(""); setRoomRect(null); setPreview(null); setPts2([]); setMeasured(null); setBoxRect(null); drag.current = null
+        setChain(null); setChainStart(null); setDimPts([]); setLengthInput(""); setRoomRect(null); setPreview(null); setPts2([]); setMeasured(null); setBoxRect(null); drag.current = null
         return
       }
       if (ev.key === "Enter" && tool === "mep-run" && pts2.length >= 2) { ev.preventDefault(); finishRun(); return }
