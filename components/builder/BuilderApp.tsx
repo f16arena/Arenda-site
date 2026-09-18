@@ -237,6 +237,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const walking = cameraMode === "walk"
   const showTenants = useLabelStore((s) => s.showTenants)
   const showFurniture = useLabelStore((s) => s.showFurniture)
+  const hourOfDay = useLabelStore((s) => s.hourOfDay)
   // 3D-движок грузится только когда нужен: в «Плане» слабый компьютер не тратит
   // на Babylon ни памяти, ни времени загрузки
   const [need3D, setNeed3D] = useState(cameraMode !== "plan2d")
@@ -424,6 +425,11 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   useEffect(() => {
     engineRef.current?.setShowFurniture(showFurniture)
   }, [showFurniture, ready])
+
+  // время суток: солнце, тени и цвет неба — без пересборки сцены
+  useEffect(() => {
+    engineRef.current?.setTimeOfDay(hourOfDay)
+  }, [hourOfDay, ready])
 
   // Помещения этого здания: статусы для окраски полов и карточки для панели.
   useEffect(() => {

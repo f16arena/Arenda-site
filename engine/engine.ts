@@ -8,6 +8,7 @@ import { arcSegmentIds } from "@/lib/builder/arc"
 import {
   Camera,
   Color3,
+  Color4,
   Matrix,
   Mesh,
   MeshBuilder,
@@ -80,13 +81,14 @@ import earcut from "earcut"
 import { buildingOutline } from "@/lib/builder/drawing/indicators"
 import { objectCorners } from "@/lib/builder/plan-editor-math"
 import { insideBuilding, snapColumn } from "@/lib/builder/plan-editor-math"
-import { createScene, type SceneBundle } from "./create-scene"
+import { createScene, paintSky, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
 import { buildWalls } from "./builders/wall-builder"
 import { buildFloors, type StatusResolver } from "./builders/floor-builder"
 import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
 import { buildFurnish } from "./builders/furnish-builder"
+import { clampHour, daylight } from "@/lib/builder/daylight"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import { buildWater } from "./builders/water-builder"
 import { buildPath } from "./builders/path-builder"
@@ -259,6 +261,45 @@ export class BuilderEngine {
   }
 
   private showFurniture = true
+
+  /** час суток для солнца, 5–21 */
+  private hourOfDay = 13
+
+  /**
+   * Время суток: солнце, цвет света, небо и дымка. По направлению теней видно,
+   * как объект стоит по сторонам света — какие окна утром на солнце.
+   */
+  setTimeOfDay(hour: number): void {
+    const h = clampHour(hour)
+    if (Math.abs(h - this.hourOfDay) < 0.01) return
+    this.hourOfDay = h
+    this.applyDaylight()
+  }
+
+  getTimeOfDay(): number {
+    return this.hourOfDay
+  }
+
+  private applyDaylight(): void {
+    const d = daylight(this.hourOfDay)
+    const { sun, fill, hemi, scene, shadow, sky } = this.bundle
+    sun.direction = new Vector3(d.dir.x, d.dir.y, d.dir.z)
+    sun.position = new Vector3(-d.dir.x * 80, Math.max(12, -d.dir.y * 90), -d.dir.z * 80)
+    sun.intensity = d.sun
+    sun.diffuse = Color3.FromHexString(d.sunColor)
+    hemi.intensity = d.hemi
+    hemi.diffuse = Color3.FromHexString(d.skyColor)
+    fill.intensity = d.daytime ? 0.22 : 0.3
+    fill.diffuse = Color3.FromHexString(d.skyColor)
+    scene.fogColor = Color3.FromHexString(d.fog)
+    scene.imageProcessingConfiguration.exposure = d.exposure
+    const c = Color3.FromHexString(d.sky[2])
+    scene.clearColor = new Color4(c.r, c.g, c.b, 1)
+    paintSky(sky, d.sky)
+    // тени перерисовываются один раз после правки — просим их обновиться
+    shadow.getShadowMap()?.resetRefreshCounter()
+    this.invalidate(900)
+  }
 
   /** Пауза рендера — когда 3D скрыт (открыт редактор плана). */
   setPaused(p: boolean): void {

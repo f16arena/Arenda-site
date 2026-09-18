@@ -5,6 +5,7 @@
 // которые каждый кадр отдаёт движок (store/label-store).
 
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
+import { hourLabel } from "@/lib/builder/daylight"
 import { useLabelStore } from "@/store/label-store"
 import { usePremiseStore } from "@/store/premise-store"
 import { findFloor } from "@/core/document/commands"
@@ -17,6 +18,8 @@ export function LabelLayer() {
   const toggleDimensions = useLabelStore((s) => s.toggleDimensions)
   const showTenants = useLabelStore((s) => s.showTenants)
   const showFurniture = useLabelStore((s) => s.showFurniture)
+  const hourOfDay = useLabelStore((s) => s.hourOfDay)
+  const setHourOfDay = useLabelStore((s) => s.setHourOfDay)
   const toggleFurniture = useLabelStore((s) => s.toggleFurniture)
   const toggleTenants = useLabelStore((s) => s.toggleTenants)
   const doc = useDocumentStore((s) => s.doc)
@@ -91,6 +94,25 @@ export function LabelLayer() {
       >
         Мебель
       </button>
+      <div
+        className="absolute right-3 top-[22.5rem] z-30 flex flex-col gap-1 rounded-lg px-2 py-1.5 shadow"
+        style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
+        title="Время суток: солнце, тени и цвет неба. Видно, какие окна утром на солнце, а какие весь день в тени"
+      >
+        <span className="text-[10px] font-semibold tabular-nums" style={{ color: TOKENS.text }}>
+          Солнце · {hourLabel(hourOfDay)}
+        </span>
+        <input
+          type="range"
+          min={5}
+          max={21}
+          step={0.5}
+          value={hourOfDay}
+          onChange={(e) => setHourOfDay(Number(e.target.value))}
+          className="h-1 w-24 cursor-pointer accent-sky-400"
+          aria-label="Время суток"
+        />
+      </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 select-none">
         {placeable.map((label) => {

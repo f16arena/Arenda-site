@@ -18,11 +18,14 @@ interface LabelState {
   showTenants: boolean
   /** автомебель и светильники в 3D (в документ не пишутся) */
   showFurniture: boolean
+  /** час суток для солнца в 3D, 5–21 */
+  hourOfDay: number
   cursorMm: { x: number; y: number } | null
   setLabels: (labels: ScreenLabel[]) => void
   toggleDimensions: () => void
   toggleTenants: () => void
   toggleFurniture: () => void
+  setHourOfDay: (h: number) => void
   setCursor: (mm: { x: number; y: number } | null) => void
 }
 
@@ -33,10 +36,12 @@ export const useLabelStore = create<LabelState>((set) => ({
   showDimensions: false,
   showTenants: true,
   showFurniture: true,
+  hourOfDay: 13,
   cursorMm: null,
   setLabels: (labels) => set({ labels }),
   toggleDimensions: () => set((s) => ({ showDimensions: !s.showDimensions })),
   toggleTenants: () => set((s) => ({ showTenants: !s.showTenants })),
   toggleFurniture: () => set((s) => ({ showFurniture: !s.showFurniture })),
+  setHourOfDay: (h) => set({ hourOfDay: h }),
   setCursor: (cursorMm) => set({ cursorMm }),
 }))

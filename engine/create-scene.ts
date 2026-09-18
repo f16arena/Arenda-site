@@ -30,6 +30,11 @@ export interface SceneBundle {
   scene: Scene
   camera: ArcRotateCamera
   sun: DirectionalLight
+  /** «отражённый» свет с теневой стороны */
+  fill: DirectionalLight
+  hemi: HemisphericLight
+  /** градиент неба — перекрашивается при смене времени суток */
+  sky: DynamicTexture
   shadow: ShadowGenerator
   glow: GlowLayer
   highlight: HighlightLayer
@@ -80,18 +85,24 @@ function buildEnvironment(scene: Scene): void {
   scene.environmentIntensity = 0.45
 }
 
-function buildSkyGradient(scene: Scene): void {
+function buildSkyGradient(scene: Scene): DynamicTexture {
   const tex = new DynamicTexture("sky", { width: 8, height: 512 }, scene, false)
+  paintSky(tex, ["#6fa8e6", "#aed1f2", "#e9f2fb"])
+  const layer = new Layer("skyLayer", null, scene, true)
+  layer.texture = tex
+  return tex
+}
+
+/** Перекрасить небо: зенит, середина, горизонт. */
+export function paintSky(tex: DynamicTexture, colors: [string, string, string]): void {
   const ctx = tex.getContext()
   const grad = ctx.createLinearGradient(0, 0, 0, 512)
-  grad.addColorStop(0, "#6fa8e6")
-  grad.addColorStop(0.55, "#aed1f2")
-  grad.addColorStop(1, "#e9f2fb")
+  grad.addColorStop(0, colors[0])
+  grad.addColorStop(0.55, colors[1])
+  grad.addColorStop(1, colors[2])
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, 8, 512)
   tex.update()
-  const layer = new Layer("skyLayer", null, scene, true)
-  layer.texture = tex
 }
 
 function buildGlowingGrid(scene: Scene, size: number): Mesh {
@@ -149,7 +160,7 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   ip.exposure = 1.05
 
   buildEnvironment(scene)
-  buildSkyGradient(scene)
+  const sky = buildSkyGradient(scene)
 
   const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene)
   hemi.intensity = 0.42
@@ -219,5 +230,5 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   }
   const highlight = new HighlightLayer("hl", scene)
 
-  return { engine, scene, camera, sun, shadow, glow, highlight, ground }
+  return { engine, scene, camera, sun, fill, hemi, sky, shadow, glow, highlight, ground }
 }
