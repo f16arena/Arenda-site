@@ -29,3 +29,5 @@ export async function listBuilderShareViews() { return [] as Array<{ token: stri
 export async function revokeBuilderShare() { return { revoked: 0 } }
 export async function submitBuilderLead() { return { ok: true } }
 export async function generateBuildingAI() { return null }
+export async function listBuilderSnapshots() { return [] as Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number }> }
+export async function restoreBuilderSnapshot() { return { revision: 0 } }

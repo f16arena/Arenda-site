@@ -5,9 +5,9 @@
 // Док берётся/кладётся через documentStore; статус — syncStore.
 
 import { useEffect, useState } from "react"
-import { Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
+import { History, Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
-import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, listBuilderShareViews, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
+import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, listBuilderShareViews, listBuilderSnapshots, restoreBuilderSnapshot, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
 import { viewsSummary } from "@/lib/builder/share-log"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
@@ -127,6 +127,10 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
   const [viewsOpen, setViewsOpen] = useState(false)
   const [views, setViews] = useState<Array<{ token: string; openedAt: string; visitor: string | null; userAgent: string | null }>>([])
   const [sharesOpen, setSharesOpen] = useState(false)
+  // история модели: снимки на сервере, из которых можно восстановиться
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [snapshots, setSnapshots] = useState<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number }>>([])
+  const [restoring, setRestoring] = useState<string | null>(null)
   const shareUrl = (token: string) => `https://commrent.kz/showcase/${token}`
   const refreshShares = async (id: string) => {
     try { setShares(await listBuilderShares(id)) } catch { setShares([]) }
@@ -217,6 +221,18 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
         <button type="button" onClick={() => void openShares()} title="Публичные ссылки-витрины: создать, скопировать, отозвать" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: sharesOpen ? TOKENS.accent : "rgba(148,163,184,0.12)", color: sharesOpen ? "#0b1220" : TOKENS.text }}>
           <Share2 className="h-3.5 w-3.5" />
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setHistoryOpen((v) => !v)
+            if (!historyOpen && projectId) void listBuilderSnapshots(projectId).then(setSnapshots).catch(() => setSnapshots([]))
+          }}
+          title="История модели: снимки на сервере, можно вернуться к сохранённому состоянию"
+          className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium"
+          style={{ background: historyOpen ? TOKENS.accent : "rgba(148,163,184,0.12)", color: historyOpen ? "#0b1220" : TOKENS.text }}
+        >
+          <History className="h-3.5 w-3.5" />
+        </button>
         {onScreenshot && (
           <button type="button" onClick={onScreenshot} title="Скачать снимок сцены (PNG)" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
             <Camera className="h-3.5 w-3.5" />
@@ -226,6 +242,42 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+      {historyOpen && (
+        <div className="flex flex-col gap-1 rounded-lg p-2 text-[11px]" style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.text }}>
+          <span className="font-semibold">История модели</span>
+          {snapshots.length === 0 && <span style={{ color: TOKENS.muted }}>Снимков пока нет — первый появится при следующем сохранении.</span>}
+          {snapshots.map((sn) => (
+            <div key={sn.id} className="flex items-center gap-1.5">
+              <span className="tabular-nums">{new Date(sn.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="flex-1" style={{ color: TOKENS.muted }}>рев. {sn.revision} · {sn.floors} эт · {sn.rooms} стен</span>
+              {restoring === sn.id ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!projectId) return
+                    setRestoring(null)
+                    void restoreBuilderSnapshot(projectId, sn.id).then(() => window.location.reload())
+                  }}
+                  className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
+                  style={{ background: TOKENS.danger, color: "#0b1220" }}
+                >
+                  Точно вернуть
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRestoring(sn.id)}
+                  title="Вернуть модель к этому состоянию. Текущее тоже попадёт в снимки — можно будет отменить"
+                  className="rounded-md px-1.5 py-0.5 text-[10px]"
+                  style={{ background: "rgba(148,163,184,0.16)" }}
+                >
+                  Вернуть
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {sharesOpen && (
         <div className="flex flex-col gap-1.5 rounded-lg p-2 text-[11px]" style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.text }}>
           <div className="flex items-center justify-between">

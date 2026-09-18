@@ -1683,6 +1683,20 @@ model BuilderProject {
   @@map("builder_projects")
 }
 
+/// Автоснимок модели: страховка на случай «сломал и сохранил». Клиентская
+/// отмена живёт до перезагрузки, а снимки — на сервере; храним последние 20.
+model BuilderSnapshot {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  revision  Int
+  doc       Json
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt(sort: Desc)])
+  @@map("builder_snapshots")
+}
+
 // Черновик объявления для внешней площадки (krisha и т.п.). Полуавтомат: генерим
 // текст/цену/фото из помещения, пользователь публикует на площадке. Связи — слабые
 // (как BuilderProject), без FK: organization_id/space_id/building_id — обычные колонки.

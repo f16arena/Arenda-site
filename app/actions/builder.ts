@@ -70,6 +70,13 @@ export async function saveBuilderProject(
     },
   })
   if (res.count === 0) return { revision, conflict: true }
+  // Снимок модели — страховка на случай «сломал и сохранил». Не чаще раза в
+  // 10 минут, иначе при автосохранении таблица росла бы каждые несколько секунд.
+  try {
+    await takeSnapshot(id, revision + 1, validated)
+  } catch (cause) {
+    console.error("[builder] не удалось сохранить снимок модели", cause)
+  }
   // Одна геометрия: план этажа на карте выводится из модели. Ошибка
   // вывода не должна ломать сохранение модели — она отдельная и логируется.
   try {
@@ -78,6 +85,77 @@ export async function saveBuilderProject(
     console.error("[builder] не удалось вывести планы этажей из модели", cause)
   }
   return { revision: revision + 1 }
+}
+
+/** Как часто делаем снимок и сколько храним. */
+const SNAPSHOT_EVERY_MS = 10 * 60 * 1000
+const SNAPSHOT_KEEP = 20
+
+async function takeSnapshot(projectId: string, revision: number, doc: BuilderDocument): Promise<void> {
+  const last = await db.builderSnapshot.findFirst({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  })
+  if (last && Date.now() - last.createdAt.getTime() < SNAPSHOT_EVERY_MS) return
+  await db.builderSnapshot.create({ data: { projectId, revision, doc } })
+  // оставляем последние SNAPSHOT_KEEP: без чистки таблица растёт бесконечно
+  const old = await db.builderSnapshot.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    skip: SNAPSHOT_KEEP,
+    select: { id: true },
+  })
+  if (old.length) await db.builderSnapshot.deleteMany({ where: { id: { in: old.map((o) => o.id) } } })
+}
+
+/** Снимки проекта: время, ревизия и краткая сводка модели. */
+export async function listBuilderSnapshots(
+  projectId: string,
+): Promise<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number }>> {
+  const orgId = await requireBuilderAccess()
+  await assertProjectAccess(projectId, orgId)
+  const rows = await db.builderSnapshot.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    take: SNAPSHOT_KEEP,
+    select: { id: true, revision: true, createdAt: true, doc: true },
+  })
+  return rows.map((r) => {
+    const doc = r.doc as unknown as BuilderDocument
+    const floors = doc.buildings?.reduce((s, b) => s + (b.floors?.length ?? 0), 0) ?? 0
+    const rooms = doc.buildings?.reduce(
+      (s, b) => s + (b.floors ?? []).reduce((k, f) => k + Object.keys(f.wallGraph?.edges ?? {}).length, 0),
+      0,
+    ) ?? 0
+    return { id: r.id, revision: r.revision, createdAt: r.createdAt.toISOString(), floors, rooms }
+  })
+}
+
+/**
+ * Восстановить модель из снимка. Текущее состояние перед заменой само попадает
+ * в снимки — вернуться обратно всегда можно.
+ */
+export async function restoreBuilderSnapshot(projectId: string, snapshotId: string): Promise<{ revision: number }> {
+  const orgId = await requireBuilderAccess()
+  await assertProjectAccess(projectId, orgId)
+  const snap = await db.builderSnapshot.findFirst({ where: { id: snapshotId, projectId }, select: { doc: true } })
+  if (!snap) throw new Error("Снимок не найден")
+  const current = await db.builderProject.findFirst({ where: { id: projectId }, select: { revision: true, doc: true } })
+  if (!current) throw new Error("Проект не найден")
+  const validated = parseDocument(snap.doc)
+  // перед откатом кладём текущую модель в снимки — «отменить отмену»
+  await db.builderSnapshot.create({ data: { projectId, revision: current.revision, doc: current.doc as never, note: "перед восстановлением" } })
+  await db.builderProject.update({
+    where: { id: projectId },
+    data: { doc: validated, revision: current.revision + 1, schemaVersion: validated.schemaVersion },
+  })
+  try {
+    await syncLayoutsFromDocument(projectId, validated)
+  } catch (cause) {
+    console.error("[builder] не удалось вывести планы этажей после восстановления", cause)
+  }
+  return { revision: current.revision + 1 }
 }
 
 /**
