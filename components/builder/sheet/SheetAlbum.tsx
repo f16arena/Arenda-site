@@ -12,6 +12,7 @@ import type { Building, BuilderDocument, Floor } from "@/types/builder"
 import { buildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildEvacuation } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes } from "@/lib/builder/drawing/finish"
+import { lintelSchedule } from "@/lib/builder/drawing/lintels"
 import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSitePlan } from "@/lib/builder/drawing/site-plan"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
@@ -71,10 +72,10 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       const extras = planExtras(building.floors, f, num)
       const numbers = new Map(extras.rooms.map((r) => [r.roomId, r.number]))
       const drawing = buildFloorDrawing(f, num, "plan", extras.options)
-      const title = `${floorTitle(f)}. Ведомость отделки помещений`
+      const title = `${floorTitle(f)}. Ведомости: отделка, полы, перемычки`
       out.push({
         key: `${f.id}-finish`, title, sheet: A3L,
-        props: { drawing, sheet: A3L, title, section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", finish: { rows: finishSchedule(f, numbers), types: floorTypes(f, numbers) } },
+        props: { drawing, sheet: A3L, title, section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", finish: { rows: finishSchedule(f, numbers), types: floorTypes(f, numbers), lintels: lintelSchedule([f]) } },
       })
     }
     for (const f of floors) {

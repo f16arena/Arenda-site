@@ -44,6 +44,7 @@ import { floorAtStage, hasReplan, replanSummary, type ReplanSummary } from "@/li
 import { buildingIndicators, type BuildingIndicators } from "@/lib/builder/drawing/indicators"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
+import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
 import { buildRoofPlan, type RoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSitePlan, type SitePlan } from "@/lib/builder/drawing/site-plan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
@@ -142,7 +143,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     const numbers = new Map((extras?.rooms ?? []).map((r) => [r.roomId, r.number]))
     // тот же набор помещений, что в экспликации (стадия «до перепланировки»)
     const staged = floorAtStage(floor, "before")
-    return { rows: finishSchedule(staged, numbers), types: floorTypes(staged, numbers) }
+    return { rows: finishSchedule(staged, numbers), types: floorTypes(staged, numbers), lintels: lintelSchedule([staged]) }
   }, [floor, view, extras])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
   const mep = useMemo(() => {
@@ -172,7 +173,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомость отделки помещений` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = elevation ? elevation.title : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   // лист-таблица не зависит от размеров плана: всегда A3 альбомный
   const TABLE_SHEET: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
   const activeSheet = view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
@@ -223,7 +224,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           <option value="evac">План эвакуации</option>
           <option value="roof">План кровли</option>
           {site && <option value="site">Генеральный план</option>}
-          <option value="finish">Ведомость отделки и полы</option>
+          <option value="finish">Ведомости: отделка, полы, перемычки</option>
           {replan && (
             <optgroup label="Перепланировка этажа">
               <option value="replan:demolish">План демонтажа</option>
@@ -355,8 +356,8 @@ export function SheetSvg({
   sitePlan?: SitePlan | null
   /** план кровли: контур, парапет, уклоны и воронки */
   roofPlan?: RoofPlan | null
-  /** лист-таблица: ведомость отделки помещений и экспликация полов */
-  finish?: { rows: FinishRow[]; types: FloorTypeRow[] } | null
+  /** лист-таблица: отделка, полы и перемычки */
+  finish?: { rows: FinishRow[]; types: FloorTypeRow[]; lintels?: LintelRow[] } | null
   /** план эвакуации: пути, выходы и легенда поверх плана */
   evac?: EvacuationPlan | null
   /** экспликация и ведомость проёмов справа от плана */
@@ -423,7 +424,7 @@ export function SheetSvg({
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
 
-      {finish ? <FinishBody rows={finish.rows} types={finish.types} w={w} h={h} /> : cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
+      {finish ? <FinishBody rows={finish.rows} types={finish.types} lintels={finish.lintels ?? []} w={w} h={h} /> : cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
       {/* оси */}
       {d.axes.map((ax, i) => {
         if (ax.dir === "v") {
@@ -695,7 +696,7 @@ export function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : sitePlan ? "Генеральный план" : roofPlan ? "Кровля" : finish ? "Отделка и полы" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : sitePlan ? "Генеральный план" : roofPlan ? "Кровля" : finish ? "Ведомости" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
@@ -1012,7 +1013,7 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
 }
 
 /** Лист-таблица: ведомость отделки помещений и экспликация полов (ГОСТ 21.501). */
-function FinishBody({ rows, types, w, h }: { rows: FinishRow[]; types: FloorTypeRow[]; w: number; h: number }) {
+function FinishBody({ rows, types, lintels, w, h }: { rows: FinishRow[]; types: FloorTypeRow[]; lintels: LintelRow[]; w: number; h: number }) {
   const out: React.ReactNode[] = []
   const x = 28
   const tw = w - 60
@@ -1061,7 +1062,7 @@ function FinishBody({ rows, types, w, h }: { rows: FinishRow[]; types: FloorType
     y, half,
   )
   const rest2 = tw - (16 + 24)
-  table(
+  const y2 = table(
     "ft", "Экспликация полов",
     [
       { w: 16, label: "Тип", align: "middle" },
@@ -1073,6 +1074,22 @@ function FinishBody({ rows, types, w, h }: { rows: FinishRow[]; types: FloorType
     types.map((t) => [String(t.type), t.covering, t.layers, t.rooms || "—", fmt(t.areaM2)]),
     y, half,
   )
+  if (lintels.length) {
+    const rest3 = tw - (30 + 24 + 24 + 28)
+    table(
+      "lt", "Ведомость перемычек",
+      [
+        { w: 30, label: "Марка", align: "middle" },
+        { w: rest3 * 0.35, label: "Тип и сечение" },
+        { w: rest3 * 0.6, label: "Длина, мм" },
+        { w: 24, label: "На проём", align: "end" },
+        { w: 24, label: "Проёмов", align: "end" },
+        { w: 28, label: "Всего, шт", align: "end" },
+      ],
+      lintels.map((l) => [l.mark, `Перемычка брусковая ${l.section}`, String(l.length), String(l.perOpening), String(l.openings), String(l.count)]),
+      y2, Math.max(4, half - 2),
+    )
+  }
   return <g>{out}</g>
 }
 
