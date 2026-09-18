@@ -717,7 +717,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           <div className="absolute bottom-3 right-3 z-30 w-72">
             <ShowcaseLead
               token={shareToken}
-              premiseNumber={fl?.premiseLinks?.[isl.id] ?? islandLabel(isl)}
+              // в заявку уходит наименование места, а не id карточки: владелец
+              // читает «Автомат с игрушками», а не cuid
+              premiseNumber={islandLabel(isl)}
               areaM2={islandArea(isl)}
               onClose={() => useEditorStore.getState().setSelection({ type: "none" })}
             />
