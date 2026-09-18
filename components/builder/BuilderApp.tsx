@@ -39,6 +39,7 @@ import { ViewCube } from "./ViewCube"
 import { MiniMap } from "./MiniMap"
 import { PerfHud } from "./PerfHud"
 import { ShowcaseLead } from "./ShowcaseLead"
+import { islandArea, islandLabel } from "@/lib/builder/islands"
 import { StatusBar } from "./StatusBar"
 import { WalkRoomBadge } from "./WalkRoomBadge"
 
@@ -705,6 +706,24 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {!readOnly && !walking && (mode === "mep" ? <MepPanel buildingId={buildingId} /> : <AssetCatalog key={mode} />)}
       {!readOnly && !walking && <MiniMap />}
       {!readOnly && ready && showPerf && <PerfHud getFps={() => engineRef.current?.getFps() ?? 0} />}
+      {/* витрина: по клику на арендное место (вендинг, киоск, реклама) открывается
+          та же форма заявки, что и по помещению — иначе место видно, а взять
+          его нельзя */}
+      {readOnly && selection.type === "island" && selection.floorId && (() => {
+        const fl = doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)
+        const isl = (fl?.islands ?? []).find((x) => x.id === selection.id)
+        if (!isl) return null
+        return (
+          <div className="absolute bottom-3 right-3 z-30 w-72">
+            <ShowcaseLead
+              token={shareToken}
+              premiseNumber={fl?.premiseLinks?.[isl.id] ?? islandLabel(isl)}
+              areaM2={islandArea(isl)}
+              onClose={() => useEditorStore.getState().setSelection({ type: "none" })}
+            />
+          </div>
+        )
+      })()}
       {readOnly && selection.type === "room" && selection.floorId && (
         <div className="absolute bottom-3 right-3 z-30 w-72">
           <ShowcaseLead token={shareToken} premiseNumber={doc.buildings.flatMap((b) => b.floors).find((f) => f.id === selection.floorId)?.premiseLinks[selection.id ?? ""]} onClose={() => useEditorStore.getState().setSelection({ type: "none" })} />
