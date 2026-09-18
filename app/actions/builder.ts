@@ -11,7 +11,7 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { uid } from "@/core/id"
 import { parseDocument, type BuilderDocument } from "@/types/builder"
-import { assertBuildingAccess } from "@/lib/building-access"
+import { assertBuildingAccess, getAccessibleBuildingsForUser } from "@/lib/building-access"
 import { floorToLayout } from "@/lib/builder/to-layout"
 import { revalidateTag } from "next/cache"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
@@ -24,6 +24,19 @@ async function assertProjectAccess(id: string, orgId: string): Promise<void> {
   })
   if (!project) throw new Error("Модель не найдена")
   if (project.buildingId) await assertBuildingAccess(project.buildingId, orgId)
+}
+
+/** Здания, открытые текущему пользователю: список моделей фильтруем по ним. */
+async function accessibleBuildingIds(orgId: string): Promise<string[]> {
+  const session = await auth()
+  if (!session?.user) throw new Error("Не авторизован")
+  const list = await getAccessibleBuildingsForUser({
+    userId: session.user.id,
+    orgId,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+  })
+  return list.map((b) => b.id)
 }
 
 async function requireBuilderAccess(): Promise<string> {
@@ -249,7 +262,7 @@ export async function loadBuilderProject(id: string): Promise<{ id: string; name
 export async function listBuilderProjects(): Promise<Array<{ id: string; name: string; updatedAt: string }>> {
   const orgId = await requireBuilderAccess()
   const rows = await db.builderProject.findMany({
-    where: { organizationId: orgId },
+    where: { organizationId: orgId, OR: [{ buildingId: null }, { buildingId: { in: await accessibleBuildingIds(orgId) } }] },
     orderBy: { updatedAt: "desc" },
     select: { id: true, name: true, updatedAt: true },
     take: 50,
@@ -259,6 +272,7 @@ export async function listBuilderProjects(): Promise<Array<{ id: string; name: s
 
 export async function renameBuilderProject(id: string, name: string): Promise<{ ok: boolean }> {
   const orgId = await requireBuilderAccess()
+  await assertProjectAccess(id, orgId)
   const res = await db.builderProject.updateMany({
     where: { id, organizationId: orgId },
     data: { name: (name || "Без названия").slice(0, 120) },
@@ -269,13 +283,22 @@ export async function renameBuilderProject(id: string, name: string): Promise<{ 
 
 export async function deleteBuilderProject(id: string): Promise<{ ok: boolean }> {
   const orgId = await requireBuilderAccess()
+  await assertProjectAccess(id, orgId)
   const res = await db.builderProject.deleteMany({ where: { id, organizationId: orgId } })
+  // Хвосты удаляем сами: у share/снимков нет relation на проект, иначе остаются
+  // «висячие» публичные токены и снимки удалённой модели.
+  if (res.count > 0) {
+    await db.builderShare.deleteMany({ where: { projectId: id } })
+    await db.builderShareView.deleteMany({ where: { projectId: id } })
+    await db.builderSnapshot.deleteMany({ where: { projectId: id } })
+  }
   revalidatePath("/admin/builder/projects")
   return { ok: res.count > 0 }
 }
 
 export async function duplicateBuilderProject(id: string): Promise<{ id: string } | null> {
   const orgId = await requireBuilderAccess()
+  await assertProjectAccess(id, orgId)
   const session = await auth()
   const src = await db.builderProject.findFirst({ where: { id, organizationId: orgId }, select: { name: true, doc: true, schemaVersion: true } })
   if (!src) return null
@@ -302,8 +325,7 @@ export async function duplicateBuilderProject(id: string): Promise<{ id: string 
 export async function createBuilderShare(projectId: string, days = 30): Promise<{ token: string; expiresAt: string | null }> {
   const orgId = await requireBuilderAccess()
   const { userId } = await requireOrgAccess()
-  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
-  if (!p) throw new Error("Проект не найден")
+  await assertProjectAccess(projectId, orgId)
   const token = `${uid("sh")}${uid("k")}${uid("t")}`.replace(/[^a-z0-9]/gi, "").slice(0, 40)
   const expiresAt = days > 0 ? new Date(Date.now() + Math.min(days, 365) * 86400_000) : null
   await db.builderShare.create({ data: { token, projectId, expiresAt, createdById: userId } })
@@ -315,8 +337,7 @@ export async function listBuilderShares(
   projectId: string,
 ): Promise<Array<{ token: string; createdAt: string; expiresAt: string | null; views: number; lastViewAt: string | null }>> {
   const orgId = await requireBuilderAccess()
-  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
-  if (!p) return []
+  await assertProjectAccess(projectId, orgId)
   const rows = await db.builderShare.findMany({
     where: { projectId, revokedAt: null },
     select: { token: true, createdAt: true, expiresAt: true },
@@ -346,8 +367,7 @@ export async function listBuilderShareViews(
   take = 50,
 ): Promise<Array<{ token: string; openedAt: string; visitor: string | null; userAgent: string | null }>> {
   const orgId = await requireBuilderAccess()
-  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
-  if (!p) return []
+  await assertProjectAccess(projectId, orgId)
   const rows = await db.builderShareView.findMany({
     where: { projectId },
     select: { token: true, openedAt: true, visitor: true, userAgent: true },
@@ -360,8 +380,7 @@ export async function listBuilderShareViews(
 /** Отозвать ссылку (одну или все у проекта): витрина сразу перестаёт открываться. */
 export async function revokeBuilderShare(projectId: string, token?: string): Promise<{ revoked: number }> {
   const orgId = await requireBuilderAccess()
-  const p = await db.builderProject.findFirst({ where: { id: projectId, organizationId: orgId }, select: { id: true } })
-  if (!p) throw new Error("Проект не найден")
+  await assertProjectAccess(projectId, orgId)
   const res = await db.builderShare.updateMany({
     where: { projectId, revokedAt: null, ...(token ? { token } : {}) },
     data: { revokedAt: new Date() },
