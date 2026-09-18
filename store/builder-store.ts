@@ -158,7 +158,7 @@ export interface Selection {
 }
 
 export type OpeningType = "door" | "window"
-export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator" | "column"
+export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator" | "column" | "ramp"
 export type TerrainMode = "raise" | "lower" | "flatten" | "smooth" | "terrace"
 export type PathKind = "road" | "path"
 export type FenceStyle = "profnastil" | "shtaketnik" | "mesh" | "forged" | "wood"

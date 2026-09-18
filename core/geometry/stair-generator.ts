@@ -3,7 +3,7 @@
 // локальные коробки ступеней (+ опц. перила) и прямоугольник выреза в перекрытии выше.
 // Координаты локальные [x,y,z] мм относительно position лестницы; поворот — в билдере.
 
-export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator" | "column"
+export type StairShape = "straight" | "l" | "u" | "spiral" | "porch" | "elevator" | "column" | "ramp"
 
 export interface StepBox {
   x: number
@@ -79,7 +79,82 @@ export function generateColumn(height: number, width: number, depth: number): St
   return { steps: [{ x: 0, y: height / 2, z: 0, w: width, h: height, d: depth }], rails: [], hole: { minX: -width / 2, minZ: -depth / 2, maxX: width / 2, maxZ: depth / 2 } }
 }
 
+/**
+ * Пандус для МГН по СП 59.13330: уклон 1:20 (на коротких перепадах до 1:12),
+ * площадки 1500 мм сверху и снизу, бортики 50 мм и поручни на двух уровнях
+ * (700 и 900 мм). Верх пандуса — на отметке пола, спуск идёт наружу по +Z.
+ */
+export const RAMP_SLOPE = 20
+export const RAMP_LANDING = 1500
+export const RAMP_KERB = 50
+
+export function generateRamp(rise: number, width: number, railing: boolean, slope = RAMP_SLOPE): StairGeometry {
+  const h = Math.max(50, rise)
+  const run = h * slope
+  const steps: StepBox[] = []
+  const rails: StepBox[] = []
+  const ramps: StepBox[] = []
+  const T = 150 // толщина плиты пандуса
+  // верхняя площадка на отметке пола
+  steps.push({ x: 0, y: -h / 2, z: RAMP_LANDING / 2, w: width, h, d: RAMP_LANDING })
+  // наклонная плита: наклон вокруг X, потому что спуск идёт вдоль Z
+  const tilt = Math.atan2(h, run)
+  const len = Math.hypot(run, h)
+  steps.push({
+    x: 0,
+    y: -h / 2 - T / 2,
+    z: RAMP_LANDING + run / 2,
+    w: width,
+    h: T,
+    d: len,
+    tilt,
+    tiltAxis: "x",
+  })
+  // нижняя площадка на земле
+  steps.push({ x: 0, y: -h - T / 2, z: RAMP_LANDING + run + RAMP_LANDING / 2, w: width, h: T, d: RAMP_LANDING })
+  // бортики вдоль марша — коляска не съедет вбок
+  for (const side of [-1, 1]) {
+    steps.push({
+      x: side * (width / 2 - RAMP_KERB / 2),
+      y: -h / 2 + 30,
+      z: RAMP_LANDING + run / 2,
+      w: RAMP_KERB,
+      h: 100,
+      d: len,
+      tilt,
+      tiltAxis: "x",
+    })
+  }
+  if (railing) {
+    // поручни на двух высотах вдоль обеих сторон
+    for (const side of [-1, 1]) {
+      for (const rh of [700, 900]) {
+        rails.push({
+          x: side * (width / 2 - 60),
+          y: -h / 2 + rh,
+          z: RAMP_LANDING + run / 2,
+          w: 50,
+          h: 50,
+          d: len,
+          tilt,
+          tiltAxis: "x",
+        })
+      }
+      // стойки по краям марша
+      for (const z of [RAMP_LANDING + 100, RAMP_LANDING + run - 100]) {
+        const y = -((z - RAMP_LANDING) / run) * h
+        rails.push({ x: side * (width / 2 - 60), y: y + 450, w: 50, h: 900, d: 50, z })
+      }
+    }
+  }
+  // невидимая поверхность для обхода: по ней человек в режиме Walk идёт вверх
+  ramps.push({ x: 0, y: -h / 2 + 20, z: RAMP_LANDING + run / 2, w: width, h: 20, d: len, tilt, tiltAxis: "x" })
+  const depth = RAMP_LANDING * 2 + run
+  return { steps, rails, ramps, hole: { minX: -width / 2, minZ: 0, maxX: width / 2, maxZ: depth } }
+}
+
 export function generateStair(shape: StairShape, totalRise: number, width: number, railing: boolean, depth?: number, tread?: number): StairGeometry {
+  if (shape === "ramp") return generateRamp(totalRise, width, railing)
   if (shape === "column") return generateColumn(totalRise, width, depth ?? width)
   if (shape === "porch") return generatePorch(totalRise, width, tread ?? TREAD)
   if (shape === "elevator") return generateElevator(totalRise, width)
@@ -209,7 +284,7 @@ export interface StairPlacement {
 /** Высота подъёма: лестница — во весь этаж, крыльцо — своя (по умолчанию 450 мм). */
 export function stairRise(stair: StairPlacement, floorHeight: number): number {
   // крыльцо — своя высота; лестница — высота этажа, если не задана своя
-  return stair.shape === "porch" ? Math.max(150, stair.rise ?? 450) : stair.rise && stair.rise > 0 && stair.shape !== "elevator" && stair.shape !== "column" ? stair.rise : floorHeight
+  return stair.shape === "porch" || stair.shape === "ramp" ? Math.max(150, stair.rise ?? 450) : stair.rise && stair.rise > 0 && stair.shape !== "elevator" && stair.shape !== "column" ? stair.rise : floorHeight
 }
 
 /** Локальная точка лестницы (x, z) → мировые мм плоскости этажа. */

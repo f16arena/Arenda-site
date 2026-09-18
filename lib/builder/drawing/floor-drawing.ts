@@ -16,7 +16,7 @@
 import { roomDisplayName, roomUse, type RoomUse } from "@/lib/builder/room-use"
 import { floorRooms } from "@/lib/builder/rooms"
 import { floorAtStage } from "@/lib/builder/replan"
-import { generateStair, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
+import { generateStair, RAMP_SLOPE, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
@@ -295,6 +295,8 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   }
   // лестницы и крыльца: контуры ступеней тонкими линиями; лифты — шахта и кабина
   const stairArrows: FloorDrawing["stairArrows"] = []
+  // подписи уклона пандусов — добавляются к текстам плана ниже
+  const rampLabels: FloorDrawing["texts"] = []
   const stairWells: FloorDrawing["stairWells"] = []
   const lifts: FloorDrawing["lifts"] = []
   for (const st of floor.stairs) {
@@ -322,7 +324,14 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
       }
       continue
     }
-    if (st.shape !== "porch" && rects.length >= 2) {
+    if (st.shape === "ramp") {
+      // пандус: подпись с уклоном по центру марша — по ней проверяют норматив
+      const all = rects.flat()
+      const cx = all.reduce((a, q) => a + q.x, 0) / all.length
+      const cy = all.reduce((a, q) => a + q.y, 0) / all.length
+      rampLabels.push({ at: { x: cx, y: cy }, text: `Пандус i=1:${RAMP_SLOPE}` })
+    }
+    if (st.shape !== "porch" && st.shape !== "ramp" && rects.length >= 2) {
       stairArrows.push(rects.map((q) => ({ x: (q[0].x + q[2].x) / 2, y: (q[0].y + q[2].y) / 2 })))
       // проём в перекрытии обводится: на плане видно габарит лестничной клетки
       stairWells.push(stairHoleWorld(st, floor.height))
@@ -446,7 +455,10 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   const exits = exitArrows(floor)
 
   const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
-  const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
+  const texts = [
+    ...rampLabels,
+    ...(source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : [])),
+  ]
   // отметка уровня пола: ±0,000 у первого этажа, у остальных — от него
   const lvl = (source.elevation ?? 0) / 1000
   const levelText = Math.abs(lvl) < 0.0005 ? "±0,000" : `${lvl > 0 ? "+" : "−"}${Math.abs(lvl).toFixed(3).replace(".", ",")}`

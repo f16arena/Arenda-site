@@ -46,7 +46,7 @@ export const OpeningSchema = z.object({
 
 export const StairSchema = z.object({
   id: z.string(),
-  shape: z.enum(["straight", "l", "u", "spiral", "porch", "elevator", "column"]),
+  shape: z.enum(["straight", "l", "u", "spiral", "porch", "elevator", "column", "ramp"]),
   fromFloorId: z.string(),
   toFloorId: z.string(),
   position: Vec2Schema,

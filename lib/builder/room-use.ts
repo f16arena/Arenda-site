@@ -21,7 +21,7 @@ type FloorLike = Pick<Floor, "stairs" | "height"> & Partial<Pick<Floor, "roomUse
 /** Что стоит в помещении: лестница или лифт (по центру выреза). Колонны и крыльца не в счёт. */
 function stairInside(floor: FloorLike, room: RoomLike): "stair" | "elevator" | null {
   for (const st of floor.stairs) {
-    if (st.shape === "column" || st.shape === "porch") continue
+    if (st.shape === "column" || st.shape === "porch" || st.shape === "ramp") continue
     const h = stairHoleWorld(st, floor.height)
     if (pointInPolygon({ x: (h[0].x + h[2].x) / 2, y: (h[0].y + h[2].y) / 2 }, room.polygon)) return st.shape === "elevator" ? "elevator" : "stair"
   }

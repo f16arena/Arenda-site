@@ -262,8 +262,8 @@ export function PlanEditor() {
   function placeStair(p: Vec2) {
     if (!floor || !building) return
     const upper = building.floors.filter((fl) => fl.elevation > floor.elevation).sort((x, y) => x.elevation - y.elevation)[0]
-    if (stairShape === "porch") {
-      // крыльцо к ближайшей стене снаружи, ступенями от здания
+    if (stairShape === "porch" || stairShape === "ramp") {
+      // крыльцо и пандус — к ближайшей стене снаружи, спуском от здания
       let best: { d: number; q: Vec2; n: Vec2; th: number } | null = null
       for (const e of Object.values(floor.wallGraph.edges)) {
         const a = floor.wallGraph.nodes[e.a], b = floor.wallGraph.nodes[e.b]
@@ -278,7 +278,19 @@ export function PlanEditor() {
       if (!best) return
       const position = { x: Math.round(best.q.x + (best.n.x * best.th) / 2), y: Math.round(best.q.y + (best.n.y * best.th) / 2) }
       const rise = floor.elevation >= 150 && floor.elevation <= 2000 ? Math.round(floor.elevation) : 450
-      execute(new AddStairCommand(floor.id, { id: uid("st"), shape: "porch", fromFloorId: floor.id, toFloorId: floor.id, position, rotationDeg: Math.round((Math.atan2(best.n.x, best.n.y) * 180) / Math.PI), width: 1800, railing: false, rise }))
+      const ramp = stairShape === "ramp"
+      execute(new AddStairCommand(floor.id, {
+        id: uid("st"),
+        shape: ramp ? "ramp" : "porch",
+        fromFloorId: floor.id,
+        toFloorId: floor.id,
+        position,
+        rotationDeg: Math.round((Math.atan2(best.n.x, best.n.y) * 180) / Math.PI),
+        // пандус по СП 59.13330 — не уже 1000 мм в свету, берём 1200
+        width: ramp ? 1200 : 1800,
+        railing: ramp,
+        rise,
+      }))
       return
     }
     if (stairShape === "column") {
@@ -672,7 +684,7 @@ export function PlanEditor() {
     tool === "wall" ? (chain ? `Стена: клик — следующая точка, двойной клик или правая кнопка — конец${lengthInput ? ` · длина ${lengthInput} м, Enter` : " · цифры — длина в м"}` : "Стена: клик — начало, дальше цепочкой. Привязка к узлам и стенам, углы 15° (Alt — без привязки)")
     : tool === "room" ? "Комната: протяните прямоугольник"
     : tool === "door" || tool === "window" ? `${tool === "door" ? "Дверь" : "Окно"}: клик по стене`
-    : tool === "stair" ? `${stairShape === "elevator" ? "Лифт" : stairShape === "porch" ? "Крыльцо: клик снаружи у стены" : "Лестница"}: клик на плане`
+    : tool === "stair" ? `${stairShape === "elevator" ? "Лифт" : stairShape === "porch" ? "Крыльцо: клик снаружи у стены" : stairShape === "ramp" ? "Пандус: клик снаружи у стены" : "Лестница"}: клик на плане`
     : tool === "annotate" ? (annotateKind === "text" ? "Надпись: клик" : dimPts.length === 0 ? "Размер: первая точка" : dimPts.length === 1 ? "Размер: вторая точка" : "Размер: клик — вынос размерной линии")
     : tool === "delete" ? "Удалить: клик по элементу (в перепланировке существующее помечается демонтажем)"
     : tool === "select" ? "Клик — выделить, тянуть выделенное — сдвинуть · рамка → внутри, ← задетые · Shift — добавить · ПКМ — панорама · F — вписать"

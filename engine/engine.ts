@@ -740,7 +740,7 @@ export class BuilderEngine {
     const holes: Vec2[][] = []
     for (const other of b.floors) {
       for (const st of other.stairs) {
-        if (st.toFloorId === f.id && st.shape !== "porch" && st.shape !== "column") holes.push(stairHoleWorld(st, other.height))
+        if (st.toFloorId === f.id && st.shape !== "porch" && st.shape !== "ramp" && st.shape !== "column") holes.push(stairHoleWorld(st, other.height))
       }
     }
 
@@ -2390,7 +2390,7 @@ export class BuilderEngine {
     const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     if (!f || !doc) return
     const building = doc.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
-    if (this.stairShape === "porch") {
+    if (this.stairShape === "porch" || this.stairShape === "ramp") {
       this.placePorch(f)
       return
     }

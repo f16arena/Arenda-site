@@ -193,7 +193,7 @@ type Layer = { depth: number; polys: EPoly[]; lines: ELine[] }
 function porchLayers(f: ViewFrame, floor: Floor, minDepth: number): Layer[] {
   const out: Layer[] = []
   for (const st of floor.stairs) {
-    if (st.shape !== "porch") continue
+    if (st.shape !== "porch" && st.shape !== "ramp") continue
     const rise = stairRise(st, floor.height)
     const geo = generateStair(st.shape, rise, st.width, st.railing, st.depth, st.tread)
     const rects = stairPlanRects(st, floor.height)

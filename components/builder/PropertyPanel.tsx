@@ -437,7 +437,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   } else if (selection.type === "stair" && selection.floorId && selection.id) {
     const f = findFloor(doc, selection.floorId)
     const st = f?.stairs.find((s) => s.id === selection.id)
-    title = st?.shape === "porch" ? "Крыльцо" : st?.shape === "elevator" ? "Лифт" : st?.shape === "column" ? "Колонна" : "Лестница"
+    title = st?.shape === "porch" ? "Крыльцо" : st?.shape === "ramp" ? "Пандус" : st?.shape === "elevator" ? "Лифт" : st?.shape === "column" ? "Колонна" : "Лестница"
     if (f && st && st.shape === "column") {
       const fid = selection.floorId
       const sid = selection.id
@@ -474,7 +474,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
           <button type="button" onClick={() => execute(new DeleteStairCommand(fid, sid))} className="rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить колонну</button>
         </div>
       )
-    } else if (f && st && st.shape === "porch") {
+    } else if (f && st && (st.shape === "porch" || st.shape === "ramp")) {
       const fid = selection.floorId
       const sid = selection.id
       const rise = st.rise ?? 450

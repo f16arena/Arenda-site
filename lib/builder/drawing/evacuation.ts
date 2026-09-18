@@ -139,7 +139,7 @@ export function buildEvacuation(floor: Floor): EvacuationPlan {
   }
 
   const stairs = floor.stairs
-    .filter((s) => s.shape !== "column" && s.shape !== "porch")
+    .filter((s) => s.shape !== "column" && s.shape !== "porch" && s.shape !== "ramp")
     .map((s) => stairHoleWorld(s, floor.height))
 
   // помещения общего пользования в тупиках не считаем ошибкой
