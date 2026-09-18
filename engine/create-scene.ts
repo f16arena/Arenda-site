@@ -105,6 +105,42 @@ export function paintSky(tex: DynamicTexture, colors: [string, string, string]):
   tex.update()
 }
 
+/**
+ * Газон: ровная заливка выглядела как зелёный пластик, поэтому кладём мелкий
+ * процедурный шум — на общем плане участок читается как трава, а не как фон.
+ */
+function grassTexture(scene: Scene, siteSizeM: number): DynamicTexture {
+  const px = 512
+  const tex = new DynamicTexture("grass", { width: px, height: px }, scene, true)
+  const ctx = tex.getContext()
+  // текстура читается как sRGB, а цвет материала — линейно: без гамма-поправки
+  // газон выходил заметно темнее прежней заливки
+  const lin = Color3.FromHexString(MATERIALS.grass.color)
+  const g = (v: number) => Math.round(255 * Math.pow(v, 1 / 2.2))
+  const base = new Color3(g(lin.r), g(lin.g), g(lin.b))
+  ctx.fillStyle = `rgb(${Math.round(base.r)},${Math.round(base.g)},${Math.round(base.b)})`
+  ctx.fillRect(0, 0, px, px)
+  // детерминированный шум: одна и та же картинка при каждой загрузке
+  let seed = 12345
+  const rnd = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff
+    return seed / 0x7fffffff
+  }
+  for (let i = 0; i < 26000; i++) {
+    const x = rnd() * px, y = rnd() * px
+    const t = rnd()
+    const shade = t < 0.45 ? -18 : t < 0.85 ? 12 : 26
+    ctx.fillStyle = `rgba(${Math.round(base.r + shade)},${Math.round(base.g + shade * 1.2)},${Math.round(base.b + shade * 0.6)},0.55)`
+    ctx.fillRect(x, y, 1 + rnd() * 2, 1 + rnd() * 3)
+  }
+  tex.update()
+  // один тайл текстуры — примерно 4 м участка
+  const tiles = Math.max(4, Math.round(siteSizeM / 4))
+  tex.uScale = tiles
+  tex.vScale = tiles
+  return tex
+}
+
 function buildGlowingGrid(scene: Scene, size: number): Mesh {
   const px = 1024
   const div = size // 1 линия на метр
@@ -189,7 +225,8 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   // Газон участка — сетка с подразбиением для редактирования рельефа (кисти).
   const ground = MeshBuilder.CreateGround("ground", { width: siteSizeM, height: siteSizeM, subdivisions: 64, updatable: true }, scene)
   const gmat = new StandardMaterial("groundMat", scene)
-  gmat.diffuseColor = Color3.FromHexString(MATERIALS.grass.color)
+  gmat.diffuseColor = new Color3(1, 1, 1)
+  gmat.diffuseTexture = grassTexture(scene, siteSizeM)
   gmat.specularColor = new Color3(0.02, 0.02, 0.02)
   ground.material = gmat
   ground.receiveShadows = true
