@@ -64,6 +64,14 @@ describe("furnishKind", () => {
     expect(furnishKind(floor({ roomNames: { r1: "Лестничная клетка" } }), r)).toBe("none")
   })
 
+  it("коридор не обставляется — только свет", () => {
+    const corridor = room("c1", 20000, 2000)
+    expect(furnishKind(floor(), corridor)).toBe("none")
+    const items = furnishRoom(corridor, furnishKind(floor(), corridor), 3300)
+    expect(items.every((i) => i.assetId === "ceiling_light")).toBe(true)
+    expect(items.length).toBeGreaterThan(0)
+  })
+
   it("техническое помещение получает стеллаж", () => {
     expect(furnishKind(floor({ roomUse: { r1: "tech" } }), r)).toBe("tech")
   })

@@ -30,6 +30,17 @@ const MEET = /переговор|совещан|конференц/i
 const LOBBY = /холл|фойе|вестибюл|ресепш|приём|входная|тамбур/i
 const SKIP = /санузел|туалет|уборн|душ|кладов|лестни|лифт|шахта|венткамер/i
 
+function bbox(poly: Vec2[]): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const p of poly) {
+    if (p.x < minX) minX = p.x
+    if (p.x > maxX) maxX = p.x
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+  }
+  return { minX, minY, maxX, maxY }
+}
+
 /** Назначение обстановки по типу помещения и его наименованию. */
 export function furnishKind(floor: Pick<Floor, "roomUse" | "roomNames" | "stairs" | "wallGraph" | "height">, room: FloorRoom): FurnishKind {
   const name = roomDisplayName(floor as Parameters<typeof roomDisplayName>[0], room)
@@ -41,19 +52,14 @@ export function furnishKind(floor: Pick<Floor, "roomUse" | "roomNames" | "stairs
   if (MEET.test(name)) return "meeting"
   if (use === "common") return LOBBY.test(name) || room.areaMm2 > 25e6 ? "lobby" : "none"
   if (LOBBY.test(name)) return "lobby"
+  // вытянутое помещение — коридор: столы в проходе только мешают, оставляем свет
+  const b = bbox(room.polygon)
+  const long = Math.max(b.maxX - b.minX, b.maxY - b.minY)
+  const short = Math.max(1, Math.min(b.maxX - b.minX, b.maxY - b.minY))
+  if (long / short >= 3.2) return "none"
   return "office"
 }
 
-function bbox(poly: Vec2[]): { minX: number; minY: number; maxX: number; maxY: number } {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-  for (const p of poly) {
-    if (p.x < minX) minX = p.x
-    if (p.x > maxX) maxX = p.x
-    if (p.y < minY) minY = p.y
-    if (p.y > maxY) maxY = p.y
-  }
-  return { minX, minY, maxX, maxY }
-}
 
 function rectCorners(c: Vec2, w: number, d: number, rot: number): Vec2[] {
   const cos = Math.cos(rot), sin = Math.sin(rot)
