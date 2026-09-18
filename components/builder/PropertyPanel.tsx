@@ -692,7 +692,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
 
   return (
     <div
-      className="absolute right-3 top-[10rem] z-20 w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-17rem)] overflow-y-auto overflow-x-hidden rounded-2xl p-3 shadow-2xl backdrop-blur-xl"
+      className="absolute right-3 top-[12.6rem] z-20 w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-19.5rem)] overflow-y-auto overflow-x-hidden rounded-2xl p-3 shadow-2xl backdrop-blur-xl"
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="mb-1.5 text-sm font-semibold">{title}</div>

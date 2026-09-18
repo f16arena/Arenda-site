@@ -55,63 +55,46 @@ export function LabelLayer() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={toggleDimensions}
-        title="Размеры стен (L)"
-        className="absolute right-3 top-[7.75rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
-        style={{
-          background: showDimensions ? TOKENS.accent : TOKENS.panel,
-          color: showDimensions ? "#0b1220" : TOKENS.text,
-          border: `1px solid ${TOKENS.panelBorder}`,
-        }}
-      >
-        Размеры
-      </button>
-      <button
-        type="button"
-        onClick={toggleTenants}
-        title="Арендаторы: имена в подписях и подсветка помещений по статусу"
-        className="absolute right-3 top-[10rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
-        style={{
-          background: showTenants ? TOKENS.accent : TOKENS.panel,
-          color: showTenants ? "#0b1220" : TOKENS.text,
-          border: `1px solid ${TOKENS.panelBorder}`,
-        }}
-      >
-        Арендаторы
-      </button>
-      <button
-        type="button"
-        onClick={toggleFurniture}
-        title="Мебель и светильники: расставляются автоматически по назначению помещений (только вид, в документ не пишутся)"
-        className="absolute right-3 top-[12.25rem] z-30 rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
-        style={{
-          background: showFurniture ? TOKENS.accent : TOKENS.panel,
-          color: showFurniture ? "#0b1220" : TOKENS.text,
-          border: `1px solid ${TOKENS.panelBorder}`,
-        }}
-      >
-        Мебель
-      </button>
-      <div
-        className="absolute right-3 top-[22.5rem] z-30 flex flex-col gap-1 rounded-lg px-2 py-1.5 shadow"
-        style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
-        title="Время суток: солнце, тени и цвет неба. Видно, какие окна утром на солнце, а какие весь день в тени"
-      >
-        <span className="text-[10px] font-semibold tabular-nums" style={{ color: TOKENS.text }}>
-          Солнце · {hourLabel(hourOfDay)}
-        </span>
-        <input
-          type="range"
-          min={5}
-          max={21}
-          step={0.5}
-          value={hourOfDay}
-          onChange={(e) => setHourOfDay(Number(e.target.value))}
-          className="h-1 w-24 cursor-pointer accent-sky-400"
-          aria-label="Время суток"
-        />
+      {/* переключатели вида одним блоком: раньше «Арендаторы» и «Мебель»
+          налезали на панель свойств */}
+      <div className="absolute right-3 top-[7.4rem] z-30 flex flex-col items-end gap-1">
+        <div className="flex gap-1">
+          {([
+            ["Размеры", showDimensions, toggleDimensions, "Размеры стен (L)"],
+            ["Арендаторы", showTenants, toggleTenants, "Арендаторы: имена в подписях и подсветка помещений по статусу"],
+            ["Мебель", showFurniture, toggleFurniture, "Мебель и светильники: расставляются автоматически по назначению помещений (только вид, в документ не пишутся)"],
+          ] as Array<[string, boolean, () => void, string]>).map(([label, on, toggle, hint]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={toggle}
+              title={hint}
+              className="rounded-lg px-2 py-1 text-[11px] font-semibold shadow"
+              style={{ background: on ? TOKENS.accent : TOKENS.panel, color: on ? "#0b1220" : TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div
+          className="flex items-center gap-2 rounded-lg px-2 py-1 shadow"
+          style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
+          title="Время суток: солнце, тени и цвет неба. Видно, какие окна утром на солнце, а какие весь день в тени"
+        >
+          <span className="text-[10px] font-semibold tabular-nums" style={{ color: TOKENS.text }}>
+            Солнце · {hourLabel(hourOfDay)}
+          </span>
+          <input
+            type="range"
+            min={5}
+            max={21}
+            step={0.5}
+            value={hourOfDay}
+            onChange={(e) => setHourOfDay(Number(e.target.value))}
+            className="h-1 w-24 cursor-pointer accent-sky-400"
+            aria-label="Время суток"
+          />
+        </div>
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 select-none">
