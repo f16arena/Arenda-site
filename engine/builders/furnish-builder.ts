@@ -2,15 +2,18 @@
 // процедурными моделями, что и каталог. Меши сливаются по материалу — иначе
 // сотня столов даёт сотни draw call'ов и сцена проседает на слабых картах.
 
-import { Mesh, TransformNode, type Scene } from "@babylonjs/core"
+import { Mesh, MeshBuilder, TransformNode, type Scene } from "@babylonjs/core"
 import type { Floor } from "@/types/builder"
 import type { FloorRoom } from "@/lib/builder/rooms"
 import { furnishFloor } from "@/lib/builder/furnish"
+import { ASSET_SIZES } from "@/lib/builder/asset-sizes"
 import { buildObject } from "./object-builder"
 
 const S = 0.001
 /** Потолок по количеству предметов на этаж — защита от гигантских открытых планов. */
 const MAX_ITEMS = 420
+/** Что висит под потолком — преградой для обхода не считается. */
+const CEILING_ASSETS = new Set(["ceiling_light", "spot", "led_strip", "hanging_plant", "projector", "ac"])
 
 export function buildFurnish(floor: Floor, rooms: FloorRoom[], parent: TransformNode, scene: Scene): Mesh[] {
   const items = furnishFloor(floor, rooms).slice(0, MAX_ITEMS)
@@ -18,6 +21,10 @@ export function buildFurnish(floor: Floor, rooms: FloorRoom[], parent: Transform
   const root = new TransformNode(`furnish_${floor.id}`, scene)
   root.parent = parent
   const raw: Mesh[] = []
+  // невидимые коробки-преграды: в режиме обхода человек не проходит сквозь стол.
+  // Ставим их отдельно от видимой геометрии — слитые меши для столкновений
+  // слишком тяжёлые (десятки тысяч треугольников на этаж).
+  const colliders: Mesh[] = []
   for (const it of items) {
     const node = buildObject(
       {
@@ -34,6 +41,20 @@ export function buildFurnish(floor: Floor, rooms: FloorRoom[], parent: Transform
       floor.id,
     )
     for (const m of node.getChildMeshes()) if (m instanceof Mesh) raw.push(m)
+    const size = ASSET_SIZES[it.assetId]
+    // Светильники преградой не делаем: их модель висит под потолком, а точка
+    // установки — у пола, и коробка встала бы посреди комнаты на уровне колена.
+    if (size && !CEILING_ASSETS.has(it.assetId) && size.h >= 300) {
+      const box = MeshBuilder.CreateBox(`fzc_${it.id}`, { width: size.w * S * it.scale, depth: size.d * S * it.scale, height: Math.min(size.h, 1200) * S * it.scale }, scene)
+      box.position.set(it.at.x * S, (it.y + Math.min(size.h, 1200) / 2) * S, it.at.y * S)
+      box.rotation.y = it.rotationY
+      box.parent = root
+      box.isVisible = false
+      box.isPickable = false
+      box.checkCollisions = true
+      box.metadata = { kind: "furnish-collider", floorId: floor.id }
+      colliders.push(box)
+    }
   }
   // слияние по материалу: мировые матрицы «запекаются», поэтому снимаем с родителя
   const byMaterial = new Map<string, Mesh[]>()
@@ -59,6 +80,5 @@ export function buildFurnish(floor: Floor, rooms: FloorRoom[], parent: Transform
     m.isPickable = false
     if (!m.metadata) m.metadata = { kind: "furnish", floorId: floor.id }
   }
-  void S
-  return out
+  return [...out, ...colliders]
 }

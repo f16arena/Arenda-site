@@ -804,6 +804,8 @@ export class BuilderEngine {
     // автомебель по назначению помещений — только в полном режиме
     if (this.showFurniture && !lite) {
       for (const m of buildFurnish(f, floorRooms(f), fNode, scene)) {
+        // невидимые коробки-преграды теней не отбрасывают
+        if ((m.metadata as MeshMeta | null)?.kind === "furnish-collider") continue
         m.receiveShadows = true
         this.bundle.shadow.addShadowCaster(m)
       }

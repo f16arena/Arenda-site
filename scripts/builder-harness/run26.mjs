@@ -106,6 +106,11 @@ await page.waitForTimeout(1500)
   await page.screenshot({ path: join(shots, "furnish-walk.png") })
   const seen = await page.evaluate(() => window.__engine.bundle.scene.meshes.filter((m) => m.metadata?.kind === "furnish").length)
   check("M8 обстановка на месте в режиме Walk", seen > 0, `мешей ${seen}`)
+  const col = await page.evaluate(() => {
+    const list = window.__engine.bundle.scene.meshes.filter((m) => m.metadata?.kind === "furnish-collider")
+    return { count: list.length, collide: list.filter((m) => m.checkCollisions).length, visible: list.filter((m) => m.isVisible).length }
+  })
+  check("M9 мебель — преграда в обходе, но невидимая", col.count > 0 && col.collide === col.count && col.visible === 0, JSON.stringify(col))
 }
 
 console.log(results.join("\n"))
