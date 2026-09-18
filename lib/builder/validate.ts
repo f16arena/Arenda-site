@@ -154,6 +154,59 @@ export function validateFloor(
     }
   }
 
+  // 2б. путь наружу: из каждого помещения должна быть цепочка дверей до выхода
+  {
+    const doorLinks: Array<{ a?: string; b?: string }> = []
+    for (const o of floor.openings) {
+      if (o.type !== "door") continue
+      const e = g.edges[o.wallId]
+      const c = openingCenter(floor, o)
+      if (!e || !c) continue
+      const a = g.nodes[e.a], b = g.nodes[e.b]
+      if (!a || !b) continue
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1
+      const n = { x: -(b.y - a.y) / len, y: (b.x - a.x) / len }
+      const probe = e.thickness / 2 + 350
+      const side = (sign: 1 | -1) => {
+        const p = { x: c.x + n.x * probe * sign, y: c.y + n.y * probe * sign }
+        return rooms.find((r) => pointInPolygon(p, r.polygon) && !(r.holes ?? []).some((h) => pointInPolygon(p, h)))?.id
+      }
+      doorLinks.push({ a: side(1), b: side(-1) })
+    }
+    // помещение с наружной дверью (по другую сторону — улица) считается выходом
+    const exitRooms = new Set<string>()
+    for (const l of doorLinks) {
+      if (l.a && !l.b) exitRooms.add(l.a)
+      if (l.b && !l.a) exitRooms.add(l.b)
+    }
+    if (exitRooms.size) {
+      const near = new Map<string, string[]>()
+      for (const l of doorLinks) {
+        if (!l.a || !l.b) continue
+        near.set(l.a, [...(near.get(l.a) ?? []), l.b])
+        near.set(l.b, [...(near.get(l.b) ?? []), l.a])
+      }
+      const seen = new Set(exitRooms)
+      const queue = [...exitRooms]
+      while (queue.length) {
+        const id = queue.shift()!
+        for (const next of near.get(id) ?? []) if (!seen.has(next)) { seen.add(next); queue.push(next) }
+      }
+      for (const room of rooms) {
+        if (seen.has(room.id) || room.areaMm2 < 4e6) continue
+        const name = roomDisplayName(floor, room)
+        out.push({
+          id: `room-noexit-${room.id}`,
+          level: "error",
+          text: `Из помещения${name ? ` «${name}»` : ""} нет пути наружу: двери не связывают его с выходом`,
+          floorId: floor.id,
+          target: { type: "room", id: room.id },
+          at: center(room.polygon),
+        })
+      }
+    }
+  }
+
   // 3. связь между этажами: свой марш либо марш снизу, который сюда приходит
   const links = (floor.stairs ?? []).filter((s) => s.shape !== "column" && s.shape !== "porch" && s.shape !== "ramp")
   if (opts.multiFloor && links.length === 0 && !opts.reachedFromBelow) {

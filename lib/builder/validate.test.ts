@@ -79,6 +79,39 @@ describe("validateFloor", () => {
     expect(rooms.length).toBe(1)
   })
 
+  /** Коробка, разделённая надвое: стены внешнего контура разрезаны в точках n5/n6. */
+  function splitFloor(openings: Array<Record<string, unknown>>): Floor {
+    const f = boxFloor()
+    const g = f.wallGraph as unknown as { nodes: Record<string, unknown>; edges: Record<string, unknown> }
+    g.nodes.n5 = { id: "n5", x: 4000, y: 0 }
+    g.nodes.n6 = { id: "n6", x: 4000, y: 6000 }
+    delete g.edges.w1
+    delete g.edges.w3
+    const w = (id: string, a: string, b: string, kind = "exterior", thickness = 200) => ({ id, a, b, thickness, height: 3000, kind })
+    g.edges.w1a = w("w1a", "n1", "n5")
+    g.edges.w1b = w("w1b", "n5", "n2")
+    g.edges.w3a = w("w3a", "n3", "n6")
+    g.edges.w3b = w("w3b", "n6", "n4")
+    g.edges.w5 = w("w5", "n5", "n6", "interior", 150)
+    ;(f as unknown as { openings: unknown[] }).openings = openings
+    return f
+  }
+
+  it("помещение без пути наружу — ошибка", () => {
+    // дверь наружу только в левой комнате, между комнатами двери нет
+    const f = splitFloor([door({ id: "d1", wallId: "w1a", offset: 2000 })])
+    const issues = validateFloor(f, solo)
+    expect(issues.some((i) => i.level === "error" && i.text.includes("нет пути наружу"))).toBe(true)
+  })
+
+  it("с дверью между комнатами путь наружу есть", () => {
+    const f = splitFloor([
+      door({ id: "d1", wallId: "w1a", offset: 2000 }),
+      door({ id: "d2", wallId: "w5", offset: 3000 }),
+    ])
+    expect(validateFloor(f, solo).some((i) => i.text.includes("нет пути наружу"))).toBe(false)
+  })
+
   it("этаж без лестницы в многоэтажном здании — ошибка", () => {
     const issues = validateFloor(boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>), { lowest: true, multiFloor: true })
     expect(issues.some((i) => i.level === "error" && i.text.includes("нет лестницы"))).toBe(true)
