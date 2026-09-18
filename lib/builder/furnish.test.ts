@@ -72,6 +72,12 @@ describe("furnishKind", () => {
     expect(items.length).toBeGreaterThan(0)
   })
 
+  it("безымянный санузел мебель не получает — берём подсказанное наименование", () => {
+    // глухая комнатка 1,6×1,8 м: кнопка наименований назвала бы её санузлом
+    const f = floor({ openings: [] } as unknown as Partial<Floor>)
+    expect(furnishKind(f, room("wc", 1600, 1800))).toBe("none")
+  })
+
   it("техническое помещение получает стеллаж", () => {
     expect(furnishKind(floor({ roomUse: { r1: "tech" } }), r)).toBe("tech")
   })

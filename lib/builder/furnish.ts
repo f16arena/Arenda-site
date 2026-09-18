@@ -9,6 +9,7 @@ import { pointInPolygon } from "@/core/geometry/math"
 import { ASSET_SIZES } from "./asset-sizes"
 import type { FloorRoom } from "./rooms"
 import { roomDisplayName, roomUse } from "./room-use"
+import { suggestRoomName } from "./room-naming"
 
 export interface FurnishItem {
   id: string
@@ -42,8 +43,12 @@ function bbox(poly: Vec2[]): { minX: number; minY: number; maxX: number; maxY: n
 }
 
 /** Назначение обстановки по типу помещения и его наименованию. */
-export function furnishKind(floor: Pick<Floor, "roomUse" | "roomNames" | "stairs" | "wallGraph" | "height">, room: FloorRoom): FurnishKind {
-  const name = roomDisplayName(floor as Parameters<typeof roomDisplayName>[0], room)
+export function furnishKind(floor: Pick<Floor, "roomUse" | "roomNames" | "stairs" | "wallGraph" | "height" | "openings">, room: FloorRoom): FurnishKind {
+  // у безымянного помещения берём то наименование, которое предложила бы кнопка
+  // «Подставить наименования» — санузел и кладовая мебели не получают
+  const name =
+    roomDisplayName(floor as Parameters<typeof roomDisplayName>[0], room) ||
+    (floor.openings ? suggestRoomName(floor as Parameters<typeof suggestRoomName>[0], room) ?? "" : "")
   if (SKIP.test(name)) return "none"
   const use = roomUse(floor as Parameters<typeof roomUse>[0], room)
   if (use === "tech") return "tech"
