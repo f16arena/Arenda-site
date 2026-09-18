@@ -728,7 +728,16 @@ export function SheetSvg({
           {wrapWords(address, 46, 2).map((line, i) => (
             <text key={i} x={100} y={23 + i * 6} fontSize={2.6} textAnchor="middle">{line}</text>
           ))}
-          <text x={100} y={48.5} fontSize={3.5} textAnchor="middle">{title}</text>
+          {/* наименование листа: длинное разбиваем на две строки и уменьшаем кегль,
+              иначе оно вылезало за рамку штампа */}
+          {(() => {
+            const lines = title.length > 34 ? wrapWords(title, 34, 2) : [title]
+            const fs = lines.length > 1 ? 2.9 : 3.5
+            const y0 = lines.length > 1 ? 46.6 : 48.5
+            return lines.map((line, i) => (
+              <text key={`ttl${i}`} x={100} y={y0 + i * 4} fontSize={fs} textAnchor="middle">{line}</text>
+            ))
+          })()}
           <text x={142.5} y={18.8} fontSize={2.2} textAnchor="middle">Стадия</text>
           <text x={157.5} y={18.8} fontSize={2.2} textAnchor="middle">Лист</text>
           <text x={175} y={18.8} fontSize={2.2} textAnchor="middle">Листов</text>
