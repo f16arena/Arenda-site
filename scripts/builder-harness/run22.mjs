@@ -82,6 +82,25 @@ const toScreen = (x, y) => page.evaluate(({ x, y }) => {
   await page.screenshot({ path: join(shots, "plan-objects.png") })
 }
 
+// ── F4. лестницу нельзя поставить мимо здания ──
+{
+  const stairCount = async () => page.evaluate(() => {
+    const d = window.__doc(); const st = window.__stores.useEditorStore.getState()
+    return (d.buildings[0].floors.find((x) => x.id === st.activeLevelId)?.stairs ?? []).length
+  })
+  const before = await stairCount()
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setTool("stair"); s.setStairShape("straight") })
+  const f = await floor()
+  const xs = Object.values(f.wallGraph.nodes).map((n) => n.x)
+  const ys = Object.values(f.wallGraph.nodes).map((n) => n.y)
+  const p = await toScreen(Math.max(...xs) + 4000, (Math.min(...ys) + Math.max(...ys)) / 2)
+  await page.mouse.click(p.x, p.y)
+  await page.waitForTimeout(500)
+  const after = await stairCount()
+  const warned = await page.evaluate(() => document.body.innerText.includes("Лестница ставится внутри здания"))
+  check("F4 лестница не ставится мимо здания", after === before && warned, `было ${before}, стало ${after}, предупреждение: ${warned}`)
+}
+
 console.log(results.join("\n"))
 console.log("errors:", errors.slice(0, 5))
 await browser.close()

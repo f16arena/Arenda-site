@@ -58,7 +58,7 @@ import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
-import { pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
+import { insideBuilding, pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
 
 type Drag =
   | { kind: "pan"; sx: number; sy: number; view: View; moved: boolean }
@@ -121,6 +121,13 @@ export function PlanEditor() {
   // размер у выделенного элемента, который сейчас правится с клавиатуры
   const [editing, setEditing] = useState<{ key: string; draft: string } | null>(null)
   const [helpOpen, setHelpOpen] = useState(false)
+  // короткое предупреждение под курсором: «так ставить нельзя»
+  const [outsideHint, setOutsideHint] = useState<string | null>(null)
+  useEffect(() => {
+    if (!outsideHint) return
+    const t = setTimeout(() => setOutsideHint(null), 2500)
+    return () => clearTimeout(t)
+  }, [outsideHint])
 
   useEffect(() => {
     const el = hostRef.current
@@ -250,6 +257,11 @@ export function PlanEditor() {
       // в одну линию с другими колоннами (центр по X/Y), иначе сетка 50 мм
       const at = snapColumn(floor, p, tolMm, undefined, snapEnabled ? 50 : 0).p
       execute(new AddStairCommand(floor.id, { id: uid("st"), shape: "column", fromFloorId: floor.id, toFloorId: floor.id, position: at, rotationDeg: 0, width: 500, depth: 500, railing: false }))
+      return
+    }
+    // лестница и лифт — только внутри здания: клик мимо создавал лестницу в поле
+    if (!insideBuilding(floor, p)) {
+      setOutsideHint(stairShape === "elevator" ? "Лифт ставится внутри здания" : "Лестница ставится внутри здания; снаружи — «Крыльцо»")
       return
     }
     const width = stairShape === "elevator" ? 2000 : 1100
@@ -1198,8 +1210,8 @@ export function PlanEditor() {
           <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
         ))}
       </div>
-      <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
-        {hint}
+      <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: outsideHint ? "rgba(239,68,68,0.92)" : "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
+        {outsideHint ?? hint}
       </div>
       <button
         type="button"

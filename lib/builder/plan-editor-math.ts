@@ -273,3 +273,17 @@ export function pointInObject(o: Parameters<typeof objectFootprint>[0], p: Vec2,
   const lz = dx * sin + dy * cos
   return Math.abs(lx) <= w / 2 + tolMm && Math.abs(lz) <= d / 2 + tolMm
 }
+
+/**
+ * Точка внутри здания (в каком-то помещении этажа)? Лестницы, лифты и мебель
+ * ставятся только внутри: клик мимо здания раньше создавал лестницу в чистом
+ * поле, и в 3D она торчала из дома, как стена.
+ */
+export function insideBuilding(floor: Pick<Floor, "wallGraph">, p: Vec2): boolean {
+  for (const r of detectRooms(floor.wallGraph)) {
+    if (!pointInPolygon(p, r.polygon)) continue
+    if ((r.holes ?? []).some((h) => pointInPolygon(p, h))) continue
+    return true
+  }
+  return false
+}
