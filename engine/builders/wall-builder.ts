@@ -181,7 +181,38 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         const head = makeBox({ cx: c.x, cz: c.y, yMid: top + 35, width: o.width + 140, height: 70, depth: t + 40, angle }, scene, `head_${o.id}`)
         push(head, jambMat)
       }
-      if (o.type === "window") {
+      if (o.type === "window" && o.variant === "curtain") {
+        // Витраж: стекло во всю стену, алюминиевые стойки через 1,5 м и ригель.
+        const glassMat = reg.get("curtain_glass")
+        const frameMat = reg.get("composite")
+        const glass = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: o.width - 20, height: o.height - 20, depth: t * 0.12, angle }, scene, `cw_glass_${o.id}`)
+        push(glass, glassMat)
+        // рама по периметру
+        for (const [dy, h2] of [[(o.height - 60) / 2, 120], [-(o.height - 60) / 2, 120]] as const) {
+          const fr = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2 + dy, width: o.width, height: h2, depth: t * 0.3, angle }, scene, `cw_h_${o.id}_${dy}`)
+          push(fr, frameMat)
+        }
+        for (const side of [-1, 1]) {
+          const cc = at((side * (o.width - 60)) / 2)
+          const fr = makeBox({ cx: cc.x, cz: cc.y, yMid: o.sillHeight + o.height / 2, width: 120, height: o.height, depth: t * 0.3, angle }, scene, `cw_v_${o.id}_${side}`)
+          push(fr, frameMat)
+        }
+        if (!extras.lite) {
+          // стойки через 1,5 м
+          const step = 1500
+          const count = Math.max(1, Math.round(o.width / step) - 1)
+          for (let i = 1; i <= count; i++) {
+            const cc = at(-o.width / 2 + (o.width * i) / (count + 1))
+            const mull = makeBox({ cx: cc.x, cz: cc.y, yMid: o.sillHeight + o.height / 2, width: 90, height: o.height - 60, depth: t * 0.26, angle }, scene, `cw_m_${o.id}_${i}`)
+            push(mull, frameMat)
+          }
+          // ригель на высоте 2,1 м от пола
+          if (o.height > 2600) {
+            const rig = makeBox({ cx: c.x, cz: c.y, yMid: 2100, width: o.width - 60, height: 90, depth: t * 0.26, angle }, scene, `cw_r_${o.id}`)
+            push(rig, frameMat)
+          }
+        }
+      } else if (o.type === "window") {
         // подоконник внутри и отлив снаружи
         for (const s2 of extras.lite ? [] : [-1, 1]) {
           const cc = { x: c.x + nrm.x * s2 * (t / 2 + 60), y: c.y + nrm.y * s2 * (t / 2 + 60) }

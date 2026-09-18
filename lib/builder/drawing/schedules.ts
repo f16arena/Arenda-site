@@ -31,6 +31,7 @@ const VARIANT_RU: Record<string, string> = {
   standard: "",
   small: "",
   panoramic: "панорамное",
+  curtain: "витражное",
   arch: "арочная",
   garage: "гаражная",
   wide: "широкое",

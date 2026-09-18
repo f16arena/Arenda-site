@@ -40,6 +40,7 @@ import {
   setColumnSizeCommand,
   MoveObjectCommand,
   AddObjectCommand,
+  CompositeCommand,
   type Command,
 } from "@/core/document/commands"
 import { MEP_DEVICE_BY_KIND, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
@@ -52,7 +53,7 @@ import type { Floor } from "@/types/builder"
 import { buildFloorDrawing } from "@/lib/builder/drawing/floor-drawing"
 import { openingSchedule, roomExplication } from "@/lib/builder/drawing/schedules"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
-import { findPreset } from "@/lib/builder/openings"
+import { curtainSize, findPreset, isCurtain, sameWallOnFloor } from "@/lib/builder/openings"
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
@@ -225,6 +226,27 @@ export function PlanEditor() {
     const type = tool === "window" ? "window" : "door"
     const spec = findPreset(type, tool === openingType ? openingVariant : type === "window" ? "standard" : "interior")
     const L = Math.hypot(b.x - a.x, b.y - a.y)
+    // витраж занимает стену целиком — размеры считаем по самой стене
+    if (isCurtain(spec.variant)) {
+      const cmds: Command[] = []
+      const add = (fl: typeof floor, wid: string, len: number) => {
+        const cur = curtainSize(len, fl.wallGraph.edges[wid].height)
+        cmds.push(new AddOpeningCommand(fl.id, { id: uid("op"), wallId: wid, type: "window" as const, variant: "curtain", width: cur.width, height: cur.height, sillHeight: cur.sill, offset: cur.offset, ...(replanMode ? { phase: "new" as const } : {}) }))
+      }
+      add(floor, wallId, L)
+      if (spec.variant === "curtain-all") {
+        // та же стена на остальных этажах — лента остекления снизу доверху
+        for (const fl of building?.floors ?? []) {
+          if (fl.id === floor.id) continue
+          const twin = sameWallOnFloor(fl.wallGraph, a, b)
+          if (!twin) continue
+          const ta = fl.wallGraph.nodes[fl.wallGraph.edges[twin].a], tb = fl.wallGraph.nodes[fl.wallGraph.edges[twin].b]
+          add(fl, twin, Math.hypot(tb.x - ta.x, tb.y - ta.y))
+        }
+      }
+      execute(cmds.length === 1 ? cmds[0] : new CompositeCommand("витраж", cmds))
+      return
+    }
     if (L < spec.width + 200) return
     const t = closestOnSegment(p, a, b).t
     const offset = Math.round(Math.max(spec.width / 2 + 50, Math.min(L - spec.width / 2 - 50, t * L)))

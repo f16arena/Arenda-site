@@ -71,7 +71,7 @@ import {
 import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { centroid, closestOnSegment, distance, pointInPolygon, snapToGrid, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
-import { findPreset } from "@/lib/builder/openings"
+import { curtainSize, findPreset, isCurtain, sameWallOnFloor } from "@/lib/builder/openings"
 import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builder/drag-math"
 import { arcPoints } from "@/lib/builder/arc"
 import { worldUVFor } from "./world-uv"
@@ -2254,6 +2254,40 @@ export class BuilderEngine {
     const c = closestOnSegment(pMm, { x: a.x, y: a.y }, { x: b.x, y: b.y })
     const len = distance({ x: a.x, y: a.y }, { x: b.x, y: b.y })
     const spec = findPreset(this.openingType, this.openingVariant)
+    // витраж занимает стену целиком, «на все этажи» — лентой снизу доверху
+    if (isCurtain(spec.variant)) {
+      const building = doc?.buildings.find((bd) => bd.floors.some((fl) => fl.id === f.id))
+      const cmds: Command[] = []
+      const add = (floorId: string, wid: string, len2: number, h: number) => {
+        const cur = curtainSize(len2, h)
+        cmds.push(
+          new AddOpeningCommand(floorId, {
+            id: uid("op"),
+            wallId: wid,
+            type: "window",
+            variant: "curtain",
+            width: cur.width,
+            height: cur.height,
+            sillHeight: cur.sill,
+            offset: cur.offset,
+            ...(this.replanMode ? { phase: "new" as const } : {}),
+          }),
+        )
+      }
+      add(meta.floorId, meta.entityId, len, e.height)
+      if (spec.variant === "curtain-all") {
+        for (const fl of building?.floors ?? []) {
+          if (fl.id === f.id) continue
+          const twin = sameWallOnFloor(fl.wallGraph, { x: a.x, y: a.y }, { x: b.x, y: b.y })
+          if (!twin) continue
+          const te = fl.wallGraph.edges[twin]
+          const ta = fl.wallGraph.nodes[te.a], tb = fl.wallGraph.nodes[te.b]
+          add(fl.id, twin, distance({ x: ta.x, y: ta.y }, { x: tb.x, y: tb.y }), te.height)
+        }
+      }
+      this.onCommand(cmds.length === 1 ? cmds[0] : new CompositeCommand("витраж", cmds))
+      return
+    }
     const offset = Math.max(spec.width / 2 + 50, Math.min(len - spec.width / 2 - 50, c.t * len))
     if (len < spec.width + 200) return
     this.onCommand(

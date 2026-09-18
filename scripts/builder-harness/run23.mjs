@@ -120,6 +120,35 @@ await page.waitForTimeout(300)
   check("K5 включается захват указателя для обзора мышью", locked.requested, JSON.stringify(locked))
 }
 
+// ── K7. на верхнем этаже тоже не проходим сквозь стены и не проваливаемся ──
+{
+  await page.evaluate(() => {
+    const d = window.__doc()
+    const st = window.__stores.useEditorStore.getState()
+    const upper = d.buildings[0].floors[1]
+    st.setActiveLevel(upper.id)
+    st.setCameraMode("orbit")
+  })
+  await page.waitForTimeout(600)
+  await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("walk"))
+  await page.waitForTimeout(1400)
+  const f = await page.evaluate(() => {
+    const d = window.__doc(); const st = window.__stores.useEditorStore.getState()
+    const fl = d.buildings[0].floors.find((x) => x.id === st.activeLevelId)
+    const ns = Object.values(fl.wallGraph.nodes)
+    return { elev: fl.elevation, minX: Math.min(...ns.map((n) => n.x)), minY: Math.min(...ns.map((n) => n.y)), maxY: Math.max(...ns.map((n) => n.y)) }
+  })
+  const start = await cam()
+  check("K7a на 2 этаже человек стоит на его полу", Math.abs(start.y - (f.elev / 1000 + 1.78)) < 0.5, `y=${start.y.toFixed(2)}, отметка ${f.elev}`)
+  await walkTo(f.minX / 1000 + 1.2, f.elev / 1000 + 1.78, (f.minY + f.maxY) / 2000, -Math.PI / 2)
+  await page.waitForTimeout(400)
+  await page.mouse.click(640, 360)
+  await hold("w", 1800)
+  const after = await cam()
+  check("K7b стена держит и на 2 этаже", after.x > f.minX / 1000 - 0.1, `x=${after.x.toFixed(2)}, стена ${(f.minX / 1000).toFixed(2)}`)
+  check("K7c не провалился на этаж ниже", after.y > f.elev / 1000 + 0.9, `y=${after.y.toFixed(2)}`)
+}
+
 console.log(results.join("\n"))
 console.log("errors:", errors.slice(0, 5))
 await browser.close()
