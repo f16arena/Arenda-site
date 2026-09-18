@@ -42,6 +42,8 @@ export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id:
 }
 import { floorAtStage, hasReplan, replanSummary, type ReplanSummary } from "@/lib/builder/replan"
 import { buildingIndicators, type BuildingIndicators } from "@/lib/builder/drawing/indicators"
+import { buildDetails, type Detail } from "@/lib/builder/drawing/details"
+import { DetailsBody } from "./DetailsBody"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
 import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
@@ -140,6 +142,11 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   }, [view, building, floors])
   const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null, stage) : null), [building, floors, floor, premiseNumbers, stage])
   const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
+  // узлы и фрагменты — отдельный лист, считаются по конструкциям модели
+  const details = useMemo(
+    () => (view === "details" ? buildDetails({ floors: building?.floors ?? floors }) : null),
+    [view, building, floors],
+  )
   // ведомость отделки и экспликация полов — отдельный лист-таблица
   const finish = useMemo(() => {
     if (!floor || view !== "finish") return null
@@ -176,10 +183,12 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(floor)}. План перекрытия` : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = view === "details" ? "Узлы и фрагменты" : elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(floor)}. План перекрытия` : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   // лист-таблица не зависит от размеров плана: всегда A3 альбомный
   const TABLE_SHEET: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
-  const activeSheet = view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
+  // узлы — на А2: в масштабе 1:20 по ГОСТ четыре узла на А3 не помещаются
+  const DETAIL_SHEET: Sheet = { w: 594, h: 420, scale: 20, format: "A2", orientation: "landscape" }
+  const activeSheet = view === "details" ? DETAIL_SHEET : view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
 
   function downloadDxf() {
     if (elevation && elevationSheet) {
@@ -229,6 +238,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           <option value="roof">План кровли</option>
           {site && <option value="site">Генеральный план</option>}
           <option value="finish">Ведомости: отделка, полы, перемычки</option>
+          <option value="details">Узлы и фрагменты</option>
           {replan && (
             <optgroup label="Перепланировка этажа">
               <option value="replan:demolish">План демонтажа</option>
@@ -315,6 +325,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           slabPlan={slabPlan}
           sitePlan={sitePlan}
           finish={finish}
+          details={details}
           stage={stage}
           ar={arTables && extras && floor ? { rooms: extras.rooms, schedule: extras.schedule, floorId: floor.id } : null}
           title={title}
@@ -356,6 +367,7 @@ export function SheetSvg({
   slabPlan,
   sitePlan,
   finish,
+  details,
   ar,
 }: {
   /** план перекрытия: раскладка плит и монолитные участки */
@@ -366,6 +378,8 @@ export function SheetSvg({
   roofPlan?: RoofPlan | null
   /** лист-таблица: отделка, полы и перемычки */
   finish?: { rows: FinishRow[]; types: FloorTypeRow[]; lintels?: LintelRow[] } | null
+  /** лист узлов: разрезы по конструкциям */
+  details?: Detail[] | null
   /** план эвакуации: пути, выходы и легенда поверх плана */
   evac?: EvacuationPlan | null
   /** экспликация и ведомость проёмов справа от плана */
@@ -435,7 +449,7 @@ export function SheetSvg({
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
 
-      {finish ? <FinishBody rows={finish.rows} types={finish.types} lintels={finish.lintels ?? []} w={w} h={h} /> : cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
+      {details ? <DetailsBody details={details} w={w} h={h} /> : finish ? <FinishBody rows={finish.rows} types={finish.types} lintels={finish.lintels ?? []} w={w} h={h} /> : cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
       {/* оси */}
       {d.axes.map((ax, i) => {
         if (ax.dir === "v") {
@@ -721,7 +735,7 @@ export function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : sitePlan ? "Генеральный план" : slabPlan ? "Перекрытия" : roofPlan ? "Кровля" : finish ? "Ведомости" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{details ? "Узлы" : cover ? "Общие данные" : sitePlan ? "Генеральный план" : slabPlan ? "Перекрытия" : roofPlan ? "Кровля" : finish ? "Ведомости" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>

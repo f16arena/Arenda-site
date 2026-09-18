@@ -16,6 +16,7 @@ import { lintelSchedule } from "@/lib/builder/drawing/lintels"
 import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildSitePlan } from "@/lib/builder/drawing/site-plan"
+import { buildDetails } from "@/lib/builder/drawing/details"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -119,6 +120,19 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
         out.push({
           key: "roof-plan", title: "План кровли", sheet,
           props: { drawing, sheet, title: "План кровли", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", roofPlan: rp },
+        })
+      }
+    }
+    // узлы и фрагменты — один лист на здание
+    {
+      const dets = buildDetails({ floors })
+      const base0 = floors[0]
+      if (dets.length && base0) {
+        const drawing = buildFloorDrawing(base0, num)
+        const sheet = { w: 594, h: 420, scale: 20, format: "A2", orientation: "landscape" } as const
+        out.push({
+          key: "details", title: "Узлы и фрагменты", sheet,
+          props: { drawing, sheet, title: "Узлы и фрагменты", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", details: dets },
         })
       }
     }
