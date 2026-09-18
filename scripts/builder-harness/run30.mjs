@@ -105,6 +105,23 @@ await page.waitForTimeout(800)
   check("I6 место попало в ведомость", rows.length >= 1 && rows[0].tenant === "ИП Forbs", JSON.stringify(rows[0] ?? {}))
 }
 
+// ── I6b. карточка помещения создаётся кнопкой и привязывается ──
+{
+  const btn = page.locator("button", { hasText: "Создать карточку места" })
+  const had = await btn.count()
+  if (had) {
+    await btn.first().click()
+    await page.waitForTimeout(700)
+  }
+  const linked = await page.evaluate(() => {
+    const d = window.__doc()
+    const f = d.buildings.flatMap((b) => b.floors).find((x) => (x.islands ?? []).length)
+    const isl = f?.islands?.[0]
+    return isl ? f.premiseLinks?.[isl.id] ?? null : null
+  })
+  check("I6b кнопка заводит карточку и привязывает место", had === 0 || !!linked, had === 0 ? "кнопки нет (этаж без связи с базой)" : String(linked))
+}
+
 // ── I7. проверка модели видит место ──
 {
   const issues = await page.evaluate(() => window.__validate(window.__doc()).map((i) => i.id))

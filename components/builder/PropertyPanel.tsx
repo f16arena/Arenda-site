@@ -13,6 +13,7 @@ import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/bui
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
 import { roomExplication } from "@/lib/builder/drawing/schedules"
 import { usePremiseStore } from "@/store/premise-store"
+import { createIslandPremise } from "@/app/actions/builder-premise"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
@@ -548,6 +549,28 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
                 ))}
               </select>
             </label>
+          )}
+          {!islPremise && (
+            <button
+              type="button"
+              disabled={!f.sourceFloorId}
+              title={f.sourceFloorId ? "Заведёт карточку помещения «М-N» на этом этаже и привяжет к ней место" : "Этаж не связан с данными здания — карточку создать негде"}
+              onClick={() => {
+                if (!f.sourceFloorId) return
+                void createIslandPremise({ floorId: f.sourceFloorId, areaM2: islandArea(isl), name: islandLabel(isl) })
+                  .then((row) => {
+                    if (!row) return
+                    const st = usePremiseStore.getState()
+                    st.setRows([...Array.from(st.byId.values()), row])
+                    execute(new LinkPremiseCommand(fid, iid, row.id))
+                  })
+                  .catch(() => {})
+              }}
+              className="rounded-md py-1.5 text-xs font-medium disabled:opacity-40"
+              style={{ background: "rgba(56,189,248,0.16)", color: TOKENS.accent }}
+            >
+              Создать карточку места
+            </button>
           )}
           <p className="text-[10px]" style={{ color: TOKENS.muted }}>Место стоит в общей зоне и в площадь помещения не входит — оно идёт отдельной строкой в ведомости арендных мест.</p>
         </div>

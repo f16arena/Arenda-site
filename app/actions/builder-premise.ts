@@ -243,3 +243,57 @@ export async function submitBuilderLead(input: {
 
   return { ok: true }
 }
+
+/**
+ * Карточка помещения под арендное место (островок): вендинг, киоск, банкомат
+ * в коридоре сдаются так же, как помещение, но заводить их руками через
+ * «Помещения» ради одного автомата — лишний круг. Кнопка в свойствах места
+ * создаёт карточку на этом этаже и сразу возвращает её для привязки.
+ *
+ * Номер — «М-N» (место), первый свободный по зданию: с обычными номерами
+ * помещений («101», «2-А») такой не пересекается.
+ */
+export async function createIslandPremise(input: {
+  /** id этажа в базе (Floor.id) — берётся из floor.sourceFloorId модели */
+  floorId: string
+  areaM2: number
+  name?: string
+}): Promise<BuildingPremise | null> {
+  const { orgId } = await requireOrgAccess()
+  const floor = await db.floor.findFirst({
+    where: { id: input.floorId, building: { organizationId: orgId } },
+    select: { id: true, number: true, buildingId: true },
+  })
+  if (!floor) return null
+  await assertBuildingAccess(floor.buildingId, orgId)
+
+  const taken = await db.space.findMany({
+    where: { floor: { buildingId: floor.buildingId }, number: { startsWith: "М-" } },
+    select: { number: true },
+  })
+  const used = new Set(taken.map((s) => s.number))
+  let n = 1
+  while (used.has(`М-${n}`) && n < 500) n++
+
+  const area = Math.max(0.1, Math.round(input.areaM2 * 100) / 100)
+  const created = await db.space.create({
+    data: {
+      floorId: floor.id,
+      number: `М-${n}`,
+      area,
+      status: "VACANT",
+      kind: "RENTABLE",
+      description: (input.name ?? "").trim().slice(0, 200) || null,
+    },
+    select: { id: true, number: true },
+  })
+  return {
+    id: created.id,
+    number: created.number,
+    floorNumber: floor.number,
+    status: "free",
+    tenantName: null,
+    areaM2: area,
+    debt: 0,
+  }
+}

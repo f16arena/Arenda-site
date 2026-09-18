@@ -32,3 +32,8 @@ export async function generateBuildingAI() { return null }
 export async function listBuilderSnapshots() { return [] as Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number; note: string | null }> }
 export async function restoreBuilderSnapshot() { return { revision: 0 } }
 export async function snapshotBuilderProject() { return { ok: true } }
+let islandPremises = 0
+export async function createIslandPremise(input: { floorId: string; areaM2: number; name?: string }) {
+  islandPremises += 1
+  return { id: `isp${islandPremises}`, number: `М-${islandPremises}`, floorNumber: 1, status: "free" as const, tenantName: null, areaM2: input.areaM2, debt: 0 }
+}
