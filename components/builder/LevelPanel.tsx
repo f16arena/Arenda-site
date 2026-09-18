@@ -9,7 +9,7 @@ import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
 import { rebuildModelFloor } from "@/app/actions/building-model"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
-import { AddFloorCommand, DeleteFloorCommand, ReplaceFloorCommand, SetRoofCommand, SetFloorNameCommand, SetFloorElevationCommand } from "@/core/document/commands"
+import { AddFloorCommand, CompositeCommand, DeleteFloorCommand, SetRoomNameCommand, ReplaceFloorCommand, SetRoofCommand, SetFloorNameCommand, SetFloorElevationCommand } from "@/core/document/commands"
 import { UnderlayPanel, type PendingMeasure } from "./UnderlayPanel"
 import type { RoofConfig } from "@/types/builder"
 import type { Floor } from "@/types/builder"
@@ -17,6 +17,8 @@ import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/buil
 import { TOKENS } from "@/lib/builder/materials"
 import { hasReplan, replanSummary } from "@/lib/builder/replan"
 import { issuesSummary, validateDocument } from "@/lib/builder/validate"
+import { suggestFloorNames } from "@/lib/builder/room-naming"
+import { floorRooms } from "@/lib/builder/rooms"
 
 const DISPLAY: { id: DisplayMode; label: string }[] = [
   { id: "all", label: "Всё" },
@@ -77,6 +79,20 @@ function CheckBlock() {
     // rev меняется при каждой правке модели — пересчитываем список
   }, [doc, rev])
   const errors = issues.filter((i) => i.level === "error").length
+  const unnamed = issues.filter((i) => i.id.startsWith("room-noname-")).length
+  const execute = useDocumentStore((s) => s.execute)
+  // одно действие на всё здание: Ctrl+Z возвращает прежние наименования разом
+  const fillNames = () => {
+    const cmds: SetRoomNameCommand[] = []
+    for (const b of doc.buildings) {
+      for (const f of b.floors) {
+        if (!Object.keys(f.wallGraph.edges).length) continue
+        const names = suggestFloorNames(f, floorRooms(f))
+        for (const [roomId, name] of Object.entries(names)) cmds.push(new SetRoomNameCommand(f.id, roomId, name))
+      }
+    }
+    if (cmds.length) execute(new CompositeCommand("наименования помещений", cmds))
+  }
   const color = errors ? "#f87171" : issues.length ? "#fbbf24" : "#4ade80"
   return (
     <div className="flex flex-col gap-1">
@@ -93,6 +109,17 @@ function CheckBlock() {
       {open && (
         <div className="flex max-h-56 flex-col gap-0.5 overflow-auto rounded-lg p-1.5 text-[10px]" style={{ background: "rgba(15,23,42,0.35)" }}>
           {issues.length === 0 && <span style={{ color: TOKENS.muted }}>Модель без замечаний.</span>}
+          {unnamed > 0 && (
+            <button
+              type="button"
+              onClick={fillNames}
+              title="Подставит типовые наименования по геометрии: офис, коридор, санузел, кладовая. Любое можно переписать, Ctrl+Z отменяет всё разом"
+              className="mb-1 rounded-md px-1.5 py-1 text-left font-medium"
+              style={{ background: "rgba(56,189,248,0.16)", color: TOKENS.accent }}
+            >
+              Подставить наименования ({unnamed})
+            </button>
+          )}
           {issues.map((i) => (
             <button
               key={i.id}

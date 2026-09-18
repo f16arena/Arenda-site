@@ -68,6 +68,25 @@ const panel = () => page.locator("button", { hasText: "Проверка моде
   check("V4 после исправления замечание пропадает", has === false, String(has))
 }
 
+// ── V5. кнопка подставляет наименования, Ctrl+Z их убирает ──
+{
+  const before = await page.evaluate(() => window.__validate(window.__doc()).filter((i) => i.id.startsWith("room-noname-")).length)
+  const btn = page.locator("button", { hasText: /Подставить наименования/ })
+  if ((await btn.count()) > 0) {
+    await btn.first().click()
+    await page.waitForTimeout(800)
+    const after = await page.evaluate(() => window.__validate(window.__doc()).filter((i) => i.id.startsWith("room-noname-")).length)
+    const named = await page.evaluate(() => Object.values(window.__doc().buildings[0].floors[0].roomNames ?? {}))
+    check("V5 наименования подставились", after < before && named.length > 0, `${before} → ${after}, например: ${named.slice(0, 3).join(", ")}`)
+    await page.keyboard.press("Control+z")
+    await page.waitForTimeout(700)
+    const back = await page.evaluate(() => window.__validate(window.__doc()).filter((i) => i.id.startsWith("room-noname-")).length)
+    check("V6 Ctrl+Z возвращает как было", back === before, `${after} → ${back}`)
+  } else {
+    check("V5 наименования подставились", before === 0, "кнопки нет — безымянных помещений не было")
+  }
+}
+
 console.log(results.join("\n"))
 console.log("errors:", errors.slice(0, 5))
 await browser.close()
