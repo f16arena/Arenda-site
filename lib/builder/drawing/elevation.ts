@@ -210,6 +210,50 @@ function porchLayers(f: ViewFrame, floor: Floor, minDepth: number): Layer[] {
   return out
 }
 
+/**
+ * Лестницы и лифты в разрезе: марши, попавшие в секущую плоскость, рисуются
+ * сечением, а те, что за ней, — видимым контуром. Без этого лестничная клетка
+ * на разрезе оставалась пустой коробкой.
+ */
+function stairSection(
+  f: ViewFrame,
+  floor: Floor,
+  L: number,
+): { cut: Array<{ pts: Vec2[]; fill: FillKind }>; layers: Layer[] } {
+  const cut: Array<{ pts: Vec2[]; fill: FillKind }> = []
+  const layers: Layer[] = []
+  for (const st of floor.stairs ?? []) {
+    if (st.shape === "porch" || st.shape === "ramp" || st.shape === "column") continue
+    const rise = stairRise(st, floor.height)
+    const geo = generateStair(st.shape, rise, st.width, st.railing, st.depth, st.tread)
+    const rects = stairPlanRects(st, floor.height)
+    geo.steps.forEach((b, i) => {
+      const poly = rects[i]
+      if (!poly) return
+      const z0 = floor.elevation + b.y - b.h / 2
+      const z1 = floor.elevation + b.y + b.h / 2
+      if (z1 <= z0) return
+      const spans = polygonCut(f, poly, L)
+      if (spans.length) {
+        for (const [u0, u1] of spans) cut.push({ pts: rect(u0, z0, u1, z1), fill: "cut" })
+        return
+      }
+      // марш целиком за плоскостью — показываем видимым контуром
+      const pr = poly.map((p) => project(f, p))
+      const depth = Math.min(...pr.map((p) => p.depth))
+      if (depth <= 1) return
+      const u0 = Math.min(...pr.map((p) => p.u)), u1 = Math.max(...pr.map((p) => p.u))
+      if (u1 < -1000 || u0 > L + 1000) return
+      layers.push({
+        depth,
+        polys: [{ pts: rect(u0, z0, u1, z1), fill: "face" }],
+        lines: [{ a: { x: u0, y: z1 }, b: { x: u1, y: z1 }, weight: "thin" }],
+      })
+    })
+  }
+  return { cut, layers }
+}
+
 function footprintRect(floor: Floor): Vec2[] {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const id in floor.wallGraph.nodes) {
@@ -465,6 +509,10 @@ export function buildSection(b: Building, s: SectionLine): ElevationDrawing {
     }
 
     layers.push(...porchLayers(frame, floor, EPS))
+    // лестницы и лифты: сечение маршей и видимые марши за плоскостью
+    const stairs = stairSection(frame, floor, L)
+    cut.push(...stairs.cut)
+    layers.push(...stairs.layers)
     const tris = roofTris(floor)
     const beyond = roofLayer(frame, tris, EPS)
     if (beyond) layers.push({ ...beyond, depth: beyond.depth })

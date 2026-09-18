@@ -74,4 +74,36 @@ describe("разрез", () => {
     // крыша рассечена
     expect(d.items.some((i) => i.t === "line" && i.weight === "thick" && i.a.y > 6000)).toBe(true)
   })
+
+  it("лестница в секущей плоскости показана ступенями", () => {
+    const stair = { id: "st1", shape: "straight" as const, fromFloorId: "f1", toFloorId: "f2", position: { x: 0, y: 0 }, rotationDeg: 0, width: 1200, railing: true }
+    const withStair: Building = { ...building, floors: [{ ...f1, stairs: [stair] }, f2] }
+    // план марша лежит от точки вставки по +x, поэтому секущая идёт через его середину
+    const s = { a: { x: 600, y: -6000 }, b: { x: 600, y: 6000 }, look: 1 as const }
+    const before = buildSection(building, s).items.filter((i) => i.t === "poly" && i.fill === "cut").length
+    const after = buildSection(withStair, s).items.filter((i) => i.t === "poly" && i.fill === "cut").length
+    expect(after).toBeGreaterThan(before)
+  })
+
+  it("лестница за плоскостью разреза видна контуром, а не сечением", () => {
+    const stair = { id: "st1", shape: "straight" as const, fromFloorId: "f1", toFloorId: "f2", position: { x: -4500, y: 0 }, rotationDeg: 0, width: 1200, railing: true }
+    const withStair: Building = { ...building, floors: [{ ...f1, stairs: [stair] }, f2] }
+    const s = { a: { x: -3000, y: -6000 }, b: { x: -3000, y: 6000 }, look: 1 as const }
+    const base = buildSection(building, s)
+    const d = buildSection(withStair, s)
+    const faces = (b: typeof d) => b.items.filter((i) => i.t === "poly" && i.fill === "face").length
+    expect(faces(d)).toBeGreaterThan(faces(base))
+    expect(d.items.filter((i) => i.t === "poly" && i.fill === "cut").length).toBe(base.items.filter((i) => i.t === "poly" && i.fill === "cut").length)
+  })
+
+  it("крыльцо и пандус лестницей в сечении не считаются", () => {
+    // у крыльца и пандуса свой слой (porch): в сечении марша быть не должно
+    const porch = { id: "p1", shape: "porch" as const, fromFloorId: "f1", toFloorId: "f1", position: { x: 600, y: -3200 }, rotationDeg: 180, width: 1800, railing: false, rise: 450 }
+    const ramp = { id: "r1", shape: "ramp" as const, fromFloorId: "f1", toFloorId: "f1", position: { x: 600, y: 3200 }, rotationDeg: 0, width: 1200, railing: true, rise: 450 }
+    const s = { a: { x: 600, y: -6000 }, b: { x: 600, y: 6000 }, look: 1 as const }
+    const base = buildSection(building, s)
+    const withBoth = buildSection({ ...building, floors: [{ ...f1, stairs: [porch, ramp] }, f2] }, s)
+    const cuts = (b: typeof base) => b.items.filter((i) => i.t === "poly" && i.fill === "cut").length
+    expect(cuts(withBoth)).toBe(cuts(base))
+  })
 })
