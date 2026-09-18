@@ -742,6 +742,7 @@ export function PlanEditor() {
     : tool === "mep-run" ? `Трасса ${MEP_SYSTEM_INFO[mepSystem].name}: клики — точки${pts2.length ? `, ${(polylineLengthMm(pts2) / 1000).toFixed(2)} м` : ""}; клик в последней точке, правая кнопка или Enter — готово`
     : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
     : tool === "object" ? (armedAsset ? "Объект: клик — поставить. Поворот и размер — в панели справа" : "Объект: выберите его в каталоге снизу")
+    : tool === "island" ? `${ISLAND_PRESETS[islandKind].label}: клик в коридоре или холле — место встанет по центру клика; арендатор и размеры — в панели справа`
     : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
 
   // ── Размеры выделенного элемента прямо на плане: клик — ввод числа ─────────
@@ -1261,10 +1262,16 @@ const PlanLayers = memo(function PlanLayers({
             <g key={isl.id}>
               <polygon points={pts(poly)} fill={isl.tenant ? "rgba(14,165,233,0.16)" : "rgba(148,163,184,0.16)"} stroke={on ? TOKENS.accent : "#0369a1"} strokeWidth={on ? 2.4 : 1.4} />
               {(() => { const a = S(poly[0]), b = S(poly[2]), d = S(poly[1]), e2 = S(poly[3]); return <g stroke={on ? TOKENS.accent : "#7dd3fc"} strokeWidth={0.8}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line x1={d.x} y1={d.y} x2={e2.x} y2={e2.y} /></g> })()}
-              {wide && (
+              {/* внутрь габарита подпись влезает только на крупном зуме — иначе
+                  ставим её над местом, чтобы было видно, что это за точка */}
+              {wide ? (
                 <text x={c.x} y={c.y} fontSize={Math.max(8, fontPx - 2)} textAnchor="middle" dominantBaseline="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>
                   {islandLabel(isl)}
                   <tspan x={c.x} dy={fontPx}>{area.toFixed(2)} м²</tspan>
+                </text>
+              ) : (
+                <text x={c.x} y={c.y - Math.max(8, px(isl.depth) / 2 + 5)} fontSize={Math.max(8, fontPx - 3)} textAnchor="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>
+                  {islandLabel(isl)}
                 </text>
               )}
             </g>

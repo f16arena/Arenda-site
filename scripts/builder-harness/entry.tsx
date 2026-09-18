@@ -7,6 +7,8 @@ import { useLabelStore } from "@/store/label-store"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomUse } from "@/lib/builder/room-use"
 import { validateDocument } from "@/lib/builder/validate"
+import { islandSchedule } from "@/lib/builder/islands"
+import { DeleteIslandCommand } from "@/core/document/commands"
 
 const src = {
   id: "b1",
@@ -27,5 +29,7 @@ w.__doc = () => useDocumentStore.getState().doc
 w.__floorRooms = floorRooms
 w.__roomUse = roomUse
 w.__validate = validateDocument
+w.__islandSchedule = (floors: Parameters<typeof islandSchedule>[0]) => islandSchedule(floors, (f) => floorRooms(f))
+w.__commands = { DeleteIslandCommand }
 w.__stores = { useDocumentStore, useEditorStore, useSyncStore, useLabelStore }
 createRoot(document.getElementById("root")!).render(<BuilderApp initialDoc={parseDocument(doc)} buildingId="b1" />)
