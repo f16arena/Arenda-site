@@ -205,7 +205,7 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
       </div>
       <div id="sheet-album" className="flex flex-col gap-6">
         <div className={`album-page pg-A3L`}>
-          <SheetSvg svgId="album-cover" drawing={coverDrawing} sheet={A3L} title="Общие данные" buildingName={buildingName} address={address} author={author} sheetNo={1} sheetCount={total} section="ar" mep={null} reserveRight={0} elevation={null} sectionMarks={[]} replan={null} stage="plan" cover={coverRows} indicators={buildingIndicators(building)} />
+          <SheetSvg svgId="album-cover" drawing={coverDrawing} sheet={A3L} title="Общие данные" buildingName={buildingName} address={address} author={author} sheetNo={1} sheetCount={total} section="ar" mep={null} reserveRight={0} elevation={null} sectionMarks={[]} replan={null} stage="plan" cover={coverRows} indicators={buildingIndicators(building, site ? ((site.sizeX ?? 50000) / 1000) * ((site.sizeZ ?? 50000) / 1000) : undefined)} />
         </div>
         {entries.map((e, i) => (
           <div key={e.key} className={`album-page pg-${pageName(e.sheet)}`}>

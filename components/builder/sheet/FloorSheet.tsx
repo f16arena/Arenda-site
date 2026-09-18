@@ -840,7 +840,9 @@ function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: s
     ? [
         ["Этажность (надземных этажей)", String(indicators.above)],
         ["Количество этажей всего", String(indicators.floors)],
+        ...(indicators.siteM2 ? ([["Площадь участка, м²", fmt(indicators.siteM2)]] as Array<[string, string]>) : []),
         ["Площадь застройки, м²", fmt(indicators.footprintM2)],
+        ...(indicators.builtPercent !== undefined ? ([["Процент застройки, %", String(indicators.builtPercent)]] as Array<[string, string]>) : []),
         ["Общая площадь помещений, м²", fmt(indicators.totalM2)],
         ["в т.ч. арендопригодная, м²", fmt(indicators.rentM2)],
         ["в т.ч. МОП и технические, м²", fmt(indicators.commonM2)],

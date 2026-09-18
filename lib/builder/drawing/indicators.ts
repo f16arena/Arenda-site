@@ -24,6 +24,10 @@ export interface BuildingIndicators {
   volumeM3: number
   /** высота здания от пола нижнего этажа до верха верхнего, м */
   heightM: number
+  /** площадь участка, м² (если известна) */
+  siteM2?: number
+  /** процент застройки участка */
+  builtPercent?: number
 }
 
 /**
@@ -95,7 +99,7 @@ export function footprintArea(g: WallGraph): number {
   return (Math.abs(a2) / 2 + per * half) / 1e6
 }
 
-export function buildingIndicators(building: Pick<Building, "floors">): BuildingIndicators {
+export function buildingIndicators(building: Pick<Building, "floors">, siteM2?: number): BuildingIndicators {
   const floors = building.floors as Floor[]
   let rent = 0
   let common = 0
@@ -120,5 +124,8 @@ export function buildingIndicators(building: Pick<Building, "floors">): Building
     commonM2: r1(common),
     volumeM3: Math.round(footprint * ((top - bottom) / 1000)),
     heightM: r1((top - bottom) / 1000),
+    ...(siteM2 && siteM2 > 0
+      ? { siteM2: Math.round(siteM2), builtPercent: Math.round((footprint / siteM2) * 100) }
+      : {}),
   }
 }
