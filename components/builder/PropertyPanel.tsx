@@ -39,6 +39,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const selection = useEditorStore((s) => s.selection)
+  const plan2d = useEditorStore((s) => s.cameraMode) === "plan2d"
   const gizmoMode = useEditorStore((s) => s.gizmoMode)
   const setGizmoMode = useEditorStore((s) => s.setGizmoMode)
   const assetBaseSizes = useEditorStore((s) => s.assetBaseSizes)
@@ -692,7 +693,10 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
 
   return (
     <div
-      className="absolute right-3 top-[12.6rem] z-20 w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100%-19.5rem)] overflow-y-auto overflow-x-hidden rounded-2xl p-3 shadow-2xl backdrop-blur-xl"
+      // в 3D над панелью лежит блок переключателей вида, в плане его нет
+      className={`absolute right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] overflow-y-auto overflow-x-hidden rounded-2xl p-3 shadow-2xl backdrop-blur-xl ${
+        plan2d ? "top-[10rem] max-h-[calc(100%-17rem)]" : "top-[12.6rem] max-h-[calc(100%-19.5rem)]"
+      }`}
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
     >
       <div className="mb-1.5 text-sm font-semibold">{title}</div>
