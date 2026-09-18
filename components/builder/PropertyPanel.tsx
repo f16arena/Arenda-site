@@ -478,7 +478,14 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       rows.push(<Row key="s" label="Габарит" value={`${isl.width}×${isl.depth} мм`} />)
       rows.push(<Row key="a" label="Площадь" value={`${islandArea(isl).toFixed(2)} м²`} />)
       rows.push(<Row key="xy" label="X · Y" value={`${(isl.position.x / 1000).toFixed(2)} · ${(isl.position.y / 1000).toFixed(2)} м`} />)
-      if (isl.tenant) rows.push(<Row key="t" label="Арендатор" value={isl.tenant} />)
+      // привязка к карточке помещения: если она есть, арендатор и статус —
+      // из базы, а не из подписи руками
+      const islPremise = resolvePremise(f.premiseLinks?.[iid] ?? "")
+      const islOptions = Array.from(premisesById.values())
+      if (islPremise) {
+        rows.push(<Row key="st" label="Статус" value={STATUS_LABEL[islPremise.status]} />)
+        if (islPremise.tenantName) rows.push(<Row key="tn" label="Арендатор" value={islPremise.tenantName} />)
+      } else if (isl.tenant) rows.push(<Row key="t" label="Арендатор" value={isl.tenant} />)
       controls = (
         <div className="mt-2 flex flex-col gap-1.5">
           <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
@@ -523,6 +530,25 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             <button type="button" onClick={() => execute(new SetIslandCommand(fid, iid, { rotationDeg: (isl.rotationDeg + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
             <button type="button" onClick={() => { execute(new DeleteIslandCommand(fid, iid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>
           </div>
+          {islOptions.length > 0 && (
+            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
+              Карточка помещения
+              <select
+                id="island-premise"
+                value={islPremise?.id ?? ""}
+                onChange={(ev) => execute(new LinkPremiseCommand(fid, iid, ev.target.value || null))}
+                className="w-full max-w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
+                style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+              >
+                <option value="">— не привязано —</option>
+                {islOptions.map((pp) => (
+                  <option key={pp.id} value={pp.id}>
+                    {pp.floorNumber} эт · № {pp.number}{pp.areaM2 != null ? ` · ${pp.areaM2} м²` : ""}{pp.tenantName ? ` · ${pp.tenantName}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <p className="text-[10px]" style={{ color: TOKENS.muted }}>Место стоит в общей зоне и в площадь помещения не входит — оно идёт отдельной строкой в ведомости арендных мест.</p>
         </div>
       )

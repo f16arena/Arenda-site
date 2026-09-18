@@ -1258,9 +1258,12 @@ const PlanLayers = memo(function PlanLayers({
           const c = S(isl.position)
           const area = islandArea(isl)
           const wide = px(Math.min(isl.width, isl.depth)) > 34
+          // в режиме «Аренда» место красится статусом своей карточки, как помещения
+          const prem = resolvePremise(shown?.premiseLinks?.[isl.id] ?? "")
+          const fill = look === "rent" && prem ? `${STATUS_COLOR[prem.status]}55` : isl.tenant ? "rgba(14,165,233,0.16)" : "rgba(148,163,184,0.16)"
           return (
             <g key={isl.id}>
-              <polygon points={pts(poly)} fill={isl.tenant ? "rgba(14,165,233,0.16)" : "rgba(148,163,184,0.16)"} stroke={on ? TOKENS.accent : "#0369a1"} strokeWidth={on ? 2.4 : 1.4} />
+              <polygon points={pts(poly)} fill={fill} stroke={on ? TOKENS.accent : "#0369a1"} strokeWidth={on ? 2.4 : 1.4} />
               {(() => { const a = S(poly[0]), b = S(poly[2]), d = S(poly[1]), e2 = S(poly[3]); return <g stroke={on ? TOKENS.accent : "#7dd3fc"} strokeWidth={0.8}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line x1={d.x} y1={d.y} x2={e2.x} y2={e2.y} /></g> })()}
               {/* внутрь габарита подпись влезает только на крупном зуме — иначе
                   ставим её над местом, чтобы было видно, что это за точка */}
