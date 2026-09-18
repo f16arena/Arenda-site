@@ -458,6 +458,27 @@ export class BuilderEngine {
     this.bundle.scene.onAfterRenderObservable.add(() => this.projectLabels())
   }
 
+  /**
+   * Где сейчас стоит человек в обходе: этаж и точка в координатах плана.
+   * Нужно, чтобы показывать подсказку «какое это помещение».
+   */
+  getWalkSpot(): { floorId: string; at: Vec2 } | null {
+    const wc = this.walkCamera
+    const doc = this.getDoc()
+    if (!wc || !doc || this.bundle.scene.activeCamera !== wc) return null
+    let best: { floorId: string; d: number; origin: { x: number; y: number } } | null = null
+    for (const b of doc.buildings) {
+      for (const f of b.floors) {
+        // этаж, на полу которого стоим: ближайшая отметка не выше головы
+        const d = wc.position.y - f.elevation * S
+        if (d < -0.2 || d > 3.6) continue
+        if (!best || d < best.d) best = { floorId: f.id, d, origin: b.origin }
+      }
+    }
+    if (!best) return null
+    return { floorId: best.floorId, at: { x: (wc.position.x - best.origin.x * S) / S, y: (wc.position.z - best.origin.y * S) / S } }
+  }
+
   getFps(): number {
     return this.bundle.engine.getFps()
   }

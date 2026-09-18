@@ -149,6 +149,17 @@ await page.waitForTimeout(300)
   check("K7c не провалился на этаж ниже", after.y > f.elev / 1000 + 0.9, `y=${after.y.toFixed(2)}`)
 }
 
+// ── K8. в обходе видно, в каком помещении стоишь ──
+{
+  await page.waitForTimeout(1000)
+  const spot = await page.evaluate(() => window.__engine.getWalkSpot())
+  const badge = await page.evaluate(() => {
+    const el = [...document.querySelectorAll("div")].find((d) => /м²/.test(d.textContent ?? "") && (d.className ?? "").includes("top-3"))
+    return el ? el.textContent.replace(/\s+/g, " ").trim() : null
+  })
+  check("K8 подсказка помещения в обходе", !!spot && !!badge, `${badge ?? "плашки нет"} · ${JSON.stringify(spot)}`)
+}
+
 console.log(results.join("\n"))
 console.log("errors:", errors.slice(0, 5))
 await browser.close()
