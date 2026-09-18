@@ -435,6 +435,12 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engineRef.current?.setTimeOfDay(hourOfDay)
   }, [hourOfDay, ready])
 
+  // витрина: медленный автооблёт, пока посетитель не тронул мышь
+  useEffect(() => {
+    if (!ready) return
+    engineRef.current?.setAutoOrbit(!!readOnly && cameraMode === "orbit")
+  }, [ready, readOnly, cameraMode])
+
   // Помещения этого здания: статусы для окраски полов и карточки для панели.
   useEffect(() => {
     if (readOnly || !buildingId) return

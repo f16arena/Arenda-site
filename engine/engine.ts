@@ -226,6 +226,8 @@ export class BuilderEngine {
   private lastDragEndAt = 0
 
   private renderUntil = 0
+  /** витрина: камера медленно поворачивается сама */
+  private autoOrbit = false
   private paused = false
   private lastView: number[] | null = null
   private detachKeys: (() => void) | null = null
@@ -437,6 +439,8 @@ export class BuilderEngine {
       if (this.paused) return
       // обход: камера падает и идёт сама — кадры нужны постоянно
       if (this.walkCamera && this.bundle.scene.activeCamera === this.walkCamera) this.invalidate(200)
+      // витрина с автооблётом: камера едет сама, кадры тоже нужны постоянно
+      if (this.autoOrbit && this.bundle.scene.activeCamera === this.bundle.camera) this.invalidate(200)
       const now = performance.now()
       if (now > this.renderUntil) return
       this.bundle.scene.render()
@@ -477,6 +481,29 @@ export class BuilderEngine {
     }
     if (!best) return null
     return { floorId: best.floorId, at: { x: (wc.position.x - best.origin.x * S) / S, y: (wc.position.z - best.origin.y * S) / S } }
+  }
+
+  /**
+   * Витрина: пока посетитель ничего не трогает, здание медленно поворачивается —
+   * видно все фасады без единого клика. Любое движение мышью останавливает.
+   */
+  setAutoOrbit(on: boolean): void {
+    const cam = this.bundle.camera
+    if (on) {
+      cam.useAutoRotationBehavior = true
+      const b = cam.autoRotationBehavior
+      if (b) {
+        b.idleRotationSpeed = 0.08
+        b.idleRotationWaitTime = 2500
+        b.idleRotationSpinupTime = 1500
+        b.zoomStopsAnimation = true
+      }
+      this.autoOrbit = true
+      this.invalidate(1200)
+    } else {
+      this.autoOrbit = false
+      cam.useAutoRotationBehavior = false
+    }
   }
 
   getFps(): number {
