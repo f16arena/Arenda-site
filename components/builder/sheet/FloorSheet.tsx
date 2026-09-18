@@ -1225,7 +1225,67 @@ function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => numbe
       {plan.parking.map((p, i) => (
         <text key={`pk${i}`} x={X(p.x)} y={Y(p.y) + 1} fontSize={3} textAnchor="middle">П</text>
       ))}
-      <text x={X(plan.bounds.minX)} y={Y(plan.bounds.minY) + 7} fontSize={2.8}>
+      {/* размеры участка и привязка здания к границам — без них генплан не читается */}
+      {(() => {
+        const b = plan.bounds
+        const x0 = X(b.minX), x1 = X(b.maxX), y0 = Y(b.maxY), y1 = Y(b.minY)
+        const dim = (ax: number, ay: number, bx: number, by: number, text: string, vertical = false) => (
+          <g stroke="#000" strokeWidth={0.15} fill="none">
+            <line x1={ax} y1={ay} x2={bx} y2={by} />
+            <line x1={ax - (vertical ? 1.2 : 0)} y1={ay - (vertical ? 0 : 1.2)} x2={ax + (vertical ? 1.2 : 0)} y2={ay + (vertical ? 0 : 1.2)} strokeWidth={0.4} />
+            <line x1={bx - (vertical ? 1.2 : 0)} y1={by - (vertical ? 0 : 1.2)} x2={bx + (vertical ? 1.2 : 0)} y2={by + (vertical ? 0 : 1.2)} strokeWidth={0.4} />
+            <text
+              x={vertical ? (ax + bx) / 2 - 1.2 : (ax + bx) / 2}
+              y={vertical ? (ay + by) / 2 : (ay + by) / 2 - 1.2}
+              fontSize={2.6}
+              textAnchor="middle"
+              stroke="none"
+              fill="#000"
+              transform={vertical ? `rotate(-90 ${(ax + bx) / 2 - 1.2} ${(ay + by) / 2})` : undefined}
+            >
+              {text}
+            </text>
+          </g>
+        )
+        const m = (v: number) => (v / 1000).toFixed(1).replace(".", ",")
+        const out = [
+          <g key="site-w">{dim(x0, y1 + 12, x1, y1 + 12, m(b.maxX - b.minX))}</g>,
+          <g key="site-h">{dim(x0 - 12, y0, x0 - 12, y1, m(b.maxY - b.minY), true)}</g>,
+        ]
+        // привязки: расстояния от каждого здания до ближайших границ участка
+        plan.buildings.forEach((bl, i) => {
+          const xs = bl.outline.map((p) => p.x), ys = bl.outline.map((p) => p.y)
+          const left = Math.min(...xs) - b.minX, right = b.maxX - Math.max(...xs)
+          const bottom = Math.min(...ys) - b.minY, top = b.maxY - Math.max(...ys)
+          // размерные линии ведём мимо здания: горизонтальные — ниже него,
+          // вертикальные — правее; нулевые привязки (здание по границе) не рисуем
+          const cy = Y(Math.min(...ys)) + 5
+          const cx = X(Math.max(...xs)) + 5
+          const MIN = 500
+          out.push(
+            <g key={`tie${i}`}>
+              {left > MIN ? dim(x0, cy, X(Math.min(...xs)), cy, m(left)) : null}
+              {right > MIN ? dim(X(Math.max(...xs)), cy, x1, cy, m(right)) : null}
+              {bottom > MIN ? dim(cx, Y(Math.min(...ys)), cx, y1, m(bottom), true) : null}
+              {top > MIN ? dim(cx, y0, cx, Y(Math.max(...ys)), m(top), true) : null}
+            </g>,
+          )
+        })
+        return out
+      })()}
+      {/* стрелка севера */}
+      {(() => {
+        const x = X(plan.bounds.maxX) + 14
+        const y = Y(plan.bounds.maxY) + 6
+        return (
+          <g>
+            <line x1={x} y1={y + 10} x2={x} y2={y - 6} stroke="#000" strokeWidth={0.5} />
+            <polygon points={`${x},${y - 9} ${x - 2.2},${y - 3.5} ${x + 2.2},${y - 3.5}`} fill="#000" />
+            <text x={x} y={y + 14} fontSize={3.4} textAnchor="middle" fontWeight={700}>С</text>
+          </g>
+        )
+      })()}
+      <text x={X(plan.bounds.minX)} y={Y(plan.bounds.minY) + 20} fontSize={2.8}>
         Участок {plan.siteM2.toLocaleString("ru-RU")} м² · застройка {plan.builtM2.toLocaleString("ru-RU")} м² ({Math.round((plan.builtM2 / Math.max(1, plan.siteM2)) * 100)}%)
       </text>
     </g>
