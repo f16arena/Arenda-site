@@ -89,6 +89,23 @@ describe("модель → план этажа", () => {
     expect(layout.underlay?.y).toBeCloseTo(4 - (-2 + 36.55 / 1.5) + 1, 2)
   })
 
+  it("арендное место выходит на карту как арендопригодный контур", () => {
+    const floor = roomFloor()
+    floor.islands = [{ id: "i1", kind: "vending", name: "Автомат с игрушками", tenant: "ИП Forbs", position: { x: 2000, y: 2000 }, width: 900, depth: 800, height: 1830, rotationDeg: 0 }]
+    floor.premiseLinks = { ...floor.premiseLinks, i1: "sp9" }
+    const layout = floorToLayout(floor)
+    const el = layout.elements.find((x) => x.id === "i1")
+    expect(el?.type).toBe("polygon")
+    if (el?.type !== "polygon") throw new Error("не полигон")
+    expect(el.kind).toBe("rentable")
+    expect(el.spaceId).toBe("sp9")
+    expect(el.label).toBe("Автомат с игрушками")
+    // габарит 0,9 × 0,8 м на карте
+    const xs = el.points.map((p) => p.x), ys = el.points.map((p) => p.y)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(0.9, 2)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(0.8, 2)
+  })
+
   it("карта не переворачивает этаж: верх плана в модели — верх на карте", () => {
     const floor = roomFloor()
     const layout = floorToLayout(floor)

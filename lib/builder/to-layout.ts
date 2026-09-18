@@ -7,6 +7,7 @@
 
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomUse } from "@/lib/builder/room-use"
+import { islandLabel, islandPolygon } from "@/lib/builder/islands"
 import type { Floor as ModelFloor } from "@/types/builder"
 import type { FloorElement, FloorLayoutV2 } from "@/lib/floor-layout"
 
@@ -60,6 +61,20 @@ export function floorToLayout(floor: ModelFloor): FloorLayoutV2 {
       spaceId: rentable ? floor.premiseLinks[room.id] ?? null : null,
       kind: rentable ? "rentable" : "common",
       points: room.polygon.map((p) => ({ x: mx(p.x), y: my(p.y) })),
+    })
+  }
+
+  // Арендные места в общих зонах (вендинг, киоск, банкомат): на карте это такой
+  // же арендопригодный контур, только маленький и внутри коридора — иначе место
+  // видно в модели, но не видно там, где смотрят аренду.
+  for (const isl of floor.islands ?? []) {
+    elements.push({
+      type: "polygon",
+      id: isl.id,
+      spaceId: floor.premiseLinks[isl.id] ?? null,
+      kind: "rentable",
+      points: islandPolygon(isl).map((p) => ({ x: mx(p.x), y: my(p.y) })),
+      label: islandLabel(isl),
     })
   }
 
