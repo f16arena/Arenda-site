@@ -30,18 +30,21 @@ const RAMP_NEEDED_MM = 150
 /** Нормальная высота этажа общественного здания, мм. */
 const LOW_CEILING = 2500
 
-function wallsOfRoom(floor: Pick<Floor, "wallGraph">, room: FloorRoom): string[] {
-  const g = floor.wallGraph
-  const ids: string[] = []
-  for (const id in g.edges) {
-    const e = g.edges[id]
-    const a = g.nodes[e.a], b = g.nodes[e.b]
-    if (!a || !b) continue
-    // стена принадлежит помещению, если её середина лежит на контуре (с допуском)
-    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
-    if (nearPolygon(mid, room.polygon, Math.max(200, e.thickness))) ids.push(id)
+/**
+ * Проёмы помещения: считаем по самому проёму, а не по стене целиком. Длинная
+ * стена идёт вдоль нескольких комнат, и по её середине дверь приписывалась
+ * чужому помещению — проверка ругалась «нет входа» там, где вход есть.
+ */
+function openingsOfRoom(floor: Pick<Floor, "wallGraph" | "openings">, room: FloorRoom): Opening[] {
+  const out: Opening[] = []
+  for (const o of floor.openings) {
+    const c = openingCenter(floor, o)
+    if (!c) continue
+    const e = floor.wallGraph.edges[o.wallId]
+    const tol = Math.max(350, (e?.thickness ?? 200) * 1.5)
+    if (nearPolygon(c, room.polygon, tol)) out.push(o)
   }
-  return ids
+  return out
 }
 
 function nearPolygon(p: Vec2, poly: Vec2[], tol: number): boolean {
@@ -113,8 +116,7 @@ export function validateFloor(floor: Floor, opts: { lowest: boolean; multiFloor:
   for (const room of rooms) {
     const use = roomUse(floor, room)
     const name = roomDisplayName(floor, room)
-    const walls = new Set(wallsOfRoom(floor, room))
-    const ops = floor.openings.filter((o) => walls.has(o.wallId))
+    const ops = openingsOfRoom(floor, room)
     const doors = ops.filter((o) => o.type === "door")
     const windows = ops.filter((o) => o.type === "window")
     const at = center(room.polygon)
