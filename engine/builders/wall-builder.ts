@@ -74,7 +74,9 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
         const ol = Math.hypot(ob.x - oa.x, ob.y - oa.y) || 1
         const cross = Math.abs(dir.x * ((ob.y - oa.y) / ol) - dir.y * ((ob.x - oa.x) / ol))
         if (cross < 0.1) continue
-        ext = Math.max(ext, o.thickness / 2)
+        // не доводим до самой грани: совпадающие плоскости мерцают и рисуют
+        // на фасаде тонкие полосы
+        ext = Math.max(ext, Math.max(0, o.thickness / 2 - 20))
       }
       return ext
     }
@@ -106,7 +108,7 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
       box.parent = parent
       meshes.push(box)
     }
-    if (e.kind === "exterior" && extras.plinth) band(0, 600, 120, reg.get("granite_dark"), `plinth_${id}`)
+    if (e.kind === "exterior" && extras.plinth) band(0, 600, 120, reg.get("granite"), `plinth_${id}`)
     if (e.kind === "exterior" && extras.cornice) band(H - 260, 260, 180, reg.get(e.facadeMaterialId ?? "plaster_white"), `cornice_${id}`)
 
     if (ops.length === 0) {
@@ -185,13 +187,21 @@ export function buildWalls(floor: Floor, parent: TransformNode, scene: Scene, re
           push(sill, reg.get(s2 > 0 ? "marble" : "concrete"))
         }
         // стекло на весь проём + рама + переплёт (крест) для непанорамных
-        const glass = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: o.height - 60, depth: t * 0.15, angle }, scene, `glass_${o.id}`)
+        // стекло утоплено внутрь: снаружи видна четверть и тень откоса
+        const inset = { x: c.x - nrm.x * t * 0.18, y: c.y - nrm.y * t * 0.18 }
+        const glass = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: o.height - 60, depth: t * 0.12, angle }, scene, `glass_${o.id}`)
         push(glass, reg.get("glass"))
         if (o.variant !== "panoramic") {
-          const mull = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: 60, height: o.height - 60, depth: t * 0.22, angle }, scene, `mv_${o.id}`)
+          const mull = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2, width: 70, height: o.height - 60, depth: t * 0.2, angle }, scene, `mv_${o.id}`)
           push(mull, reg.get("plaster_white"))
-          const mh = makeBox({ cx: c.x, cz: c.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: 60, depth: t * 0.22, angle }, scene, `mh_${o.id}`)
+          const mh = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2, width: o.width - 60, height: 70, depth: t * 0.2, angle }, scene, `mh_${o.id}`)
           push(mh, reg.get("plaster_white"))
+          // рама по периметру створки — окно читается и вблизи, и с фасада
+          for (const [dx, dy, w2, h2] of [[0, (o.height - 60) / 2, o.width - 60, 80], [0, -(o.height - 60) / 2, o.width - 60, 80]] as const) {
+            const fr = makeBox({ cx: inset.x, cz: inset.y, yMid: o.sillHeight + o.height / 2 + dy, width: w2, height: h2, depth: t * 0.2, angle }, scene, `wf_${o.id}_${dy}`)
+            void dx
+            push(fr, reg.get("plaster_white"))
+          }
         }
       } else {
         // двери — створки по варианту

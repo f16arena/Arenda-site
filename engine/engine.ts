@@ -666,10 +666,12 @@ export class BuilderEngine {
       }
     }
 
-    // цоколь у нижнего этажа, карниз у верхнего — здание перестаёт быть «коробкой»
+    // Цоколь — у самого нижнего этажа (он и стоит на земле), карниз — у верхнего.
+    // Без них здание выглядит голой коробкой.
     const elevations = b.floors.map((fl) => fl.elevation)
+    const plinthAt = Math.min(...elevations)
     const walls = buildWalls(f, fNode, scene, this.reg, {
-      plinth: f.elevation === Math.min(...elevations),
+      plinth: f.elevation === plinthAt,
       cornice: f.elevation === Math.max(...elevations),
     })
     const floorMeshes = buildFloors(f, fNode, scene, this.reg, this.statusResolver, holes)
@@ -1493,8 +1495,11 @@ export class BuilderEngine {
       const hit = scene.pickWithRay(new Ray(origin, dir, len - 0.4), (m) => {
         if (!m.isPickable || !m.isEnabled() || m.visibility < 0.5) return false
         const meta = m.metadata as MeshMeta | null
-        // заслоняет геометрия других этажей и крыша (в т. ч. своего этажа)
-        return !!meta?.floorId && (meta.floorId !== a.floorId || meta.kind === "roof")
+        // заслоняет геометрия других этажей, крыша и наружные стены своего этажа:
+        // иначе площади «висели» поверх фасада при взгляде снаружи
+        if (!meta?.floorId) return false
+        if (meta.floorId !== a.floorId || meta.kind === "roof") return true
+        return a.kind === "room" && meta.kind === "wall"
       })
       if (hit?.hit) this.occludedLabels.add(a.id)
     }
