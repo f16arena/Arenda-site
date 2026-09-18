@@ -76,6 +76,7 @@ import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builde
 import { arcPoints } from "@/lib/builder/arc"
 import { worldUVFor } from "./world-uv"
 import { labelPoint } from "@/lib/builder/drawing/floor-drawing"
+import { objectCorners } from "@/lib/builder/plan-editor-math"
 import { snapColumn } from "@/lib/builder/plan-editor-math"
 import { createScene, type SceneBundle } from "./create-scene"
 import { MaterialRegistry } from "./material-registry"
@@ -88,6 +89,7 @@ import { buildWater } from "./builders/water-builder"
 import { buildPath } from "./builders/path-builder"
 import { buildPavement } from "./builders/pavement-builder"
 import { LIGHT_ASSETS } from "./builders/object-builder"
+import { SSAO2RenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline"
 import { GizmoController, type GizmoMode } from "./gizmo"
 import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-store"
 import type { ScreenLabel } from "@/store/label-store"
@@ -361,6 +363,7 @@ export class BuilderEngine {
       window.removeEventListener("keyup", onKey)
     }
     this.invalidate(2000)
+    this.setAmbientOcclusion(true)
     this.bundle.engine.runRenderLoop(() => {
       if (this.paused) return
       // обход: камера падает и идёт сама — кадры нужны постоянно
@@ -393,12 +396,46 @@ export class BuilderEngine {
   // Турбо-режим (§24): рендер в пониженном разрешении (меньше пикселей — выше FPS) и
   // более лёгкие тени. Геометрия и интерактив не меняются.
   setTurbo(on: boolean): void {
-    // лёгкий режим: меньше пикселей, без теней, свечения и тумана — геометрия та же
+    // лёгкий режим: меньше пикселей, без теней, свечения, тумана и затенения углов
     this.bundle.engine.setHardwareScalingLevel(on ? 1.5 : 1)
     this.bundle.shadow.useBlurExponentialShadowMap = !on
     this.bundle.sun.shadowEnabled = !on
     this.bundle.glow.isEnabled = !on
     this.bundle.scene.fogEnabled = !on
+    this.setAmbientOcclusion(!on)
+    this.invalidate(800)
+  }
+
+  private ssao: SSAO2RenderingPipeline | null = null
+
+  /**
+   * Мягкое затенение в углах и стыках (SSAO). Без него интерьер выглядит
+   * «нарисованным»: стены, пол и мебель сливаются в одно плоское пятно.
+   * В лёгком режиме выключается — это самый дорогой эффект сцены.
+   */
+  setAmbientOcclusion(on: boolean): void {
+    const { scene, camera } = this.bundle
+    if (!on) {
+      this.ssao?.dispose()
+      this.ssao = null
+      this.invalidate(500)
+      return
+    }
+    if (this.ssao) return
+    try {
+      // привязываем к активной камере: иначе после перехода в обход на экране
+      // оставалась картинка прежней камеры
+      const active = scene.activeCamera ?? camera
+      const ao = new SSAO2RenderingPipeline("ssao", scene, { ssaoRatio: 0.75, blurRatio: 1 }, [active])
+      ao.radius = 1.1
+      ao.totalStrength = 0.9
+      ao.samples = 12
+      ao.expensiveBlur = false
+      ao.maxZ = 60
+      this.ssao = ao
+    } catch {
+      this.ssao = null // старые видеокарты без нужных расширений — просто без затенения
+    }
     this.invalidate(800)
   }
 
@@ -898,12 +935,14 @@ export class BuilderEngine {
       this.onWalkEnter()
       this.enableWalkCollisions()
       this.walkSpawn()
+      this.refreshAmbientOcclusion()
       return
     }
     this.exitPointerLock()
     if (this.walkCamera) this.walkCamera.detachControl()
     scene.activeCamera = camera
     if (canvas) camera.attachControl(canvas, true)
+    this.refreshAmbientOcclusion()
     camera.mode = mode === "plan" ? Camera.ORTHOGRAPHIC_CAMERA : Camera.PERSPECTIVE_CAMERA
     this.setDrafting(mode === "plan")
     const flat = mode === "top" || mode === "plan"
@@ -966,6 +1005,13 @@ export class BuilderEngine {
     cam.radius = Math.max(4, Math.max(h / 0.62, w / aspect / 0.62) + 2)
   }
 
+  /** Пересобрать затенение под активную камеру (после смены камеры). */
+  private refreshAmbientOcclusion(): void {
+    if (!this.ssao) return
+    this.setAmbientOcclusion(false)
+    this.setAmbientOcclusion(true)
+  }
+
   /** Захват указателя: в обходе мышь вращает взгляд, как в играх. */
   pointerLockRequested = false
   private pointerLockHandler: ((e: MouseEvent) => void) | null = null
@@ -1019,8 +1065,14 @@ export class BuilderEngine {
       wc.setTarget(new Vector3(ox, y + EYE, oz))
       return
     }
-    // точка внутри помещения, подальше от стен (та же, что для подписи)
-    const c = labelPoint(best.polygon, best.holes ?? [])
+    // точка внутри помещения, подальше от стен, лестниц, колонн и мебели:
+    // иначе человек появлялся внутри лестницы и его выталкивало на крышу
+    const blocks: Vec2[][] = [
+      ...(best.holes ?? []),
+      ...f.stairs.map((st) => stairHoleWorld(st, f.height)),
+      ...f.objects.map((ob) => objectCorners(ob)),
+    ]
+    const c = labelPoint(best.polygon, blocks)
     wc.position.set(ox + c.x * S, y + EYE, oz + c.y * S)
     // смотреть вдоль длинной стороны помещения
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity

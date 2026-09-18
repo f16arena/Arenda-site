@@ -37,7 +37,8 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
     box.material = mat
     place(b, box)
   }
-  // невидимые пандусы маршей: столкновения в обходе (по ступеням коллайдер не шагает)
+  // Марш снизу: наклонная плита (косоур). Она же — поверхность для ходьбы в
+  // обходе: коллайдер Babylon по ступеням «шагать» не умеет.
   for (let i = 0; i < (geo.ramps?.length ?? 0); i++) {
     const b = (geo.ramps ?? [])[i]
     const box = MeshBuilder.CreateBox(`ramp_${stair.id}_${i}`, { width: b.w * S, height: b.h * S, depth: b.d * S }, scene)
@@ -45,6 +46,13 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
     box.isPickable = false
     box.checkCollisions = true
     place(b, box)
+
+    const slab = MeshBuilder.CreateBox(`soffit_${stair.id}_${i}`, { width: b.w * S, height: 0.16, depth: b.d * S }, scene)
+    slab.material = mat
+    slab.receiveShadows = true
+    slab.isPickable = false
+    slab.metadata = meta
+    place({ ...b, y: b.y - 190 }, slab)
   }
   for (let i = 0; i < geo.rails.length; i++) {
     const b = geo.rails[i]

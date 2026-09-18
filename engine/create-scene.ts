@@ -6,6 +6,7 @@ import {
   ArcRotateCamera,
   Color3,
   Color4,
+  CubeTexture,
   DirectionalLight,
   DynamicTexture,
   Engine,
@@ -33,6 +34,50 @@ export interface SceneBundle {
   glow: GlowLayer
   highlight: HighlightLayer
   ground: Mesh
+}
+
+/**
+ * Окружение для PBR: без него материалы остаются «пластмассовыми» — им нечего
+ * отражать. Кубическую карту рисуем сами (небо сверху, земля снизу, горизонт по
+ * бокам) — без внешних файлов и запросов в сеть.
+ */
+function buildEnvironment(scene: Scene): void {
+  const size = 128
+  const face = (paint: (ctx: CanvasRenderingContext2D) => void): string => {
+    const canvas = document.createElement("canvas")
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return ""
+    paint(ctx)
+    return canvas.toDataURL("image/png")
+  }
+  const side = face((ctx) => {
+    const g = ctx.createLinearGradient(0, 0, 0, size)
+    g.addColorStop(0, "#9ec6ee")
+    g.addColorStop(0.5, "#dbe8f5")
+    g.addColorStop(0.5, "#b9b4aa")
+    g.addColorStop(1, "#8e8a82")
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, size, size)
+  })
+  const top = face((ctx) => {
+    const g = ctx.createRadialGradient(size / 2, size / 2, 4, size / 2, size / 2, size / 1.4)
+    g.addColorStop(0, "#ffffff")
+    g.addColorStop(1, "#8fb8e6")
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, size, size)
+  })
+  const bottom = face((ctx) => {
+    ctx.fillStyle = "#7d7a72"
+    ctx.fillRect(0, 0, size, size)
+  })
+  if (!side || !top || !bottom) return
+  // порядок граней Babylon: px, py, pz, nx, ny, nz
+  const env = CubeTexture.CreateFromImages([side, top, side, side, bottom, side], scene, false)
+  env.gammaSpace = true
+  scene.environmentTexture = env
+  scene.environmentIntensity = 0.45
 }
 
 function buildSkyGradient(scene: Scene): void {
@@ -102,12 +147,19 @@ export function createScene(canvas: HTMLCanvasElement, siteSizeM = 200): SceneBu
   ip.contrast = 1.2
   ip.exposure = 1.05
 
+  buildEnvironment(scene)
   buildSkyGradient(scene)
 
   const hemi = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene)
-  hemi.intensity = 0.75
+  hemi.intensity = 0.42
   hemi.groundColor = new Color3(0.45, 0.46, 0.44)
   hemi.diffuse = new Color3(1, 0.99, 0.95)
+
+  // «отражённый» свет с теневой стороны: без него тени проваливаются в черноту
+  const fill = new DirectionalLight("fill", new Vector3(0.7, -0.4, 0.6), scene)
+  fill.intensity = 0.22
+  fill.diffuse = new Color3(0.86, 0.9, 1)
+  fill.specular = new Color3(0, 0, 0)
 
   const sun = new DirectionalLight("sun", new Vector3(-0.6, -1.2, -0.5), scene)
   sun.position = new Vector3(40, 70, 30)
