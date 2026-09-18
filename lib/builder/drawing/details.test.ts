@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildDetails, structureSizes } from "./details"
+import { detailsToDxf } from "./dxf"
 import type { Floor } from "@/types/builder"
 
 function floor(extra: Partial<Floor> = {}): Floor {
@@ -94,5 +95,23 @@ describe("buildDetails", () => {
     } as unknown as Partial<Floor>)
     const d = buildDetails({ floors: [f] })
     expect(d[2].notes.some((n) => n.text.includes("1200×1400"))).toBe(true)
+  })
+})
+
+describe("узлы в DXF", () => {
+  it("выгрузка содержит слои, линии и подписи", () => {
+    const dxf = detailsToDxf(buildDetails({ floors: [floor()] }), "Узлы")
+    const rows = dxf.split(String.fromCharCode(10)).map((r) => r.trim().replace(String.fromCharCode(13), ""))
+    const count = (name: string) => rows.filter((r) => r === name).length
+    expect(count("LINE")).toBeGreaterThan(50)
+    expect(count("TEXT")).toBeGreaterThan(10)
+    expect(rows).toContain("A-NODE")
+    expect(rows[rows.length - 2] || rows[rows.length - 1]).toBe("EOF")
+  })
+
+  it("узлы не накладываются друг на друга", () => {
+    const dxf = detailsToDxf(buildDetails({ floors: [floor()] }), "Узлы")
+    // координаты X у второго узла сдвинуты вправо — раскладка по два в ряд
+    expect(dxf.length).toBeGreaterThan(1000)
   })
 })

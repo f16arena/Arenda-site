@@ -25,7 +25,7 @@ import { floorDrawingToDxf } from "@/lib/builder/drawing/dxf"
 import { SECTION_TITLE, buildMepDrawing, sectionsWithContent, type MepDrawing, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { MepPlanLayer, MepTables } from "./MepSheetLayer"
 import { FACADE_TITLE, buildFacade, buildSection, type ElevationDrawing, type FacadeSide } from "@/lib/builder/drawing/elevation"
-import { elevationToDxf } from "@/lib/builder/drawing/dxf"
+import { detailsToDxf, elevationToDxf } from "@/lib/builder/drawing/dxf"
 import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
 import { dimGeometry } from "@/lib/builder/annotations"
 import { openingName, openingSchedule, roomExplication, type OpeningSchedule, type RoomRow } from "@/lib/builder/drawing/schedules"
@@ -191,6 +191,17 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const activeSheet = view === "details" ? DETAIL_SHEET : view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
 
   function downloadDxf() {
+    // на листе узлов кнопка отдавала план этажа — теперь сами узлы
+    if (details?.length) {
+      const text = detailsToDxf(details, `${buildingName}. Узлы и фрагменты`)
+      const blob = new Blob([text], { type: "application/dxf" })
+      const a = document.createElement("a")
+      a.href = URL.createObjectURL(blob)
+      a.download = `${buildingName} — узлы.dxf`.replace(/[\/:*?"<>|]/g, "-")
+      a.click()
+      URL.revokeObjectURL(a.href)
+      return
+    }
     if (elevation && elevationSheet) {
       const text = elevationToDxf(elevation.d, elevationSheet.scale, elevation.title)
       const blob = new Blob([text], { type: "application/dxf" })

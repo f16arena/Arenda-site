@@ -7,6 +7,7 @@
 
 import { BUBBLE_R, DIM_BASE, DIM_STEP, AXIS_GAP, areaText, type FloorDrawing, type Pt, type Side } from "./floor-drawing"
 import type { MepDrawing } from "./mep-drawing"
+import type { Detail } from "./details"
 import type { ElevationDrawing } from "./elevation"
 import { dimGeometry } from "@/lib/builder/annotations"
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
@@ -265,6 +266,70 @@ export function elevationToDxf(d: ElevationDrawing, scale: number, title: string
     w.text("A-DIMS", { x: left - 1.5 * k, y: (dim.z0 + dim.z1) / 2 }, th, dim.text, 90)
   }
   w.text("A-TEXT", { x: (d.bounds.minU + d.bounds.maxU) / 2, y: d.bounds.maxZ + 10 * k }, 5 * k, `${title}  М 1:${scale}`)
+  w.pair(0, "ENDSEC")
+  w.pair(0, "EOF")
+  return w.toString()
+}
+
+/**
+ * Узлы и фрагменты в DXF: каждый узел кладётся в своё место чертежа (в ряд по
+ * два), контуры — линиями, штриховка не переносится (в AutoCAD её ставят своими
+ * образцами), выноски и размеры — как есть.
+ */
+export function detailsToDxf(details: Detail[], title: string): string {
+  const w = new Writer()
+  const layers = [
+    { name: "A-NODE", color: 7 },
+    { name: "A-NODE-THIN", color: 8 },
+    { name: "A-DIMS", color: 1 },
+    { name: "A-TEXT", color: 7 },
+  ]
+  w.pair(0, "SECTION"); w.pair(2, "HEADER")
+  w.pair(9, "$ACADVER"); w.pair(1, "AC1009")
+  w.pair(9, "$INSUNITS"); w.pair(70, 4)
+  w.pair(0, "ENDSEC")
+  w.pair(0, "SECTION"); w.pair(2, "TABLES")
+  w.pair(0, "TABLE"); w.pair(2, "LTYPE"); w.pair(70, 1)
+  w.pair(0, "LTYPE"); w.pair(2, "CONTINUOUS"); w.pair(70, 0); w.pair(3, "Solid line"); w.pair(72, 65); w.pair(73, 0); w.pair(40, 0)
+  w.pair(0, "ENDTAB")
+  w.pair(0, "TABLE"); w.pair(2, "LAYER"); w.pair(70, layers.length)
+  for (const l of layers) { w.pair(0, "LAYER"); w.pair(2, l.name); w.pair(70, 0); w.pair(62, l.color); w.pair(6, "CONTINUOUS") }
+  w.pair(0, "ENDTAB")
+  w.pair(0, "ENDSEC")
+  w.pair(0, "SECTION"); w.pair(2, "ENTITIES")
+  // шаг раскладки: по самому широкому и высокому узлу плюс поле
+  const stepX = Math.max(...details.map((d) => d.box.maxX - d.box.minX)) + 4000
+  const stepY = Math.max(...details.map((d) => d.box.maxY - d.box.minY)) + 5000
+  details.forEach((d, i) => {
+    const ox = (i % 2) * stepX - d.box.minX
+    const oy = -Math.floor(i / 2) * stepY - d.box.minY
+    const P = (p: Pt) => ({ x: p.x + ox, y: p.y + oy })
+    for (const sh of d.shapes) {
+      const layer = sh.bold ? "A-NODE" : "A-NODE-THIN"
+      for (let j = 0; j < sh.poly.length; j++) w.line(layer, P(sh.poly[j]), P(sh.poly[(j + 1) % sh.poly.length]))
+    }
+    for (const l of d.lines) w.line(l.bold ? "A-NODE" : "A-NODE-THIN", P(l.a), P(l.b))
+    for (const n of d.notes) {
+      w.line("A-TEXT", P(n.at), P(n.to))
+      const right = n.to.x >= n.at.x
+      const end = { x: n.to.x + (right ? 1200 : -1200), y: n.to.y }
+      w.line("A-TEXT", P(n.to), P(end))
+      w.text("A-TEXT", P({ x: (n.to.x + end.x) / 2, y: n.to.y + 120 }), 120, n.text)
+    }
+    for (const dim of d.dims) {
+      const a = dim.vertical ? { x: dim.a.x + dim.offset, y: dim.a.y } : { x: dim.a.x, y: dim.a.y + dim.offset }
+      const b = dim.vertical ? { x: dim.b.x + dim.offset, y: dim.b.y } : { x: dim.b.x, y: dim.b.y + dim.offset }
+      w.line("A-DIMS", P(dim.a), P(a))
+      w.line("A-DIMS", P(dim.b), P(b))
+      w.line("A-DIMS", P(a), P(b))
+      if (dim.text) w.text("A-DIMS", P({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 120 }), 120, dim.text, dim.vertical ? 90 : 0)
+    }
+    w.text("A-TEXT", P({ x: (d.box.minX + d.box.maxX) / 2, y: d.box.maxY + 900 }), 200, `${d.mark}. ${d.title} (М 1:${d.scale})`)
+    d.layers.forEach((t, j) => {
+      w.text("A-TEXT", P({ x: d.box.minX, y: d.box.minY - 900 - j * 350 }), 150, t)
+    })
+  })
+  w.text("A-TEXT", { x: 0, y: 3000 }, 300, title)
   w.pair(0, "ENDSEC")
   w.pair(0, "EOF")
   return w.toString()
