@@ -16,7 +16,7 @@ import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
 import { hasReplan, replanSummary } from "@/lib/builder/replan"
-import { issuesSummary, validateDocument } from "@/lib/builder/validate"
+import { issuesSummary, validateDocument, type Issue } from "@/lib/builder/validate"
 import { suggestFloorNames } from "@/lib/builder/room-naming"
 import { floorRooms } from "@/lib/builder/rooms"
 
@@ -78,6 +78,21 @@ function CheckBlock() {
     }
     // rev меняется при каждой правке модели — пересчитываем список
   }, [doc, rev])
+  // одинаковые замечания сводим в строку со счётчиком: 45 «без наименования»
+  // подряд читать невозможно
+  const [cursors, setCursors] = useState<Record<string, number>>({})
+  const bump = (key: string) => setCursors((c) => ({ ...c, [key]: (c[key] ?? 0) + 1 }))
+  const groups = useMemo(() => {
+    const byKey = new Map<string, { key: string; level: Issue["level"]; text: string; items: Issue[] }>()
+    for (const i of issues) {
+      // ключ — вид замечания: id вида «room-noname-<id>» даёт «room-noname»
+      const key = i.id.replace(/-[^-]+$/, "")
+      const g = byKey.get(key)
+      if (g) g.items.push(i)
+      else byKey.set(key, { key, level: i.level, text: i.text, items: [i] })
+    }
+    return [...byKey.values()].map((g) => ({ ...g, cursor: cursors[g.key] ?? 0 }))
+  }, [issues, cursors])
   const errors = issues.filter((i) => i.level === "error").length
   const unnamed = issues.filter((i) => i.id.startsWith("room-noname-")).length
   const execute = useDocumentStore((s) => s.execute)
@@ -120,18 +135,23 @@ function CheckBlock() {
               Подставить наименования ({unnamed})
             </button>
           )}
-          {issues.map((i) => (
+          {groups.map((gr) => (
             <button
-              key={i.id}
+              key={gr.key}
               type="button"
               onClick={() => {
+                // переходим по очереди: второй клик показывает следующее такое же замечание
+                const i = gr.items[gr.cursor % gr.items.length]
+                bump(gr.key)
                 if (i.floorId) setActiveLevel(i.floorId)
                 if (i.target && i.floorId) setSelection({ type: i.target.type, id: i.target.id, floorId: i.floorId })
               }}
               className="flex items-start gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-white/5"
             >
-              <span style={{ color: i.level === "error" ? "#f87171" : "#fbbf24" }}>{i.level === "error" ? "●" : "▲"}</span>
-              <span className="flex-1" style={{ color: TOKENS.text }}>{i.text}</span>
+              <span style={{ color: gr.level === "error" ? "#f87171" : "#fbbf24" }}>{gr.level === "error" ? "●" : "▲"}</span>
+              <span className="flex-1" style={{ color: TOKENS.text }}>
+                {gr.items.length > 1 ? `${gr.items.length}× ${gr.text}` : gr.text}
+              </span>
             </button>
           ))}
         </div>
