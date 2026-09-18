@@ -91,14 +91,28 @@ export async function saveBuilderProject(
 const SNAPSHOT_EVERY_MS = 10 * 60 * 1000
 const SNAPSHOT_KEEP = 20
 
+/**
+ * Когда для проекта делали снимок в этом процессе. Автосохранение идёт каждые
+ * несколько секунд, и без этого кэша каждое из них ходило бы в базу за датой
+ * последнего снимка. Кэш — лишь оптимизация: он может быть пустым после
+ * перезапуска, тогда проверяем по базе, как раньше.
+ */
+const lastSnapshotAt = new Map<string, number>()
+
 async function takeSnapshot(projectId: string, revision: number, doc: BuilderDocument): Promise<void> {
+  const cached = lastSnapshotAt.get(projectId)
+  if (cached && Date.now() - cached < SNAPSHOT_EVERY_MS) return
   const last = await db.builderSnapshot.findFirst({
     where: { projectId },
     orderBy: { createdAt: "desc" },
     select: { createdAt: true },
   })
-  if (last && Date.now() - last.createdAt.getTime() < SNAPSHOT_EVERY_MS) return
+  if (last && Date.now() - last.createdAt.getTime() < SNAPSHOT_EVERY_MS) {
+    lastSnapshotAt.set(projectId, last.createdAt.getTime())
+    return
+  }
   await db.builderSnapshot.create({ data: { projectId, revision, doc } })
+  lastSnapshotAt.set(projectId, Date.now())
   // оставляем последние SNAPSHOT_KEEP: без чистки таблица растёт бесконечно
   const old = await db.builderSnapshot.findMany({
     where: { projectId },
