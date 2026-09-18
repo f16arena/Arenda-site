@@ -35,7 +35,7 @@ const LOW_CEILING = 2500
  * стена идёт вдоль нескольких комнат, и по её середине дверь приписывалась
  * чужому помещению — проверка ругалась «нет входа» там, где вход есть.
  */
-function openingsOfRoom(floor: Pick<Floor, "wallGraph" | "openings">, room: FloorRoom): Opening[] {
+export function openingsOfRoom(floor: Pick<Floor, "wallGraph" | "openings">, room: FloorRoom): Opening[] {
   const out: Opening[] = []
   for (const o of floor.openings) {
     const c = openingCenter(floor, o)

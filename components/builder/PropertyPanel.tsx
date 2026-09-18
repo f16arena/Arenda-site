@@ -20,6 +20,7 @@ import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
 import { suggestRoomName } from "@/lib/builder/room-naming"
+import { openingsOfRoom } from "@/lib/builder/validate"
 import { autoRoomUse, ROOM_USE_LABEL, roomUse as roomUseOf, type RoomUse } from "@/lib/builder/room-use"
 import { TOKENS, STATUS_LABEL, STATUS_COLOR } from "@/lib/builder/materials"
 
@@ -139,6 +140,18 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       } else {
         if (drawnM2 != null) rows.push(<Row key="a" label="Площадь в модели" value={`${drawnM2.toFixed(1)} м²`} />)
         rows.push(<Row key="p" label="Карточка" value={linkKey ? `не найдена (${linkKey})` : "не привязана"} />)
+      }
+      if (room) {
+        // периметр и проёмы: нужны для отделки и при разговоре с арендатором
+        const per = room.polygon.reduce((sum, p, i) => {
+          const q = room.polygon[(i + 1) % room.polygon.length]
+          return sum + Math.hypot(q.x - p.x, q.y - p.y)
+        }, 0)
+        const ops = openingsOfRoom(f, room)
+        const win = ops.filter((o) => o.type === "window").length
+        const doors = ops.length - win
+        rows.push(<Row key="per" label="Периметр" value={`${(per / 1000).toFixed(1).replace(".", ",")} м`} />)
+        rows.push(<Row key="ops" label="Окон / дверей" value={`${win} / ${doors}`} />)
       }
       rows.push(<Row key="fl" label="Этаж" value={f.name} />)
       const fid = selection.floorId
