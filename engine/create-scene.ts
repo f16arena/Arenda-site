@@ -104,7 +104,8 @@ function buildGlowingGrid(scene: Scene, size: number): Mesh {
   for (let i = 0; i <= div; i++) {
     const p = (i / div) * px
     const major = i % 10 === 0
-    ctx.strokeStyle = major ? "rgba(120,160,190,0.30)" : "rgba(120,160,190,0.12)"
+    // сетка участка — вспомогательная разметка, а не узор: делаем её едва заметной
+    ctx.strokeStyle = major ? "rgba(140,170,190,0.18)" : "rgba(140,170,190,0.07)"
     ctx.lineWidth = major ? 2 : 1
     ctx.beginPath()
     ctx.moveTo(p, 0)
@@ -121,7 +122,7 @@ function buildGlowingGrid(scene: Scene, size: number): Mesh {
   m.diffuseTexture.hasAlpha = true
   m.useAlphaFromDiffuseTexture = true
   m.emissiveTexture = tex
-  m.emissiveColor = new Color3(0.08, 0.12, 0.16)
+  m.emissiveColor = new Color3(0.04, 0.06, 0.08)
   m.disableLighting = true
   m.backFaceCulling = false
   const grid = MeshBuilder.CreateGround("gridPlane", { width: size, height: size }, scene)

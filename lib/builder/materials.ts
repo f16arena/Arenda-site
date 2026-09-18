@@ -14,7 +14,7 @@ export interface MaterialDef {
 }
 
 export const MATERIALS: Record<string, MaterialDef> = {
-  grass: { id: "grass", name: "Газон", category: "ground", color: "#5BA64C", roughness: 1, metallic: 0 },
+  grass: { id: "grass", name: "Газон", category: "ground", color: "#6E8F5A", roughness: 1, metallic: 0 },
   asphalt: { id: "asphalt", name: "Асфальт", category: "ground", color: "#3F3F46", roughness: 0.95, metallic: 0 },
   paving: { id: "paving", name: "Брусчатка", category: "ground", color: "#9CA3AF", roughness: 0.9, metallic: 0 },
   concrete: { id: "concrete", name: "Бетон", category: "wall", color: "#B8B5B2", roughness: 0.85, metallic: 0 },

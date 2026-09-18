@@ -76,6 +76,8 @@ import { nodeDragTarget, passedDragThreshold, wallPushDelta } from "@/lib/builde
 import { arcPoints } from "@/lib/builder/arc"
 import { worldUVFor } from "./world-uv"
 import { labelPoint } from "@/lib/builder/drawing/floor-drawing"
+import earcut from "earcut"
+import { buildingOutline } from "@/lib/builder/drawing/indicators"
 import { objectCorners } from "@/lib/builder/plan-editor-math"
 import { snapColumn } from "@/lib/builder/plan-editor-math"
 import { createScene, type SceneBundle } from "./create-scene"
@@ -532,6 +534,7 @@ export class BuilderEngine {
       for (const f of b.floors) {
         this.buildFloorMeshes(doc, b, bRoot, f, ctx, active, { register: true, lightSpecs })
       }
+      this.buildApron(b, bRoot, scene)
       const planeY = active ? active.elevation * S : 0
       for (const sec of b.sections ?? []) this.drawSectionLine(bRoot, sec, planeY, false)
     }
@@ -1005,6 +1008,48 @@ export class BuilderEngine {
     // Панели закрывают края: сверху полоса инструментов, слева этажи, справа
     // свойства. Этаж должен целиком влезть в оставшуюся середину экрана.
     cam.radius = Math.max(4, Math.max(h / 0.62, w / aspect / 0.62) + 2)
+  }
+
+  /**
+   * Отмостка: бетонная полоса метровой ширины по контуру здания. Без неё дом
+   * «воткнут» в газон, как деталь конструктора.
+   */
+  private buildApron(b: Building, bRoot: TransformNode, scene: import("@babylonjs/core").Scene): void {
+    const ground = [...b.floors].sort((p, q) => p.elevation - q.elevation).find((f) => Object.keys(f.wallGraph.edges).length > 0)
+    if (!ground) return
+    const outline = buildingOutline(ground.wallGraph)
+    if (outline.length < 3) return
+    const half = Object.values(ground.wallGraph.edges).filter((e) => e.kind === "exterior").reduce((sum, e, _i, arr) => sum + e.thickness / arr.length, 0) / 2
+    const grow = (d: number) => {
+      let a2 = 0
+      for (let i = 0; i < outline.length; i++) {
+        const p = outline[i], q = outline[(i + 1) % outline.length]
+        a2 += p.x * q.y - q.x * p.y
+      }
+      const sign = a2 > 0 ? 1 : -1
+      return outline.map((p, i) => {
+        const prev = outline[(i - 1 + outline.length) % outline.length]
+        const next = outline[(i + 1) % outline.length]
+        const n = (u: { x: number; y: number }, v: { x: number; y: number }) => {
+          const dx = v.x - u.x, dy = v.y - u.y
+          const L = Math.hypot(dx, dy) || 1
+          return { x: (-dy / L) * sign, y: (dx / L) * sign }
+        }
+        const n1 = n(prev, p), n2 = n(p, next)
+        const dot = n1.x * n2.x + n1.y * n2.y
+        const k = d / Math.max(0.2, 1 + dot)
+        return new Vector3((p.x + (n1.x + n2.x) * k) * S, 0, (p.y + (n1.y + n2.y) * k) * S)
+      })
+    }
+    const outer = grow(half + 1000)
+    const inner = grow(half)
+    const apron = MeshBuilder.CreatePolygon(`apron_${b.id}`, { shape: outer, holes: [inner], sideOrientation: Mesh.DOUBLESIDE }, scene, earcut)
+    apron.position.y = 0.03
+    apron.parent = bRoot
+    apron.receiveShadows = true
+    apron.isPickable = false
+    apron.material = this.reg.get("concrete")
+    apron.metadata = { kind: "site" }
   }
 
   /** Пересобрать затенение под активную камеру (после смены камеры). */
