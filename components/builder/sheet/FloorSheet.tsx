@@ -624,6 +624,18 @@ export function SheetSvg({
           </g>
         )
       })}
+      {!roofPlan && !sitePlan && !slabPlan && (() => {
+        // отметка уровня чистого пола: стрелка с полкой и значением (ГОСТ 21.501)
+        const x = X(d.levelMark.at.x), y = Y(d.levelMark.at.y)
+        return (
+          <g stroke="#000" strokeWidth={0.25} fill="none">
+            <line x1={x - 5} y1={y} x2={x + 9} y2={y} />
+            <path d={`M ${x - 2.2} ${y - 2.2} L ${x} ${y} L ${x + 2.2} ${y - 2.2}`} />
+            <line x1={x - 2.2} y1={y - 2.2} x2={x + 2.2} y2={y - 2.2} />
+            <text x={x + 1} y={y - 1.2} fontSize={2.6} stroke="none" fill="#000">{d.levelMark.text}</text>
+          </g>
+        )
+      })()}
       {!roofPlan && !sitePlan && !slabPlan && d.marks.map((m, i) => (
         <text key={`mk${i}`} x={X(m.at.x)} y={Y(m.at.y)} fontSize={2.2} textAnchor="middle" dominantBaseline="middle">{m.text}</text>
       ))}

@@ -95,6 +95,8 @@ export interface FloorDrawing {
   rooms: RoomLabel[]
   dims: DimensionLine[]
   axes: AxisLine[]
+  /** отметка уровня чистого пола этажа */
+  levelMark: { at: Pt; text: string }
 }
 
 const EPS = 5 // мм: узлы на одной линии фасада
@@ -445,7 +447,13 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
 
   const userDims = (source.annotations ?? []).flatMap((x) => (x.kind === "dim" ? [{ a: x.a, b: x.b, offset: x.offset }] : []))
   const texts = (source.annotations ?? []).flatMap((x) => (x.kind === "text" ? [{ at: x.at, text: x.text }] : []))
-  return { bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, stairWells, lifts, exits, thinLines, arcs, rooms, dims, axes }
+  // отметка уровня пола: ±0,000 у первого этажа, у остальных — от него
+  const lvl = (source.elevation ?? 0) / 1000
+  const levelText = Math.abs(lvl) < 0.0005 ? "±0,000" : `${lvl > 0 ? "+" : "−"}${Math.abs(lvl).toFixed(3).replace(".", ",")}`
+  // ставим внутрь здания, ниже верхней стены — чтобы не наезжать на марки окон
+  const levelMark = { at: { x: minX + (maxX - minX) * 0.22, y: maxY - 2600 }, text: levelText }
+
+  return { levelMark, bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, stairWells, lifts, exits, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────
