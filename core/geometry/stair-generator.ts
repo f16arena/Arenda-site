@@ -21,6 +21,8 @@ export interface StepBox {
 export interface StairGeometry {
   steps: StepBox[]
   rails: StepBox[]
+  /** наклонные плоскости маршей: невидимые — по ним человек в обходе поднимается */
+  ramps?: StepBox[]
   hole: { minX: number; minZ: number; maxX: number; maxZ: number } // вырез в перекрытии выше, мм (локально)
 }
 
@@ -87,6 +89,7 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
   const riser = totalRise / count
   const steps: StepBox[] = []
   const rails: StepBox[] = []
+  const ramps: StepBox[] = []
   let minX = 0
   let minZ = 0
   let maxX = width
@@ -122,8 +125,23 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
     else rails.push({ x: ox + midAlong, y: midY, z: edge, w: L, h: 60, d: 60, tilt: dir * tilt, tiltAxis: "z" })
   }
 
+  // пандус вдоль марша: по нему в обходе человек плавно поднимается — коллайдер
+  // Babylon не умеет «шагать» на 170 мм ступень
+  const addRamp = (n: number, ox: number, oz: number, dir: 1 | -1, axis: "z" | "x", startStep: number) => {
+    if (n < 1) return
+    const run = n * T
+    const rise = n * riser
+    const L = Math.hypot(run, rise)
+    const tilt = Math.atan2(rise, run)
+    const midAlong = dir * (run / 2)
+    const midY = startStep * riser + rise / 2
+    if (axis === "z") ramps.push({ x: ox, y: midY, z: oz + midAlong, w: width, h: 60, d: L, tilt: -dir * tilt, tiltAxis: "x" })
+    else ramps.push({ x: ox + midAlong, y: midY, z: oz, w: L, h: 60, d: width, tilt: dir * tilt, tiltAxis: "z" })
+  }
+
   const addRun = (n: number, ox: number, oz: number, dir: 1 | -1, axis: "z" | "x", startStep: number) => {
     addRail(n, ox, oz, dir, axis, startStep)
+    addRamp(n, ox, oz, dir, axis, startStep)
     for (let i = 0; i < n; i++) {
       const idx = startStep + i
       const y = (idx + 1) * riser - STEP_T / 2
@@ -173,7 +191,7 @@ export function generateStair(shape: StairShape, totalRise: number, width: numbe
     addRun(n2, width / 2 + width + 100, landingZ, -1, "z", n1)
   }
 
-  return { steps, rails, hole: { minX, minZ, maxX, maxZ } }
+  return { steps, rails, ramps, hole: { minX, minZ, maxX, maxZ } }
 }
 
 export interface StairPlacement {

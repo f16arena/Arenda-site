@@ -781,7 +781,7 @@ function WalkHud() {
       </div>
       <div className="pointer-events-none absolute bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-xl px-4 py-2 text-xs shadow-xl backdrop-blur-xl"
         style={{ background: "rgba(15,23,42,0.72)", border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
-        <b>W A S D</b> — идти · <b>мышь</b> — осмотреться · <b>Shift</b> — бежать · <b>клик по двери</b> — открыть · <b>Esc</b> — выйти
+        <b>клик</b> — захватить мышь · <b>W A S D</b> — идти · <b>мышь</b> — осмотреться · <b>Shift</b> — бежать · <b>клик по двери</b> — открыть · <b>Esc</b> — освободить мышь, ещё раз — выйти
       </div>
       <button
         type="button"

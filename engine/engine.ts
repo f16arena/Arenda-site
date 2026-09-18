@@ -93,9 +93,15 @@ import type { CameraMode, DisplayMode, Selection, Tool } from "@/store/builder-s
 import type { ScreenLabel } from "@/store/label-store"
 
 const S = 0.001
-/** Рост человека в обходе (метры от пола до глаз) и шаг за кадр. */
+/** Рост человека в обходе (метры от пола до глаз). */
 const EYE = 1.7
-const WALK_SPEED = 0.12
+// Итоговая скорость ≈ speed·3,16/(1−inertia): при speed 0,22 и inertia 0,5 это
+// ~1,4 м/с — спокойный шаг, с Shift ~3 м/с — бег. От частоты кадров не зависит.
+const WALK_SPEED = 0.22
+const RUN_FACTOR = 2.2
+/** Во что упирается человек в обходе. Ставится при сборке — иначе после любой
+ *  перестройки сцены столкновения терялись и он проходил сквозь стены. */
+const SOLID_KINDS = new Set(["wall", "room", "stair", "roof", "object", "opening"])
 const ACCENT = Color3.FromHexString("#38BDF8")
 const HOVER = Color3.FromHexString("#A78BFA")
 const SNAP_NODE_MM = 300
@@ -345,7 +351,7 @@ export class BuilderEngine {
     this.bundle.scene.onPointerObservable.add(() => this.invalidate(700))
     const onKey = (e: KeyboardEvent) => {
       // Shift — бег (как в играх), отпустили — снова шаг
-      if (this.walkCamera && (e.key === "Shift" || e.shiftKey !== undefined)) this.walkCamera.speed = e.type === "keydown" && e.shiftKey ? WALK_SPEED * 2.2 : WALK_SPEED
+      if (this.walkCamera) this.walkCamera.speed = e.type === "keydown" && e.shiftKey ? WALK_SPEED * RUN_FACTOR : WALK_SPEED
       this.invalidate(1500)
     }
     window.addEventListener("keydown", onKey)
@@ -740,6 +746,12 @@ export class BuilderEngine {
     const mepMeshes = buildMep(f, fNode, scene, new Set(ctx.mepLayers ?? MEP_SYSTEMS), this.drafting)
     if (reg) for (const m of mepMeshes) this.registerMesh(m.metadata?.entityId, m)
 
+    // столкновения для обхода задаются сразу при сборке
+    for (const m of fNode.getChildMeshes()) {
+      const kind = (m.metadata as MeshMeta | null)?.kind
+      if (m instanceof Mesh && kind && SOLID_KINDS.has(kind)) m.checkCollisions = true
+    }
+
     // текстуры в реальном масштабе (объекты — со своей развёрткой)
     const objectMeshes = new Set(f.objects.flatMap((o) => this.objectRootById.get(o.id)?.getChildMeshes() ?? []))
     worldUVFor([...fNode.getChildMeshes().filter((m) => !objectMeshes.has(m)), ...(roof ? [roof] : [])])
@@ -857,7 +869,7 @@ export class BuilderEngine {
         wc.minZ = 0.05
         wc.speed = WALK_SPEED
         wc.angularSensibility = 2600
-        wc.inertia = 0.6
+        wc.inertia = 0.5
         wc.keysUp = [87, 38]
         wc.keysDown = [83, 40]
         wc.keysLeft = [65, 37]
@@ -866,23 +878,29 @@ export class BuilderEngine {
         wc.keysDownward = []
         wc.checkCollisions = true
         wc.applyGravity = true
+        // Babylon сам опускает центр эллипсоида на его полувысоту: с радиусом
+        // EYE/2 и нулевым смещением глаза оказываются ровно в 1,7 м над полом.
         wc.ellipsoid = new Vector3(0.32, EYE / 2, 0.32)
-        // центр эллипсоида — на полпути от глаз к полу: подошвы ровно на полу
-        wc.ellipsoidOffset = new Vector3(0, -EYE / 2, 0)
+        wc.ellipsoidOffset = Vector3.Zero()
         wc.onAfterCheckInputsObservable.add(() => { wc.cameraDirection.y = 0 })
         scene.collisionsEnabled = true
-        scene.gravity = new Vector3(0, -0.35, 0)
+        // сильная гравитация «прижимала» коллайдер к полу и съедала шаг:
+        // при −0,35 человек полз со скоростью 0,4 м/с
+        scene.gravity = new Vector3(0, -0.12, 0)
         this.walkCamera = wc
       }
       camera.detachControl()
       scene.activeCamera = this.walkCamera
       if (canvas) this.walkCamera.attachControl(canvas, true)
+      // мышь ведёт взгляд без зажатой кнопки: клик по сцене захватывает указатель
+      this.enterPointerLock(canvas)
       // внутри здания должен быть потолок: в обходе показываем все этажи
       this.onWalkEnter()
       this.enableWalkCollisions()
       this.walkSpawn()
       return
     }
+    this.exitPointerLock()
     if (this.walkCamera) this.walkCamera.detachControl()
     scene.activeCamera = camera
     if (canvas) camera.attachControl(canvas, true)
@@ -948,16 +966,39 @@ export class BuilderEngine {
     cam.radius = Math.max(4, Math.max(h / 0.62, w / aspect / 0.62) + 2)
   }
 
+  /** Захват указателя: в обходе мышь вращает взгляд, как в играх. */
+  pointerLockRequested = false
+  private pointerLockHandler: ((e: MouseEvent) => void) | null = null
+
+  private enterPointerLock(canvas: HTMLCanvasElement | null): void {
+    if (!canvas || this.pointerLockHandler) return
+    const onClick = () => {
+      // повторный клик после выхода из захвата возвращает обзор мышью
+      try { this.bundle.engine.enterPointerlock() } catch { /* браузер может отказать */ }
+    }
+    canvas.addEventListener("click", onClick)
+    this.pointerLockHandler = onClick
+    this.pointerLockRequested = true
+    onClick()
+  }
+
+  private exitPointerLock(): void {
+    const canvas = this.bundle.engine.getRenderingCanvas()
+    if (this.pointerLockHandler && canvas) canvas.removeEventListener("click", this.pointerLockHandler)
+    this.pointerLockHandler = null
+    this.pointerLockRequested = false
+    try { this.bundle.engine.exitPointerlock() } catch { /* не были в захвате */ }
+  }
+
   /** Вход в обход: этажи выше должны быть видимы, иначе над головой небо. */
   onWalkEnter: () => void = () => {}
 
   /** Всё, обо что можно удариться или на что встать: стены, полы, лестницы, крыши, объекты. */
   private enableWalkCollisions(): void {
     if (!this.docRoot) return
-    const solid = new Set(["wall", "room", "stair", "roof", "object", "opening"])
     this.docRoot.getChildMeshes().forEach((m) => {
       const kind = (m.metadata as MeshMeta | null)?.kind
-      if (m instanceof Mesh && kind && solid.has(kind) && kind !== "status") m.checkCollisions = true
+      if (m instanceof Mesh && kind && SOLID_KINDS.has(kind)) m.checkCollisions = true
     })
     this.bundle.ground.checkCollisions = true
   }

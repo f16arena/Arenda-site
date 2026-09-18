@@ -37,6 +37,15 @@ export function buildStair(stair: Stair, floorHeight: number, parent: TransformN
     box.material = mat
     place(b, box)
   }
+  // невидимые пандусы маршей: столкновения в обходе (по ступеням коллайдер не шагает)
+  for (let i = 0; i < (geo.ramps?.length ?? 0); i++) {
+    const b = (geo.ramps ?? [])[i]
+    const box = MeshBuilder.CreateBox(`ramp_${stair.id}_${i}`, { width: b.w * S, height: b.h * S, depth: b.d * S }, scene)
+    box.isVisible = false
+    box.isPickable = false
+    box.checkCollisions = true
+    place(b, box)
+  }
   for (let i = 0; i < geo.rails.length; i++) {
     const b = geo.rails[i]
     const box = MeshBuilder.CreateBox(`rail_${stair.id}_${i}`, { width: b.w * S, height: b.h * S, depth: b.d * S }, scene)
