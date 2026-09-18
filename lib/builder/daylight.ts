@@ -30,13 +30,13 @@ interface Key extends Omit<Daylight, "dir" | "daytime"> {
 
 // Опорные моменты: между ними значения плавно смешиваются.
 const KEYS: Key[] = [
-  { hour: 5, elevation: -3, sun: 0.35, hemi: 0.42, sunColor: "#6b7594", skyColor: "#5d6f92", sky: ["#2b4574", "#5d7ba6", "#b09a9c"], fog: "#8b95a8", exposure: 1.3 },
+  { hour: 5, elevation: -3, sun: 0.2, hemi: 0.26, sunColor: "#6b7594", skyColor: "#5d6f92", sky: ["#2b4574", "#5d7ba6", "#b09a9c"], fog: "#8b95a8", exposure: 1.3 },
   { hour: 7, elevation: 12, sun: 1.5, hemi: 0.46, sunColor: "#ffd2a0", skyColor: "#c2cfe2", sky: ["#5b8fd0", "#a8c6e8", "#f3d9c0"], fog: "#dcd0c6", exposure: 1.15 },
   { hour: 10, elevation: 42, sun: 2.0, hemi: 0.44, sunColor: "#fff3de", skyColor: "#cfe0f5", sky: ["#6fa8e6", "#aed1f2", "#e9f2fb"], fog: "#d7e4f1", exposure: 1.05 },
   { hour: 13, elevation: 62, sun: 2.3, hemi: 0.46, sunColor: "#fffaf0", skyColor: "#dbe9f8", sky: ["#5f9de0", "#a5cdf2", "#eaf3fc"], fog: "#dae7f4", exposure: 1.05 },
   { hour: 16, elevation: 38, sun: 2.05, hemi: 0.44, sunColor: "#ffeccd", skyColor: "#cfe0f5", sky: ["#6ba4e2", "#b0d2f1", "#f0eee8"], fog: "#dde3ea", exposure: 1.06 },
   { hour: 19, elevation: 9, sun: 1.75, hemi: 0.46, sunColor: "#ff9f5a", skyColor: "#e0c3ac", sky: ["#4d78ad", "#d0b7a4", "#f7bd82"], fog: "#e2b795", exposure: 1.18 },
-  { hour: 21, elevation: -5, sun: 0.3, hemi: 0.4, sunColor: "#5b6480", skyColor: "#4a5a7a", sky: ["#16233c", "#37507a", "#8a7286"], fog: "#5d6880", exposure: 1.32 },
+  { hour: 21, elevation: -5, sun: 0.16, hemi: 0.14, sunColor: "#5b6480", skyColor: "#39476a", sky: ["#0e1729", "#243a5e", "#5f5570"], fog: "#3d4759", exposure: 1.1 },
 ]
 
 function hex(c: string): [number, number, number] {

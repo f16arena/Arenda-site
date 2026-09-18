@@ -293,10 +293,17 @@ export class BuilderEngine {
     sun.diffuse = Color3.FromHexString(d.sunColor)
     hemi.intensity = d.hemi
     hemi.diffuse = Color3.FromHexString(d.skyColor)
-    fill.intensity = d.daytime ? 0.22 : 0.3
+    // ночью «отражённый» свет почти гасим — иначе фасады остаются дневными
+    fill.intensity = d.daytime ? 0.22 : 0.08
     fill.diffuse = Color3.FromHexString(d.skyColor)
     scene.fogColor = Color3.FromHexString(d.fog)
     scene.imageProcessingConfiguration.exposure = d.exposure
+    // ночью гаснет и «небесный» отражённый свет: без этого стены оставались
+    // дневными, сколько ни убавляй солнце
+    scene.environmentIntensity = Math.max(0.18, Math.min(1, d.sun / 2.3))
+    // в сумерках в окнах загорается свет: сила — насколько солнце ушло за горизонт
+    const dusk = Math.max(0, Math.min(1, (0.25 - -d.dir.y) / 0.45))
+    this.reg?.setWindowGlow(d.daytime ? dusk * 0.5 : 1)
     const c = Color3.FromHexString(d.sky[2])
     scene.clearColor = new Color4(c.r, c.g, c.b, 1)
     paintSky(sky, d.sky)

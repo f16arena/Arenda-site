@@ -62,6 +62,21 @@ export class MaterialRegistry {
     return m
   }
 
+  /**
+   * Вечерний свет в окнах: при низком солнце стекло начинает светиться изнутри —
+   * здание на витрине выглядит живым, а не выключенным. `k` от 0 до 1.
+   */
+  setWindowGlow(k: number): void {
+    const level = Math.max(0, Math.min(1, k))
+    for (const id of ["glass", "curtain_glass"]) {
+      const m = this.cache.get(id)
+      if (!m) continue
+      m.unfreeze()
+      m.emissiveColor = new Color3(1, 0.86, 0.6).scale(level * 0.85)
+      m.freeze()
+    }
+  }
+
   /** Плоский непрозрачный цвет без освещения — для чертёжного вида «План». */
   private flatCache = new Map<string, StandardMaterial>()
   flat(hex: string): StandardMaterial {
