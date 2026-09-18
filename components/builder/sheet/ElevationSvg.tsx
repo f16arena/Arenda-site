@@ -95,8 +95,28 @@ export function ElevationSvgBody({ d, sheet, title }: { d: ElevationDrawing; she
         <text key={`n${i}`} x={left - 22} y={Y(n.z)} fontSize={2.5} textAnchor="middle" transform={`rotate(-90 ${left - 22} ${Y(n.z)})`}>{n.text}</text>
       ))}
 
+      {/* оси здания снизу: штрихпунктир и кружок с маркой — как на плане */}
+      {(d.axes ?? []).map((ax, i) => {
+        const x = X(ax.u)
+        // кружок ставим ниже всего чертежа (на разрезе есть цоколь ниже нуля),
+        // но не заезжая на штамп
+        const y0 = Y(Math.min(0, d.bounds.minZ))
+        const y1 = Math.min(y0 + 14, areaY1 + 6)
+        return (
+          <g key={`ax${i}`}>
+            <line x1={x} y1={Y(d.bounds.maxZ)} x2={x} y2={y1 - 4} stroke="#555" strokeWidth={0.18} strokeDasharray="8 1.5 1 1.5" />
+            <circle cx={x} cy={y1} r={4} fill="#fff" stroke="#000" strokeWidth={0.25} />
+            <text x={x} y={y1 + 1.2} fontSize={3} textAnchor="middle">{ax.label}</text>
+          </g>
+        )
+      })}
+
       <text x={(areaX0 + areaX1) / 2} y={Math.max(14, Y(d.bounds.maxZ) - 10)} fontSize={5} textAnchor="middle">
-        {title}  <tspan fontSize={3.5}>М 1:{scale}</tspan>
+        {/* по ГОСТ фасад называют по крайним осям: «Фасад 1—2» */}
+        {title}
+        {(d.axes?.length ?? 0) >= 2 ? ` в осях ${d.axes[0].label}—${d.axes[d.axes.length - 1].label}` : ""}
+        {"  "}
+        <tspan fontSize={3.5}>М 1:{scale}</tspan>
       </text>
     </g>
   )

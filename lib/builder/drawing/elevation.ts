@@ -11,6 +11,7 @@ import { detectRooms } from "@/core/geometry/room-detection"
 import { pointInPolygon, type Vec2 } from "@/core/geometry/math"
 import { generateRoof } from "@/core/geometry/roof-generator"
 import { generateStair, stairPlanRects, stairRise } from "@/core/geometry/stair-generator"
+import { buildFloorDrawing } from "./floor-drawing"
 
 export type Pt = { x: number; y: number }
 
@@ -52,6 +53,8 @@ export interface ElevationDrawing {
   dims: EDim[]
   /** подписи этажей справа от отметок */
   floorNames: { z: number; text: string }[]
+  /** оси здания: координата вдоль вида и марка кружка (по плану) */
+  axes: { u: number; label: string }[]
   bounds: { minU: number; maxU: number; minZ: number; maxZ: number }
 }
 
@@ -347,6 +350,28 @@ function paint(layers: Layer[]): EItem[] {
   return items
 }
 
+
+/**
+ * Оси здания на фасаде и разрезе: берём оси плана (их марки — «1», «2», «А»,
+ * «Б») и проецируем на направление вида. Видны только те, что идут поперёк
+ * взгляда — вдоль взгляда ось вырождается в точку.
+ */
+function axesFor(frame: ViewFrame, floors: Floor[]): { u: number; label: string }[] {
+  const base = [...floors].sort((a, b) => a.elevation - b.elevation).find((f) => Object.keys(f.wallGraph.edges).length > 0)
+  if (!base) return []
+  const plan = buildFloorDrawing(base)
+  const out: { u: number; label: string }[] = []
+  for (const ax of plan.axes) {
+    // «v» — ось идёт вдоль Y (постоянный X), «h» — вдоль X
+    const dir = ax.dir === "v" ? { x: 0, y: 1 } : { x: 1, y: 0 }
+    const alongView = Math.abs(dir.x * frame.d.x + dir.y * frame.d.y)
+    if (alongView < 0.7) continue // ось видно, только если она уходит от зрителя
+    const p = ax.dir === "v" ? { x: ax.at, y: 0 } : { x: 0, y: ax.at }
+    out.push({ u: project(frame, p).u, label: ax.label })
+  }
+  return out.sort((a, b) => a.u - b.u)
+}
+
 function marksFor(floors: Floor[], topZ: number): { marks: ELevelMark[]; dims: EDim[]; names: { z: number; text: string }[] } {
   const sorted = [...floors].sort((a, b) => a.elevation - b.elevation)
   const marks: ELevelMark[] = []
@@ -424,7 +449,7 @@ export function buildFacade(b: Building, side: FacadeSide): ElevationDrawing {
   // земля
   items.push({ t: "line", a: { x: bounds.minU - 1500, y: 0 }, b: { x: bounds.maxU + 1500, y: 0 }, weight: "thick" })
   const m = marksFor(floors, topZ)
-  return { kind: "facade", items, marks: m.marks.filter((x) => x.z >= 0), dims: m.dims.filter((x) => x.z1 > 0).map((x) => (x.z0 < 0 ? { z0: 0, z1: x.z1, text: String(Math.round(x.z1)) } : x)), floorNames: m.names.filter((x) => x.z > 0), bounds: { ...bounds, minZ: Math.min(bounds.minZ, 0) } }
+  return { kind: "facade", axes: axesFor(frame, floors), items, marks: m.marks.filter((x) => x.z >= 0), dims: m.dims.filter((x) => x.z1 > 0).map((x) => (x.z0 < 0 ? { z0: 0, z1: x.z1, text: String(Math.round(x.z1)) } : x)), floorNames: m.names.filter((x) => x.z > 0), bounds: { ...bounds, minZ: Math.min(bounds.minZ, 0) } }
 }
 
 export interface SectionLine {
@@ -535,7 +560,7 @@ export function buildSection(b: Building, s: SectionLine): ElevationDrawing {
   const minU = Math.min(bounds.minU, 0), maxU = Math.max(bounds.maxU, L)
   items.push({ t: "line", a: { x: minU - 1500, y: 0 }, b: { x: maxU + 1500, y: 0 }, weight: "thick" })
   const m = marksFor(floors, topZ)
-  return { kind: "section", items, marks: m.marks, dims: m.dims, floorNames: m.names, bounds: { minU, maxU, minZ: Math.min(bounds.minZ, 0), maxZ: bounds.maxZ } }
+  return { kind: "section", axes: axesFor(frame, floors), items, marks: m.marks, dims: m.dims, floorNames: m.names, bounds: { minU, maxU, minZ: Math.min(bounds.minZ, 0), maxZ: bounds.maxZ } }
 }
 
 /** Отрезки u, где секущая линия проходит внутри многоугольника (в пределах 0..L). */

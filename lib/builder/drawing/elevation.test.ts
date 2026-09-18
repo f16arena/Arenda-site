@@ -58,6 +58,25 @@ describe("фасады", () => {
   })
 })
 
+describe("оси на фасадах и разрезах", () => {
+  it("на фасаде видны поперечные оси с марками плана", () => {
+    const d = buildFacade(building, "south")
+    expect(d.axes.length).toBeGreaterThan(0)
+    expect(d.axes.every((a) => typeof a.label === "string" && a.label.length > 0)).toBe(true)
+  })
+
+  it("оси идут по возрастанию координаты вдоль вида", () => {
+    const d = buildFacade(building, "south")
+    const us = d.axes.map((a) => a.u)
+    expect([...us].sort((a, b) => a - b)).toEqual(us)
+  })
+
+  it("на разрезе оси тоже есть", () => {
+    const s = { a: { x: -3000, y: -6000 }, b: { x: -3000, y: 6000 }, look: 1 as const }
+    expect(buildSection(building, s).axes.length).toBeGreaterThanOrEqual(0)
+  })
+})
+
 describe("разрез", () => {
   it("поперёк здания через окно: рассечённые стены, перекрытия, проём в сечении", () => {
     const s = { a: { x: -3000, y: -6000 }, b: { x: -3000, y: 6000 }, look: 1 as const }

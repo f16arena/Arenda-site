@@ -175,6 +175,19 @@ export function validateFloor(
     }
   }
 
+  // 4б. эвакуационные выходы: без них план эвакуации пустой
+  if (opts.lowest) {
+    const doors = floor.openings.filter((o) => o.type === "door")
+    if (doors.length > 0 && !doors.some((o) => o.exit)) {
+      out.push({
+        id: `floor-noexit-${floor.id}`,
+        level: "warn",
+        text: "Ни одна дверь не отмечена как выход — план эвакуации будет пустым",
+        floorId: floor.id,
+      })
+    }
+  }
+
   // 5. высота этажа
   if (floor.height > 0 && floor.height < LOW_CEILING) {
     out.push({ id: `floor-low-${floor.id}`, level: "warn", text: `Высота этажа «${floor.name}» всего ${floor.height} мм`, floorId: floor.id })

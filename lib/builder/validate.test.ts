@@ -113,6 +113,13 @@ describe("validateFloor", () => {
     expect(validateFloor(f, solo).some((i) => i.level === "error" && i.text.includes("вне здания"))).toBe(true)
   })
 
+  it("ни одна дверь не отмечена выходом — предупреждение", () => {
+    const f = boxFloor({ openings: [door()] } as unknown as Partial<Floor>)
+    expect(validateFloor(f, solo).some((i) => i.text.includes("план эвакуации"))).toBe(true)
+    const marked = boxFloor({ openings: [door({ exit: "main" })] } as unknown as Partial<Floor>)
+    expect(validateFloor(marked, solo).some((i) => i.text.includes("план эвакуации"))).toBe(false)
+  })
+
   it("низкий потолок — предупреждение", () => {
     expect(validateFloor(boxFloor({ height: 2300 }), solo).some((i) => i.text.includes("Высота этажа"))).toBe(true)
   })
