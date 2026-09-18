@@ -123,17 +123,39 @@ async function takeSnapshot(projectId: string, revision: number, doc: BuilderDoc
   if (old.length) await db.builderSnapshot.deleteMany({ where: { id: { in: old.map((o) => o.id) } } })
 }
 
+/**
+ * Снимок прямо сейчас, без ограничения по времени: вызывается перед
+ * разрушительными действиями («Очистить всё», «Очистить этаж», пересборка из
+ * данных), чтобы точка возврата была всегда.
+ */
+export async function snapshotBuilderProject(projectId: string, note?: string): Promise<{ ok: boolean }> {
+  const orgId = await requireBuilderAccess()
+  await assertProjectAccess(projectId, orgId)
+  const cur = await db.builderProject.findFirst({ where: { id: projectId }, select: { revision: true, doc: true } })
+  if (!cur) return { ok: false }
+  await db.builderSnapshot.create({ data: { projectId, revision: cur.revision, doc: cur.doc as never, note: note?.slice(0, 80) } })
+  lastSnapshotAt.set(projectId, Date.now())
+  const old = await db.builderSnapshot.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    skip: SNAPSHOT_KEEP,
+    select: { id: true },
+  })
+  if (old.length) await db.builderSnapshot.deleteMany({ where: { id: { in: old.map((o) => o.id) } } })
+  return { ok: true }
+}
+
 /** Снимки проекта: время, ревизия и краткая сводка модели. */
 export async function listBuilderSnapshots(
   projectId: string,
-): Promise<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number }>> {
+): Promise<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number; note: string | null }>> {
   const orgId = await requireBuilderAccess()
   await assertProjectAccess(projectId, orgId)
   const rows = await db.builderSnapshot.findMany({
     where: { projectId },
     orderBy: { createdAt: "desc" },
     take: SNAPSHOT_KEEP,
-    select: { id: true, revision: true, createdAt: true, doc: true },
+    select: { id: true, revision: true, createdAt: true, doc: true, note: true },
   })
   return rows.map((r) => {
     const doc = r.doc as unknown as BuilderDocument
@@ -142,7 +164,7 @@ export async function listBuilderSnapshots(
       (s, b) => s + (b.floors ?? []).reduce((k, f) => k + Object.keys(f.wallGraph?.edges ?? {}).length, 0),
       0,
     ) ?? 0
-    return { id: r.id, revision: r.revision, createdAt: r.createdAt.toISOString(), floors, rooms }
+    return { id: r.id, revision: r.revision, createdAt: r.createdAt.toISOString(), floors, rooms, note: r.note }
   })
 }
 

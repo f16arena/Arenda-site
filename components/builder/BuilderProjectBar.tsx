@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react"
 import { History, Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
-import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, listBuilderShareViews, listBuilderSnapshots, restoreBuilderSnapshot, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
+import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, listBuilderShareViews, listBuilderSnapshots, restoreBuilderSnapshot, snapshotBuilderProject, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
 import { viewsSummary } from "@/lib/builder/share-log"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
@@ -129,7 +129,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
   const [sharesOpen, setSharesOpen] = useState(false)
   // история модели: снимки на сервере, из которых можно восстановиться
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [snapshots, setSnapshots] = useState<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number }>>([])
+  const [snapshots, setSnapshots] = useState<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number; note: string | null }>>([])
   const [restoring, setRestoring] = useState<string | null>(null)
   const shareUrl = (token: string) => `https://commrent.kz/showcase/${token}`
   const refreshShares = async (id: string) => {
@@ -165,9 +165,12 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
   }
 
   // Очистить всё: заменить сцену пустым проектом (одно здание + один пустой этаж),
-  // чтобы строить заново с чистого листа. Не отменяется (стек команд сбрасывается).
+  // чтобы строить заново с чистого листа. Стек команд сбрасывается, но перед
+  // очисткой уходит снимок — вернуться можно через «Историю».
   const clearAll = () => {
-    if (!window.confirm("Очистить весь проект? Текущая сцена будет заменена пустым зданием с одним этажом. Действие нельзя отменить.")) return
+    if (!window.confirm("Очистить весь проект? Текущая сцена будет заменена пустым зданием с одним этажом. Прежняя модель останется в «Истории» — оттуда её можно вернуть.")) return
+    // точка возврата: снимок текущей модели до очистки
+    if (projectId) void snapshotBuilderProject(projectId, "перед очисткой проекта")
     const doc = buildEmptyProject()
     useDocumentStore.getState().loadDocument(doc)
     const first = doc.buildings[0]?.floors?.[0]
@@ -249,7 +252,9 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
           {snapshots.map((sn) => (
             <div key={sn.id} className="flex items-center gap-1.5">
               <span className="tabular-nums">{new Date(sn.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-              <span className="flex-1" style={{ color: TOKENS.muted }}>рев. {sn.revision} · {sn.floors} эт · {sn.rooms} стен</span>
+              <span className="flex-1 truncate" style={{ color: TOKENS.muted }}>
+                рев. {sn.revision} · {sn.floors} эт · {sn.rooms} стен{sn.note ? ` · ${sn.note}` : ""}
+              </span>
               {restoring === sn.id ? (
                 <button
                   type="button"
