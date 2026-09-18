@@ -70,9 +70,11 @@ const ROUTE_TIMING_CHECKS = [
 ]
 const WATCHED_FILE_BUDGETS = [
   {
-    file: path.join("app", "admin", "floors", "[id]", "floor-editor.tsx"),
-    maxKb: readKbEnv("PERF_AUDIT_WATCH_FLOOR_EDITOR_KB", 75),
-    reason: "Floor editor is the heaviest client module; keep it from growing until it is split into smaller editor tools.",
+    // Старый floor-editor.tsx снесён вместе с четырьмя редакторами (4e95a94).
+    // Самый тяжёлый клиентский модуль теперь — редактор плана конструктора.
+    file: path.join("components", "builder", "PlanEditor.tsx"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_PLAN_EDITOR_KB", 95),
+    reason: "Plan editor is the heaviest client module; keep it from growing until it is split into smaller editor tools.",
   },
   {
     file: path.join("lib", "faq.ts"),
