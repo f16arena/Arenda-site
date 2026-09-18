@@ -17,6 +17,9 @@ import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildSitePlan } from "@/lib/builder/drawing/site-plan"
 import { buildDetails } from "@/lib/builder/drawing/details"
+import { islandSchedule } from "@/lib/builder/islands"
+import { floorRooms } from "@/lib/builder/rooms"
+import { roomDisplayName } from "@/lib/builder/room-use"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { FACADE_TITLE, buildFacade, buildSection } from "@/lib/builder/drawing/elevation"
@@ -95,6 +98,22 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
         out.push({
           key: "site-plan", title: "Генеральный план", sheet: A3L,
           props: { drawing: drawing0, sheet: A3L, title: "Генеральный план", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", sitePlan: sp },
+        })
+      }
+    }
+    // ведомость арендных мест — один лист на здание, только если места есть
+    {
+      const rows = islandSchedule(floors, (f) => floorRooms(f), (f, roomId) => {
+        const r = floorRooms(f).find((x) => x.id === roomId)
+        return r ? roomDisplayName(f, r) : ""
+      })
+      const base = floors[0]
+      if (rows.length && base) {
+        const extras = planExtras(building.floors, base, num)
+        const drawing = buildFloorDrawing(base, num, "plan", extras.options)
+        out.push({
+          key: "islands", title: "Ведомость арендных мест", sheet: A3L,
+          props: { drawing, sheet: A3L, title: "Ведомость арендных мест", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", islands: rows },
         })
       }
     }

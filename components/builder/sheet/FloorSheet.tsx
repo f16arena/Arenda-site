@@ -46,6 +46,9 @@ import { buildDetails, type Detail } from "@/lib/builder/drawing/details"
 import { DetailsBody } from "./DetailsBody"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
+import { islandSchedule, islandsTotal, type IslandRow } from "@/lib/builder/islands"
+import { floorRooms } from "@/lib/builder/rooms"
+import { roomDisplayName } from "@/lib/builder/room-use"
 import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
 import { buildSlabPlan, type SlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildRoofPlan, type RoofPlan } from "@/lib/builder/drawing/roof-plan"
@@ -155,6 +158,16 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     const staged = floorAtStage(floor, "before")
     return { rows: finishSchedule(staged, numbers), types: floorTypes(staged, numbers), lintels: lintelSchedule([staged]) }
   }, [floor, view, extras])
+  // ведомость арендных мест: островки со всех этажей здания, лист появляется,
+  // только если места есть
+  const islandRows = useMemo(() => {
+    if (view !== "islands") return null
+    const list = building?.floors ?? floors
+    return islandSchedule(list, (f) => floorRooms(f), (f, roomId) => {
+      const r = floorRooms(f).find((x) => x.id === roomId)
+      return r ? roomDisplayName(f, r) : ""
+    })
+  }, [view, building, floors])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
   const mep = useMemo(() => {
     if (!floor || section === "ar" || view !== "plan") return null
@@ -183,12 +196,12 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = view === "details" ? "Узлы и фрагменты" : elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(floor)}. План перекрытия` : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = view === "islands" ? "Ведомость арендных мест" : view === "details" ? "Узлы и фрагменты" : elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(floor)}. План перекрытия` : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   // лист-таблица не зависит от размеров плана: всегда A3 альбомный
   const TABLE_SHEET: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
   // узлы — на А2: в масштабе 1:20 по ГОСТ четыре узла на А3 не помещаются
   const DETAIL_SHEET: Sheet = { w: 594, h: 420, scale: 20, format: "A2", orientation: "landscape" }
-  const activeSheet = view === "details" ? DETAIL_SHEET : view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
+  const activeSheet = view === "details" ? DETAIL_SHEET : view === "finish" || view === "islands" ? TABLE_SHEET : elevationSheet ?? sheet
 
   function downloadDxf() {
     // на листе узлов кнопка отдавала план этажа — теперь сами узлы
@@ -250,6 +263,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           {site && <option value="site">Генеральный план</option>}
           <option value="finish">Ведомости: отделка, полы, перемычки</option>
           <option value="details">Узлы и фрагменты</option>
+          <option value="islands">Ведомость арендных мест</option>
           {replan && (
             <optgroup label="Перепланировка этажа">
               <option value="replan:demolish">План демонтажа</option>
@@ -336,6 +350,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           slabPlan={slabPlan}
           sitePlan={sitePlan}
           finish={finish}
+          islands={islandRows}
           details={details}
           stage={stage}
           ar={arTables && extras && floor ? { rooms: extras.rooms, schedule: extras.schedule, floorId: floor.id } : null}
@@ -378,6 +393,7 @@ export function SheetSvg({
   slabPlan,
   sitePlan,
   finish,
+  islands,
   details,
   ar,
 }: {
@@ -389,6 +405,7 @@ export function SheetSvg({
   roofPlan?: RoofPlan | null
   /** лист-таблица: отделка, полы и перемычки */
   finish?: { rows: FinishRow[]; types: FloorTypeRow[]; lintels?: LintelRow[] } | null
+  islands?: IslandRow[] | null
   /** лист узлов: разрезы по конструкциям */
   details?: Detail[] | null
   /** план эвакуации: пути, выходы и легенда поверх плана */
@@ -460,7 +477,7 @@ export function SheetSvg({
       {/* рамка */}
       <rect x={20} y={5} width={w - 25} height={h - 10} fill="none" stroke="#000" strokeWidth={0.7} />
 
-      {details ? <DetailsBody details={details} w={w} h={h} /> : finish ? <FinishBody rows={finish.rows} types={finish.types} lintels={finish.lintels ?? []} w={w} h={h} /> : cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
+      {details ? <DetailsBody details={details} w={w} h={h} /> : islands ? <IslandsBody rows={islands} w={w} h={h} /> : finish ? <FinishBody rows={finish.rows} types={finish.types} lintels={finish.lintels ?? []} w={w} h={h} /> : cover ? <CoverBody rows={cover} w={w} indicators={indicators ?? null} /> : elevation ? <ElevationSvgBody d={elevation} sheet={sheet} title={title} /> : <>
       {/* оси */}
       {d.axes.map((ax, i) => {
         if (ax.dir === "v") {
@@ -629,6 +646,15 @@ export function SheetSvg({
           </g>
         )
       })}
+      {/* арендные места в общих зонах: габарит тонкой линией и марка М1, М2… */}
+      {!roofPlan && !sitePlan && !slabPlan && d.islands.map((isl, i) => (
+        <g key={`isl${i}`} stroke="#000" fill="none">
+          <polygon points={isl.poly.map(P).join(" ")} strokeWidth={0.35} />
+          <line x1={X(isl.poly[0].x)} y1={Y(isl.poly[0].y)} x2={X(isl.poly[2].x)} y2={Y(isl.poly[2].y)} strokeWidth={0.15} />
+          <line x1={X(isl.poly[1].x)} y1={Y(isl.poly[1].y)} x2={X(isl.poly[3].x)} y2={Y(isl.poly[3].y)} strokeWidth={0.15} />
+          <text x={X(isl.at.x)} y={Y(isl.at.y)} fontSize={2.3} textAnchor="middle" dominantBaseline="middle" stroke="none" fill="#000">{isl.mark}</text>
+        </g>
+      ))}
       {!roofPlan && !sitePlan && d.lifts.map((lf, i) => (
         <g key={`lf${i}`} stroke="#000" fill="none">
           <polygon points={lf.shaft.map(P).join(" ")} strokeWidth={0.5} />
@@ -1078,6 +1104,70 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
 }
 
 /** Лист-таблица: ведомость отделки помещений и экспликация полов (ГОСТ 21.501). */
+/**
+ * Ведомость арендных мест: островки в общих зонах (вендинг, киоски, банкоматы).
+ * Отдельный лист, потому что в экспликацию помещений такие места не попадают —
+ * стенами они не огорожены и площадь коридора не делят.
+ */
+function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }) {
+  const x = 28
+  const tw = w - 60
+  const RH = 6
+  const y0 = 30
+  const total = islandsTotal(rows)
+  const rest = tw - (14 + 26 + 22 + 20)
+  const cols: Array<{ w: number; label: string; align?: "end" | "middle" }> = [
+    { w: 14, label: "Марка", align: "middle" },
+    { w: rest * 0.3, label: "Наименование" },
+    { w: 26, label: "Этаж" },
+    { w: rest * 0.28, label: "Размещение" },
+    { w: rest * 0.42, label: "Арендатор" },
+    { w: 22, label: "Габарит, мм", align: "middle" },
+    { w: 20, label: "Площадь, м²", align: "end" },
+  ]
+  const xs: number[] = []
+  let acc = x
+  for (const c of cols) { xs.push(acc); acc += c.w }
+  const cellX = (i: number) => (cols[i].align === "end" ? xs[i] + cols[i].w - 1.5 : cols[i].align === "middle" ? xs[i] + cols[i].w / 2 : xs[i] + 1.5)
+  const maxRows = Math.max(6, Math.floor((h - 70) / RH) - 2)
+  const shown = rows.slice(0, maxRows)
+  const rowsH = RH * (shown.length + 2)
+  const cut = (v: string, i: number) => {
+    const max = Math.max(3, Math.floor((cols[i].w - 3) / 1.35))
+    return v.length > max ? `${v.slice(0, max - 1)}…` : v
+  }
+  return (
+    <g>
+      <text x={x + tw / 2} y={y0 - 4} fontSize={4} textAnchor="middle">Ведомость арендных мест</text>
+      <rect x={x} y={y0} width={tw} height={rowsH} fill="none" stroke="#000" strokeWidth={0.5} />
+      <line x1={x} y1={y0 + RH} x2={x + tw} y2={y0 + RH} stroke="#000" strokeWidth={0.5} />
+      {xs.slice(1).map((xx, i) => <line key={`v${i}`} x1={xx} y1={y0} x2={xx} y2={y0 + rowsH} stroke="#000" strokeWidth={0.3} />)}
+      {cols.map((c, i) => <text key={`h${i}`} x={cellX(i)} y={y0 + 4.2} fontSize={2.6} textAnchor={c.align ?? "start"}>{c.label}</text>)}
+      {shown.map((r, ri) => {
+        const y = y0 + RH * (ri + 1)
+        const cells = [r.mark, r.name, r.floorName, r.place || "—", r.tenant || "свободно", r.size, r.area.toFixed(2).replace(".", ",")]
+        return (
+          <g key={r.id}>
+            <line x1={x} y1={y + RH} x2={x + tw} y2={y + RH} stroke="#000" strokeWidth={0.18} />
+            {cells.map((cell, ci) => <text key={ci} x={cellX(ci)} y={y + 4.2} fontSize={2.6} textAnchor={cols[ci].align ?? "start"}>{cut(cell, ci)}</text>)}
+          </g>
+        )
+      })}
+      {(() => {
+        const y = y0 + RH * (shown.length + 1)
+        return (
+          <g>
+            <text x={cellX(1)} y={y + 4.2} fontSize={2.6} fontWeight={700}>Итого мест: {total.count}, сдано: {total.leased}</text>
+            <text x={cellX(6)} y={y + 4.2} fontSize={2.6} textAnchor="end" fontWeight={700}>{total.area.toFixed(2).replace(".", ",")}</text>
+          </g>
+        )
+      })()}
+      {rows.length > shown.length && <text x={x} y={y0 + rowsH + 5} fontSize={2.4}>…ещё строк: {rows.length - shown.length}</text>}
+      {!rows.length && <text x={x + tw / 2} y={y0 + 20} fontSize={3} textAnchor="middle">Арендных мест в общих зонах не размещено</text>}
+    </g>
+  )
+}
+
 function FinishBody({ rows, types, lintels, w, h }: { rows: FinishRow[]; types: FloorTypeRow[]; lintels: LintelRow[]; w: number; h: number }) {
   const out: React.ReactNode[] = []
   const x = 28

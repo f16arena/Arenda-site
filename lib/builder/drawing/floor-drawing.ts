@@ -18,6 +18,7 @@ import { floorRooms } from "@/lib/builder/rooms"
 import { floorAtStage } from "@/lib/builder/replan"
 import { generateStair, RAMP_SLOPE, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
+import { islandLabel, islandPolygon } from "../islands"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon } from "@/core/geometry/math"
@@ -84,6 +85,8 @@ export interface FloorDrawing {
   stairArrows: Pt[][]
   /** контур лестничного проёма (выреза в перекрытии) — обводится на плане */
   stairWells: Pt[][]
+  /** арендные места в общих зонах: габарит, марка и подпись */
+  islands: Array<{ poly: Pt[]; at: Pt; mark: string; text: string }>
   /** лифты: контур шахты, кабина с крестом */
   lifts: Array<{ shaft: Pt[]; cabin: Pt[]; label: string }>
   /** выходы: точка у двери снаружи, направление наружу, вид */
@@ -463,9 +466,15 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   const lvl = (source.elevation ?? 0) / 1000
   const levelText = Math.abs(lvl) < 0.0005 ? "±0,000" : `${lvl > 0 ? "+" : "−"}${Math.abs(lvl).toFixed(3).replace(".", ",")}`
   // ставим внутрь здания, ниже верхней стены — чтобы не наезжать на марки окон
+  const islandShapes: FloorDrawing["islands"] = (floor.islands ?? []).map((isl, i) => ({
+    poly: islandPolygon(isl),
+    at: { x: isl.position.x, y: isl.position.y },
+    mark: `М${i + 1}`,
+    text: islandLabel(isl),
+  }))
   const levelMark = { at: { x: minX + (maxX - minX) * 0.22, y: maxY - 2600 }, text: levelText }
 
-  return { levelMark, bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, stairWells, lifts, exits, thinLines, arcs, rooms, dims, axes }
+  return { levelMark, bounds: { minX, minY, maxX, maxY }, wallSolids, wallStyles, patches, userDims, texts, marks, stairArrows, stairWells, lifts, islands: islandShapes, exits, thinLines, arcs, rooms, dims, axes }
 }
 
 // ── лист ─────────────────────────────────────────────────────────────────────

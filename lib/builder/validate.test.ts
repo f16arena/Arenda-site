@@ -39,6 +39,41 @@ const window_ = (over: Record<string, unknown> = {}) => ({ id: "o1", wallId: "w2
 
 const solo = { lowest: true, multiFloor: false }
 
+const island = (over: Record<string, unknown> = {}) => ({
+  id: "isl1",
+  kind: "vending",
+  name: "",
+  tenant: "",
+  position: { x: 4000, y: 3000 },
+  width: 900,
+  depth: 800,
+  height: 1830,
+  rotationDeg: 0,
+  ...over,
+})
+
+describe("арендные места в общих зонах", () => {
+  it("место вне здания — ошибка", () => {
+    const issues = validateFloor(boxFloor({ openings: [door()], islands: [island({ position: { x: 20000, y: 20000 } })] } as unknown as Partial<Floor>), solo)
+    expect(issues.some((i) => i.level === "error" && i.text.includes("вне здания"))).toBe(true)
+  })
+
+  it("место у стены комнаты 8×6 проход не перекрывает", () => {
+    const issues = validateFloor(boxFloor({ openings: [door()], islands: [island({ position: { x: 4000, y: 500 } })] } as unknown as Partial<Floor>), solo)
+    expect(issues.some((i) => i.id.startsWith("island-narrow"))).toBe(false)
+  })
+
+  it("широкий киоск в комнате оставляет меньше 1,2 м — замечание", () => {
+    const issues = validateFloor(
+      boxFloor({ openings: [door()], islands: [island({ kind: "kiosk", width: 5000, depth: 5000, position: { x: 4000, y: 3000 } })] } as unknown as Partial<Floor>),
+      solo,
+    )
+    const warn = issues.find((i) => i.id.startsWith("island-narrow"))
+    expect(warn?.level).toBe("warn")
+    expect(warn?.target).toEqual({ type: "island", id: "isl1" })
+  })
+})
+
 describe("validateFloor", () => {
   it("помещение без двери — ошибка", () => {
     const issues = validateFloor(boxFloor(), solo)

@@ -8,6 +8,7 @@ import type { Vec2 } from "@/core/geometry/math"
 import { pointInPolygon } from "@/core/geometry/math"
 import { floorRooms, type FloorRoom } from "./rooms"
 import { roomDisplayName, roomUse } from "./room-use"
+import { islandLabel, passageLeft } from "./islands"
 
 export type IssueLevel = "error" | "warn"
 
@@ -18,10 +19,13 @@ export interface Issue {
   text: string
   /** что открыть по клику */
   floorId?: string
-  target?: { type: "room" | "wall" | "opening" | "stair"; id: string }
+  target?: { type: "room" | "wall" | "opening" | "stair" | "island"; id: string }
   /** точка на плане, куда навести камеру */
   at?: Vec2
 }
+
+/** Минимальная ширина прохода в коридоре с арендными местами, мм (СП 1.13130). */
+const MIN_PASSAGE = 1200
 
 /** Минимальная ширина двери на путях эвакуации, мм (СП 1.13130). */
 const EXIT_DOOR_MIN = 800
@@ -269,6 +273,34 @@ export function validateFloor(
         floorId: floor.id,
         target: { type: "stair", id: st.id },
         at: { x: st.position.x, y: st.position.y },
+      })
+    }
+  }
+
+  // 8. арендное место в общей зоне: не должно стоять вне здания и не должно
+  // съедать эвакуационный проход (СП 1.13130 — не меньше 1,2 м в коридоре)
+  for (const isl of floor.islands ?? []) {
+    const room = rooms.find((r) => pointInPolygon(isl.position, r.polygon))
+    if (!room) {
+      out.push({
+        id: `island-out-${isl.id}`,
+        level: "error",
+        text: `${islandLabel(isl)}: место стоит вне здания`,
+        floorId: floor.id,
+        target: { type: "island", id: isl.id },
+        at: { x: isl.position.x, y: isl.position.y },
+      })
+      continue
+    }
+    const left = passageLeft(isl, room.polygon)
+    if (left < MIN_PASSAGE) {
+      out.push({
+        id: `island-narrow-${isl.id}`,
+        level: "warn",
+        text: `${islandLabel(isl)}: проход рядом ${Math.round(left)} мм — по нормам эвакуации нужно от ${MIN_PASSAGE} мм`,
+        floorId: floor.id,
+        target: { type: "island", id: isl.id },
+        at: { x: isl.position.x, y: isl.position.y },
       })
     }
   }
