@@ -996,10 +996,16 @@ export class BuilderEngine {
     // Панорама (ПКМ) должна идти ровно за курсором: сколько метров в пикселе на
     // текущем расстоянии, столько и сдвигаем. Раньше коэффициент был «на глаз» и
     // при приближении панорама почти останавливалась.
-    const h = Math.max(1, this.bundle.engine.getRenderHeight())
+    // высота холста в CSS-пикселях: мышь двигается в них, а рендер может идти в
+    // пониженном разрешении (лёгкий режим) — иначе панорама считалась бы вдвое
+    const h = Math.max(1, this.bundle.engine.getRenderHeight() * this.bundle.engine.getHardwareScalingLevel())
     const ortho = camera.mode === Camera.ORTHOGRAPHIC_CAMERA
     const metersPerPx = ortho ? camera.radius / h : (2 * Math.max(0.5, camera.radius) * Math.tan(camera.fov / 2)) / h
-    camera.panningSensibility = Math.min(4000, Math.max(4, 1 / metersPerPx))
+    // Babylon копит панораму по инерции: за кадром сдвиг px/sens, а всего —
+    // px/(sens·(1−panningInertia)). Без этого множителя вид улетал в 10 раз
+    // дальше курсора и здание пропадало с экрана.
+    const damp = Math.max(0.05, 1 - camera.panningInertia)
+    camera.panningSensibility = Math.min(40000, Math.max(4, 1 / (metersPerPx * damp)))
     if (!ortho) return
     const half = camera.radius * 0.5
     const aspect = this.bundle.engine.getAspectRatio(camera)

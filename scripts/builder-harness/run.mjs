@@ -33,6 +33,36 @@ const sel = () => page.evaluate(() => window.__stores.useEditorStore.getState().
 const labels = () => page.evaluate(() => window.__stores.useLabelStore.getState().labels.filter((l) => l.kind === "wall"))
 const shot = (n) => page.screenshot({ path: join(shots, n + ".png") })
 
+// Точка на экране (в CSS-пикселях), где клик реально попадает в эту стену:
+// подпись стены рисуется рядом с ней, и клик по подписи иногда приходится на пол.
+const wallSpot = (id) => page.evaluate((id) => {
+  const eng = window.__engine, sc = eng.bundle.scene, e2 = eng.bundle.engine
+  const W = e2.getRenderWidth(), H = e2.getRenderHeight()
+  const canvas = e2.getRenderingCanvas()
+  const scale = canvas && canvas.clientWidth > 0 ? canvas.clientWidth / W : 1
+  const vp = sc.activeCamera.viewport.toGlobal(W, H)
+  const tm = sc.getTransformMatrix(), Matrix = tm.constructor
+  for (const m of sc.meshes) {
+    const md = m.metadata
+    if (md?.kind !== "wall" || md.entityId !== id) continue
+    const bb = m.getBoundingInfo().boundingBox
+    const lo = bb.minimumWorld, hi = bb.maximumWorld
+    const V = lo.constructor
+    const alongX = hi.x - lo.x >= hi.z - lo.z
+    // точки вдоль стены, но не в середине и не по краям: там ручки выделения
+    for (const t of [0.3, 0.7, 0.2, 0.8, 0.5]) {
+      const x = alongX ? lo.x + (hi.x - lo.x) * t : (lo.x + hi.x) / 2
+      const z = alongX ? (lo.z + hi.z) / 2 : lo.z + (hi.z - lo.z) * t
+      const p = V.Project(new V(x, hi.y - 0.05, z), Matrix.Identity(), tm, vp)
+      if (p.x < 5 || p.y < 5 || p.x > W - 5 || p.y > H - 5) continue
+      const hit = sc.pick(p.x, p.y)
+      const hm = hit?.pickedMesh?.metadata
+      if (hit?.hit && hm?.kind === "wall" && hm.entityId === id) return { x: p.x * scale, y: p.y * scale }
+    }
+  }
+  return null
+}, id)
+
 // план: камера сверху, активный этаж отдельно
 await page.evaluate(() => { const b=[...document.querySelectorAll("button")].find((x)=>x.textContent.trim()==="1 этаж"); b?.click() })
 await page.waitForTimeout(300)
@@ -45,14 +75,16 @@ await shot("01-plan")
 let walls = await labels()
 check("подписи стен есть", walls.length > 0, `стен ${walls.length}`)
 const w0 = walls.sort((a, b) => b.lengthMm - a.lengthMm)[0]
+const p0 = await wallSpot(w0.id)
+check("точка на стене найдена", !!p0, JSON.stringify(p0))
 const before = await graph()
 const skew0 = (() => { const g = JSON.parse(before); return Object.values(g.edges).filter((ed) => { const a = g.nodes[ed.a], b = g.nodes[ed.b]; return Math.abs(a.x - b.x) > 0.5 && Math.abs(a.y - b.y) > 0.5 }).length })()
 check("исходно косых стен", true, String(skew0))
 
 // 1. клик по невыделенной стене с дрожанием 3px — выделение, геометрия та же
-await page.mouse.move(w0.x, w0.y)
+await page.mouse.move(p0.x, p0.y)
 await page.mouse.down()
-await page.mouse.move(w0.x + 3, w0.y + 2, { steps: 3 })
+await page.mouse.move(p0.x + 3, p0.y + 2, { steps: 3 })
 await page.mouse.up()
 await page.waitForTimeout(400)
 check("клик с дрожанием не двигает стену", (await graph()) === before)
@@ -60,27 +92,32 @@ const s1 = await sel()
 check("клик выделяет стену", s1.type === "wall", JSON.stringify(s1))
 
 // 2. повторный клик по выделенной стене с дрожанием 3px — тоже ничего
-await page.mouse.move(w0.x, w0.y)
+await page.mouse.move(p0.x, p0.y)
 await page.mouse.down()
-await page.mouse.move(w0.x + 2, w0.y + 3, { steps: 3 })
+await page.mouse.move(p0.x + 2, p0.y + 3, { steps: 3 })
 await page.mouse.up()
 await page.waitForTimeout(400)
 check("клик по выделенной стене с дрожанием не двигает", (await graph()) === before)
 
 // 3. правая кнопка: панорама со стены — геометрия та же
-await page.mouse.move(w0.x, w0.y)
+await page.mouse.move(p0.x, p0.y)
 await page.mouse.down({ button: "right" })
-await page.mouse.move(w0.x + 120, w0.y + 80, { steps: 10 })
+await page.mouse.move(p0.x + 120, p0.y + 80, { steps: 10 })
 await page.mouse.up({ button: "right" })
 await page.waitForTimeout(600)
 check("панорама правой кнопкой со стены не двигает стену", (await graph()) === before)
 await shot("02-after-pan")
 
 // вернуть камеру
+// после панорамы вернуть вид на этаж: переключение камеры наводит её заново
+await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("orbit"))
+await page.waitForTimeout(500)
 await page.evaluate(() => window.__stores.useEditorStore.getState().setCameraMode("plan"))
-await page.waitForTimeout(1200)
+await page.waitForTimeout(1400)
 walls = await labels()
-const w1 = walls.find((l) => l.id === w0.id)
+const w1 = await wallSpot(w0.id)
+check("после панорамы стена снова видна", !!w1, `подписей ${walls.length}`)
+if (!w1) { console.log(results.join(String.fromCharCode(10))); await browser.close(); server.close(); process.exit(1) }
 
 // 4. тянуть выделенную стену по диагонали: двигается только перпендикулярно
 await page.mouse.move(w1.x, w1.y)
