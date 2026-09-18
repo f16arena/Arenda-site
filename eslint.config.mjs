@@ -16,6 +16,11 @@ const eslintConfig = defineConfig([
     "tests/e2e/**",
     "mobile/**",
     "next-env.d.ts",
+    // Вендорные и сгенерированные файлы: чужой минифицированный код и
+    // сборки стенда правилам проекта не подчиняются.
+    "public/pdf.worker.min.mjs",
+    "app/generated/**",
+    ".tmp-harness/**",
   ]),
 ]);
 

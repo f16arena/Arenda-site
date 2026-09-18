@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { clientIp, shortAgent, viewsSummary, visitorHash } from "./share-log"
+import { shortAgent, viewsSummary } from "./share-log"
+import { clientIp, visitorHash } from "./share-log-server"
 
 const headers = (map: Record<string, string>) => ({ get: (n: string) => map[n] ?? null })
 

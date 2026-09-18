@@ -154,14 +154,19 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
 
   // Альбом живёт в собственном слое прямо в body: оболочка админки фиксирует
   // высоту экрана, и печать из неё обрезалась бы на первом листе
-  const [host, setHost] = useState<HTMLElement | null>(null)
-  useEffect(() => {
+  const [host] = useState<HTMLElement | null>(() => {
+    if (typeof document === "undefined") return null
     const el = document.createElement("div")
     el.id = "sheet-album-root"
-    document.body.appendChild(el)
-    setHost(el)
-    return () => el.remove()
-  }, [])
+    return el
+  })
+  useEffect(() => {
+    if (!host) return
+    document.body.appendChild(host)
+    return () => {
+      host.parentNode?.removeChild(host)
+    }
+  }, [host])
   const total = entries.length + 1
   const coverRows = entries.map((e, i) => ({ no: i + 2, title: e.title, note: `${e.sheet.format}, М 1:${e.sheet.scale}` }))
   const firstFloor = building.floors.find((f) => Object.keys(f.wallGraph.edges).length > 0)

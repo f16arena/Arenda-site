@@ -4,7 +4,7 @@
 // уровень, режимы отображения (всё/активный/срез/призрак), «стены вниз», добавление
 // этажа копией плана нижнего (remapGraph — свежие id, без коллизий мешей).
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
 import { rebuildModelFloor } from "@/app/actions/building-model"
 import { uid } from "@/core/id"
@@ -16,6 +16,7 @@ import type { Floor } from "@/types/builder"
 import { useDocumentStore, useEditorStore, type DisplayMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
 import { hasReplan, replanSummary } from "@/lib/builder/replan"
+import { issuesSummary, validateDocument } from "@/lib/builder/validate"
 
 const DISPLAY: { id: DisplayMode; label: string }[] = [
   { id: "all", label: "Всё" },
@@ -51,6 +52,62 @@ function LevelRow({ name, sub, Icon, active, onClick, onRename, onDelete }: { na
         >
           <Trash2 className="h-3.5 w-3.5" style={{ color: "#f87171" }} />
         </button>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Проверка модели: то, что в чертеже заметят первым — помещение без двери,
+ * окно за краем стены, вход без пандуса. Клик по замечанию открывает этаж и
+ * выделяет элемент.
+ */
+function CheckBlock() {
+  const doc = useDocumentStore((s) => s.doc)
+  const rev = useDocumentStore((s) => s.rev)
+  const setActiveLevel = useEditorStore((s) => s.setActiveLevel)
+  const setSelection = useEditorStore((s) => s.setSelection)
+  const [open, setOpen] = useState(false)
+  const issues = useMemo(() => {
+    try {
+      return validateDocument(doc)
+    } catch {
+      return []
+    }
+    // rev меняется при каждой правке модели — пересчитываем список
+  }, [doc, rev])
+  const errors = issues.filter((i) => i.level === "error").length
+  const color = errors ? "#f87171" : issues.length ? "#fbbf24" : "#4ade80"
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Проверка модели перед выпуском чертежей"
+        className="flex items-center justify-between rounded-lg px-2 py-1.5 text-[11px] font-medium"
+        style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+      >
+        <span>Проверка модели</span>
+        <span style={{ color }}>{issuesSummary(issues)}</span>
+      </button>
+      {open && (
+        <div className="flex max-h-56 flex-col gap-0.5 overflow-auto rounded-lg p-1.5 text-[10px]" style={{ background: "rgba(15,23,42,0.35)" }}>
+          {issues.length === 0 && <span style={{ color: TOKENS.muted }}>Модель без замечаний.</span>}
+          {issues.map((i) => (
+            <button
+              key={i.id}
+              type="button"
+              onClick={() => {
+                if (i.floorId) setActiveLevel(i.floorId)
+                if (i.target && i.floorId) setSelection({ type: i.target.type, id: i.target.id, floorId: i.floorId })
+              }}
+              className="flex items-start gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-white/5"
+            >
+              <span style={{ color: i.level === "error" ? "#f87171" : "#fbbf24" }}>{i.level === "error" ? "●" : "▲"}</span>
+              <span className="flex-1" style={{ color: TOKENS.text }}>{i.text}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -322,6 +379,7 @@ export function LevelPanel({
           Чертежи: план, фасады, разрезы
         </a>
       )}
+      <CheckBlock />
       {activeFloor && <ReplanBlock floor={activeFloor} buildingId={buildingId} />}
       {activeLevelId && activeLevelId !== "site" && (
         <div className="flex gap-1">

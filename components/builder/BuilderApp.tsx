@@ -241,7 +241,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   // 3D-движок грузится только когда нужен: в «Плане» слабый компьютер не тратит
   // на Babylon ни памяти, ни времени загрузки
   const [need3D, setNeed3D] = useState(cameraMode !== "plan2d")
-  useEffect(() => { if (cameraMode !== "plan2d") setNeed3D(true) }, [cameraMode])
+  // движок нужен навсегда, как только вышли из плана: правим состояние прямо
+  // при рендере — эффект здесь давал лишний проход и ругался линтер
+  if (!need3D && cameraMode !== "plan2d") setNeed3D(true)
   const displayMode = useEditorStore((s) => s.displayMode)
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)

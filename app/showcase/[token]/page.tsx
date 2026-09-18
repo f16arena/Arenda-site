@@ -5,7 +5,8 @@ import { notFound } from "next/navigation"
 import { db } from "@/lib/db"
 import { parseDocument } from "@/types/builder"
 import { shareLinkValid } from "@/lib/builder/share-link"
-import { clientIp, shortAgent, visitorHash } from "@/lib/builder/share-log"
+import { shortAgent } from "@/lib/builder/share-log"
+import { clientIp, visitorHash } from "@/lib/builder/share-log-server"
 import { BuilderApp } from "@/components/builder/BuilderApp"
 
 /**

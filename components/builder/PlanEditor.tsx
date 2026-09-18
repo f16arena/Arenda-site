@@ -175,8 +175,12 @@ export function PlanEditor() {
     }
   }, [view])
 
-  // смена инструмента сбрасывает незаконченный ввод
-  useEffect(() => {
+  // Смена инструмента или этажа сбрасывает незаконченный ввод. Сброс идёт прямо
+  // при рендере (а не в эффекте): иначе кадр успевал нарисовать чужую линию, да
+  // и линтер справедливо ругался на каскад состояний.
+  const [inputScope, setInputScope] = useState(`${tool}|${activeLevelId}`)
+  if (inputScope !== `${tool}|${activeLevelId}`) {
+    setInputScope(`${tool}|${activeLevelId}`)
     setChain(null)
     setDimPts([])
     setLengthInput("")
@@ -184,7 +188,7 @@ export function PlanEditor() {
     setPts2([])
     setMeasured(null)
     setHover(null)
-  }, [tool, activeLevelId])
+  }
 
   const v = view
   const tolMm = v ? 10 / v.k : 100

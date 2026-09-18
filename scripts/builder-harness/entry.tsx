@@ -6,6 +6,7 @@ import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-
 import { useLabelStore } from "@/store/label-store"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomUse } from "@/lib/builder/room-use"
+import { validateDocument } from "@/lib/builder/validate"
 
 const src = {
   id: "b1",
@@ -25,5 +26,6 @@ const w = window as unknown as Record<string, unknown>
 w.__doc = () => useDocumentStore.getState().doc
 w.__floorRooms = floorRooms
 w.__roomUse = roomUse
+w.__validate = validateDocument
 w.__stores = { useDocumentStore, useEditorStore, useSyncStore, useLabelStore }
 createRoot(document.getElementById("root")!).render(<BuilderApp initialDoc={parseDocument(doc)} buildingId="b1" />)
