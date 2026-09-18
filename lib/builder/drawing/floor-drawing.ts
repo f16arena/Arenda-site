@@ -18,7 +18,7 @@ import { floorRooms } from "@/lib/builder/rooms"
 import { floorAtStage } from "@/lib/builder/replan"
 import { generateStair, RAMP_SLOPE, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
-import { islandLabel, islandPolygon } from "../islands"
+import { islandLabel, islandMark, islandPolygon } from "../islands"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon } from "@/core/geometry/math"
@@ -469,7 +469,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
   const islandShapes: FloorDrawing["islands"] = (floor.islands ?? []).map((isl, i) => ({
     poly: islandPolygon(isl),
     at: { x: isl.position.x, y: isl.position.y },
-    mark: `М${i + 1}`,
+    mark: islandMark(floor.level, i),
     text: islandLabel(isl),
   }))
   const levelMark = { at: { x: minX + (maxX - minX) * 0.22, y: maxY - 2600 }, text: levelText }

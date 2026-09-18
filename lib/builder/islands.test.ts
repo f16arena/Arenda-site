@@ -92,7 +92,7 @@ describe("ведомость арендных мест", () => {
 
   it("номер места складывается из этажа и порядка", () => {
     const rows = islandSchedule([floor([island(), island({ id: "i2", position: { x: 9000, y: 2000 } })])])
-    expect(rows.map((r) => r.mark)).toEqual(["1.1", "1.2"])
+    expect(rows.map((r) => r.mark)).toEqual(["М1.1", "М1.2"])
   })
 
   it("подписывается помещение, в котором стоит место", () => {

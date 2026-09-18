@@ -42,6 +42,11 @@ export function mountHeight(island: Island): number {
   return island.mountHeight ?? (isWallMounted(island) ? 1200 : 0)
 }
 
+/** Марка места: одна и та же на плане и в ведомости. */
+export function islandMark(level: number, index: number): string {
+  return `М${level}.${index + 1}`
+}
+
 /** Наименование для плана и ведомости: своё, иначе типовое по виду места. */
 export function islandLabel(island: Island): string {
   const own = (island.name ?? "").trim()
@@ -83,7 +88,7 @@ export function islandAt(floor: Floor, p: Vec2): Island | undefined {
 
 export interface IslandRow {
   id: string
-  /** номер места: «1.3» — этаж 1, место 3 */
+  /** марка места: «М1.3» — этаж 1, место 3; та же марка стоит на плане */
   mark: string
   floorName: string
   name: string
@@ -119,7 +124,7 @@ export function islandSchedule(
       const room = rooms.find((r) => pointInPolygon(island.position, r.polygon))
       rows.push({
         id: island.id,
-        mark: `${floor.level}.${idx + 1}`,
+        mark: islandMark(floor.level, idx),
         floorName: floor.name,
         name: islandLabel(island),
         kind: island.kind,

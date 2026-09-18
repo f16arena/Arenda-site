@@ -647,14 +647,33 @@ export function SheetSvg({
         )
       })}
       {/* арендные места в общих зонах: габарит тонкой линией и марка М1, М2… */}
-      {!roofPlan && !sitePlan && !slabPlan && d.islands.map((isl, i) => (
-        <g key={`isl${i}`} stroke="#000" fill="none">
-          <polygon points={isl.poly.map(P).join(" ")} strokeWidth={0.35} />
-          <line x1={X(isl.poly[0].x)} y1={Y(isl.poly[0].y)} x2={X(isl.poly[2].x)} y2={Y(isl.poly[2].y)} strokeWidth={0.15} />
-          <line x1={X(isl.poly[1].x)} y1={Y(isl.poly[1].y)} x2={X(isl.poly[3].x)} y2={Y(isl.poly[3].y)} strokeWidth={0.15} />
-          <text x={X(isl.at.x)} y={Y(isl.at.y)} fontSize={2.3} textAnchor="middle" dominantBaseline="middle" stroke="none" fill="#000">{isl.mark}</text>
-        </g>
-      ))}
+      {!roofPlan && !sitePlan && !slabPlan && d.islands.map((isl, i) => {
+        // марка не влезает в габарит (0,7 м на листе — это 4–5 мм): выносим её
+        // над местом, иначе текст вылезает за контур и налезает на стены
+        const w = Math.hypot(X(isl.poly[1].x) - X(isl.poly[0].x), Y(isl.poly[1].y) - Y(isl.poly[0].y))
+        const h = Math.hypot(X(isl.poly[2].x) - X(isl.poly[1].x), Y(isl.poly[2].y) - Y(isl.poly[1].y))
+        const inside = Math.min(w, h) >= 6
+        return (
+          <g key={`isl${i}`} stroke="#000" fill="none">
+            <polygon points={isl.poly.map(P).join(" ")} strokeWidth={0.35} />
+            <line x1={X(isl.poly[0].x)} y1={Y(isl.poly[0].y)} x2={X(isl.poly[2].x)} y2={Y(isl.poly[2].y)} strokeWidth={0.15} />
+            <line x1={X(isl.poly[1].x)} y1={Y(isl.poly[1].y)} x2={X(isl.poly[3].x)} y2={Y(isl.poly[3].y)} strokeWidth={0.15} />
+            <text
+              x={X(isl.at.x)}
+              y={inside ? Y(isl.at.y) : Y(isl.at.y) - Math.max(3, h / 2 + 1.6)}
+              fontSize={2.3}
+              textAnchor="middle"
+              dominantBaseline={inside ? "middle" : "auto"}
+              stroke="#fff"
+              strokeWidth={0.6}
+              paintOrder="stroke"
+              fill="#000"
+            >
+              {isl.mark}
+            </text>
+          </g>
+        )
+      })}
       {!roofPlan && !sitePlan && d.lifts.map((lf, i) => (
         <g key={`lf${i}`} stroke="#000" fill="none">
           <polygon points={lf.shaft.map(P).join(" ")} strokeWidth={0.5} />
@@ -1116,12 +1135,12 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
   const y0 = 30
   const total = islandsTotal(rows)
   const ads = rows.filter((r) => WALL_MOUNTED.has(r.kind)).length
-  const rest = tw - (14 + 26 + 22 + 20 + 26)
+  const rest = tw - (16 + 34 + 22 + 22 + 20)
   const cols: Array<{ w: number; label: string; align?: "end" | "middle" }> = [
-    { w: 14, label: "Марка", align: "middle" },
+    { w: 16, label: "Марка", align: "middle" },
     { w: rest * 0.3, label: "Наименование" },
-    { w: 26, label: "Вид" },
-    { w: 26, label: "Этаж" },
+    { w: 34, label: "Вид" },
+    { w: 22, label: "Этаж" },
     { w: rest * 0.28, label: "Размещение" },
     { w: rest * 0.42, label: "Арендатор" },
     { w: 22, label: "Габарит, мм", align: "middle" },

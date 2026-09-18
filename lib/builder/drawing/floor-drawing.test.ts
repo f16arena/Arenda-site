@@ -82,7 +82,7 @@ describe("чертёж плана этажа", () => {
     f.islands = [{ id: "i1", kind: "vending", name: "Автомат", tenant: "ИП Forbs", position: { x: 3000, y: 2000 }, width: 900, depth: 800, height: 1830, rotationDeg: 0 }]
     const d = buildFloorDrawing(f)
     expect(d.islands).toHaveLength(1)
-    expect(d.islands[0].mark).toBe("М1")
+    expect(d.islands[0].mark).toBe("М1.1")
     expect(d.islands[0].poly).toHaveLength(4)
     const dxf = floorDrawingToDxf(d, pickSheet(d).scale, "План")
     expect(dxf).toContain("A-RENT")
