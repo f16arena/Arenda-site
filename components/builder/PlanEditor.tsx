@@ -11,7 +11,7 @@
 // Ctrl+Z отменяет весь сдвиг целиком.
 
 import { floorRooms } from "@/lib/builder/rooms"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useDocumentStore, useEditorStore, type Selection } from "@/store/builder-store"
 import { usePremiseStore } from "@/store/premise-store"
 import {
@@ -50,7 +50,7 @@ import { closestOnSegment, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { uid } from "@/core/id"
 import type { Floor } from "@/types/builder"
-import { buildFloorDrawing } from "@/lib/builder/drawing/floor-drawing"
+import { buildFloorDrawing, type FloorDrawing } from "@/lib/builder/drawing/floor-drawing"
 import { openingSchedule, roomExplication } from "@/lib/builder/drawing/schedules"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
 import { curtainSize, findPreset, isCurtain, sameWallOnFloor } from "@/lib/builder/openings"
@@ -196,6 +196,13 @@ export function PlanEditor() {
   const v = view
   const tolMm = v ? 10 / v.k : 100
   const selectedWall = selection.type === "wall" && selection.floorId === floor?.id ? selection.id : undefined
+  // Раскладка подписей считается один раз на изменение плана или вида: её берут
+  // и слои плана, и размеры выделенного элемента.
+  const labels = useMemo(
+    () => (floor && drawing && view ? buildLabelLayout({ v: view, floor, drawing, rooms, look, numbers, resolvePremise }) : null),
+    [floor, drawing, view, rooms, look, numbers, resolvePremise],
+  )
+
   const gripNodes = useMemo(() => {
     const e = selectedWall && floor ? floor.wallGraph.edges[selectedWall] : undefined
     return e ? [e.a, e.b] : []
@@ -669,7 +676,7 @@ export function PlanEditor() {
     return () => window.removeEventListener("keydown", onKey, true)
   })
 
-  if (!floor || !drawing || !v) {
+  if (!floor || !drawing || !v || !labels) {
     return <div ref={hostRef} className="absolute inset-0 z-[5]" style={{ background: "#eef1f5" }} />
   }
 
@@ -702,84 +709,6 @@ export function PlanEditor() {
     : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
     : tool === "object" ? (armedAsset ? "Объект: клик — поставить. Поворот и размер — в панели справа" : "Объект: выберите его в каталоге снизу")
     : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
-
-  // ── Раскладка подписей: помещения (приоритет), затем марки и надписи выходов без наложений ──
-  type Box = { l: number; t: number; r: number; b: number }
-  const taken: Box[] = []
-  const overlaps = (bx: Box) => taken.some((o) => bx.l < o.r && bx.r > o.l && bx.t < o.b && bx.b > o.t)
-  const textBox = (x: number, y: number, text: string, f: number): Box => {
-    const w = text.length * f * 0.6 + 4, h = f * 1.25
-    return { l: x - w / 2, t: y - h / 2, r: x + w / 2, b: y + h / 2 }
-  }
-  const roomLabels: Array<{ id: string; x: number; top: number; f: number; lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> }> = []
-  for (const r of rooms) {
-    const at = drawing.rooms.find((x) => x.roomId === r.id)?.at
-    let cx = 0, cy = 0
-    for (const q of r.polygon) { cx += q.x; cy += q.y }
-    const anchor = at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length }
-    const c = S(anchor)
-    const lbl = drawing.rooms.find((x) => x.roomId === r.id)
-    const common = !!lbl && lbl.use !== "rent"
-    const link = common ? undefined : floor.premiseLinks[r.id]
-    const premise = link ? resolvePremise(link) : undefined
-    const name = common ? lbl.name : floor.roomNames?.[r.id]
-    const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
-    const widthPx = px(spanAt(r.polygon, anchor, r.holes)) - 10
-    const areaText = look === "draft" ? area.replace(" м²", "") : area
-    const fits = (t: string, f: number) => t.length * f * 0.56 <= widthPx
-    if (widthPx < 18) continue
-    let f = fontPx
-    while (f > 8 && !fits(areaText, f)) f -= 1
-    if (!fits(areaText, f)) continue
-    const cut = (t: string) => {
-      if (fits(t, f)) return t
-      const k = Math.floor(widthPx / (f * 0.56)) - 1
-      return k >= 3 ? `${t.slice(0, k)}…` : ""
-    }
-    const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
-    const num = numbers.get(r.id)
-    if (num && !common) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
-    if (name) lines.push({ t: cut(name), color: common ? "#475569" : "#334155" })
-    if (look === "rent" && premise?.tenantName) lines.push({ t: cut(shortTenantName(premise.tenantName)), color: "#334155" })
-    lines.push({ t: areaText, under: true, color: look === "draft" ? "#111" : "#475569" })
-    const shownLines = lines.filter((l) => l.t)
-    const maxLines = Math.max(1, Math.floor(px(Math.sqrt(r.areaMm2)) / (f * 1.25)))
-    const visible = shownLines.length > maxLines ? shownLines.slice(shownLines.length - maxLines) : shownLines
-    const top = c.y - ((visible.length - 1) * f * 1.2) / 2
-    const longest = visible.reduce((m, l) => Math.max(m, l.t.length), 0)
-    taken.push({ l: c.x - (longest * f * 0.6) / 2, t: top - f * 0.7, r: c.x + (longest * f * 0.6) / 2, b: top + (visible.length - 1) * f * 1.2 + f * 0.7 })
-    roomLabels.push({ id: r.id, x: c.x, top, f, lines: visible })
-  }
-  // надписи выходов
-  const exitLabels = drawing.exits.map((ex) => {
-    const a = S(ex.at)
-    const dir = { x: ex.dir.x, y: -ex.dir.y }
-    const L = Math.max(22, px(1200))
-    const tip = { x: a.x + dir.x * L, y: a.y + dir.y * L }
-    const text = ex.kind === "emergency" ? "ВЫХОД" : "ВХОД"
-    // текст за стрелкой; если занято — сбоку от стрелки
-    const cands = [{ x: tip.x + dir.x * 18, y: tip.y + dir.y * 18 }, { x: tip.x - dir.y * 30, y: tip.y + dir.x * 30 }, { x: tip.x + dir.y * 30, y: tip.y - dir.x * 30 }]
-    let pos: { x: number; y: number } | null = null
-    for (const cnd of cands) {
-      const bx = textBox(cnd.x, cnd.y, text, fontPx)
-      if (!overlaps(bx)) { taken.push(bx); pos = cnd; break }
-    }
-    return { a, tip, dir, text, pos, color: ex.kind === "emergency" ? "#16a34a" : "#2563eb" }
-  })
-  // марки проёмов: от грани стены на 9 px, без наложений
-  const markLabels: Array<{ x: number; y: number; t: string }> = []
-  if (px(1000) >= 10) {
-    for (const m of drawing.marks) {
-      const b = S(m.base)
-      const ns = { x: m.n.x, y: -m.n.y }
-      const d = px(m.half) + 10
-      const x = b.x + ns.x * d, y = b.y + ns.y * d
-      const bx = textBox(x, y, m.text, 9)
-      if (overlaps(bx)) continue
-      taken.push(bx)
-      markLabels.push({ x, y, t: m.text })
-    }
-  }
 
   // ── Размеры выделенного элемента прямо на плане: клик — ввод числа ─────────
   type EditDim = { key: string; at: Vec2; label: string; value: number; apply: (v: number) => void; min: number; max: number }
@@ -850,12 +779,12 @@ export function PlanEditor() {
   // размер у выделенного не накрывает подписи помещений: отодвигаем от элемента, пока не свободно
   if (editDims.length) {
     const centre = editDims.reduce((acc, d) => ({ x: acc.x + d.at.x / editDims.length, y: acc.y + d.at.y / editDims.length }), { x: 0, y: 0 })
-    const placed: Box[] = []
+    const placed: LabelBox[] = []
     for (const d of editDims) {
       const text = `${d.label} ${d.value}`
       const w = text.length * 6.6 + 12, h = 20
-      const boxAt = (p: Vec2): Box => ({ l: p.x - w / 2, t: p.y - h / 2, r: p.x + w / 2, b: p.y + h / 2 })
-      const hit = (bx: Box) => [...taken, ...placed].some((o) => bx.l < o.r && bx.r > o.l && bx.t < o.b && bx.b > o.t)
+      const boxAt = (p: Vec2): LabelBox => ({ l: p.x - w / 2, t: p.y - h / 2, r: p.x + w / 2, b: p.y + h / 2 })
+      const hit = (bx: LabelBox) => [...(labels?.taken ?? []), ...placed].some((o) => bx.l < o.r && bx.r > o.l && bx.t < o.b && bx.b > o.t)
       let at = d.at
       const L = Math.hypot(d.at.x - centre.x, d.at.y - centre.y)
       const dir = L > 1 ? { x: (d.at.x - centre.x) / L, y: (d.at.y - centre.y) / L } : { x: 0, y: -1 }
@@ -913,6 +842,225 @@ export function PlanEditor() {
             <line x1={0} y1={0} x2={0} y2={10} stroke="#cbd5e1" strokeWidth={1} />
           </pattern>
         </defs>
+        <PlanLayers v={v} size={size} floor={floor} shown={shown} drawing={drawing} rooms={rooms} sel={sel} multi={multi} look={look} resolvePremise={resolvePremise} labels={labels} />
+        {/* под курсором */}
+        {hover && !drag.current && (() => {
+          if (hover.kind === "wall" && hover.id !== sel.id) {
+            const e = floor.wallGraph.edges[hover.id]
+            const a = e && floor.wallGraph.nodes[e.a], b = e && floor.wallGraph.nodes[e.b]
+            if (!e || !a || !b) return null
+            const pa = S(a), pb = S(b)
+            return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke={tool === "delete" ? "#ef4444" : "#38bdf8"} strokeWidth={Math.max(3, px(e.thickness))} strokeOpacity={0.35} strokeLinecap="round" />
+          }
+          if (hover.kind === "room" && tool !== "door" && tool !== "window") {
+            const r = rooms.find((x) => x.id === hover.id)
+            return r ? <polygon points={pts(r.polygon)} fill="rgba(56,189,248,0.07)" stroke="#38bdf8" strokeWidth={1} strokeDasharray="4 3" style={{ pointerEvents: "none" }} /> : null
+          }
+          return null
+        })()}
+        {/* линии разрезов здания */}
+        {(building?.sections ?? []).map((sec) => {
+          const a = S(sec.a), b = S(sec.b)
+          const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
+          const tx = (b.x - a.x) / L, ty = (b.y - a.y) / L
+          // взгляд в экранных координатах: нормаль к линии со стороны look (ось Y экрана вниз)
+          const dx = ty * sec.look, dy = -tx * sec.look
+          return (
+            <g key={sec.id} stroke="#dc2626" fill="#dc2626">
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={1.2} strokeDasharray="14 4 2 4" />
+              {[a, b].map((p, i) => (
+                <g key={i}>
+                  <line x1={p.x} y1={p.y} x2={p.x + dx * 18} y2={p.y + dy * 18} strokeWidth={2} />
+                  <polygon points={`${p.x + dx * 24},${p.y + dy * 24} ${p.x + dx * 14 + tx * 5},${p.y + dy * 14 + ty * 5} ${p.x + dx * 14 - tx * 5},${p.y + dy * 14 - ty * 5}`} stroke="none" />
+                  <text x={p.x + dx * 34} y={p.y + dy * 34} fontSize={13} fontWeight={700} textAnchor="middle" dominantBaseline="middle" stroke="none">{sec.name.split("-")[0]}</text>
+                </g>
+              ))}
+            </g>
+          )
+        })}
+        {/* рулетка */}
+        {(measured || (tool === "measure" && pts2.length === 1 && cursor)) && (() => {
+          const a0 = measured ? measured.a : pts2[0]
+          const b0 = measured ? measured.b : cursor?.snap?.p ?? cursor!.plan
+          const a = S(a0), b = S(b0)
+          return (
+            <g>
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#7c3aed" strokeWidth={2} />
+              {[a, b].map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={4} fill="#7c3aed" />)}
+              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 12} fontSize={13} fontWeight={700} textAnchor="middle" fill="#6d28d9" style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 4 }}>{Math.round(Math.hypot(b0.x - a0.x, b0.y - a0.y))} мм</text>
+            </g>
+          )
+        })()}
+        {/* разрез и трасса сети — ввод */}
+        {(tool === "section" || tool === "mep-run") && pts2.length > 0 && cursor && (
+          <polyline points={pts([...pts2, cursor.plan])} fill="none" stroke={tool === "section" ? "#dc2626" : MEP_SYSTEM_INFO[mepSystem].color} strokeWidth={2} strokeDasharray={tool === "section" ? "14 4 2 4" : undefined} />
+        )}
+        {boxRect && (
+          <rect x={Math.min(boxRect.a.x, boxRect.b.x)} y={Math.min(boxRect.a.y, boxRect.b.y)} width={Math.abs(boxRect.b.x - boxRect.a.x)} height={Math.abs(boxRect.b.y - boxRect.a.y)}
+            fill={boxRect.b.x < boxRect.a.x ? "rgba(34,197,94,0.08)" : "rgba(56,189,248,0.08)"} stroke={boxRect.b.x < boxRect.a.x ? "#22c55e" : "#38bdf8"} strokeWidth={1.5} strokeDasharray={boxRect.b.x < boxRect.a.x ? "6 4" : undefined} />
+        )}
+
+        {/* ввод */}
+        {tool === "wall" && chain && cursor?.snap && (() => {
+          const a = S(chain), b = S(cursor.snap.p)
+          const L = Math.round(Math.hypot(cursor.snap.p.x - chain.x, cursor.snap.p.y - chain.y))
+          return (
+            <g>
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#0284c7" strokeWidth={Math.max(3, px(200))} strokeOpacity={0.5} />
+              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 12} fontSize={12} fontWeight={700} textAnchor="middle" fill="#0369a1" style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 4 }}>{lengthInput ? `${lengthInput} м` : L}</text>
+            </g>
+          )
+        })()}
+        {tool === "annotate" && dimPts.length > 0 && cursor && (() => {
+          const b = dimPts[1] ?? cursor.snap?.p ?? cursor.plan
+          const off = dimPts[1] ? signedOffset(dimPts[0], dimPts[1], cursor.plan) : 600
+          const g = dimGeometry(dimPts[0], b, off)
+          const p1 = S(g.p1), p2 = S(g.p2)
+          return <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#0284c7" strokeWidth={1.5} strokeDasharray="6 4" />
+        })()}
+        {roomRect && (() => { const a = S(roomRect.a), b = S(roomRect.b); return <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} fill="rgba(2,132,199,0.08)" stroke="#0284c7" strokeWidth={2} strokeDasharray="6 4" /> })()}
+        {cursor?.snap?.guides?.map((gd, i) => {
+          const a = S(gd.from), b = S(gd.to)
+          return <line key={`gd${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#16a34a" strokeWidth={1} strokeDasharray="4 4" style={{ pointerEvents: "none" }} />
+        })}
+        {snapMark && (cursor?.snap?.kind === "node"
+          ? <rect x={snapMark.x - 6} y={snapMark.y - 6} width={12} height={12} fill="none" stroke="#16a34a" strokeWidth={2} />
+          : <polygon points={`${snapMark.x},${snapMark.y - 7} ${snapMark.x + 7},${snapMark.y} ${snapMark.x},${snapMark.y + 7} ${snapMark.x - 7},${snapMark.y}`} fill="none" stroke="#ea580c" strokeWidth={2} />)}
+      </svg>
+
+      {editDims.map((d) => {
+        const on = editing?.key === d.key
+        return (
+          <div key={d.key} className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: d.at.x, top: d.at.y }} onPointerDown={(e) => e.stopPropagation()}>
+            {on ? (
+              <input
+                autoFocus
+                data-testid={`edit-${d.key}`}
+                value={editing?.draft ?? ""}
+                onChange={(e) => setEditing({ key: d.key, draft: e.target.value })}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEdit(d); if (e.key === "Escape") setEditing(null) }}
+                onBlur={() => commitEdit(d)}
+                className="w-20 rounded-md px-1.5 py-0.5 text-center text-[12px] font-bold tabular-nums shadow-lg outline-none"
+                style={{ background: "#fff", color: "#0369a1", border: "2px solid #0284c7" }}
+              />
+            ) : (
+              <button
+                type="button"
+                data-testid={`dim-${d.key}`}
+                title={`${d.label}, мм — клик, чтобы изменить`}
+                onClick={() => setEditing({ key: d.key, draft: String(d.value) })}
+                className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums shadow"
+                style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
+              >
+                {d.label === "Длина" || d.label === "Ширина" || d.label === "Ширина марша" || d.label === "Шахта" ? "" : `${d.label} `}{d.value}
+              </button>
+            )}
+          </div>
+        )
+      })}
+      {/* линейки: сверху и слева, с меткой текущего положения курсора */}
+      <svg width={Math.max(0, size.w - RX)} height={RULER} className="pointer-events-none absolute z-[6]" style={{ display: "block", left: RX, top: RY }}>
+        <rect x={0} y={0} width={size.w} height={RULER} fill="rgba(248,250,252,0.92)" />
+        <line x1={0} y1={RULER - 0.5} x2={size.w} y2={RULER - 0.5} stroke="#cbd5e1" strokeWidth={1} />
+        {ruler.x.filter((t) => t.p > RX).map((t) => (
+          <g key={`rx${t.mm}`}>
+            <line x1={t.p - RX} y1={RULER - 6} x2={t.p - RX} y2={RULER} stroke="#94a3b8" strokeWidth={1} />
+            <text x={t.p - RX + 2} y={RULER - 7} fontSize={9} fill="#475569">{(t.mm / 1000).toFixed(rulerStep < 1000 ? 1 : 0)}</text>
+          </g>
+        ))}
+        {cursor && cursor.screen.x > RX && <line x1={cursor.screen.x - RX} y1={0} x2={cursor.screen.x - RX} y2={RULER} stroke="#0284c7" strokeWidth={1.5} />}
+      </svg>
+      <svg width={RULER} height={Math.max(0, size.h - RY)} className="pointer-events-none absolute z-[6]" style={{ display: "block", left: RX - RULER, top: RY }}>
+        <rect x={0} y={0} width={RULER} height={size.h} fill="rgba(248,250,252,0.92)" />
+        <line x1={RULER - 0.5} y1={0} x2={RULER - 0.5} y2={size.h} stroke="#cbd5e1" strokeWidth={1} />
+        {ruler.y.filter((t) => t.p > RY).map((t) => (
+          <g key={`ry${t.mm}`}>
+            <line x1={RULER - 6} y1={t.p - RY} x2={RULER} y2={t.p - RY} stroke="#94a3b8" strokeWidth={1} />
+            <text x={2} y={t.p - RY - 3} fontSize={9} fill="#475569" transform={`rotate(-90 12 ${t.p - RY - 3})`}>{(t.mm / 1000).toFixed(rulerStep < 1000 ? 1 : 0)}</text>
+          </g>
+        ))}
+        {cursor && cursor.screen.y > RY && <line x1={0} y1={cursor.screen.y - RY} x2={RULER} y2={cursor.screen.y - RY} stroke="#0284c7" strokeWidth={1.5} />}
+      </svg>
+
+      <div className="absolute right-3 bottom-[11.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
+        {([["draft", "Чертёж"], ["rent", "Аренда"]] as const).map(([k, l]) => (
+          <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
+        ))}
+      </div>
+      <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: outsideHint ? "rgba(239,68,68,0.92)" : "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
+        {outsideHint ?? hint}
+      </div>
+      <button
+        type="button"
+        onClick={() => setHelpOpen((x) => !x)}
+        title="Горячие клавиши"
+        className="absolute right-3 bottom-[14.5rem] z-10 h-7 w-7 rounded-lg text-[13px] font-bold shadow"
+        style={{ background: helpOpen ? TOKENS.accent : TOKENS.panel, color: helpOpen ? "#0b1220" : TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+      >
+        ?
+      </button>
+      {helpOpen && (
+        <div className="absolute right-3 bottom-[18rem] z-10 w-72 rounded-xl p-3 text-[11px] shadow-xl" style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
+          <div className="mb-1.5 text-xs font-semibold">Горячие клавиши</div>
+          {[
+            ["V", "выбор"], ["W", "стена"], ["R", "комната"], ["D", "дверь"], ["N", "окно"],
+            ["S", "лестница"], ["I", "измерить"], ["Del", "удалить выбранное"],
+            ["Ctrl+Z / Ctrl+Y", "отменить / вернуть"], ["Shift", "орто 90° при рисовании"],
+            ["Alt", "без привязок"], ["цифры + Enter", "длина стены в метрах"],
+            ["двойной клик", "конец цепочки стен"], ["колесо", "зум к курсору"],
+            ["ПКМ или пробел+мышь", "сдвиг плана"], ["Esc", "отменить действие"],
+          ].map(([k, t]) => (
+            <div key={k} className="flex justify-between gap-2 py-0.5">
+              <span className="font-mono" style={{ color: TOKENS.accent }}>{k}</span>
+              <span style={{ color: TOKENS.muted }}>{t}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="pointer-events-none absolute bottom-9 left-[13.5rem] rounded-md px-2 py-0.5 text-[11px] tabular-nums" style={{ background: "rgba(255,255,255,0.85)", color: "#334155" }}>
+        {cursor ? `X ${(cursor.plan.x / 1000).toFixed(2)}  Y ${(cursor.plan.y / 1000).toFixed(2)} м · ` : ""}1 м = {px(1000).toFixed(0)} px
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Статичные слои плана: сетка, подложка, помещения, стены, размеры, мебель,
+ * лестницы, сети, подписи и выделение. Вынесены в memo-компонент: они не
+ * зависят от курсора, а раньше каждое движение мыши перерисовывало весь план
+ * (на реальном этаже это ~900 элементов SVG и 60 мс на событие).
+ */
+const PlanLayers = memo(function PlanLayers({
+  v, size, floor, shown, drawing, rooms, sel, multi, look, resolvePremise, labels,
+}: {
+  v: View
+  size: { w: number; h: number }
+  floor: Floor
+  shown: Floor | null
+  drawing: FloorDrawing
+  rooms: ReturnType<typeof floorRooms>
+  sel: ReturnType<typeof useEditorStore.getState>["selection"]
+  multi: string[]
+  look: "rent" | "draft" | "bw"
+  resolvePremise: (id: string) => ReturnType<ReturnType<typeof usePremiseStore.getState>["resolve"]>
+  labels: ReturnType<typeof buildLabelLayout>
+}) {
+  const { roomLabels, exitLabels, markLabels } = labels
+  const S = (p: Vec2) => toScreen(v, p)
+  const pts = (list: Vec2[]) => list.map((q) => { const t = S(q); return `${t.x.toFixed(1)},${t.y.toFixed(1)}` }).join(" ")
+  const px = (mm: number) => mm * v.k
+  const gridStep = px(1000) >= 14 ? 1000 : px(5000) >= 14 ? 5000 : 10000
+  const topLeft = toPlan(v, { x: 0, y: 0 }), bottomRight = toPlan(v, { x: size.w, y: size.h })
+  const gridX: number[] = [], gridY: number[] = []
+  for (let x = Math.floor(topLeft.x / gridStep) * gridStep; x <= bottomRight.x && gridX.length < 400; x += gridStep) gridX.push(x)
+  for (let y = Math.floor(bottomRight.y / gridStep) * gridStep; y <= topLeft.y && gridY.length < 400; y += gridStep) gridY.push(y)
+  const fontPx = Math.max(9, Math.min(14, px(320)))
+  const u = floor.underlay
+  const selWall = sel.type === "wall" && sel.id ? floor.wallGraph.edges[sel.id] : undefined
+  const selOpening = sel.type === "opening" ? floor.openings.find((o) => o.id === sel.id) : undefined
+  const selStair = sel.type === "stair" ? shown?.stairs.find((s) => s.id === sel.id) : undefined
+  return (
+    <>
         {gridX.map((x) => { const s = S({ x, y: 0 }); return <line key={`gx${x}`} x1={s.x} y1={0} x2={s.x} y2={size.h} stroke={look === "draft" ? "#f1f5f9" : x === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
         {gridY.map((y) => { const s = S({ x: 0, y }); return <line key={`gy${y}`} x1={0} y1={s.y} x2={size.w} y2={s.y} stroke={look === "draft" ? "#f1f5f9" : y === 0 ? "#cbd5e1" : "#e2e8f0"} strokeWidth={1} /> })}
 
@@ -1114,183 +1262,107 @@ export function PlanEditor() {
           const pa = S(a), pb = S(b)
           return <line key={`m${id}`} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="#f59e0b" strokeWidth={Math.max(4, px(e.thickness))} strokeOpacity={0.5} strokeLinecap="round" />
         })}
-        {/* под курсором */}
-        {hover && !drag.current && (() => {
-          if (hover.kind === "wall" && hover.id !== sel.id) {
-            const e = floor.wallGraph.edges[hover.id]
-            const a = e && floor.wallGraph.nodes[e.a], b = e && floor.wallGraph.nodes[e.b]
-            if (!e || !a || !b) return null
-            const pa = S(a), pb = S(b)
-            return <line x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke={tool === "delete" ? "#ef4444" : "#38bdf8"} strokeWidth={Math.max(3, px(e.thickness))} strokeOpacity={0.35} strokeLinecap="round" />
-          }
-          if (hover.kind === "room" && tool !== "door" && tool !== "window") {
-            const r = rooms.find((x) => x.id === hover.id)
-            return r ? <polygon points={pts(r.polygon)} fill="rgba(56,189,248,0.07)" stroke="#38bdf8" strokeWidth={1} strokeDasharray="4 3" style={{ pointerEvents: "none" }} /> : null
-          }
-          return null
-        })()}
-        {/* линии разрезов здания */}
-        {(building?.sections ?? []).map((sec) => {
-          const a = S(sec.a), b = S(sec.b)
-          const L = Math.hypot(b.x - a.x, b.y - a.y) || 1
-          const tx = (b.x - a.x) / L, ty = (b.y - a.y) / L
-          // взгляд в экранных координатах: нормаль к линии со стороны look (ось Y экрана вниз)
-          const dx = ty * sec.look, dy = -tx * sec.look
-          return (
-            <g key={sec.id} stroke="#dc2626" fill="#dc2626">
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} strokeWidth={1.2} strokeDasharray="14 4 2 4" />
-              {[a, b].map((p, i) => (
-                <g key={i}>
-                  <line x1={p.x} y1={p.y} x2={p.x + dx * 18} y2={p.y + dy * 18} strokeWidth={2} />
-                  <polygon points={`${p.x + dx * 24},${p.y + dy * 24} ${p.x + dx * 14 + tx * 5},${p.y + dy * 14 + ty * 5} ${p.x + dx * 14 - tx * 5},${p.y + dy * 14 - ty * 5}`} stroke="none" />
-                  <text x={p.x + dx * 34} y={p.y + dy * 34} fontSize={13} fontWeight={700} textAnchor="middle" dominantBaseline="middle" stroke="none">{sec.name.split("-")[0]}</text>
-                </g>
-              ))}
-            </g>
-          )
-        })}
-        {/* рулетка */}
-        {(measured || (tool === "measure" && pts2.length === 1 && cursor)) && (() => {
-          const a0 = measured ? measured.a : pts2[0]
-          const b0 = measured ? measured.b : cursor?.snap?.p ?? cursor!.plan
-          const a = S(a0), b = S(b0)
-          return (
-            <g>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#7c3aed" strokeWidth={2} />
-              {[a, b].map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={4} fill="#7c3aed" />)}
-              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 12} fontSize={13} fontWeight={700} textAnchor="middle" fill="#6d28d9" style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 4 }}>{Math.round(Math.hypot(b0.x - a0.x, b0.y - a0.y))} мм</text>
-            </g>
-          )
-        })()}
-        {/* разрез и трасса сети — ввод */}
-        {(tool === "section" || tool === "mep-run") && pts2.length > 0 && cursor && (
-          <polyline points={pts([...pts2, cursor.plan])} fill="none" stroke={tool === "section" ? "#dc2626" : MEP_SYSTEM_INFO[mepSystem].color} strokeWidth={2} strokeDasharray={tool === "section" ? "14 4 2 4" : undefined} />
-        )}
-        {boxRect && (
-          <rect x={Math.min(boxRect.a.x, boxRect.b.x)} y={Math.min(boxRect.a.y, boxRect.b.y)} width={Math.abs(boxRect.b.x - boxRect.a.x)} height={Math.abs(boxRect.b.y - boxRect.a.y)}
-            fill={boxRect.b.x < boxRect.a.x ? "rgba(34,197,94,0.08)" : "rgba(56,189,248,0.08)"} stroke={boxRect.b.x < boxRect.a.x ? "#22c55e" : "#38bdf8"} strokeWidth={1.5} strokeDasharray={boxRect.b.x < boxRect.a.x ? "6 4" : undefined} />
-        )}
-
-        {/* ввод */}
-        {tool === "wall" && chain && cursor?.snap && (() => {
-          const a = S(chain), b = S(cursor.snap.p)
-          const L = Math.round(Math.hypot(cursor.snap.p.x - chain.x, cursor.snap.p.y - chain.y))
-          return (
-            <g>
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#0284c7" strokeWidth={Math.max(3, px(200))} strokeOpacity={0.5} />
-              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 12} fontSize={12} fontWeight={700} textAnchor="middle" fill="#0369a1" style={{ paintOrder: "stroke", stroke: "#fff", strokeWidth: 4 }}>{lengthInput ? `${lengthInput} м` : L}</text>
-            </g>
-          )
-        })()}
-        {tool === "annotate" && dimPts.length > 0 && cursor && (() => {
-          const b = dimPts[1] ?? cursor.snap?.p ?? cursor.plan
-          const off = dimPts[1] ? signedOffset(dimPts[0], dimPts[1], cursor.plan) : 600
-          const g = dimGeometry(dimPts[0], b, off)
-          const p1 = S(g.p1), p2 = S(g.p2)
-          return <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="#0284c7" strokeWidth={1.5} strokeDasharray="6 4" />
-        })()}
-        {roomRect && (() => { const a = S(roomRect.a), b = S(roomRect.b); return <rect x={Math.min(a.x, b.x)} y={Math.min(a.y, b.y)} width={Math.abs(b.x - a.x)} height={Math.abs(b.y - a.y)} fill="rgba(2,132,199,0.08)" stroke="#0284c7" strokeWidth={2} strokeDasharray="6 4" /> })()}
-        {cursor?.snap?.guides?.map((gd, i) => {
-          const a = S(gd.from), b = S(gd.to)
-          return <line key={`gd${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#16a34a" strokeWidth={1} strokeDasharray="4 4" style={{ pointerEvents: "none" }} />
-        })}
-        {snapMark && (cursor?.snap?.kind === "node"
-          ? <rect x={snapMark.x - 6} y={snapMark.y - 6} width={12} height={12} fill="none" stroke="#16a34a" strokeWidth={2} />
-          : <polygon points={`${snapMark.x},${snapMark.y - 7} ${snapMark.x + 7},${snapMark.y} ${snapMark.x},${snapMark.y + 7} ${snapMark.x - 7},${snapMark.y}`} fill="none" stroke="#ea580c" strokeWidth={2} />)}
-      </svg>
-
-      {editDims.map((d) => {
-        const on = editing?.key === d.key
-        return (
-          <div key={d.key} className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: d.at.x, top: d.at.y }} onPointerDown={(e) => e.stopPropagation()}>
-            {on ? (
-              <input
-                autoFocus
-                data-testid={`edit-${d.key}`}
-                value={editing?.draft ?? ""}
-                onChange={(e) => setEditing({ key: d.key, draft: e.target.value })}
-                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEdit(d); if (e.key === "Escape") setEditing(null) }}
-                onBlur={() => commitEdit(d)}
-                className="w-20 rounded-md px-1.5 py-0.5 text-center text-[12px] font-bold tabular-nums shadow-lg outline-none"
-                style={{ background: "#fff", color: "#0369a1", border: "2px solid #0284c7" }}
-              />
-            ) : (
-              <button
-                type="button"
-                data-testid={`dim-${d.key}`}
-                title={`${d.label}, мм — клик, чтобы изменить`}
-                onClick={() => setEditing({ key: d.key, draft: String(d.value) })}
-                className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums shadow"
-                style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
-              >
-                {d.label === "Длина" || d.label === "Ширина" || d.label === "Ширина марша" || d.label === "Шахта" ? "" : `${d.label} `}{d.value}
-              </button>
-            )}
-          </div>
-        )
-      })}
-      {/* линейки: сверху и слева, с меткой текущего положения курсора */}
-      <svg width={Math.max(0, size.w - RX)} height={RULER} className="pointer-events-none absolute z-[6]" style={{ display: "block", left: RX, top: RY }}>
-        <rect x={0} y={0} width={size.w} height={RULER} fill="rgba(248,250,252,0.92)" />
-        <line x1={0} y1={RULER - 0.5} x2={size.w} y2={RULER - 0.5} stroke="#cbd5e1" strokeWidth={1} />
-        {ruler.x.filter((t) => t.p > RX).map((t) => (
-          <g key={`rx${t.mm}`}>
-            <line x1={t.p - RX} y1={RULER - 6} x2={t.p - RX} y2={RULER} stroke="#94a3b8" strokeWidth={1} />
-            <text x={t.p - RX + 2} y={RULER - 7} fontSize={9} fill="#475569">{(t.mm / 1000).toFixed(rulerStep < 1000 ? 1 : 0)}</text>
-          </g>
-        ))}
-        {cursor && cursor.screen.x > RX && <line x1={cursor.screen.x - RX} y1={0} x2={cursor.screen.x - RX} y2={RULER} stroke="#0284c7" strokeWidth={1.5} />}
-      </svg>
-      <svg width={RULER} height={Math.max(0, size.h - RY)} className="pointer-events-none absolute z-[6]" style={{ display: "block", left: RX - RULER, top: RY }}>
-        <rect x={0} y={0} width={RULER} height={size.h} fill="rgba(248,250,252,0.92)" />
-        <line x1={RULER - 0.5} y1={0} x2={RULER - 0.5} y2={size.h} stroke="#cbd5e1" strokeWidth={1} />
-        {ruler.y.filter((t) => t.p > RY).map((t) => (
-          <g key={`ry${t.mm}`}>
-            <line x1={RULER - 6} y1={t.p - RY} x2={RULER} y2={t.p - RY} stroke="#94a3b8" strokeWidth={1} />
-            <text x={2} y={t.p - RY - 3} fontSize={9} fill="#475569" transform={`rotate(-90 12 ${t.p - RY - 3})`}>{(t.mm / 1000).toFixed(rulerStep < 1000 ? 1 : 0)}</text>
-          </g>
-        ))}
-        {cursor && cursor.screen.y > RY && <line x1={0} y1={cursor.screen.y - RY} x2={RULER} y2={cursor.screen.y - RY} stroke="#0284c7" strokeWidth={1.5} />}
-      </svg>
-
-      <div className="absolute right-3 bottom-[11.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
-        {([["draft", "Чертёж"], ["rent", "Аренда"]] as const).map(([k, l]) => (
-          <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
-        ))}
-      </div>
-      <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: outsideHint ? "rgba(239,68,68,0.92)" : "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
-        {outsideHint ?? hint}
-      </div>
-      <button
-        type="button"
-        onClick={() => setHelpOpen((x) => !x)}
-        title="Горячие клавиши"
-        className="absolute right-3 bottom-[14.5rem] z-10 h-7 w-7 rounded-lg text-[13px] font-bold shadow"
-        style={{ background: helpOpen ? TOKENS.accent : TOKENS.panel, color: helpOpen ? "#0b1220" : TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
-      >
-        ?
-      </button>
-      {helpOpen && (
-        <div className="absolute right-3 bottom-[18rem] z-10 w-72 rounded-xl p-3 text-[11px] shadow-xl" style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
-          <div className="mb-1.5 text-xs font-semibold">Горячие клавиши</div>
-          {[
-            ["V", "выбор"], ["W", "стена"], ["R", "комната"], ["D", "дверь"], ["N", "окно"],
-            ["S", "лестница"], ["I", "измерить"], ["Del", "удалить выбранное"],
-            ["Ctrl+Z / Ctrl+Y", "отменить / вернуть"], ["Shift", "орто 90° при рисовании"],
-            ["Alt", "без привязок"], ["цифры + Enter", "длина стены в метрах"],
-            ["двойной клик", "конец цепочки стен"], ["колесо", "зум к курсору"],
-            ["ПКМ или пробел+мышь", "сдвиг плана"], ["Esc", "отменить действие"],
-          ].map(([k, t]) => (
-            <div key={k} className="flex justify-between gap-2 py-0.5">
-              <span className="font-mono" style={{ color: TOKENS.accent }}>{k}</span>
-              <span style={{ color: TOKENS.muted }}>{t}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="pointer-events-none absolute bottom-9 left-[13.5rem] rounded-md px-2 py-0.5 text-[11px] tabular-nums" style={{ background: "rgba(255,255,255,0.85)", color: "#334155" }}>
-        {cursor ? `X ${(cursor.plan.x / 1000).toFixed(2)}  Y ${(cursor.plan.y / 1000).toFixed(2)} м · ` : ""}1 м = {px(1000).toFixed(0)} px
-      </div>
-    </div>
+    </>
   )
+})
+
+/** Прямоугольник подписи на экране, в пикселях. */
+type LabelBox = { l: number; t: number; r: number; b: number }
+
+/**
+ * Раскладка подписей плана: помещения (приоритет), затем марки проёмов и надписи
+ * выходов — без наложений. Считается один раз на изменение плана или вида, а не
+ * на каждое движение мыши.
+ */
+function buildLabelLayout(args: {
+  v: View
+  floor: Floor
+  drawing: FloorDrawing
+  rooms: ReturnType<typeof floorRooms>
+  look: "rent" | "draft" | "bw"
+  numbers: Map<string, string>
+  resolvePremise: (id: string) => ReturnType<ReturnType<typeof usePremiseStore.getState>["resolve"]>
+}) {
+  const { v, floor, drawing, rooms, look, numbers, resolvePremise } = args
+  const S = (p: Vec2) => toScreen(v, p)
+  const px = (mm: number) => mm * v.k
+  const fontPx = Math.max(9, Math.min(14, px(320)))
+  // ── Раскладка подписей: помещения (приоритет), затем марки и надписи выходов без наложений ──
+  type Box = { l: number; t: number; r: number; b: number }
+  const taken: Box[] = []
+  const overlaps = (bx: Box) => taken.some((o) => bx.l < o.r && bx.r > o.l && bx.t < o.b && bx.b > o.t)
+  const textBox = (x: number, y: number, text: string, f: number): Box => {
+    const w = text.length * f * 0.6 + 4, h = f * 1.25
+    return { l: x - w / 2, t: y - h / 2, r: x + w / 2, b: y + h / 2 }
+  }
+  const roomLabels: Array<{ id: string; x: number; top: number; f: number; lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> }> = []
+  for (const r of rooms) {
+    const at = drawing.rooms.find((x) => x.roomId === r.id)?.at
+    let cx = 0, cy = 0
+    for (const q of r.polygon) { cx += q.x; cy += q.y }
+    const anchor = at ?? { x: cx / r.polygon.length, y: cy / r.polygon.length }
+    const c = S(anchor)
+    const lbl = drawing.rooms.find((x) => x.roomId === r.id)
+    const common = !!lbl && lbl.use !== "rent"
+    const link = common ? undefined : floor.premiseLinks[r.id]
+    const premise = link ? resolvePremise(link) : undefined
+    const name = common ? lbl.name : floor.roomNames?.[r.id]
+    const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
+    const widthPx = px(spanAt(r.polygon, anchor, r.holes)) - 10
+    const areaText = look === "draft" ? area.replace(" м²", "") : area
+    const fits = (t: string, f: number) => t.length * f * 0.56 <= widthPx
+    if (widthPx < 18) continue
+    let f = fontPx
+    while (f > 8 && !fits(areaText, f)) f -= 1
+    if (!fits(areaText, f)) continue
+    const cut = (t: string) => {
+      if (fits(t, f)) return t
+      const k = Math.floor(widthPx / (f * 0.56)) - 1
+      return k >= 3 ? `${t.slice(0, k)}…` : ""
+    }
+    const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
+    const num = numbers.get(r.id)
+    if (num && !common) lines.push({ t: cut(`№ ${num}`), bold: true, color: "#0f172a" })
+    if (name) lines.push({ t: cut(name), color: common ? "#475569" : "#334155" })
+    if (look === "rent" && premise?.tenantName) lines.push({ t: cut(shortTenantName(premise.tenantName)), color: "#334155" })
+    lines.push({ t: areaText, under: true, color: look === "draft" ? "#111" : "#475569" })
+    const shownLines = lines.filter((l) => l.t)
+    const maxLines = Math.max(1, Math.floor(px(Math.sqrt(r.areaMm2)) / (f * 1.25)))
+    const visible = shownLines.length > maxLines ? shownLines.slice(shownLines.length - maxLines) : shownLines
+    const top = c.y - ((visible.length - 1) * f * 1.2) / 2
+    const longest = visible.reduce((m, l) => Math.max(m, l.t.length), 0)
+    taken.push({ l: c.x - (longest * f * 0.6) / 2, t: top - f * 0.7, r: c.x + (longest * f * 0.6) / 2, b: top + (visible.length - 1) * f * 1.2 + f * 0.7 })
+    roomLabels.push({ id: r.id, x: c.x, top, f, lines: visible })
+  }
+  // надписи выходов
+  const exitLabels = drawing.exits.map((ex) => {
+    const a = S(ex.at)
+    const dir = { x: ex.dir.x, y: -ex.dir.y }
+    const L = Math.max(22, px(1200))
+    const tip = { x: a.x + dir.x * L, y: a.y + dir.y * L }
+    const text = ex.kind === "emergency" ? "ВЫХОД" : "ВХОД"
+    // текст за стрелкой; если занято — сбоку от стрелки
+    const cands = [{ x: tip.x + dir.x * 18, y: tip.y + dir.y * 18 }, { x: tip.x - dir.y * 30, y: tip.y + dir.x * 30 }, { x: tip.x + dir.y * 30, y: tip.y - dir.x * 30 }]
+    let pos: { x: number; y: number } | null = null
+    for (const cnd of cands) {
+      const bx = textBox(cnd.x, cnd.y, text, fontPx)
+      if (!overlaps(bx)) { taken.push(bx); pos = cnd; break }
+    }
+    return { a, tip, dir, text, pos, color: ex.kind === "emergency" ? "#16a34a" : "#2563eb" }
+  })
+  // марки проёмов: от грани стены на 9 px, без наложений
+  const markLabels: Array<{ x: number; y: number; t: string }> = []
+  if (px(1000) >= 10) {
+    for (const m of drawing.marks) {
+      const b = S(m.base)
+      const ns = { x: m.n.x, y: -m.n.y }
+      const d = px(m.half) + 10
+      const x = b.x + ns.x * d, y = b.y + ns.y * d
+      const bx = textBox(x, y, m.text, 9)
+      if (overlaps(bx)) continue
+      taken.push(bx)
+      markLabels.push({ x, y, t: m.text })
+    }
+  }
+  return { roomLabels, exitLabels, markLabels, taken }
 }
