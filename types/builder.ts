@@ -84,7 +84,7 @@ export const BuilderObjectSchema = z.object({
  * распознать: место задаётся прямоугольником с поворотом прямо в коридоре или
  * в холле. Площадь считается по габариту и идёт в ведомость арендных мест.
  */
-export const ISLAND_KINDS = ["vending", "kiosk", "atm", "counter", "coffee", "rack", "other"] as const
+export const ISLAND_KINDS = ["vending", "kiosk", "atm", "counter", "coffee", "rack", "banner", "lightbox", "other"] as const
 export const IslandKindSchema = z.enum(ISLAND_KINDS)
 export type IslandKind = z.infer<typeof IslandKindSchema>
 
@@ -100,6 +100,8 @@ export const IslandSchema = z.object({
   depth: z.number().default(800),
   height: z.number().default(1900),
   rotationDeg: z.number().default(0),
+  /** высота низа над полом, мм: реклама висит на стене, напольное место стоит на нуле */
+  mountHeight: z.number().optional(),
 })
 export type Island = z.infer<typeof IslandSchema>
 

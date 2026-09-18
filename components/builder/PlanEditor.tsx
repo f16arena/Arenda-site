@@ -60,7 +60,7 @@ import { curtainSize, findPreset, isCurtain, sameWallOnFloor } from "@/lib/build
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
-import { ISLAND_PRESETS, islandLabel, islandPolygon, islandArea } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, WALL_MOUNTED, islandLabel, islandPolygon, islandArea } from "@/lib/builder/islands"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
 import { insideBuilding, pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
@@ -623,16 +623,18 @@ export function PlanEditor() {
         const preset = ISLAND_PRESETS[islandKind]
         const g = snapEnabled && !e.altKey ? 50 : 1
         const id = uid("isl")
+        // реклама вешается на ближайшую стену и разворачивается вдоль неё
+        const onWall = WALL_MOUNTED.has(islandKind) ? wallMount(at.p, floor.wallGraph, preset.depth) : null
         execute(new AddIslandCommand(floor.id, {
           id,
           kind: islandKind,
           name: "",
           tenant: "",
-          position: { x: Math.round(at.p.x / g) * g, y: Math.round(at.p.y / g) * g },
+          position: onWall ? onWall.at : { x: Math.round(at.p.x / g) * g, y: Math.round(at.p.y / g) * g },
           width: preset.width,
           depth: preset.depth,
           height: preset.height,
-          rotationDeg: 0,
+          rotationDeg: onWall ? onWall.rotation : 0,
         }))
         setSelection({ type: "island", id, floorId: floor.id })
         break

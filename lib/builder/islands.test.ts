@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ISLAND_PRESETS, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, passageLeft } from "./islands"
+import { ISLAND_PRESETS, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
 import type { Floor, Island } from "@/types/builder"
 
 function island(extra: Partial<Island> = {}): Island {
@@ -132,5 +132,30 @@ describe("проход в коридоре", () => {
   it("киоск посреди узкого коридора съедает проход", () => {
     const left = passageLeft(island({ kind: "kiosk", width: 2500, depth: 2000, position: { x: 5000, y: 1500 } }), corridor)
     expect(left).toBeLessThan(1200)
+  })
+})
+
+describe("реклама на стене", () => {
+  const corridor = [{ x: 0, y: 0 }, { x: 20000, y: 0 }, { x: 20000, y: 3000 }, { x: 0, y: 3000 }]
+
+  it("баннер и лайтбокс считаются настенными, автомат — нет", () => {
+    expect(isWallMounted(island({ kind: "banner" }))).toBe(true)
+    expect(isWallMounted(island({ kind: "lightbox" }))).toBe(true)
+    expect(isWallMounted(island())).toBe(false)
+  })
+
+  it("реклама висит на высоте 1,2 м, напольное место — на нуле", () => {
+    expect(mountHeight(island({ kind: "banner" }))).toBe(1200)
+    expect(mountHeight(island())).toBe(0)
+    expect(mountHeight(island({ kind: "banner", mountHeight: 2000 }))).toBe(2000)
+  })
+
+  it("баннер поперёк коридора проход не сужает", () => {
+    const b = island({ kind: "banner", width: 3000, depth: 80, position: { x: 5000, y: 1500 } })
+    expect(passageLeft(b, corridor)).toBe(Infinity)
+  })
+
+  it("площадь рекламы считается по габариту щита", () => {
+    expect(islandArea(island({ kind: "banner", width: 3000, depth: 80 }))).toBeCloseTo(0.24)
   })
 })

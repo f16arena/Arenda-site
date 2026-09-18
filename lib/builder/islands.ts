@@ -25,7 +25,21 @@ export const ISLAND_PRESETS: Record<IslandKind, IslandPreset> = {
   counter: { label: "Стойка", width: 1600, depth: 700, height: 1100 },
   coffee: { label: "Кофе-точка", width: 1200, depth: 900, height: 1900 },
   rack: { label: "Торговая стойка", width: 1000, depth: 1000, height: 1600 },
+  banner: { label: "Баннер на стене", width: 3000, depth: 80, height: 1500 },
+  lightbox: { label: "Лайтбокс", width: 1200, depth: 150, height: 1800 },
   other: { label: "Арендное место", width: 1000, depth: 1000, height: 1500 },
+}
+
+/** Рекламные места висят на стене: пола они не занимают и проход не сужают. */
+export const WALL_MOUNTED: ReadonlySet<IslandKind> = new Set<IslandKind>(["banner", "lightbox"])
+
+export function isWallMounted(island: Island): boolean {
+  return WALL_MOUNTED.has(island.kind)
+}
+
+/** Высота низа места над полом, мм: у рекламы по умолчанию 1,2 м. */
+export function mountHeight(island: Island): number {
+  return island.mountHeight ?? (isWallMounted(island) ? 1200 : 0)
 }
 
 /** Наименование для плана и ведомости: своё, иначе типовое по виду места. */
@@ -136,6 +150,8 @@ export function islandsTotal(rows: IslandRow[]): { count: number; area: number; 
  */
 export function passageLeft(island: Island, corridor: Vec2[]): number {
   if (corridor.length < 3) return Infinity
+  // реклама на стене пола не занимает — проход она не сужает
+  if (isWallMounted(island)) return Infinity
   const xs = corridor.map((p) => p.x)
   const ys = corridor.map((p) => p.y)
   const w = Math.max(...xs) - Math.min(...xs)

@@ -898,7 +898,7 @@ export class DeleteIslandCommand implements Command {
   }
 }
 
-type IslandProps = Partial<Pick<Island, "kind" | "name" | "tenant" | "width" | "depth" | "height" | "rotationDeg">>
+type IslandProps = Partial<Pick<Island, "kind" | "name" | "tenant" | "width" | "depth" | "height" | "rotationDeg" | "mountHeight">>
 
 export class SetIslandCommand implements Command {
   readonly kind = "set-island"
@@ -910,7 +910,7 @@ export class SetIslandCommand implements Command {
     const f = findFloor(doc, this.floorId)
     const i = (f?.islands ?? []).find((x) => x.id === this.islandId)
     if (i && !this.captured) {
-      this.prev = { kind: i.kind, name: i.name, tenant: i.tenant, width: i.width, depth: i.depth, height: i.height, rotationDeg: i.rotationDeg }
+      this.prev = { kind: i.kind, name: i.name, tenant: i.tenant, width: i.width, depth: i.depth, height: i.height, rotationDeg: i.rotationDeg, mountHeight: i.mountHeight }
       this.captured = true
     }
     return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, ...this.props } : x)) }))
