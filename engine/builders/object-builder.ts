@@ -897,6 +897,42 @@ function buildByAsset(assetId: string, scene: Scene): Mesh[] {
       return out
     }
 
+    // ── Масштаб: фигура человека и машина ──
+    case "person": case "person2": {
+      // Обобщённая фигура ~1,75 м: по ней сразу видно высоту потолка и ширину
+      // прохода — без человека объём помещения на картинке не читается.
+      const suit = assetId === "person2" ? "#475569" : "#334155"
+      const out: Mesh[] = []
+      const legs = part(MeshBuilder.CreateCylinder("l", { height: 0.85, diameterTop: 0.3, diameterBottom: 0.24 }, scene), scene, "#1f2937"); legs.position.y = 0.43; out.push(legs)
+      const body = part(MeshBuilder.CreateCylinder("b", { height: 0.62, diameterTop: 0.36, diameterBottom: 0.34 }, scene), scene, suit); body.position.y = 1.15; out.push(body)
+      const head = part(MeshBuilder.CreateSphere("h", { diameter: 0.23, segments: 10 }, scene), scene, "#d6b08c"); head.position.y = 1.62; out.push(head)
+      for (const side of [-1, 1]) {
+        const arm = part(MeshBuilder.CreateCylinder("a", { height: 0.58, diameter: 0.11 }, scene), scene, suit)
+        arm.position.set(side * 0.22, 1.16, 0)
+        arm.rotation.z = side * 0.12
+        out.push(arm)
+      }
+      return out
+    }
+    case "car": case "car2": {
+      const paint = assetId === "car2" ? "#1e3a8a" : "#9ca3af"
+      const out: Mesh[] = []
+      const body = part(MeshBuilder.CreateBox("b", { width: 1.82, height: 0.72, depth: 4.3 }, scene), scene, paint); body.position.y = 0.62; out.push(body)
+      const cabin = part(MeshBuilder.CreateBox("c", { width: 1.66, height: 0.6, depth: 2.2 }, scene), scene, "#0f172a"); cabin.position.set(0, 1.24, -0.15); out.push(cabin)
+      for (const x of [-0.86, 0.86]) for (const z of [-1.45, 1.45]) {
+        const wheel = part(MeshBuilder.CreateCylinder("w", { height: 0.22, diameter: 0.62 }, scene), scene, "#111827")
+        wheel.rotation.z = Math.PI / 2
+        wheel.position.set(x, 0.31, z)
+        out.push(wheel)
+      }
+      for (const z of [2.12, -2.12]) {
+        const lamp = glow(MeshBuilder.CreateBox("lp", { width: 1.3, height: 0.12, depth: 0.05 }, scene), scene, z > 0 ? "#fef3c7" : "#fca5a5")
+        lamp.position.set(0, 0.72, z)
+        out.push(lamp)
+      }
+      return out
+    }
+
     default: {
       const box = part(MeshBuilder.CreateBox("o", { size: 1 }, scene), scene, "#9CA3AF")
       box.position.y = 0.5

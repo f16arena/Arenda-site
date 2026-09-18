@@ -137,6 +137,11 @@ const ASSETS: Asset[] = [
   { id: "conference_phone", name: "Спикерфон", category: "Техника", icon: "☎️" },
   { id: "tv_large", name: "ТВ-панель XL", category: "Техника", icon: "📺" },
   { id: "mannequin", name: "Манекен", category: "Декор", icon: "🧍" },
+  // масштабные фигуры: по человеку и машине видно реальные габариты
+  { id: "person", name: "Человек", category: "Декор", icon: "🧍‍♂️" },
+  { id: "person2", name: "Человек 2", category: "Декор", icon: "🧍‍♀️" },
+  { id: "car", name: "Автомобиль", category: "Улица", icon: "🚗" },
+  { id: "car2", name: "Автомобиль 2", category: "Улица", icon: "🚙" },
   { id: "shopping_cart", name: "Тележка", category: "Декор", icon: "🛒" },
   { id: "sculpture", name: "Скульптура", category: "Декор", icon: "🗿" },
   { id: "aquarium", name: "Аквариум", category: "Декор", icon: "🐠" },
