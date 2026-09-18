@@ -45,6 +45,7 @@ import { buildingIndicators, type BuildingIndicators } from "@/lib/builder/drawi
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
 import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
+import { buildSlabPlan, type SlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildRoofPlan, type RoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSitePlan, type SitePlan } from "@/lib/builder/drawing/site-plan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
@@ -123,9 +124,11 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const [section, setSection] = useState<SheetSection>(initialSection)
   const floor = floors.find((f) => f.id === floorId) ?? floors[0]
   const stage: PlanStage = view.startsWith("replan:") ? (view.slice(7) as PlanStage) : "plan"
-  const isPlanView = view === "plan" || view.startsWith("replan:") || view === "evac" || view === "roof" || view === "site"
+  const isPlanView = view === "plan" || view.startsWith("replan:") || view === "evac" || view === "roof" || view === "site" || view === "slabs"
   // план эвакуации: тот же план этажа + пути, знаки и легенда
   const evac = useMemo(() => (floor && view === "evac" ? buildEvacuation(floor) : null), [floor, view])
+  // план перекрытия — по этому этажу
+  const slabPlan = useMemo(() => (floor && view === "slabs" ? buildSlabPlan(floor) : null), [floor, view])
   // план кровли строится по верхнему этажу здания
   // генплан: участок целиком со всеми зданиями
   const sitePlan = useMemo(() => (view === "site" && site ? buildSitePlan({ site, buildings: allBuildings ?? (building ? [building] : []) }) : null), [view, site, allBuildings, building])
@@ -173,7 +176,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
   }, [building, view, sections])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = elevation ? elevation.title : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(floor)}. План перекрытия` : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
   // лист-таблица не зависит от размеров плана: всегда A3 альбомный
   const TABLE_SHEET: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
   const activeSheet = view === "finish" ? TABLE_SHEET : elevationSheet ?? sheet
@@ -222,6 +225,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
         >
           <option value="plan">План этажа</option>
           <option value="evac">План эвакуации</option>
+          <option value="slabs">План перекрытия</option>
           <option value="roof">План кровли</option>
           {site && <option value="site">Генеральный план</option>}
           <option value="finish">Ведомости: отделка, полы, перемычки</option>
@@ -308,6 +312,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           replan={replanTables ? replan : null}
           evac={evac}
           roofPlan={roofPlan}
+          slabPlan={slabPlan}
           sitePlan={sitePlan}
           finish={finish}
           stage={stage}
@@ -348,10 +353,13 @@ export function SheetSvg({
   indicators,
   evac,
   roofPlan,
+  slabPlan,
   sitePlan,
   finish,
   ar,
 }: {
+  /** план перекрытия: раскладка плит и монолитные участки */
+  slabPlan?: SlabPlan | null
   /** генеральный план: участок, здания, дороги, площадки, озеленение */
   sitePlan?: SitePlan | null
   /** план кровли: контур, парапет, уклоны и воронки */
@@ -415,6 +423,9 @@ export function SheetSvg({
       <defs>
         <pattern id="hatch-new" patternUnits="userSpaceOnUse" width={1.6} height={1.6} patternTransform="rotate(45)">
           <line x1={0} y1={0} x2={0} y2={1.6} stroke="#000" strokeWidth={0.25} />
+        </pattern>
+        <pattern id="hatch-mono" patternUnits="userSpaceOnUse" width={3.2} height={3.2} patternTransform="rotate(45)">
+          <line x1={0} y1={0} x2={0} y2={3.2} stroke="#000" strokeWidth={0.18} />
         </pattern>
         <pattern id="sheet-mop" patternUnits="userSpaceOnUse" width={2.4} height={2.4} patternTransform="rotate(45)">
           <line x1={0} y1={0} x2={0} y2={2.4} stroke="#9ca3af" strokeWidth={0.12} />
@@ -480,7 +491,7 @@ export function SheetSvg({
       {!roofPlan && !sitePlan && d.thinLines.map(([a, b], i) => (
         <line key={`l${i}`} x1={X(a.x)} y1={Y(a.y)} x2={X(b.x)} y2={Y(b.y)} stroke={arch} strokeWidth={0.18} />
       ))}
-      {!roofPlan && !sitePlan && d.arcs.map((a, i) => {
+      {!roofPlan && !sitePlan && !slabPlan && d.arcs.map((a, i) => {
         const r = a.r / scale
         const s = { x: a.c.x + a.r * Math.cos((a.start * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.start * Math.PI) / 180) }
         const e = { x: a.c.x + a.r * Math.cos((a.end * Math.PI) / 180), y: a.c.y + a.r * Math.sin((a.end * Math.PI) / 180) }
@@ -490,10 +501,10 @@ export function SheetSvg({
 
       {/* помещения */}
       {/* МОП и технические — лёгкая штриховка: часть здания, не аренда */}
-      {!roofPlan && !sitePlan && d.rooms.filter((r) => r.use !== "rent").map((r, i) => (
+      {!roofPlan && !sitePlan && !slabPlan && d.rooms.filter((r) => r.use !== "rent").map((r, i) => (
         <path key={`mop${i}`} d={[r.polygon, ...r.holes].map((ring) => ring.map((q, k) => `${k ? "L" : "M"}${X(q.x).toFixed(2)} ${Y(q.y).toFixed(2)}`).join(" ") + " Z").join(" ")} fillRule="evenodd" fill="url(#sheet-mop)" stroke="none" />
       ))}
-      {!roofPlan && !sitePlan && d.rooms.map((r, i) => {
+      {!roofPlan && !sitePlan && !slabPlan && d.rooms.map((r, i) => {
         const top = r.number ?? (r.name || null)
         return (
           <g key={`r${i}`}>
@@ -575,10 +586,12 @@ export function SheetSvg({
       {evac && <EvacLayer evac={evac} X={X} Y={Y} sheet={sheet} />}
       {roofPlan && <RoofPlanLayer plan={roofPlan} X={X} Y={Y} />}
       {sitePlan && <SitePlanLayer plan={sitePlan} X={X} Y={Y} />}
+      {slabPlan && <SlabPlanLayer plan={slabPlan} X={X} Y={Y} />}
+      {slabPlan && slabPlan.rows.length > 0 && <SlabSpec plan={slabPlan} x={26} y={sheet.h - 62} w={72} />}
       {!roofPlan && !sitePlan && d.stairWells.map((q, i) => (
         <polygon key={`sw${i}`} points={q.map(P).join(" ")} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="4 1.2 1 1.2" />
       ))}
-      {!roofPlan && !sitePlan && d.stairArrows.map((pts, i) => {
+      {!roofPlan && !sitePlan && !slabPlan && d.stairArrows.map((pts, i) => {
         const sp = pts.map((p) => ({ x: X(p.x), y: Y(p.y) }))
         const e = sp[sp.length - 1], b = sp[sp.length - 2]
         const L = Math.hypot(e.x - b.x, e.y - b.y) || 1
@@ -599,7 +612,7 @@ export function SheetSvg({
           <line x1={X(lf.cabin[1].x)} y1={Y(lf.cabin[1].y)} x2={X(lf.cabin[3].x)} y2={Y(lf.cabin[3].y)} strokeWidth={0.18} />
         </g>
       ))}
-      {!roofPlan && !sitePlan && d.exits.map((ex, i) => {
+      {!roofPlan && !sitePlan && !slabPlan && d.exits.map((ex, i) => {
         const x = X(ex.at.x), y = Y(ex.at.y)
         const dx = ex.dir.x, dy = -ex.dir.y
         const tip = { x: x + dx * 6, y: y + dy * 6 }
@@ -611,7 +624,7 @@ export function SheetSvg({
           </g>
         )
       })}
-      {!roofPlan && !sitePlan && d.marks.map((m, i) => (
+      {!roofPlan && !sitePlan && !slabPlan && d.marks.map((m, i) => (
         <text key={`mk${i}`} x={X(m.at.x)} y={Y(m.at.y)} fontSize={2.2} textAnchor="middle" dominantBaseline="middle">{m.text}</text>
       ))}
       {ar && reserveRight > 0 && (
@@ -696,7 +709,7 @@ export function SheetSvg({
           <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : sitePlan ? "Генеральный план" : roofPlan ? "Кровля" : finish ? "Ведомости" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{cover ? "Общие данные" : sitePlan ? "Генеральный план" : slabPlan ? "Перекрытия" : roofPlan ? "Кровля" : finish ? "Ведомости" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
@@ -1185,6 +1198,61 @@ function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => numbe
       <text x={X(plan.bounds.minX)} y={Y(plan.bounds.minY) + 7} fontSize={2.8}>
         Участок {plan.siteM2.toLocaleString("ru-RU")} м² · застройка {plan.builtM2.toLocaleString("ru-RU")} м² ({Math.round((plan.builtM2 / Math.max(1, plan.siteM2)) * 100)}%)
       </text>
+    </g>
+  )
+}
+
+/** План перекрытия: плиты с марками, монолитные участки, спецификация. */
+function SlabPlanLayer({ plan, X, Y }: { plan: SlabPlan; X: (v: number) => number; Y: (v: number) => number }) {
+  const path = (pts: Array<{ x: number; y: number }>) => pts.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(2)} ${Y(p.y).toFixed(2)}`).join(" ") + " Z"
+  return (
+    <g>
+      {plan.monolith.map((m, i) => (
+        <path key={`mono${i}`} d={path(m)} fill="url(#hatch-mono)" stroke="#000" strokeWidth={0.3} />
+      ))}
+      {plan.slabs.map((s, i) => {
+        const cx = s.rect.reduce((acc, p) => acc + X(p.x), 0) / s.rect.length
+        const cy = s.rect.reduce((acc, p) => acc + Y(p.y), 0) / s.rect.length
+        const w = Math.abs(X(s.rect[1].x) - X(s.rect[0].x))
+        const h = Math.abs(Y(s.rect[2].y) - Y(s.rect[1].y))
+        const vertical = h > w
+        return (
+          <g key={`sl${i}`}>
+            <path d={path(s.rect)} fill="#fff" stroke="#000" strokeWidth={0.35} />
+            {Math.min(w, h) > 4 && (
+              <text x={cx} y={cy + 0.9} fontSize={2.4} textAnchor="middle" transform={vertical ? `rotate(-90 ${cx} ${cy})` : undefined}>{s.mark}</text>
+            )}
+          </g>
+        )
+      })}
+    </g>
+  )
+}
+
+/** Спецификация плит перекрытия — компактная таблица в свободном углу листа. */
+function SlabSpec({ plan, x, y, w }: { plan: SlabPlan; x: number; y: number; w: number }) {
+  const RH = 5
+  const rows = plan.rows
+  const total = rows.reduce((s, r) => s + r.count, 0)
+  return (
+    <g>
+      <text x={x} y={y - 2} fontSize={3}>Спецификация плит перекрытия</text>
+      <rect x={x} y={y} width={w} height={RH * (rows.length + 2)} fill="#fff" stroke="#000" strokeWidth={0.4} />
+      <line x1={x} y1={y + RH} x2={x + w} y2={y + RH} stroke="#000" strokeWidth={0.4} />
+      <text x={x + 2} y={y + 3.5} fontSize={2.4}>Марка</text>
+      <text x={x + w * 0.45} y={y + 3.5} fontSize={2.4}>Размер, мм</text>
+      <text x={x + w - 2} y={y + 3.5} fontSize={2.4} textAnchor="end">Кол-во</text>
+      {rows.map((r, i) => (
+        <g key={r.mark}>
+          <text x={x + 2} y={y + RH * (i + 2) - 1.4} fontSize={2.4}>{r.mark}</text>
+          <text x={x + w * 0.45} y={y + RH * (i + 2) - 1.4} fontSize={2.4}>{r.lengthMm}×{r.widthMm}</text>
+          <text x={x + w - 2} y={y + RH * (i + 2) - 1.4} fontSize={2.4} textAnchor="end">{r.count}</text>
+        </g>
+      ))}
+      <line x1={x} y1={y + RH * (rows.length + 1)} x2={x + w} y2={y + RH * (rows.length + 1)} stroke="#000" strokeWidth={0.4} />
+      <text x={x + 2} y={y + RH * (rows.length + 2) - 1.4} fontSize={2.4} fontWeight={700}>Итого</text>
+      <text x={x + w - 2} y={y + RH * (rows.length + 2) - 1.4} fontSize={2.4} textAnchor="end" fontWeight={700}>{total}</text>
+      <text x={x} y={y + RH * (rows.length + 2) + 4} fontSize={2.4}>Штриховкой показаны монолитные участки; опирание плит {plan.bearing} мм</text>
     </g>
   )
 }

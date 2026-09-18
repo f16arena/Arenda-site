@@ -14,6 +14,7 @@ import { buildEvacuation } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes } from "@/lib/builder/drawing/finish"
 import { lintelSchedule } from "@/lib/builder/drawing/lintels"
 import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
+import { buildSlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildSitePlan } from "@/lib/builder/drawing/site-plan"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
 import { buildMepDrawing, SECTION_TITLE, sectionsWithContent, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
@@ -95,6 +96,17 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
           props: { drawing: drawing0, sheet: A3L, title: "Генеральный план", section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", sitePlan: sp },
         })
       }
+    }
+    // план перекрытия — на каждый этаж
+    for (const f of floors) {
+      const extras = planExtras(building.floors, f, num)
+      const drawing = buildFloorDrawing(f, num, "plan", extras.options)
+      const sheet = pickSheet(drawing, 0)
+      const title = `${floorTitle(f)}. План перекрытия`
+      out.push({
+        key: `${f.id}-slabs`, title, sheet,
+        props: { drawing, sheet, title, section: "ar", mep: null, reserveRight: 0, elevation: null, sectionMarks: [], replan: null, stage: "plan", slabPlan: buildSlabPlan(f) },
+      })
     }
     // план кровли — один на здание, по верхнему этажу
     {
