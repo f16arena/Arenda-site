@@ -441,6 +441,15 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engineRef.current?.setAutoOrbit(!!readOnly && cameraMode === "orbit")
   }, [ready, readOnly, cameraMode])
 
+  // первый кадр витрины: здание целиком в экране. На телефоне экран узкий, и без
+  // этого посетитель открывал ссылку и упирался в стену
+  const framedRef = useRef(false)
+  useEffect(() => {
+    if (!ready || framedRef.current) return
+    framedRef.current = true
+    engineRef.current?.frameAll()
+  }, [ready])
+
   // Помещения этого здания: статусы для окраски полов и карточки для панели.
   useEffect(() => {
     if (readOnly || !buildingId) return
@@ -683,7 +692,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       {!readOnly && !walking && <ToolOptions />}
       {!readOnly && !walking && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
       {!readOnly && ready && cameraMode !== "plan2d" && cameraMode !== "walk" && <LabelLayer />}
-      {!walking && <PropertyPanel buildingId={buildingId} />}
+      {!walking && !readOnly && <PropertyPanel buildingId={buildingId} />}
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
       {!walking && <ViewCube
         onView={(a, b) => {

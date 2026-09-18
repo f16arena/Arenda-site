@@ -31,7 +31,8 @@ await page.evaluate(() => {
 })
 await page.waitForTimeout(1200)
 await page.evaluate(() => window.__engine.frameAll())
-await page.waitForTimeout(900)
+// камера доезжает по инерции: считать экранные координаты можно только после
+await page.waitForTimeout(2200)
 
 const topId = await page.evaluate(() => {
   const b = window.__doc().buildings[0]
@@ -74,7 +75,8 @@ const spot = await page.evaluate((topId) => {
     const c = m.getBoundingInfo().boundingSphere.centerWorld
     const V = c.constructor
     const p = V.Project(c, Matrix.Identity(), tm, vp)
-    if (!(p.x > 10 && p.y > 10 && p.x < W - 10 && p.y < H - 10)) continue
+    // точка должна лежать на холсте, а не под панелями редактора
+    if (!(p.x > 300 * (W / 1600) && p.y > 170 * (H / 900) && p.x < W - 290 * (W / 1600) && p.y < H - 120 * (H / 900))) continue
     const hit = scene.pick(p.x, p.y)
     const md = hit?.pickedMesh?.metadata
     if (hit?.hit && md?.floorId === topId && md?.kind === "wall" && md?.entityId) return { x: p.x * scale, y: p.y * scale, meta: { ...md } }

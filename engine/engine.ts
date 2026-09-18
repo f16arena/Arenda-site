@@ -88,6 +88,8 @@ import { buildFloors, type StatusResolver } from "./builders/floor-builder"
 import { buildRoof } from "./builders/roof-builder"
 import { buildObject } from "./builders/object-builder"
 import { buildFurnish } from "./builders/furnish-builder"
+import { furnishFloor } from "@/lib/builder/furnish"
+import { ASSET_SIZES } from "@/lib/builder/asset-sizes"
 import { clampHour, daylight } from "@/lib/builder/daylight"
 import { buildStair, stairHoleWorld } from "./builders/stair-builder"
 import { buildWater } from "./builders/water-builder"
@@ -1261,6 +1263,19 @@ export class BuilderEngine {
       ...(best.holes ?? []),
       ...f.stairs.map((st) => stairHoleWorld(st, f.height)),
       ...f.objects.map((ob) => objectCorners(ob)),
+      // автомебель тоже занимает место: иначе человек появлялся вплотную к столу
+      // и первый шаг упирался в невидимую преграду
+      ...furnishFloor(f, rooms).flatMap((it) => {
+        const sz = ASSET_SIZES[it.assetId]
+        if (!sz || it.y > 1500) return []
+        const hw = (sz.w * it.scale) / 2 + 400, hd = (sz.d * it.scale) / 2 + 400
+        return [[
+          { x: it.at.x - hw, y: it.at.y - hd },
+          { x: it.at.x + hw, y: it.at.y - hd },
+          { x: it.at.x + hw, y: it.at.y + hd },
+          { x: it.at.x - hw, y: it.at.y + hd },
+        ]]
+      }),
     ]
     const c = labelPoint(best.polygon, blocks)
     wc.position.set(ox + c.x * S, y + EYE, oz + c.y * S)
@@ -3578,9 +3593,14 @@ export class BuilderEngine {
       return
     }
     const cx = (minX + maxX) / 2, cy = (Math.max(0, minY) + maxY) / 2, cz = (minZ + maxZ) / 2
-    const span = Math.max(maxX - minX, maxZ - minZ, maxY - Math.max(0, minY))
+    const w = Math.max(maxX - minX, maxZ - minZ)
+    const h = maxY - Math.max(0, minY)
     cam.setTarget(new Vector3(cx, cy, cz))
-    cam.radius = Math.max(8, Math.min(cam.upperRadiusLimit ?? 500, span * 1.5 + 4))
+    // На телефоне экран узкий и высокий: без поправки на соотношение сторон
+    // здание вылезало за края и витрина открывалась «в упор» в стену.
+    const aspect = this.bundle.engine.getAspectRatio(cam) || 1
+    const need = Math.max(h, w / Math.max(0.35, aspect))
+    cam.radius = Math.max(8, Math.min(cam.upperRadiusLimit ?? 500, need * 1.5 + 4))
   }
 
   // Снимок сцены (PNG data-URL). preserveDrawingBuffer включён в createScene.
