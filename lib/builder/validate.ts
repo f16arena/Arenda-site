@@ -75,7 +75,10 @@ function openingCenter(floor: Pick<Floor, "wallGraph">, o: Opening): Vec2 | null
 }
 
 /** Проверки одного этажа. */
-export function validateFloor(floor: Floor, opts: { lowest: boolean; multiFloor: boolean }): Issue[] {
+export function validateFloor(
+  floor: Floor,
+  opts: { lowest: boolean; multiFloor: boolean; reachedFromBelow?: boolean },
+): Issue[] {
   const out: Issue[] = []
   const g = floor.wallGraph
   const rooms = floorRooms(floor)
@@ -131,9 +134,9 @@ export function validateFloor(floor: Floor, opts: { lowest: boolean; multiFloor:
     }
   }
 
-  // 3. связь между этажами
+  // 3. связь между этажами: свой марш либо марш снизу, который сюда приходит
   const links = (floor.stairs ?? []).filter((s) => s.shape !== "column" && s.shape !== "porch" && s.shape !== "ramp")
-  if (opts.multiFloor && links.length === 0) {
+  if (opts.multiFloor && links.length === 0 && !opts.reachedFromBelow) {
     out.push({ id: `floor-nostair-${floor.id}`, level: "error", text: `Этаж «${floor.name}» ни с чем не связан: нет лестницы или лифта`, floorId: floor.id })
   }
 
@@ -193,10 +196,18 @@ export function validateDocument(doc: BuilderDocument): Issue[] {
   for (const b of doc.buildings) {
     const floors = [...b.floors].sort((x, y) => x.elevation - y.elevation)
     const multi = floors.length > 1
+    // куда приходят марши с других этажей — у верхнего этажа своей лестницы не бывает
+    const reached = new Set<string>()
+    for (const f of floors) {
+      for (const s of f.stairs ?? []) {
+        if (s.shape === "column" || s.shape === "porch" || s.shape === "ramp") continue
+        if (s.toFloorId && s.toFloorId !== f.id) reached.add(s.toFloorId)
+      }
+    }
     for (const f of floors) {
       const hasWalls = Object.keys(f.wallGraph.edges).length > 0
       if (!hasWalls) continue
-      out.push(...validateFloor(f, { lowest: f.id === floors[0].id, multiFloor: multi }))
+      out.push(...validateFloor(f, { lowest: f.id === floors[0].id, multiFloor: multi, reachedFromBelow: reached.has(f.id) }))
     }
   }
   // сначала ошибки, потом предупреждения

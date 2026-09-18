@@ -70,6 +70,12 @@ describe("validateFloor", () => {
     expect(issues.some((i) => i.level === "error" && i.text.includes("нет лестницы"))).toBe(true)
   })
 
+  it("верхний этаж не требует своей лестницы, если марш приходит снизу", () => {
+    const top = boxFloor({ id: "f2", name: "2 этаж", openings: [door(), window_()] } as unknown as Partial<Floor>)
+    const issues = validateFloor(top, { lowest: false, multiFloor: true, reachedFromBelow: true })
+    expect(issues.some((i) => i.text.includes("нет лестницы"))).toBe(false)
+  })
+
   it("вход выше земли без пандуса — предупреждение про МГН", () => {
     const f = boxFloor({ elevation: 600, openings: [door({ exit: "main" }), window_()] } as unknown as Partial<Floor>)
     const issues = validateFloor(f, solo)
@@ -119,6 +125,14 @@ describe("validateDocument", () => {
   it("пустые этажи не проверяются", () => {
     const empty = boxFloor({ wallGraph: { nodes: {}, edges: {} } } as unknown as Partial<Floor>)
     expect(validateDocument(doc([empty]))).toEqual([])
+  })
+
+  it("лестница с первого этажа связывает второй", () => {
+    const stair = { id: "s1", shape: "straight", fromFloorId: "f1", toFloorId: "f2", position: { x: 4000, y: 3000 }, rotationDeg: 0, width: 1100, railing: true }
+    const f1 = boxFloor({ openings: [door(), window_()], stairs: [stair] } as unknown as Partial<Floor>)
+    const f2 = boxFloor({ id: "f2", name: "2 этаж", elevation: 3000, openings: [door(), window_()] } as unknown as Partial<Floor>)
+    const issues = validateDocument(doc([f1, f2]))
+    expect(issues.filter((i) => i.text.includes("нет лестницы"))).toHaveLength(0)
   })
 
   it("ошибки идут раньше предупреждений", () => {
