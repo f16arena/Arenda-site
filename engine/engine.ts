@@ -27,7 +27,7 @@ import type { BuilderDocument, Floor, Building, Stair, MepSystem } from "@/types
 import { MEP_SYSTEMS } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
-import { ISLAND_PRESETS, OUTDOOR_KINDS, ROOF_KINDS, WALL_MOUNTED, fitToFloor } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, OUTDOOR_KINDS, ROOF_KINDS, WALL_MOUNTED, fitToFloor, isRoofPlace } from "@/lib/builder/islands"
 import type { Island, IslandKind } from "@/types/builder"
 import { buildMep } from "./builders/mep-builder"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
@@ -867,19 +867,6 @@ export class BuilderEngine {
       for (const m of floorMeshes) this.registerMesh(m.metadata?.entityId, m)
     }
 
-    for (const isl of f.islands ?? []) {
-      const node = buildIsland(isl, fNode, scene, this.reg, lite)
-      node.getChildMeshes().forEach((m) => {
-        if (m instanceof Mesh) {
-          m.metadata = { ...(m.metadata as object), floorId: f.id }
-          if (reg) {
-            this.registerMesh(isl.id, m)
-            this.bundle.shadow.addShadowCaster(m)
-          }
-        }
-      })
-    }
-
     for (const st of f.stairs) {
       const node = buildStair(st, f.height, fNode, scene, this.reg, lite)
       if (reg) {
@@ -922,6 +909,28 @@ export class BuilderEngine {
     if (roof && reg) {
       this.registerMesh(roof.metadata?.entityId, roof)
       this.bundle.shadow.addShadowCaster(roof)
+    }
+
+    // Арендные места этажа. Места на кровле сажаем на саму кровлю: высота
+    // крепления считается лучом по построенной крыше, иначе после смены типа
+    // крыши (плоская → двускатная) мачта висела бы в воздухе.
+    for (const isl of f.islands ?? []) {
+      let item = isl
+      if (roof && isRoofPlace(isl)) {
+        const ray = new Ray(new Vector3(b.origin.x * S + isl.position.x * S, (f.elevation + f.height) * S + 40, b.origin.y * S + isl.position.y * S), new Vector3(0, -1, 0), 200)
+        const hit = roof.intersects(ray, false)
+        if (hit?.hit && hit.pickedPoint) item = { ...isl, mountHeight: Math.round((hit.pickedPoint.y / S) - f.elevation) }
+      }
+      const node = buildIsland(item, fNode, scene, this.reg, lite)
+      node.getChildMeshes().forEach((m) => {
+        if (m instanceof Mesh) {
+          m.metadata = { ...(m.metadata as object), floorId: f.id }
+          if (reg) {
+            this.registerMesh(isl.id, m)
+            this.bundle.shadow.addShadowCaster(m)
+          }
+        }
+      })
     }
 
     // якоря подписей активного этажа: середины стен и центры комнат

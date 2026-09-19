@@ -10,7 +10,7 @@ import { validateDocument } from "@/lib/builder/validate"
 import { islandPolygon, islandSchedule } from "@/lib/builder/islands"
 import { furnishFloor } from "@/lib/builder/furnish"
 import { pointInPolygon } from "@/core/geometry/math"
-import { DeleteIslandCommand, HideFurnishCommand, MoveIslandCommand, ResetFurnishCommand } from "@/core/document/commands"
+import { DeleteIslandCommand, HideFurnishCommand, MoveIslandCommand, ResetFurnishCommand, SetRoofCommand } from "@/core/document/commands"
 
 const src = {
   id: "b1",
@@ -32,7 +32,7 @@ w.__floorRooms = floorRooms
 w.__roomUse = roomUse
 w.__validate = validateDocument
 w.__islandSchedule = (floors: Parameters<typeof islandSchedule>[0]) => islandSchedule(floors, (f) => floorRooms(f))
-w.__commands = { DeleteIslandCommand, HideFurnishCommand, MoveIslandCommand, ResetFurnishCommand }
+w.__commands = { DeleteIslandCommand, HideFurnishCommand, MoveIslandCommand, ResetFurnishCommand, SetRoofCommand }
 w.__islandPolygon = islandPolygon
 w.__pointInPolygon = pointInPolygon
 w.__furnishFloor = furnishFloor
