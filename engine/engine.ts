@@ -1428,6 +1428,29 @@ export class BuilderEngine {
     return f ? f.elevation * S : 0
   }
 
+  /**
+   * Предмет автомебели под курсором. Видимая мебель слита по материалу и
+   * некликабельна (иначе сотни draw call'ов), а невидимые коробки-преграды
+   * Babylon сам не пикает — поэтому считаем пересечение лучом вручную.
+   */
+  private pickFurnish(): { floorId: string; itemId: string; distance: number } | null {
+    const { scene, camera } = this.bundle
+    const cam = scene.activeCamera ?? camera
+    const ray = scene.createPickingRay(scene.pointerX, scene.pointerY, Matrix.Identity(), cam)
+    let best: { floorId: string; itemId: string; distance: number } | null = null
+    let bestD = Infinity
+    for (const m of scene.meshes) {
+      const meta = m.metadata as MeshMeta | null
+      if (!meta || meta.kind !== "furnish" || !meta.entityId || !meta.floorId) continue
+      const hit = m.intersects(ray, false)
+      if (hit?.hit && hit.distance != null && hit.distance < bestD) {
+        bestD = hit.distance
+        best = { floorId: meta.floorId, itemId: meta.entityId, distance: hit.distance }
+      }
+    }
+    return best
+  }
+
   private projectToPlane(): Vector3 | null {
     const { scene, camera } = this.bundle
     const cam = scene.activeCamera ?? camera
@@ -2243,6 +2266,17 @@ export class BuilderEngine {
       return
     }
     if (this.tool === "delete") {
+      // предмет мебели выигрывает, если он ближе к камере, чем то, что под
+      // курсором: клик по столу убирает стол, а не пол под ним; но кровлю или
+      // стену перед мебелью клик по-прежнему не «простреливает»
+      const fz = this.pickFurnish()
+      const cam = this.bundle.scene.activeCamera ?? this.bundle.camera
+      const hitDist = point ? Vector3.Distance(cam.position, point) : Infinity
+      if (fz && fz.distance <= hitDist + 0.01) {
+        this.onCommand(new HideFurnishCommand(fz.floorId, fz.itemId))
+        this.onHud("Предмет убран. Ctrl+Z — вернуть")
+        return
+      }
       this.handleDelete(meta)
       return
     }
