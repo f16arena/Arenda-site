@@ -125,7 +125,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Комментарии</p>
             </div>
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-slate-50 dark:divide-slate-800">
               {request.comments.map((c) => (
                 <div key={c.id} className="px-5 py-4">
                   <div className="flex items-center gap-2 mb-1.5">

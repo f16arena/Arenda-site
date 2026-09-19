@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Manrope } from "next/font/google"
 import Script from "next/script"
-import { Toaster } from "sonner"
+import { ThemedToaster } from "@/components/themed-toaster"
 import { ClientErrorMonitor } from "@/components/errors/client-error-monitor"
 import { WebVitalsReporter } from "@/components/performance/web-vitals-reporter"
 import { themeInitScript } from "@/components/theme-toggle"
@@ -91,7 +91,7 @@ export default function RootLayout({
         {children}
         <ClientErrorMonitor />
         <WebVitalsReporter />
-        <Toaster richColors position="top-right" closeButton />
+        <ThemedToaster />
       </body>
     </html>
   )

@@ -47,7 +47,7 @@ export function DocumentNumberingSection({ building }: { building: BuildingPrefi
         Префикс — это короткое обозначение здания (например, F16). Система добавляет к нему тип документа,
         год и порядковый номер. Если оставить поле пустым, префикс сгенерируется автоматически из названия здания.
       </div>
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {KINDS.map((kind) => {
           const userPrefix = building[FIELD_BY_KIND[kind]] as string | null
           const counter = building[COUNTER_BY_KIND[kind]] as number

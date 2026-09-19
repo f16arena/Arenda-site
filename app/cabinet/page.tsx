@@ -432,7 +432,7 @@ export default async function CabinetDashboard() {
             </Link>
           }
         >
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {recentDocs.length === 0 ? (
               <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
                 Документы появятся здесь после генерации арендодателем
@@ -488,7 +488,7 @@ export default async function CabinetDashboard() {
             </Link>
           }
         >
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {recentMessages.length === 0 ? (
               <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
                 Здесь будут сообщения от арендодателя
@@ -533,7 +533,7 @@ export default async function CabinetDashboard() {
             </Link>
           }
         >
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {tenant.charges.slice(0, 5).map((c) => {
               const isOverdue = c.dueDate && c.dueDate < today
               return (
@@ -579,7 +579,7 @@ export default async function CabinetDashboard() {
             </Link>
           }
         >
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {tenant.payments.map((p) => (
               <div key={p.id} className="flex items-center justify-between px-5 py-3">
                 <div>

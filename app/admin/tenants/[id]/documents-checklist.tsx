@@ -52,7 +52,7 @@ export function DocumentsChecklist({
         </Button>
       </div>
 
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {required.map((r) => {
           const uploaded = documents.find((d) => d.type === r.type)
           return (

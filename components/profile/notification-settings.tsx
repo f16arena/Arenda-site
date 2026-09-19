@@ -50,7 +50,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Каналы доставки</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Где получать уведомления</p>
         </div>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-50 dark:divide-slate-800">
           <ChannelRow
             icon={Bell}
             color="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10"
@@ -98,7 +98,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
             Снимите галочку чтобы отключить уведомления о выбранных событиях
           </p>
         </div>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-50 dark:divide-slate-800">
           {NOTIFICATION_TYPES.map((t) => {
             const isEnabled = !settings.mutedTypes.includes(t.type)
             return (

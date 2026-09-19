@@ -178,7 +178,7 @@ export default async function CabinetDocuments() {
             <p className="text-sm text-slate-400 dark:text-slate-500">Нет документов</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {tenant.contracts.map((c) => (
               <div key={c.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
@@ -233,7 +233,7 @@ export default async function CabinetDocuments() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {tenant.documents.map((d) => (
               <div key={d.id} className="flex items-center justify-between px-5 py-4">
                 <div className="flex items-center gap-3">

@@ -241,7 +241,7 @@ export default async function CabinetFinances() {
                     {formatMoney(periodPaid)} / {formatMoney(periodTotal)}
                   </div>
                 </div>
-                <div className="divide-y divide-slate-50">
+                <div className="divide-y divide-slate-50 dark:divide-slate-800">
                   {periodCharges.map((c) => (
                     <div key={c.id} className="flex items-center justify-between px-5 py-3">
                       <div>

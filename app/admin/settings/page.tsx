@@ -325,7 +325,7 @@ export default async function SettingsPage() {
       {/* Floors */}
       {canEditOrg && (
       <CollapsibleCard title="Этажи и ставки" icon={<Layers className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-50 dark:divide-slate-800">
           {building.floors.map((floor) => (
             <ServerForm
               key={floor.id}
@@ -421,7 +421,7 @@ export default async function SettingsPage() {
       {/* Tariffs */}
       {canEditOrg && (
       <CollapsibleCard title="Тарифы коммунальных услуг" icon={<Zap className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-50 dark:divide-slate-800">
           {building.tariffs.length === 0 && (
             <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">Тарифы не настроены — добавьте ниже</p>
           )}
@@ -524,7 +524,7 @@ export default async function SettingsPage() {
       {/* Emergency contacts */}
       {canEditOrg && (
       <CollapsibleCard title="Экстренные контакты" icon={<Phone className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-slate-50 dark:divide-slate-800">
           {building.emergencyContacts.map((ec) => (
             <ServerForm
               key={ec.id}

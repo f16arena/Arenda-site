@@ -57,7 +57,7 @@ export function DocumentsActions({
       title="Документы для арендатора"
       icon={FileText}
       meta={tenantHasEmail ? "скачать или отправить" : "email не указан"}>
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {DOCS.map((d) => {
           const Icon = d.icon
           return (

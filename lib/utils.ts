@@ -93,21 +93,21 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 }
 
 export const STATUS_COLORS: Record<string, string> = {
-  NEW: "bg-blue-100 text-blue-700",
-  IN_PROGRESS: "bg-amber-100 text-amber-700",
-  DONE: "bg-emerald-100 text-emerald-700",
-  CLOSED: "bg-slate-100 text-slate-500",
-  POSTPONED: "bg-slate-100 text-slate-500",
-  DRAFT: "bg-slate-100 text-slate-500",
-  SENT: "bg-blue-100 text-blue-700",
-  SIGNED: "bg-emerald-100 text-emerald-700",
-  REJECTED: "bg-red-100 text-red-700",
-  ARCHIVED: "bg-slate-100 text-slate-400",
-  VACANT: "bg-emerald-100 text-emerald-700",
-  OCCUPIED: "bg-blue-100 text-blue-700",
-  MAINTENANCE: "bg-amber-100 text-amber-700",
-  PENDING: "bg-amber-100 text-amber-700",
-  PAID: "bg-emerald-100 text-emerald-700",
+  NEW: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  IN_PROGRESS: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  DONE: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  CLOSED: "bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300",
+  POSTPONED: "bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300",
+  DRAFT: "bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300",
+  SENT: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  SIGNED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  REJECTED: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+  ARCHIVED: "bg-slate-100 text-slate-400 dark:bg-slate-700/60 dark:text-slate-300",
+  VACANT: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  OCCUPIED: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  MAINTENANCE: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  PENDING: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  PAID: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
 }
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -129,10 +129,10 @@ export const STATUS_LABELS: Record<string, string> = {
 }
 
 export const PRIORITY_COLORS: Record<string, string> = {
-  LOW: "bg-slate-100 text-slate-500",
-  MEDIUM: "bg-blue-100 text-blue-700",
-  HIGH: "bg-orange-100 text-orange-700",
-  URGENT: "bg-red-100 text-red-700",
+  LOW: "bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300",
+  MEDIUM: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  HIGH: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
+  URGENT: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
 }
 
 export const PRIORITY_LABELS: Record<string, string> = {

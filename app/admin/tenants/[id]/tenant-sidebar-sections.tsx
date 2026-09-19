@@ -49,7 +49,7 @@ export async function TenantContractsSidebar({ tenantId, orgId, userId }: Sideba
 
   return (
     <CollapsibleCard title="Договоры" icon={FileText} meta={`${total} шт.`}>
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {contracts.map((contract) => {
           const statusLabels: Record<string, { label: string; cls: string }> = {
             DRAFT: { label: "Черновик", cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
@@ -162,7 +162,7 @@ export async function TenantRecentChargesSidebar({ tenantId, orgId, userId }: Si
 
   return (
     <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${total} записей`}>
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {charges.map((charge) => (
           <div key={charge.id} className="flex items-center justify-between px-4 py-2.5">
             <div>

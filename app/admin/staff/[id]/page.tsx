@@ -266,7 +266,7 @@ export default async function StaffDetailPage({
                 <History className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия</h2>
               </div>
-              <ul className="divide-y divide-slate-50 max-h-80 overflow-y-auto">
+              <ul className="divide-y divide-slate-50 dark:divide-slate-800 max-h-80 overflow-y-auto">
                 {auditLogs.map((log) => (
                   <li key={log.id} className="px-5 py-2.5 text-xs">
                     <div className="flex items-center justify-between">

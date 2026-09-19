@@ -140,6 +140,23 @@
   }
 }
 
+/* Тёмная тема для того, что рисует сам браузер: выпадающие списки <select>,
+   календарь у полей даты, галочки, полосы прокрутки, автозаполнение.
+   Без этого они оставались белыми в тёмной теме. */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+@layer base {
+  .dark select option,
+  .dark select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--primary);
+  }
+}
+
 /* Табличные цифры для финансовых чисел — выравниваются в столбцы */
 .tabular-nums, table td, .font-mono {
   font-variant-numeric: tabular-nums;
