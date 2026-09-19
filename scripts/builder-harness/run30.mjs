@@ -208,6 +208,64 @@ await page.waitForTimeout(800)
   check("I12 мебель возвращается кнопкой", back === 0, String(back))
 }
 
+// ── I13. клик по автомебели делает из неё обычный объект, который двигается ──
+{
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setDisplayMode("active"); s.setTool("select") })
+  await page.waitForTimeout(1500)
+  const spot = await page.evaluate(() => {
+    const scene = window.__engine?.scene ?? window.__engine?.bundle?.scene
+    if (!scene) return null
+    const W = scene.getEngine().getRenderWidth(), H = scene.getEngine().getRenderHeight()
+    for (let y = H * 0.3; y < H * 0.8; y += 10) {
+      for (let x = W * 0.2; x < W * 0.8; x += 10) {
+        scene.pointerX = x; scene.pointerY = y
+      if (window.__engine.pickFurnish()) return { x, y }
+      }
+    }
+    return null
+  })
+  if (!spot) {
+    check("I13 автомебель ловится кликом", false, "предмет не найден на экране")
+  } else {
+    const before = await page.evaluate(() => window.__doc().buildings.flatMap((b) => b.floors).flatMap((f) => f.objects ?? []).length)
+    await page.mouse.click(spot.x, spot.y)
+    // модель пересобирается после команды: даём мешу появиться, иначе
+    // следующий pointer-down уходит в камеру, а не в объект
+    await page.waitForTimeout(1600)
+    const after = await page.evaluate(() => {
+      const doc = window.__doc()
+      const objs = doc.buildings.flatMap((b) => b.floors).flatMap((f) => f.objects ?? [])
+      return { n: objs.length, sel: window.__stores.useEditorStore.getState().selection.type, pos: objs[objs.length - 1]?.position ?? null }
+    })
+    check("I13 предмет стал объектом и выбран", after.n === before + 1 && after.sel === "object", `объектов ${after.n}, выделение ${after.sel}`)
+    // тянем предмет в плане: там попадание считается по габариту объекта,
+    // а не по тонкой геометрии модели
+    await page.evaluate(() => { const st = window.__stores.useEditorStore.getState(); st.setCameraMode("plan2d"); st.setTool("select") })
+    await page.waitForSelector("[data-testid=plan-editor]", { timeout: 30000 })
+    await page.waitForTimeout(900)
+    const box2 = await page.locator("[data-testid=plan-editor]").boundingBox()
+    const at2 = await page.evaluate(() => {
+      const objs = window.__doc().buildings.flatMap((b) => b.floors).flatMap((f) => f.objects ?? [])
+      const o = objs[objs.length - 1]
+      const v = window.__planView
+      return { x: o.position.x * v.k + v.tx, y: -o.position.z * v.k + v.ty }
+    })
+    await page.mouse.click(box2.x + at2.x, box2.y + at2.y)
+    await page.waitForTimeout(400)
+    await page.mouse.move(box2.x + at2.x, box2.y + at2.y)
+    await page.mouse.down()
+    await page.mouse.move(box2.x + at2.x + 60, box2.y + at2.y + 30, { steps: 10 })
+    await page.mouse.up()
+    await page.waitForTimeout(700)
+    const moved = await page.evaluate(() => {
+      const objs = window.__doc().buildings.flatMap((b) => b.floors).flatMap((f) => f.objects ?? [])
+      return objs[objs.length - 1]?.position ?? null
+    })
+    const shifted = moved && after.pos && (Math.abs(moved.x - after.pos.x) > 100 || Math.abs(moved.z - after.pos.z) > 100)
+    check("I13 предмет двигается мышью", !!shifted, `было ${JSON.stringify(after.pos)} стало ${JSON.stringify(moved)}`)
+  }
+}
+
 check("ошибок в консоли нет", errors.length === 0, errors.slice(0, 3).join(" | "))
 console.log(results.join("\n"))
 await browser.close()

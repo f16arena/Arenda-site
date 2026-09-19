@@ -1429,6 +1429,36 @@ export class BuilderEngine {
   }
 
   /**
+   * Превратить предмет автомебели в обычный объект этажа: автомебель нигде не
+   * хранится (считается из планировки), поэтому подвинуть её нельзя. Делаем
+   * из неё настоящий объект на том же месте и прячем автоверсию.
+   * Возвращает id нового объекта.
+   */
+  private materializeFurnish(floorId: string, itemId: string): string | null {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, floorId) : undefined
+    if (!f) return null
+    const item = furnishFloor(f, floorRooms(f)).find((x) => x.id === itemId)
+    if (!item) return null
+    const id = uid("o")
+    this.onCommand(
+      new CompositeCommand("предмет мебели", [
+        new HideFurnishCommand(floorId, itemId),
+        new AddObjectCommand({ floorId }, {
+          id,
+          assetId: item.assetId,
+          position: { x: item.at.x, y: item.y, z: item.at.y },
+          rotationY: item.rotationY,
+          scale: item.scale,
+          attachTo: "floor",
+          locked: false,
+        }),
+      ]),
+    )
+    return id
+  }
+
+  /**
    * Предмет автомебели под курсором. Видимая мебель слита по материалу и
    * некликабельна (иначе сотни draw call'ов), а невидимые коробки-преграды
    * Babylon сам не пикает — поэтому считаем пересечение лучом вручную.
@@ -1442,12 +1472,20 @@ export class BuilderEngine {
     for (const m of scene.meshes) {
       const meta = m.metadata as MeshMeta | null
       if (!meta || meta.kind !== "furnish" || !meta.entityId || !meta.floorId) continue
+      // скрытые этажи и срезы выключены через setEnabled — луч их не видит,
+      // а intersects() состояние не проверяет, поэтому проверяем сами
+      if (!m.isEnabled()) continue
       const hit = m.intersects(ray, false)
       if (hit?.hit && hit.distance != null && hit.distance < bestD) {
         bestD = hit.distance
         best = { floorId: meta.floorId, itemId: meta.entityId, distance: hit.distance }
       }
     }
+    if (!best) return null
+    // мебель за стеной или за кровлей кликом не достаётся: берём её, только если
+    // она ближе того, во что реально попал курсор
+    const solid = scene.pick(scene.pointerX, scene.pointerY)
+    if (solid?.hit && solid.distance > 0 && solid.distance + 0.01 < best.distance) return null
     return best
   }
 
@@ -2270,9 +2308,7 @@ export class BuilderEngine {
       // курсором: клик по столу убирает стол, а не пол под ним; но кровлю или
       // стену перед мебелью клик по-прежнему не «простреливает»
       const fz = this.pickFurnish()
-      const cam = this.bundle.scene.activeCamera ?? this.bundle.camera
-      const hitDist = point ? Vector3.Distance(cam.position, point) : Infinity
-      if (fz && fz.distance <= hitDist + 0.01) {
+      if (fz) {
         this.onCommand(new HideFurnishCommand(fz.floorId, fz.itemId))
         this.onHud("Предмет убран. Ctrl+Z — вернуть")
         return
@@ -2292,6 +2328,20 @@ export class BuilderEngine {
     if (this.shiftDown && (meta?.kind === "object" || meta?.kind === "wall") && meta.entityId) {
       this.onMultiToggle(meta.entityId)
       return
+    }
+    // Клик по автомебели: она считается на лету и двигать её нечем. Превращаем
+    // предмет в обычный объект этажа — дальше он тянется мышью и правится в
+    // панели, как мебель из каталога. Ctrl+Z возвращает всё как было.
+    if (this.tool === "select") {
+      const fz = this.pickFurnish()
+      if (fz) {
+        const obj = this.materializeFurnish(fz.floorId, fz.itemId)
+        if (obj) {
+          this.onHud("Предмет стал объектом — тяните мышью, размеры и поворот в панели")
+          this.onPick({ kind: "object", floorId: fz.floorId, entityId: obj, target: fz.floorId })
+          return
+        }
+      }
     }
     this.onPick(meta && meta.entityId ? meta : null)
   }
