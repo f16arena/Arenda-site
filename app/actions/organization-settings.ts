@@ -284,3 +284,35 @@ function validateOptionalBankAccount(
     throw new Error(`${label}: заполните название банка, ИИК и БИК либо оставьте счёт пустым`)
   }
 }
+
+/**
+ * С какого номера продолжать АВР / счета / акты сверки (нумерация из 1С).
+ * Это нижняя граница: если в системе уже выставлен номер больше — следующий
+ * будет после него (дубли номеров недопустимы для ЭСФ).
+ */
+export async function updateDocNumberStart(orgId: string, formData: FormData) {
+  try {
+    await requireCapabilityAndFeature("settings.updateOrganization")
+    const { orgId: scopeOrgId } = await requireOrgAccess()
+    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+
+    const org = await db.organization.findUnique({ where: { id: orgId }, select: { docNumberStart: true } })
+    const next: Record<string, number> = { ...((org?.docNumberStart ?? {}) as Record<string, number>) }
+    for (const type of ["ACT", "INVOICE", "RECONCILIATION"]) {
+      const raw = String(formData.get(type) ?? "").trim()
+      if (!raw) { delete next[type]; continue }
+      const n = parseInt(raw, 10)
+      if (!/^\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 999999) {
+        throw new Error("Номер — целое число от 1 до 999999")
+      }
+      next[type] = n
+    }
+    await db.organization.update({ where: { id: orgId }, data: { docNumberStart: next } })
+
+    revalidatePath("/admin/settings")
+    revalidatePath("/admin/documents")
+    return { success: true }
+  } catch (e) {
+    return fail(e)
+  }
+}

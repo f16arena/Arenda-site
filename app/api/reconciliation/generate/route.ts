@@ -7,6 +7,7 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { tenantScope } from "@/lib/tenant-scope"
 import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/organization-requisites"
 import { suggestDocumentNumber } from "@/lib/document-numbering"
+import { nextDocumentNumber } from "@/lib/document-number"
 import { resolveMonthRange } from "@/lib/period-range"
 import { buildLegalEntityFullName } from "@/lib/full-name"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
@@ -110,7 +111,12 @@ export async function GET(req: Request) {
   const monthlyRentEstimate = tenantWithRent ? calculateTenantMonthlyRent(tenantWithRent) : 0
 
   const building = await db.building.findFirst({ where: { organizationId: orgId } })
+  // Если в настройках задан стартовый номер актов сверки (продолжение из 1С) —
+  // обычная порядковая нумерация организации, как у АВР и счетов.
+  const numberingOrg = await db.organization.findUnique({ where: { id: orgId }, select: { docNumberStart: true } })
+  const reconciliationStart = (numberingOrg?.docNumberStart as Record<string, number> | null)?.RECONCILIATION
   const reconciliationNumber = numberParam
+    ?? (reconciliationStart ? await nextDocumentNumber(orgId, "RECONCILIATION") : null)
     ?? (building ? await suggestDocumentNumber(building.id, "reconciliation").catch(() => null) : null)
     ?? `${from.slice(0, 4)}-001`
 

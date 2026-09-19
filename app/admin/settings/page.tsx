@@ -11,6 +11,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
+import { DocNumberStartSection } from "@/components/settings/doc-number-start-section"
+import { getDocNumberingState } from "@/lib/document-number"
 import { VatSection } from "@/components/settings/vat-section"
 import { AdditionalChargesSection } from "@/components/settings/additional-charges-section"
 import { TaxSettingsSection } from "@/components/settings/tax-settings-section"
@@ -389,6 +391,9 @@ export default async function SettingsPage() {
 
       {/* Реквизиты ИС ЭСФ (только владелец) */}
       {session.user.role === "OWNER" && <EsfSection config={esfConfig} />}
+
+      {/* Нумерация АВР / счетов / актов сверки — продолжение из 1С */}
+      {canEditOrg && <DocNumberStartSection orgId={orgId} rows={await getDocNumberingState(orgId)} />}
 
       {/* Document numbering */}
       {canEditOrg && <DocumentNumberingSection building={building} />}
