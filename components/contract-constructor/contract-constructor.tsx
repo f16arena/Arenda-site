@@ -33,12 +33,15 @@ import {
   prefillFromTenant,
   createContractFromBuilder,
   getNextContractNumber,
+  getContractDefaults,
+  saveContractDefaults,
   type DraftListItem,
   type ConstructorTenant,
 } from "@/app/actions/contract-builder"
 import { CONTRACT_PLACEMENT_TYPES, CORE_CONTRACT_TYPES, isContractPlacementType, type ContractPlacementType } from "@/lib/contract-placement-types"
 import { applyContractTypePreset } from "@/lib/contract-type-presets"
 import { contractSubtitle } from "@/lib/contract-engine/render"
+import { applyContractDefaults, REMEMBERED_FIELDS } from "@/lib/contract-engine/org-defaults"
 import { placementFamily } from "@/lib/contract-engine/placement"
 import { contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
 import { PlacementAnnexesView } from "./placement-annexes-view"
@@ -180,6 +183,29 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
   const refreshDrafts = () => { listContractDrafts().then(setDrafts).catch(() => {}) }
   useEffect(() => { listContractDrafts().then(setDrafts).catch(() => {}) }, [])
   useEffect(() => { listConstructorTenants().then(setTenants).catch(() => {}) }, [])
+  // Условия организации «по умолчанию» — в новый пустой договор. Если уже выбран
+  // арендатор или черновик, не трогаем: там свои условия.
+  const defaultsApplied = useRef(false)
+  useEffect(() => {
+    getContractDefaults()
+      .then((d) => {
+        if (!d || defaultsApplied.current) return
+        defaultsApplied.current = true
+        setState((prev) => {
+          const n = structuredClone(prev)
+          applyContractDefaults(n, d)
+          return n
+        })
+      })
+      .catch(() => {})
+  }, [])
+  const [savingDefaults, setSavingDefaults] = useState(false)
+  function doSaveDefaults() {
+    setSavingDefaults(true)
+    saveContractDefaults(state)
+      .then((r) => (r.ok ? toast.success("Запомнено — новые договоры будут начинаться с этих условий") : toast.error(r.error ?? "Не удалось сохранить")))
+      .finally(() => setSavingDefaults(false))
+  }
   // Предзаполнить дату договора сегодняшней (только на клиенте — чтобы не ломать гидрацию).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- осознанно: client-only начальное значение, иначе hydration mismatch
@@ -473,6 +499,14 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
                 </div>
               </div>
 
+              <div className={`${cardCls} flex flex-wrap items-center justify-between gap-3 p-5`}>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Запомнить условия для новых договоров</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{REMEMBERED_FIELDS} — чтобы не вбивать заново. Суммы и даты у каждого свои.</p>
+                </div>
+                <Button variant="outline" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={savingDefaults} onClick={doSaveDefaults}>Запомнить</Button>
+              </div>
+
               <div className={`${cardCls} space-y-3 p-5`}>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Как оформить</p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -507,10 +541,10 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
               <button onClick={() => setTab("contract")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "contract" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>Договор</button>
               <button onClick={() => setTab("annexes")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "annexes" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>Приложения</button>
-              <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">так увидит арендатор</span>
+              <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">так увидит арендатор · нажмите на пункт, чтобы изменить</span>
             </div>
             <div className="max-h-[70vh] overflow-y-auto p-6 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
-              {tab === "contract" ? <ContractPreview state={state} /> : <AnnexesPreview state={state} />}
+              {tab === "contract" ? <ContractPreview state={state} onPick={hasTenant ? (n) => { setStep(n); window.scrollTo({ top: 0, behavior: "smooth" }) } : undefined} /> : <AnnexesPreview state={state} />}
             </div>
           </div>
         </div>
@@ -1144,8 +1178,22 @@ function ReqColumn({ role, party }: { role: string; party: Party }) {
   )
 }
 
-function ContractPreview({ state }: { state: ContractState }) {
+// Какой шаг конструктора меняет пункт договора (по стабильному id пункта).
+const STEP_BY_CLAUSE: [RegExp, number][] = [
+  [/^cl_(rent|prepay|paymethod|indexation|invoice|not_included|sep_|service_fee|svc_|included_in_rent|electricity|other_utilities|deposit|penalty|debt|over_term|liability)/, 3],
+  [/^cl_(utilities_clause)/, 3],
+  [/^cl_(subject|term|prolongation|preferential|sale_notice|return_act|removal|unclaimed|asis)/, 2],
+  [/^cl_/, 4],
+]
+function stepForClause(id: string): number {
+  for (const [re, n] of STEP_BY_CLAUSE) if (re.test(id)) return n
+  return 4
+}
+const STEP_NAMES: Record<number, string> = { 1: "Арендатор", 2: "Что сдаём и срок", 3: "Деньги", 4: "Приложения" }
+
+function ContractPreview({ state, onPick }: { state: ContractState; onPick?: (step: number) => void }) {
   const a = assemble(state)
+  const pickCls = onPick ? "-mx-1.5 cursor-pointer rounded px-1.5 transition hover:bg-blue-50 dark:hover:bg-blue-500/10" : ""
   return (
     <div>
       <div className={`mb-1 ${docTitleCls}`}>ДОГОВОР № {state.meta.contractNumber || "____"}</div>
@@ -1154,14 +1202,23 @@ function ContractPreview({ state }: { state: ContractState }) {
         <span>{state.meta.city}</span>
         <span>{dateLong(state.meta.contractDate)}</span>
       </div>
-      <p className="mb-4 text-justify text-slate-700 dark:text-slate-300">
+      <p
+        className={`mb-4 text-justify text-slate-700 dark:text-slate-300 ${pickCls}`}
+        onClick={onPick ? () => onPick(1) : undefined}
+        title={onPick ? "Изменить на шаге «Арендатор»" : undefined}
+      >
         {partyIntro(state.landlord, "Арендодатель")}, с одной стороны, и {partyIntro(state.tenant, "Арендатор")}, с другой стороны, совместно именуемые «Стороны», заключили настоящий Договор о нижеследующем:
       </p>
       {a.sections.map((sec) => (
         <div key={sec.num} className="mb-3">
           <div className="mb-1.5 mt-4 font-semibold text-slate-900 dark:text-slate-100">{sec.num}. {sec.title}</div>
           {sec.items.map((it) => (
-            <div key={it.id} className="mb-2 text-justify text-slate-700 dark:text-slate-300">
+            <div
+              key={it.id}
+              className={`mb-2 text-justify text-slate-700 dark:text-slate-300 ${pickCls}`}
+              onClick={onPick ? () => onPick(stepForClause(it.id)) : undefined}
+              title={onPick ? `Изменить на шаге «${STEP_NAMES[stepForClause(it.id)]}»` : undefined}
+            >
               <b className="text-slate-900 dark:text-slate-100">{it.num}.</b> {it.sub && <b>{it.sub} </b>}{it.html}
               {it.children.map((k) => (
                 <div key={k.id} className="ml-5 mt-1 text-justify"><b className="text-slate-900 dark:text-slate-100">{k.num}.</b> {k.html}</div>

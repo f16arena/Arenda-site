@@ -160,6 +160,8 @@ model Organization {
   // Стартовый номер по типам документов { "ACT": 58, "INVOICE": 28 } — продолжение
   // нумерации из 1С при переходе на Commrent. nextDocumentNumber берёт floor.
   docNumberStart Json?  @map("doc_number_start")
+  /// Условия договора по умолчанию (конструктор): город, оплата, пеня, депозит, модули
+  contractDefaults Json? @map("contract_defaults")
 
   apiKeys       ApiKey[]
   faqArticles   FaqArticle[]

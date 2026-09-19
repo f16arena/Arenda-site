@@ -19,6 +19,7 @@ import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
 import { resolveContractTypeForTenant, isContractPlacementType, type ContractPlacementType } from "@/lib/contract-placement-types"
 import { availableContractTypesForOrg } from "@/lib/contract-types-availability"
 import { applyContractTypePreset } from "@/lib/contract-type-presets"
+import { applyContractDefaults, extractContractDefaults } from "@/lib/contract-engine/org-defaults"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -241,6 +242,10 @@ export async function prefillFromTenant(
 
     const org = await getOrganizationRequisites(orgId)
     const s = defaultState()
+    // Условия организации «по умолчанию» — до данных арендатора: у арендатора
+    // (день оплаты, пеня, депозит из карточки) они конкретнее и перекрывают.
+    const orgDefaults = await db.organization.findUnique({ where: { id: orgId }, select: { contractDefaults: true } })
+    applyContractDefaults(s, orgDefaults?.contractDefaults)
 
     // Контакты: владелец (текущий пользователь/аккаунт) vs администратор ЗДАНИЯ
     // (Building.administrator). adminContacts уточняется ниже, когда известно здание.
@@ -602,5 +607,33 @@ export async function generateSignedContractPdf(
     return { ok: true, fileName, base64: pdf.toString("base64") }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось сформировать PDF" }
+  }
+}
+
+/** Условия договора по умолчанию для организации (для нового пустого договора). */
+export async function getContractDefaults(): Promise<unknown> {
+  await requireCapabilityAndFeature("documents.create")
+  const { orgId } = await requireOrgAccess()
+  const org = await db.organization.findUnique({ where: { id: orgId }, select: { contractDefaults: true } })
+  return org?.contractDefaults ?? null
+}
+
+/**
+ * «Запомнить эти условия для новых договоров»: город, оплата, пеня, индексация,
+ * депозит, коммуналка, модули. Меняет настройки организации — нужно право
+ * на изменение организации.
+ */
+export async function saveContractDefaults(state: ContractState): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireCapabilityAndFeature("settings.updateOrganization")
+    const { orgId } = await requireOrgAccess()
+    const defaults = extractContractDefaults(state)
+    await db.organization.update({
+      where: { id: orgId },
+      data: { contractDefaults: JSON.parse(JSON.stringify(defaults)) },
+    })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить" }
   }
 }
