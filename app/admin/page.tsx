@@ -472,7 +472,7 @@ async function DashboardOperational({
       cta: "Выставить счета",
       done: cycleActiveTenants > 0 && cycleInvoices >= cycleActiveTenants,
       value: `${cycleInvoices} из ${cycleActiveTenants}`,
-      href: "/admin/documents/new/invoice",
+      href: "/admin/documents?create=invoice",
     },
     {
       label: "АВР",
@@ -480,7 +480,7 @@ async function DashboardOperational({
       cta: "Сформировать АВР",
       done: cycleActiveTenants > 0 && cycleActs >= cycleActiveTenants,
       value: `${cycleActs} из ${cycleActiveTenants}`,
-      href: "/admin/documents/new/act",
+      href: "/admin/documents?create=avr",
     },
     {
       label: "Оплаты",

@@ -11,7 +11,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { DocumentsBrowser } from "./documents-browser"
 import { BackfillDocumentsButton } from "./backfill-documents-button"
-import { DocumentsHub } from "@/components/documents/documents-hub"
+import { CreateDocumentMenu } from "./create-menu"
 import { DocumentCreate } from "@/components/documents/document-create"
 import type { DocRow } from "./documents-table"
 import { safeServerValue } from "@/lib/server-fallback"
@@ -19,7 +19,7 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { DOCUMENTS_TABS } from "@/lib/hub-tabs"
-import { FileText } from "lucide-react"
+import { FileText, FilePlus2 } from "lucide-react"
 
 // Грузим расширенный набор — фильтрация/поиск/пагинация делаются на клиенте.
 const DOCUMENT_SOURCE_LIMIT = 200
@@ -219,6 +219,7 @@ export default async function DocumentsPage({
     return {
       id: `c-${c.id}`,
       type: "CONTRACT",
+      typeLabel: c.type === "ADDENDUM" ? "Допсоглашение" : undefined,
       number: c.number,
       tenantName: c.tenant.companyName,
       tenantId: c.tenant.id,
@@ -343,30 +344,45 @@ export default async function DocumentsPage({
     (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
   )
 
+  // Создание документа — отдельный экран: свой заголовок и «назад», без вкладок
+  // списка (раньше было три этажа вкладок: хаб → «Документы | Создать» → вид).
+  if (wantsCreate && canCreateDocuments) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          icon={FilePlus2}
+          title="Новый документ"
+          subtitle="Выберите вид и арендатора — реквизиты, помещение и суммы подставятся сами"
+          backHref="/admin/documents"
+        />
+        <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
       <PageHeader
         icon={FileText}
         title="Документы"
-        actions={canGenerateBulk && <BackfillDocumentsButton />}
+        subtitle="Договоры, счета, акты — всё, что создано и подписано"
+        actions={
+          <>
+            {canGenerateBulk && <BackfillDocumentsButton />}
+            {canCreateDocuments && <CreateDocumentMenu />}
+          </>
+        }
       />
 
-      <DocumentsHub
-        canCreate={canCreateDocuments}
-        initialTab={wantsCreate ? "create" : "archive"}
-        archive={
-          <DocumentsBrowser
-            rows={allRows}
-            initialType={(type ?? "ALL").toUpperCase()}
-            initialSearch={q?.trim() ?? ""}
-            initialPeriod={period ?? ""}
-            canSign={canSignDocuments}
-            canExportZip={canExportZip}
-            canEsf={canEsf}
-          />
-        }
-        create={canCreateDocuments ? <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} /> : null}
+      <DocumentsBrowser
+        rows={allRows}
+        initialType={(type ?? "ALL").toUpperCase()}
+        initialSearch={q?.trim() ?? ""}
+        initialPeriod={period ?? ""}
+        canSign={canSignDocuments}
+        canExportZip={canExportZip}
+        canEsf={canEsf}
       />
     </div>
   )

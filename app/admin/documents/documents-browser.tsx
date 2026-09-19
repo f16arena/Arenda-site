@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { DocumentsTableLoader } from "./documents-table-loader"
+import { DocumentsTable } from "./documents-table"
 import type { DocRow } from "./documents-table"
 
 const TYPES = [
@@ -146,7 +146,7 @@ export function DocumentsBrowser({
         </div>
       </div>
 
-      <DocumentsTableLoader rows={pageRows} emptyHint={emptyHint} canSign={canSign} canExportZip={canExportZip} canEsf={canEsf} />
+      <DocumentsTable rows={pageRows} emptyHint={emptyHint} canSign={canSign} canExportZip={canExportZip} canEsf={canEsf} />
 
       {pages > 1 && (
         <div className="flex flex-col gap-3 border-t border-slate-100 px-1 py-3 text-sm dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">

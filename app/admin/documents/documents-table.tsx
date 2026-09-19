@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo } from "react"
 import Link from "next/link"
 import {
   Download, FileText, Archive, Loader2, ChevronDown, ChevronRight,
-  List, Folder, Trash2, Lock, ShieldCheck,
+  List, Folder, Trash2, ShieldCheck,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -55,6 +55,8 @@ export interface DocRow {
   downloadHref: string | null
   /** Ссылка «Открыть» (страница документа), если скачивания нет (договоры). */
   viewHref?: string | null
+  /** Подпись вида вместо общего «Договор» (например, «Допсоглашение») */
+  typeLabel?: string
   /** Категория для под-вкладок: активные / на подпись / черновик / архив. */
   category: DocCategory
   /** Для bulk: GeneratedDocument id (без префикса) */
@@ -94,13 +96,13 @@ function SignBadge({ row }: { row: DocRow }) {
   if (twoSided && n < 2) {
     return (
       <Badge className="ml-1.5 px-1.5 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300" title="Подписана одна сторона; ждём вторую">
-        подписан: 1 сторона
+        ждёт 2-ю подпись
       </Badge>
     )
   }
   return (
     <Badge className="ml-1.5 px-1.5 text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300" title="Документ подписан ЭЦП">
-      ✓ подписан{twoSided ? " (обе стороны)" : ""}
+      ✓ подписан
     </Badge>
   )
 }
@@ -437,19 +439,6 @@ export function DocumentsTable({
             kind="invoice"
           />
         )}
-        {row.isSigned && row.deleteId && (
-          <Link
-            href={`/verify/${row.deleteId}`}
-            target="_blank"
-            className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/25"
-            title="Кто подписал — страница проверки ЭЦП"
-          >
-            <ShieldCheck className="h-3 w-3" /> Подписи
-          </Link>
-        )}
-        {row.source === "contract" && row.deleteId && (
-          <ContractCardButton contractId={row.deleteId} />
-        )}
         {row.downloadHref ? (
           <a
             href={row.downloadHref}
@@ -468,40 +457,54 @@ export function DocumentsTable({
             Открыть
           </Link>
         )}
-        {row.deleteId && row.canDelete ? (
-          <ConfirmDialog
-            variant="danger"
-            requireText="удалить"
-            title={`Удалить ${TYPE_LABELS[row.type] ?? "документ"}${row.number ? ` № ${row.number}` : ""} навсегда?`}
-            description={
-              (row.isSigned
-                ? "Документ уже подписан. Удаление подписанного документа доступно только владельцу. "
-                : "") +
-              "Документ и его подписи будут удалены из базы НАВСЕГДА — восстановить нельзя. Если нужен с изменениями, создайте заново."
-            }
-            confirmLabel="Удалить навсегда"
-            onConfirm={() => performDelete(row)}
-            trigger={
-              <button
-                type="button"
-                disabled={isDeleting}
-                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-500/40 dark:bg-red-500/15 dark:text-red-200 dark:hover:bg-red-500/25"
-                title={row.isSigned ? "Удалить подписанный документ может только владелец" : "Удалить ошибочно созданный документ"}
-              >
-                {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                Удалить
-              </button>
-            }
-          />
-        ) : row.deleteId && row.isSigned ? (
-          <span
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400"
-            title="Подписанный документ может удалить только владелец"
-          >
-            <Lock className="h-3 w-3" />
-            Подписан
-          </span>
-        ) : null}
+        {/* Остальное — в меню «⋯», чтобы в строке не было четырёх кнопок.
+            Подписанный документ из списка не удаляется (решение владельца 19.09.2026). */}
+        {((row.isSigned && row.deleteId) || (row.source === "contract" && row.deleteId) || (row.deleteId && row.canDelete && !row.isSigned)) && (
+          <details className="group relative">
+            <summary
+              className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 [&::-webkit-details-marker]:hidden"
+              aria-label="Ещё действия"
+              title="Ещё действия"
+            >
+              ⋯
+            </summary>
+            <div className="absolute right-0 z-30 mt-1 flex w-52 flex-col items-stretch gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+              {row.isSigned && row.deleteId && (
+                <Link
+                  href={`/verify/${row.deleteId}`}
+                  target="_blank"
+                  className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                  title="Кто подписал — страница проверки ЭЦП"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Кто подписал
+                </Link>
+              )}
+              {row.source === "contract" && row.deleteId && (
+                <ContractCardButton contractId={row.deleteId} />
+              )}
+              {row.deleteId && row.canDelete && !row.isSigned && (
+                <ConfirmDialog
+                  variant="danger"
+                  requireText="удалить"
+                  title={`Удалить ${TYPE_LABELS[row.type] ?? "документ"}${row.number ? ` № ${row.number}` : ""} навсегда?`}
+                  description="Документ будет удалён из базы НАВСЕГДА — восстановить нельзя. Если нужен с изменениями, создайте заново."
+                  confirmLabel="Удалить навсегда"
+                  onConfirm={() => performDelete(row)}
+                  trigger={
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-500/10"
+                    >
+                      {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      Удалить
+                    </button>
+                  }
+                />
+              )}
+            </div>
+          </details>
+        )}
       </div>
     )
   }
@@ -716,7 +719,7 @@ export function DocumentsTable({
                         </td>
                         <td className="px-5 py-3">
                           <Badge className={TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}>
-                            {TYPE_LABELS[r.type] ?? r.type}
+                            {r.typeLabel ?? TYPE_LABELS[r.type] ?? r.type}
                           </Badge>
                           <ReconBadge row={r} />
                           <SignBadge row={r} />
@@ -760,7 +763,7 @@ export function DocumentsTable({
                   </td>
                   <td className="px-5 py-3">
                     <Badge className={TYPE_COLORS[r.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}>
-                      {TYPE_LABELS[r.type] ?? r.type}
+                      {r.typeLabel ?? TYPE_LABELS[r.type] ?? r.type}
                     </Badge>
                     <ReconBadge row={r} />
                     <SignBadge row={r} />

@@ -29,7 +29,7 @@ const TYPES: TypeMeta[] = [
     label: "Договор аренды",
     description: "Основной договор аренды нежилого помещения.",
     icon: FileCheck,
-    createHref: "/admin/documents/new/contract",
+    createHref: "/admin/documents?create=contract",
     color: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
   },
   {
@@ -37,7 +37,7 @@ const TYPES: TypeMeta[] = [
     label: "Счёт на оплату",
     description: "Ежемесячный счёт для арендатора.",
     icon: Receipt,
-    createHref: "/admin/documents/new/invoice",
+    createHref: "/admin/documents?create=invoice",
     color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   },
   {
@@ -45,7 +45,7 @@ const TYPES: TypeMeta[] = [
     label: "АВР / акт выполненных работ",
     description: "Акт за оказанные услуги аренды за период.",
     icon: ClipboardCheck,
-    createHref: "/admin/documents/new/act",
+    createHref: "/admin/documents?create=avr",
     color: "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400",
   },
   {
@@ -53,7 +53,7 @@ const TYPES: TypeMeta[] = [
     label: "Акт сверки",
     description: "Сверка взаиморасчётов с арендатором.",
     icon: FileText,
-    createHref: "/admin/documents/new/reconciliation",
+    createHref: "/admin/documents?create=reconciliation",
     color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
 ]

@@ -331,7 +331,7 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
       key: "contract",
       title: "Создать и подписать первый договор",
       description: "Юридический контур должен подтверждать аренду, помещение, срок, сумму и будущие изменения через доп. соглашения.",
-      href: "/admin/documents/new/contract",
+      href: "/admin/documents?create=contract",
       category: "legal",
       done: signedContractCount > 0,
       required: true,

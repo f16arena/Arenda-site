@@ -45,11 +45,11 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
 ]
 
 const QUICK_CREATE: { label: string; href: string; icon: React.ElementType; keywords: string }[] = [
-  { label: "Создать договор", href: "/admin/documents/new/contract", icon: Plus, keywords: "договор contract rental новый" },
-  { label: "Создать счёт на оплату", href: "/admin/documents/new/invoice", icon: Plus, keywords: "счет invoice новый" },
+  { label: "Создать договор", href: "/admin/documents?create=contract", icon: Plus, keywords: "договор contract rental новый" },
+  { label: "Создать счёт на оплату", href: "/admin/documents?create=invoice", icon: Plus, keywords: "счет invoice новый" },
   { label: "Создать платёж", href: "/admin/finances?newPayment=1", icon: Plus, keywords: "платёж payment оплата новый" },
-  { label: "Создать АВР", href: "/admin/documents/new/act", icon: Plus, keywords: "акт авр act выполненных работ услуги" },
-  { label: "Создать акт сверки", href: "/admin/documents/new/reconciliation", icon: Plus, keywords: "сверка reconciliation" },
+  { label: "Создать АВР", href: "/admin/documents?create=avr", icon: Plus, keywords: "акт авр act выполненных работ услуги" },
+  { label: "Создать акт сверки", href: "/admin/documents?create=reconciliation", icon: Plus, keywords: "сверка reconciliation" },
   { label: "Добавить арендатора", href: "/admin/tenants?new=1", icon: Plus, keywords: "арендатор новый создать" },
 ]
 
