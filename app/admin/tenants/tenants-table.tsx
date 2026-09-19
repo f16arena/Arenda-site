@@ -307,9 +307,9 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
           <Card key={t.id} className="block p-3.5">
             <div className="flex items-start justify-between gap-2">
               <Link href={`/admin/tenants/${t.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
-                <Avatar name={t.companyName} legalType={t.legalType} size="sm" />
+                <Avatar name={shortCompanyName(t.companyName)} legalType={t.legalType} size="sm" />
                 <span className="min-w-0">
-                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{t.companyName}</p>
+                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{shortCompanyName(t.companyName)}</p>
                   <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
                 </span>
               </Link>
@@ -360,10 +360,11 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
                 className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
                 <td className="px-5 py-3.5">
-                  <Link href={`/admin/tenants/${t.id}`} className="group flex items-center gap-3">
-                    <Avatar name={t.companyName} legalType={t.legalType} />
-                    <span className="min-w-0">
-                      <p className="truncate font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{t.companyName}</p>
+                  <Link href={`/admin/tenants/${t.id}`} className="group flex items-center gap-3" title={t.category ? `${t.companyName}\n${t.category}` : t.companyName}>
+                    <Avatar name={shortCompanyName(t.companyName)} legalType={t.legalType} />
+                    {/* max-w — иначе длинный вид деятельности по ОКЭД растягивает всю таблицу */}
+                    <span className="min-w-0 max-w-[340px]">
+                      <p className="truncate font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{shortCompanyName(t.companyName)}</p>
                       <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
                     </span>
                   </Link>
@@ -371,27 +372,13 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
                 <td className="px-5 py-3.5">
                   <LegalBadge legalType={t.legalType} />
                 </td>
-                <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
-                  {t.fullFloors.length > 0 ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300">
-                        Этаж
-                      </span>
-                      <span className="font-medium text-violet-900 dark:text-violet-200">
-                        {t.fullFloors.map((f) => f.name).join(", ")}
-                      </span>
-                      <span className="text-slate-400 dark:text-slate-500">· целиком</span>
-                    </span>
-                  ) : t.space ? (
-                    <SpaceCell tenant={t} />
-                  ) : (
-                    <SpaceCell tenant={t} />
-                  )}
+                <td className="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400">
+                  <SpaceCell tenant={t} />
                 </td>
-                <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">
+                <td className="whitespace-nowrap px-5 py-3.5 text-right tabular-nums text-slate-600 dark:text-slate-400">
                   {tenantArea(t) ? `${tenantArea(t).toFixed(0)} м²` : "—"}
                 </td>
-                <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400 font-mono text-xs">
+                <td className="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400 font-mono text-xs">
                   {t.user.phone ?? t.user.email ?? "—"}
                 </td>
                 <td className="px-5 py-3.5 text-right">
@@ -448,7 +435,7 @@ function tenantSpaces(tenant: TenantRow) {
 function tenantSpaceLabel(tenant: TenantRow) {
   if (tenant.fullFloors.length > 0) return tenant.fullFloors.map((floor) => floor.name).join(", ")
   const spaces = tenantSpaces(tenant)
-  return spaces.map((space) => `Каб. ${space.number} · ${space.floor.name}`).join(", ")
+  return spaces.map((space) => `${spaceLabel(space.number)} · ${floorLabel(space.floor.name)}`).join(", ")
 }
 
 function tenantArea(tenant: TenantRow) {
@@ -516,15 +503,11 @@ function SpaceCell({ tenant }: { tenant: TenantRow }) {
   if (tenant.fullFloors.length > 0) {
     return (
       <span>
-        {tenant.fullFloors.slice(0, 2).map((floor, index) => (
-          <span key={floor.id}>
-            {index > 0 && <span className="text-slate-400 dark:text-slate-500">, </span>}
-            {floor.name}
-          </span>
-        ))}
-        {tenant.fullFloors.length > 2 && (
-          <span className="ml-1 text-slate-400 dark:text-slate-500">+{tenant.fullFloors.length - 2}</span>
-        )}
+        <span className="font-medium text-violet-700 dark:text-violet-300">
+          {tenant.fullFloors.slice(0, 2).map((floor) => floorLabel(floor.name)).join(", ")}
+        </span>
+        {tenant.fullFloors.length > 2 && <span className="ml-1 text-slate-400 dark:text-slate-500">+{tenant.fullFloors.length - 2}</span>}
+        <span className="text-slate-400 dark:text-slate-500"> · целиком</span>
       </span>
     )
   }
@@ -548,8 +531,8 @@ function SpaceCell({ tenant }: { tenant: TenantRow }) {
       {spaces.slice(0, 2).map((space, index) => (
         <span key={space.id ?? `${space.number}-${index}`}>
           {index > 0 && <span className="text-slate-400 dark:text-slate-500">, </span>}
-          Каб. {space.number}
-          <span className="text-slate-400 dark:text-slate-500 ml-1">· {space.floor.name}</span>
+          {spaceLabel(space.number)}
+          <span className="text-slate-400 dark:text-slate-500 ml-1">· {floorLabel(space.floor.name)}</span>
         </span>
       ))}
       {spaces.length > 2 && (
@@ -589,4 +572,27 @@ function SortHeader({
       </button>
     </th>
   )
+}
+
+// «Каб.» — только у кабинетов с номером («Каб. 101»). Места вроде «Киоск»,
+// «Кар-Тел» (антенна) называются как есть.
+function spaceLabel(number: string): string {
+  return /^\d/.test(number.trim()) ? `Каб. ${number}` : number
+}
+
+// Этаж с названием-цифрой («3») — «3 этаж»
+function floorLabel(name: string): string {
+  return /^-?\d+$/.test(name.trim()) ? `${name.trim()} этаж` : name
+}
+
+// Правовая форма уже показана в колонке «Тип» — в названии сокращаем её
+const LEGAL_FORM_SHORT: [RegExp, string][] = [
+  [/^товарищество с ограниченной ответственностью\s*/i, "ТОО "],
+  [/^индивидуальный предприниматель\s*/i, "ИП "],
+  [/^акционерное общество\s*/i, "АО "],
+  [/^государственное коммунальное предприятие\s*/i, "ГКП "],
+]
+function shortCompanyName(name: string): string {
+  for (const [re, short] of LEGAL_FORM_SHORT) if (re.test(name)) return name.replace(re, short).trim()
+  return name
 }
