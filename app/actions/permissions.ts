@@ -1,6 +1,7 @@
 ﻿"use server"
 
 import { db } from "@/lib/db"
+import { auth } from "@/auth"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { requireOwner } from "@/lib/permissions"
 import { invalidateAclCache, SECTIONS } from "@/lib/acl"
@@ -20,6 +21,19 @@ import {
   makeOrgRoleCode,
 } from "@/lib/role-capabilities"
 
+// Права встроенных ролей (ADMIN, ACCOUNTANT, …) хранятся одной записью на всю
+// платформу (RolePermission без organizationId): правка из одной организации
+// меняла их всем организациям. Пока права не разделены по организациям —
+// встроенные роли меняет только владелец платформы; организация настраивает
+// свои должности (org:<id>:…).
+async function assertCanEditRoleRights(role: string) {
+  if (!isSystemRole(role)) return
+  const session = await auth()
+  if (!session?.user?.isPlatformOwner) {
+    throw new Error("Права встроенных ролей общие для платформы. Создайте свою должность и настройте её права.")
+  }
+}
+
 async function assertRoleBuilderEnabled(orgId: string) {
   await requireOrgFeature(orgId, "roleBuilder")
 }
@@ -32,6 +46,7 @@ export async function setPermission(role: string, section: string, canView: bool
   if (!canManageRoleInOrg(role, orgId)) {
     throw new Error("Эту должность нельзя менять в текущей организации")
   }
+  await assertCanEditRoleRights(role)
 
   if (!SECTIONS.includes(section as (typeof SECTIONS)[number])) {
     throw new Error("Некорректный раздел прав")
@@ -69,6 +84,7 @@ export async function setCapability(role: string, capabilityKey: string, enabled
   if (!canManageRoleInOrg(role, orgId)) {
     throw new Error("Эту должность нельзя менять в текущей организации")
   }
+  await assertCanEditRoleRights(role)
 
   if (isOwnerRole(role)) {
     throw new Error("Владелец всегда имеет полный доступ")

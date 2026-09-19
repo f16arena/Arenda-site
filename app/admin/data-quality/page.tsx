@@ -190,8 +190,8 @@ export default async function DataQualityPage() {
   }
 
   const noSignedContractWhere: Prisma.TenantWhereInput = {
-    ...tenantScope,
-    OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }],
+    // AND, не spread: второй OR затирал OR «здания пользователя» из tenantScope.
+    AND: [tenantScope, { OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }] }],
     contracts: { none: { status: "SIGNED" } },
   }
 
@@ -214,18 +214,16 @@ export default async function DataQualityPage() {
   }
 
   const expiredContractWhere: Prisma.TenantWhereInput = {
-    ...tenantScope,
+    AND: [tenantScope, { OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }] }],
     contractEnd: { lt: today },
-    OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }],
   }
 
   const invalidPaymentRulesWhere: Prisma.TenantWhereInput = {
-    ...tenantScope,
-    OR: [
+    AND: [tenantScope, { OR: [
       { paymentDueDay: { lt: 1 } },
       { paymentDueDay: { gt: 31 } },
       { penaltyPercent: { lt: 0 } },
-    ],
+    ] }],
   }
 
   const highRiskCapabilityByPermission = new Map(

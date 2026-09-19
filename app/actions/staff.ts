@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import bcrypt from "bcryptjs"
 import { randomBytes } from "node:crypto"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
+import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertStaffInOrg, assertUserInOrg } from "@/lib/scope-guards"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
@@ -21,6 +22,18 @@ function requireBuildingIds(buildingIds: string[]) {
   if (buildingIds.length === 0) throw new Error("Назначьте сотруднику хотя бы одно здание")
 }
 
+// staffId и userId приходят с клиента раздельно — проверяем, что это одна запись,
+// иначе можно было править «чужого» пользователя через свою карточку сотрудника.
+async function assertStaffIsUser(staffId: string, userId: string) {
+  const staff = await db.staff.findUnique({ where: { id: staffId }, select: { userId: true } })
+  if (!staff || staff.userId !== userId) throw new Error("Сотрудник не найден")
+}
+
+async function assertNotOwner(userId: string) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
+  if (u?.role === "OWNER") throw new Error("Владельца нельзя отключить или удалить")
+}
+
 /** Перехват уникальных ограничений Prisma → человеческое сообщение */
 function friendlyUniqueError(e: unknown): never {
   const code = (e as { code?: string })?.code
@@ -31,6 +44,7 @@ function friendlyUniqueError(e: unknown): never {
 }
 
 export async function createStaff(formData: FormData) {
+  await requireCapabilityAndFeature("users.invite")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
   await checkLimit(orgId, "users")
@@ -85,9 +99,11 @@ export async function createStaff(formData: FormData) {
 }
 
 export async function updateStaff(staffId: string, userId: string, formData: FormData) {
+  const session = await requireCapabilityAndFeature("users.edit")
   const { orgId } = await requireOrgAccess()
   await assertStaffInOrg(staffId, orgId)
   await assertUserInOrg(userId, orgId)
+  await assertStaffIsUser(staffId, userId)
 
   const name = formData.get("name") as string
   const phone = normalizeKzPhone(formData.get("phone"))
@@ -111,6 +127,11 @@ export async function updateStaff(staffId: string, userId: string, formData: For
   if (role !== "OWNER" && !ALLOWED_STAFF_ROLES.has(role)) {
     throw new Error("Недопустимая роль")
   }
+  // Данные и пароль владельца меняет только он сам.
+  if (currentUser?.role === "OWNER" && session.id !== userId) {
+    throw new Error("Данные владельца может менять только сам владелец")
+  }
+  if (newPassword) await requireCapabilityAndFeature("users.resetPassword")
 
   await db.user.update({
     where: { id: userId },
@@ -140,8 +161,10 @@ export async function updateStaff(staffId: string, userId: string, formData: For
 }
 
 export async function deactivateStaff(userId: string) {
+  await requireCapabilityAndFeature("users.deactivate")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
+  await assertNotOwner(userId)
 
   await db.user.update({
     where: { id: userId },
@@ -154,6 +177,7 @@ export async function deactivateStaff(userId: string) {
 }
 
 export async function reactivateStaff(userId: string) {
+  await requireCapabilityAndFeature("users.deactivate")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
 
@@ -168,9 +192,12 @@ export async function reactivateStaff(userId: string) {
 }
 
 export async function deleteStaff(staffId: string, userId: string) {
+  await requireCapabilityAndFeature("users.delete")
   const { orgId } = await requireOrgAccess()
   await assertStaffInOrg(staffId, orgId)
   await assertUserInOrg(userId, orgId)
+  await assertStaffIsUser(staffId, userId)
+  await assertNotOwner(userId)
 
   await db.staff.delete({ where: { id: staffId } })
   await db.user.update({ where: { id: userId }, data: { isActive: false } })

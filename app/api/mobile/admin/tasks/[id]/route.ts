@@ -4,6 +4,7 @@ import { mobileError } from "@/lib/mobile-context"
 import { getMobileStaffRequest } from "@/lib/mobile-admin"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
+import { taskScope } from "@/lib/tenant-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -21,9 +22,11 @@ const ALLOWED_CATEGORIES = new Set([
 const ALLOWED_PRIORITIES = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"])
 const ALLOWED_STATUSES = new Set(["NEW", "IN_PROGRESS", "DONE", "CLOSED", "CANCELLED"])
 
-async function findTaskInScope(taskId: string, buildingIds: string[]) {
-  const task = await db.task.findUnique({
-    where: { id: taskId },
+async function findTaskInScope(taskId: string, buildingIds: string[], orgId: string) {
+  // Сначала организация: задачи без здания раньше находились по id в любой
+  // организации (проверялось только здание, а оно может быть пустым).
+  const task = await db.task.findFirst({
+    where: { id: taskId, ...taskScope(orgId) },
     select: { id: true, buildingId: true, assignedToId: true, title: true },
   })
   if (!task) return null
@@ -41,7 +44,7 @@ export async function PATCH(
   const { ctx, buildingIds } = result
   const { id } = await params
 
-  const existing = await findTaskInScope(id, buildingIds)
+  const existing = await findTaskInScope(id, buildingIds, ctx.org.id)
   if (!existing) return mobileError("Задача не найдена", 404)
 
   const body = (await req.json().catch(() => null)) as {
@@ -166,10 +169,10 @@ export async function DELETE(
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
-  const { buildingIds } = result
+  const { ctx, buildingIds } = result
   const { id } = await params
 
-  const existing = await findTaskInScope(id, buildingIds)
+  const existing = await findTaskInScope(id, buildingIds, ctx.org.id)
   if (!existing) return mobileError("Задача не найдена", 404)
 
   await db.task.delete({ where: { id: existing.id } })

@@ -65,6 +65,17 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
       }
     }
 
+    // Счёт / АВР / акт сверки — тоже только своей организации. Раньше id
+    // принимался как есть: можно было «подписать» документ чужой организации
+    // и разослать его арендатору той организации.
+    if (input.documentType !== "CONTRACT" && input.documentId) {
+      const doc = await db.generatedDocument.findFirst({
+        where: { id: input.documentId, organizationId: orgId },
+        select: { id: true },
+      })
+      if (!doc) return { ok: false, error: "Документ не найден" }
+    }
+
     // Разбираем CMS: достаём сертификат подписанта (ФИО, ИИН, БИН, срок, издатель).
     const parsed = parseCmsSignature(input.signatureB64)
     const signer = parsed.signer

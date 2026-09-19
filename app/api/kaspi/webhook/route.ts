@@ -63,11 +63,15 @@ export async function POST(request: Request) {
     }
   }
   if (!tenantId && payload.payerBin) {
-    const tenant = await db.tenant.findFirst({
+    // Одна компания может арендовать у нескольких арендодателей (разные
+    // организации платформы). Привязываем, только если БИН однозначен; иначе —
+    // в ручную сверку, а не первому попавшемуся в чужой организации.
+    const matches = await db.tenant.findMany({
       where: { bin: payload.payerBin },
       select: { id: true },
-    }).catch(() => null)
-    tenantId = tenant?.id ?? null
+      take: 2,
+    }).catch(() => [] as { id: string }[])
+    tenantId = matches.length === 1 ? matches[0].id : null
   }
 
   if (!tenantId) {

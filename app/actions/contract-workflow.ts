@@ -277,6 +277,10 @@ export async function getLandlordSignPayload(
 export async function markContractSignedByLandlord(
   contractId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Перевод договора в «подписан» — только у кого есть право подписи.
+  try { await requireCapabilityAndFeature("documents.sign") } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Нет права подписывать документы" }
+  }
   const { orgId } = await requireOrgAccess()
   const contract = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
