@@ -3,6 +3,7 @@
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
+import { unstable_rethrow } from "next/navigation"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
@@ -16,7 +17,23 @@ import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-id
 import { parseTenantSpaceIds } from "@/lib/tenant-spaces"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 
-export async function createTenant(formData: FormData) {
+export type CreateTenantResult = { success: true; tenantId: string } | { success: false; error: string }
+
+// Проверки ниже бросают Error с текстом для пользователя («телефон уже занят»,
+// «кабинет занят»…). В продакшене Next прячет текст брошенной ошибки — форма
+// получала «An error occurred in the Server Components render». Поэтому наши
+// сообщения возвращаем явно, а чужие ошибки (Prisma, redirect) пробрасываем.
+export async function createTenant(formData: FormData): Promise<CreateTenantResult> {
+  try {
+    return await createTenantUnchecked(formData)
+  } catch (e) {
+    unstable_rethrow(e)
+    if (e instanceof Error && e.constructor === Error && e.message) return { success: false, error: e.message }
+    throw e
+  }
+}
+
+async function createTenantUnchecked(formData: FormData): Promise<CreateTenantResult> {
   await requireCapabilityAndFeature("tenants.create")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
@@ -290,5 +307,5 @@ export async function createTenant(formData: FormData) {
 
   revalidatePath("/admin/tenants")
   revalidatePath("/admin/spaces")
-  return { success: true, tenantId }
+  return { success: true as const, tenantId }
 }

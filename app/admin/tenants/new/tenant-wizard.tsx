@@ -109,8 +109,8 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
         const data = fd()
         // 1) Создание арендатора (пользователь + компания + помещения + welcome).
         const result = await createTenant(data)
-        const tenantId = (result as { tenantId?: string })?.tenantId
-        if (!tenantId) throw new Error("Арендатор создан, но не удалось получить его ID")
+        if (!result.success) { toast.error(result.error); return }
+        const tenantId = result.tenantId
 
         // 2) Условия аренды — той же формой, повторно ничего не вводим.
         const terms = new FormData()

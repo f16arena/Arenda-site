@@ -53,7 +53,8 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
             action={(formData) => {
               startTransition(async () => {
                 try {
-                  await createTenant(formData)
+                  const result = await createTenant(formData)
+                  if (!result.success) { toast.error(result.error); return }
                   toast.success("Арендатор создан")
                   setOpen(false)
                 } catch (e) {
