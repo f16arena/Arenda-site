@@ -2,14 +2,15 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { formatMoney, formatPeriod, CHARGE_TYPES, expenseCategoryLabel } from "@/lib/utils"
-import { FileSpreadsheet, ShieldCheck, Upload, Wallet, CircleCheck, TrendingDown, Repeat, CalendarClock } from "lucide-react"
-import Link from "next/link"
+import { FileSpreadsheet, Wallet, CircleCheck, TrendingDown } from "lucide-react"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
 // Дублирующая ручная кнопка приводила к рассинхрону (см. AUDIT_2026-05-26.md).
 import { PaymentDialog, ExpenseDialog, GenerateChargesButton, GenerateInvoicesButton, VariableExpenseReminder } from "./finance-actions"
 import { PaymentReportsPanel } from "./payment-reports-panel"
-import { BatchBillingButton } from "./batch-billing-button"
+import { ExportMenu } from "./export-menu"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { FinancesPeriodPicker } from "./period-picker"
 import { ChargesBulkActions } from "./charges-bulk-actions"
 import { PaymentsBulkActions } from "./payments-bulk-actions"
@@ -104,10 +105,15 @@ async function renderFinancesPage({
   if (currentBuildingId) await assertBuildingInOrg(currentBuildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = currentBuildingId ? [currentBuildingId] : accessibleBuildingIds
+  // Арендатор здания — любым из 4 путей привязки. Раньше учитывались только
+  // основное помещение и этаж целиком: начисления и оплаты арендаторов с
+  // несколькими помещениями и мест без помещения (киоск) сюда не попадали.
   const tenantBuildingWhere = {
     OR: [
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+      { buildingId: { in: visibleBuildingIds } },
     ],
   }
 
@@ -383,202 +389,86 @@ async function renderFinancesPage({
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={FINANCE_TABS} className="mb-2" />
       <PageHeader
         icon={Wallet}
         title="Финансы"
-        subtitle={formatPeriod(currentPeriod)}
+        subtitle={`${formatPeriod(currentPeriod)} · кто сколько должен, что пришло, что потрачено`}
         actions={
           <>
-          <FinancesPeriodPicker period={currentPeriod} />
-          {caps.has("finance.viewBalance") && (
-          <Link
-            href="/admin/finances/balance"
-            className="flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
-          >
-            <Wallet className="h-4 w-4" />
-            Баланс счетов
-          </Link>
-          )}
-          {caps.has("finance.manageExpenses") && (
-          <Link
-            href="/admin/finances/recurring"
-            className="flex items-center gap-2 rounded-lg border border-orange-200 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/20 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300"
-          >
-            <Repeat className="h-4 w-4" />
-            Постоянные расходы
-          </Link>
-          )}
-          {caps.has("finance.installments") && (
-          <Link
-            href="/admin/finances/installments"
-            className="flex items-center gap-2 rounded-lg border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 px-4 py-2 text-sm font-medium text-rose-700 dark:text-rose-300"
-          >
-            <CalendarClock className="h-4 w-4" />
-            Рассрочка
-          </Link>
-          )}
-          {caps.has("finance.deposits") && (
-          <Link
-            href="/admin/finances/deposits"
-            className="flex items-center gap-2 rounded-lg border border-purple-200 dark:border-purple-500/30 bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-700 dark:text-purple-300"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Депозиты
-          </Link>
-          )}
-          {caps.has("finance.importBank") && (
-          <Link
-            href="/admin/finances/import"
-            className="flex items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-300"
-          >
-            <Upload className="h-4 w-4" />
-            Импорт банка
-          </Link>
-          )}
-          {caps.has("finance.exportZip") && (
-          <a
-            href={`/api/export/documents-zip?period=${currentPeriod}`}
-            download
-            title="Все счета и АВР за текущий месяц одним архивом"
-            className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            ZIP за месяц
-          </a>
-          )}
-          {caps.has("finance.export1c") && (
-          <a
-            href="/api/export/1c"
-            download
-            className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300"
-            title="Экспорт в формате 1C-Enterprise"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            1С
-          </a>
-          )}
-          {caps.has("finance.export") && (
-          <a
-            href="/api/export/finances"
-            download
-            className="flex items-center gap-2 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-300"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel
-          </a>
-          )}
-          {caps.has("finance.createInvoice") && <GenerateChargesButton period={currentPeriod} />}
-          {caps.has("finance.createInvoice") && <GenerateInvoicesButton period={currentPeriod} />}
-          {caps.has("documents.generateBulk") && <BatchBillingButton defaultPeriod={currentPeriod} />}
-          {caps.has("finance.manageExpenses") && (
-          <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />
-          )}
-          {caps.has("finance.recordPayment") && (
-          <PaymentDialog
-            tenants={dialogTenantOptions}
-            unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
-            cashAccounts={cashAccounts}
-            initialTenantId={selectedPaymentTenant?.id}
-            autoOpen={Boolean(selectedPaymentTenant)}
-          />
-          )}
+            <FinancesPeriodPicker period={currentPeriod} />
+            <ExportMenu
+              period={currentPeriod}
+              canZip={caps.has("finance.exportZip")}
+              can1c={caps.has("finance.export1c")}
+              canExcel={caps.has("finance.export")}
+              canImport={caps.has("finance.importBank")}
+            />
+            {caps.has("finance.recordPayment") && (
+              <PaymentDialog
+                tenants={dialogTenantOptions}
+                unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
+                cashAccounts={cashAccounts}
+                initialTenantId={selectedPaymentTenant?.id}
+                autoOpen={Boolean(selectedPaymentTenant)}
+              />
+            )}
           </>
         }
       />
 
       <PaymentReportsPanel reports={paymentReports} cashAccounts={cashAccounts} />
 
-      <VariableExpenseReminder
-        items={variableExpenseItems}
-        cashAccounts={cashAccounts}
-        buildings={buildingOptions}
-        currentBuildingId={currentBuildingId}
-        period={currentPeriod}
-      />
-
       {/* Summary cards */}
       <StatGrid>
-        <StatCard icon={FileSpreadsheet} label="Начислено" value={formatMoney(totalCharges)} sub="за месяц" tone="blue" />
+        <StatCard icon={FileSpreadsheet} label="Начислено" value={formatMoney(totalCharges)} sub="арендаторы должны за месяц" tone="blue" />
         <StatCard
           icon={CircleCheck}
           label="Оплачено"
           value={formatMoney(paidCharges)}
-          sub={`собираемость ${collectionRate}%`}
+          sub={`${collectionRate}% от начисленного`}
           tone="emerald"
         />
         <StatCard
           icon={Wallet}
           label="Долг"
           value={formatMoney(unpaidCharges)}
-          sub="не оплачено"
+          sub="начислено, но ещё не оплачено"
           tone={unpaidCharges > 0 ? "red" : "slate"}
         />
-        <StatCard icon={TrendingDown} label="Расходы" value={formatMoney(totalExpenses)} sub="в этом месяце" tone="amber" />
+        <StatCard icon={TrendingDown} label="Расходы" value={formatMoney(totalExpenses)} sub="вы потратили в этом месяце" tone="amber" />
       </StatGrid>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* Charges */}
         <Card padded={false}>
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления за {formatPeriod(currentPeriod)}</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Тип:</span>
-              {CHARGE_TYPE_FILTERS.map((f) => {
-                const active = (selectedChargeType || "") === f.value
-                const params = new URLSearchParams()
-                if (f.value) params.set("chargeType", f.value)
-                if (selectedChargeStatus) params.set("chargeStatus", selectedChargeStatus)
-                if (selectedTenantId) params.set("tenantId", selectedTenantId)
-                if (expensesPage > 1) params.set("expensesPage", String(expensesPage))
-                const qs = params.toString()
-                const href = qs ? `/admin/finances?${qs}` : "/admin/finances"
-                return (
-                  <Link
-                    key={f.value || "all-types"}
-                    href={href}
-                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${
-                      active
-                        ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60"
-                    }`}
-                  >
-                    {f.label}
-                  </Link>
-                )
-              })}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления за {formatPeriod(currentPeriod)}</h2>
+              {caps.has("finance.createInvoice") && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <GenerateChargesButton period={currentPeriod} />
+                  {totalChargeCount > 0 && <GenerateInvoicesButton period={currentPeriod} />}
+                </div>
+              )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Статус:</span>
-              {CHARGE_STATUS_FILTERS.map((f) => {
-                const active = (selectedChargeStatus || "") === f.value
-                const params = new URLSearchParams()
-                if (selectedChargeType) params.set("chargeType", selectedChargeType)
-                if (f.value) params.set("chargeStatus", f.value)
-                if (selectedTenantId) params.set("tenantId", selectedTenantId)
-                if (expensesPage > 1) params.set("expensesPage", String(expensesPage))
-                const qs = params.toString()
-                const href = qs ? `/admin/finances?${qs}` : "/admin/finances"
-                return (
-                  <Link
-                    key={f.value || "all-status"}
-                    href={href}
-                    className={`text-[11px] rounded-full px-2.5 py-0.5 border transition-colors ${
-                      active
-                        ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60"
-                    }`}
-                  >
-                    {f.label}
-                  </Link>
-                )
-              })}
-            </div>
+            <form className="flex flex-wrap items-center gap-2" action="/admin/finances">
+              <input type="hidden" name="period" value={currentPeriod} />
+              {selectedTenantId && <input type="hidden" name="tenantId" value={selectedTenantId} />}
+              <select name="chargeType" defaultValue={selectedChargeType} aria-label="Что начислено" className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                {CHARGE_TYPE_FILTERS.map((f) => <option key={f.value || "all"} value={f.value}>{f.value ? f.label : "Всё начисленное"}</option>)}
+              </select>
+              <select name="chargeStatus" defaultValue={selectedChargeStatus} aria-label="Оплата" className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                {CHARGE_STATUS_FILTERS.map((f) => <option key={f.value || "all"} value={f.value}>{f.value ? f.label : "Оплаченные и нет"}</option>)}
+              </select>
+              <button type="submit" className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Показать</button>
+            </form>
           </div>
           {charges.length === 0 ? (
             <EmptyState
               icon={<FileSpreadsheet className="h-5 w-5" />}
-              title="Начислений за месяц нет"
-              description="Сформируйте начисления за период после проверки арендаторов, ставок и сроков оплаты. Если арендаторов нет, начните с карточек аренды."
+              title="Начислений за месяц ещё нет"
+              description="Нажмите «Начислить» вверху этого блока: система посчитает аренду, эксплуатационные и услуги каждому арендатору по его условиям. Потом — «Выставить счета»."
               actions={[
                 { href: "/admin/tenants", label: "Проверить арендаторов" },
                 { href: "/admin/data-quality", label: "Качество данных", variant: "secondary" },
@@ -643,8 +533,17 @@ async function renderFinancesPage({
       <Card
         padded={false}
         title="Расходы"
-        actions={<ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />}
+        actions={caps.has("finance.manageExpenses") ? <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} /> : undefined}
       >
+        <div className="border-b border-slate-100 p-4 empty:hidden dark:border-slate-800">
+      <VariableExpenseReminder
+            items={variableExpenseItems}
+            cashAccounts={cashAccounts}
+            buildings={buildingOptions}
+            currentBuildingId={currentBuildingId}
+            period={currentPeriod}
+          />
+        </div>
         <DataTable density="compact" className="min-w-[640px]">
           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
             <tr className="border-b border-slate-100 dark:border-slate-800">

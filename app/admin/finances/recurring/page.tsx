@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic"
 
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import { Repeat, ArrowLeft } from "lucide-react"
@@ -87,6 +89,7 @@ export default async function RecurringExpensesPage() {
 
   return (
     <div className="space-y-5">
+      <RouteTabs items={FINANCE_TABS} className="mb-2" />
       <PageHeader
         icon={Repeat}
         title="Постоянные расходы"

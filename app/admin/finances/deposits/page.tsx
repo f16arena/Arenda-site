@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic"
 
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
@@ -10,7 +12,6 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { computeDepositStatus, DEPOSIT_STATUS_LABELS, type DepositStatus } from "@/lib/deposit"
 import { ShieldCheck, ShieldAlert, Wallet, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { DepositsTable, type DepositRow } from "./deposits-table"
 
 const STATUS_ORDER: Record<DepositStatus, number> = {
@@ -124,13 +125,7 @@ export default async function DepositsPage() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumbs
-        items={[
-          { label: "Главная", href: "/admin" },
-          { label: "Финансы", href: "/admin/finances" },
-          { label: "Депозиты" },
-        ]}
-      />
+      <RouteTabs items={FINANCE_TABS} className="mb-2" />
       <div className="flex items-center gap-3">
         <Link
           href="/admin/finances"

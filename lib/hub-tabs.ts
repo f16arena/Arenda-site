@@ -37,3 +37,13 @@ export const SERVICE_TABS = [
   { href: "/admin/requests", label: "Заявки" },
   { href: "/admin/complaints", label: "Жалобы и предложения" },
 ]
+
+// Финансы: месяц (начисления, оплаты, расходы) + разделы, которые раньше были
+// шестью разноцветными кнопками в шапке страницы.
+export const FINANCE_TABS = [
+  { href: "/admin/finances", label: "Месяц" },
+  { href: "/admin/finances/deposits", label: "Депозиты" },
+  { href: "/admin/finances/installments", label: "Рассрочки" },
+  { href: "/admin/finances/recurring", label: "Постоянные расходы" },
+  { href: "/admin/finances/balance", label: "Счета и касса" },
+]

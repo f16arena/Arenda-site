@@ -278,6 +278,8 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
             { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
             { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
             { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+            // место без помещения (киоск на территории) — здание в самой карточке
+            { buildingId: { in: visibleBuildingIds } },
           ],
         },
       ],
@@ -403,6 +405,8 @@ export async function listChargeableTenants(period: string) {
             { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
             { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
             { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+            // место без помещения (киоск на территории) — здание в самой карточке
+            { buildingId: { in: visibleBuildingIds } },
           ],
         },
       ],
