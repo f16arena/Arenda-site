@@ -5,8 +5,9 @@
 // этажа копией плана нижнего (remapGraph — свежие id, без коллизий мешей).
 
 import { useMemo, useState } from "react"
-import { Building2, Layers, Plus, Trees, Trash2 } from "lucide-react"
+import { Building2, Home, Layers, Plus, Trees, Trash2 } from "lucide-react"
 import { rebuildModelFloor } from "@/app/actions/building-model"
+import { ROOF_KINDS } from "@/lib/builder/islands"
 import { uid } from "@/core/id"
 import { emptyGraph, remapGraph } from "@/core/geometry/wall-graph"
 import { AddFloorCommand, CompositeCommand, DeleteFloorCommand, SetRoomNameCommand, ReplaceFloorCommand, SetRoofCommand, SetFloorNameCommand, SetFloorElevationCommand } from "@/core/document/commands"
@@ -164,11 +165,14 @@ export function LevelPanel({
   measure = null,
   onMeasureConsumed = () => {},
   buildingId,
+  onLookAtRoof,
 }: {
   measure?: PendingMeasure
   onMeasureConsumed?: () => void
   /** здание в базе — даёт «сброс этажа к данным» */
   buildingId?: string
+  /** поднять камеру на кровлю при выборе уровня «Кровля» */
+  onLookAtRoof?: () => void
 }) {
   // Сброс к данным: двухшаговое подтверждение прямо в кнопке, без window.confirm
   const [armed, setArmed] = useState<"reset" | "clear" | null>(null)
@@ -188,6 +192,7 @@ export function LevelPanel({
   const activeFloor = building?.floors.find((f) => f.id === activeLevelId)
   // этаж, по которому идёт правка в режиме «Участок»
   const siteFloor = building?.floors.find((f) => f.id === siteFloorId)
+  const ROOF_NAME: Record<string, string> = { flat: "плоская", gable: "двускатная", hip: "вальмовая", fourslope: "четырёхскатная", mansard: "мансардная", shed: "односкатная" }
   const ROOFS: { t: RoofConfig["type"] | "none"; l: string }[] = [
     { t: "flat", l: "Плоск." },
     { t: "gable", l: "Двускат" },
@@ -197,10 +202,14 @@ export function LevelPanel({
     { t: "shed", l: "Односкат" },
     { t: "none", l: "Нет" },
   ]
+  // верхний этаж: его кровля и есть кровля здания
+  const topFloor = floors.length ? floors.reduce((a, b) => (b.elevation > a.elevation ? b : a)) : undefined
+  // на уровне «Кровля» кнопки типа крыши правят верхний этаж
+  const roofFloor = activeLevelId === "roof" ? topFloor : activeFloor
   const setRoof = (t: RoofConfig["type"] | "none") => {
-    if (!activeFloor) return
-    const cfg: RoofConfig | undefined = t === "none" ? undefined : { type: t, pitchDeg: t === "flat" ? 0 : 28, overhang: 500, thickness: 200, materialId: activeFloor.roof?.materialId ?? "metal_roof" }
-    execute(new SetRoofCommand(activeFloor.id, cfg))
+    if (!roofFloor) return
+    const cfg: RoofConfig | undefined = t === "none" ? undefined : { type: t, pitchDeg: t === "flat" ? 0 : 28, overhang: 500, thickness: 200, materialId: roofFloor.roof?.materialId ?? "metal_roof" }
+    execute(new SetRoofCommand(roofFloor.id, cfg))
   }
 
   const addFloor = () => {
@@ -372,6 +381,28 @@ export function LevelPanel({
           </button>
         ))}
       </div>
+      {/* Кровля — отдельный уровень: на ней сдают места под антенны и базовые
+          станции, у неё своя площадь и свой тип */}
+      {topFloor && (
+        <LevelRow
+          name="Кровля"
+          sub={topFloor.roof ? `${topFloor.name} · ${ROOF_NAME[topFloor.roof.type] ?? ""}` : "кровли нет"}
+          Icon={Home}
+          active={activeLevelId === "roof"}
+          onClick={() => {
+            setActiveLevel("roof")
+            // правка на кровле идёт по верхнему этажу, а панель сразу показывает саму кровлю
+            useEditorStore.getState().setSiteFloor(topFloor.id)
+            useEditorStore.getState().setSelection({ type: "roof", id: `roof_${topFloor.id}`, floorId: topFloor.id })
+            onLookAtRoof?.()
+          }}
+        />
+      )}
+      {activeLevelId === "roof" && (
+        <p className="px-1 text-[10px] leading-snug" style={{ color: TOKENS.muted }}>
+          Видна крыша. Инструмент «Островок» ставит на неё антенны и базовые станции, клик по кровле — её свойства.
+        </p>
+      )}
       {floors.map((f) => (
         <LevelRow
           key={f.id}
@@ -532,6 +563,29 @@ export function LevelPanel({
               )
             })}
           </div>
+        </div>
+      )}
+      {/* уровень «Кровля»: тип крыши и сводка по местам на ней */}
+      {activeLevelId === "roof" && topFloor && (
+        <div className="flex flex-col gap-1 rounded-lg p-1.5" style={{ border: `1px solid ${TOKENS.panelBorder}` }}>
+          <p className="px-0.5 pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Крыша · {topFloor.name}</p>
+          <div className="grid grid-cols-3 gap-1">
+            {ROOFS.map((r) => {
+              const on = r.t === "none" ? !topFloor.roof : topFloor.roof?.type === r.t
+              return (
+                <button key={r.t} type="button" onClick={() => setRoof(r.t)} className="rounded-md py-1 text-[10px] font-medium" style={{ background: on ? TOKENS.accent : "rgba(148,163,184,0.12)", color: on ? "#0b1220" : TOKENS.text }}>{r.l}</button>
+              )
+            })}
+          </div>
+          {(() => {
+            const places = (topFloor.islands ?? []).filter((i) => ROOF_KINDS.has(i.kind))
+            const leased = places.filter((i) => (i.tenant ?? "").trim()).length
+            return (
+              <p className="px-0.5 text-[10px]" style={{ color: TOKENS.muted }}>
+                Мест на кровле: {places.length}{places.length ? ` · сдано ${leased}` : ""}
+              </p>
+            )
+          })()}
         </div>
       )}
       <button

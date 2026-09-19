@@ -1328,6 +1328,17 @@ export class BuilderEngine {
     this.invalidate(1500)
   }
 
+  /**
+   * Взгляд сверху на здание — при переходе на уровень «Кровля». Поворот вокруг
+   * вертикали сохраняем: человек уже выбрал, с какой стороны смотрит.
+   */
+  lookAtRoof(): void {
+    const { camera } = this.bundle
+    if (camera.beta > 0.7) camera.beta = 0.55
+    this.frameAll()
+    this.invalidate(1200)
+  }
+
   // Поворот орбитальной камеры к заданному ракурсу (ViewCube). Возврат к перспективе.
   orbitTo(alpha: number, beta: number): void {
     const { scene, camera } = this.bundle

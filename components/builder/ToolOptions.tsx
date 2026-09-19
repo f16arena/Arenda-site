@@ -91,6 +91,7 @@ export function ToolOptions() {
   // клик поставил бы вендинг посреди двора
   useEffect(() => {
     const onSite = activeLevelId === "site"
+    const onRoof = activeLevelId === "roof"
     if (!ROOF_KINDS.has(islandKind) && OUTDOOR_KINDS.has(islandKind) !== onSite) {
       useEditorStore.getState().setIslandKind(onSite ? "parking" : "vending")
     }
@@ -259,15 +260,18 @@ export function ToolOptions() {
     // на участке предлагаем парковку, на этаже — места внутри и рекламу:
     // весь список сразу не влезает в строку и путает
     const onSite = activeLevelId === "site"
+    const onRoof = activeLevelId === "roof"
     // на участке: парковка, киоски, контейнеры и места на кровле; на этаже —
     // всё, что внутри помещений
     // кровельные места нужны и с этажа (крыша видна сверху), поэтому они
     // в обоих списках; на участке — территория и кровля, на этаже — внутренние
-    const kinds = ISLAND_KINDS.filter((k) => ROOF_KINDS.has(k) || OUTDOOR_KINDS.has(k) === onSite)
+    const kinds = onRoof
+      ? ISLAND_KINDS.filter((k) => ROOF_KINDS.has(k))
+      : ISLAND_KINDS.filter((k) => ROOF_KINDS.has(k) || OUTDOOR_KINDS.has(k) === onSite)
     const kind = kinds.includes(islandKind) ? islandKind : kinds[0]
     return (
       <Shell>
-        <span className="shrink-0">{onSite ? "Место на участке:" : "Арендное место:"}</span>
+        <span className="shrink-0">{onRoof ? "Место на кровле:" : onSite ? "Место на участке:" : "Арендное место:"}</span>
         {kinds.map((k) => {
           const active = kind === k
           const pr = ISLAND_PRESETS[k]
@@ -283,7 +287,7 @@ export function ToolOptions() {
             </button>
           )
         })}
-        <span className="shrink-0">— клик {onSite ? "по земле размечает место" : "в коридоре или холле ставит место"} {ISLAND_PRESETS[kind].width}×{ISLAND_PRESETS[kind].depth} мм; размеры и арендатор — в панели справа</span>
+        <span className="shrink-0">— клик {onRoof ? "по крыше ставит место" : onSite ? "по земле размечает место" : "в коридоре или холле ставит место"} {ISLAND_PRESETS[kind].width}×{ISLAND_PRESETS[kind].depth} мм; размеры и арендатор — в панели справа</span>
       </Shell>
     )
   }

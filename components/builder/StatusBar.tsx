@@ -46,7 +46,9 @@ export function StatusBar() {
   const level =
     activeLevelId === "site"
       ? siteFloor ? `Участок · правка: ${siteFloor.name}` : "Участок"
-      : findFloor(doc, activeLevelId)?.name ?? "—"
+      : activeLevelId === "roof"
+        ? siteFloor ? `Кровля · ${siteFloor.name}` : "Кровля"
+        : findFloor(doc, activeLevelId)?.name ?? "—"
 
   return (
     <div

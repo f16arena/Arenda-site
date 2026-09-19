@@ -56,7 +56,7 @@ function applyPick(meta: MeshMeta | null): void {
   // Исключение — режим «Участок»: там здание видно целиком, и переключать уровень
   // не надо; правка идёт по этажу выбранного элемента (siteFloorId).
   const ed = useEditorStore.getState()
-  if (meta.floorId && ed.activeLevelId === "site") ed.setSiteFloor(meta.floorId)
+  if (meta.floorId && (ed.activeLevelId === "site" || ed.activeLevelId === "roof")) ed.setSiteFloor(meta.floorId)
   else if (meta.floorId && meta.kind !== "object" && ed.activeLevelId !== meta.floorId) ed.setActiveLevel(meta.floorId)
   if (meta.kind === "wall") setSelection({ type: "wall", id: meta.entityId, floorId: meta.floorId })
   else if (meta.kind === "room") setSelection({ type: "room", id: meta.entityId, floorId: meta.floorId })
@@ -256,7 +256,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const siteFloorId = useEditorStore((s) => s.siteFloorId)
   // сколько предметов автомебели убрано на активном этаже — для кнопки возврата
   const hiddenFurnish = useDocumentStore((s) => {
-    const fid = s.doc && (useEditorStore.getState().activeLevelId === "site" ? useEditorStore.getState().siteFloorId : useEditorStore.getState().activeLevelId)
+    const lvl = useEditorStore.getState().activeLevelId
+    const fid = s.doc && (lvl === "site" || lvl === "roof" ? useEditorStore.getState().siteFloorId : lvl)
     const f = fid ? findFloor(s.doc, fid) : undefined
     return f?.furnishOff?.length ?? 0
   })
@@ -359,7 +360,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   useEffect(() => {
     const e = engineRef.current
     if (!e || !ready) return
-    e.activeFloorId = activeLevelId === "site" ? "" : (activeLevelId ?? "")
+    // «Участок» и «Кровля» — не этажи: активного этажа нет, правка идёт по тому,
+    // куда кликнули (на кровле — по верхнему этажу, он же siteFloorId)
+    e.activeFloorId = activeLevelId === "site" || activeLevelId === "roof" ? "" : (activeLevelId ?? "")
     e.statusResolver = resolveStatus
     e.rebuild(doc, { activeLevelId, displayMode, wallsDown, mepLayers, mepFocus: mode === "mep" })
     e.setSelection(useEditorStore.getState().selection)
@@ -736,7 +739,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         a.remove()
       }} />}
       {!readOnly && !walking && <ToolOptions />}
-      {!readOnly && !walking && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} />}
+      {!readOnly && !walking && <LevelPanel measure={measure} onMeasureConsumed={() => setMeasure(null)} buildingId={buildingId} onLookAtRoof={() => engineRef.current?.lookAtRoof()} />}
       {!readOnly && ready && cameraMode !== "plan2d" && cameraMode !== "walk" && <LabelLayer />}
       {!walking && !readOnly && <PropertyPanel buildingId={buildingId} />}
       <CameraControls onFit={() => engineRef.current?.frameAll()} />
@@ -883,7 +886,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
               type="button"
               title="Вернуть предметы автомебели, убранные инструментом «Удалить»"
               onClick={() => {
-                const fid = activeLevelId === "site" ? siteFloorId : activeLevelId
+                const fid = activeLevelId === "site" || activeLevelId === "roof" ? siteFloorId : activeLevelId
                 if (fid) useDocumentStore.getState().execute(new ResetFurnishCommand(fid))
               }}
               className="rounded-md px-2 py-1 text-[11px] font-semibold"
