@@ -3,7 +3,7 @@
 // Истинный straight-skeleton для произвольных контуров — отдельная фаза. Координаты —
 // [x, yUp, z] в мм (план x→X, y→Z, высота→Y), рендер делит на 1000.
 
-import { type Vec2, centroid, normalize, scale, sub, add } from "./math"
+import { type Vec2, centroid, normalize, scale, sub, add, signedArea } from "./math"
 import { triangulate } from "./triangulate"
 
 export type RoofType = "flat" | "gable" | "hip" | "fourslope" | "mansard" | "shed"
@@ -57,13 +57,15 @@ function flatRoof(footprint: Vec2[], yTop: number, params: RoofParams): RoofMesh
   for (let i = 0; i < tri.indices.length; i += 3) {
     indices.push(baseBot + tri.indices[i], baseBot + tri.indices[i + 2], baseBot + tri.indices[i + 1])
   }
-  // боковые грани по периметру outer
+  // боковые грани по периметру outer — лицом наружу при любом обходе контура
   const n = outer.length
+  const ccw = signedArea(outer) > 0
   for (let i = 0; i < n; i++) {
     const a = outer[i]
     const b = outer[(i + 1) % n]
     const s = positions.length / 3
-    positions.push(a.x, yTop, a.y, b.x, yTop, b.y, b.x, yBot, b.y, a.x, yBot, a.y)
+    if (ccw) positions.push(a.x, yBot, a.y, b.x, yBot, b.y, b.x, yTop, b.y, a.x, yTop, a.y)
+    else positions.push(a.x, yTop, a.y, b.x, yTop, b.y, b.x, yBot, b.y, a.x, yBot, a.y)
     indices.push(s, s + 1, s + 2, s, s + 2, s + 3)
   }
   return { positions, indices }
@@ -97,14 +99,16 @@ function gableRoof(footprint: Vec2[], yEave: number, params: RoofParams): RoofMe
     positions.push(maxX, yEave, maxY, maxX, yRidge, midZ, maxX, yEave, minY)
     indices.push(s, s + 1, s + 2)
   } else {
+    // обход граней — как в ветке alongX: иначе скаты смотрят внутрь, ближний
+    // пропадает, а дальний виден изнанкой (чёрный) — здание «без крыши»
     const midX = (minX + maxX) / 2
-    quad([[minX, yEave, minY], [minX, yEave, maxY], [midX, yRidge, maxY], [midX, yRidge, minY]])
-    quad([[maxX, yEave, maxY], [maxX, yEave, minY], [midX, yRidge, minY], [midX, yRidge, maxY]])
+    quad([[midX, yRidge, minY], [midX, yRidge, maxY], [minX, yEave, maxY], [minX, yEave, minY]])
+    quad([[midX, yRidge, maxY], [midX, yRidge, minY], [maxX, yEave, minY], [maxX, yEave, maxY]])
     let s = positions.length / 3
-    positions.push(minX, yEave, minY, midX, yRidge, minY, maxX, yEave, minY)
+    positions.push(maxX, yEave, minY, midX, yRidge, minY, minX, yEave, minY)
     indices.push(s, s + 1, s + 2)
     s = positions.length / 3
-    positions.push(maxX, yEave, maxY, midX, yRidge, maxY, minX, yEave, maxY)
+    positions.push(minX, yEave, maxY, midX, yRidge, maxY, maxX, yEave, maxY)
     indices.push(s, s + 1, s + 2)
   }
   return { positions, indices }
@@ -270,13 +274,13 @@ function shedRoof(footprint: Vec2[], yEave: number, params: RoofParams): RoofMes
       [maxX, yHigh, minY],
       [maxX, yHigh, maxY],
     ])
-    tri([[minX, yEave, minY], [maxX, yHigh, minY], [maxX, yEave, minY]])
-    tri([[maxX, yEave, maxY], [maxX, yHigh, maxY], [minX, yEave, maxY]])
+    tri([[maxX, yEave, minY], [maxX, yHigh, minY], [minX, yEave, minY]])
+    tri([[minX, yEave, maxY], [maxX, yHigh, maxY], [maxX, yEave, maxY]])
     quad([
-      [maxX, yEave, minY],
-      [maxX, yHigh, minY],
-      [maxX, yHigh, maxY],
       [maxX, yEave, maxY],
+      [maxX, yHigh, maxY],
+      [maxX, yHigh, minY],
+      [maxX, yEave, minY],
     ])
   }
   return { positions, indices }

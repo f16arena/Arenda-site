@@ -56,6 +56,14 @@ export class MaterialRegistry {
       tex.texture.uScale = tex.scale
       tex.texture.vScale = tex.scale
     }
+    // Кровля: цвет уже нарисован в текстуре — повторный тон (цвет × цвет)
+    // превращал тёмную металлочерепицу в чёрную дыру. И металл без отражений
+    // вокруг тоже чернеет, поэтому кровле — полуматовый блеск.
+    if (def.category === "roof") {
+      if (tex) m.albedoColor = Color3.White()
+      m.metallic = Math.min(def.metallic, 0.25)
+      m.roughness = Math.max(def.roughness, 0.55)
+    }
 
     m.freeze() // материал неизменяем после создания → меньше пересчётов на кадр (§24)
     this.cache.set(key, m)
