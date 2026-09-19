@@ -127,13 +127,11 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
     }
   }
 
-  if (phone) {
-    const existing = await db.user.findUnique({ where: { phone }, select: { id: true } })
-    if (existing) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
+  if (phone && !(await releaseContactOfDeletedTenant({ phone }, orgId))) {
+    throw new Error(`Телефон ${phone} уже используется другим пользователем`)
   }
-  if (email) {
-    const existing = await db.user.findUnique({ where: { email }, select: { id: true } })
-    if (existing) throw new Error(`Email ${email} уже используется другим пользователем`)
+  if (email && !(await releaseContactOfDeletedTenant({ email }, orgId))) {
+    throw new Error(`Email ${email} уже используется другим пользователем`)
   }
 
   // Проверка чёрного списка по БИН/ИИН — предупреждаем не блокируя.
@@ -308,4 +306,30 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
   revalidatePath("/admin/tenants")
   revalidatePath("/admin/spaces")
   return { success: true as const, tenantId }
+}
+
+/**
+ * Телефон/почта свободны — или заняты удалённым арендатором этой же организации.
+ * Удаление арендатора мягкое: пользователь остаётся (выключенным) и держит
+ * уникальные телефон и почту — заново завести того же человека было нельзя
+ * («Телефон уже используется»). Такой контакт освобождаем у старой записи.
+ * Возвращает false, если контакт занят живым пользователем или чужой организацией.
+ */
+async function releaseContactOfDeletedTenant(where: { phone: string } | { email: string }, orgId: string): Promise<boolean> {
+  const existing = await db.user.findUnique({
+    where,
+    select: { id: true, role: true, isActive: true, organizationId: true, tenant: { select: { deletedAt: true } } },
+  })
+  if (!existing) return true
+  const deletedTenantHere =
+    existing.role === "TENANT" &&
+    !existing.isActive &&
+    existing.organizationId === orgId &&
+    !!existing.tenant?.deletedAt
+  if (!deletedTenantHere) return false
+  await db.user.update({
+    where: { id: existing.id },
+    data: "phone" in where ? { phone: null } : { email: null },
+  })
+  return true
 }
