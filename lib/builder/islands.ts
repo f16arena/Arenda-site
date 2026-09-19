@@ -7,6 +7,7 @@
 import type { Floor, Island, IslandKind } from "@/types/builder"
 import type { Vec2 } from "@/core/geometry/math"
 import { pointInPolygon } from "@/core/geometry/math"
+import { floorRooms } from "./rooms"
 
 export interface IslandPreset {
   label: string
@@ -173,4 +174,63 @@ export function passageLeft(island: Island, corridor: Vec2[]): number {
   const after = Math.max(0, cHi - hi)
   // место может стоять у стены — тогда проход это вся оставшаяся сторона
   return Math.min(across, Math.max(before, after))
+}
+
+/**
+ * Прижать место к стенам помещения: габарит не должен уходить за контур и
+ * торчать сквозь стену. Для каждой грани помещения считаем, насколько угол
+ * места вылез наружу, и двигаем центр внутрь на эту величину. Несколько
+ * проходов — чтобы место, вылезшее сразу в двух направлениях (угол комнаты),
+ * встало в угол, а не прыгало от стены к стене.
+ *
+ * `room` — контур по внутренним граням стен, `margin` — зазор до стены, мм.
+ */
+export function clampToRoom(island: Island, room: Vec2[], at: Vec2, margin = 0): Vec2 {
+  if (room.length < 3) return at
+  let c = { ...at }
+  for (let pass = 0; pass < 4; pass++) {
+    let moved = false
+    for (let i = 0; i < room.length; i++) {
+      const a = room[i]
+      const b = room[(i + 1) % room.length]
+      const ex = b.x - a.x
+      const ey = b.y - a.y
+      const len = Math.hypot(ex, ey)
+      if (len < 1) continue
+      // нормаль грани; внутрь — та сторона, где лежит центр помещения
+      let nx = -ey / len
+      let ny = ex / len
+      const cx = room.reduce((s, p) => s + p.x, 0) / room.length
+      const cy = room.reduce((s, p) => s + p.y, 0) / room.length
+      if ((cx - a.x) * nx + (cy - a.y) * ny < 0) {
+        nx = -nx
+        ny = -ny
+      }
+      // самый «наружный» угол места относительно этой грани
+      const corners = islandPolygon({ ...island, position: c })
+      let worst = Infinity
+      for (const p of corners) {
+        const d = (p.x - a.x) * nx + (p.y - a.y) * ny
+        if (d < worst) worst = d
+      }
+      const need = margin - worst
+      if (need > 0.5) {
+        c = { x: c.x + nx * need, y: c.y + ny * need }
+        moved = true
+      }
+    }
+    if (!moved) break
+  }
+  return { x: Math.round(c.x), y: Math.round(c.y) }
+}
+
+/**
+ * Куда реально встанет место на этаже: находим помещение под точкой и
+ * прижимаем габарит к его стенам. Если точка вне помещений (снаружи здания),
+ * оставляем как есть — такое место поймает проверка модели.
+ */
+export function fitToFloor(floor: Floor, island: Island, at: Vec2, margin = 0): Vec2 {
+  const room = floorRooms(floor).find((r) => pointInPolygon(at, r.polygon))
+  if (!room) return { x: Math.round(at.x), y: Math.round(at.y) }
+  return clampToRoom(island, room.polygon, at, margin)
 }

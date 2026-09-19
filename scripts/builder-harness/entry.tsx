@@ -7,8 +7,10 @@ import { useLabelStore } from "@/store/label-store"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomUse } from "@/lib/builder/room-use"
 import { validateDocument } from "@/lib/builder/validate"
-import { islandSchedule } from "@/lib/builder/islands"
-import { DeleteIslandCommand } from "@/core/document/commands"
+import { islandPolygon, islandSchedule } from "@/lib/builder/islands"
+import { furnishFloor } from "@/lib/builder/furnish"
+import { pointInPolygon } from "@/core/geometry/math"
+import { DeleteIslandCommand, HideFurnishCommand, ResetFurnishCommand } from "@/core/document/commands"
 
 const src = {
   id: "b1",
@@ -30,6 +32,9 @@ w.__floorRooms = floorRooms
 w.__roomUse = roomUse
 w.__validate = validateDocument
 w.__islandSchedule = (floors: Parameters<typeof islandSchedule>[0]) => islandSchedule(floors, (f) => floorRooms(f))
-w.__commands = { DeleteIslandCommand }
+w.__commands = { DeleteIslandCommand, HideFurnishCommand, ResetFurnishCommand }
+w.__islandPolygon = islandPolygon
+w.__pointInPolygon = pointInPolygon
+w.__furnishFloor = furnishFloor
 w.__stores = { useDocumentStore, useEditorStore, useSyncStore, useLabelStore }
 createRoot(document.getElementById("root")!).render(<BuilderApp initialDoc={parseDocument(doc)} buildingId="b1" />)

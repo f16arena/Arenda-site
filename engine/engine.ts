@@ -27,6 +27,8 @@ import type { BuilderDocument, Floor, Building, Stair, MepSystem } from "@/types
 import { MEP_SYSTEMS } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
+import { ISLAND_PRESETS, WALL_MOUNTED, fitToFloor } from "@/lib/builder/islands"
+import type { Island, IslandKind } from "@/types/builder"
 import { buildMep } from "./builders/mep-builder"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
 import {
@@ -48,6 +50,10 @@ import {
   AddStairCommand,
   DeleteStairCommand,
   DeleteIslandCommand,
+  HideFurnishCommand,
+  MoveIslandCommand,
+  SetIslandCommand,
+  AddIslandCommand,
   MoveStairCommand,
   SetWallMaterialCommand,
   SetRoomMaterialCommand,
@@ -219,6 +225,7 @@ export class BuilderEngine {
   private dragWall: { floorId: string; edgeId: string; startMm: Vec2; a: Vec2; b: Vec2; sx: number; sy: number; moved: boolean } | null = null
   private dragOpening: { floorId: string; openingId: string; sx: number; sy: number; moved: boolean } | null = null
   private dragStair: { floorId: string; stairId: string; sx: number; sy: number; moved: boolean } | null = null
+  private dragIsland: { floorId: string; islandId: string; sx: number; sy: number; moved: boolean } | null = null
   private shiftDown = false
   // нажатие левой кнопкой — для распознавания клика
   private press: { x: number; y: number } | null = null
@@ -364,6 +371,7 @@ export class BuilderEngine {
   openingType: "door" | "window" = "door"
   openingVariant = "interior"
   stairShape = "u"
+  islandKind: IslandKind = "vending"
   terrainMode: "raise" | "lower" | "flatten" | "smooth" | "terrace" = "raise"
   waterDepth = 800 // мм, глубина прокопа русла
   pathKind: "road" | "path" | "fence" = "road"
@@ -876,8 +884,8 @@ export class BuilderEngine {
     // автомебель по назначению помещений — только в полном режиме
     if (this.showFurniture && !lite) {
       for (const m of buildFurnish(f, floorRooms(f), fNode, scene)) {
-        // невидимые коробки-преграды теней не отбрасывают
-        if ((m.metadata as MeshMeta | null)?.kind === "furnish-collider") continue
+        // невидимые коробки (преграда + попадание клика) теней не отбрасывают
+        if (!m.isVisible) continue
         m.receiveShadows = true
         this.bundle.shadow.addShadowCaster(m)
       }
@@ -1625,6 +1633,9 @@ export class BuilderEngine {
       } else if (meta?.kind === "stair" && meta.floorId && meta.entityId) {
         this.dragStair = { floorId: meta.floorId, stairId: meta.entityId, sx, sy, moved: false }
         scene.activeCamera?.detachControl()
+      } else if (meta?.kind === "island" && meta.floorId && meta.entityId) {
+        this.dragIsland = { floorId: meta.floorId, islandId: meta.entityId, sx, sy, moved: false }
+        scene.activeCamera?.detachControl()
       } else if (meta?.kind === "wall" && meta.floorId && meta.entityId && doc) {
         const f = findFloor(doc, meta.floorId)
         const e = f?.wallGraph.edges[meta.entityId]
@@ -1842,6 +1853,22 @@ export class BuilderEngine {
       }
       return
     }
+    if (this.dragIsland) {
+      if (!this.dragIsland.moved) {
+        if (!passedDragThreshold(this.dragIsland.sx, this.dragIsland.sy, this.bundle.scene.pointerX, this.bundle.scene.pointerY)) return
+        this.dragIsland.moved = true
+        this.beginFloorDrag(this.dragIsland.floorId)
+      }
+      const p = this.projectToPlane()
+      if (!p) return
+      const now = performance.now()
+      if (now - this.lastMoveAt > 33) {
+        this.lastMoveAt = now
+        const to = this.islandDragTarget(this.dragIsland.floorId, this.dragIsland.islandId, p.x * 1000, p.z * 1000)
+        this.previewFloorDrag(this.dragIsland.floorId, new MoveIslandCommand(this.dragIsland.floorId, this.dragIsland.islandId, to.x, to.y))
+      }
+      return
+    }
     if (this.dragStair) {
       if (!this.dragStair.moved) {
         if (!passedDragThreshold(this.dragStair.sx, this.dragStair.sy, this.bundle.scene.pointerX, this.bundle.scene.pointerY)) return
@@ -2043,6 +2070,29 @@ export class BuilderEngine {
       if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
       return
     }
+    if (this.dragIsland) {
+      const p = this.projectToPlane()
+      this.endFloorDrag()
+      if (this.dragIsland.moved) this.lastDragEndAt = performance.now()
+      if (p && this.dragIsland.moved) {
+        const fid = this.dragIsland.floorId
+        const iid = this.dragIsland.islandId
+        const to = this.islandDragTarget(fid, iid, p.x * 1000, p.z * 1000)
+        const doc = this.getDoc()
+        const isl = (doc ? findFloor(doc, fid)?.islands ?? [] : []).find((x) => x.id === iid)
+        // реклама, переехавшая на другую стену, разворачивается вдоль неё
+        const m = isl && WALL_MOUNTED.has(isl.kind) ? wallMount({ x: p.x * 1000, y: p.z * 1000 }, findFloor(doc!, fid)!.wallGraph, isl.depth) : null
+        const move = new MoveIslandCommand(fid, iid, to.x, to.y)
+        this.onCommand(
+          m && isl && Math.round(m.rotation) !== Math.round(isl.rotationDeg)
+            ? new CompositeCommand("перемещение места", [move, new SetIslandCommand(fid, iid, { rotationDeg: Math.round(m.rotation) })])
+            : move,
+        )
+      }
+      this.dragIsland = null
+      if (canvas) this.bundle.scene.activeCamera?.attachControl(canvas, true)
+      return
+    }
     if (this.dragStair) {
       const p = this.projectToPlane()
       this.endFloorDrag()
@@ -2182,6 +2232,10 @@ export class BuilderEngine {
     }
     if (this.tool === "stair") {
       this.handleStairTap()
+      return
+    }
+    if (this.tool === "island") {
+      this.handleIslandTap()
       return
     }
     if (this.tool === "material") {
@@ -2375,13 +2429,14 @@ export class BuilderEngine {
 
   /** Esc во время перетаскивания: вернуть как было, команду не слать. */
   cancelDrag(): boolean {
-    const active = (this.dragWall?.moved || this.dragNode?.moved || this.dragOpening?.moved || this.dragStair?.moved) ?? false
-    if (!this.dragWall && !this.dragNode && !this.dragOpening && !this.dragStair) return false
+    const active = (this.dragWall?.moved || this.dragNode?.moved || this.dragOpening?.moved || this.dragStair?.moved || this.dragIsland?.moved) ?? false
+    if (!this.dragWall && !this.dragNode && !this.dragOpening && !this.dragStair && !this.dragIsland) return false
     this.endFloorDrag()
     this.dragWall = null
     this.dragNode = null
     this.dragOpening = null
     this.dragStair = null
+    this.dragIsland = null
     this.lastDragEndAt = performance.now()
     this.onHud(null)
     const canvas = this.bundle.engine.getRenderingCanvas()
@@ -2472,6 +2527,58 @@ export class BuilderEngine {
   }
 
   // ── Лестница ──────────────────────────────────────────────────────────────────
+  /**
+   * Арендное место из 3D: клик по полу ставит островок, клик по стене —
+   * рекламу на эту стену. Раньше инструмент работал только в плане, и в 3D
+   * клик просто ничего не делал.
+   */
+  /** Куда встанет место при перетаскивании: реклама липнет к стене, остальное — сетка 50 мм. */
+  private islandDragTarget(floorId: string, islandId: string, xMm: number, yMm: number): { x: number; y: number } {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, floorId) : undefined
+    const isl = (f?.islands ?? []).find((x) => x.id === islandId)
+    if (!f || !isl) return { x: Math.round(xMm), y: Math.round(yMm) }
+    if (WALL_MOUNTED.has(isl.kind)) {
+      const m = wallMount({ x: xMm, y: yMm }, f.wallGraph, isl.depth)
+      if (m) return { x: Math.round(m.at.x), y: Math.round(m.at.y) }
+    }
+    const g = this.snapEnabled ? 50 : 1
+    return fitToFloor(f, isl, { x: Math.round(xMm / g) * g, y: Math.round(yMm / g) * g })
+  }
+
+  private handleIslandTap(): void {
+    const doc = this.getDoc()
+    const f = doc ? findFloor(doc, this.toolFloorId) : undefined
+    if (!f) return
+    const p = this.projectToPlane()
+    if (!p) return
+    const preset = ISLAND_PRESETS[this.islandKind]
+    const raw = { x: p.x * 1000, y: p.z * 1000 }
+    const onWall = WALL_MOUNTED.has(this.islandKind) ? wallMount(raw, f.wallGraph, preset.depth) : null
+    if (WALL_MOUNTED.has(this.islandKind) && !onWall) {
+      this.onHud("Реклама вешается на стену — кликните ближе к стене")
+      return
+    }
+    const g = this.snapEnabled ? 50 : 1
+    this.onCommand(new AddIslandCommand(f.id, {
+      id: uid("isl"),
+      kind: this.islandKind,
+      name: "",
+      tenant: "",
+      position: onWall
+        ? onWall.at
+        : fitToFloor(f, { ...preset, id: "tmp", kind: this.islandKind, name: "", tenant: "", position: raw, rotationDeg: 0 } as Island, {
+            x: Math.round(raw.x / g) * g,
+            y: Math.round(raw.y / g) * g,
+          }),
+      width: preset.width,
+      depth: preset.depth,
+      height: preset.height,
+      rotationDeg: onWall ? onWall.rotation : 0,
+    }))
+    this.onHud(`${preset.label}: поставлено. Размеры и арендатор — в панели справа`)
+  }
+
   private handleStairTap(): void {
     const doc = this.getDoc()
     const f = doc ? findFloor(doc, this.toolFloorId) : undefined
@@ -2974,6 +3081,12 @@ export class BuilderEngine {
     }
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "island" && meta.floorId) this.onCommand(new DeleteIslandCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "furnish" && meta.floorId && meta.entityId) {
+      // автомебель в документе не лежит: «удаление» — это пометка, что предмет
+      // убран. Ctrl+Z возвращает, кнопка «Вернуть мебель» — все сразу.
+      this.onCommand(new HideFurnishCommand(meta.floorId, meta.entityId))
+      this.onHud("Предмет убран. Ctrl+Z — вернуть")
+    }
     else if (meta.kind === "section" && meta.target) this.onCommand(new DeleteSectionCommand(meta.target, meta.entityId))
     else if (meta.kind === "annotation" && meta.floorId) this.onCommand(new DeleteAnnotationCommand(meta.floorId, meta.entityId))
     else if (meta.kind === "mep-run" && meta.floorId) this.onCommand(new DeleteMepRunCommand(meta.floorId, meta.entityId))

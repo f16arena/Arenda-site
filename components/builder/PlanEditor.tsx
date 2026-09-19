@@ -52,7 +52,7 @@ import { DEFAULT_WALL } from "@/core/geometry/wall-graph"
 import { closestOnSegment, type Vec2 } from "@/core/geometry/math"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { uid } from "@/core/id"
-import type { Floor } from "@/types/builder"
+import type { Floor, Island } from "@/types/builder"
 import { buildFloorDrawing, type FloorDrawing } from "@/lib/builder/drawing/floor-drawing"
 import { openingSchedule, roomExplication } from "@/lib/builder/drawing/schedules"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
@@ -60,7 +60,7 @@ import { curtainSize, findPreset, isCurtain, sameWallOnFloor } from "@/lib/build
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
-import { ISLAND_PRESETS, WALL_MOUNTED, islandLabel, islandPolygon, islandArea } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, WALL_MOUNTED, fitToFloor, islandLabel, islandPolygon, islandArea } from "@/lib/builder/islands"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
 import { insideBuilding, pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
@@ -549,7 +549,9 @@ export function PlanEditor() {
       } else if (d.kind === "island") {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
         if (snapEnabled && !e.altKey) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
-        execute(new MoveIslandCommand(floor.id, d.id, Math.round(x), Math.round(y)))
+        const isl = (floor.islands ?? []).find((q) => q.id === d.id)
+        const to = isl && !WALL_MOUNTED.has(isl.kind) ? fitToFloor(floor, isl, { x, y }) : { x: Math.round(x), y: Math.round(y) }
+        execute(new MoveIslandCommand(floor.id, d.id, to.x, to.y))
       } else if (d.kind === "stair") {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
         if (floor.stairs.find((q) => q.id === d.id)?.shape === "column" && !e.altKey) ({ x, y } = snapColumn(floor, { x, y }, tolMm, d.id, snapEnabled ? 50 : 0).p)
@@ -630,7 +632,14 @@ export function PlanEditor() {
           kind: islandKind,
           name: "",
           tenant: "",
-          position: onWall ? onWall.at : { x: Math.round(at.p.x / g) * g, y: Math.round(at.p.y / g) * g },
+          position: onWall
+            ? onWall.at
+            // напольное место прижимается к стенам помещения: габарит не должен
+            // торчать сквозь стену
+            : fitToFloor(floor, { ...preset, id, kind: islandKind, name: "", tenant: "", position: at.p, rotationDeg: 0 } as Island, {
+                x: Math.round(at.p.x / g) * g,
+                y: Math.round(at.p.y / g) * g,
+              }),
           width: preset.width,
           depth: preset.depth,
           height: preset.height,

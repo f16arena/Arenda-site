@@ -283,5 +283,8 @@ export function furnishFloor(floor: Floor, rooms: FloorRoom[]): FurnishItem[] {
     if (kind === "none" && room.areaMm2 < 8e6) continue
     out.push(...furnishRoom(room, kind, floor.height, base))
   }
-  return out
+  // предметы, убранные вручную: расстановка считается детерминированно, поэтому
+  // достаточно помнить их id — сама мебель в документе не хранится
+  const off = floor.furnishOff
+  return off && off.length ? out.filter((it) => !off.includes(it.id)) : out
 }

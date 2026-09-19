@@ -868,6 +868,39 @@ export class DeleteStairCommand implements Command {
   }
 }
 
+// ── Автомебель: убрать отдельный предмет / вернуть всё ────────────────────────
+export class HideFurnishCommand implements Command {
+  readonly kind = "hide-furnish"
+  readonly label = "удаление мебели"
+  constructor(private floorId: string, private itemId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({
+      ...fl,
+      furnishOff: (fl.furnishOff ?? []).includes(this.itemId) ? fl.furnishOff : [...(fl.furnishOff ?? []), this.itemId],
+    }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, furnishOff: (fl.furnishOff ?? []).filter((x) => x !== this.itemId) }))
+  }
+}
+
+export class ResetFurnishCommand implements Command {
+  readonly kind = "reset-furnish"
+  readonly label = "возврат мебели"
+  private prev?: string[]
+  constructor(private floorId: string) {}
+  apply(doc: BuilderDocument): BuilderDocument {
+    const f = findFloor(doc, this.floorId)
+    if (this.prev === undefined) this.prev = [...(f?.furnishOff ?? [])]
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, furnishOff: [] }))
+  }
+  revert(doc: BuilderDocument): BuilderDocument {
+    const prev = this.prev
+    if (!prev) return doc
+    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, furnishOff: prev }))
+  }
+}
+
 // ── Островки (арендные места в общих зонах) ───────────────────────────────────
 export class AddIslandCommand implements Command {
   readonly kind = "add-island"

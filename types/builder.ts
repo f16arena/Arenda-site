@@ -190,6 +190,8 @@ export const FloorSchema = z.object({
   openings: z.array(OpeningSchema).default([]),
   stairs: z.array(StairSchema).default([]),
   islands: z.array(IslandSchema).optional(),
+  /** id предметов автомебели, которые убрали вручную (Delete по предмету) */
+  furnishOff: z.array(z.string()).optional(),
   objects: z.array(BuilderObjectSchema).default([]),
   roof: RoofConfigSchema.optional(),
   premiseLinks: z.record(z.string(), z.string()).default({}), // roomId → premiseId

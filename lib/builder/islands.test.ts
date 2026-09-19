@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ISLAND_PRESETS, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
+import { ISLAND_PRESETS, clampToRoom, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
 import type { Floor, Island } from "@/types/builder"
 
 function island(extra: Partial<Island> = {}): Island {
@@ -157,5 +157,44 @@ describe("реклама на стене", () => {
 
   it("площадь рекламы считается по габариту щита", () => {
     expect(islandArea(island({ kind: "banner", width: 3000, depth: 80 }))).toBeCloseTo(0.24)
+  })
+})
+
+describe("прижим к стенам", () => {
+  // комната 6 × 4 м по внутренним граням
+  const room = [{ x: 0, y: 0 }, { x: 6000, y: 0 }, { x: 6000, y: 4000 }, { x: 0, y: 4000 }]
+
+  it("место, наехавшее на стену, встаёт вплотную к ней", () => {
+    const isl = island({ width: 1000, depth: 800 })
+    const at = clampToRoom(isl, room, { x: 5800, y: 2000 })
+    expect(at.x).toBeCloseTo(5500, 0) // 6000 − половина ширины
+    expect(at.y).toBeCloseTo(2000, 0)
+    const poly = islandPolygon({ ...isl, position: at })
+    expect(Math.max(...poly.map((p) => p.x))).toBeLessThanOrEqual(6000.5)
+  })
+
+  it("угол комнаты: место прижимается сразу к двум стенам", () => {
+    const isl = island({ width: 1000, depth: 800 })
+    const at = clampToRoom(isl, room, { x: -500, y: -500 })
+    expect(at.x).toBeCloseTo(500, 0)
+    expect(at.y).toBeCloseTo(400, 0)
+  })
+
+  it("место внутри комнаты не двигается", () => {
+    const isl = island({ width: 1000, depth: 800 })
+    expect(clampToRoom(isl, room, { x: 3000, y: 2000 })).toEqual({ x: 3000, y: 2000 })
+  })
+
+  it("зазор до стены соблюдается", () => {
+    const isl = island({ width: 1000, depth: 800 })
+    const at = clampToRoom(isl, room, { x: 5800, y: 2000 }, 100)
+    expect(at.x).toBeCloseTo(5400, 0)
+  })
+
+  it("повёрнутое место прижимается по своему габариту", () => {
+    const isl = island({ width: 2000, depth: 600, rotationDeg: 90 })
+    const at = clampToRoom(isl, room, { x: 3000, y: 3900 })
+    const poly = islandPolygon({ ...isl, position: at })
+    expect(Math.max(...poly.map((p) => p.y))).toBeLessThanOrEqual(4000.5)
   })
 })

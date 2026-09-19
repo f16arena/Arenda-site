@@ -20,7 +20,7 @@ import { hourLabel } from "@/lib/builder/daylight"
 import { useLabelStore } from "@/store/label-store"
 import { useUnderlayIntent } from "@/store/underlay-intent"
 import { moveUnderlay } from "@/lib/builder/underlay-math"
-import { findFloor, SetUnderlayCommand } from "@/core/document/commands"
+import { findFloor, ResetFurnishCommand, SetUnderlayCommand } from "@/core/document/commands"
 import { LabelLayer } from "./LabelLayer"
 import type { PremiseStatus } from "@/lib/builder/materials"
 import { DEMO_PREMISE_STATUS } from "@/lib/builder/demo-project"
@@ -252,10 +252,17 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const wallsDown = useEditorStore((s) => s.wallsDown)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
   const siteFloorId = useEditorStore((s) => s.siteFloorId)
+  // сколько предметов автомебели убрано на активном этаже — для кнопки возврата
+  const hiddenFurnish = useDocumentStore((s) => {
+    const fid = s.doc && (useEditorStore.getState().activeLevelId === "site" ? useEditorStore.getState().siteFloorId : useEditorStore.getState().activeLevelId)
+    const f = fid ? findFloor(s.doc, fid) : undefined
+    return f?.furnishOff?.length ?? 0
+  })
   const selection = useEditorStore((s) => s.selection)
   const multi = useEditorStore((s) => s.multi)
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
   const stairShape = useEditorStore((s) => s.stairShape)
+  const islandKind = useEditorStore((s) => s.islandKind)
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const waterDepth = useEditorStore((s) => s.waterDepth)
   const pathKind = useEditorStore((s) => s.pathKind)
@@ -388,6 +395,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     e.tool = activeTool
     e.paintMaterialId = paintMaterialId
     e.stairShape = stairShape
+    e.islandKind = islandKind
     e.terrainMode = terrainMode
     e.waterDepth = waterDepth
     e.pathKind = activeTool === "fence" ? "fence" : pathKind
@@ -412,7 +420,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     if (activeTool !== "section") e.cancelSection()
     if (activeTool !== "annotate") e.cancelAnnotate()
     e.annotateKind = annotateKind
-  }, [activeTool, paintMaterialId, stairShape, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, replanMode, annotateKind, armedAsset, openingVariant, ready])
+  }, [activeTool, paintMaterialId, stairShape, islandKind, terrainMode, waterDepth, pathKind, pathWidth, fenceStyle, paveMaterial, snapEnabled, wallArc, mepSystem, mepDeviceKind, replanMode, annotateKind, armedAsset, openingVariant, ready])
 
   useEffect(() => {
     const e = engineRef.current
@@ -833,6 +841,21 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           >
             Мебель
           </button>
+          {/* убранные предметы автомебели: вернуть все сразу */}
+          {!readOnly && hiddenFurnish > 0 && (
+            <button
+              type="button"
+              title="Вернуть предметы автомебели, убранные инструментом «Удалить»"
+              onClick={() => {
+                const fid = activeLevelId === "site" ? siteFloorId : activeLevelId
+                if (fid) useDocumentStore.getState().execute(new ResetFurnishCommand(fid))
+              }}
+              className="rounded-md px-2 py-1 text-[11px] font-semibold"
+              style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}
+            >
+              Вернуть мебель ({hiddenFurnish})
+            </button>
+          )}
         </div>
       )}
       {hud && (

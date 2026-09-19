@@ -14,6 +14,8 @@ const S = 0.001
 const MAX_ITEMS = 420
 /** Что висит под потолком — преградой для обхода не считается. */
 const CEILING_ASSETS = new Set(["ceiling_light", "spot", "led_strip", "hanging_plant", "projector", "ac"])
+/** Куда ставить кликабельную коробку у потолочной модели, мм от точки установки. */
+const LIGHT_PICK_Y = 2850
 
 export function buildFurnish(floor: Floor, rooms: FloorRoom[], parent: TransformNode, scene: Scene): Mesh[] {
   const items = furnishFloor(floor, rooms).slice(0, MAX_ITEMS)
@@ -42,17 +44,23 @@ export function buildFurnish(floor: Floor, rooms: FloorRoom[], parent: Transform
     )
     for (const m of node.getChildMeshes()) if (m instanceof Mesh) raw.push(m)
     const size = ASSET_SIZES[it.assetId]
-    // Светильники преградой не делаем: их модель висит под потолком, а точка
-    // установки — у пола, и коробка встала бы посреди комнаты на уровне колена.
-    if (size && !CEILING_ASSETS.has(it.assetId) && size.h >= 300) {
-      const box = MeshBuilder.CreateBox(`fzc_${it.id}`, { width: size.w * S * it.scale, depth: size.d * S * it.scale, height: Math.min(size.h, 1200) * S * it.scale }, scene)
-      box.position.set(it.at.x * S, (it.y + Math.min(size.h, 1200) / 2) * S, it.at.y * S)
+    // Невидимая коробка на каждый предмет: она же преграда в обходе, она же —
+    // то, во что попадает клик. Видимая геометрия слита по материалу и кликать
+    // по ней нельзя, поэтому без этой коробки отдельный стол не удалить.
+    // Светильники преградой не делаем (модель висит под потолком, точка
+    // установки у пола — коробка встала бы посреди комнаты на уровне колена),
+    // но кликабельными оставляем: лампу тоже убирают.
+    if (size) {
+      const ceiling = CEILING_ASSETS.has(it.assetId)
+      const h = Math.max(200, Math.min(size.h, 1200))
+      const box = MeshBuilder.CreateBox(`fzc_${it.id}`, { width: size.w * S * it.scale, depth: size.d * S * it.scale, height: h * S * it.scale }, scene)
+      box.position.set(it.at.x * S, (it.y + (ceiling ? LIGHT_PICK_Y : h / 2)) * S, it.at.y * S)
       box.rotation.y = it.rotationY
       box.parent = root
       box.isVisible = false
-      box.isPickable = false
-      box.checkCollisions = true
-      box.metadata = { kind: "furnish-collider", floorId: floor.id }
+      box.isPickable = true
+      box.checkCollisions = !ceiling && size.h >= 300
+      box.metadata = { kind: "furnish", floorId: floor.id, entityId: it.id }
       colliders.push(box)
     }
   }

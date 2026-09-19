@@ -158,6 +158,56 @@ await page.waitForTimeout(800)
   check("I9 место удаляется с откатом", after === before - 1, `было ${before}, стало ${after}`)
 }
 
+// ── I10. место ставится и двигается прямо в 3D ──
+{
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setCameraMode("orbit"); s.setTool("island") })
+  await page.waitForTimeout(1200)
+  const before = (await islands()).length
+  const box = await page.locator("canvas").first().boundingBox()
+  await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.55)
+  await page.waitForTimeout(900)
+  const after = await islands()
+  check("I10 в 3D место ставится кликом", after.length === before + 1, `было ${before}, стало ${after.length}`)
+}
+
+// ── I11. место не торчит сквозь стену ──
+{
+  const inside = await page.evaluate(() => {
+    const d = window.__doc()
+    const f = d.buildings.flatMap((b) => b.floors).find((x) => (x.islands ?? []).length)
+    if (!f) return null
+    const isl = f.islands[f.islands.length - 1]
+    const rooms = window.__floorRooms(f)
+    const room = rooms.find((r) => window.__pointInPolygon(isl.position, r.polygon))
+    if (!room) return "нет помещения под местом"
+    const poly = window.__islandPolygon(isl)
+    return poly.every((p) => window.__pointInPolygon(p, room.polygon)) ? true : "угол вылез за стену"
+  })
+  check("I11 габарит места не выходит за стены", inside === true, String(inside))
+}
+
+// ── I12. отдельный предмет мебели убирается и возвращается ──
+{
+  const hid = await page.evaluate(() => {
+    const st = window.__stores.useDocumentStore.getState()
+    const f = st.doc.buildings.flatMap((b) => b.floors).find((x) => x.id === window.__stores.useEditorStore.getState().activeLevelId) ?? st.doc.buildings[0].floors[0]
+    const items = window.__furnishFloor(f, window.__floorRooms(f))
+    if (!items.length) return "мебели нет"
+    st.execute(new window.__commands.HideFurnishCommand(f.id, items[0].id))
+    const after = window.__furnishFloor(window.__doc().buildings.flatMap((b) => b.floors).find((x) => x.id === f.id), window.__floorRooms(f))
+    return items.length - after.length
+  })
+  check("I12 предмет мебели убирается", hid === 1, String(hid))
+  const back = await page.evaluate(() => {
+    const st = window.__stores.useDocumentStore.getState()
+    const f = st.doc.buildings.flatMap((b) => b.floors).find((x) => (x.furnishOff ?? []).length)
+    if (!f) return "нет убранных"
+    st.execute(new window.__commands.ResetFurnishCommand(f.id))
+    return (window.__doc().buildings.flatMap((b) => b.floors).find((x) => x.id === f.id).furnishOff ?? []).length
+  })
+  check("I12 мебель возвращается кнопкой", back === 0, String(back))
+}
+
 check("ошибок в консоли нет", errors.length === 0, errors.slice(0, 3).join(" | "))
 console.log(results.join("\n"))
 await browser.close()
